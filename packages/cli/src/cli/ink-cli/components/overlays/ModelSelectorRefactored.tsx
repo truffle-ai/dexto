@@ -68,10 +68,21 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
     const [selectedIndex, setSelectedIndex] = useState(0);
     const [searchQuery, setSearchQuery] = useState('');
     const [scrollOffset, setScrollOffset] = useState(0);
+    const [pendingDeleteModel, setPendingDeleteModel] = useState<string | null>(null);
     const selectedIndexRef = useRef(selectedIndex);
+    const deleteTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     // Keep ref in sync
     selectedIndexRef.current = selectedIndex;
+
+    // Clear delete confirmation timeout on unmount
+    useEffect(() => {
+        return () => {
+            if (deleteTimeoutRef.current) {
+                clearTimeout(deleteTimeoutRef.current);
+            }
+        };
+    }, []);
 
     // Fetch models from agent and load custom models
     useEffect(() => {
@@ -82,6 +93,11 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
         setSearchQuery('');
         setSelectedIndex(0);
         setScrollOffset(0);
+        setPendingDeleteModel(null);
+        if (deleteTimeoutRef.current) {
+            clearTimeout(deleteTimeoutRef.current);
+            deleteTimeoutRef.current = null;
+        }
 
         const fetchModels = async () => {
             try {
@@ -232,14 +248,41 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
 
                 // Handle character input for search
                 if (input && !key.return && !key.upArrow && !key.downArrow && !key.tab) {
-                    // Shift+D to delete custom model
+                    // Shift+D to delete custom model (requires double-press confirmation)
                     if (input === 'D' && key.shift) {
                         const item = filteredItems[selectedIndexRef.current];
                         if (item && !isAddCustomOption(item) && item.isCustom) {
-                            void handleDeleteCustomModel(item);
+                            if (pendingDeleteModel === item.name) {
+                                // Second press - actually delete
+                                if (deleteTimeoutRef.current) {
+                                    clearTimeout(deleteTimeoutRef.current);
+                                    deleteTimeoutRef.current = null;
+                                }
+                                setPendingDeleteModel(null);
+                                void handleDeleteCustomModel(item);
+                            } else {
+                                // First press - set pending and start timeout
+                                setPendingDeleteModel(item.name);
+                                if (deleteTimeoutRef.current) {
+                                    clearTimeout(deleteTimeoutRef.current);
+                                }
+                                deleteTimeoutRef.current = setTimeout(() => {
+                                    setPendingDeleteModel(null);
+                                    deleteTimeoutRef.current = null;
+                                }, 3000); // 3 second timeout
+                            }
                             return true;
                         }
                         return false;
+                    }
+
+                    // Any other input clears the pending delete confirmation
+                    if (pendingDeleteModel) {
+                        setPendingDeleteModel(null);
+                        if (deleteTimeoutRef.current) {
+                            clearTimeout(deleteTimeoutRef.current);
+                            deleteTimeoutRef.current = null;
+                        }
                     }
 
                     // Backspace
@@ -267,6 +310,14 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                 if (itemsLength === 0) return false;
 
                 if (key.upArrow) {
+                    // Clear pending delete on navigation
+                    if (pendingDeleteModel) {
+                        setPendingDeleteModel(null);
+                        if (deleteTimeoutRef.current) {
+                            clearTimeout(deleteTimeoutRef.current);
+                            deleteTimeoutRef.current = null;
+                        }
+                    }
                     const nextIndex = (selectedIndexRef.current - 1 + itemsLength) % itemsLength;
                     setSelectedIndex(nextIndex);
                     selectedIndexRef.current = nextIndex;
@@ -274,6 +325,14 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                 }
 
                 if (key.downArrow) {
+                    // Clear pending delete on navigation
+                    if (pendingDeleteModel) {
+                        setPendingDeleteModel(null);
+                        if (deleteTimeoutRef.current) {
+                            clearTimeout(deleteTimeoutRef.current);
+                            deleteTimeoutRef.current = null;
+                        }
+                    }
                     const nextIndex = (selectedIndexRef.current + 1) % itemsLength;
                     setSelectedIndex(nextIndex);
                     selectedIndexRef.current = nextIndex;
@@ -295,7 +354,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                 return false;
             },
         }),
-        [isVisible, filteredItems, onClose, onSelectModel, onAddCustomModel]
+        [isVisible, filteredItems, onClose, onSelectModel, onAddCustomModel, pendingDeleteModel]
     );
 
     if (!isVisible) return null;
@@ -395,6 +454,15 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                         {scrollOffset + MAX_VISIBLE_ITEMS < filteredItems.length
                             ? '↓ more below'
                             : ''}
+                    </Text>
+                </Box>
+            )}
+
+            {/* Delete confirmation message */}
+            {pendingDeleteModel && (
+                <Box paddingX={0} paddingY={0} marginTop={1}>
+                    <Text color="yellow">
+                        ⚠️ Press Shift+D again to delete '{pendingDeleteModel}'
                     </Text>
                 </Box>
             )}
