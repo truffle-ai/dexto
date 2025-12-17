@@ -6,8 +6,8 @@ Tracking CodeRabbit review comments that were flagged as "outside diff range".
 
 | Status | Count |
 |--------|-------|
-| Fixed | 9 |
-| Pending | 6 |
+| Fixed | 10 |
+| Pending | 5 |
 | Skipped | 0 |
 
 ---
@@ -126,7 +126,7 @@ Tracking CodeRabbit review comments that were flagged as "outside diff range".
 ## 10. LogLevelSelector.tsx - Reset logFilePath when overlay hides
 
 **Source**: Review 3572699773
-**Status**: ⏳ Pending
+**Status**: ✅ Fixed
 
 **Issue**: `logFilePath` persists after hiding, and UI row renders whenever set (even if `isVisible` is false).
 
