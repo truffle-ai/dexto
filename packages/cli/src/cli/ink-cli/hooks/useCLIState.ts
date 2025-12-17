@@ -246,7 +246,18 @@ export function useCLIState({
     // Detect selector overlays based on exact command matches (real-time while typing)
     useEffect(() => {
         if (ui.isProcessing || approval) return;
-        if (!input.value.startsWith('/')) return;
+
+        // Don't auto-close protected overlays (system wizards, approval prompts, etc.)
+        const protectedOverlays = getProtectedOverlays();
+        const isProtectedOverlay = protectedOverlays.includes(ui.activeOverlay);
+
+        // If input doesn't start with '/', close any non-protected overlay
+        if (!input.value.startsWith('/')) {
+            if (ui.activeOverlay !== 'none' && !isProtectedOverlay) {
+                setUi((prev) => ({ ...prev, activeOverlay: 'none' }));
+            }
+            return;
+        }
 
         // Parse command from input
         const parsed = inputService.parseInput(input.value);
@@ -254,15 +265,10 @@ export function useCLIState({
 
         const hasArgs = (parsed.args?.length ?? 0) > 0;
         const hasSpaceAfterCommand =
-            parsed.rawInput.includes(' ') &&
-            parsed.rawInput.trim().length > parsed.command.length + 1;
+            parsed.rawInput.includes(' ') && parsed.rawInput.length > parsed.command.length + 2;
 
         // Get overlay to auto-show while typing (only for select commands)
         const desiredOverlay = getAutoDetectOverlay(parsed.command, hasArgs, hasSpaceAfterCommand);
-
-        // Don't auto-close protected overlays (those triggered by other commands)
-        const protectedOverlays = getProtectedOverlays();
-        const isProtectedOverlay = protectedOverlays.includes(ui.activeOverlay);
 
         if (desiredOverlay && desiredOverlay !== ui.activeOverlay && !isProtectedOverlay) {
             setUi((prev) => ({ ...prev, activeOverlay: desiredOverlay }));

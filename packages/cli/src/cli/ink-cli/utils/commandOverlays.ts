@@ -136,20 +136,12 @@ export function getAutoDetectOverlay(
  * Get all overlays that should be "protected" from auto-close.
  * These overlays won't be closed when input changes.
  *
- * Derived from command mappings + system overlays.
+ * Only system overlays are protected (wizards, approval prompts, etc.).
+ * Command-triggered overlays (model-selector, session-selector, etc.) are NOT protected
+ * so they close when the triggering slash command is removed from input.
  */
 export function getProtectedOverlays(): OverlayType[] {
-    const overlays = new Set<OverlayType>(SYSTEM_OVERLAYS);
-
-    // Add all command-triggered overlays
-    for (const overlay of Object.values(ALWAYS_OVERLAY)) {
-        overlays.add(overlay);
-    }
-    for (const overlay of Object.values(NO_ARGS_OVERLAY)) {
-        overlays.add(overlay);
-    }
-
-    return [...overlays];
+    return [...SYSTEM_OVERLAYS];
 }
 
 /**
