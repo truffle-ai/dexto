@@ -88,7 +88,8 @@ export default function ModelPickerModal() {
 
     // Load custom models from API (always enabled so trigger shows correct icon)
     const { data: customModels = [] } = useCustomModels();
-    const { mutateAsync: createCustomModelAsync } = useCreateCustomModel();
+    const { mutate: createCustomModel, mutateAsync: createCustomModelAsync } =
+        useCreateCustomModel();
     const { mutate: deleteCustomModelMutation } = useDeleteCustomModel();
 
     useEffect(() => {
