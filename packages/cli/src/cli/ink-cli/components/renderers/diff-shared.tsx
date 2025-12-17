@@ -6,7 +6,7 @@
  */
 
 import React from 'react';
-import { Box, Text } from 'ink';
+import { Box, Text, useStdout } from 'ink';
 import { diffWords } from 'diff';
 
 // =============================================================================
@@ -168,77 +168,75 @@ interface DiffLineProps {
 }
 
 /**
- * Render a single diff line with two-column layout:
- * - Fixed-width gutter (line number + symbol)
- * - Flexible content area with background color
+ * Render a single diff line with true 2-column layout.
+ * Column 1: Fixed-width gutter (line number + symbol)
+ * Column 2: Fixed-width content area (remaining terminal width)
+ * This prevents content/backgrounds from leaking beyond boundaries.
  */
 export function DiffLine({ type, lineNum, lineNumWidth, content, wordDiffParts }: DiffLineProps) {
+    const { stdout } = useStdout();
+    const terminalWidth = stdout?.columns ?? 80;
+
     const lineNumStr = formatLineNum(lineNum, lineNumWidth);
-
-    // Render word-level diff parts with highlighting
-    const renderWordDiff = () => {
-        if (!wordDiffParts || wordDiffParts.length === 0) {
-            return content;
-        }
-
-        return wordDiffParts.map((part, i) => {
-            if (type === 'deletion' && part.removed) {
-                return (
-                    <Text key={i} backgroundColor="#882222">
-                        {part.value}
-                    </Text>
-                );
-            } else if (type === 'addition' && part.added) {
-                return (
-                    <Text key={i} backgroundColor="#224488">
-                        {part.value}
-                    </Text>
-                );
-            }
-            return <Text key={i}>{part.value}</Text>;
-        });
-    };
-
-    // Fixed width for line number column (number width + space + symbol + space)
+    // Gutter: line number + space + symbol + space (e.g., " 42 - ")
     const gutterWidth = lineNumWidth + 3;
 
-    switch (type) {
-        case 'deletion':
-            return (
-                <Box>
-                    <Box width={gutterWidth} flexShrink={0}>
-                        <Text dimColor>{lineNumStr}</Text>
-                        <Text color="red"> - </Text>
-                    </Box>
-                    <Text backgroundColor="#662222" color="white">
-                        {renderWordDiff()}
-                    </Text>
-                </Box>
-            );
-        case 'addition':
-            return (
-                <Box>
-                    <Box width={gutterWidth} flexShrink={0}>
-                        <Text dimColor>{lineNumStr}</Text>
-                        <Text color="blue"> + </Text>
-                    </Box>
-                    <Text backgroundColor="#224466" color="white">
-                        {renderWordDiff()}
-                    </Text>
-                </Box>
-            );
-        case 'context':
-        default:
-            return (
-                <Box>
-                    <Box width={gutterWidth} flexShrink={0}>
-                        <Text dimColor>{lineNumStr}</Text>
-                        <Text> </Text>
-                    </Box>
-                    <Text>{content}</Text>
-                </Box>
-            );
-    }
+    // Content column width - remaining space after gutter and padding
+    // Account for padding (2 chars from DiffRenderer's paddingLeft)
+    const contentWidth = Math.max(20, terminalWidth - gutterWidth - 4);
+
+    // Get colors based on type
+    const getColors = () => {
+        switch (type) {
+            case 'deletion':
+                return { bg: '#662222', fg: 'white', symbol: '-', symbolColor: 'red' };
+            case 'addition':
+                return { bg: '#224466', fg: 'white', symbol: '+', symbolColor: 'blue' };
+            default:
+                return { bg: undefined, fg: undefined, symbol: ' ', symbolColor: undefined };
+        }
+    };
+
+    const colors = getColors();
+
+    // Render content with word-level diff highlighting if available
+    const renderContent = () => {
+        if (wordDiffParts && wordDiffParts.length > 0) {
+            return wordDiffParts.map((part, i) => {
+                if (type === 'deletion' && part.removed) {
+                    return (
+                        <Text key={i} backgroundColor="#882222">
+                            {part.value}
+                        </Text>
+                    );
+                } else if (type === 'addition' && part.added) {
+                    return (
+                        <Text key={i} backgroundColor="#224488">
+                            {part.value}
+                        </Text>
+                    );
+                }
+                return <Text key={i}>{part.value}</Text>;
+            });
+        }
+        return content;
+    };
+
+    return (
+        <Box>
+            {/* Column 1: Fixed-width gutter */}
+            <Box width={gutterWidth} flexShrink={0}>
+                <Text dimColor>{lineNumStr}</Text>
+                <Text color={colors.symbolColor as any}> {colors.symbol} </Text>
+            </Box>
+            {/* Column 2: Fixed-width content - text wraps within this boundary */}
+            <Box width={contentWidth} flexShrink={0}>
+                <Text backgroundColor={colors.bg as any} color={colors.fg as any} wrap="wrap">
+                    {renderContent()}
+                </Text>
+            </Box>
+        </Box>
+    );
 }
 
 /**
