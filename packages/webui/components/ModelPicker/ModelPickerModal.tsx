@@ -88,7 +88,7 @@ export default function ModelPickerModal() {
 
     // Load custom models from API (always enabled so trigger shows correct icon)
     const { data: customModels = [] } = useCustomModels();
-    const { mutate: createCustomModel } = useCreateCustomModel();
+    const { mutateAsync: createCustomModelAsync } = useCreateCustomModel();
     const { mutate: deleteCustomModelMutation } = useDeleteCustomModel();
 
     useEffect(() => {
@@ -128,56 +128,64 @@ export default function ModelPickerModal() {
     useEffect(() => {
         if (!open || migrationDone) return;
 
-        try {
-            const localStorageRaw = localStorage.getItem(CUSTOM_MODELS_STORAGE_KEY);
-            if (!localStorageRaw) {
-                setMigrationDone(true);
-                return;
-            }
+        const migrateModels = async () => {
+            try {
+                const localStorageRaw = localStorage.getItem(CUSTOM_MODELS_STORAGE_KEY);
+                if (!localStorageRaw) {
+                    setMigrationDone(true);
+                    return;
+                }
 
-            const localModels = JSON.parse(localStorageRaw) as Array<{
-                name: string;
-                baseURL: string;
-                maxInputTokens?: number;
-                maxOutputTokens?: number;
-            }>;
+                const localModels = JSON.parse(localStorageRaw) as Array<{
+                    name: string;
+                    baseURL: string;
+                    maxInputTokens?: number;
+                    maxOutputTokens?: number;
+                }>;
 
-            if (localModels.length === 0) {
+                if (localModels.length === 0) {
+                    localStorage.removeItem(CUSTOM_MODELS_STORAGE_KEY);
+                    setMigrationDone(true);
+                    return;
+                }
+
+                // Check which models don't exist in API yet
+                const existingNames = new Set(customModels.map((m) => m.name));
+                const toMigrate = localModels.filter((m) => !existingNames.has(m.name));
+
+                if (toMigrate.length === 0) {
+                    // All models already migrated, clean up localStorage
+                    localStorage.removeItem(CUSTOM_MODELS_STORAGE_KEY);
+                    setMigrationDone(true);
+                    return;
+                }
+
+                // Migrate each model - await all to complete before clearing localStorage
+                const migrationPromises = toMigrate.map((model) =>
+                    createCustomModelAsync({
+                        name: model.name,
+                        baseURL: model.baseURL,
+                        maxInputTokens: model.maxInputTokens,
+                        maxOutputTokens: model.maxOutputTokens,
+                    })
+                );
+
+                // Wait for all migrations to succeed before clearing localStorage
+                await Promise.all(migrationPromises);
+
+                // Only clear localStorage after successful migration
                 localStorage.removeItem(CUSTOM_MODELS_STORAGE_KEY);
+                console.info(`Migrated ${toMigrate.length} custom models from localStorage to API`);
                 setMigrationDone(true);
-                return;
-            }
-
-            // Check which models don't exist in API yet
-            const existingNames = new Set(customModels.map((m) => m.name));
-            const toMigrate = localModels.filter((m) => !existingNames.has(m.name));
-
-            if (toMigrate.length === 0) {
-                // All models already migrated, clean up localStorage
-                localStorage.removeItem(CUSTOM_MODELS_STORAGE_KEY);
+            } catch (err) {
+                // Don't clear localStorage on failure - keep models for retry
+                console.warn('Failed to migrate custom models from localStorage:', err);
                 setMigrationDone(true);
-                return;
             }
+        };
 
-            // Migrate each model
-            for (const model of toMigrate) {
-                createCustomModel({
-                    name: model.name,
-                    baseURL: model.baseURL,
-                    maxInputTokens: model.maxInputTokens,
-                    maxOutputTokens: model.maxOutputTokens,
-                });
-            }
-
-            // Clear localStorage after migration
-            localStorage.removeItem(CUSTOM_MODELS_STORAGE_KEY);
-            console.info(`Migrated ${toMigrate.length} custom models from localStorage to API`);
-            setMigrationDone(true);
-        } catch (err) {
-            console.warn('Failed to migrate custom models from localStorage:', err);
-            setMigrationDone(true);
-        }
-    }, [open, migrationDone, customModels, createCustomModel]);
+        migrateModels();
+    }, [open, migrationDone, customModels, createCustomModelAsync]);
 
     const toggleFavorite = useCallback((providerId: LLMProvider, modelName: string) => {
         const key = favKey(providerId, modelName);
