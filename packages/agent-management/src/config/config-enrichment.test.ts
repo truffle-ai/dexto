@@ -1,89 +1,189 @@
-import { describe, it, expect } from 'vitest';
-import { enrichAgentConfig } from './config-enrichment.js';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { AgentConfig } from '@dexto/core';
 
+// Mock the discover-prompts module (separate file, so mock works!)
+vi.mock('./discover-prompts.js', () => ({
+    discoverCommandPrompts: vi.fn(() => []),
+}));
+
+// Import after mock is set up
+import { enrichAgentConfig } from './config-enrichment.js';
+import { discoverCommandPrompts } from './discover-prompts.js';
+
 // TODO: Add more comprehensive tests for config-enrichment:
-// - Test discoverCommandPrompts with actual temp directories
 // - Test path resolution for per-agent logs, database, blobs
 // - Test execution context detection (dexto-source, dexto-project, global-cli)
-// - Integration test with real filesystem to verify deduplication end-to-end
 
 describe('enrichAgentConfig', () => {
+    beforeEach(() => {
+        vi.mocked(discoverCommandPrompts).mockReset();
+        vi.mocked(discoverCommandPrompts).mockReturnValue([]);
+    });
+
     describe('prompt deduplication', () => {
-        it('should not duplicate prompts when same file path exists in config and discovered', () => {
-            // This test verifies the deduplication logic works correctly
-            // by checking that the enriched config doesn't have duplicate file paths
+        it('should deduplicate when same file path exists in config and discovered prompts', () => {
+            // Setup: discovered prompts include a file that's also in config
+            const sharedFilePath = '/projects/myapp/commands/shared-prompt.md';
+            const discoveredOnlyPath = '/projects/myapp/commands/discovered-only.md';
+
+            vi.mocked(discoverCommandPrompts).mockReturnValue([
+                { type: 'file', file: sharedFilePath },
+                { type: 'file', file: discoveredOnlyPath },
+            ]);
 
             const baseConfig: AgentConfig = {
                 llm: {
                     provider: 'anthropic',
                     model: 'claude-3-opus',
+                    apiKey: 'test-api-key',
                 },
                 prompts: [
-                    { type: 'file', file: '/path/to/prompt1.md' },
-                    { type: 'file', file: '/path/to/prompt2.md' },
-                    { type: 'inline', id: 'inline-prompt', prompt: 'test prompt' },
+                    { type: 'file', file: sharedFilePath }, // Same as discovered
+                    { type: 'file', file: '/config/only-prompt.md' },
                 ],
             };
 
             const enriched = enrichAgentConfig(baseConfig, 'test-agent');
 
-            // Verify prompts array exists and config prompts are preserved
-            expect(enriched.prompts).toBeDefined();
-            expect(enriched.prompts!.length).toBeGreaterThanOrEqual(3);
+            // Should have 3 prompts: 2 from config + 1 discovered-only (not the duplicate)
+            expect(enriched.prompts).toHaveLength(3);
 
             // Verify no duplicate file paths
             const filePaths = enriched
                 .prompts!.filter((p): p is { type: 'file'; file: string } => p.type === 'file')
                 .map((p) => p.file);
 
-            const uniquePaths = new Set(filePaths);
-            expect(filePaths.length).toBe(uniquePaths.size);
+            expect(filePaths).toContain(sharedFilePath);
+            expect(filePaths).toContain('/config/only-prompt.md');
+            expect(filePaths).toContain(discoveredOnlyPath);
+
+            // Count occurrences of shared path - should be exactly 1
+            const sharedPathCount = filePaths.filter((p) => p === sharedFilePath).length;
+            expect(sharedPathCount).toBe(1);
         });
 
-        it('should preserve inline prompts without deduplication issues', () => {
+        it('should deduplicate with different path formats (resolved paths)', () => {
+            // Test that path.resolve normalization works
+            vi.mocked(discoverCommandPrompts).mockReturnValue([
+                { type: 'file', file: '/projects/myapp/commands/prompt.md' },
+            ]);
+
             const baseConfig: AgentConfig = {
                 llm: {
                     provider: 'anthropic',
                     model: 'claude-3-opus',
+                    apiKey: 'test-api-key',
+                },
+                prompts: [
+                    // Same file, potentially different format (path.resolve handles this)
+                    { type: 'file', file: '/projects/myapp/commands/prompt.md' },
+                ],
+            };
+
+            const enriched = enrichAgentConfig(baseConfig, 'test-agent');
+
+            // Should have only 1 prompt (deduplicated)
+            const filePaths = enriched
+                .prompts!.filter((p): p is { type: 'file'; file: string } => p.type === 'file')
+                .map((p) => p.file);
+
+            expect(filePaths).toHaveLength(1);
+        });
+
+        it('should preserve config prompts when no discovered prompts overlap', () => {
+            vi.mocked(discoverCommandPrompts).mockReturnValue([
+                { type: 'file', file: '/discovered/prompt1.md' },
+                { type: 'file', file: '/discovered/prompt2.md' },
+            ]);
+
+            const baseConfig: AgentConfig = {
+                llm: {
+                    provider: 'anthropic',
+                    model: 'claude-3-opus',
+                    apiKey: 'test-api-key',
+                },
+                prompts: [
+                    { type: 'file', file: '/config/prompt1.md' },
+                    { type: 'inline', id: 'inline-prompt', prompt: 'test prompt' },
+                ],
+            };
+
+            const enriched = enrichAgentConfig(baseConfig, 'test-agent');
+
+            // Should have all 4 prompts (2 config + 2 discovered, no overlap)
+            expect(enriched.prompts).toHaveLength(4);
+        });
+
+        it('should preserve inline prompts without deduplication issues', () => {
+            vi.mocked(discoverCommandPrompts).mockReturnValue([]);
+
+            const baseConfig: AgentConfig = {
+                llm: {
+                    provider: 'anthropic',
+                    model: 'claude-3-opus',
+                    apiKey: 'test-api-key',
                 },
                 prompts: [{ type: 'inline', id: 'test-prompt', prompt: 'Hello world' }],
             };
 
             const enriched = enrichAgentConfig(baseConfig, 'test-agent');
 
-            // Inline prompts should be preserved
             const inlinePrompts = enriched.prompts?.filter((p) => p.type === 'inline');
             expect(inlinePrompts).toHaveLength(1);
         });
 
-        it('should handle empty prompts array', () => {
+        it('should handle empty config prompts with discovered prompts', () => {
+            vi.mocked(discoverCommandPrompts).mockReturnValue([
+                { type: 'file', file: '/discovered/prompt.md' },
+            ]);
+
             const baseConfig: AgentConfig = {
                 llm: {
                     provider: 'anthropic',
                     model: 'claude-3-opus',
+                    apiKey: 'test-api-key',
                 },
                 prompts: [],
             };
 
             const enriched = enrichAgentConfig(baseConfig, 'test-agent');
 
-            // Should not throw and prompts should be defined
-            expect(enriched.prompts).toBeDefined();
+            expect(enriched.prompts).toHaveLength(1);
         });
 
-        it('should handle undefined prompts', () => {
+        it('should handle undefined config prompts with discovered prompts', () => {
+            vi.mocked(discoverCommandPrompts).mockReturnValue([
+                { type: 'file', file: '/discovered/prompt.md' },
+            ]);
+
             const baseConfig: AgentConfig = {
                 llm: {
                     provider: 'anthropic',
                     model: 'claude-3-opus',
+                    apiKey: 'test-api-key',
                 },
             };
 
             const enriched = enrichAgentConfig(baseConfig, 'test-agent');
 
-            // Should not throw - prompts may or may not be defined depending on discovered prompts
-            expect(() => enriched).not.toThrow();
+            expect(enriched.prompts).toHaveLength(1);
+        });
+
+        it('should not add prompts when no discovered prompts and no config prompts', () => {
+            vi.mocked(discoverCommandPrompts).mockReturnValue([]);
+
+            const baseConfig: AgentConfig = {
+                llm: {
+                    provider: 'anthropic',
+                    model: 'claude-3-opus',
+                    apiKey: 'test-api-key',
+                },
+            };
+
+            const enriched = enrichAgentConfig(baseConfig, 'test-agent');
+
+            // prompts should be undefined (not modified)
+            expect(enriched.prompts).toBeUndefined();
         });
     });
 });
