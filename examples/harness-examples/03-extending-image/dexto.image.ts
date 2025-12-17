@@ -62,7 +62,7 @@ export default defineImage({
                 // Register text-utils from base image manually
                 // TODO: When extends is implemented, this would be automatic
                 const textUtilsModule = await import(
-                    '../../00-building-image/tools/text-utils/index.js'
+                    '../../00-building-image/dist/tools/text-utils/index.js'
                 );
                 const { customToolRegistry } = await import('@dexto/core');
 

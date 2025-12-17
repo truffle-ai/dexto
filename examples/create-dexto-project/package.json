@@ -27,7 +27,6 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "typecheck": "tsc --noEmit",
     "start": "node dist/src/index.js",
     "start:dev": "tsc && node dist/src/index.js",
     "clean": "rm -rf dist"

@@ -197,22 +197,6 @@ importers:
         specifier: ^5.3.3
         version: 5.9.2
 
-  examples/harness-examples/00-harness-implementation:
-    dependencies:
-      '@dexto/core':
-        specifier: workspace:*
-        version: link:../../../packages/core
-      zod:
-        specifier: ^3.25.0
-        version: 3.25.76
-    devDependencies:
-      '@dexto/bundler':
-        specifier: workspace:*
-        version: link:../../../packages/bundler
-      typescript:
-        specifier: ^5.3.3
-        version: 5.9.2
-
   examples/harness-examples/01-using-official-image:
     dependencies:
       '@dexto/agent-management':
@@ -256,25 +240,6 @@ importers:
         version: link:../../../packages/bundler
       typescript:
         specifier: ^5.3.3
-        version: 5.9.2
-
-  examples/provider-bundle-example:
-    dependencies:
-      '@dexto/core':
-        specifier: workspace:*
-        version: link:../../packages/core
-      '@supabase/supabase-js':
-        specifier: ^2.45.0
-        version: 2.87.3
-      zod:
-        specifier: ^3.25.0
-        version: 3.25.76
-    devDependencies:
-      '@types/node':
-        specifier: ^20.0.0
-        version: 20.19.11
-      typescript:
-        specifier: ^5.7.0
         version: 5.9.2
 
   examples/resources-demo-server:

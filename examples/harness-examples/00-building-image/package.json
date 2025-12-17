@@ -13,8 +13,7 @@
     }
   },
   "scripts": {
-    "build": "dexto-bundle build",
-    "typecheck": "tsc --noEmit"
+    "build": "dexto-bundle build"
   },
   "keywords": [
     "dexto",

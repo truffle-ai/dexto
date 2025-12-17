@@ -447,7 +447,7 @@ describe('CustomToolRegistry', () => {
             const provider: CustomToolProvider<'test-logger', { type: 'test-logger' }> = {
                 type: 'test-logger',
                 configSchema: z.object({ type: z.literal('test-logger') }),
-                create: (config, context) => {
+                create: (_config, context) => {
                     loggerSpy(context.logger);
                     return [];
                 },
@@ -470,7 +470,7 @@ describe('CustomToolRegistry', () => {
             const provider: CustomToolProvider<'test-services', { type: 'test-services' }> = {
                 type: 'test-services',
                 configSchema: z.object({ type: z.literal('test-services') }),
-                create: (config, context) => {
+                create: (_config, context) => {
                     servicesSpy(context.services);
                     return [];
                 },
