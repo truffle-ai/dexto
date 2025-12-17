@@ -1875,17 +1875,25 @@ export class DextoAgent {
      * Removes and disconnects an MCP server completely.
      * Use this for deleting a server - removes from both runtime state and disconnects.
      * @param name The name of the server to remove.
+     * @throws MCPError if disconnection fails
      */
     public async removeMcpServer(name: string): Promise<void> {
         this.ensureStarted();
-        // Disconnect the client first
-        await this.mcpManager.removeClient(name);
 
-        // Then remove from runtime state
-        this.stateManager.removeMcpServer(name);
+        try {
+            // Disconnect the client first
+            await this.mcpManager.removeClient(name);
 
-        // Refresh tool cache after server removal so the LLM sees updated set
-        await this.toolManager.refresh();
+            // Then remove from runtime state
+            this.stateManager.removeMcpServer(name);
+
+            // Refresh tool cache after server removal so the LLM sees updated set
+            await this.toolManager.refresh();
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            this.logger.error(`Failed to remove MCP server '${name}': ${errorMessage}`);
+            throw MCPError.disconnectionFailed(name, errorMessage);
+        }
     }
 
     /**

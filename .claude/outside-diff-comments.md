@@ -6,8 +6,8 @@ Tracking CodeRabbit review comments that were flagged as "outside diff range".
 
 | Status | Count |
 |--------|-------|
-| Fixed | 8 |
-| Pending | 7 |
+| Fixed | 9 |
+| Pending | 6 |
 | Skipped | 0 |
 
 ---
@@ -115,7 +115,7 @@ Tracking CodeRabbit review comments that were flagged as "outside diff range".
 ## 9. DextoAgent.ts - removeMcpServer error handling
 
 **Source**: Review 3587250159
-**Status**: ⏳ Pending
+**Status**: ✅ Fixed
 
 **Issue**: Unlike `enableMcpServer` and `disableMcpServer`, `removeMcpServer` lacks error handling. If `removeClient()` throws, state becomes inconsistent.
 

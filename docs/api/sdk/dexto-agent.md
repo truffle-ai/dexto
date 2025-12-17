@@ -423,12 +423,12 @@ getEffectiveConfig(sessionId?: string): Readonly<AgentConfig>
 
 ## MCP Server Management
 
-### `connectMcpServer`
+### `addMcpServer`
 
-Connects to a new MCP server and adds it to the agent's available tools.
+Adds and connects to a new MCP server, making its tools available to the agent.
 
 ```typescript
-async connectMcpServer(name: string, config: McpServerConfig): Promise<void>
+async addMcpServer(name: string, config: McpServerConfig): Promise<void>
 ```
 
 | Parameter | Type | Description |
@@ -438,7 +438,7 @@ async connectMcpServer(name: string, config: McpServerConfig): Promise<void>
 
 ### `removeMcpServer`
 
-Disconnects from an MCP server and removes its tools from the agent.
+Disconnects from an MCP server and removes it completely from the agent.
 
 ```typescript
 async removeMcpServer(name: string): Promise<void>
@@ -447,6 +447,42 @@ async removeMcpServer(name: string): Promise<void>
 | Parameter | Type | Description |
 | :--- | :--- | :--- |
 | `name` | `string` | Server name to remove |
+
+### `enableMcpServer`
+
+Enables a disabled MCP server and connects it.
+
+```typescript
+async enableMcpServer(name: string): Promise<void>
+```
+
+| Parameter | Type | Description |
+| :--- | :--- | :--- |
+| `name` | `string` | Server name to enable |
+
+### `disableMcpServer`
+
+Disables an MCP server and disconnects it. The server remains registered but inactive.
+
+```typescript
+async disableMcpServer(name: string): Promise<void>
+```
+
+| Parameter | Type | Description |
+| :--- | :--- | :--- |
+| `name` | `string` | Server name to disable |
+
+### `restartMcpServer`
+
+Restarts an MCP server by disconnecting and reconnecting with its original configuration.
+
+```typescript
+async restartMcpServer(name: string): Promise<void>
+```
+
+| Parameter | Type | Description |
+| :--- | :--- | :--- |
+| `name` | `string` | Server name to restart |
 
 ### `executeTool`
 
