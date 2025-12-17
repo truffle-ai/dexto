@@ -22,7 +22,7 @@ import { useGreeting } from './useGreeting';
 import { useApproval } from './ApprovalContext';
 import { usePendingApprovals } from './useApprovals';
 import type { FilePart, ImagePart, TextPart, UIResourcePart } from '../../types';
-import type { SanitizedToolResult, ApprovalType, ApprovalRequest } from '@dexto/core';
+import type { SanitizedToolResult, ApprovalRequest } from '@dexto/core';
 import { getResourceKind } from '@dexto/core';
 import { useAnalytics } from '@/lib/analytics/index.js';
 import { queryKeys } from '@/lib/queryKeys.js';

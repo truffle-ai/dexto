@@ -229,7 +229,7 @@ function createPromptCommand(promptInfo: PromptInfo): CommandDefinition {
         handler: async (
             args: string[],
             agent: DextoAgent,
-            ctx: CommandContext
+            _ctx: CommandContext
         ): Promise<CommandHandlerResult> => {
             try {
                 const { argMap, context: contextString } = splitPromptArguments(args);

@@ -8,14 +8,7 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useStdout } from 'ink';
 import type { DextoAgent, QueuedMessage } from '@dexto/core';
-import type {
-    Message,
-    StartupInfo,
-    UIState,
-    InputState,
-    SessionState,
-    OverlayType,
-} from '../state/types.js';
+import type { Message, StartupInfo, UIState, InputState, SessionState } from '../state/types.js';
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
 import { useAgentEvents } from './useAgentEvents.js';
 import { useInputOrchestrator, type Key } from './useInputOrchestrator.js';
