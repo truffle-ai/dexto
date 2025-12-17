@@ -1,6 +1,11 @@
 /**
  * StatusBar Component
  * Displays processing status and controls above the input area
+ *
+ * Layout:
+ * - Line 1: Spinner + phrase (+ queue count if any)
+ * - Line 2: Meta info (time, tokens, cancel hint)
+ * This 2-line layout prevents truncation on any terminal width.
  */
 
 import { Box, Text } from 'ink';
@@ -15,28 +20,36 @@ interface StatusBarProps {
     isProcessing: boolean;
     isThinking: boolean;
     approvalQueueCount: number;
-    exitWarningShown?: boolean;
     copyModeEnabled?: boolean;
+    /** Whether an approval prompt is currently shown */
+    isAwaitingApproval?: boolean;
 }
 
 /**
  * Status bar that shows processing state above input area
  * Provides clear feedback on whether the agent is running or idle
+ *
+ * Design decisions:
+ * - Hide spinner during approval wait (user is reviewing, not waiting)
+ * - Only show elapsed time after 30s (avoid visual noise for fast operations)
  */
 export function StatusBar({
     agent,
     isProcessing,
     isThinking,
     approvalQueueCount,
-    exitWarningShown = false,
     copyModeEnabled = false,
+    isAwaitingApproval = false,
 }: StatusBarProps) {
     // Cycle through witty phrases while processing
     const { phrase } = usePhraseCycler({ isActive: isProcessing });
     // Track elapsed time during processing
-    const { formatted: elapsedTime } = useElapsedTime({ isActive: isProcessing });
+    const { formatted: elapsedTime, elapsedMs } = useElapsedTime({ isActive: isProcessing });
     // Track token usage during processing
     const { formatted: tokenCount } = useTokenCounter({ agent, isActive: isProcessing });
+    // Only show time after 30 seconds
+    const showTime = elapsedMs >= 30000;
+
     // Show copy mode warning (highest priority)
     if (copyModeEnabled) {
         return (
@@ -48,23 +61,13 @@ export function StatusBar({
         );
     }
 
-    // Show exit warning if Ctrl+C was pressed
-    if (exitWarningShown) {
-        return (
-            <Box paddingX={1} marginBottom={0}>
-                <Text color="yellow" bold>
-                    ⚠ Press Ctrl+C again to exit
-                </Text>
-                <Text color="gray" dimColor>
-                    {' '}
-                    (or press any key to cancel)
-                </Text>
-            </Box>
-        );
-    }
-
     if (!isProcessing) {
         // No status bar when idle
+        return null;
+    }
+
+    // Hide status bar during approval wait - user is reviewing, not waiting
+    if (isAwaitingApproval) {
         return null;
     }
 
@@ -72,34 +75,57 @@ export function StatusBar({
     // TODO: Rename this event/state to "reasoning" and associate it with actual reasoning tokens
     // Currently "thinking" event fires before any response, not during reasoning token generation
     if (isThinking) {
+        const metaParts: string[] = [];
+        if (showTime) metaParts.push(`(${elapsedTime})`);
+        metaParts.push('Esc to cancel');
+        const metaContent = metaParts.join(' • ');
+
         return (
-            <Box paddingX={1} marginBottom={0} flexDirection="row">
-                <Text color="magenta">
-                    <Spinner type="dots" />
-                </Text>
-                <Text color="magenta"> {phrase}</Text>
-                <Text color="gray" dimColor>
-                    {' '}
-                    ({elapsedTime}) • Press Esc to cancel
-                </Text>
+            <Box paddingX={1} marginTop={1} marginBottom={1} flexDirection="column">
+                {/* Line 1: spinner + phrase */}
+                <Box flexDirection="row" alignItems="center">
+                    <Text color="magenta">
+                        <Spinner type="dots" />
+                    </Text>
+                    <Text color="magenta"> {phrase}</Text>
+                </Box>
+                {/* Line 2: meta info */}
+                <Box marginLeft={2}>
+                    <Text color="gray" dimColor>
+                        {metaContent}
+                    </Text>
+                </Box>
             </Box>
         );
     }
 
     // Show active streaming state - cyan color
+    // Always use 2-line layout: phrase on first line, meta on second
+    // This prevents truncation and messy wrapping on any terminal width
+    const metaParts: string[] = [];
+    if (showTime) metaParts.push(`(${elapsedTime})`);
+    if (tokenCount) metaParts.push(tokenCount);
+    metaParts.push('Esc to cancel');
+    const metaContent = metaParts.join(' • ');
+
     return (
-        <Box paddingX={1} marginBottom={0} flexDirection="row">
-            <Text color="cyan">
-                <Spinner type="dots" />
-            </Text>
-            <Text color="cyan"> {phrase}</Text>
-            {approvalQueueCount > 0 && (
-                <Text color="yellow"> • {approvalQueueCount} approval(s) queued</Text>
-            )}
-            <Text color="gray" dimColor>
-                {' '}
-                ({elapsedTime}){tokenCount && ` • ${tokenCount}`} • Press Esc to cancel
-            </Text>
+        <Box paddingX={1} marginTop={1} marginBottom={1} flexDirection="column">
+            {/* Line 1: spinner + phrase + queue count */}
+            <Box flexDirection="row" alignItems="center">
+                <Text color="cyan">
+                    <Spinner type="dots" />
+                </Text>
+                <Text color="cyan"> {phrase}</Text>
+                {approvalQueueCount > 0 && (
+                    <Text color="yellow"> • {approvalQueueCount} queued</Text>
+                )}
+            </Box>
+            {/* Line 2: meta info (time, tokens, cancel hint) */}
+            <Box marginLeft={2}>
+                <Text color="gray" dimColor>
+                    {metaContent}
+                </Text>
+            </Box>
         </Box>
     );
 }

@@ -108,9 +108,8 @@ export const INTERNAL_TOOL_REGISTRY: Record<KnownInternalTool, InternalToolRegis
         requiredServices: ['fileSystemService'] as const,
     },
     bash_exec: {
-        factory: (services: InternalToolsServices) =>
-            createBashExecTool(services.processService!, services.approvalManager!),
-        requiredServices: ['processService', 'approvalManager'] as const,
+        factory: (services: InternalToolsServices) => createBashExecTool(services.processService!),
+        requiredServices: ['processService'] as const,
     },
     bash_output: {
         factory: (services: InternalToolsServices) =>

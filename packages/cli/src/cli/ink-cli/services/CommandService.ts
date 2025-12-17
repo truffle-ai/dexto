@@ -22,9 +22,11 @@ export interface StyledOutput {
  * Result of command execution
  */
 export interface CommandExecutionResult {
-    type: 'handled' | 'prompt' | 'output' | 'styled';
+    type: 'handled' | 'output' | 'styled' | 'sendMessage';
     output?: string;
     styled?: StyledOutput;
+    /** Message text to send through normal streaming flow (for prompt commands) */
+    messageToSend?: string;
 }
 
 /**
@@ -37,6 +39,35 @@ export function isStyledOutput(result: unknown): result is StyledOutput {
         'styledType' in result &&
         'styledData' in result &&
         'fallbackText' in result
+    );
+}
+
+/**
+ * Marker object for commands that want to send a message through the normal stream flow
+ */
+export interface SendMessageMarker {
+    __sendMessage: true;
+    text: string;
+}
+
+/**
+ * Create a send message marker (used by prompt commands)
+ */
+export function createSendMessageMarker(text: string): SendMessageMarker {
+    return { __sendMessage: true, text };
+}
+
+/**
+ * Check if a result is a send message marker
+ */
+export function isSendMessageMarker(result: unknown): result is SendMessageMarker {
+    return (
+        typeof result === 'object' &&
+        result !== null &&
+        '__sendMessage' in result &&
+        (result as SendMessageMarker).__sendMessage === true &&
+        'text' in result &&
+        typeof (result as SendMessageMarker).text === 'string'
     );
 }
 
@@ -62,13 +93,13 @@ export class CommandService {
     ): Promise<CommandExecutionResult> {
         const result = await executeCommand(command, args, agent, sessionId);
 
-        // If result is empty string, it means a prompt was executed via agent.generate()
-        if (typeof result === 'string' && result === '') {
-            return { type: 'prompt' };
+        // If result is a send message marker, return the text to send through normal flow
+        if (isSendMessageMarker(result)) {
+            return { type: 'sendMessage' as const, messageToSend: result.text };
         }
 
-        // If result is a non-empty string, it's output for display
-        if (typeof result === 'string' && result.length > 0) {
+        // If result is a string, it's output for display
+        if (typeof result === 'string') {
             return { type: 'output', output: result };
         }
 

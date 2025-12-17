@@ -19,32 +19,8 @@ import type React from 'react';
 import { useEffect } from 'react';
 import { setMaxListeners } from 'events';
 import type { DextoAgent, QueuedMessage } from '@dexto/core';
-import { ApprovalType as ApprovalTypeEnum } from '@dexto/core';
-import type { Message, OverlayType, McpWizardServerType } from '../state/types.js';
+import type { Message, UIState, SessionState } from '../state/types.js';
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
-
-/**
- * UI state shape (must match InkCLIRefactored)
- */
-interface UIState {
-    isProcessing: boolean;
-    isCancelling: boolean;
-    isThinking: boolean;
-    activeOverlay: OverlayType;
-    exitWarningShown: boolean;
-    exitWarningTimestamp: number | null;
-    mcpWizardServerType: McpWizardServerType;
-    copyModeEnabled: boolean;
-}
-
-/**
- * Session state shape
- */
-interface SessionState {
-    id: string | null;
-    hasActiveSession: boolean;
-    modelName: string;
-}
 
 interface UseAgentEventsProps {
     agent: DextoAgent;
@@ -77,41 +53,9 @@ export function useAgentEvents({
         // Increase listener limit for safety
         setMaxListeners(15, signal);
 
-        // Handle approval requests - these can arrive during streaming
-        bus.on(
-            'approval:request',
-            (event) => {
-                if (
-                    event.type === ApprovalTypeEnum.TOOL_CONFIRMATION ||
-                    event.type === ApprovalTypeEnum.COMMAND_CONFIRMATION
-                ) {
-                    const newApproval: ApprovalRequest = {
-                        approvalId: event.approvalId,
-                        type: event.type,
-                        timestamp: event.timestamp,
-                        metadata: event.metadata,
-                    };
-
-                    if (event.sessionId !== undefined) {
-                        newApproval.sessionId = event.sessionId;
-                    }
-                    if (event.timeout !== undefined) {
-                        newApproval.timeout = event.timeout;
-                    }
-
-                    // Queue if there's already an approval, otherwise show immediately
-                    setApproval((current) => {
-                        if (current !== null) {
-                            setApprovalQueue((queue) => [...queue, newApproval]);
-                            return current;
-                        }
-                        setUi((prev) => ({ ...prev, activeOverlay: 'approval' }));
-                        return newApproval;
-                    });
-                }
-            },
-            { signal }
-        );
+        // NOTE: approval:request is now handled in processStream (via iterator) for proper
+        // event ordering. Direct bus subscription here caused a race condition where
+        // approval UI showed before text messages were added.
 
         // Handle model switch
         bus.on(
@@ -131,12 +75,13 @@ export function useAgentEvents({
                 setMessages([]);
                 setApproval(null);
                 setApprovalQueue([]);
+                setQueuedMessages([]);
                 setUi((prev) => ({ ...prev, activeOverlay: 'none' }));
             },
             { signal }
         );
 
-        // Handle session creation (e.g., from /clear command)
+        // Handle session creation (e.g., from /new command if we add one)
         bus.on(
             'session:created',
             (payload) => {
@@ -157,6 +102,20 @@ export function useAgentEvents({
                     }
                     setUi((prev) => ({ ...prev, activeOverlay: 'none' }));
                 }
+            },
+            { signal }
+        );
+
+        // Handle context cleared (from /clear command)
+        // Keep messages visible for user reference - only context sent to LLM is cleared
+        // Just clean up any pending approvals/overlays/queued messages
+        bus.on(
+            'context:cleared',
+            () => {
+                setApproval(null);
+                setApprovalQueue([]);
+                setQueuedMessages([]);
+                setUi((prev) => ({ ...prev, activeOverlay: 'none' }));
             },
             { signal }
         );

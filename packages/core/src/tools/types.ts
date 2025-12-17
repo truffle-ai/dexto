@@ -4,6 +4,7 @@
 
 import type { JSONSchema7 } from 'json-schema';
 import type { ZodSchema } from 'zod';
+import type { ToolDisplayData } from './display-types.js';
 
 /**
  * Context passed to tool execution
@@ -11,6 +12,8 @@ import type { ZodSchema } from 'zod';
 export interface ToolExecutionContext {
     /** Session ID if available */
     sessionId?: string | undefined;
+    /** Abort signal for cancellation support */
+    abortSignal?: AbortSignal | undefined;
 }
 
 /**
@@ -44,6 +47,16 @@ export interface InternalTool {
 
     /** The actual function that executes the tool - input is validated by Zod before execution */
     execute: (input: unknown, context?: ToolExecutionContext) => Promise<unknown> | unknown;
+
+    /**
+     * Optional preview generator for approval UI.
+     * Called before requesting user approval to generate display data (e.g., diff preview).
+     * Returns null if no preview is available.
+     */
+    generatePreview?: (
+        input: unknown,
+        context?: ToolExecutionContext
+    ) => Promise<ToolDisplayData | null>;
 }
 
 /**

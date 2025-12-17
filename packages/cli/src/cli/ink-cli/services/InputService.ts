@@ -5,12 +5,11 @@
 
 import {
     detectAutocompleteType,
-    detectInteractiveSelector,
     extractSlashQuery,
     extractResourceQuery,
     parseInput,
 } from '../utils/inputParsing.js';
-import type { AutocompleteType, InteractiveSelectorType } from '../utils/inputParsing.js';
+import type { AutocompleteType } from '../utils/inputParsing.js';
 import type { CommandResult } from '../../commands/interactive-commands/command-parser.js';
 
 /**
@@ -22,14 +21,6 @@ export class InputService {
      */
     detectAutocompleteType(input: string): AutocompleteType {
         return detectAutocompleteType(input);
-    }
-
-    /**
-     * Detects if an interactive selector should be shown
-     */
-    detectInteractiveSelector(input: string): InteractiveSelectorType {
-        const parsed = parseInput(input);
-        return detectInteractiveSelector(parsed);
     }
 
     /**

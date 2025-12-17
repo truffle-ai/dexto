@@ -6,7 +6,7 @@
 import React, { useState, useEffect, forwardRef, useImperativeHandle, useCallback } from 'react';
 import { Box, Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
-import type { McpServerType } from './McpCustomTypeSelector.js';
+import type { McpServerType } from '@dexto/core';
 
 export interface McpCustomConfig {
     serverType: McpServerType;

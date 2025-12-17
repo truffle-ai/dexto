@@ -203,12 +203,21 @@ export class InternalToolsProvider {
     }
 
     /**
+     * Get an internal tool by name
+     * Returns undefined if tool doesn't exist
+     */
+    getTool(toolName: string): InternalTool | undefined {
+        return this.tools.get(toolName);
+    }
+
+    /**
      * Execute an internal tool - confirmation is handled by ToolManager
      */
     async executeTool(
         toolName: string,
         args: Record<string, unknown>,
-        sessionId?: string
+        sessionId?: string,
+        abortSignal?: AbortSignal
     ): Promise<unknown> {
         // Check internal tools first, then custom tools
         const tool = this.internalTools.get(toolName) || this.customTools.get(toolName);
@@ -236,7 +245,10 @@ export class InternalToolsProvider {
         }
 
         try {
-            const context: ToolExecutionContext = { sessionId };
+            const context: ToolExecutionContext = {
+                sessionId,
+                abortSignal,
+            };
             const result = await tool.execute(validationResult.data, context);
             return result;
         } catch (error) {

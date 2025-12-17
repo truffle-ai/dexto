@@ -6,7 +6,7 @@
 import React, { useState, useEffect, forwardRef, useRef, useImperativeHandle } from 'react';
 import { Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
-import type { DextoAgent } from '@dexto/core';
+import type { DextoAgent, McpServerStatus, McpConnectionStatus } from '@dexto/core';
 import { BaseSelector, type BaseSelectorHandle } from '../base/BaseSelector.js';
 
 interface McpRemoveSelectorProps {
@@ -18,12 +18,6 @@ interface McpRemoveSelectorProps {
 
 export interface McpRemoveSelectorHandle {
     handleInput: (input: string, key: Key) => boolean;
-}
-
-interface McpServerOption {
-    name: string;
-    status: 'connected' | 'failed';
-    error?: string;
 }
 
 /**
@@ -44,7 +38,7 @@ const McpRemoveSelector = forwardRef<McpRemoveSelectorHandle, McpRemoveSelectorP
             []
         );
 
-        const [servers, setServers] = useState<McpServerOption[]>([]);
+        const [servers, setServers] = useState<McpServerStatus[]>([]);
         const [isLoading, setIsLoading] = useState(false);
         const [selectedIndex, setSelectedIndex] = useState(0);
 
@@ -55,27 +49,8 @@ const McpRemoveSelector = forwardRef<McpRemoveSelectorHandle, McpRemoveSelectorP
             setIsLoading(true);
 
             try {
-                const clients = agent.getMcpClients();
-                const failedConnections = agent.getMcpFailedConnections();
-
-                const serverList: McpServerOption[] = [];
-
-                // Add connected servers
-                for (const [name] of clients) {
-                    serverList.push({
-                        name,
-                        status: 'connected',
-                    });
-                }
-
-                // Add failed servers
-                for (const [name, error] of Object.entries(failedConnections)) {
-                    serverList.push({
-                        name,
-                        status: 'failed',
-                        error,
-                    });
-                }
+                // Get servers with computed status from agent
+                const serverList = agent.getMcpServersWithStatus();
 
                 // Sort alphabetically
                 serverList.sort((a, b) => a.name.localeCompare(b.name));
@@ -87,19 +62,49 @@ const McpRemoveSelector = forwardRef<McpRemoveSelectorHandle, McpRemoveSelectorP
             }
         }, [isVisible, agent]);
 
+        // Get display icon for status
+        const getStatusIcon = (status: McpConnectionStatus): string => {
+            switch (status) {
+                case 'connected':
+                    return '🔌';
+                case 'disconnected':
+                    return '⏸️';
+                case 'error':
+                    return '❌';
+            }
+        };
+
+        // Get display text for status
+        const getStatusText = (status: McpConnectionStatus): string => {
+            switch (status) {
+                case 'connected':
+                    return 'Connected';
+                case 'disconnected':
+                    return 'Disabled';
+                case 'error':
+                    return 'Failed';
+            }
+        };
+
         // Format server item for display
-        const formatItem = (server: McpServerOption, isSelected: boolean) => (
+        const formatItem = (server: McpServerStatus, isSelected: boolean) => (
             <>
-                <Text>{server.status === 'connected' ? '🔌' : '❌'} </Text>
+                <Text>{getStatusIcon(server.status)} </Text>
                 <Text color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>
                     {server.name}
                 </Text>
                 <Text
-                    color={server.status === 'connected' ? 'green' : 'red'}
+                    color={
+                        server.status === 'connected'
+                            ? 'green'
+                            : server.status === 'disconnected'
+                              ? 'gray'
+                              : 'red'
+                    }
                     dimColor={!isSelected}
                 >
                     {' '}
-                    - {server.status === 'connected' ? 'Connected' : 'Failed'}
+                    - {getStatusText(server.status)}
                 </Text>
                 {server.error && (
                     <Text color="gray" dimColor>
@@ -112,7 +117,7 @@ const McpRemoveSelector = forwardRef<McpRemoveSelectorHandle, McpRemoveSelectorP
         );
 
         // Handle selection
-        const handleSelect = (server: McpServerOption) => {
+        const handleSelect = (server: McpServerStatus) => {
             onSelect(server.name);
         };
 

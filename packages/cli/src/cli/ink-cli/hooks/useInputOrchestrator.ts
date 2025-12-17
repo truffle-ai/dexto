@@ -210,29 +210,13 @@ export function useInputOrchestrator({
     }, [ui.exitWarningShown, ui.exitWarningTimestamp, setUi]);
 
     // Handle Ctrl+C (special case - handled globally regardless of focus)
-    // Priority: 1) Cancel if processing, 2) Clear input if has text, 3) Exit warning/exit
+    // Priority: 1) Clear input if has text, 2) Exit warning/exit
+    // Note: Ctrl+C does NOT cancel processing - use Escape for that
     const handleCtrlC = useCallback(() => {
         const currentUi = uiRef.current;
-        const currentSession = sessionRef.current;
         const currentBuffer = bufferRef.current;
 
-        if (currentUi.isProcessing) {
-            // Cancel the current operation via agent
-            // useAgentEvents will handle the UI state updates when error/complete fires
-            if (currentSession.id) {
-                void agent.cancel(currentSession.id).catch(() => {});
-            }
-            setUi((prev) => ({ ...prev, isCancelling: true, isProcessing: false }));
-
-            // Clear exit warning if it was shown
-            if (currentUi.exitWarningShown) {
-                setUi((prev) => ({
-                    ...prev,
-                    exitWarningShown: false,
-                    exitWarningTimestamp: null,
-                }));
-            }
-        } else if (currentBuffer.text.length > 0) {
+        if (currentBuffer.text.length > 0) {
             // Has input text - clear it AND show exit warning
             // This way: first Ctrl+C clears, second Ctrl+C exits
             currentBuffer.setText('');
@@ -242,7 +226,7 @@ export function useInputOrchestrator({
                 exitWarningTimestamp: Date.now(),
             }));
         } else {
-            // No text, not processing - handle exit with double-press safety
+            // No text - handle exit with double-press safety
             if (currentUi.exitWarningShown) {
                 // Second Ctrl+C within timeout - actually exit
                 exit();
@@ -255,7 +239,7 @@ export function useInputOrchestrator({
                 }));
             }
         }
-    }, [agent, setUi, exit]);
+    }, [setUi, exit]);
 
     // Handle Escape (context-aware)
     const handleEscape = useCallback((): boolean => {
@@ -263,6 +247,24 @@ export function useInputOrchestrator({
         const currentSession = sessionRef.current;
         const currentQueuedMessages = queuedMessagesRef.current;
         const currentBuffer = bufferRef.current;
+
+        // Exit history search mode if active - restore original input
+        if (currentUi.historySearch.isActive) {
+            const originalInput = currentUi.historySearch.originalInput;
+            currentBuffer.setText(originalInput);
+            setInput((prev) => ({ ...prev, value: originalInput }));
+            setUi((prev) => ({
+                ...prev,
+                historySearch: {
+                    isActive: false,
+                    query: '',
+                    matchIndex: 0,
+                    originalInput: '',
+                    lastMatch: '',
+                },
+            }));
+            return true;
+        }
 
         // Clear exit warning if shown
         if (currentUi.exitWarningShown) {
@@ -280,9 +282,22 @@ export function useInputOrchestrator({
             }
 
             // Finalize any pending messages first (move to messages)
+            // Mark running tools as cancelled with error state
             setPendingMessages((pending) => {
                 if (pending.length > 0) {
-                    setMessages((prev) => [...prev, ...pending]);
+                    const updated = pending.map((msg) => {
+                        // Mark running tools as cancelled
+                        if (msg.role === 'tool' && msg.toolStatus === 'running') {
+                            return {
+                                ...msg,
+                                toolStatus: 'finished' as const,
+                                toolResult: 'Cancelled',
+                                isError: true,
+                            };
+                        }
+                        return msg;
+                    });
+                    setMessages((prev) => [...prev, ...updated]);
                 }
                 return [];
             });
@@ -362,10 +377,146 @@ export function useInputOrchestrator({
 
             // === GLOBAL SHORTCUTS (always handled first) ===
 
+            // === HISTORY SEARCH MODE HANDLING ===
+            if (currentUi.historySearch.isActive) {
+                const currentInput = inputRef.current;
+                const currentBuffer = bufferRef.current;
+
+                // Helper to find matches (reversed so newest is first)
+                const findMatches = (query: string): string[] => {
+                    if (!query) return [];
+                    const lowerQuery = query.toLowerCase();
+                    return currentInput.history
+                        .filter((item) => item.toLowerCase().includes(lowerQuery))
+                        .reverse();
+                };
+
+                // Helper to apply a match to the input buffer and track lastMatch
+                const applyMatchAndUpdateState = (query: string, matchIdx: number) => {
+                    if (!query) {
+                        // No query - restore original
+                        const orig = currentUi.historySearch.originalInput;
+                        currentBuffer.setText(orig);
+                        setInput((prev) => ({ ...prev, value: orig }));
+                        return;
+                    }
+
+                    const matches = findMatches(query);
+                    if (matches.length > 0) {
+                        const idx = Math.min(matchIdx, matches.length - 1);
+                        const match = matches[idx];
+                        if (match) {
+                            currentBuffer.setText(match);
+                            setInput((prev) => ({ ...prev, value: match }));
+                            // Update lastMatch in state
+                            setUi((prev) => ({
+                                ...prev,
+                                historySearch: { ...prev.historySearch, lastMatch: match },
+                            }));
+                        }
+                    }
+                    // If no match, keep current buffer content (which has last valid match)
+                };
+
+                // Ctrl+E in search mode: cycle to previous (newer) match
+                if (key.ctrl && inputStr === 'e') {
+                    const matches = findMatches(currentUi.historySearch.query);
+                    if (matches.length > 0) {
+                        const newIdx = Math.max(0, currentUi.historySearch.matchIndex - 1);
+                        setUi((prev) => ({
+                            ...prev,
+                            historySearch: { ...prev.historySearch, matchIndex: newIdx },
+                        }));
+                        applyMatchAndUpdateState(currentUi.historySearch.query, newIdx);
+                    }
+                    return;
+                }
+
+                // Ctrl+R in search mode: cycle to next (older) match
+                if (key.ctrl && inputStr === 'r') {
+                    const matches = findMatches(currentUi.historySearch.query);
+                    if (matches.length > 0) {
+                        const newIdx = Math.min(
+                            currentUi.historySearch.matchIndex + 1,
+                            matches.length - 1
+                        );
+                        setUi((prev) => ({
+                            ...prev,
+                            historySearch: { ...prev.historySearch, matchIndex: newIdx },
+                        }));
+                        applyMatchAndUpdateState(currentUi.historySearch.query, newIdx);
+                    }
+                    return;
+                }
+
+                // Enter: Accept current match and exit search mode (input already has match)
+                if (key.return) {
+                    setUi((prev) => ({
+                        ...prev,
+                        historySearch: {
+                            isActive: false,
+                            query: '',
+                            matchIndex: 0,
+                            originalInput: '',
+                            lastMatch: '',
+                        },
+                    }));
+                    return;
+                }
+
+                // Backspace: Remove last character from search query
+                if (key.backspace || key.delete) {
+                    const newQuery = currentUi.historySearch.query.slice(0, -1);
+                    setUi((prev) => ({
+                        ...prev,
+                        historySearch: { ...prev.historySearch, query: newQuery, matchIndex: 0 },
+                    }));
+                    applyMatchAndUpdateState(newQuery, 0);
+                    return;
+                }
+
+                // Regular typing: Add to search query
+                if (inputStr && !key.ctrl && !key.meta && !key.escape) {
+                    const newQuery = currentUi.historySearch.query + inputStr;
+                    setUi((prev) => ({
+                        ...prev,
+                        historySearch: { ...prev.historySearch, query: newQuery, matchIndex: 0 },
+                    }));
+                    applyMatchAndUpdateState(newQuery, 0);
+                    return;
+                }
+
+                // Escape is handled by handleEscape, so fall through
+            }
+
+            // Ctrl+R: Enter history search mode - save current input
+            if (key.ctrl && inputStr === 'r') {
+                const currentBuffer = bufferRef.current;
+                const currentText = currentBuffer.text;
+                setUi((prev) => ({
+                    ...prev,
+                    historySearch: {
+                        isActive: true,
+                        query: '',
+                        matchIndex: 0,
+                        originalInput: currentText,
+                        lastMatch: '',
+                    },
+                }));
+                return;
+            }
+
             // Ctrl+S: Toggle copy mode (for text selection in alternate buffer)
             if (key.ctrl && inputStr === 's') {
                 setUi((prev) => ({ ...prev, copyModeEnabled: true }));
                 disableMouseEvents(); // Disable mouse events so terminal can handle selection
+                return;
+            }
+
+            // Shift+Tab: Toggle "accept all edits" mode (when not in approval modal)
+            // Note: When in approval modal for edit/write tools, ApprovalPrompt handles this
+            if (key.shift && key.tab && currentApproval === null) {
+                setUi((prev) => ({ ...prev, autoApproveEdits: !prev.autoApproveEdits }));
                 return;
             }
 

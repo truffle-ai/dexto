@@ -7,6 +7,7 @@
 import { z } from 'zod';
 import { InternalTool, ToolExecutionContext } from '../../types.js';
 import { FileSystemService } from '../../../filesystem/index.js';
+import type { SearchDisplayData } from '../../display-types.js';
 
 const GrepContentInputSchema = z
     .object({
@@ -68,6 +69,22 @@ export function createGrepContentTool(fileSystemService: FileSystemService): Int
                 maxResults: max_results,
             });
 
+            // Build display data
+            const _display: SearchDisplayData = {
+                type: 'search',
+                pattern,
+                matches: result.matches.map((match) => ({
+                    file: match.file,
+                    line: match.lineNumber,
+                    content: match.line,
+                    ...(match.context && {
+                        context: [...match.context.before, ...match.context.after],
+                    }),
+                })),
+                totalMatches: result.totalMatches,
+                truncated: result.truncated,
+            };
+
             return {
                 matches: result.matches.map((match) => ({
                     file: match.file,
@@ -83,6 +100,7 @@ export function createGrepContentTool(fileSystemService: FileSystemService): Int
                 total_matches: result.totalMatches,
                 files_searched: result.filesSearched,
                 truncated: result.truncated,
+                _display,
             };
         },
     };

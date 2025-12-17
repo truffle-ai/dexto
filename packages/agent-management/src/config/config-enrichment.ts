@@ -5,12 +5,20 @@
  * This layer runs before agent initialization and injects explicit paths
  * into the configuration, eliminating the need for core services to resolve paths themselves.
  *
+ * Also discovers command prompts from:
+ * - Local: <projectRoot>/commands/ (in dev mode or dexto-project context)
+ * - Global: ~/.dexto/commands/
+ *
  * Core services now require explicit paths - this enrichment layer provides them.
  */
 
 import { getDextoPath } from '../utils/path.js';
 import type { AgentConfig } from '@dexto/core';
 import * as path from 'path';
+import { discoverCommandPrompts } from './discover-prompts.js';
+
+// Re-export for backwards compatibility
+export { discoverCommandPrompts } from './discover-prompts.js';
 
 /**
  * Derives an agent ID from config or file path for per-agent isolation.
@@ -54,18 +62,19 @@ export interface EnrichAgentConfigOptions {
 }
 
 /**
- * Enriches agent configuration with per-agent file paths.
+ * Enriches agent configuration with per-agent file paths and discovered commands.
  * This function is called before creating the DextoAgent instance.
  *
  * Enrichment adds:
  * - File transport to logger config (per-agent log file)
  * - Full paths to storage config (SQLite database, blob storage)
  * - Backup path to filesystem config (per-agent backups)
+ * - Discovered command prompts from local/global commands/ directories
  *
  * @param config Agent configuration from YAML file + CLI overrides
  * @param configPath Path to the agent config file (used for agent ID derivation)
  * @param options Enrichment options (isInteractiveCli, logLevel)
- * @returns Enriched configuration with explicit per-agent paths
+ * @returns Enriched configuration with explicit per-agent paths and discovered prompts
  */
 export function enrichAgentConfig(
     config: AgentConfig,
@@ -155,6 +164,31 @@ export function enrichAgentConfig(
     // Note: Filesystem service backup paths are configured separately
     // and not part of agent config. If backup config is added to agent schema
     // in the future, per-agent backup paths can be generated here.
+
+    // Discover and merge command prompts from commands/ directories
+    const discoveredPrompts = discoverCommandPrompts();
+    if (discoveredPrompts.length > 0) {
+        // Merge discovered prompts with existing config prompts
+        // Config prompts take precedence - deduplicate by file path to avoid
+        // metadata/content mismatch when same file appears in both arrays
+        const existingPrompts = config.prompts ?? [];
+
+        // Build set of existing file paths (normalized for comparison)
+        const existingFilePaths = new Set<string>();
+        for (const prompt of existingPrompts) {
+            if (prompt.type === 'file') {
+                // Normalize path for cross-platform comparison
+                existingFilePaths.add(path.resolve(prompt.file));
+            }
+        }
+
+        // Filter out discovered prompts that already exist in config
+        const filteredDiscovered = discoveredPrompts.filter(
+            (p) => !existingFilePaths.has(path.resolve(p.file))
+        );
+
+        enriched.prompts = [...existingPrompts, ...filteredDiscovered];
+    }
 
     return enriched;
 }

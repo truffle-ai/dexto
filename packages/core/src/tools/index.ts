@@ -8,6 +8,9 @@
 // Core types and interfaces
 export * from './types.js';
 
+// Display types for tool result rendering
+export * from './display-types.js';
+
 // Internal tools provider and types
 export * from './internal-tools/index.js';
 

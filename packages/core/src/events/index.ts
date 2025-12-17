@@ -61,6 +61,7 @@ export const SESSION_EVENT_NAMES = [
     'llm:error',
     'llm:switched',
     'llm:unsupported-input',
+    'tool:running',
     'context:compressed',
     'context:pruned',
     'message:queued',
@@ -99,6 +100,9 @@ export const STREAMING_EVENTS = [
     'llm:tool-result',
     'llm:error',
     'llm:unsupported-input',
+
+    // Tool execution events
+    'tool:running',
 
     // Context management events
     'context:compressed',
@@ -317,6 +321,8 @@ export interface AgentEventMap {
             outputTokens?: number;
             reasoningTokens?: number;
             totalTokens?: number;
+            cacheReadTokens?: number;
+            cacheWriteTokens?: number;
         };
         /** Finish reason: 'tool-calls' means more steps coming, others indicate completion */
         finishReason?: LLMFinishReason;
@@ -345,6 +351,13 @@ export interface AgentEventMap {
         requireApproval?: boolean;
         /** The approval status (only present if requireApproval is true) */
         approvalStatus?: 'approved' | 'rejected';
+        sessionId: string;
+    };
+
+    /** Tool execution actually started (after approval if needed) */
+    'tool:running': {
+        toolName: string;
+        toolCallId: string;
         sessionId: string;
     };
 
@@ -392,6 +405,11 @@ export interface AgentEventMap {
     'context:pruned': {
         prunedCount: number;
         savedTokens: number;
+        sessionId: string;
+    };
+
+    /** Context was manually cleared via /clear command */
+    'context:cleared': {
         sessionId: string;
     };
 
@@ -493,6 +511,8 @@ export interface SessionEventMap {
             outputTokens?: number;
             reasoningTokens?: number;
             totalTokens?: number;
+            cacheReadTokens?: number;
+            cacheWriteTokens?: number;
         };
         /** Finish reason: 'tool-calls' means more steps coming, others indicate completion */
         finishReason?: LLMFinishReason;
@@ -519,6 +539,12 @@ export interface SessionEventMap {
         requireApproval?: boolean;
         /** The approval status (only present if requireApproval is true) */
         approvalStatus?: 'approved' | 'rejected';
+    };
+
+    /** Tool execution actually started (after approval if needed) */
+    'tool:running': {
+        toolName: string;
+        toolCallId: string;
     };
 
     /** LLM service error */

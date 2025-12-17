@@ -1,4 +1,5 @@
 import type { LLMProvider, TokenUsage } from '../llm/types.js';
+import type { ToolDisplayData } from '../tools/display-types.js';
 
 // =============================================================================
 // Content Part Types
@@ -132,6 +133,8 @@ export interface SanitizedToolResult {
         toolCallId: string;
         /** Whether the tool execution succeeded. Always set by sanitizeToolResult(). */
         success: boolean;
+        /** Structured display data for tool-specific rendering (diffs, shell output, etc.) */
+        display?: ToolDisplayData;
     };
 }
 

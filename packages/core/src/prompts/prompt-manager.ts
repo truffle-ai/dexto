@@ -2,6 +2,7 @@ import type { MCPManager } from '../mcp/manager.js';
 import type { PromptSet, PromptProvider, PromptInfo } from './types.js';
 import type { GetPromptResult } from '@modelcontextprotocol/sdk/types.js';
 import type { ValidatedAgentConfig } from '../agent/schemas.js';
+import type { PromptsConfig } from './schemas.js';
 import type { AgentEventBus } from '../events/index.js';
 import { MCPPromptProvider } from './providers/mcp-prompt-provider.js';
 import { ConfigPromptProvider } from './providers/config-prompt-provider.js';
@@ -25,6 +26,7 @@ interface PromptCacheEntry {
 
 export class PromptManager {
     private providers: Map<string, PromptProvider> = new Map();
+    private configProvider: ConfigPromptProvider;
     private promptIndex: Map<string, PromptCacheEntry> | undefined;
     private aliasMap: Map<string, string> = new Map();
     private buildPromise: Promise<void> | null = null;
@@ -39,8 +41,9 @@ export class PromptManager {
         logger: IDextoLogger
     ) {
         this.logger = logger.createChild(DextoLogComponent.PROMPT);
+        this.configProvider = new ConfigPromptProvider(agentConfig, this.logger);
         this.providers.set('mcp', new MCPPromptProvider(mcpManager, this.logger));
-        this.providers.set('config', new ConfigPromptProvider(agentConfig, this.logger));
+        this.providers.set('config', this.configProvider);
         this.providers.set(
             'custom',
             new CustomPromptProvider(this.database, resourceManager, this.logger)
@@ -267,6 +270,17 @@ export class PromptManager {
     }
 
     /**
+     * Updates the config prompts at runtime.
+     * Call this after modifying the agent config file to reflect new prompts.
+     */
+    updateConfigPrompts(prompts: PromptsConfig): void {
+        this.configProvider.updatePrompts(prompts);
+        this.promptIndex = undefined;
+        this.aliasMap.clear();
+        this.logger.debug('Config prompts updated');
+    }
+
+    /**
      * Surgically update prompts for a specific MCP server instead of full cache rebuild
      */
     private async updatePromptsForServer(serverName: string, _newPrompts: string[]): Promise<void> {
@@ -338,7 +352,7 @@ export class PromptManager {
         const metadata = { ...(prompt.metadata ?? {}) } as Record<string, unknown>;
         delete metadata.content;
         delete metadata.prompt;
-        delete metadata.filePath;
+        // Keep filePath - needed for prompt deletion
         delete metadata.messages;
 
         if (!metadata.originalName) {

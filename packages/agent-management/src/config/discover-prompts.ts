@@ -1,0 +1,120 @@
+/**
+ * Command Prompt Discovery
+ *
+ * Discovers command prompts from commands/ directories based on execution context.
+ * Extracted to separate file to enable proper unit testing with mocks.
+ */
+
+import {
+    getExecutionContext,
+    findDextoSourceRoot,
+    findDextoProjectRoot,
+} from '../utils/execution-context.js';
+import { getDextoGlobalPath } from '../utils/path.js';
+import * as path from 'path';
+import { existsSync, readdirSync } from 'fs';
+
+/**
+ * File prompt entry for discovered commands
+ */
+export interface FilePromptEntry {
+    type: 'file';
+    file: string;
+    showInStarters?: boolean;
+}
+
+/**
+ * Discovers command prompts from commands/ directories.
+ *
+ * Discovery locations based on execution context:
+ * - dexto-source (dev mode): <sourceRoot>/commands/
+ * - dexto-project: <projectRoot>/commands/
+ * - global-cli: skip local (use global only)
+ *
+ * Global commands (~/.dexto/commands/) are always included.
+ *
+ * @returns Array of file prompt entries for discovered .md files
+ */
+export function discoverCommandPrompts(): FilePromptEntry[] {
+    const prompts: FilePromptEntry[] = [];
+    const seenFiles = new Set<string>();
+
+    // Determine local commands directory based on context
+    const context = getExecutionContext();
+    let localCommandsDir: string | null = null;
+
+    switch (context) {
+        case 'dexto-source': {
+            // Only use local commands in dev mode
+            const isDevMode = process.env.DEXTO_DEV_MODE === 'true';
+            if (isDevMode) {
+                const sourceRoot = findDextoSourceRoot();
+                if (sourceRoot) {
+                    localCommandsDir = path.join(sourceRoot, 'commands');
+                }
+            }
+            break;
+        }
+        case 'dexto-project': {
+            const projectRoot = findDextoProjectRoot();
+            if (projectRoot) {
+                localCommandsDir = path.join(projectRoot, 'commands');
+            }
+            break;
+        }
+        case 'global-cli':
+            // No local commands for global CLI
+            break;
+    }
+
+    // Global commands directory
+    const globalCommandsDir = getDextoGlobalPath('commands');
+
+    // Scan local commands first (higher priority)
+    if (localCommandsDir && existsSync(localCommandsDir)) {
+        const files = scanCommandsDirectory(localCommandsDir);
+        for (const file of files) {
+            // Normalize to lowercase for case-insensitive deduplication (Windows/macOS)
+            const basename = path.basename(file).toLowerCase();
+            if (!seenFiles.has(basename)) {
+                seenFiles.add(basename);
+                prompts.push({ type: 'file', file });
+            }
+        }
+    }
+
+    // Scan global commands (lower priority - won't override local)
+    if (existsSync(globalCommandsDir)) {
+        const files = scanCommandsDirectory(globalCommandsDir);
+        for (const file of files) {
+            // Normalize to lowercase for case-insensitive deduplication (Windows/macOS)
+            const basename = path.basename(file).toLowerCase();
+            if (!seenFiles.has(basename)) {
+                seenFiles.add(basename);
+                prompts.push({ type: 'file', file });
+            }
+        }
+    }
+
+    return prompts;
+}
+
+/**
+ * Scans a directory for .md command files
+ * @param dir Directory to scan
+ * @returns Array of absolute file paths
+ */
+function scanCommandsDirectory(dir: string): string[] {
+    const files: string[] = [];
+    try {
+        const entries = readdirSync(dir, { withFileTypes: true });
+        for (const entry of entries) {
+            if (entry.isFile() && entry.name.endsWith('.md') && entry.name !== 'README.md') {
+                files.push(path.join(dir, entry.name));
+            }
+        }
+    } catch {
+        // Directory doesn't exist or can't be read - ignore
+    }
+    return files;
+}

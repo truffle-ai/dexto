@@ -21,10 +21,15 @@
  */
 
 import type React from 'react';
-import type { StreamingEvent } from '@dexto/core';
-import type { Message, UIState } from '../state/types.js';
+import type { StreamingEvent, SanitizedToolResult } from '@dexto/core';
+import { createDebugLogger } from '../utils/debugLog.js';
+import { ApprovalType as ApprovalTypeEnum, ApprovalStatus } from '@dexto/core';
+import type { Message, UIState, ToolStatus } from '../state/types.js';
+import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
 import { generateMessageId } from '../utils/idGenerator.js';
 import { checkForSplit } from '../utils/streamSplitter.js';
+import { getToolDisplayName, formatToolArgsForDisplay } from '../utils/messageFormatting.js';
+import { isEditWriteTool } from '../utils/toolUtils.js';
 
 /**
  * State setters needed by processStream
@@ -39,6 +44,10 @@ export interface ProcessStreamSetters {
     setUi: React.Dispatch<React.SetStateAction<UIState>>;
     /** Setter for queued messages (cleared when dequeued) */
     setQueuedMessages: React.Dispatch<React.SetStateAction<import('@dexto/core').QueuedMessage[]>>;
+    /** Setter for current approval request (for approval UI) */
+    setApproval: React.Dispatch<React.SetStateAction<ApprovalRequest | null>>;
+    /** Setter for approval queue (for queued approvals) */
+    setApprovalQueue: React.Dispatch<React.SetStateAction<ApprovalRequest[]>>;
 }
 
 /**
@@ -47,6 +56,10 @@ export interface ProcessStreamSetters {
 export interface ProcessStreamOptions {
     /** Whether to stream chunks (true) or wait for complete response (false). Default: true */
     useStreaming?: boolean;
+    /** Ref to check if "accept all edits" mode is enabled (reads .current for latest value) */
+    autoApproveEditsRef: { current: boolean };
+    /** Event bus for emitting auto-approval responses */
+    eventBus: import('@dexto/core').AgentEventBus;
 }
 
 /**
@@ -60,6 +73,14 @@ interface StreamState {
     finalizedContent: string;
     /** Counter for generating unique IDs for split messages */
     splitCounter: number;
+    /** Flag to track if text was finalized early (before tools) to avoid duplication */
+    textFinalizedBeforeTool: boolean;
+    /**
+     * Accumulated text in non-streaming mode.
+     * In non-streaming mode, we don't update UI on each chunk, but we need to track
+     * the text so we can add it BEFORE tool calls for correct message ordering.
+     */
+    nonStreamingAccumulatedText: string;
 }
 
 /**
@@ -71,15 +92,22 @@ interface StreamState {
  *
  * @param iterator - The async iterator from agent.stream()
  * @param setters - State setters for updating UI
- * @param options - Optional configuration
+ * @param options - Configuration options
  */
 export async function processStream(
     iterator: AsyncIterableIterator<StreamingEvent>,
     setters: ProcessStreamSetters,
-    options?: ProcessStreamOptions
+    options: ProcessStreamOptions
 ): Promise<void> {
-    const { setMessages, setPendingMessages, setDequeuedBuffer, setUi, setQueuedMessages } =
-        setters;
+    const {
+        setMessages,
+        setPendingMessages,
+        setDequeuedBuffer,
+        setUi,
+        setQueuedMessages,
+        setApproval,
+        setApprovalQueue,
+    } = setters;
     const useStreaming = options?.useStreaming ?? true;
 
     // Track streaming state (synchronous, not React state)
@@ -89,6 +117,8 @@ export async function processStream(
         outputTokens: 0,
         finalizedContent: '',
         splitCounter: 0,
+        textFinalizedBeforeTool: false,
+        nonStreamingAccumulatedText: '',
     };
 
     // LOCAL PENDING TRACKING - mirrors React state synchronously
@@ -186,12 +216,27 @@ export async function processStream(
     };
 
     /**
+     * Update toolStatus for a pending message by ID
+     * Used for tool status transitions: pending → pending_approval → running → finished
+     */
+    const updatePendingStatus = (messageId: string, status: ToolStatus) => {
+        localPending = localPending.map((msg) =>
+            msg.id === messageId ? { ...msg, toolStatus: status } : msg
+        );
+        setPendingMessages(localPending);
+    };
+
+    /**
      * Progressive finalization: split large streaming content at safe markdown
      * boundaries and move completed portions to Static to reduce flickering.
      *
      * Safe to use with message queueing because dequeued user messages are
      * rendered in a separate buffer AFTER pendingMessages, guaranteeing
      * correct visual order regardless of React batching timing.
+     *
+     * RACE CONDITION FIX: We clear the pending message content BEFORE adding
+     * the split, then restore with afterContent. This ensures any intermediate
+     * render sees empty pending (not stale full content), avoiding duplication.
      */
     const progressiveFinalize = (content: string): string => {
         const splitResult = checkForSplit(content);
@@ -201,8 +246,19 @@ export async function processStream(
             state.splitCounter++;
             const splitId = `${state.messageId}-split-${state.splitCounter}`;
             const beforeContent = splitResult.before;
+            const afterContent = splitResult.after;
             const isFirstSplit = state.splitCounter === 1;
 
+            // STEP 1: Clear pending message content to avoid showing stale content
+            // during React's batched render cycle
+            if (state.messageId) {
+                localPending = localPending.map((m) =>
+                    m.id === state.messageId ? { ...m, content: '', isContinuation: true } : m
+                );
+                setPendingMessages(localPending);
+            }
+
+            // STEP 2: Add split message to finalized
             setMessages((prev) => [
                 ...prev,
                 {
@@ -216,20 +272,49 @@ export async function processStream(
                 },
             ]);
 
+            // STEP 3: Restore pending with afterContent
+            if (state.messageId) {
+                localPending = localPending.map((m) =>
+                    m.id === state.messageId ? { ...m, content: afterContent } : m
+                );
+                setPendingMessages(localPending);
+            }
+
             // Track total finalized content for final message assembly
             state.finalizedContent += beforeContent;
 
             // Return only the remaining content for pending
-            return splitResult.after;
+            return afterContent;
         }
 
         return content;
     };
 
+    // Debug logging: enable via DEXTO_DEBUG_STREAM=true
+    const debug = createDebugLogger('stream');
+    debug.reset();
+    debug.log('CONFIG', { useStreaming });
+
     try {
         for await (const event of iterator) {
+            debug.log(`EVENT: ${event.name}`, {
+                ...(event.name === 'llm:chunk' &&
+                    'chunkType' in event && {
+                        chunkType: event.chunkType,
+                        contentLen: event.content?.length,
+                    }),
+                ...(event.name === 'llm:tool-call' &&
+                    'toolName' in event && {
+                        toolName: event.toolName,
+                    }),
+            });
+
             switch (event.name) {
                 case 'llm:thinking': {
+                    debug.log('THINKING: resetting state', {
+                        prevMessageId: state.messageId,
+                        prevContentLen: state.content.length,
+                    });
                     // Flush dequeued buffer to messages at start of new run
                     // This ensures user messages appear after the previous response
                     flushDequeuedBuffer();
@@ -241,18 +326,36 @@ export async function processStream(
                     state.outputTokens = 0;
                     state.finalizedContent = '';
                     state.splitCounter = 0;
+                    state.textFinalizedBeforeTool = false;
+                    state.nonStreamingAccumulatedText = '';
                     break;
                 }
 
                 case 'llm:chunk': {
-                    // In non-streaming mode, skip chunk processing entirely
-                    // We'll show the complete response when llm:response arrives
-                    if (!useStreaming) break;
+                    // In non-streaming mode, accumulate text but don't update UI
+                    // We need to track text so we can add it BEFORE tool calls (ordering fix)
+                    if (!useStreaming) {
+                        if (event.chunkType === 'text') {
+                            state.nonStreamingAccumulatedText += event.content;
+                            debug.log('CHUNK (non-stream): accumulated', {
+                                chunkLen: event.content?.length,
+                                totalLen: state.nonStreamingAccumulatedText.length,
+                                preview: state.nonStreamingAccumulatedText.slice(0, 50),
+                            });
+                        }
+                        break;
+                    }
 
                     // End thinking state when first chunk arrives
                     setUi((prev) => ({ ...prev, isThinking: false }));
 
                     if (event.chunkType === 'text') {
+                        debug.log('CHUNK (stream): text', {
+                            hasMessageId: !!state.messageId,
+                            chunkLen: event.content?.length,
+                            currentContentLen: state.content.length,
+                            preview: event.content?.slice(0, 30),
+                        });
                         // Create streaming message on first text chunk
                         if (!state.messageId) {
                             const newId = generateMessageId('assistant');
@@ -274,15 +377,23 @@ export async function processStream(
                             state.content += event.content;
 
                             // Check for progressive finalization (move completed paragraphs to Static)
+                            // progressiveFinalize updates pending message internally when split occurs
                             const pendingContent = progressiveFinalize(state.content);
+                            const splitOccurred = pendingContent !== state.content;
 
-                            // Update pending message with remaining content
-                            const messageId = state.messageId;
+                            // Update state with remaining content
                             state.content = pendingContent;
-                            // Mark as continuation if we've had any splits
-                            const isContinuation = state.splitCounter > 0;
 
-                            updatePending(messageId, { content: pendingContent, isContinuation });
+                            // Only update pending if no split occurred (split already handled by progressiveFinalize)
+                            if (!splitOccurred) {
+                                const messageId = state.messageId;
+                                // Mark as continuation if we've had any splits
+                                const isContinuation = state.splitCounter > 0;
+                                updatePending(messageId, {
+                                    content: pendingContent,
+                                    isContinuation,
+                                });
+                            }
                         }
                     }
                     break;
@@ -313,9 +424,10 @@ export async function processStream(
                         // Reset for potential next response (multi-step)
                         state.messageId = null;
                         state.content = '';
-                    } else if (finalContent) {
+                    } else if (finalContent && !state.textFinalizedBeforeTool) {
                         // No streaming message exists - add directly to finalized
                         // This handles: non-streaming mode, or multi-step turns after tool calls
+                        // Skip if text was already finalized before tools (avoid duplication)
                         setMessages((prev) => [
                             ...prev,
                             {
@@ -327,40 +439,112 @@ export async function processStream(
                             },
                         ]);
                     }
+                    // Reset the flag for this response (new text after tools will create new message)
+                    state.textFinalizedBeforeTool = false;
                     break;
                 }
 
                 case 'llm:tool-call': {
-                    // Format args for display (compact, one-line)
-                    let argsPreview = '';
-                    try {
-                        const argsStr = JSON.stringify(event.args);
-                        const cleanArgs = argsStr.replace(/^\{|\}$/g, '').trim();
-                        if (cleanArgs.length > 80) {
-                            argsPreview = ` • ${cleanArgs.slice(0, 80)}...`;
-                        } else if (cleanArgs.length > 0) {
-                            argsPreview = ` • ${cleanArgs}`;
+                    debug.log('TOOL-CALL: state check', {
+                        toolName: event.toolName,
+                        hasMessageId: !!state.messageId,
+                        contentLen: state.content.length,
+                        nonStreamAccumLen: state.nonStreamingAccumulatedText.length,
+                        contentPreview: state.content.slice(0, 50),
+                        nonStreamPreview: state.nonStreamingAccumulatedText.slice(0, 50),
+                        useStreaming,
+                    });
+                    // ORDERING FIX: Add any accumulated text BEFORE adding tool
+                    // This ensures text appears before tools in the message list.
+
+                    // Streaming mode: handle pending assistant message before tool
+                    if (state.messageId) {
+                        if (state.content) {
+                            // Finalize pending message with content
+                            const messageId = state.messageId;
+                            const content = state.content;
+                            const isContinuation = state.splitCounter > 0;
+                            debug.log('TOOL-CALL: finalizing pending message', {
+                                messageId,
+                                contentLen: content.length,
+                            });
+                            finalizeMessage(messageId, {
+                                content,
+                                isStreaming: false,
+                                isContinuation,
+                            });
+                            // Mark that we finalized text early - prevents duplicate in llm:response
+                            state.textFinalizedBeforeTool = true;
+                        } else {
+                            // Empty pending message (first chunk had no content) - remove it
+                            // This prevents empty bullets when LLM/SDK sends empty initial chunk
+                            debug.log('TOOL-CALL: removing empty pending message', {
+                                messageId: state.messageId,
+                            });
+                            removeFromPending(state.messageId);
                         }
-                    } catch {
-                        argsPreview = '';
+                        state.messageId = null;
+                        state.content = '';
+                    } else {
+                        debug.log('TOOL-CALL: no pending message to finalize');
+                    }
+
+                    // Non-streaming mode: add accumulated text as finalized message
+                    if (!useStreaming && state.nonStreamingAccumulatedText) {
+                        debug.log('TOOL-CALL: adding non-stream accumulated text', {
+                            len: state.nonStreamingAccumulatedText.length,
+                        });
+                        setMessages((prev) => [
+                            ...prev,
+                            {
+                                id: generateMessageId('assistant'),
+                                role: 'assistant',
+                                content: state.nonStreamingAccumulatedText,
+                                timestamp: new Date(),
+                                isStreaming: false,
+                            },
+                        ]);
+                        state.nonStreamingAccumulatedText = '';
+                        // Mark that we finalized text early - prevents duplicate in llm:response
+                        state.textFinalizedBeforeTool = true;
                     }
 
                     const toolMessageId = event.callId
                         ? `tool-${event.callId}`
                         : generateMessageId('tool');
 
-                    // Tool calls go to PENDING (running state)
+                    // Get friendly display name and format args
+                    const displayName = getToolDisplayName(event.toolName);
+                    const argsFormatted = formatToolArgsForDisplay(
+                        event.toolName,
+                        event.args || {}
+                    );
+
+                    // Format: ToolName(args)
+                    const toolContent = argsFormatted
+                        ? `${displayName}(${argsFormatted})`
+                        : displayName;
+
+                    // Tool calls start in 'pending' state (don't know if approval needed yet)
+                    // Status transitions: pending → pending_approval (if approval needed) → running → finished
+                    // Or for pre-approved: pending → running → finished
                     addToPending({
                         id: toolMessageId,
                         role: 'tool',
-                        content: `${event.toolName}${argsPreview}`,
+                        content: toolContent,
                         timestamp: new Date(),
-                        toolStatus: 'running',
+                        toolStatus: 'pending',
                     });
                     break;
                 }
 
                 case 'llm:tool-result': {
+                    // Extract structured display data and content from sanitized result
+                    const sanitized = event.sanitized as SanitizedToolResult | undefined;
+                    const toolDisplayData = sanitized?.meta?.display;
+                    const toolContent = sanitized?.content;
+
+                    // Generate text preview for fallback display
                     let resultPreview = '';
                     try {
                         const result = event.sanitized || event.rawResult;
@@ -404,26 +588,20 @@ export async function processStream(
 
                     if (event.callId) {
                         const toolMessageId = `tool-${event.callId}`;
-                        // Finalize tool message - move to messages with result
+                        // Finalize tool message - move to messages with result and display data
                         finalizeMessage(toolMessageId, {
                             toolResult: resultPreview,
                             toolStatus: 'finished',
                             isError: !event.success,
+                            ...(toolDisplayData && { toolDisplayData }),
+                            ...(toolContent && { toolContent }),
                         });
                     }
                     break;
                 }
 
                 case 'llm:error': {
-                    // Cancel any streaming message in pending
-                    if (state.messageId) {
-                        const messageId = state.messageId;
-                        removeFromPending(messageId);
-                        state.messageId = null;
-                        state.content = '';
-                    }
-
-                    // Add error message directly to finalized
+                    // Add error message to finalized
                     setMessages((prev) => [
                         ...prev,
                         {
@@ -434,15 +612,26 @@ export async function processStream(
                         },
                     ]);
 
-                    // Clear any remaining pending messages
-                    clearPending();
+                    // Only stop processing for non-recoverable errors (fatal)
+                    // Tool errors are recoverable - agent continues after them
+                    if (event.recoverable !== true) {
+                        // Cancel any streaming message in pending
+                        if (state.messageId) {
+                            removeFromPending(state.messageId);
+                            state.messageId = null;
+                            state.content = '';
+                        }
 
-                    setUi((prev) => ({
-                        ...prev,
-                        isProcessing: false,
-                        isCancelling: false,
-                        isThinking: false,
-                    }));
+                        // Clear any remaining pending messages
+                        clearPending();
+
+                        setUi((prev) => ({
+                            ...prev,
+                            isProcessing: false,
+                            isCancelling: false,
+                            isThinking: false,
+                        }));
+                    }
                     break;
                 }
 
@@ -453,38 +642,24 @@ export async function processStream(
                     // Ensure any remaining pending messages are finalized
                     finalizeAllPending();
 
-                    // Add run summary message before the assistant's response
+                    // Add run summary message at the END (not inserted in middle)
+                    // IMPORTANT: Ink's <Static> tracks rendered items by array position, not key.
+                    // Inserting in the middle shifts existing items, causing them to re-render.
+                    // Always append to avoid duplicate rendering.
                     if (durationMs > 0 || outputTokens > 0) {
-                        setMessages((prev) => {
-                            // Find index of the last user message
-                            let lastUserIndex = -1;
-                            for (let i = prev.length - 1; i >= 0; i--) {
-                                if (prev[i]?.role === 'user') {
-                                    lastUserIndex = i;
-                                    break;
-                                }
-                            }
+                        const summaryMessage = {
+                            id: generateMessageId('summary'),
+                            role: 'system' as const,
+                            content: '', // Content rendered via styledType
+                            timestamp: new Date(),
+                            styledType: 'run-summary' as const,
+                            styledData: {
+                                durationMs,
+                                outputTokens,
+                            },
+                        };
 
-                            // Insert summary after user message (before assistant response)
-                            const insertIndex = lastUserIndex + 1;
-                            const summaryMessage = {
-                                id: generateMessageId('summary'),
-                                role: 'system' as const,
-                                content: '', // Content rendered via styledType
-                                timestamp: new Date(),
-                                styledType: 'run-summary' as const,
-                                styledData: {
-                                    durationMs,
-                                    outputTokens,
-                                },
-                            };
-
-                            return [
-                                ...prev.slice(0, insertIndex),
-                                summaryMessage,
-                                ...prev.slice(insertIndex),
-                            ];
-                        });
+                        setMessages((prev) => [...prev, summaryMessage]);
                     }
 
                     setUi((prev) => ({
@@ -531,7 +706,85 @@ export async function processStream(
                     break;
                 }
 
-                // Ignore other events (approval:request handled by useAgentEvents)
+                case 'tool:running': {
+                    // Tool execution actually started (after approval if needed)
+                    // Update status from 'pending' or 'pending_approval' to 'running'
+                    const runningToolId = `tool-${event.toolCallId}`;
+                    updatePendingStatus(runningToolId, 'running');
+                    break;
+                }
+
+                case 'approval:request': {
+                    // Handle approval requests in processStream (NOT useAgentEvents) to ensure
+                    // proper ordering - text messages must be added BEFORE approval UI shows.
+                    // This fixes a race condition where direct event bus subscription in
+                    // useAgentEvents fired before the iterator processed llm:tool-call.
+
+                    // Check for auto-approval of edit/write tools FIRST
+                    // Read from ref to get latest value (may have changed mid-stream)
+                    const autoApproveEdits = options.autoApproveEditsRef.current;
+                    const { eventBus } = options;
+
+                    if (autoApproveEdits && event.type === ApprovalTypeEnum.TOOL_CONFIRMATION) {
+                        // Type is narrowed - metadata is now ToolConfirmationMetadata
+                        const { toolName } = event.metadata;
+
+                        if (isEditWriteTool(toolName)) {
+                            // Auto-approve immediately - emit response and let tool:running handle status
+                            eventBus.emit('approval:response', {
+                                approvalId: event.approvalId,
+                                status: ApprovalStatus.APPROVED,
+                                sessionId: event.sessionId,
+                                data: {},
+                            });
+                            break;
+                        }
+                    }
+
+                    // Manual approval needed - update tool status to 'pending_approval'
+                    // Extract toolCallId based on approval type
+                    const toolCallId =
+                        event.type === ApprovalTypeEnum.TOOL_CONFIRMATION
+                            ? event.metadata.toolCallId
+                            : undefined;
+                    if (toolCallId) {
+                        updatePendingStatus(`tool-${toolCallId}`, 'pending_approval');
+                    }
+
+                    // Show approval UI (moved from useAgentEvents for ordering)
+                    if (
+                        event.type === ApprovalTypeEnum.TOOL_CONFIRMATION ||
+                        event.type === ApprovalTypeEnum.COMMAND_CONFIRMATION ||
+                        event.type === ApprovalTypeEnum.ELICITATION
+                    ) {
+                        const newApproval: ApprovalRequest = {
+                            approvalId: event.approvalId,
+                            type: event.type,
+                            timestamp: event.timestamp,
+                            metadata: event.metadata,
+                        };
+
+                        if (event.sessionId !== undefined) {
+                            newApproval.sessionId = event.sessionId;
+                        }
+                        if (event.timeout !== undefined) {
+                            newApproval.timeout = event.timeout;
+                        }
+
+                        // Queue if there's already an approval, otherwise show immediately
+                        setApproval((current) => {
+                            if (current !== null) {
+                                setApprovalQueue((queue) => [...queue, newApproval]);
+                                return current;
+                            }
+                            setUi((prev) => ({ ...prev, activeOverlay: 'approval' }));
+                            return newApproval;
+                        });
+                    }
+                    break;
+                }
+
+                // Ignore other events
                 default:
                     break;
             }

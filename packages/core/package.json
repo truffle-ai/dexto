@@ -20,7 +20,7 @@
     "./package.json": "./package.json"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "^2.0.0",
+    "@ai-sdk/anthropic": "^2.0.56",
     "@ai-sdk/cohere": "^2.0.0",
     "@ai-sdk/google": "^2.0.0",
     "@ai-sdk/groq": "^2.0.0",
@@ -31,6 +31,7 @@
     "ai": "^5.0.0",
     "boxen": "^7.1.1",
     "chalk": "^5.4.1",
+    "diff": "^8.0.2",
     "dotenv": "^16.4.7",
     "glob": "^11.0.3",
     "nanoid": "^5.1.6",
@@ -39,11 +40,11 @@
     "zod-to-json-schema": "^3.24.6"
   },
   "devDependencies": {
+    "@types/diff": "^8.0.0",
     "@types/json-schema": "^7.0.15",
     "zod": "^3.25.0"
   },
   "peerDependencies": {
-    "zod": "^3.25.0",
     "@opentelemetry/auto-instrumentations-node": "^0.52.1",
     "@opentelemetry/core": "^1.28.0",
     "@opentelemetry/exporter-trace-otlp-grpc": "^0.55.0",
@@ -55,7 +56,8 @@
     "better-sqlite3": "^11.10.0",
     "ioredis": "^5.7.0",
     "pg": "^8.15.4",
-    "tsx": "^4.19.2"
+    "tsx": "^4.19.2",
+    "zod": "^3.25.0"
   },
   "peerDependenciesMeta": {
     "@opentelemetry/auto-instrumentations-node": {

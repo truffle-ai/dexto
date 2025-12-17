@@ -15,6 +15,8 @@ import type {
     SessionHistoryStyledData,
     LogConfigStyledData,
     RunSummaryStyledData,
+    ShortcutsStyledData,
+    SysPromptStyledData,
 } from '../../state/types.js';
 import {
     ConfigBox,
@@ -23,7 +25,12 @@ import {
     SessionListBox,
     SessionHistoryBox,
     LogConfigBox,
+    ShortcutsBox,
+    SyspromptBox,
 } from './styled-boxes/index.js';
+import { ToolResultRenderer } from '../renderers/index.js';
+import { MarkdownText } from '../shared/MarkdownText.js';
+import { ToolIcon } from './ToolIcon.js';
 
 /**
  * Format milliseconds into a compact human-readable string
@@ -85,7 +92,7 @@ export const MessageItem = memo(
                     const tokensStr =
                         data.outputTokens > 0 ? `, Used ${data.outputTokens} tokens` : '';
                     return (
-                        <Box marginTop={1} marginBottom={1}>
+                        <Box marginTop={1} marginBottom={1} width="100%">
                             <Text color="gray" dimColor>
                                 ─ Worked for {durationStr}
                                 {tokensStr} ─
@@ -93,63 +100,104 @@ export const MessageItem = memo(
                         </Box>
                     );
                 }
+                case 'shortcuts':
+                    return <ShortcutsBox data={message.styledData as ShortcutsStyledData} />;
+                case 'sysprompt':
+                    return <SyspromptBox data={message.styledData as SysPromptStyledData} />;
             }
         }
 
         // User message: '>' prefix with gray background
         if (message.role === 'user') {
             return (
-                <Box flexDirection="column" marginTop={2} marginBottom={1}>
+                <Box flexDirection="column" marginTop={2} marginBottom={1} width="100%">
                     <Box flexDirection="row" paddingX={1} backgroundColor="gray">
                         <Text color="green" dimColor>
                             {'> '}
                         </Text>
-                        <Text color="white">{message.content}</Text>
+                        <Text color="white" wrap="wrap">
+                            {message.content}
+                        </Text>
                     </Box>
                 </Box>
             );
         }
 
         // Assistant message: Gray circle indicator (unless continuation)
+        // IMPORTANT: width="100%" is required to prevent Ink layout failures on large content.
+        // Without width constraints, streaming content causes terminal blackout at ~50+ lines.
+        // marginTop={1} for consistent spacing with tool messages
         if (message.role === 'assistant') {
-            // Continuation messages: no indicator, no margins - flows seamlessly from previous
+            // Continuation messages: no indicator, just content
             if (message.isContinuation) {
                 return (
-                    <Box flexDirection="row">
-                        <Text>{'  '}</Text>
-                        <Text color="white">{message.content || ''}</Text>
+                    <Box flexDirection="column" width="100%">
+                        <MarkdownText>{message.content || ''}</MarkdownText>
                     </Box>
                 );
             }
 
+            // Regular assistant message: bullet prefix inline with first line
+            // Text wraps at terminal width - wrapped lines may start at column 0
+            // This is simpler and avoids mid-word splitting issues with Ink's wrap
             return (
-                <Box flexDirection="column" marginBottom={1}>
-                    <Box flexDirection="row">
-                        <Text color="gray">⏺ </Text>
-                        <Box flexDirection="column" flexGrow={1}>
-                            <Text color="white">{message.content || ' '}</Text>
-                        </Box>
-                    </Box>
+                <Box flexDirection="column" marginTop={1} width="100%">
+                    <MarkdownText bulletPrefix="⏺ ">{message.content || ''}</MarkdownText>
                 </Box>
             );
         }
 
-        // Tool message: Green for success, red for failure
+        // Tool message: Animated icon based on status
+        // - Running: magenta spinner + "Running..."
+        // - Finished (success): green dot
+        // - Finished (error): red dot
         if (message.role === 'tool') {
-            const iconColor = message.isError ? 'red' : 'green';
+            // Use structured renderers if display data is available
+            const hasStructuredDisplay = message.toolDisplayData && message.toolContent;
+            const isRunning = message.toolStatus === 'running';
+            const isPending =
+                message.toolStatus === 'pending' || message.toolStatus === 'pending_approval';
+
+            // Parse tool name and args for bold formatting: "ToolName(args)" → bold name + normal args
+            const parenIndex = message.content.indexOf('(');
+            const toolName =
+                parenIndex > 0 ? message.content.slice(0, parenIndex) : message.content;
+            const toolArgs = parenIndex > 0 ? message.content.slice(parenIndex) : '';
 
             return (
-                <Box flexDirection="column" marginBottom={1}>
+                <Box flexDirection="column" marginTop={1} width="100%">
+                    {/* Tool header: icon + name + args + status text */}
                     <Box flexDirection="row">
-                        <Text color={iconColor}>⏺ </Text>
-                        <Text color={iconColor}>{message.content}</Text>
-                    </Box>
-                    {message.toolResult && (
-                        <Box marginLeft={2} marginTop={0} flexDirection="column">
-                            <Text color="gray" dimColor>
-                                {message.toolResult}
+                        <ToolIcon
+                            status={message.toolStatus || 'finished'}
+                            isError={message.isError ?? false}
+                        />
+                        <Box flexGrow={1} flexShrink={1}>
+                            <Text wrap="wrap">
+                                <Text bold>{toolName}</Text>
+                                <Text>{toolArgs}</Text>
+                                {isRunning && <Text color="magenta"> Running...</Text>}
+                                {isPending && (
+                                    <Text color="yellow" dimColor>
+                                        {' '}
+                                        Waiting...
+                                    </Text>
+                                )}
                             </Text>
                         </Box>
+                    </Box>
+                    {/* Tool result - only show when finished */}
+                    {hasStructuredDisplay ? (
+                        <ToolResultRenderer
+                            display={message.toolDisplayData!}
+                            content={message.toolContent!}
+                        />
+                    ) : (
+                        message.toolResult && (
+                            <Box flexDirection="column">
+                                <Text dimColor> ⎿ {message.toolResult}</Text>
+                            </Box>
+                        )
                     )}
                 </Box>
             );
@@ -157,7 +205,7 @@ export const MessageItem = memo(
 
         // System message: Compact gray text
         return (
-            <Box flexDirection="column" marginBottom={1}>
+            <Box flexDirection="column" marginBottom={1} width="100%">
                 <Text color="gray" dimColor>
                     {message.content}
                 </Text>
@@ -176,7 +224,9 @@ export const MessageItem = memo(
             prev.message.styledType === next.message.styledType &&
             prev.message.styledData === next.message.styledData &&
             prev.message.isContinuation === next.message.isContinuation &&
-            prev.message.isError === next.message.isError
+            prev.message.isError === next.message.isError &&
+            prev.message.toolDisplayData === next.message.toolDisplayData &&
+            prev.message.toolContent === next.message.toolContent
         );
     }
 );

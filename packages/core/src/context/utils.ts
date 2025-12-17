@@ -8,6 +8,7 @@ import {
     SanitizedToolResult,
     isToolMessage,
 } from './types.js';
+import { isValidDisplayData, type ToolDisplayData } from '../tools/display-types.js';
 import type { IDextoLogger } from '@core/logger/v2/types.js';
 import { validateModelFileSupport } from '@core/llm/registry.js';
 import { LLMContext } from '@core/llm/types.js';
@@ -1600,7 +1601,24 @@ export async function sanitizeToolResult(
     },
     logger: IDextoLogger
 ): Promise<SanitizedToolResult> {
-    const normalized = await normalizeToolResult(result, logger);
+    // Extract _display from tool result before normalization (if present)
+    // Strip it from the payload to avoid duplicating large display data in LLM content
+    let display: ToolDisplayData | undefined;
+    let resultForNormalization = result;
+
+    if (result && typeof result === 'object' && '_display' in result) {
+        const { _display: rawDisplay, ...rest } = result as Record<string, unknown>;
+        if (isValidDisplayData(rawDisplay)) {
+            display = rawDisplay;
+            logger.debug(
+                `sanitizeToolResult: extracted display data (type=${display.type}) for ${options.toolName}`
+            );
+        }
+        // Always strip _display from payload sent to LLM, even if invalid
+        resultForNormalization = rest;
+    }
+
+    const normalized = await normalizeToolResult(resultForNormalization, logger);
     const persisted = await persistToolMedia(
         normalized,
         {
@@ -1632,6 +1650,7 @@ export async function sanitizeToolResult(
             toolName: options.toolName,
             toolCallId: options.toolCallId,
             success: options.success,
+            ...(display ? { display } : {}),
         },
     };
 }

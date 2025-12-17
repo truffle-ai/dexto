@@ -164,6 +164,7 @@ const sessionId = agent.getCurrentSessionId();  // Stale!
 2. Add detection in `useCLIState.ts`
 3. Create component in `components/overlays/`
 4. Register in `OverlayContainer.tsx`
+5. **If overlay has its own text input** (wizard, search, etc.): Add to `overlaysWithOwnInput` array in `InputContainer.tsx` (~line 659) to disable main input while overlay is active
 
 ### Add New Slash Command
 

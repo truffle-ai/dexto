@@ -1,6 +1,6 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { DextoAgent } from '@dexto/core';
-import { logger, McpServerConfigSchema } from '@dexto/core';
+import { logger, McpServerConfigSchema, MCP_CONNECTION_STATUSES } from '@dexto/core';
 import { updateAgentConfigFile } from '@dexto/agent-management';
 import { ResourceSchema } from '../schemas/responses.js';
 
@@ -34,7 +34,7 @@ const ServerInfoSchema = z
     .object({
         id: z.string().describe('Server identifier'),
         name: z.string().describe('Server name'),
-        status: z.enum(['connected', 'error', 'disconnected']).describe('Server status'),
+        status: z.enum(MCP_CONNECTION_STATUSES).describe('Server status'),
     })
     .strict()
     .describe('MCP server information');
@@ -293,9 +293,14 @@ export function createMcpRouter(getAgent: () => DextoAgent) {
             const agent = getAgent();
             const { name, config, persistToAgent } = ctx.req.valid('json');
 
-            // Connect the server
-            await agent.connectMcpServer(name, config);
-            logger.info(`Successfully connected to new server '${name}' via API request.`);
+            // Add the server (connects if enabled, otherwise just registers)
+            await agent.addMcpServer(name, config);
+            const isConnected = config.enabled !== false;
+            logger.info(
+                isConnected
+                    ? `Successfully connected to new server '${name}' via API request.`
+                    : `Registered server '${name}' (disabled) via API request.`
+            );
 
             // If persistToAgent is true, save to agent config file
             if (persistToAgent === true) {
@@ -338,7 +343,8 @@ export function createMcpRouter(getAgent: () => DextoAgent) {
                 }
             }
 
-            return ctx.json({ status: 'connected', name }, 200);
+            const status = isConnected ? 'connected' : 'registered';
+            return ctx.json({ status, name }, 200);
         })
         .openapi(listServersRoute, async (ctx) => {
             const agent = getAgent();

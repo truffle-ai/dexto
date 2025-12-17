@@ -11,9 +11,7 @@ import {
     getCachedStringWidth,
     isWordCharStrict,
     isWhitespace,
-    isCombiningMark,
     isWordCharWithCombining,
-    getCharScript,
     isDifferentScript,
 } from '../../utils/textUtils.js';
 import type { Key } from '../../hooks/useKeypress.js';

@@ -126,4 +126,20 @@ export class PromptError {
             { name }
         );
     }
+
+    /**
+     * Prompts config validation failed
+     */
+    static validationFailed(details: string) {
+        return new DextoValidationError([
+            {
+                code: PromptErrorCode.PROMPT_CONFIG_INVALID,
+                message: `Invalid prompts configuration: ${details}`,
+                scope: ErrorScope.PROMPT,
+                type: ErrorType.USER,
+                severity: 'error',
+                context: { details },
+            },
+        ]);
+    }
 }

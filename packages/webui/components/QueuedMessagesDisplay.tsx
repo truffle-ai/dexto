@@ -12,7 +12,6 @@ interface QueuedMessagesDisplayProps {
 
 /**
  * Displays queued messages with visual indicators and keyboard hints.
- * Similar to Codex's queued_user_messages.rs
  */
 export function QueuedMessagesDisplay({
     messages,

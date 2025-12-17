@@ -5,11 +5,13 @@
 
 import React from 'react';
 import { Box, Text } from 'ink';
+import { getModelDisplayName } from '@dexto/core';
 
 interface FooterProps {
     modelName: string;
     cwd?: string;
     branchName?: string;
+    autoApproveEdits?: boolean;
 }
 
 /**
@@ -33,26 +35,33 @@ function shortenPath(path: string, maxLength: number = 40): string {
 /**
  * Pure presentational component for footer status line
  */
-export function Footer({ modelName, cwd, branchName }: FooterProps) {
+export function Footer({ modelName, cwd, branchName, autoApproveEdits }: FooterProps) {
     const displayPath = cwd ? shortenPath(cwd) : '';
+    const displayModelName = getModelDisplayName(modelName);
 
     return (
-        <Box flexDirection="row" justifyContent="space-between" paddingX={1}>
-            {/* Left: CWD and branch */}
-            <Box>
-                <Text color="blue">{displayPath}</Text>
-                {branchName && (
-                    <Text color="gray" dimColor>
-                        {' '}
-                        ({branchName})
-                    </Text>
-                )}
+        <Box flexDirection="column" paddingX={1}>
+            {/* Line 1: CWD (left) | Model name (right) */}
+            <Box flexDirection="row" justifyContent="space-between">
+                <Box>
+                    <Text color="blue">{displayPath}</Text>
+                    {branchName && (
+                        <Text color="gray" dimColor>
+                            {' '}
+                            ({branchName})
+                        </Text>
+                    )}
+                </Box>
+                <Text color="cyan">{displayModelName}</Text>
             </Box>
 
-            {/* Right: Model name */}
-            <Box>
-                <Text color="cyan">{modelName}</Text>
-            </Box>
+            {/* Line 2: Mode indicators (left) */}
+            {autoApproveEdits && (
+                <Box>
+                    <Text color="yellow">accept edits</Text>
+                    <Text dimColor> (shift + tab to toggle)</Text>
+                </Box>
+            )}
         </Box>
     );
 }
