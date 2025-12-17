@@ -4,7 +4,7 @@
  */
 
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
-import type { ToolDisplayData, ContentPart } from '@dexto/core';
+import type { ToolDisplayData, ContentPart, McpConnectionStatus, McpServerType } from '@dexto/core';
 
 /**
  * Startup information displayed in CLI header
@@ -277,9 +277,9 @@ export type OverlayType =
     | 'prompt-delete-selector';
 
 /**
- * MCP server type for custom wizard
+ * MCP server type for custom wizard (null = not yet selected)
  */
-export type McpWizardServerType = 'stdio' | 'http' | 'sse' | null;
+export type McpWizardServerType = McpServerType | null;
 
 /**
  * MCP server info for actions screen
@@ -287,8 +287,8 @@ export type McpWizardServerType = 'stdio' | 'http' | 'sse' | null;
 export interface SelectedMcpServer {
     name: string;
     enabled: boolean;
-    status: 'connected' | 'disabled' | 'failed';
-    type: 'stdio' | 'http' | 'sse';
+    status: McpConnectionStatus;
+    type: McpServerType;
 }
 
 /**

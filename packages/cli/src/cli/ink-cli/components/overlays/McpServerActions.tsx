@@ -14,19 +14,19 @@ import React, {
 } from 'react';
 import { Box, Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
+import type { McpServerStatus } from '@dexto/core';
 import { BaseSelector, type BaseSelectorHandle } from '../base/BaseSelector.js';
-import type { McpServerInfo } from './McpServerList.js';
 
 export type McpServerActionType = 'enable' | 'disable' | 'delete' | 'back';
 
 export interface McpServerAction {
     type: McpServerActionType;
-    server: McpServerInfo;
+    server: McpServerStatus;
 }
 
 interface McpServerActionsProps {
     isVisible: boolean;
-    server: McpServerInfo | null;
+    server: McpServerStatus | null;
     onAction: (action: McpServerAction) => void;
     onClose: () => void;
 }

@@ -21,8 +21,8 @@
  */
 
 import type React from 'react';
-import { appendFileSync, writeFileSync } from 'fs';
 import type { StreamingEvent, SanitizedToolResult } from '@dexto/core';
+import { createDebugLogger } from '../utils/debugLog.js';
 import { ApprovalType as ApprovalTypeEnum, ApprovalStatus } from '@dexto/core';
 import type { Message, UIState, ToolStatus } from '../state/types.js';
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
@@ -290,38 +290,28 @@ export async function processStream(
         return content;
     };
 
-    // DEBUG: Track event order and content - writes to /tmp/dexto-stream-debug.log
-    const DEBUG_STREAM = false;
-    const debugLog = (msg: string, data?: Record<string, unknown>) => {
-        if (DEBUG_STREAM) {
-            const timestamp = new Date().toISOString().split('T')[1];
-            const line = `[${timestamp}] ${msg} ${data ? JSON.stringify(data) : ''}\n`;
-            appendFileSync('/tmp/dexto-stream-debug.log', line);
-        }
-    };
-
-    // Clear log file and log initial config
-    if (DEBUG_STREAM) {
-        writeFileSync(
-            '/tmp/dexto-stream-debug.log',
-            `=== NEW STREAM ${new Date().toISOString()} ===\n`
-        );
-        debugLog('CONFIG', { useStreaming });
-    }
+    // Debug logging: enable via DEXTO_DEBUG_STREAM=true
+    const debug = createDebugLogger('stream');
+    debug.reset();
+    debug.log('CONFIG', { useStreaming });
 
     try {
         for await (const event of iterator) {
-            debugLog(`EVENT: ${event.name}`, {
-                ...(event.name === 'llm:chunk' && {
-                    chunkType: (event as any).chunkType,
-                    contentLen: (event as any).content?.length,
-                }),
-                ...(event.name === 'llm:tool-call' && { toolName: (event as any).toolName }),
+            debug.log(`EVENT: ${event.name}`, {
+                ...(event.name === 'llm:chunk' &&
+                    'chunkType' in event && {
+                        chunkType: event.chunkType,
+                        contentLen: event.content?.length,
+                    }),
+                ...(event.name === 'llm:tool-call' &&
+                    'toolName' in event && {
+                        toolName: event.toolName,
+                    }),
             });
 
             switch (event.name) {
                 case 'llm:thinking': {
-                    debugLog('THINKING: resetting state', {
+                    debug.log('THINKING: resetting state', {
                         prevMessageId: state.messageId,
                         prevContentLen: state.content.length,
                     });
@@ -347,7 +337,7 @@ export async function processStream(
                     if (!useStreaming) {
                         if (event.chunkType === 'text') {
                             state.nonStreamingAccumulatedText += event.content;
-                            debugLog('CHUNK (non-stream): accumulated', {
+                            debug.log('CHUNK (non-stream): accumulated', {
                                 chunkLen: event.content?.length,
                                 totalLen: state.nonStreamingAccumulatedText.length,
                                 preview: state.nonStreamingAccumulatedText.slice(0, 50),
@@ -360,7 +350,7 @@ export async function processStream(
                     setUi((prev) => ({ ...prev, isThinking: false }));
 
                     if (event.chunkType === 'text') {
-                        debugLog('CHUNK (stream): text', {
+                        debug.log('CHUNK (stream): text', {
                             hasMessageId: !!state.messageId,
                             chunkLen: event.content?.length,
                             currentContentLen: state.content.length,
@@ -455,7 +445,7 @@ export async function processStream(
                 }
 
                 case 'llm:tool-call': {
-                    debugLog('TOOL-CALL: state check', {
+                    debug.log('TOOL-CALL: state check', {
                         toolName: event.toolName,
                         hasMessageId: !!state.messageId,
                         contentLen: state.content.length,
@@ -474,7 +464,7 @@ export async function processStream(
                             const messageId = state.messageId;
                             const content = state.content;
                             const isContinuation = state.splitCounter > 0;
-                            debugLog('TOOL-CALL: finalizing pending message', {
+                            debug.log('TOOL-CALL: finalizing pending message', {
                                 messageId,
                                 contentLen: content.length,
                             });
@@ -488,7 +478,7 @@ export async function processStream(
                         } else {
                             // Empty pending message (first chunk had no content) - remove it
                             // This prevents empty bullets when LLM/SDK sends empty initial chunk
-                            debugLog('TOOL-CALL: removing empty pending message', {
+                            debug.log('TOOL-CALL: removing empty pending message', {
                                 messageId: state.messageId,
                             });
                             removeFromPending(state.messageId);
@@ -496,12 +486,12 @@ export async function processStream(
                         state.messageId = null;
                         state.content = '';
                     } else {
-                        debugLog('TOOL-CALL: no pending message to finalize');
+                        debug.log('TOOL-CALL: no pending message to finalize');
                     }
 
                     // Non-streaming mode: add accumulated text as finalized message
                     if (!useStreaming && state.nonStreamingAccumulatedText) {
-                        debugLog('TOOL-CALL: adding non-stream accumulated text', {
+                        debug.log('TOOL-CALL: adding non-stream accumulated text', {
                             len: state.nonStreamingAccumulatedText.length,
                         });
                         setMessages((prev) => [
@@ -794,7 +784,7 @@ export async function processStream(
                     break;
                 }
 
-                // Ignore other events (approval UI handled by useAgentEvents)
+                // Ignore other events
                 default:
                     break;
             }

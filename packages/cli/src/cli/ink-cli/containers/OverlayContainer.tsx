@@ -5,7 +5,7 @@
 
 import React, { useCallback, useRef, useImperativeHandle, forwardRef } from 'react';
 import { Box } from 'ink';
-import type { DextoAgent, McpServerConfig } from '@dexto/core';
+import type { DextoAgent, McpServerConfig, McpServerStatus, McpServerType } from '@dexto/core';
 import type { TextBuffer } from '../components/shared/text-buffer.js';
 import type { Key } from '../hooks/useInputOrchestrator.js';
 import { ApprovalStatus, DenialReason } from '@dexto/core';
@@ -38,7 +38,6 @@ import ToolBrowser, { type ToolBrowserHandle } from '../components/overlays/Tool
 import McpServerList, {
     type McpServerListHandle,
     type McpServerListAction,
-    type McpServerInfo,
 } from '../components/overlays/McpServerList.js';
 import McpServerActions, {
     type McpServerActionsHandle,
@@ -58,7 +57,6 @@ import SessionSubcommandSelector, {
 } from '../components/overlays/SessionSubcommandSelector.js';
 import McpCustomTypeSelector, {
     type McpCustomTypeSelectorHandle,
-    type McpServerType,
 } from '../components/overlays/McpCustomTypeSelector.js';
 import McpCustomWizard, {
     type McpCustomWizardHandle,

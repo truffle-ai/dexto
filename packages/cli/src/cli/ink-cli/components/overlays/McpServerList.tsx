@@ -14,18 +14,11 @@ import React, {
 } from 'react';
 import { Box, Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
-import type { DextoAgent } from '@dexto/core';
+import type { DextoAgent, McpServerStatus, McpConnectionStatus } from '@dexto/core';
 import { BaseSelector, type BaseSelectorHandle } from '../base/BaseSelector.js';
 
-export interface McpServerInfo {
-    name: string;
-    enabled: boolean;
-    status: 'connected' | 'disabled' | 'failed';
-    type: 'stdio' | 'http' | 'sse';
-}
-
 export type McpServerListAction =
-    | { type: 'select-server'; server: McpServerInfo }
+    | { type: 'select-server'; server: McpServerStatus }
     | { type: 'add-new' };
 
 interface McpServerListProps {
@@ -42,19 +35,19 @@ export interface McpServerListHandle {
 interface ListItem {
     id: string;
     isAddNew: boolean;
-    server?: McpServerInfo;
+    server?: McpServerStatus;
 }
 
 /**
  * Get status icon based on server state
  */
-function getStatusIcon(status: 'connected' | 'disabled' | 'failed'): string {
+function getStatusIcon(status: McpConnectionStatus): string {
     switch (status) {
         case 'connected':
             return '🟢';
-        case 'disabled':
+        case 'disconnected':
             return '⚪';
-        case 'failed':
+        case 'error':
             return '🔴';
     }
 }
@@ -62,13 +55,13 @@ function getStatusIcon(status: 'connected' | 'disabled' | 'failed'): string {
 /**
  * Get status text based on server state
  */
-function getStatusText(status: 'connected' | 'disabled' | 'failed'): string {
+function getStatusText(status: McpConnectionStatus): string {
     switch (status) {
         case 'connected':
             return 'connected';
-        case 'disabled':
+        case 'disconnected':
             return 'disabled';
-        case 'failed':
+        case 'error':
             return 'failed';
     }
 }
@@ -82,7 +75,7 @@ const McpServerList = forwardRef<McpServerListHandle, McpServerListProps>(functi
 ) {
     const baseSelectorRef = useRef<BaseSelectorHandle>(null);
     const [selectedIndex, setSelectedIndex] = useState(0);
-    const [servers, setServers] = useState<McpServerInfo[]>([]);
+    const [servers, setServers] = useState<McpServerStatus[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
     // Forward handleInput to BaseSelector
@@ -102,42 +95,16 @@ const McpServerList = forwardRef<McpServerListHandle, McpServerListProps>(functi
             setIsLoading(true);
             setSelectedIndex(0);
 
-            // Get all configured servers from effective config
-            const config = agent.getEffectiveConfig();
-            const mcpServers = config.mcpServers || {};
+            // Get all servers with computed status from agent
+            const serverList = agent.getMcpServersWithStatus();
 
-            // Get connected and failed servers
-            const connectedClients = agent.getMcpClients();
-            const failedConnections = agent.getMcpFailedConnections();
-
-            const serverList: McpServerInfo[] = [];
-
-            for (const [name, serverConfig] of Object.entries(mcpServers)) {
-                const enabled = serverConfig.enabled !== false; // default true
-                let status: 'connected' | 'disabled' | 'failed';
-
-                if (!enabled) {
-                    status = 'disabled';
-                } else if (connectedClients.has(name)) {
-                    status = 'connected';
-                } else if (failedConnections[name]) {
-                    status = 'failed';
-                } else {
-                    // Not connected yet but enabled - treat as failed/pending
-                    status = 'failed';
-                }
-
-                serverList.push({
-                    name,
-                    enabled,
-                    status,
-                    type: serverConfig.type,
-                });
-            }
-
-            // Sort: connected first, then disabled, then failed
+            // Sort: connected first, then disconnected, then error
             serverList.sort((a, b) => {
-                const order = { connected: 0, disabled: 1, failed: 2 };
+                const order: Record<McpConnectionStatus, number> = {
+                    connected: 0,
+                    disconnected: 1,
+                    error: 2,
+                };
                 return order[a.status] - order[b.status];
             });
 
@@ -190,7 +157,7 @@ const McpServerList = forwardRef<McpServerListHandle, McpServerListProps>(functi
                     color={
                         server.status === 'connected'
                             ? 'green'
-                            : server.status === 'disabled'
+                            : server.status === 'disconnected'
                               ? 'gray'
                               : 'red'
                     }

@@ -30,7 +30,7 @@ import { DextoValidationError } from '../errors/DextoValidationError.js';
 import { ensureOk } from '@core/errors/result-bridge.js';
 import { fail, zodToIssues } from '@core/utils/result.js';
 import { resolveAndValidateMcpServerConfig } from '../mcp/resolver.js';
-import type { McpServerConfig } from '@core/mcp/schemas.js';
+import type { McpServerConfig, McpServerStatus, McpConnectionStatus } from '@core/mcp/schemas.js';
 import {
     getSupportedProviders,
     getDefaultModelForProvider,
@@ -1976,6 +1976,89 @@ export class DextoAgent {
     public getMcpFailedConnections(): Record<string, string> {
         this.ensureStarted();
         return this.mcpManager.getFailedConnections();
+    }
+
+    /**
+     * Gets the connection status of a single MCP server.
+     * @param name The server name
+     * @returns The connection status, or undefined if server not configured
+     *
+     * TODO: Move to MCPManager once it has access to server configs (enabled state).
+     * Currently here because MCPManager only tracks connections, not config.
+     */
+    public getMcpServerStatus(name: string): McpServerStatus | undefined {
+        this.ensureStarted();
+        const config = this.stateManager.getRuntimeConfig();
+        const serverConfig = config.mcpServers[name];
+        if (!serverConfig) return undefined;
+
+        const enabled = serverConfig.enabled !== false;
+        const connectedClients = this.mcpManager.getClients();
+        const failedConnections = this.mcpManager.getFailedConnections();
+
+        let status: McpConnectionStatus;
+        if (!enabled) {
+            status = 'disconnected';
+        } else if (connectedClients.has(name)) {
+            status = 'connected';
+        } else {
+            status = 'error';
+        }
+
+        const result: McpServerStatus = {
+            name,
+            type: serverConfig.type,
+            enabled,
+            status,
+        };
+        if (failedConnections[name]) {
+            result.error = failedConnections[name];
+        }
+        return result;
+    }
+
+    /**
+     * Gets all configured MCP servers with their connection status.
+     * Centralizes the status computation logic used by CLI, server, and webui.
+     * @returns Array of server info with computed status
+     *
+     * TODO: Move to MCPManager once it has access to server configs (enabled state).
+     * Currently here because MCPManager only tracks connections, not config.
+     */
+    public getMcpServersWithStatus(): McpServerStatus[] {
+        this.ensureStarted();
+        const config = this.stateManager.getRuntimeConfig();
+        const mcpServers = config.mcpServers || {};
+        const connectedClients = this.mcpManager.getClients();
+        const failedConnections = this.mcpManager.getFailedConnections();
+
+        const servers: McpServerStatus[] = [];
+
+        for (const [name, serverConfig] of Object.entries(mcpServers)) {
+            const enabled = serverConfig.enabled !== false;
+            let status: McpConnectionStatus;
+
+            if (!enabled) {
+                status = 'disconnected';
+            } else if (connectedClients.has(name)) {
+                status = 'connected';
+            } else {
+                status = 'error';
+            }
+
+            const server: McpServerStatus = {
+                name,
+                type: serverConfig.type,
+                enabled,
+                status,
+            };
+            if (failedConnections[name]) {
+                server.error = failedConnections[name];
+            }
+            servers.push(server);
+        }
+
+        return servers;
     }
 
     // ============= RESOURCE MANAGEMENT =============

@@ -1,6 +1,6 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { DextoAgent } from '@dexto/core';
-import { logger, McpServerConfigSchema } from '@dexto/core';
+import { logger, McpServerConfigSchema, MCP_CONNECTION_STATUSES } from '@dexto/core';
 import { updateAgentConfigFile } from '@dexto/agent-management';
 import { ResourceSchema } from '../schemas/responses.js';
 
@@ -34,7 +34,7 @@ const ServerInfoSchema = z
     .object({
         id: z.string().describe('Server identifier'),
         name: z.string().describe('Server name'),
-        status: z.enum(['connected', 'error', 'disconnected']).describe('Server status'),
+        status: z.enum(MCP_CONNECTION_STATUSES).describe('Server status'),
     })
     .strict()
     .describe('MCP server information');

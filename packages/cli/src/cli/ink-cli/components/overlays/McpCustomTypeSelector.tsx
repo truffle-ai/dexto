@@ -6,9 +6,8 @@
 import React, { useState, useEffect, forwardRef, useRef, useImperativeHandle } from 'react';
 import { Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
+import type { McpServerType } from '@dexto/core';
 import { BaseSelector, type BaseSelectorHandle } from '../base/BaseSelector.js';
-
-export type McpServerType = 'stdio' | 'http' | 'sse';
 
 interface McpCustomTypeSelectorProps {
     isVisible: boolean;
