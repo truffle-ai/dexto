@@ -6,8 +6,8 @@ Tracking CodeRabbit review comments that were flagged as "outside diff range".
 
 | Status | Count |
 |--------|-------|
-| Fixed | 10 |
-| Pending | 5 |
+| Fixed | 14 |
+| Pending | 1 |
 | Skipped | 0 |
 
 ---
@@ -137,18 +137,18 @@ Tracking CodeRabbit review comments that were flagged as "outside diff range".
 ## 11. SlashCommandAutocomplete.tsx - (mcp) marker unconditional
 
 **Source**: Review 3572699773
-**Status**: ⏳ Pending
+**Status**: ✅ Already Fixed
 
 **Issue**: Line 563-564 appends ` (mcp)` for every prompt item, but prompts can come from config or custom sources too.
 
-**Fix**: Only show `(mcp)` marker when `prompt.source === 'mcp'`.
+**Resolution**: Already uses `prompt.source || 'prompt'` as the label (line 555), showing the correct source.
 
 ---
 
 ## 12. ModelSelectorRefactored.tsx - Logger call violates guidelines
 
 **Source**: Review 3572699773
-**Status**: ⏳ Pending
+**Status**: ✅ Fixed
 
 **Issue**: Logger calls use extra arg object + non-template patterns, violating repo logging guidelines.
 
@@ -159,24 +159,24 @@ Tracking CodeRabbit review comments that were flagged as "outside diff range".
 ## 13. model-commands.ts - console.log + stale help text
 
 **Source**: Review 3572699773
-**Status**: ⏳ Pending
+**Status**: ✅ No Longer Applicable
 
 **Issue**:
 1. Interactive commands rely on `console.log` + `noOutput()` which breaks Ink
 2. Help text says "openai, anthropic, gemini" but supported providers are broader
 
-**Fix**: Return styled output instead of console.log; update provider list.
+**Resolution**: File was refactored into `model/index.ts` - /model now uses ALWAYS_OVERLAY pattern and shows interactive selector. No console.log or help text issues.
 
 ---
 
 ## 14. prompt-commands.ts - Prevent displayName collisions
 
 **Source**: Review 3573414924
-**Status**: ⏳ Pending
+**Status**: ✅ Fixed
 
 **Issue**: Multiple prompts can share the same `displayName`, causing one command to overwrite another in the registry.
 
-**Fix**: Enforce displayName uniqueness or append suffix when collisions detected.
+**Fix**: Detect collisions and prefix with source (e.g., `config:review`, `mcp:review`). Internal name preserved for resolution.
 
 ---
 

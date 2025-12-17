@@ -214,16 +214,19 @@ export const promptCommands: CommandDefinition[] = [
 
 /**
  * Create a dynamic command definition from a prompt
+ * @param promptInfo The prompt metadata
+ * @param hasCollision Whether this prompt's displayName collides with another
  */
-function createPromptCommand(promptInfo: PromptInfo): CommandDefinition {
-    // Use displayName for command registration (what user types), fall back to full name
-    const commandName = promptInfo.displayName || promptInfo.name;
-    // Keep internal name for prompt resolution
+function createPromptCommand(promptInfo: PromptInfo, hasCollision: boolean): CommandDefinition {
+    const baseName = promptInfo.displayName || promptInfo.name;
+    // Add source prefix if collision (e.g., "config:review" or "mcp:review")
+    const commandName = hasCollision ? `${promptInfo.source}:${baseName}` : baseName;
+    // Keep internal name for prompt resolution (e.g., "config:review" or "mcp:server1:review")
     const internalName = promptInfo.name;
 
     return {
         name: commandName,
-        description: promptInfo.description || `Execute ${commandName} prompt`,
+        description: promptInfo.description || `Execute ${baseName} prompt`,
         usage: `/${commandName} [context]`,
         category: 'Dynamic Prompts',
         handler: async (
@@ -296,12 +299,27 @@ function createPromptCommand(promptInfo: PromptInfo): CommandDefinition {
 }
 
 /**
- * Get all dynamic prompt commands based on available prompts
+ * Get all dynamic prompt commands based on available prompts.
+ * Handles displayName collisions by prefixing with source (e.g., config:review).
  */
 export async function getDynamicPromptCommands(agent: DextoAgent): Promise<CommandDefinition[]> {
     try {
         const prompts = await agent.listPrompts();
-        return Object.values(prompts).map(createPromptCommand);
+        const promptEntries = Object.entries(prompts);
+
+        // Build frequency map of displayNames to detect collisions
+        const displayNameCounts = new Map<string, number>();
+        for (const [, info] of promptEntries) {
+            const displayName = info.displayName || info.name;
+            displayNameCounts.set(displayName, (displayNameCounts.get(displayName) || 0) + 1);
+        }
+
+        // Create commands with conditional prefixing
+        return promptEntries.map(([, info]) => {
+            const displayName = info.displayName || info.name;
+            const hasCollision = (displayNameCounts.get(displayName) || 0) > 1;
+            return createPromptCommand(info, hasCollision);
+        });
     } catch (error) {
         agent.logger.error(
             `Failed to get dynamic prompt commands: ${error instanceof Error ? error.message : String(error)}`

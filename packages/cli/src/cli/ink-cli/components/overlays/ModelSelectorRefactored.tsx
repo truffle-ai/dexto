@@ -16,7 +16,7 @@ import React, {
 } from 'react';
 import { Box, Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
-import { logger, type DextoAgent, type LLMProvider } from '@dexto/core';
+import type { DextoAgent, LLMProvider } from '@dexto/core';
 import { loadCustomModels, deleteCustomModel, type CustomModel } from '@dexto/agent-management';
 
 interface ModelSelectorProps {
@@ -162,9 +162,8 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                 }
             } catch (error) {
                 if (!cancelled) {
-                    logger.error(
-                        `Failed to fetch models: ${error instanceof Error ? error.message : 'Unknown error'}`,
-                        { error }
+                    agent.logger.error(
+                        `Failed to fetch models: ${error instanceof Error ? error.message : 'Unknown error'}`
                     );
                     setModels([]);
                     setIsLoading(false);
@@ -227,7 +226,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
             // Update models list
             setModels((prev) => prev.filter((m) => !(m.isCustom && m.name === model.name)));
         } catch (error) {
-            logger.error(
+            agent.logger.error(
                 `Failed to delete custom model: ${error instanceof Error ? error.message : 'Unknown error'}`
             );
         }
