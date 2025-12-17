@@ -17,7 +17,12 @@ import { LLMConfig } from './schemas.js';
 import { LLMError } from './errors.js';
 import { LLMErrorCode } from './error-codes.js';
 import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
-import { LLM_PROVIDERS, type LLMProvider, type SupportedFileType } from './types.js';
+import {
+    LLM_PROVIDERS,
+    type LLMProvider,
+    type SupportedFileType,
+    type TokenUsage,
+} from './types.js';
 import type { IDextoLogger } from '../logger/v2/types.js';
 
 /**
@@ -1206,26 +1211,15 @@ export function getModelDisplayName(model: string, provider?: LLMProvider): stri
 }
 
 /**
- * Token usage structure for cost calculation.
- */
-export interface TokenUsageForCost {
-    inputTokens: number;
-    outputTokens: number;
-    reasoningTokens?: number;
-    cacheReadTokens?: number;
-    cacheWriteTokens?: number;
-}
-
-/**
  * Calculates the cost for a given token usage based on model pricing.
  *
  * @param usage Token usage counts.
  * @param pricing Model pricing (per million tokens).
  * @returns Cost in USD.
  */
-export function calculateCost(usage: TokenUsageForCost, pricing: ModelPricing): number {
-    const inputCost = (usage.inputTokens * pricing.inputPerM) / 1_000_000;
-    const outputCost = (usage.outputTokens * pricing.outputPerM) / 1_000_000;
+export function calculateCost(usage: TokenUsage, pricing: ModelPricing): number {
+    const inputCost = ((usage.inputTokens ?? 0) * pricing.inputPerM) / 1_000_000;
+    const outputCost = ((usage.outputTokens ?? 0) * pricing.outputPerM) / 1_000_000;
     const cacheReadCost = ((usage.cacheReadTokens ?? 0) * (pricing.cacheReadPerM ?? 0)) / 1_000_000;
     const cacheWriteCost =
         ((usage.cacheWriteTokens ?? 0) * (pricing.cacheWritePerM ?? 0)) / 1_000_000;

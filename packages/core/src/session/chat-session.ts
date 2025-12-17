@@ -213,16 +213,7 @@ export class ChatSession {
                 const llmConfig = this.services.stateManager.getLLMConfig(this.id);
                 const pricing = getModelPricing(llmConfig.provider, llmConfig.model);
                 if (pricing) {
-                    cost = calculateCost(
-                        {
-                            inputTokens: payload.tokenUsage.inputTokens ?? 0,
-                            outputTokens: payload.tokenUsage.outputTokens ?? 0,
-                            reasoningTokens: payload.tokenUsage.reasoningTokens ?? 0,
-                            cacheReadTokens: payload.tokenUsage.cacheReadTokens ?? 0,
-                            cacheWriteTokens: payload.tokenUsage.cacheWriteTokens ?? 0,
-                        },
-                        pricing
-                    );
+                    cost = calculateCost(payload.tokenUsage, pricing);
                 }
 
                 // Fire and forget - don't block the event flow
