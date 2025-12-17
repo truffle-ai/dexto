@@ -114,6 +114,7 @@ export function useCLIState({
             lastMatch: '',
         },
         promptAddWizard: null,
+        autoApproveEdits: false,
     });
 
     // Input state

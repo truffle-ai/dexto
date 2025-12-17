@@ -273,8 +273,14 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                 rememberChoice?: boolean;
                 rememberPattern?: string;
                 formData?: Record<string, unknown>;
+                enableAcceptEditsMode?: boolean;
             }) => {
                 if (!approval || !eventBus) return;
+
+                // Enable "accept all edits" mode if requested
+                if (options.enableAcceptEditsMode) {
+                    setUi((prev) => ({ ...prev, autoApproveEdits: true }));
+                }
 
                 eventBus.emit('approval:response', {
                     approvalId: approval.approvalId,
@@ -289,7 +295,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
 
                 completeApproval();
             },
-            [approval, eventBus, completeApproval]
+            [approval, eventBus, completeApproval, setUi]
         );
 
         const handleDeny = useCallback(() => {

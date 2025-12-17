@@ -1184,6 +1184,21 @@ export function getModelPricing(provider: LLMProvider, model: string): ModelPric
 }
 
 /**
+ * Gets the display name for a model, falling back to the model ID if not found.
+ */
+export function getModelDisplayName(model: string, provider?: LLMProvider): string {
+    const resolvedProvider = provider ?? getProviderFromModel(model);
+    const providerInfo = LLM_REGISTRY[resolvedProvider];
+
+    if (!providerInfo || acceptsAnyModel(resolvedProvider)) {
+        return model;
+    }
+
+    const modelInfo = providerInfo.models.find((m) => m.name.toLowerCase() === model.toLowerCase());
+    return modelInfo?.displayName ?? model;
+}
+
+/**
  * Token usage structure for cost calculation.
  */
 export interface TokenUsageForCost {

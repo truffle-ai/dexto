@@ -236,7 +236,11 @@ export function StaticCLI({
                 )}
 
                 {/* Footer status line */}
-                <Footer modelName={session.modelName} cwd={process.cwd()} />
+                <Footer
+                    modelName={session.modelName}
+                    cwd={process.cwd()}
+                    autoApproveEdits={ui.autoApproveEdits}
+                />
 
                 {/* History search bar (Ctrl+R) - shown at very bottom */}
                 {ui.historySearch.isActive && (

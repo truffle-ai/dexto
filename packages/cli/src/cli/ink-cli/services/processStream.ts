@@ -23,12 +23,13 @@
 import type React from 'react';
 import { appendFileSync, writeFileSync } from 'fs';
 import type { StreamingEvent, SanitizedToolResult } from '@dexto/core';
-import { ApprovalType as ApprovalTypeEnum } from '@dexto/core';
+import { ApprovalType as ApprovalTypeEnum, ApprovalStatus } from '@dexto/core';
 import type { Message, UIState, ToolStatus } from '../state/types.js';
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
 import { generateMessageId } from '../utils/idGenerator.js';
 import { checkForSplit } from '../utils/streamSplitter.js';
 import { getToolDisplayName, formatToolArgsForDisplay } from '../utils/messageFormatting.js';
+import { isEditWriteTool } from '../utils/toolUtils.js';
 
 /**
  * State setters needed by processStream
@@ -55,6 +56,10 @@ export interface ProcessStreamSetters {
 export interface ProcessStreamOptions {
     /** Whether to stream chunks (true) or wait for complete response (false). Default: true */
     useStreaming?: boolean;
+    /** Ref to check if "accept all edits" mode is enabled (reads .current for latest value) */
+    autoApproveEditsRef: { current: boolean };
+    /** Event bus for emitting auto-approval responses */
+    eventBus: import('@dexto/core').AgentEventBus;
 }
 
 /**
@@ -87,12 +92,12 @@ interface StreamState {
  *
  * @param iterator - The async iterator from agent.stream()
  * @param setters - State setters for updating UI
- * @param options - Optional configuration
+ * @param options - Configuration options
  */
 export async function processStream(
     iterator: AsyncIterableIterator<StreamingEvent>,
     setters: ProcessStreamSetters,
-    options?: ProcessStreamOptions
+    options: ProcessStreamOptions
 ): Promise<void> {
     const {
         setMessages,
@@ -725,11 +730,35 @@ export async function processStream(
                     // This fixes a race condition where direct event bus subscription in
                     // useAgentEvents fired before the iterator processed llm:tool-call.
 
-                    // Update tool status to 'pending_approval'
-                    const metadata = event.metadata as { toolCallId?: string };
-                    if (metadata.toolCallId) {
-                        const approvalToolId = `tool-${metadata.toolCallId}`;
-                        updatePendingStatus(approvalToolId, 'pending_approval');
+                    // Check for auto-approval of edit/write tools FIRST
+                    // Read from ref to get latest value (may have changed mid-stream)
+                    const autoApproveEdits = options.autoApproveEditsRef.current;
+                    const { eventBus } = options;
+
+                    if (autoApproveEdits && event.type === ApprovalTypeEnum.TOOL_CONFIRMATION) {
+                        // Type is narrowed - metadata is now ToolConfirmationMetadata
+                        const { toolName } = event.metadata;
+
+                        if (isEditWriteTool(toolName)) {
+                            // Auto-approve immediately - emit response and let tool:running handle status
+                            eventBus.emit('approval:response', {
+                                approvalId: event.approvalId,
+                                status: ApprovalStatus.APPROVED,
+                                sessionId: event.sessionId,
+                                data: {},
+                            });
+                            break;
+                        }
+                    }
+
+                    // Manual approval needed - update tool status to 'pending_approval'
+                    // Extract toolCallId based on approval type
+                    const toolCallId =
+                        event.type === ApprovalTypeEnum.TOOL_CONFIRMATION
+                            ? event.metadata.toolCallId
+                            : undefined;
+                    if (toolCallId) {
+                        updatePendingStatus(`tool-${toolCallId}`, 'pending_approval');
                     }
 
                     // Show approval UI (moved from useAgentEvents for ordering)

@@ -96,6 +96,12 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
         // Track pending session creation to prevent race conditions
         const sessionCreationPromiseRef = useRef<Promise<SessionCreationResult> | null>(null);
 
+        // Ref to track autoApproveEdits so processStream can read latest value mid-stream
+        const autoApproveEditsRef = useRef(ui.autoApproveEdits);
+        useEffect(() => {
+            autoApproveEditsRef.current = ui.autoApproveEdits;
+        }, [ui.autoApproveEdits]);
+
         // Clear the session creation ref when session is cleared
         useEffect(() => {
             if (session.id === null) {
@@ -516,7 +522,11 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                                     setApproval,
                                     setApprovalQueue,
                                 },
-                                { useStreaming }
+                                {
+                                    useStreaming,
+                                    autoApproveEditsRef,
+                                    eventBus: agent.agentEventBus,
+                                }
                             );
                             return; // processStream handles UI state
                         }
@@ -615,7 +625,11 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                                 setApproval,
                                 setApprovalQueue,
                             },
-                            { useStreaming }
+                            {
+                                useStreaming,
+                                autoApproveEditsRef,
+                                eventBus: agent.agentEventBus,
+                            }
                         );
 
                         if (isFirstMessage) {

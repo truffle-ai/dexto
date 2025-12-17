@@ -8,6 +8,7 @@ import {
     type ElicitationMetadata,
 } from './ElicitationForm.js';
 import { DiffPreview, CreateFilePreview } from './renderers/index.js';
+import { isEditWriteTool } from '../utils/toolUtils.js';
 
 export interface ApprovalRequest {
     approvalId: string;
@@ -32,6 +33,8 @@ export interface ApprovalOptions {
     rememberPattern?: string;
     /** Form data for elicitation requests */
     formData?: Record<string, unknown>;
+    /** Enable "accept all edits" mode (auto-approve future edit_file/write_file) */
+    enableAcceptEditsMode?: boolean;
 }
 
 interface ApprovalPromptProps {
@@ -44,7 +47,7 @@ interface ApprovalPromptProps {
 /**
  * Selection option type - supports both simple yes/no and pattern-based options
  */
-type SelectionOption = 'yes' | 'yes-session' | 'no' | `pattern-${number}`;
+type SelectionOption = 'yes' | 'yes-session' | 'yes-accept-edits' | 'no' | `pattern-${number}`;
 
 /**
  * Compact approval prompt component that displays above the input area
@@ -62,6 +65,10 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
         const suggestedPatterns =
             (approval.metadata.suggestedPatterns as string[] | undefined) ?? [];
         const hasBashPatterns = suggestedPatterns.length > 0;
+
+        // Check if this is an edit/write file tool
+        const toolName = approval.metadata.toolName as string | undefined;
+        const isEditOrWriteTool = isEditWriteTool(toolName);
 
         const [selectedIndex, setSelectedIndex] = useState(0);
 
@@ -88,6 +95,11 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
         } else if (isCommandConfirmation) {
             // Command confirmation (no session option)
             options.push({ id: 'yes', label: 'Yes' });
+            options.push({ id: 'no', label: 'No' });
+        } else if (isEditOrWriteTool) {
+            // Edit/write file tools - offer "accept all edits" mode instead of session
+            options.push({ id: 'yes', label: 'Yes' });
+            options.push({ id: 'yes-accept-edits', label: 'Yes, and accept all edits' });
             options.push({ id: 'no', label: 'No' });
         } else {
             // Standard tool confirmation
@@ -132,6 +144,9 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
                             onApprove({});
                         } else if (option.id === 'yes-session') {
                             onApprove({ rememberChoice: true });
+                        } else if (option.id === 'yes-accept-edits') {
+                            // Approve and enable "accept all edits" mode
+                            onApprove({ enableAcceptEditsMode: true });
                         } else if (option.id === 'no') {
                             onDeny();
                         } else if (option.id.startsWith('pattern-')) {
@@ -145,6 +160,10 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
                             }
                         }
                         return true;
+                    } else if (key.shift && key.tab && isEditOrWriteTool) {
+                        // Shift+Tab on edit/write tool: approve and enable "accept all edits" mode
+                        onApprove({ enableAcceptEditsMode: true });
+                        return true;
                     } else if (key.escape) {
                         onCancel();
                         return true;
@@ -152,7 +171,15 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
                     return false;
                 },
             }),
-            [isElicitation, options, suggestedPatterns, onApprove, onDeny, onCancel]
+            [
+                isElicitation,
+                isEditOrWriteTool,
+                options,
+                suggestedPatterns,
+                onApprove,
+                onDeny,
+                onCancel,
+            ]
         );
 
         // For elicitation, render the form
@@ -169,7 +196,6 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
         }
 
         // Extract information from metadata based on approval type
-        const toolName = approval.metadata.toolName as string | undefined;
         const command = approval.metadata.command as string | undefined;
         const displayPreview = approval.metadata.displayPreview as ToolDisplayData | undefined;
 

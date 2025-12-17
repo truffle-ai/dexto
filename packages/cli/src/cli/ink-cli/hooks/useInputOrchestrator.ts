@@ -513,6 +513,13 @@ export function useInputOrchestrator({
                 return;
             }
 
+            // Shift+Tab: Toggle "accept all edits" mode (when not in approval modal)
+            // Note: When in approval modal for edit/write tools, ApprovalPrompt handles this
+            if (key.shift && key.tab && currentApproval === null) {
+                setUi((prev) => ({ ...prev, autoApproveEdits: !prev.autoApproveEdits }));
+                return;
+            }
+
             // Ctrl+C: Always handle globally for cancellation/exit
             if (key.ctrl && inputStr === 'c') {
                 handleCtrlC();

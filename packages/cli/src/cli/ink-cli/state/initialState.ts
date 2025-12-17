@@ -40,6 +40,7 @@ export function createInitialState(initialModelName: string = ''): CLIState {
                 lastMatch: '',
             },
             promptAddWizard: null,
+            autoApproveEdits: false,
         },
         session: {
             id: null,

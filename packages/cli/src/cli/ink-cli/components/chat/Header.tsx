@@ -5,6 +5,7 @@
 
 import React from 'react';
 import { Box, Text } from 'ink';
+import { getModelDisplayName } from '@dexto/core';
 import type { StartupInfo } from '../../state/types.js';
 import { useTerminalSize } from '../../hooks/useTerminalSize.js';
 
@@ -21,6 +22,7 @@ interface HeaderProps {
  */
 export function Header({ modelName, sessionId, hasActiveSession, startupInfo }: HeaderProps) {
     const { columns } = useTerminalSize();
+    const displayModelName = getModelDisplayName(modelName);
 
     return (
         <Box
@@ -47,7 +49,7 @@ export function Header({ modelName, sessionId, hasActiveSession, startupInfo }: 
                 <Text color="gray" dimColor>
                     Model:{' '}
                 </Text>
-                <Text color="white">{modelName}</Text>
+                <Text color="white">{displayModelName}</Text>
                 {hasActiveSession && sessionId && (
                     <>
                         <Text color="gray" dimColor>
