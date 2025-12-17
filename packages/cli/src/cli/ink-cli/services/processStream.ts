@@ -755,7 +755,8 @@ export async function processStream(
                     if (
                         event.type === ApprovalTypeEnum.TOOL_CONFIRMATION ||
                         event.type === ApprovalTypeEnum.COMMAND_CONFIRMATION ||
-                        event.type === ApprovalTypeEnum.ELICITATION
+                        event.type === ApprovalTypeEnum.ELICITATION ||
+                        event.type === ApprovalTypeEnum.DIRECTORY_ACCESS
                     ) {
                         const newApproval: ApprovalRequest = {
                             approvalId: event.approvalId,

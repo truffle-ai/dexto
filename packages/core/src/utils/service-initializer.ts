@@ -177,6 +177,18 @@ export async function createAgentServices(
     await fileSystemService.initialize();
     logger.debug('FileSystemService initialized');
 
+    // Wire up FileSystemService's PathValidator to consult ApprovalManager for approved directories
+    // This allows PathValidator to check both config-allowed paths AND dynamically approved directories
+    fileSystemService.setDirectoryApprovalChecker((filePath: string) =>
+        approvalManager.isDirectoryApproved(filePath)
+    );
+    logger.debug('PathValidator connected to ApprovalManager for directory approval checks');
+
+    // Initialize ApprovalManager with the working directory as session-approved
+    // This ensures working directory paths don't trigger directory access prompts
+    approvalManager.initializeWorkingDirectory(process.cwd());
+    logger.debug('Working directory initialized as session-approved in ApprovalManager');
+
     const processService = new ProcessService(
         {
             securityLevel: 'moderate',

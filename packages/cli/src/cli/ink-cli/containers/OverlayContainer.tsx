@@ -272,6 +272,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                 rememberPattern?: string;
                 formData?: Record<string, unknown>;
                 enableAcceptEditsMode?: boolean;
+                rememberDirectory?: boolean;
             }) => {
                 if (!approval || !eventBus) return;
 
@@ -288,6 +289,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         rememberChoice: options.rememberChoice,
                         rememberPattern: options.rememberPattern,
                         formData: options.formData,
+                        rememberDirectory: options.rememberDirectory,
                     },
                 });
 
