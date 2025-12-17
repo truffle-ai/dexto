@@ -1,0 +1,18 @@
+{
+  "name": "04-simple-server",
+  "version": "1.0.0",
+  "description": "Example 4: Starting a Dexto API server",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "@dexto/agent-management": "workspace:*",
+    "@dexto/server": "workspace:*"
+  },
+  "devDependencies": {
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3"
+  }
+}

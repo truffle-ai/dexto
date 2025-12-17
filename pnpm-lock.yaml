@@ -242,6 +242,22 @@ importers:
         specifier: ^5.3.3
         version: 5.9.2
 
+  examples/harness-examples/04-simple-server:
+    dependencies:
+      '@dexto/agent-management':
+        specifier: workspace:*
+        version: link:../../../packages/agent-management
+      '@dexto/server':
+        specifier: workspace:*
+        version: link:../../../packages/server
+    devDependencies:
+      tsx:
+        specifier: ^4.7.0
+        version: 4.20.5
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.2
+
   examples/resources-demo-server:
     dependencies:
       '@modelcontextprotocol/sdk':
