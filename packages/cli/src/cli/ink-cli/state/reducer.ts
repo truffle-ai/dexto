@@ -274,6 +274,13 @@ export function cliReducer(state: CLIState, action: CLIAction): CLIState {
 
         // Approval actions
         case 'APPROVAL_REQUEST':
+            // Dedupe: skip if this approval ID is already pending or queued
+            if (state.approval?.id === action.approval.id) {
+                return state;
+            }
+            if (state.approvalQueue.some((r) => r.id === action.approval.id)) {
+                return state;
+            }
             // If there's already a pending approval, queue this one
             if (state.approval !== null) {
                 return {

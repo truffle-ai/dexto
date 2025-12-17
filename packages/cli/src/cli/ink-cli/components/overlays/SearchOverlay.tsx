@@ -59,6 +59,8 @@ const SearchOverlay = forwardRef<SearchOverlayHandle, SearchOverlayProps>(functi
 
     const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const scrollOffset = useRef(0);
+    // Monotonic counter to prevent out-of-order async responses from overwriting newer results
+    const searchSeqRef = useRef(0);
 
     // Reset state when becoming visible
     useEffect(() => {
@@ -79,6 +81,9 @@ const SearchOverlay = forwardRef<SearchOverlayHandle, SearchOverlayProps>(functi
     // Debounced search
     const performSearch = useCallback(
         async (query: string) => {
+            // Increment sequence to track this request
+            const seq = ++searchSeqRef.current;
+
             if (!query.trim()) {
                 setState((prev) => ({
                     ...prev,
@@ -95,6 +100,8 @@ const SearchOverlay = forwardRef<SearchOverlayHandle, SearchOverlayProps>(functi
 
             try {
                 const response = await agent.searchMessages(query, { limit: 20 });
+                // Only apply results if this is still the latest request
+                if (seq !== searchSeqRef.current) return;
                 setState((prev) => ({
                     ...prev,
                     results: response.results,
@@ -105,6 +112,8 @@ const SearchOverlay = forwardRef<SearchOverlayHandle, SearchOverlayProps>(functi
                 }));
                 scrollOffset.current = 0;
             } catch (error) {
+                // Only apply error if this is still the latest request
+                if (seq !== searchSeqRef.current) return;
                 setState((prev) => ({
                     ...prev,
                     results: [],

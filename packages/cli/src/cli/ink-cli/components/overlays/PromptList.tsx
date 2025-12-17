@@ -64,9 +64,10 @@ function getSourceIndicator(source: string): { icon: string; label: string; colo
 function isSharedPrompt(prompt: PromptInfo): boolean {
     const metadata = prompt.metadata as { filePath?: string } | undefined;
     if (metadata?.filePath) {
+        // Normalize path separators for cross-platform compatibility (Windows uses \)
+        const normalizedPath = metadata.filePath.replaceAll('\\', '/');
         return (
-            metadata.filePath.includes('/commands/') ||
-            metadata.filePath.includes('/.dexto/commands/')
+            normalizedPath.includes('/commands/') || normalizedPath.includes('/.dexto/commands/')
         );
     }
     return false;
