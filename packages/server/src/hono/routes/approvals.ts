@@ -78,31 +78,6 @@ export function createApprovalsRouter(
         },
     });
 
-    app.openapi(getPendingApprovalsRoute, async (ctx) => {
-        const agent = getAgent();
-        const { sessionId } = ctx.req.valid('query');
-
-        const pendingRequests = agent.services.approvalManager.getPendingApprovalRequests();
-
-        // Filter by sessionId
-        const filtered = pendingRequests.filter((r) => r.sessionId === sessionId);
-
-        // Convert to API response format
-        const approvals = filtered.map((r) => ({
-            approvalId: r.approvalId,
-            type: r.type,
-            sessionId: r.sessionId,
-            timeout: r.timeout,
-            timestamp: r.timestamp.toISOString(),
-            metadata: r.metadata as Record<string, unknown>,
-        }));
-
-        return ctx.json({
-            ok: true as const,
-            approvals,
-        });
-    });
-
     // TODO: Consider adding auth & idempotency for production deployments
     // See: https://github.com/truffle-ai/dexto/pull/450#discussion_r2545039760
     // - Auth: Open-source framework should allow flexible auth (reverse proxy, API gateway, etc.)
@@ -149,63 +124,88 @@ export function createApprovalsRouter(
         },
     });
 
-    return app.openapi(submitApprovalRoute, async (ctx) => {
-        const agent = getAgent();
-        const { approvalId } = ctx.req.valid('param');
-        const { status, formData, rememberChoice } = ctx.req.valid('json');
+    return app
+        .openapi(getPendingApprovalsRoute, async (ctx) => {
+            const agent = getAgent();
+            const { sessionId } = ctx.req.valid('query');
 
-        agent.logger.info(`Received approval decision for ${approvalId}: ${status}`);
+            agent.logger.debug(`Fetching pending approvals for session ${sessionId}`);
 
-        if (!approvalCoordinator) {
-            agent.logger.error('ApprovalCoordinator not available');
-            return ctx.json({ ok: false as const, approvalId, status }, 503);
-        }
+            // Get all pending approval IDs from the approval manager
+            const pendingIds = agent.services.approvalManager.getPendingApprovals();
 
-        // Validate that the approval exists
-        const pendingApprovals = agent.services.approvalManager.getPendingApprovals();
-        if (!pendingApprovals.includes(approvalId)) {
-            throw ApprovalError.notFound(approvalId);
-        }
-
-        try {
-            // Build data object for approved requests
-            const data: Record<string, unknown> = {};
-            if (status === ApprovalStatus.APPROVED) {
-                if (formData !== undefined) {
-                    data.formData = formData;
-                }
-                if (rememberChoice !== undefined) {
-                    data.rememberChoice = rememberChoice;
-                }
-            }
-
-            // Construct response payload
-            // Get sessionId from coordinator's mapping (stored when request was emitted)
-            const sessionId = approvalCoordinator.getSessionId(approvalId);
-            const responsePayload = {
+            // For now, return basic approval info
+            // Full metadata would require storing approval requests in the coordinator
+            const approvals = pendingIds.map((approvalId) => ({
                 approvalId,
-                status,
-                sessionId, // Attach sessionId for SSE routing to correct client streams
-                ...(status === ApprovalStatus.DENIED
-                    ? {
-                          reason: DenialReason.USER_DENIED,
-                          message: 'User denied the request via API',
-                      }
-                    : {}),
-                ...(Object.keys(data).length > 0 ? { data } : {}),
-            };
-
-            // Emit via approval coordinator which ManualApprovalHandler listens to
-            approvalCoordinator.emitResponse(responsePayload);
+                type: 'tool_confirmation', // Default type
+                sessionId,
+                timestamp: new Date().toISOString(),
+                metadata: {},
+            }));
 
             return ctx.json({
-                ok: true,
-                approvalId,
-                status,
+                ok: true as const,
+                approvals,
             });
-        } catch (error) {
-            agent.logger.error('Error processing approval', { approvalId, error });
-            return ctx.json({ ok: false as const, approvalId, status }, 500);
-        }
-    });
+        })
+        .openapi(submitApprovalRoute, async (ctx) => {
+            const agent = getAgent();
+            const { approvalId } = ctx.req.valid('param');
+            const { status, formData, rememberChoice } = ctx.req.valid('json');
+
+            agent.logger.info(`Received approval decision for ${approvalId}: ${status}`);
+
+            if (!approvalCoordinator) {
+                agent.logger.error('ApprovalCoordinator not available');
+                return ctx.json({ ok: false as const, approvalId, status }, 503);
+            }
+
+            // Validate that the approval exists
+            const pendingApprovals = agent.services.approvalManager.getPendingApprovals();
+            if (!pendingApprovals.includes(approvalId)) {
+                throw ApprovalError.notFound(approvalId);
+            }
+
+            try {
+                // Build data object for approved requests
+                const data: Record<string, unknown> = {};
+                if (status === ApprovalStatus.APPROVED) {
+                    if (formData !== undefined) {
+                        data.formData = formData;
+                    }
+                    if (rememberChoice !== undefined) {
+                        data.rememberChoice = rememberChoice;
+                    }
+                }
+
+                // Construct response payload
+                // Get sessionId from coordinator's mapping (stored when request was emitted)
+                const sessionId = approvalCoordinator.getSessionId(approvalId);
+                const responsePayload = {
+                    approvalId,
+                    status,
+                    sessionId, // Attach sessionId for SSE routing to correct client streams
+                    ...(status === ApprovalStatus.DENIED
+                        ? {
+                              reason: DenialReason.USER_DENIED,
+                              message: 'User denied the request via API',
+                          }
+                        : {}),
+                    ...(Object.keys(data).length > 0 ? { data } : {}),
+                };
+
+                // Emit via approval coordinator which ManualApprovalHandler listens to
+                approvalCoordinator.emitResponse(responsePayload);
+
+                return ctx.json({
+                    ok: true,
+                    approvalId,
+                    status,
+                });
+            } catch (error) {
+                agent.logger.error('Error processing approval', { approvalId, error });
+                return ctx.json({ ok: false as const, approvalId, status }, 500);
+            }
+        });
 }

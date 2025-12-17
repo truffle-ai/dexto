@@ -22,7 +22,7 @@ import { useGreeting } from './useGreeting';
 import { useApproval } from './ApprovalContext';
 import { usePendingApprovals } from './useApprovals';
 import type { FilePart, ImagePart, TextPart, UIResourcePart } from '../../types';
-import type { SanitizedToolResult, ApprovalType } from '@dexto/core';
+import type { SanitizedToolResult, ApprovalType, ApprovalRequest } from '@dexto/core';
 import { getResourceKind } from '@dexto/core';
 import { useAnalytics } from '@/lib/analytics/index.js';
 import { queryKeys } from '@/lib/queryKeys.js';
@@ -413,14 +413,18 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             restoredApprovalsRef.current.add(approval.approvalId);
 
             // Convert API response format to ApprovalRequest format
+            // TODO: The API returns a simplified format without full metadata because
+            // ApprovalCoordinator only tracks approval IDs, not the full request data.
+            // To fix properly: store full ApprovalRequest in ApprovalCoordinator when
+            // requests are created, then return that data from GET /api/approvals.
             handleApprovalRequest({
                 approvalId: approval.approvalId,
-                type: approval.type as ApprovalType,
+                type: approval.type,
                 sessionId: approval.sessionId,
                 timeout: approval.timeout,
                 timestamp: new Date(approval.timestamp),
                 metadata: approval.metadata,
-            });
+            } as ApprovalRequest);
         }
     }, [pendingApprovalsData, handleApprovalRequest]);
 

@@ -4623,6 +4623,242 @@
         }
       }
     },
+    "/api/llm/custom-models": {
+      "get": {
+        "summary": "List Custom Models",
+        "description": "Returns all saved custom openai-compatible model configurations",
+        "tags": [
+          "llm"
+        ],
+        "responses": {
+          "200": {
+            "description": "List of custom models",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "models": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "baseURL": {
+                            "type": "string",
+                            "format": "uri"
+                          },
+                          "displayName": {
+                            "type": "string"
+                          },
+                          "maxInputTokens": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "exclusiveMinimum": true
+                          },
+                          "maxOutputTokens": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "exclusiveMinimum": true
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "baseURL"
+                        ]
+                      },
+                      "description": "List of custom models"
+                    }
+                  },
+                  "required": [
+                    "models"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create Custom Model",
+        "description": "Saves a new custom openai-compatible model configuration",
+        "tags": [
+          "llm"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "baseURL": {
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  "displayName": {
+                    "type": "string"
+                  },
+                  "maxInputTokens": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "exclusiveMinimum": true
+                  },
+                  "maxOutputTokens": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "exclusiveMinimum": true
+                  }
+                },
+                "required": [
+                  "name",
+                  "baseURL"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Custom model saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ],
+                      "description": "Success indicator"
+                    },
+                    "model": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "baseURL": {
+                          "type": "string",
+                          "format": "uri"
+                        },
+                        "displayName": {
+                          "type": "string"
+                        },
+                        "maxInputTokens": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "exclusiveMinimum": true
+                        },
+                        "maxOutputTokens": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "exclusiveMinimum": true
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "baseURL"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "model"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/llm/custom-models/{name}": {
+      "delete": {
+        "summary": "Delete Custom Model",
+        "description": "Deletes a custom model by name",
+        "tags": [
+          "llm"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Model name to delete"
+            },
+            "required": true,
+            "description": "Model name to delete",
+            "name": "name",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Custom model deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ],
+                      "description": "Success indicator"
+                    },
+                    "deleted": {
+                      "type": "string",
+                      "description": "Name of the deleted model"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "deleted"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Custom model not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ],
+                      "description": "Failure indicator"
+                    },
+                    "error": {
+                      "type": "string",
+                      "description": "Error message"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "error"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/sessions": {
       "get": {
         "summary": "List Sessions",
@@ -6517,6 +6753,11 @@
                               "stdio"
                             ]
                           },
+                          "enabled": {
+                            "type": "boolean",
+                            "default": true,
+                            "description": "Whether this server is enabled (disabled servers are not connected)"
+                          },
                           "command": {
                             "type": "string"
                           },
@@ -6566,6 +6807,11 @@
                               "sse"
                             ]
                           },
+                          "enabled": {
+                            "type": "boolean",
+                            "default": true,
+                            "description": "Whether this server is enabled (disabled servers are not connected)"
+                          },
                           "url": {
                             "type": "string",
                             "description": "URL for the SSE server endpoint"
@@ -6606,6 +6852,11 @@
                             "enum": [
                               "http"
                             ]
+                          },
+                          "enabled": {
+                            "type": "boolean",
+                            "default": true,
+                            "description": "Whether this server is enabled (disabled servers are not connected)"
                           },
                           "url": {
                             "type": "string",
@@ -8932,6 +9183,96 @@
         }
       }
     },
+    "/api/approvals": {
+      "get": {
+        "summary": "Get Pending Approvals",
+        "description": "Fetch all pending approval requests for a session. Use this to restore UI state after page refresh.",
+        "tags": [
+          "approvals"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "The session ID to fetch pending approvals for"
+            },
+            "required": true,
+            "description": "The session ID to fetch pending approvals for",
+            "name": "sessionId",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of pending approval requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ],
+                      "description": "Success indicator"
+                    },
+                    "approvals": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "approvalId": {
+                            "type": "string",
+                            "description": "The unique ID of the approval request"
+                          },
+                          "type": {
+                            "type": "string",
+                            "description": "The type of approval (tool_confirmation, elicitation, etc.)"
+                          },
+                          "sessionId": {
+                            "type": "string",
+                            "description": "The session ID if applicable"
+                          },
+                          "timeout": {
+                            "type": "number",
+                            "description": "Timeout in milliseconds"
+                          },
+                          "timestamp": {
+                            "type": "string",
+                            "description": "ISO timestamp when the request was created"
+                          },
+                          "metadata": {
+                            "type": "object",
+                            "additionalProperties": {
+                              "nullable": true
+                            },
+                            "description": "Type-specific metadata"
+                          }
+                        },
+                        "required": [
+                          "approvalId",
+                          "type",
+                          "timestamp",
+                          "metadata"
+                        ],
+                        "description": "A pending approval request"
+                      },
+                      "description": "List of pending approval requests"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "approvals"
+                  ],
+                  "description": "Response containing pending approval requests"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/approvals/{approvalId}": {
       "post": {
         "summary": "Submit Approval Decision",
@@ -10645,6 +10986,11 @@
                                     "stdio"
                                   ]
                                 },
+                                "enabled": {
+                                  "type": "boolean",
+                                  "default": true,
+                                  "description": "Whether this server is enabled (disabled servers are not connected)"
+                                },
                                 "command": {
                                   "type": "string"
                                 },
@@ -10694,6 +11040,11 @@
                                     "sse"
                                   ]
                                 },
+                                "enabled": {
+                                  "type": "boolean",
+                                  "default": true,
+                                  "description": "Whether this server is enabled (disabled servers are not connected)"
+                                },
                                 "url": {
                                   "type": "string",
                                   "description": "URL for the SSE server endpoint"
@@ -10734,6 +11085,11 @@
                                   "enum": [
                                     "http"
                                   ]
+                                },
+                                "enabled": {
+                                  "type": "boolean",
+                                  "default": true,
+                                  "description": "Whether this server is enabled (disabled servers are not connected)"
                                 },
                                 "url": {
                                   "type": "string",
