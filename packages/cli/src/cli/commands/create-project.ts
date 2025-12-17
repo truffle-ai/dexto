@@ -6,12 +6,12 @@ import * as p from '@clack/prompts';
 import { getPackageManager, getPackageManagerInstallCommand } from '../utils/package-mgmt.js';
 
 /**
- * Creates a Dexto distribution project with organized folder structure
- * for building custom distributions (storage providers, tools, agents)
- * @param name - The name of the distribution project
+ * Creates a Dexto project with manual provider registration (advanced pattern)
+ * For most use cases, consider using `create-image` or `create-app --extend-image` instead
+ * @param name - The name of the project
  * @returns The absolute path to the created project directory
  */
-export async function createDistribution(name?: string): Promise<string> {
+export async function createProject(name?: string): Promise<string> {
     // Basic regex: must start with a letter, contain only letters, numbers, hyphens or underscores
     const nameRegex = /^[a-zA-Z][a-zA-Z0-9-_]*$/;
 
@@ -28,12 +28,33 @@ export async function createDistribution(name?: string): Promise<string> {
         }
         projectName = name;
     } else {
+        // Show advanced pattern warning
+        console.log(
+            chalk.yellow(
+                '\n⚠️  Advanced Pattern: Manual Provider Registration\n' +
+                    'This creates a project with manual provider registration.\n\n' +
+                    'Consider using:\n' +
+                    '  • `dexto create-image` for distributable harness packages\n' +
+                    '  • `dexto create-app --extend-image` for app-specific tools\n'
+            )
+        );
+
+        const shouldContinue = await p.confirm({
+            message: 'Continue with manual registration project?',
+            initialValue: false,
+        });
+
+        if (p.isCancel(shouldContinue) || !shouldContinue) {
+            p.cancel('Project creation cancelled');
+            process.exit(0);
+        }
+
         let input;
         do {
             input = await p.text({
-                message: 'What do you want to name your Dexto distribution?',
-                placeholder: 'my-dexto-distribution',
-                defaultValue: 'my-dexto-distribution',
+                message: 'What do you want to name your Dexto project?',
+                placeholder: 'my-dexto-project',
+                defaultValue: 'my-dexto-project',
             });
 
             if (p.isCancel(input)) {
@@ -541,7 +562,7 @@ pnpm start agents/code-reviewer.yml
 }
 
 /** Shows next steps for the created distribution */
-export async function postCreateDistro(projectName: string) {
+export async function postCreateProject(projectName: string) {
     const nextSteps = [
         `1. Go to the project directory: ${chalk.cyan(`cd ${projectName}`)}`,
         `2. Set up environment variables: ${chalk.cyan('cp .env.example .env')}`,

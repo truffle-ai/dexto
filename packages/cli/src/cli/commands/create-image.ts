@@ -1,0 +1,249 @@
+import path from 'path';
+import * as p from '@clack/prompts';
+import chalk from 'chalk';
+import {
+    promptForProjectName,
+    createProjectDirectory,
+    setupGitRepo,
+    createGitignore,
+    initPackageJson,
+    createTsconfigForImage,
+    installDependencies,
+    ensureDirectory,
+} from '../utils/scaffolding-utils.js';
+import {
+    generateDextoImageFile,
+    generateImageReadme,
+    generateExampleTool,
+} from '../utils/template-engine.js';
+import fs from 'fs-extra';
+
+/**
+ * Creates a Dexto image project - a distributable agent harness package
+ * @param name - Optional name of the image project
+ * @returns The absolute path to the created project directory
+ */
+export async function createImage(name?: string): Promise<string> {
+    console.log(chalk.blue('🎨 Creating a Dexto image - a distributable agent harness package\n'));
+
+    // Step 1: Get project name
+    const projectName = name
+        ? name
+        : await promptForProjectName('my-dexto-image', 'What do you want to name your image?');
+
+    // Step 2: Get description
+    const description = (await p.text({
+        message: 'Describe your image:',
+        placeholder: 'Custom agent harness for my organization',
+        defaultValue: 'Custom agent harness for my organization',
+    })) as string;
+
+    if (p.isCancel(description)) {
+        p.cancel('Image creation cancelled');
+        process.exit(0);
+    }
+
+    // Step 3: Starting point - new base or extend existing
+    const startingPoint = (await p.select({
+        message: 'Starting point:',
+        options: [
+            { value: 'base', label: 'New base image (build from scratch)' },
+            { value: 'extend', label: 'Extend existing image (add providers to base)' },
+        ],
+    })) as 'base' | 'extend';
+
+    if (p.isCancel(startingPoint)) {
+        p.cancel('Image creation cancelled');
+        process.exit(0);
+    }
+
+    let baseImage: string | undefined;
+    if (startingPoint === 'extend') {
+        // Step 4: Which image to extend?
+        const baseImageChoice = (await p.select({
+            message: 'Which image to extend?',
+            options: [
+                { value: '@dexto/image-local', label: '@dexto/image-local (local development)' },
+                { value: '@dexto/image-cloud', label: '@dexto/image-cloud (cloud production)' },
+                { value: '@dexto/image-edge', label: '@dexto/image-edge (edge/serverless)' },
+                { value: 'custom', label: 'Custom npm package...' },
+            ],
+        })) as string;
+
+        if (p.isCancel(baseImageChoice)) {
+            p.cancel('Image creation cancelled');
+            process.exit(0);
+        }
+
+        if (baseImageChoice === 'custom') {
+            const customBase = (await p.text({
+                message: 'Enter the npm package name:',
+                placeholder: '@myorg/image-base',
+                validate: (value) => {
+                    if (!value || value.trim() === '') {
+                        return 'Package name is required';
+                    }
+                    return undefined;
+                },
+            })) as string;
+
+            if (p.isCancel(customBase)) {
+                p.cancel('Image creation cancelled');
+                process.exit(0);
+            }
+
+            baseImage = customBase;
+        } else {
+            baseImage = baseImageChoice;
+        }
+    }
+
+    // Step 5: Target environment
+    const target = (await p.select({
+        message: 'Target environment:',
+        options: [
+            { value: 'local-development', label: 'Local development' },
+            { value: 'cloud-production', label: 'Cloud production' },
+            { value: 'edge-serverless', label: 'Edge/serverless' },
+            { value: 'custom', label: 'Custom' },
+        ],
+    })) as string;
+
+    if (p.isCancel(target)) {
+        p.cancel('Image creation cancelled');
+        process.exit(0);
+    }
+
+    // Step 6: Include example providers?
+    const includeExamples = (await p.confirm({
+        message: 'Include example tool provider?',
+        initialValue: true,
+    })) as boolean;
+
+    if (p.isCancel(includeExamples)) {
+        p.cancel('Image creation cancelled');
+        process.exit(0);
+    }
+
+    // Start scaffolding
+    const spinner = p.spinner();
+    let projectPath: string | undefined;
+
+    try {
+        // Create project directory
+        projectPath = await createProjectDirectory(projectName, spinner);
+
+        // Change to project directory
+        process.chdir(projectPath);
+
+        spinner.start('Setting up project structure...');
+
+        // Create convention-based folders
+        await ensureDirectory('tools');
+        await ensureDirectory('blob-store');
+        await ensureDirectory('compression');
+        await ensureDirectory('plugins');
+
+        // Create .gitkeep files for empty directories
+        await fs.writeFile('blob-store/.gitkeep', '');
+        await fs.writeFile('compression/.gitkeep', '');
+        await fs.writeFile('plugins/.gitkeep', '');
+
+        // Create example tool if requested
+        if (includeExamples) {
+            await ensureDirectory('tools/example-tool');
+            const exampleToolCode = generateExampleTool('example-tool');
+            await fs.writeFile('tools/example-tool/index.ts', exampleToolCode);
+        } else {
+            await fs.writeFile('tools/.gitkeep', '');
+        }
+
+        spinner.message('Generating configuration files...');
+
+        // Create dexto.image.ts
+        const dextoImageContent = generateDextoImageFile({
+            projectName,
+            packageName: projectName,
+            description,
+            imageName: projectName,
+            ...(baseImage ? { baseImage } : {}),
+            target,
+        });
+        await fs.writeFile('dexto.image.ts', dextoImageContent);
+
+        // Create package.json
+        await initPackageJson(projectPath, projectName, 'image');
+
+        // Update package.json with build script
+        const packageJsonPath = path.join(projectPath, 'package.json');
+        const packageJson = JSON.parse(await fs.readFile(packageJsonPath, 'utf8'));
+        packageJson.scripts = {
+            build: 'dexto-bundle build',
+            typecheck: 'tsc --noEmit',
+            ...packageJson.scripts,
+        };
+        await fs.writeFile(packageJsonPath, JSON.stringify(packageJson, null, 2));
+
+        // Create tsconfig.json
+        await createTsconfigForImage(projectPath);
+
+        // Create README
+        const readmeContent = generateImageReadme({
+            projectName,
+            packageName: projectName,
+            description,
+            imageName: projectName,
+            ...(baseImage ? { baseImage } : {}),
+        });
+        await fs.writeFile('README.md', readmeContent);
+
+        // Create .gitignore
+        await createGitignore(projectPath, ['*.tsbuildinfo']);
+
+        // Initialize git
+        spinner.message('Initializing git repository...');
+        await setupGitRepo(projectPath);
+
+        spinner.message('Installing dependencies...');
+
+        // Determine dependencies based on whether extending
+        const dependencies: string[] = [];
+        const devDependencies = ['typescript@^5.0.0', '@types/node@^20.0.0', '@dexto/bundler'];
+
+        if (baseImage) {
+            // Extending an image
+            dependencies.push('@dexto/core', 'zod', baseImage);
+        } else {
+            // New base image
+            dependencies.push('@dexto/core', 'zod');
+        }
+
+        await installDependencies(projectPath, {
+            dependencies,
+            devDependencies,
+        });
+
+        spinner.stop(chalk.green(`✓ Successfully created image: ${projectName}`));
+
+        console.log(`\n${chalk.cyan('Next steps:')}`);
+        console.log(`  ${chalk.dim('$')} cd ${projectName}`);
+        console.log(`  ${chalk.dim('$')} pnpm run build`);
+        console.log(`\n${chalk.dim('Add your custom providers to the convention-based folders:')}`);
+        console.log(`  ${chalk.dim('tools/')}       - Custom tool providers`);
+        console.log(`  ${chalk.dim('blob-store/')}  - Blob storage providers`);
+        console.log(`  ${chalk.dim('compression/')} - Compression strategies`);
+        console.log(`  ${chalk.dim('plugins/')}     - Plugin providers`);
+        console.log(`\n${chalk.dim('Learn more:')} https://docs.dexto.ai/guides/images\n`);
+    } catch (error) {
+        if (spinner) {
+            spinner.stop(chalk.red('✗ Failed to create image'));
+        }
+        throw error;
+    }
+
+    if (!projectPath) {
+        throw new Error('Failed to create project directory');
+    }
+
+    return projectPath;
+}

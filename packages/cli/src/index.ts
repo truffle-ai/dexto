@@ -44,14 +44,12 @@ import { enrichAgentConfig } from '@dexto/agent-management';
 import { getPort } from './utils/port-utils.js';
 import {
     createDextoProject,
-    createTsconfigJson,
-    addDextoScriptsToPackageJson,
-    postCreateDexto,
-    createDistribution,
-    postCreateDistro,
+    createProject,
+    postCreateProject,
+    createImage,
+    getUserInputToInitDextoApp,
     initDexto,
     postInitDexto,
-    getUserInputToInitDextoApp,
 } from './cli/commands/index.js';
 import {
     handleSetupCommand,
@@ -112,41 +110,17 @@ program
 
 // 2) `create-app` SUB-COMMAND
 program
-    .command('create-app')
-    .description('Scaffold a new Dexto Typescript app')
+    .command('create-app [name]')
+    .description('Create a Dexto application (CLI, web, bot, etc.)')
     .action(
-        withAnalytics('create-app', async () => {
+        withAnalytics('create-app', async (name?: string) => {
             try {
-                p.intro(chalk.inverse('Dexto Create App'));
-                // first setup the initial files in the project and get the project path
-                const appPath = await createDextoProject();
+                p.intro(chalk.inverse('Create Dexto App'));
 
-                // then get user inputs for directory, llm etc.
-                const userInput = await getUserInputToInitDextoApp();
-                try {
-                    capture('dexto_create', {
-                        provider: userInput.llmProvider,
-                        providedKey: Boolean(userInput.llmApiKey),
-                    });
-                } catch {
-                    // Analytics failures should not block CLI execution.
-                }
+                // Create the app project structure (fully self-contained)
+                await createDextoProject(name);
 
-                // move to project directory, then add the dexto scripts to the package.json and create the tsconfig.json
-                process.chdir(appPath);
-                await addDextoScriptsToPackageJson(userInput.directory, appPath);
-                await createTsconfigJson(appPath, userInput.directory);
-
-                // then initialize the other parts of the project
-                await initDexto(
-                    userInput.directory,
-                    userInput.createExampleFile,
-                    userInput.llmProvider,
-                    userInput.llmApiKey
-                );
-                p.outro(chalk.greenBright('Dexto app created and initialized successfully!'));
-                // add notes for users to get started with their newly created Dexto project
-                await postCreateDexto(appPath, userInput.directory);
+                p.outro(chalk.greenBright('Dexto app created successfully!'));
                 safeExit('create-app', 0);
             } catch (err) {
                 if (err instanceof ExitSignal) throw err;
@@ -156,30 +130,52 @@ program
         })
     );
 
-// 3) `create-distro` SUB-COMMAND
+// 3) `create-image` SUB-COMMAND
 program
-    .command('create-distro [name]')
-    .description('Create a new Dexto distribution (custom storage, tools, agents)')
+    .command('create-image [name]')
+    .description('Create a Dexto image - a distributable agent harness package')
     .action(
-        withAnalytics('create-distro', async (name?: string) => {
+        withAnalytics('create-image', async (name?: string) => {
             try {
-                p.intro(chalk.inverse('Create Dexto Distribution'));
+                p.intro(chalk.inverse('Create Dexto Image'));
 
-                // Create the distribution project structure
-                const projectPath = await createDistribution(name);
+                // Create the image project structure
+                const projectPath = await createImage(name);
 
-                p.outro(chalk.greenBright('Dexto distribution created successfully!'));
-                await postCreateDistro(path.basename(projectPath));
-                safeExit('create-distro', 0);
+                p.outro(chalk.greenBright('Dexto image created successfully!'));
+                safeExit('create-image', 0);
             } catch (err) {
                 if (err instanceof ExitSignal) throw err;
-                console.error(`❌ dexto create-distro command failed: ${err}`);
-                safeExit('create-distro', 1, 'error');
+                console.error(`❌ dexto create-image command failed: ${err}`);
+                safeExit('create-image', 1, 'error');
             }
         })
     );
 
-// 4) `init-app` SUB-COMMAND
+// 4) `create-project` SUB-COMMAND (Manual registration - advanced)
+program
+    .command('create-project [name]')
+    .description('Create a Dexto project with manual provider registration (advanced)')
+    .action(
+        withAnalytics('create-project', async (name?: string) => {
+            try {
+                p.intro(chalk.inverse('Create Dexto Project'));
+
+                // Create the project structure
+                const projectPath = await createProject(name);
+
+                p.outro(chalk.greenBright('Dexto project created successfully!'));
+                await postCreateProject(path.basename(projectPath));
+                safeExit('create-project', 0);
+            } catch (err) {
+                if (err instanceof ExitSignal) throw err;
+                console.error(`❌ dexto create-project command failed: ${err}`);
+                safeExit('create-project', 1, 'error');
+            }
+        })
+    );
+
+// 5) `init-app` SUB-COMMAND
 program
     .command('init-app')
     .description('Initialize an existing Typescript app with Dexto')
