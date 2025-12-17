@@ -1,7 +1,7 @@
 /**
  * ShellRenderer Component
  *
- * Renders shell command output like Claude Code.
+ * Renders shell command output.
  * Shows actual stdout/stderr, limited to 5 lines with "+N lines" truncation.
  */
 
@@ -18,7 +18,7 @@ interface ShellRendererProps {
 
 /**
  * Renders shell command result with output.
- * Uses ⎿ character for continuation lines like Claude Code.
+ * Uses ⎿ character for continuation lines.
  * Shows just the output, "(No content)" for empty results.
  */
 export function ShellRenderer({ data, maxLines = 5 }: ShellRendererProps) {
@@ -29,7 +29,7 @@ export function ShellRenderer({ data, maxLines = 5 }: ShellRendererProps) {
     const displayLines = lines.slice(0, maxLines);
     const truncatedCount = lines.length - maxLines;
 
-    // No output - show "(No content)" like Claude Code
+    // No output - show "(No content)"
     if (lines.length === 0) {
         return <Text dimColor>{'  ⎿ '}(No content)</Text>;
     }

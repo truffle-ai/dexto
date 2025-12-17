@@ -12,7 +12,7 @@ import { generateMessageId } from './idGenerator.js';
 
 /**
  * Convert absolute path to display-friendly relative path.
- * Strategy (inspired by gemini-cli and codex):
+ * Strategy:
  * 1. If path is under cwd → relative from cwd (e.g., "src/file.ts")
  * 2. If path is under home → use tilde (e.g., "~/Projects/file.ts")
  * 3. Otherwise → return absolute path
@@ -65,7 +65,7 @@ export function formatPathForDisplay(
  * Center-truncate a file path to keep the filename visible.
  * e.g., "/Users/karaj/Projects/very/long/path/to/file.ts" → "/Users/karaj/…/to/file.ts"
  *
- * Strategy (inspired by codex):
+ * Strategy:
  * 1. If path fits within maxWidth, return as-is
  * 2. Keep first segment (root/home) and last 2 segments (parent + filename)
  * 3. Add "…" in the middle
@@ -218,7 +218,7 @@ const PATH_ARGS = new Set(['file_path', 'path']);
 const NEVER_TRUNCATE_ARGS = new Set(['url']);
 
 /**
- * Formats tool arguments for display in Claude Code style.
+ * Formats tool arguments for display.
  * Format: ToolName(primary_arg) or ToolName(primary_arg, key: value)
  *
  * Uses tool-specific config to determine which args to show.

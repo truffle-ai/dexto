@@ -1,6 +1,6 @@
 /**
  * StyledBox - Base component for styled command output
- * Provides consistent box styling similar to Claude Code's output format
+ * Provides consistent box styling for structured output
  */
 
 import React from 'react';

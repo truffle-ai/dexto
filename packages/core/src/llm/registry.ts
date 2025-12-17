@@ -1222,7 +1222,7 @@ export function calculateCost(usage: TokenUsageForCost, pricing: ModelPricing): 
     const cacheReadCost = ((usage.cacheReadTokens ?? 0) * (pricing.cacheReadPerM ?? 0)) / 1_000_000;
     const cacheWriteCost =
         ((usage.cacheWriteTokens ?? 0) * (pricing.cacheWritePerM ?? 0)) / 1_000_000;
-    // Charge reasoning tokens at output rate (same as OpenCode)
+    // Charge reasoning tokens at output rate
     const reasoningCost = ((usage.reasoningTokens ?? 0) * pricing.outputPerM) / 1_000_000;
 
     return inputCost + outputCost + cacheReadCost + cacheWriteCost + reasoningCost;

@@ -1,7 +1,7 @@
 /**
  * FileRenderer Component
  *
- * Renders file operation status like Claude Code.
+ * Renders file operation status.
  * - Read: "Read N lines"
  * - Write/Create: "Wrote N lines to filename"
  */
@@ -17,14 +17,14 @@ interface FileRendererProps {
 
 /**
  * Renders file operation status.
- * Uses ⎿ character for continuation lines like Claude Code.
+ * Uses ⎿ character for continuation lines.
  */
 export function FileRenderer({ data }: FileRendererProps) {
     const { operation, lineCount } = data;
 
     // Format based on operation type
     if (operation === 'read') {
-        // Claude Code style: "Read N lines"
+        // Format: "Read N lines"
         const lineText = lineCount !== undefined ? `${lineCount} lines` : 'file';
         return (
             <Text dimColor>

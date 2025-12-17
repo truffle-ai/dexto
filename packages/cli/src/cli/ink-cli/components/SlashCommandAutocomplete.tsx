@@ -507,7 +507,7 @@ const SlashCommandAutocompleteInner = forwardRef<
                     const categoryText = cmd.category ? ` (${cmd.category})` : '';
                     const descText = cmd.description || '';
 
-                    // Two-line layout like Claude Code:
+                    // Two-line layout:
                     // Line 1: /command-name
                     // Line 2:     Description text (category)
                     return (
@@ -538,7 +538,7 @@ const SlashCommandAutocompleteInner = forwardRef<
                         : '';
                 const description = prompt.title || prompt.description || '';
 
-                // Two-line layout like Claude Code:
+                // Two-line layout:
                 // Line 1: /command-name <args>
                 // Line 2:     Description text (source)
                 const commandText = nameText + argsString;

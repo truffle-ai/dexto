@@ -122,7 +122,7 @@ export function StaticCLI({
             return;
         }
 
-        // Debounce resize handling (300ms like gemini-cli)
+        // Debounce resize handling (300ms)
         const handler = setTimeout(() => {
             refreshStatic();
         }, 300);

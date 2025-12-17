@@ -523,14 +523,14 @@ export async function processStream(
                         ? `tool-${event.callId}`
                         : generateMessageId('tool');
 
-                    // Get friendly display name and format args like Claude Code
+                    // Get friendly display name and format args
                     const displayName = getToolDisplayName(event.toolName);
                     const argsFormatted = formatToolArgsForDisplay(
                         event.toolName,
                         event.args || {}
                     );
 
-                    // Format: ToolName(args) - like Claude Code
+                    // Format: ToolName(args)
                     const toolContent = argsFormatted
                         ? `${displayName}(${argsFormatted})`
                         : displayName;

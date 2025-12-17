@@ -19,7 +19,7 @@ interface GenericRendererProps {
 /**
  * Renders tool result content as plain text.
  * Used as fallback for tools without specific display data.
- * Uses ⎿ character for continuation lines like Claude Code.
+ * Uses ⎿ character for continuation lines.
  */
 export function GenericRenderer({ content, maxLines = 15 }: GenericRendererProps) {
     // Extract text from content parts
