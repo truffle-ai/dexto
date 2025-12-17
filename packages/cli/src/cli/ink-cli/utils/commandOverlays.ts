@@ -33,25 +33,6 @@ const NO_ARGS_OVERLAY: Record<string, OverlayType> = {
 };
 
 /**
- * System overlays that are not triggered by commands.
- * These are always protected from auto-close.
- */
-const SYSTEM_OVERLAYS: OverlayType[] = [
-    'slash-autocomplete',
-    'resource-autocomplete',
-    'api-key-input',
-    'approval',
-    'mcp-server-actions',
-    'mcp-add-choice',
-    'mcp-add-selector',
-    'mcp-custom-type-selector',
-    'mcp-custom-wizard',
-    'prompt-add-choice',
-    'prompt-add-wizard',
-    'prompt-delete-selector',
-];
-
-/**
  * Get the overlay for a command submission (with parsed args).
  * Used by InputContainer.handleSubmit
  *
@@ -93,63 +74,6 @@ export function getCommandOverlayForSelect(command: string): OverlayType | null 
     if (noArgsOverlay) return noArgsOverlay;
 
     return null;
-}
-
-/**
- * Get overlay for real-time auto-detection while typing.
- * Used by useCLIState for showing overlays as user types.
- *
- * Only returns overlays for commands where showing during typing is useful.
- * Most commands wait until Enter to show their overlay.
- *
- * @param command - The command being typed
- * @param hasArgs - Whether any args have been typed
- * @param hasSpaceAfterCommand - Whether there's a space after the command
- * @returns Overlay type to auto-show, or null
- */
-export function getAutoDetectOverlay(
-    command: string,
-    hasArgs: boolean,
-    hasSpaceAfterCommand: boolean
-): OverlayType | null {
-    // Only auto-detect for commands where it makes sense to show while typing
-    // Most overlays should wait for Enter to avoid UI jumping around
-
-    if (hasArgs || hasSpaceAfterCommand) {
-        return null;
-    }
-
-    // Auto-show model selector when typing /model
-    if (command === 'model') {
-        return 'model-selector';
-    }
-
-    // Auto-show session selector for /resume and /switch
-    if (command === 'resume' || command === 'switch') {
-        return 'session-selector';
-    }
-
-    return null;
-}
-
-/**
- * Get all overlays that should be "protected" from auto-close.
- * These overlays won't be closed when input changes.
- *
- * Derived from command mappings + system overlays.
- */
-export function getProtectedOverlays(): OverlayType[] {
-    const overlays = new Set<OverlayType>(SYSTEM_OVERLAYS);
-
-    // Add all command-triggered overlays
-    for (const overlay of Object.values(ALWAYS_OVERLAY)) {
-        overlays.add(overlay);
-    }
-    for (const overlay of Object.values(NO_ARGS_OVERLAY)) {
-        overlays.add(overlay);
-    }
-
-    return [...overlays];
 }
 
 /**

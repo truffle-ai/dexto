@@ -15,8 +15,6 @@ export {
 export {
     getCommandOverlay,
     getCommandOverlayForSelect,
-    getAutoDetectOverlay,
-    getProtectedOverlays,
     isInteractiveCommand,
 } from './commandOverlays.js';
 
