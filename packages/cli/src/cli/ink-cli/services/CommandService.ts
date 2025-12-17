@@ -66,7 +66,8 @@ export function isSendMessageMarker(result: unknown): result is SendMessageMarke
         result !== null &&
         '__sendMessage' in result &&
         (result as SendMessageMarker).__sendMessage === true &&
-        'text' in result
+        'text' in result &&
+        typeof (result as SendMessageMarker).text === 'string'
     );
 }
 
