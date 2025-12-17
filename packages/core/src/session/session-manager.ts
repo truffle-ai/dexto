@@ -68,6 +68,8 @@ export class SessionManager {
     private initializationPromise!: Promise<void>;
     // Add a Map to track ongoing session creation operations to prevent race conditions
     private readonly pendingCreations = new Map<string, Promise<ChatSession>>();
+    // Per-session mutex for token usage updates to prevent lost updates from concurrent calls
+    private readonly tokenUsageLocks = new Map<string, Promise<void>>();
     private logger: IDextoLogger;
 
     constructor(
@@ -505,6 +507,8 @@ export class SessionManager {
     /**
      * Accumulates token usage for a session.
      * Called after each LLM response to update session-level totals.
+     *
+     * Uses per-session locking to prevent lost updates from concurrent calls.
      */
     public async accumulateTokenUsage(
         sessionId: string,
@@ -514,44 +518,62 @@ export class SessionManager {
         await this.ensureInitialized();
 
         const sessionKey = `session:${sessionId}`;
-        const sessionData = await this.services.storageManager
-            .getDatabase()
-            .get<SessionData>(sessionKey);
 
-        if (!sessionData) return;
+        // Wait for any in-flight update for this session, then chain ours
+        const previousLock = this.tokenUsageLocks.get(sessionKey) ?? Promise.resolve();
 
-        // Initialize if needed
-        if (!sessionData.tokenUsage) {
-            sessionData.tokenUsage = {
-                inputTokens: 0,
-                outputTokens: 0,
-                reasoningTokens: 0,
-                cacheReadTokens: 0,
-                cacheWriteTokens: 0,
-                totalTokens: 0,
-            };
+        const currentLock = previousLock.then(async () => {
+            const sessionData = await this.services.storageManager
+                .getDatabase()
+                .get<SessionData>(sessionKey);
+
+            if (!sessionData) return;
+
+            // Initialize if needed
+            if (!sessionData.tokenUsage) {
+                sessionData.tokenUsage = {
+                    inputTokens: 0,
+                    outputTokens: 0,
+                    reasoningTokens: 0,
+                    cacheReadTokens: 0,
+                    cacheWriteTokens: 0,
+                    totalTokens: 0,
+                };
+            }
+
+            // Accumulate
+            sessionData.tokenUsage.inputTokens += usage.inputTokens ?? 0;
+            sessionData.tokenUsage.outputTokens += usage.outputTokens ?? 0;
+            sessionData.tokenUsage.reasoningTokens += usage.reasoningTokens ?? 0;
+            sessionData.tokenUsage.cacheReadTokens += usage.cacheReadTokens ?? 0;
+            sessionData.tokenUsage.cacheWriteTokens += usage.cacheWriteTokens ?? 0;
+            sessionData.tokenUsage.totalTokens += usage.totalTokens ?? 0;
+
+            // Add cost if provided
+            if (cost !== undefined) {
+                sessionData.estimatedCost = (sessionData.estimatedCost ?? 0) + cost;
+            }
+
+            sessionData.lastActivity = Date.now();
+
+            // Persist
+            await this.services.storageManager.getDatabase().set(sessionKey, sessionData);
+            await this.services.storageManager
+                .getCache()
+                .set(sessionKey, sessionData, this.sessionTTL / 1000);
+        });
+
+        this.tokenUsageLocks.set(sessionKey, currentLock);
+
+        // Wait for our update to complete, but don't let errors propagate to break the chain
+        try {
+            await currentLock;
+        } finally {
+            // Clean up lock if this was the last operation
+            if (this.tokenUsageLocks.get(sessionKey) === currentLock) {
+                this.tokenUsageLocks.delete(sessionKey);
+            }
         }
-
-        // Accumulate
-        sessionData.tokenUsage.inputTokens += usage.inputTokens ?? 0;
-        sessionData.tokenUsage.outputTokens += usage.outputTokens ?? 0;
-        sessionData.tokenUsage.reasoningTokens += usage.reasoningTokens ?? 0;
-        sessionData.tokenUsage.cacheReadTokens += usage.cacheReadTokens ?? 0;
-        sessionData.tokenUsage.cacheWriteTokens += usage.cacheWriteTokens ?? 0;
-        sessionData.tokenUsage.totalTokens += usage.totalTokens ?? 0;
-
-        // Add cost if provided
-        if (cost !== undefined) {
-            sessionData.estimatedCost = (sessionData.estimatedCost ?? 0) + cost;
-        }
-
-        sessionData.lastActivity = Date.now();
-
-        // Persist
-        await this.services.storageManager.getDatabase().set(sessionKey, sessionData);
-        await this.services.storageManager
-            .getCache()
-            .set(sessionKey, sessionData, this.sessionTTL / 1000);
     }
 
     /**
