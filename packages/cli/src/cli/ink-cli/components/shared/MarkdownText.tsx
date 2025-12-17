@@ -239,13 +239,19 @@ const WrappedParagraph = memo(WrappedParagraphInternal);
 interface RenderInlineProps {
     text: string;
     defaultColor?: string;
+    /** Apply bold styling to all text segments (used for headers) */
+    bold?: boolean;
 }
 
 /**
  * Renders inline markdown segments with appropriate styling.
  * Used for headers and other content that doesn't need word wrapping.
  */
-const RenderInlineInternal: React.FC<RenderInlineProps> = ({ text, defaultColor = 'white' }) => {
+const RenderInlineInternal: React.FC<RenderInlineProps> = ({
+    text,
+    defaultColor = 'white',
+    bold: baseBold = false,
+}) => {
     const segments = parseInlineMarkdown(text);
 
     return (
@@ -260,38 +266,38 @@ const RenderInlineInternal: React.FC<RenderInlineProps> = ({ text, defaultColor 
                         );
                     case 'code':
                         return (
-                            <Text key={i} color="cyan">
+                            <Text key={i} bold={baseBold} color="cyan">
                                 {segment.content}
                             </Text>
                         );
                     case 'italic':
                         return (
-                            <Text key={i} dimColor color={defaultColor}>
+                            <Text key={i} bold={baseBold} dimColor color={defaultColor}>
                                 {segment.content}
                             </Text>
                         );
                     case 'strikethrough':
                         return (
-                            <Text key={i} strikethrough color={defaultColor}>
+                            <Text key={i} bold={baseBold} strikethrough color={defaultColor}>
                                 {segment.content}
                             </Text>
                         );
                     case 'link':
                         return (
-                            <Text key={i} color={defaultColor}>
+                            <Text key={i} bold={baseBold} color={defaultColor}>
                                 {segment.content}
                                 <Text color="blue"> ({segment.url})</Text>
                             </Text>
                         );
                     case 'url':
                         return (
-                            <Text key={i} color="blue">
+                            <Text key={i} bold={baseBold} color="blue">
                                 {segment.content}
                             </Text>
                         );
                     default:
                         return (
-                            <Text key={i} color={defaultColor}>
+                            <Text key={i} bold={baseBold} color={defaultColor}>
                                 {segment.content}
                             </Text>
                         );
@@ -495,9 +501,7 @@ const RenderHeaderInternal: React.FC<RenderHeaderProps> = ({ level, text }) => {
 
     return (
         <Box marginTop={level <= 2 ? 1 : 0}>
-            <Text bold color={headerColor}>
-                <RenderInline text={text} defaultColor={headerColor} />
-            </Text>
+            <RenderInline text={text} defaultColor={headerColor} bold />
         </Box>
     );
 };

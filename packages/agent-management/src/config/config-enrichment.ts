@@ -277,9 +277,25 @@ export function enrichAgentConfig(
     const discoveredPrompts = discoverCommandPrompts();
     if (discoveredPrompts.length > 0) {
         // Merge discovered prompts with existing config prompts
-        // Config prompts take precedence (come first), discovered prompts are appended
+        // Config prompts take precedence - deduplicate by file path to avoid
+        // metadata/content mismatch when same file appears in both arrays
         const existingPrompts = config.prompts ?? [];
-        enriched.prompts = [...existingPrompts, ...discoveredPrompts];
+
+        // Build set of existing file paths (normalized for comparison)
+        const existingFilePaths = new Set<string>();
+        for (const prompt of existingPrompts) {
+            if (prompt.type === 'file') {
+                // Normalize path for cross-platform comparison
+                existingFilePaths.add(path.resolve(prompt.file));
+            }
+        }
+
+        // Filter out discovered prompts that already exist in config
+        const filteredDiscovered = discoveredPrompts.filter(
+            (p) => !existingFilePaths.has(path.resolve(p.file))
+        );
+
+        enriched.prompts = [...existingPrompts, ...filteredDiscovered];
     }
 
     return enriched;
