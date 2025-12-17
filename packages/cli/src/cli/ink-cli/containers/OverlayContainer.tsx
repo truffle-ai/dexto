@@ -381,10 +381,11 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     const missingProvider = isApiKeyMissingError(error);
                     if (missingProvider) {
                         // Store pending model switch and show API key input
+                        // Use missingProvider (from error) as the authoritative source
                         setUi((prev) => ({
                             ...prev,
                             activeOverlay: 'api-key-input',
-                            pendingModelSwitch: { provider, model },
+                            pendingModelSwitch: { provider: missingProvider, model },
                         }));
                         setMessages((prev) => [
                             ...prev,
