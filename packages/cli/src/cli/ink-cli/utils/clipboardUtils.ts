@@ -293,25 +293,33 @@ export async function writeToClipboard(text: string): Promise<boolean> {
         }
 
         if (os === 'linux') {
-            // Try Wayland first (wl-copy)
-            try {
-                const proc = spawn('wl-copy');
-                proc.stdin.write(text);
-                proc.stdin.end();
+            // Try Wayland first (wl-copy), fall back to X11 (xclip)
+            const tryClipboardTool = (cmd: string, args: string[] = []): Promise<boolean> => {
                 return new Promise((resolve) => {
-                    proc.on('close', (code) => resolve(code === 0));
-                    proc.on('error', () => resolve(false));
+                    const proc = spawn(cmd, args);
+                    let errorOccurred = false;
+
+                    proc.on('error', () => {
+                        errorOccurred = true;
+                        resolve(false);
+                    });
+
+                    proc.stdin.write(text);
+                    proc.stdin.end();
+
+                    proc.on('close', (code) => {
+                        if (!errorOccurred) {
+                            resolve(code === 0);
+                        }
+                    });
                 });
-            } catch {
-                // Try X11 (xclip)
-                const proc = spawn('xclip', ['-selection', 'clipboard']);
-                proc.stdin.write(text);
-                proc.stdin.end();
-                return new Promise((resolve) => {
-                    proc.on('close', (code) => resolve(code === 0));
-                    proc.on('error', () => resolve(false));
-                });
-            }
+            };
+
+            // Try wl-copy first, then xclip
+            const wlResult = await tryClipboardTool('wl-copy');
+            if (wlResult) return true;
+
+            return tryClipboardTool('xclip', ['-selection', 'clipboard']);
         }
 
         return false;

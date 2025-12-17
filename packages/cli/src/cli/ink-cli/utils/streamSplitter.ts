@@ -127,7 +127,7 @@ const MIN_PARAGRAPH_SPLIT_LENGTH = 200;
 /**
  * Maximum content length before forcing a line-based split.
  * This prevents excessive accumulation that causes flickering.
- * Roughly 3-4 lines of terminal width (80 chars * 4 = 320).
+ * Roughly 3-4 lines of terminal width (~80 chars each).
  */
 const MAX_PENDING_LENGTH = 300;
 

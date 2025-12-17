@@ -1842,7 +1842,7 @@ export class DextoAgent {
      * Updates the runtime state to enabled=false and closes the connection.
      *
      * @param name The name of the server to disable.
-     * @throws MCPError if server is not found
+     * @throws MCPError if server is not found or disconnect fails
      */
     public async disableMcpServer(name: string): Promise<void> {
         this.ensureStarted();
@@ -1856,11 +1856,19 @@ export class DextoAgent {
         const updatedConfig = { ...currentConfig, enabled: false };
         this.stateManager.setMcpServer(name, updatedConfig);
 
-        // Disconnect the server
-        await this.mcpManager.removeClient(name);
-        await this.toolManager.refresh();
+        try {
+            // Disconnect the server
+            await this.mcpManager.removeClient(name);
+            await this.toolManager.refresh();
 
-        this.logger.info(`MCP server '${name}' disabled and disconnected`);
+            this.logger.info(`MCP server '${name}' disabled and disconnected`);
+        } catch (error) {
+            // Revert state on failure
+            this.stateManager.setMcpServer(name, currentConfig);
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            this.logger.error(`Failed to disable MCP server '${name}': ${errorMessage}`);
+            throw MCPError.disconnectionFailed(name, errorMessage);
+        }
     }
 
     /**
