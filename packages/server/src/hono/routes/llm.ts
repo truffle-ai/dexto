@@ -1,5 +1,6 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { DextoAgent } from '@dexto/core';
+import { DextoRuntimeError, ErrorScope, ErrorType } from '@dexto/core';
 import {
     LLM_REGISTRY,
     LLM_PROVIDERS,
@@ -483,9 +484,12 @@ export function createLlmRouter(getAgent: () => DextoAgent) {
             const { name } = ctx.req.valid('param');
             const deleted = await deleteCustomModel(name);
             if (!deleted) {
-                return ctx.json(
-                    { ok: false as const, error: `Model '${name}' not found` } as const,
-                    404
+                throw new DextoRuntimeError(
+                    'custom_model_not_found',
+                    ErrorScope.LLM,
+                    ErrorType.NOT_FOUND,
+                    `Custom model '${name}' not found`,
+                    { modelName: name }
                 );
             }
             return ctx.json({ ok: true as const, deleted: name } as const, 200);
