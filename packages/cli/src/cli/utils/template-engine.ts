@@ -50,7 +50,7 @@ async function main() {
         session.id // sessionId
     );
 
-    console.log('Agent response:', response.content);
+    console.log('Agent response:', response);
 
     // Cleanup
     await agent.stop();
@@ -87,8 +87,22 @@ ${extendsField}
     // The bundler will automatically register them when the image is imported.
 
     providers: {
-        // Provider registration happens automatically via bundler
-        // You can also add manual registration functions here if needed
+        // Manual registration for built-in core providers
+        // (These come from core, not from our providers/ folder)
+        // TODO: This is a hack to get the local blob store provider to work. Should be auto-registered or dealt with in a better way.
+        blobStore: {
+            register: async () => {
+                const { localBlobStoreProvider, inMemoryBlobStoreProvider } = await import(
+                    '@dexto/core'
+                );
+                const { blobStoreRegistry } = await import('@dexto/core');
+
+                blobStoreRegistry.register(localBlobStoreProvider);
+                blobStoreRegistry.register(inMemoryBlobStoreProvider);
+
+                console.log('✓ Registered core blob storage providers: local, in-memory');
+            },
+        },
     },
 
     defaults: {
@@ -299,13 +313,18 @@ pnpm add ${imageName}
  * Generates an example custom tool provider
  */
 export function generateExampleTool(toolName: string = 'example-tool'): string {
+    const providerName = toolName.replace(/-/g, '_');
     return `import { z } from 'zod';
-import type { CustomToolProvider, InternalTool } from '@dexto/core';
+import type { CustomToolProvider, InternalTool, ToolCreationContext } from '@dexto/core';
 
-const ConfigSchema = z.object({
-    type: z.literal('${toolName}'),
-    // Add your configuration options here
-}).strict();
+const ConfigSchema = z
+    .object({
+        type: z.literal('${toolName}'),
+        // Add your configuration options here
+    })
+    .strict();
+
+type ${providerName.charAt(0).toUpperCase() + providerName.slice(1)}Config = z.output<typeof ConfigSchema>;
 
 /**
  * Example custom tool provider
@@ -313,25 +332,26 @@ const ConfigSchema = z.object({
  * This demonstrates how to create a custom tool that can be used by the agent.
  * The tool is auto-discovered by the bundler when placed in the tools/ folder.
  */
-export const ${toolName.replace(/-/g, '_')}Provider: CustomToolProvider<'${toolName}'> = {
+export const ${providerName}Provider: CustomToolProvider<'${toolName}', ${providerName.charAt(0).toUpperCase() + providerName.slice(1)}Config> = {
     type: '${toolName}',
     configSchema: ConfigSchema,
 
-    create: (config, context) => {
+    create: (config: ${providerName.charAt(0).toUpperCase() + providerName.slice(1)}Config, context: ToolCreationContext): InternalTool[] => {
         // Create and return tools
         const tool: InternalTool = {
-            id: '${toolName.replace(/-/g, '_')}',
+            id: '${providerName}',
             description: 'An example custom tool that demonstrates the tool provider pattern',
             inputSchema: z.object({
                 input: z.string().describe('Input text to process'),
             }),
 
-            execute: async (input) => {
-                context.logger.info(\`Example tool called with: \${input.input}\`);
+            execute: async (input: unknown) => {
+                const { input: inputText } = input as { input: string };
+                context.logger.info(\`Example tool called with: \${inputText}\`);
 
                 // Your tool logic here
                 return {
-                    result: \`Processed: \${input.input}\`,
+                    result: \`Processed: \${inputText}\`,
                 };
             },
         };

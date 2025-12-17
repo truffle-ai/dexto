@@ -253,23 +253,22 @@ export async function installDependencies(
     deps: {
         dependencies?: string[];
         devDependencies?: string[];
-    }
+    },
+    packageManager?: string
 ): Promise<void> {
-    const packageManager = getPackageManager();
-    const installCommand = getPackageManagerInstallCommand(packageManager);
+    const pm = packageManager || getPackageManager();
+    const installCommand = getPackageManagerInstallCommand(pm);
 
     if (deps.dependencies && deps.dependencies.length > 0) {
-        await executeWithTimeout(packageManager, [installCommand, ...deps.dependencies], {
+        await executeWithTimeout(pm, [installCommand, ...deps.dependencies], {
             cwd: projectPath,
         });
     }
 
     if (deps.devDependencies && deps.devDependencies.length > 0) {
-        await executeWithTimeout(
-            packageManager,
-            [installCommand, ...deps.devDependencies, '--save-dev'],
-            { cwd: projectPath }
-        );
+        await executeWithTimeout(pm, [installCommand, ...deps.devDependencies, '--save-dev'], {
+            cwd: projectPath,
+        });
     }
 }
 

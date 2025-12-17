@@ -2,6 +2,7 @@ packages:
   - packages/*
   - examples/*
   - examples/**
+  - test-from-core/*
 
 onlyBuiltDependencies:
   - '@tailwindcss/oxide'

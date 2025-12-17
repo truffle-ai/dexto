@@ -1,7 +1,7 @@
 // packages/cli/src/cli/commands/index.ts
 
 // Project setup commands
-export { createDextoProject } from './create-app.js';
+export { createDextoProject, type CreateAppOptions } from './create-app.js';
 
 export { createProject, postCreateProject } from './create-project.js';
 

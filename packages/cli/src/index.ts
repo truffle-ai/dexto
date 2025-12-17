@@ -44,6 +44,7 @@ import { enrichAgentConfig } from '@dexto/agent-management';
 import { getPort } from './utils/port-utils.js';
 import {
     createDextoProject,
+    type CreateAppOptions,
     createProject,
     postCreateProject,
     createImage,
@@ -112,22 +113,31 @@ program
 program
     .command('create-app [name]')
     .description('Create a Dexto application (CLI, web, bot, etc.)')
+    .option('--from-image <package>', 'Use existing image (e.g., @dexto/image-local)')
+    .option('--extend-image <package>', 'Extend image with custom providers')
+    .option('--from-core', 'Build from @dexto/core (advanced)')
     .action(
-        withAnalytics('create-app', async (name?: string) => {
-            try {
-                p.intro(chalk.inverse('Create Dexto App'));
+        withAnalytics(
+            'create-app',
+            async (
+                name?: string,
+                options?: { fromImage?: string; extendImage?: string; fromCore?: boolean }
+            ) => {
+                try {
+                    p.intro(chalk.inverse('Create Dexto App'));
 
-                // Create the app project structure (fully self-contained)
-                await createDextoProject(name);
+                    // Create the app project structure (fully self-contained)
+                    await createDextoProject(name, options);
 
-                p.outro(chalk.greenBright('Dexto app created successfully!'));
-                safeExit('create-app', 0);
-            } catch (err) {
-                if (err instanceof ExitSignal) throw err;
-                console.error(`❌ dexto create-app command failed: ${err}`);
-                safeExit('create-app', 1, 'error');
+                    p.outro(chalk.greenBright('Dexto app created successfully!'));
+                    safeExit('create-app', 0);
+                } catch (err) {
+                    if (err instanceof ExitSignal) throw err;
+                    console.error(`❌ dexto create-app command failed: ${err}`);
+                    safeExit('create-app', 1, 'error');
+                }
             }
-        })
+        )
     );
 
 // 3) `create-image` SUB-COMMAND
