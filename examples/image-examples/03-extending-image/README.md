@@ -46,9 +46,15 @@ This is fundamentally different from runtime customization (Example 2):
    dexto-bundle build
    ```
 
-3. **Result**: `dist/index.js` contains:
-   - All providers from `@dexto/image-local` (text-utils, storage, etc.)
-   - Plus your weather-helper tool
+3. **What the Bundler Does**:
+   - Imports base image as side-effect: `import '@dexto/image-local';`
+   - This triggers base image provider registrations automatically
+   - Then discovers and registers your custom providers from folders
+   - Generates `dist/index.js` with all providers pre-registered
+
+4. **Result**: `dist/index.js` contains:
+   - All providers from base image (registered via import side-effect)
+   - Plus your custom providers (auto-discovered and registered)
    - Ready to publish to npm
 
 ## Usage
@@ -60,17 +66,8 @@ After building and publishing this image:
 import { createAgent } from '@myorg/image-weather';
 
 const agent = createAgent(config);
-// Has BOTH text-utils AND weather-helper built-in!
+// Has BOTH base image providers AND weather-helper built-in!
 ```
-
-## Current Status
-
-**Note**: The `extends` field is conceptually shown but may need additional bundler implementation. For now, this example demonstrates the structure and pattern. The bundler would need to:
-
-1. Resolve the base image dependency
-2. Import and register base image providers
-3. Add custom providers on top
-4. Generate combined image output
 
 ## When to Use This Pattern
 
@@ -96,20 +93,15 @@ pnpm run build
 # Output: dist/index.js, dist/index.d.ts
 ```
 
-## Future Enhancement
+## Key Benefits
 
-When `extends` is fully implemented in the bundler, this will be even simpler:
+The `extends` field in the bundler:
+- ✅ Imports base image for side-effect provider registration
+- ✅ Discovers custom providers from convention-based folders
+- ✅ Includes base image metadata in imageMetadata export
+- ✅ Generates clean, optimized output
 
-```typescript
-export default defineImage({
-  name: 'image-weather',
-  extends: '@dexto/image-local',  // That's it!
-  // Everything else is automatic
-});
-```
-
-The bundler would automatically:
-- Import base image providers
-- Discover custom providers from folders
-- Merge defaults and constraints
-- Generate combined output
+This means you can build organization-specific images by simply:
+1. Specifying `extends: '@dexto/image-local'`
+2. Adding your custom providers to folders
+3. Running `dexto-bundle build`

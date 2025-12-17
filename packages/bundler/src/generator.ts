@@ -64,6 +64,13 @@ function generateImports(
 ): string {
     const imports: string[] = [];
 
+    // Import base image first (if extending) - triggers side-effect provider registration
+    if (definition.extends) {
+        imports.push(`// Import base image for provider registration (side effect)`);
+        imports.push(`import '${definition.extends}';`);
+        imports.push(``);
+    }
+
     // Core imports
     imports.push(`import { DextoAgent } from '@dexto/core';`);
 
@@ -117,6 +124,14 @@ function generateProviderRegistrations(
     discoveredProviders?: DiscoveredProviders
 ): string {
     const registrations: string[] = [];
+
+    if (definition.extends) {
+        registrations.push(
+            `// Base image providers already registered via import of '${definition.extends}'`
+        );
+        registrations.push('');
+    }
+
     registrations.push('// SIDE EFFECT: Register providers on import');
     registrations.push('');
 
@@ -228,7 +243,7 @@ function generateUtilityExports(definition: ImageDefinition): string {
 }
 
 function generateMetadata(definition: ImageDefinition, coreVersion: string): string {
-    const metadata = {
+    const metadata: Record<string, any> = {
         name: definition.name,
         version: definition.version,
         description: definition.description,
@@ -237,6 +252,11 @@ function generateMetadata(definition: ImageDefinition, coreVersion: string): str
         builtAt: new Date().toISOString(),
         coreVersion: coreVersion,
     };
+
+    // Include extends information if present
+    if (definition.extends) {
+        metadata.extends = definition.extends;
+    }
 
     return `/**
  * Image metadata

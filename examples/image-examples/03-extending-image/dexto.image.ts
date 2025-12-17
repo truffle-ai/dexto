@@ -22,64 +22,26 @@ export default defineImage({
     description: 'Extended image with weather capabilities built on image-local',
     target: 'local-development',
 
-    // TODO: The 'extends' field is conceptually shown here but may need
-    // bundler implementation to fully work. For now, this demonstrates
-    // the pattern and structure.
-    //
-    // When extends is implemented, the bundler would:
-    // 1. Import the base image's providers
-    // 2. Register them automatically
-    // 3. Add our custom providers on top
-    //
-    // extends: '@dexto/image-local',
+    // Extend the base image - bundler will import it for side-effect registration
+    // This automatically inherits all providers from the base image
+    extends: '../../00-building-image/dist/index.js',
 
     // Providers are AUTO-DISCOVERED from:
     //   tools/weather-helper/index.ts
     //
-    // Combined with inherited providers from base:
+    // Combined with inherited providers from base image (via extends):
     //   - local blob storage
     //   - in-memory blob storage
     //   - text-utils tool
     //   - sqlite database
     //   - in-memory cache
+    //
+    // The bundler generates:
+    //   import '../../00-building-image/dist/index.js'; // Side-effect: registers base providers
+    //   // Then registers our custom providers
     providers: {
-        // Manual registration for base image providers (until extends is implemented)
-        blobStore: {
-            register: async () => {
-                const { localBlobStoreProvider, inMemoryBlobStoreProvider } = await import(
-                    '@dexto/core'
-                );
-                const { blobStoreRegistry } = await import('@dexto/core');
-
-                blobStoreRegistry.register(localBlobStoreProvider);
-                blobStoreRegistry.register(inMemoryBlobStoreProvider);
-
-                console.log('✓ Registered core blob storage providers: local, in-memory');
-            },
-        },
-        customTools: {
-            register: async () => {
-                // Register text-utils from base image manually
-                // TODO: When extends is implemented, this would be automatic
-                const textUtilsModule = await import(
-                    '../../00-building-image/dist/tools/text-utils/index.js'
-                );
-                const { customToolRegistry } = await import('@dexto/core');
-
-                for (const exported of Object.values(textUtilsModule)) {
-                    if (
-                        exported &&
-                        typeof exported === 'object' &&
-                        'type' in exported &&
-                        'create' in exported
-                    ) {
-                        customToolRegistry.register(exported as any);
-                    }
-                }
-
-                console.log('✓ Registered text-utils from base image');
-            },
-        },
+        // Provider registration happens automatically via bundler
+        // Both base image providers (via extends) and our custom providers (auto-discovered)
     },
 
     // Default configuration values (inherits + overrides base)

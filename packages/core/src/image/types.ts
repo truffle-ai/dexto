@@ -214,6 +214,8 @@ export interface ImageMetadata {
     builtAt: string;
     /** Core version this image was built for */
     coreVersion: string;
+    /** Base image this extends (if any) */
+    extends?: string;
 }
 
 /**

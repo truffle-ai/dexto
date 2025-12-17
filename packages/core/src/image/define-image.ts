@@ -134,8 +134,15 @@ export function validateImageDefinition(definition: ImageDefinition): void {
     }
 
     // Validate provider categories
-    if (!definition.providers || Object.keys(definition.providers).length === 0) {
-        throw new Error('Image must define at least one provider category');
+    // Allow empty providers if extending a base image (providers inherited from base)
+    const hasProviders =
+        definition.providers &&
+        Object.values(definition.providers).some((config) => config !== undefined);
+
+    if (!hasProviders && !definition.extends) {
+        throw new Error(
+            'Image must either define at least one provider category or extend a base image'
+        );
     }
 
     for (const [category, config] of Object.entries(definition.providers)) {
