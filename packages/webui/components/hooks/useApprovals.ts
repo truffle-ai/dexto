@@ -8,20 +8,25 @@ export function useSubmitApproval() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: async (payload: { approvalId: string } & ApprovalPayload) => {
-            const { approvalId, ...body } = payload;
+        mutationFn: async (
+            payload: { approvalId: string; sessionId: string } & ApprovalPayload
+        ) => {
+            const { approvalId, sessionId: _sessionId, ...body } = payload;
             const response = await client.api.approvals[':approvalId'].$post({
                 param: { approvalId },
                 json: body,
                 header: {},
             });
+            if (!response.ok) {
+                throw new Error(`Failed to submit approval: ${response.status}`);
+            }
             return await response.json();
         },
         onSuccess: (_, variables) => {
             // Invalidate pending approvals cache when an approval is submitted
-            // The approval is no longer pending after submission
+            // Query is keyed by sessionId, not approvalId
             queryClient.invalidateQueries({
-                queryKey: queryKeys.approvals.pending(variables.approvalId),
+                queryKey: queryKeys.approvals.pending(variables.sessionId),
             });
         },
     });
