@@ -65,8 +65,8 @@ export function DiffRenderer({ data, maxLines = Infinity }: DiffRendererProps) {
                 <Text color="red"> -{deletions}</Text>
             </Box>
 
-            {/* Diff content */}
-            <Box flexDirection="column" marginLeft={2}>
+            {/* Diff content - paddingLeft keeps backgrounds bounded within container */}
+            <Box flexDirection="column" paddingLeft={2}>
                 {hunks.map((hunk, hunkIndex) => {
                     if (shouldTruncate && linesRendered >= maxLines) {
                         return null;

@@ -210,11 +210,9 @@ export function DiffLine({ type, lineNum, lineNumWidth, content, wordDiffParts }
                         <Text dimColor>{lineNumStr}</Text>
                         <Text color="red"> - </Text>
                     </Box>
-                    <Box flexGrow={1} flexShrink={1}>
-                        <Text backgroundColor="#662222" color="white">
-                            {renderWordDiff()}
-                        </Text>
-                    </Box>
+                    <Text backgroundColor="#662222" color="white">
+                        {renderWordDiff()}
+                    </Text>
                 </Box>
             );
         case 'addition':
@@ -224,11 +222,9 @@ export function DiffLine({ type, lineNum, lineNumWidth, content, wordDiffParts }
                         <Text dimColor>{lineNumStr}</Text>
                         <Text color="blue"> + </Text>
                     </Box>
-                    <Box flexGrow={1} flexShrink={1}>
-                        <Text backgroundColor="#224466" color="white">
-                            {renderWordDiff()}
-                        </Text>
-                    </Box>
+                    <Text backgroundColor="#224466" color="white">
+                        {renderWordDiff()}
+                    </Text>
                 </Box>
             );
         case 'context':
@@ -239,9 +235,7 @@ export function DiffLine({ type, lineNum, lineNumWidth, content, wordDiffParts }
                         <Text dimColor>{lineNumStr}</Text>
                         <Text> </Text>
                     </Box>
-                    <Box flexGrow={1} flexShrink={1}>
-                        <Text>{content}</Text>
-                    </Box>
+                    <Text>{content}</Text>
                 </Box>
             );
     }
