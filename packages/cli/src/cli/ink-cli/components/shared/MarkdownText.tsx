@@ -342,7 +342,8 @@ const MarkdownTextInternal: React.FC<MarkdownTextProps> = ({
     const codeFenceRegex = /^(`{3,}|~{3,})(\w*)$/;
     const ulItemRegex = /^(\s*)([-*+])\s+(.*)$/;
     const olItemRegex = /^(\s*)(\d+)\.\s+(.*)$/;
-    const hrRegex = /^[-*_]{3,}$/;
+    // CommonMark allows spaces between HR characters (e.g., "- - -" or "* * *")
+    const hrRegex = /^(\s*[-*_]\s*){3,}$/;
 
     const blocks: React.ReactNode[] = [];
     let inCodeBlock = false;

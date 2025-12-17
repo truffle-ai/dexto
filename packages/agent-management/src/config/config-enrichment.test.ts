@@ -64,9 +64,10 @@ describe('enrichAgentConfig', () => {
         });
 
         it('should deduplicate with different path formats (resolved paths)', () => {
-            // Test that path.resolve normalization works
+            // Test that path.resolve normalization works with different path representations
             vi.mocked(discoverCommandPrompts).mockReturnValue([
-                { type: 'file', file: '/projects/myapp/commands/prompt.md' },
+                // Discovered path uses parent directory traversal
+                { type: 'file', file: '/projects/myapp/commands/../commands/prompt.md' },
             ]);
 
             const baseConfig: AgentConfig = {
@@ -77,7 +78,7 @@ describe('enrichAgentConfig', () => {
                 },
                 systemPrompt: 'You are a helpful assistant.',
                 prompts: [
-                    // Same file, potentially different format (path.resolve handles this)
+                    // Config uses clean absolute path - path.resolve normalizes both to same path
                     { type: 'file', file: '/projects/myapp/commands/prompt.md' },
                 ],
             };

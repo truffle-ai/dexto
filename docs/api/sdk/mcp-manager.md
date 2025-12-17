@@ -266,11 +266,12 @@ async listAllResources(): Promise<MCPResolvedResource[]>
 ```
 
 **Returns:** Array of resolved resources with metadata:
+
 ```typescript
 interface MCPResolvedResource {
   key: string;        // Qualified resource key
   serverName: string; // Server that provides this resource
-  summary: ResourceSummary;
+  summary: MCPResourceSummary;
 }
 ```
 
