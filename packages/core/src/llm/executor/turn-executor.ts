@@ -451,53 +451,64 @@ export class TurnExecutor {
                             return { error: 'Cancelled by user', cancelled: true };
                         }
 
+                        // Create abort handler for cleanup
+                        let abortHandler: (() => void) | null = null;
+
                         // Create abort promise for Promise.race
                         // This ensures we return quickly even if tool doesn't respect abort signal
                         const abortPromise = new Promise<{ error: string; cancelled: true }>(
                             (resolve) => {
-                                const handler = () => {
+                                abortHandler = () => {
                                     this.logger.debug(`Tool ${name} cancelled during execution`);
                                     resolve({ error: 'Cancelled by user', cancelled: true });
                                 };
-                                abortSignal.addEventListener('abort', handler, { once: true });
+                                abortSignal.addEventListener('abort', abortHandler, { once: true });
                             }
                         );
 
                         // Race: tool execution vs abort signal
-                        const result = await Promise.race([
-                            (async () => {
-                                // Run tool via toolManager - returns result with approval metadata
-                                // toolCallId is passed for tracking parallel tool calls in the UI
-                                // Pass abortSignal so tools can do proper cleanup (e.g., kill processes)
-                                const executionResult = await this.toolManager.executeTool(
-                                    name,
-                                    args as Record<string, unknown>,
-                                    options.toolCallId,
-                                    this.sessionId,
-                                    abortSignal
-                                );
+                        try {
+                            const result = await Promise.race([
+                                (async () => {
+                                    // Run tool via toolManager - returns result with approval metadata
+                                    // toolCallId is passed for tracking parallel tool calls in the UI
+                                    // Pass abortSignal so tools can do proper cleanup (e.g., kill processes)
+                                    const executionResult = await this.toolManager.executeTool(
+                                        name,
+                                        args as Record<string, unknown>,
+                                        options.toolCallId,
+                                        this.sessionId,
+                                        abortSignal
+                                    );
 
-                                // Store approval metadata for later retrieval by StreamProcessor
-                                if (executionResult.requireApproval !== undefined) {
-                                    const metadata: {
-                                        requireApproval: boolean;
-                                        approvalStatus?: 'approved' | 'rejected';
-                                    } = {
-                                        requireApproval: executionResult.requireApproval,
-                                    };
-                                    if (executionResult.approvalStatus !== undefined) {
-                                        metadata.approvalStatus = executionResult.approvalStatus;
+                                    // Store approval metadata for later retrieval by StreamProcessor
+                                    if (executionResult.requireApproval !== undefined) {
+                                        const metadata: {
+                                            requireApproval: boolean;
+                                            approvalStatus?: 'approved' | 'rejected';
+                                        } = {
+                                            requireApproval: executionResult.requireApproval,
+                                        };
+                                        if (executionResult.approvalStatus !== undefined) {
+                                            metadata.approvalStatus =
+                                                executionResult.approvalStatus;
+                                        }
+                                        this.approvalMetadata.set(options.toolCallId, metadata);
                                     }
-                                    this.approvalMetadata.set(options.toolCallId, metadata);
-                                }
 
-                                // Return just the raw result for Vercel SDK
-                                return executionResult.result;
-                            })(),
-                            abortPromise,
-                        ]);
+                                    // Return just the raw result for Vercel SDK
+                                    return executionResult.result;
+                                })(),
+                                abortPromise,
+                            ]);
 
-                        return result;
+                            return result;
+                        } finally {
+                            // Clean up abort listener to prevent memory leak
+                            if (abortHandler) {
+                                abortSignal.removeEventListener('abort', abortHandler);
+                            }
+                        }
                     },
 
                     /**

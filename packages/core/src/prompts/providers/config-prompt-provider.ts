@@ -2,6 +2,7 @@ import type { PromptProvider, PromptInfo, PromptDefinition, PromptListResult } f
 import type { GetPromptResult } from '@modelcontextprotocol/sdk/types.js';
 import type { ValidatedAgentConfig } from '../../agent/schemas.js';
 import type { InlinePrompt, FilePrompt, PromptsConfig } from '../schemas.js';
+import { PromptsSchema } from '../schemas.js';
 import type { IDextoLogger } from '../../logger/v2/types.js';
 import { DextoLogComponent } from '../../logger/v2/types.js';
 import { PromptError } from '../errors.js';
@@ -45,7 +46,13 @@ export class ConfigPromptProvider implements PromptProvider {
     }
 
     updatePrompts(prompts: PromptsConfig): void {
-        this.prompts = prompts;
+        const result = PromptsSchema.safeParse(prompts);
+        if (!result.success) {
+            const errorMsg = result.error.issues.map((i) => i.message).join(', ');
+            this.logger.error(`Invalid prompts config: ${errorMsg}`);
+            throw PromptError.validationFailed(errorMsg);
+        }
+        this.prompts = result.data;
         this.invalidateCache();
         this.buildPromptsCache();
     }

@@ -1187,7 +1187,14 @@ export function getModelPricing(provider: LLMProvider, model: string): ModelPric
  * Gets the display name for a model, falling back to the model ID if not found.
  */
 export function getModelDisplayName(model: string, provider?: LLMProvider): string {
-    const resolvedProvider = provider ?? getProviderFromModel(model);
+    let resolvedProvider: LLMProvider;
+    try {
+        resolvedProvider = provider ?? getProviderFromModel(model);
+    } catch {
+        // Unknown model - fall back to model ID
+        return model;
+    }
+
     const providerInfo = LLM_REGISTRY[resolvedProvider];
 
     if (!providerInfo || acceptsAnyModel(resolvedProvider)) {
