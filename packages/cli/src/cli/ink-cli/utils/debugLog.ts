@@ -51,14 +51,13 @@ export function createDebugLogger(name: string): DebugLogger {
     const log = (msg: string, data?: Record<string, unknown>): void => {
         if (!isEnabled()) return;
 
-        const timestamp = new Date().toISOString().split('T')[1];
-        const dataStr = data ? ` ${JSON.stringify(data)}` : '';
-        const line = `[${timestamp}] ${msg}${dataStr}\n`;
-
         try {
+            const timestamp = new Date().toISOString().split('T')[1];
+            const dataStr = data ? ` ${JSON.stringify(data)}` : '';
+            const line = `[${timestamp}] ${msg}${dataStr}\n`;
             appendFileSync(logPath, line);
         } catch {
-            // Silently ignore write errors in debug logging
+            // Silently ignore serialization and write errors in debug logging
         }
     };
 

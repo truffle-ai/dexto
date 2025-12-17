@@ -50,21 +50,20 @@ import { documentationCommands } from './documentation-commands.js';
 export const CLI_COMMANDS: CommandDefinition[] = [];
 
 // Build the commands array with proper help command that can access all commands
-// Note: Interactive CLI uses simplified commands (interactive selectors instead of subcommands)
-// Regular CLI (headless) has full subcommand access via `dexto session list`, etc.
+// All commands here use interactive overlays - no text-based subcommands
 const baseCommands: CommandDefinition[] = [
     // General commands (without help)
     ...generalCommands,
 
-    // Session management - simplified for interactive CLI
-    searchCommand, // /search - search across sessions
-    resumeCommand, // /resume - show interactive selector (no /session subcommands)
+    // Session management
+    searchCommand, // /search - opens search overlay
+    resumeCommand, // /resume - opens session selector overlay
 
-    // Model management - simplified for interactive CLI
-    modelCommands, // /model - show interactive selector (subcommands available but not emphasized)
+    // Model management
+    modelCommands, // /model - opens model selector overlay
 
-    // MCP server management commands
-    mcpCommands,
+    // MCP server management
+    mcpCommands, // /mcp - opens MCP server list overlay
 
     // Tool management commands
     ...toolCommands,

@@ -50,29 +50,6 @@ export class CommandOutputHelper {
     }
 
     /**
-     * Validate required argument and return error if missing
-     * Returns null if valid, error string if invalid
-     */
-    static validateRequiredArg(
-        args: string[],
-        index: number,
-        argName: string,
-        usage: string
-    ): string | null {
-        if (args.length <= index || !args[index]) {
-            return formatForInkCli(`❌ ${argName} is required\nUsage: ${usage}`);
-        }
-        return null;
-    }
-
-    /**
-     * No output (command executed successfully with no output to display)
-     */
-    static noOutput(): string {
-        return '';
-    }
-
-    /**
      * Create styled output for rich rendering in ink-cli
      * @param styledType - The type of styled rendering
      * @param styledData - The structured data for rendering

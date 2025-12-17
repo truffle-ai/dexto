@@ -19,6 +19,7 @@ const ALWAYS_OVERLAY: Record<string, OverlayType> = {
     switch: 'session-selector',
     stream: 'stream-selector',
     tools: 'tool-browser',
+    mcp: 'mcp-server-list',
 };
 
 /**
@@ -27,7 +28,6 @@ const ALWAYS_OVERLAY: Record<string, OverlayType> = {
  */
 const NO_ARGS_OVERLAY: Record<string, OverlayType> = {
     session: 'session-subcommand-selector',
-    mcp: 'mcp-server-list',
     log: 'log-level-selector',
     prompts: 'prompt-list',
 };
