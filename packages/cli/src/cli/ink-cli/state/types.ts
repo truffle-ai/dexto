@@ -168,6 +168,11 @@ export type StyledData =
 
 /**
  * Message in the chat interface
+ *
+ * TODO: Consolidate with InternalMessage from @dexto/core. Currently we have two
+ * message types: InternalMessage (core, ContentPart[] content) and Message (CLI,
+ * string content + UI fields). Consider extending InternalMessage or extracting
+ * shared role type to reduce duplication and type confusion.
  */
 export interface Message {
     id: string;

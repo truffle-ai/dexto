@@ -432,9 +432,9 @@ export function convertHistoryToUIMessages(
 
         uiMessages.push({
             id: `session-${sessionId}-${index}`,
-            role: msg.role as 'user' | 'assistant' | 'system' | 'tool',
+            role: msg.role,
             content: textContent,
-            timestamp: new Date(msg.timestamp || Date.now() - (history.length - index) * 1000),
+            timestamp: new Date(msg.timestamp ?? Date.now() - (history.length - index) * 1000),
         });
     });
 
