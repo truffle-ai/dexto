@@ -207,7 +207,7 @@ export class InternalToolsProvider {
      * Returns undefined if tool doesn't exist
      */
     getTool(toolName: string): InternalTool | undefined {
-        return this.tools.get(toolName);
+        return this.internalTools.get(toolName) || this.customTools.get(toolName);
     }
 
     /**
