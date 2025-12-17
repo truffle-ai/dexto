@@ -546,7 +546,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     },
                 ]);
             },
-            [setUi, setInput, setMessages]
+            [setUi, setInput, setMessages, buffer]
         );
 
         // Handle session selection
@@ -815,7 +815,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     }));
                 }
             },
-            [setInput, setUi, setMessages, agent, session.id]
+            [setInput, setUi, setMessages, agent, session.id, buffer]
         );
 
         const handleLoadIntoInput = useCallback(
@@ -838,11 +838,13 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     const uriParts = resource.uri.split('/');
                     const reference =
                         resource.name || uriParts[uriParts.length - 1] || resource.uri;
-                    setInput((prev) => ({ ...prev, value: `${before}${reference} ` }));
+                    const newValue = `${before}${reference} `;
+                    buffer.setText(newValue);
+                    setInput((prev) => ({ ...prev, value: newValue }));
                 }
                 setUi((prev) => ({ ...prev, activeOverlay: 'none', mcpWizardServerType: null }));
             },
-            [input.value, setInput, setUi]
+            [input.value, buffer, setInput, setUi]
         );
 
         const handleClose = useCallback(() => {
@@ -869,7 +871,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     },
                 ]);
             },
-            [setUi, setInput, setMessages, agent]
+            [setUi, setInput, setMessages, agent, buffer]
         );
 
         // Handle stream mode selection
@@ -891,7 +893,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     },
                 ]);
             },
-            [setUi, setInput, setMessages]
+            [setUi, setInput, setMessages, buffer]
         );
 
         // Handle MCP server list actions (select server or add new)
@@ -1066,7 +1068,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     }
                 }
             },
-            [setUi, setInput, setMessages, agent]
+            [setUi, setInput, setMessages, agent, buffer]
         );
 
         // Handle MCP add choice (registry/custom/back)
@@ -1145,7 +1147,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     isThinking: false,
                 }));
             },
-            [setUi, setInput, setMessages, agent]
+            [setUi, setInput, setMessages, agent, buffer]
         );
 
         // Handle MCP custom type selection
@@ -1228,7 +1230,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     isThinking: false,
                 }));
             },
-            [setUi, setInput, setMessages, agent]
+            [setUi, setInput, setMessages, agent, buffer]
         );
 
         // Handle session subcommand selection
@@ -1305,7 +1307,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     }));
                 }
             },
-            [setInput, setUi, setMessages, agent, session.id]
+            [setInput, setUi, setMessages, agent, session.id, buffer]
         );
 
         // Handle prompt list actions (select/add/delete)

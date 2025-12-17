@@ -75,6 +75,7 @@ export function useAgentEvents({
                 setMessages([]);
                 setApproval(null);
                 setApprovalQueue([]);
+                setQueuedMessages([]);
                 setUi((prev) => ({ ...prev, activeOverlay: 'none' }));
             },
             { signal }
@@ -107,12 +108,13 @@ export function useAgentEvents({
 
         // Handle context cleared (from /clear command)
         // Keep messages visible for user reference - only context sent to LLM is cleared
-        // Just clean up any pending approvals/overlays
+        // Just clean up any pending approvals/overlays/queued messages
         bus.on(
             'context:cleared',
             () => {
                 setApproval(null);
                 setApprovalQueue([]);
+                setQueuedMessages([]);
                 setUi((prev) => ({ ...prev, activeOverlay: 'none' }));
             },
             { signal }
