@@ -21,7 +21,7 @@ export const CustomModelSchema = z.object({
     maxOutputTokens: z.number().int().positive().optional(),
 });
 
-export type CustomModel = z.infer<typeof CustomModelSchema>;
+export type CustomModel = z.output<typeof CustomModelSchema>;
 
 const StorageSchema = z.object({
     version: z.literal(1),

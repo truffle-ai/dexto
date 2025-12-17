@@ -71,7 +71,7 @@ export function ModelCard({
     isCustom = false,
 }: ModelCardProps) {
     const displayName = model.displayName || model.name;
-    const hasApiKey = isCustom || providerInfo?.hasApiKey;
+    const hasApiKey = isCustom || providerInfo?.hasApiKey || false;
     const { providerName, modelName, suffix } = parseModelName(displayName, provider);
 
     // Build description lines for tooltip

@@ -33,6 +33,7 @@ describe('ApprovalManager', () => {
             // Tool confirmation should be auto-approved
             const toolResponse = await manager.requestToolConfirmation({
                 toolName: 'test_tool',
+                toolCallId: 'test-call-id',
                 args: { foo: 'bar' },
             });
 
@@ -100,6 +101,7 @@ describe('ApprovalManager', () => {
             // Tool confirmation should be auto-denied
             const toolResponse = await manager.requestToolConfirmation({
                 toolName: 'test_tool',
+                toolCallId: 'test-call-id',
                 args: { foo: 'bar' },
             });
 
@@ -145,6 +147,7 @@ describe('ApprovalManager', () => {
 
             const response = await manager.requestToolConfirmation({
                 toolName: 'test_tool',
+                toolCallId: 'test-call-id',
                 args: {},
             });
 
@@ -395,6 +398,7 @@ describe('ApprovalManager', () => {
             // This is tested implicitly through the factory flow
             const response = await manager.requestToolConfirmation({
                 toolName: 'test_tool',
+                toolCallId: 'test-call-id',
                 args: { foo: 'bar' },
                 timeout: 30000, // Per-request override
             });
@@ -418,6 +422,7 @@ describe('ApprovalManager', () => {
 
             const response = await manager.requestToolConfirmation({
                 toolName: 'test_tool',
+                toolCallId: 'test-call-id',
                 args: {},
             });
 
@@ -440,6 +445,7 @@ describe('ApprovalManager', () => {
 
             const response = await manager.requestToolConfirmation({
                 toolName: 'test_tool',
+                toolCallId: 'test-call-id',
                 args: {},
             });
 
@@ -513,6 +519,7 @@ describe('ApprovalManager', () => {
 
             const response = await manager.requestToolConfirmation({
                 toolName: 'test_tool',
+                toolCallId: 'test-call-id',
                 args: {},
             });
 
@@ -539,6 +546,7 @@ describe('ApprovalManager', () => {
             try {
                 await manager.checkToolConfirmation({
                     toolName: 'test_tool',
+                    toolCallId: 'test-call-id',
                     args: {},
                 });
                 expect.fail('Should have thrown error');

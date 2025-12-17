@@ -41,7 +41,7 @@ const PendingApprovalSchema = z
 
 const PendingApprovalsResponseSchema = z
     .object({
-        ok: z.literal(true),
+        ok: z.literal(true).describe('Success indicator'),
         approvals: z.array(PendingApprovalSchema).describe('List of pending approval requests'),
     })
     .describe('Response containing pending approval requests');

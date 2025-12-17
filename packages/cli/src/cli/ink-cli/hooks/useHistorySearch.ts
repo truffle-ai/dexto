@@ -4,16 +4,16 @@
  * Manages search state and provides handlers for search operations.
  */
 
-import { useCallback, useMemo } from 'react';
-import type { InputState, UIState, HistorySearchState } from '../state/types.js';
+import { useCallback, useMemo, type Dispatch, type SetStateAction } from 'react';
+import type { InputState, UIState } from '../state/types.js';
 import type { TextBuffer } from '../components/shared/text-buffer.js';
 
 interface UseHistorySearchProps {
     ui: UIState;
     input: InputState;
     buffer: TextBuffer;
-    setUi: React.Dispatch<React.SetStateAction<UIState>>;
-    setInput: React.Dispatch<React.SetStateAction<InputState>>;
+    setUi: Dispatch<SetStateAction<UIState>>;
+    setInput: Dispatch<SetStateAction<InputState>>;
 }
 
 interface UseHistorySearchReturn {

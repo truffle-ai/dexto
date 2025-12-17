@@ -254,7 +254,7 @@ export function createLlmRouter(getAgent: () => DextoAgent) {
                 content: {
                     'application/json': {
                         schema: z.object({
-                            models: z.array(CustomModelSchema),
+                            models: z.array(CustomModelSchema).describe('List of custom models'),
                         }),
                     },
                 },
@@ -277,7 +277,7 @@ export function createLlmRouter(getAgent: () => DextoAgent) {
                 content: {
                     'application/json': {
                         schema: z.object({
-                            ok: z.literal(true),
+                            ok: z.literal(true).describe('Success indicator'),
                             model: CustomModelSchema,
                         }),
                     },
@@ -303,8 +303,8 @@ export function createLlmRouter(getAgent: () => DextoAgent) {
                 content: {
                     'application/json': {
                         schema: z.object({
-                            ok: z.literal(true),
-                            deleted: z.string(),
+                            ok: z.literal(true).describe('Success indicator'),
+                            deleted: z.string().describe('Name of the deleted model'),
                         }),
                     },
                 },
@@ -314,8 +314,8 @@ export function createLlmRouter(getAgent: () => DextoAgent) {
                 content: {
                     'application/json': {
                         schema: z.object({
-                            ok: z.literal(false),
-                            error: z.string(),
+                            ok: z.literal(false).describe('Failure indicator'),
+                            error: z.string().describe('Error message'),
                         }),
                     },
                 },
