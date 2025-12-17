@@ -23,7 +23,8 @@
     "reference-implementation"
   ],
   "dependencies": {
-    "@dexto/core": "workspace:*"
+    "@dexto/core": "workspace:*",
+    "zod": "^3.25.0"
   },
   "devDependencies": {
     "@dexto/bundler": "workspace:*",

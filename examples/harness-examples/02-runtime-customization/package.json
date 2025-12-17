@@ -1,7 +1,7 @@
 {
-  "name": "02-extending-image",
+  "name": "02-runtime-customization",
   "version": "1.0.0",
-  "description": "Example 2: Extending a harness with custom providers",
+  "description": "Example 2: Runtime customization by adding tools to an existing image",
   "type": "module",
   "private": true,
   "scripts": {
@@ -9,7 +9,7 @@
   },
   "dependencies": {
     "@dexto/agent-management": "workspace:*",
-    "@dexto/core": "workspace:*"
+    "zod": "^3.25.0"
   },
   "devDependencies": {
     "tsx": "^4.7.0",

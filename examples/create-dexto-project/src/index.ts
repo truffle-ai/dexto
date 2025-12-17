@@ -31,7 +31,7 @@ async function main() {
 
         // Step 2: Register all custom providers
         // This makes custom storage and tools available to agents
-        registerProviders();
+        await registerProviders();
         console.log();
 
         // Step 3: Load agent configuration from YAML

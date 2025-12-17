@@ -1,10 +1,17 @@
-# Example 3: Creating a Custom Image
+# Creating a Dexto Project from Scratch
 
-> **Pattern: Bundling providers for organizational standards**
+> **Pattern: Building a complete custom agent with custom providers**
 
-This example shows how to create a **complete provider bundle** with all four provider types. This demonstrates what goes INTO a custom base image before it's packaged and distributed across your organization.
+This example demonstrates how to **build a full custom agent from scratch** using `@dexto/core`. You'll learn to:
 
-**Note:** This example shows the "pre-image" pattern with manual provider registration via `dexto.config.ts`. To distribute this as a reusable base image (like `@dexto/image-local`), you would transform `dexto.config.ts` into `dexto.image.ts` and use the bundler to create a distributable package.
+- Implement custom providers (storage, tools, compression, plugins)
+- Define agent configurations with YAML files
+- Register providers manually via `dexto.config.ts`
+- Build and bundle into a complete application
+
+This is the "from-scratch" approach where you have full control over every provider. It's perfect for prototyping, learning, or building unique applications that don't fit standard image patterns.
+
+**Note:** This uses manual provider registration. For creating reusable, distributable images, see the [harness-examples](../harness-examples/) folder which demonstrates the convention-based image bundler approach.
 
 ## Provider Types
 
@@ -33,7 +40,7 @@ Logs all agent activity at all four extension points.
 
 ```bash
 # Navigate to example
-cd examples/provider-bundle-example
+cd examples/create-dexto-project
 
 # Install dependencies
 pnpm install
@@ -52,7 +59,7 @@ pnpm start
 ## Project Structure
 
 ```
-provider-bundle-example/
+create-dexto-project/
 ├── dexto.config.ts           # Provider registration hub
 ├── src/index.ts              # Entry point
 │
@@ -389,22 +396,23 @@ import { createAgent } from '@myorg/image-enterprise';
 const agent = createAgent(config);  // All providers auto-registered!
 ```
 
-## When to Create Custom Images
+## When to Use This Approach
 
-**Use manual registration** (this example) when:
-- Prototyping and experimenting
-- Single application use case
-- Providers are still in development
+**Use this from-scratch approach** when:
+- Learning how Dexto works internally
+- Prototyping and experimenting with custom providers
+- Building a unique application with specific requirements
+- Your providers are still in active development
+- You need full control over the entire stack
 
-**Create a custom image** when:
-- Need to share across 3+ applications
-- Establishing organizational standards
-- Providers are stable and tested
-- Want to publish to npm
+**Use base images instead** when:
+- You want to get started quickly with sensible defaults
+- Your use case fits a standard pattern (local dev, cloud production, etc.)
+- You want to add just 1-2 custom tools to an existing image
+- See [harness-examples](../harness-examples/) for image-based patterns
 
 ## Learn More
 
-- [Example 1: Using Official Images](../01-using-official-image/)
-- [Example 2: Extending Images](../02-extending-image/)
-- [Base Images Architecture](../../../feature-plans/architecture/02-base-images-and-implementation.md)
-- [Provider Development Guide](../../../packages/core/src/providers/README.md)
+- [Harness Examples](../harness-examples/) - Convention-based image building
+- [Base Images Architecture](../../feature-plans/architecture/02-base-images-and-implementation.md)
+- [Provider Development Guide](../../packages/core/src/providers/README.md)

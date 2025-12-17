@@ -1,0 +1,10 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": ".",
+    "declaration": true
+  },
+  "include": ["dexto.image.ts", "custom-tools/**/*"],
+  "exclude": ["node_modules", "dist"]
+}

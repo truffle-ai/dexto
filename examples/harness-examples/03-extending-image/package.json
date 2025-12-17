@@ -1,0 +1,33 @@
+{
+  "name": "03-extending-image",
+  "version": "1.0.0",
+  "description": "Example 3: Extending an image by creating a new image with additional providers",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "dexto-bundle build",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "dexto",
+    "image",
+    "extended-image",
+    "weather"
+  ],
+  "dependencies": {
+    "@dexto/core": "workspace:*",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@dexto/bundler": "workspace:*",
+    "typescript": "^5.3.3"
+  }
+}

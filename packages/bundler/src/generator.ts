@@ -10,21 +10,23 @@
 
 import type { ImageDefinition } from '@dexto/core';
 import type { GeneratedCode } from './types.js';
+import type { DiscoveredProviders } from './bundler.js';
 
 /**
  * Generate JavaScript entry point for an image
  */
 export function generateEntryPoint(
     definition: ImageDefinition,
-    coreVersion: string
+    coreVersion: string,
+    discoveredProviders?: DiscoveredProviders
 ): GeneratedCode {
     const warnings: string[] = [];
 
     // Generate imports section
-    const imports = generateImports(definition);
+    const imports = generateImports(definition, discoveredProviders);
 
     // Generate provider registration section
-    const registrations = generateProviderRegistrations(definition);
+    const registrations = generateProviderRegistrations(definition, discoveredProviders);
 
     // Generate factory function
     const factory = generateFactory();
@@ -56,74 +58,115 @@ ${metadata}
     return { js, dts };
 }
 
-function generateImports(definition: ImageDefinition): string {
+function generateImports(
+    definition: ImageDefinition,
+    discoveredProviders?: DiscoveredProviders
+): string {
     const imports: string[] = [];
 
     // Core imports
     imports.push(`import { DextoAgent } from '@dexto/core';`);
 
-    // Registry imports based on provider categories
-    const registries: string[] = [];
-    if (definition.providers.blobStore) registries.push('blobStoreRegistry');
-    if (definition.providers.customTools) registries.push('customToolRegistry');
-    if (definition.providers.plugins) registries.push('pluginRegistry');
-    if (definition.providers.compression) registries.push('compressionRegistry');
+    // Determine which registries are needed based on discovered providers or manual config
+    const registries: Set<string> = new Set();
 
-    if (registries.length > 0) {
-        imports.push(`import { ${registries.join(', ')} } from '@dexto/core';`);
+    if (discoveredProviders) {
+        if (discoveredProviders.blobStore.length > 0) registries.add('blobStoreRegistry');
+        if (discoveredProviders.customTools.length > 0) registries.add('customToolRegistry');
+        if (discoveredProviders.plugins.length > 0) registries.add('pluginRegistry');
+        if (discoveredProviders.compression.length > 0) registries.add('compressionRegistry');
     }
 
-    // Provider imports (using relative paths from image package)
-    for (const [category, config] of Object.entries(definition.providers)) {
-        if (!config || !config.providers) continue;
+    // Also check manual provider registration from definition
+    if (definition.providers.blobStore) registries.add('blobStoreRegistry');
+    if (definition.providers.customTools) registries.add('customToolRegistry');
+    if (definition.providers.plugins) registries.add('pluginRegistry');
+    if (definition.providers.compression) registries.add('compressionRegistry');
 
-        // For now, assume providers are exported from ./providers/{category}.js
-        imports.push(`// ${category} providers`);
-        imports.push(`import * as ${category}Providers from './providers/${category}.js';`);
+    if (registries.size > 0) {
+        imports.push(`import { ${Array.from(registries).join(', ')} } from '@dexto/core';`);
+    }
+
+    // Import discovered providers
+    if (discoveredProviders) {
+        const categories = [
+            { key: 'blobStore', label: 'Blob Storage' },
+            { key: 'customTools', label: 'Custom Tools' },
+            { key: 'compression', label: 'Compression' },
+            { key: 'plugins', label: 'Plugins' },
+        ] as const;
+
+        for (const { key, label } of categories) {
+            const providers = discoveredProviders[key];
+            if (providers.length > 0) {
+                imports.push(``);
+                imports.push(`// ${label} providers (auto-discovered)`);
+                providers.forEach((path, index) => {
+                    const varName = `${key}Provider${index}`;
+                    imports.push(`import * as ${varName} from '${path}';`);
+                });
+            }
+        }
     }
 
     return imports.join('\n');
 }
 
-function generateProviderRegistrations(definition: ImageDefinition): string {
+function generateProviderRegistrations(
+    definition: ImageDefinition,
+    discoveredProviders?: DiscoveredProviders
+): string {
     const registrations: string[] = [];
     registrations.push('// SIDE EFFECT: Register providers on import');
     registrations.push('');
 
-    // Generate registrations for each category
+    // Auto-register discovered providers
+    if (discoveredProviders) {
+        const categoryMap = [
+            { key: 'blobStore', registry: 'blobStoreRegistry', label: 'Blob Storage' },
+            { key: 'customTools', registry: 'customToolRegistry', label: 'Custom Tools' },
+            { key: 'compression', registry: 'compressionRegistry', label: 'Compression' },
+            { key: 'plugins', registry: 'pluginRegistry', label: 'Plugins' },
+        ] as const;
+
+        for (const { key, registry, label } of categoryMap) {
+            const providers = discoveredProviders[key];
+            if (providers.length === 0) continue;
+
+            registrations.push(`// Auto-register ${label} providers`);
+            providers.forEach((path, index) => {
+                const varName = `${key}Provider${index}`;
+                registrations.push(`// From ${path}`);
+                registrations.push(`for (const exported of Object.values(${varName})) {`);
+                registrations.push(
+                    `    if (exported && typeof exported === 'object' && 'type' in exported && 'create' in exported) {`
+                );
+                registrations.push(`        try {`);
+                registrations.push(`            ${registry}.register(exported);`);
+                registrations.push(
+                    `            console.log(\`✓ Registered ${key}: \${exported.type}\`);`
+                );
+                registrations.push(`        } catch (err) {`);
+                registrations.push(`            // Ignore duplicate registration errors`);
+                registrations.push(
+                    `            if (!err.message?.includes('already registered')) throw err;`
+                );
+                registrations.push(`        }`);
+                registrations.push(`    }`);
+                registrations.push(`}`);
+            });
+            registrations.push('');
+        }
+    }
+
+    // Handle manual registration functions (backwards compatibility)
     for (const [category, config] of Object.entries(definition.providers)) {
         if (!config) continue;
 
-        if (config.providers) {
-            // Direct provider registration
-            const registryMap: Record<string, string> = {
-                blobStore: 'blobStoreRegistry',
-                customTools: 'customToolRegistry',
-                plugins: 'pluginRegistry',
-                compression: 'compressionRegistry',
-            };
-
-            const registryName = registryMap[category];
-            if (registryName) {
-                registrations.push(`// Register ${category} providers`);
-                registrations.push(`for (const provider of Object.values(${category}Providers)) {`);
-                registrations.push(
-                    `    if (provider && typeof provider === 'object' && 'type' in provider) {`
-                );
-                registrations.push(`        ${registryName}.register(provider);`);
-                registrations.push(`    }`);
-                registrations.push(`}`);
-                registrations.push('');
-            }
-        }
-
         if (config.register) {
             // Async registration function with duplicate prevention
-            registrations.push(`// Register ${category} via custom function`);
+            registrations.push(`// Register ${category} via custom function (from dexto.image.ts)`);
             registrations.push(`await (async () => {`);
-            registrations.push(`    // Custom registration logic from dexto.image.ts`);
-            registrations.push(`    // NOTE: This is called at module init time`);
-            registrations.push(`    // Wrapped to prevent duplicate registrations`);
             registrations.push(`    try {`);
             registrations.push(
                 `        ${config.register
@@ -155,7 +198,18 @@ function generateFactory(): string {
  */
 export function createAgent(config, configPath) {
     return new DextoAgent(config, configPath);
-}`;
+}
+
+/**
+ * Re-export registries for runtime customization.
+ * This allows apps to add custom providers without depending on @dexto/core directly.
+ */
+export {
+    customToolRegistry,
+    pluginRegistry,
+    compressionRegistry,
+    blobStoreRegistry,
+} from '@dexto/core';`;
 }
 
 function generateUtilityExports(definition: ImageDefinition): string {
@@ -206,6 +260,16 @@ export declare function createAgent(config: AgentConfig, configPath?: string): D
  * Image metadata
  */
 export declare const imageMetadata: ImageMetadata;
+
+/**
+ * Re-exported registries for runtime customization
+ */
+export {
+    customToolRegistry,
+    pluginRegistry,
+    compressionRegistry,
+    blobStoreRegistry,
+} from '@dexto/core';
 
 // Re-export utilities if any are defined
 ${

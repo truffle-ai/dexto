@@ -1,0 +1,29 @@
+systemPrompt:
+  contributors:
+    - type: static
+      content: |
+        You are a helpful AI assistant with access to:
+        - Weather information (custom tool added by this app)
+        - Text utilities (bundled in the base image)
+
+        When asked about weather, use the get_weather tool.
+        When asked to manipulate text, use the text utility tools (count_words, transform_case, reverse_text).
+
+llm:
+  provider: anthropic
+  model: claude-sonnet-4-5-20250514
+  apiKey: $ANTHROPIC_API_KEY
+
+# Custom tool configuration
+customTools:
+  # Custom weather tool added by extending the image
+  - type: weather-helper
+    defaultCity: New York
+    units: fahrenheit
+
+  # Text utils tool comes from the base image
+  - type: text-utils
+    maxLength: 10000
+
+# Storage uses image-local defaults (no need to specify!)
+# The image provides: SQLite database, local filesystem, in-memory cache

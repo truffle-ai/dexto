@@ -35,9 +35,15 @@ export async function bundle(options: BundleOptions): Promise<BundleResult> {
     // 3. Get core version (from package.json)
     const coreVersion = getCoreVersion();
 
+    // 3.5. Discover providers from convention-based folders
+    console.log(`🔍 Discovering providers from folders...`);
+    const imageDir = dirname(options.imagePath);
+    const discoveredProviders = discoverProviders(imageDir);
+    console.log(`✅ Discovered ${discoveredProviders.totalCount} provider(s)`);
+
     // 4. Generate code
     console.log(`🔨 Generating entry point...`);
-    const generated = generateEntryPoint(definition, coreVersion);
+    const generated = generateEntryPoint(definition, coreVersion, discoveredProviders);
 
     // 5. Ensure output directory exists
     const outDir = resolve(options.outDir);
@@ -45,13 +51,23 @@ export async function bundle(options: BundleOptions): Promise<BundleResult> {
         mkdirSync(outDir, { recursive: true });
     }
 
-    // 5.5. Compile provider source files
-    const imageDir = dirname(options.imagePath);
-    const srcDir = join(imageDir, 'src');
-    if (existsSync(srcDir)) {
-        console.log(`🔨 Compiling provider source files...`);
-        compileSourceFiles(srcDir, outDir);
-        console.log(`✅ Provider source files compiled`);
+    // 5.5. Compile provider category folders
+    console.log(`🔨 Compiling provider source files...`);
+    const categories = ['blob-store', 'tools', 'compression', 'plugins'];
+    let compiledCount = 0;
+
+    for (const category of categories) {
+        const categoryDir = join(imageDir, category);
+        if (existsSync(categoryDir)) {
+            compileSourceFiles(categoryDir, join(outDir, category));
+            compiledCount++;
+        }
+    }
+
+    if (compiledCount > 0) {
+        console.log(
+            `✅ Compiled ${compiledCount} provider categor${compiledCount === 1 ? 'y' : 'ies'}`
+        );
     }
 
     // 6. Write generated files
@@ -194,7 +210,7 @@ function compileSourceFiles(srcDir: string, outDir: string): void {
         module: ts.ModuleKind.ESNext,
         moduleResolution: ts.ModuleResolutionKind.Bundler,
         outDir: outDir,
-        rootDir: dirname(srcDir), // Use parent of src as root
+        rootDir: srcDir, // Use srcDir as root
         declaration: true,
         esModuleInterop: true,
         skipLibCheck: true,
@@ -258,4 +274,88 @@ function findTypeScriptFiles(dir: string): string[] {
 
     walk(dir);
     return files;
+}
+
+/**
+ * Provider discovery result for a single category
+ */
+export interface DiscoveredProviders {
+    blobStore: string[];
+    customTools: string[];
+    compression: string[];
+    plugins: string[];
+    totalCount: number;
+}
+
+/**
+ * Discover providers from convention-based folder structure
+ *
+ * Convention (folder-based with index.ts):
+ *   tools/           - CustomToolProvider folders
+ *     weather/       - Provider folder
+ *       index.ts     - Provider implementation (auto-discovered)
+ *       helpers.ts   - Optional helper files
+ *       types.ts     - Optional type definitions
+ *   blob-store/      - BlobStoreProvider folders
+ *   compression/     - CompressionProvider folders
+ *   plugins/         - PluginProvider folders
+ *
+ * Naming Convention (Node.js standard):
+ *   <folder>/index.ts    - Auto-discovered and registered
+ *   <folder>/other.ts    - Ignored unless imported by index.ts
+ */
+function discoverProviders(imageDir: string): DiscoveredProviders {
+    const result: DiscoveredProviders = {
+        blobStore: [],
+        customTools: [],
+        compression: [],
+        plugins: [],
+        totalCount: 0,
+    };
+
+    // Category mapping: folder name -> property name
+    const categories = {
+        'blob-store': 'blobStore',
+        tools: 'customTools',
+        compression: 'compression',
+        plugins: 'plugins',
+    } as const;
+
+    for (const [folderName, propName] of Object.entries(categories)) {
+        const categoryDir = join(imageDir, folderName);
+
+        if (!existsSync(categoryDir)) {
+            continue;
+        }
+
+        // Find all provider folders (those with index.ts)
+        const providerFolders = readdirSync(categoryDir)
+            .filter((entry) => {
+                const entryPath = join(categoryDir, entry);
+                const stat = statSync(entryPath);
+
+                // Must be a directory
+                if (!stat.isDirectory()) {
+                    return false;
+                }
+
+                // Must contain index.ts
+                const indexPath = join(entryPath, 'index.ts');
+                return existsSync(indexPath);
+            })
+            .map((folder) => {
+                // Return relative path for imports
+                return `./${folderName}/${folder}/index.js`;
+            });
+
+        if (providerFolders.length > 0) {
+            result[propName as keyof Omit<DiscoveredProviders, 'totalCount'>].push(
+                ...providerFolders
+            );
+            result.totalCount += providerFolders.length;
+            console.log(`   Found ${providerFolders.length} provider(s) in ${folderName}/`);
+        }
+    }
+
+    return result;
 }
