@@ -1,5 +1,23 @@
 # @dexto/core
 
+## 1.4.0
+
+### Minor Changes
+
+- f73a519: Revamp CLI. Breaking change to DextoAgent.generate() and stream() apis and hono message APIs, so new minor version. Other fixes for logs, web UI related to message streaming/generating
+
+### Patch Changes
+
+- bd5c097: Add features check for internal tools, fix coding agent and logger agent elicitation
+- 3cdce89: Revamp CLI for coding agent, add new events, improve mcp management, custom models, minor UI changes, prompt management
+- d640e40: Remove LLM services, tokenizers, just stick with vercel, remove 'router' from schema and all types and docs
+- 6f5627d: - Approval timeouts are now optional, defaulting to no timeout (infinite wait)
+    - Tool call history now includes success/failure status tracking
+- 6e6a3e7: Fix message typings to use proper discriminated unions in core and webui
+- c54760f: Revamp context management layer - add partial stream cancellation, message queueing, context compression with LLM, MCP UI support and gaming agent. New APIs and UI changes for these things
+- ab47df8: Add approval metadata and ui badge
+- 3b4b919: Fixed Ink CLI bugs and updated state management system.
+
 ## 1.3.0
 
 ### Minor Changes
