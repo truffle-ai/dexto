@@ -25,9 +25,15 @@ const MIN_REFRESH_INTERVAL_MS = 1000 * 60 * 5; // 5 minutes throttle between ref
 
 export type LookupStatus = 'valid' | 'invalid' | 'unknown';
 
+/** Model info stored in cache */
+export interface OpenRouterModelInfo {
+    id: string;
+    contextLength: number;
+}
+
 interface CacheFile {
     fetchedAt: string;
-    models: string[];
+    models: OpenRouterModelInfo[];
 }
 
 interface RefreshOptions {
@@ -35,8 +41,12 @@ interface RefreshOptions {
     force?: boolean;
 }
 
+/** Default context length when not available from API */
+const DEFAULT_CONTEXT_LENGTH = 128000;
+
 class OpenRouterModelRegistry {
-    private models: Set<string> | null = null;
+    /** Map from normalized model ID to model info */
+    private models: Map<string, OpenRouterModelInfo> | null = null;
     private lastFetchedAt: number | null = null;
     private refreshPromise: Promise<void> | null = null;
     private lastRefreshAttemptAt: number | null = null;
@@ -69,6 +79,41 @@ class OpenRouterModelRegistry {
         }
 
         return this.models.has(normalized) ? 'valid' : 'invalid';
+    }
+
+    /**
+     * Get context length for a model ID.
+     * @returns context length if model is in cache, null if not found or cache is stale
+     */
+    getContextLength(modelId: string): number | null {
+        const normalized = this.normalizeModelId(modelId);
+        if (!normalized) {
+            return null;
+        }
+
+        if (!this.models || this.models.size === 0 || !this.isCacheFresh()) {
+            return null;
+        }
+
+        const info = this.models.get(normalized);
+        return info?.contextLength ?? null;
+    }
+
+    /**
+     * Get model info for a model ID.
+     * @returns model info if found in cache, null otherwise
+     */
+    getModelInfo(modelId: string): OpenRouterModelInfo | null {
+        const normalized = this.normalizeModelId(modelId);
+        if (!normalized) {
+            return null;
+        }
+
+        if (!this.models || this.models.size === 0 || !this.isCacheFresh()) {
+            return null;
+        }
+
+        return this.models.get(normalized) ?? null;
     }
 
     /**
@@ -150,6 +195,16 @@ class OpenRouterModelRegistry {
         if (!this.models || this.models.size === 0) {
             return null;
         }
+        return Array.from(this.models.keys());
+    }
+
+    /**
+     * Get all cached model info (or null if cache is empty).
+     */
+    getCachedModelsWithInfo(): OpenRouterModelInfo[] | null {
+        if (!this.models || this.models.size === 0) {
+            return null;
+        }
         return Array.from(this.models.values());
     }
 
@@ -181,7 +236,7 @@ class OpenRouterModelRegistry {
             }
 
             const payload = await response.json();
-            const models = this.extractModelIds(payload);
+            const models = this.extractModels(payload);
             if (models.length === 0) {
                 throw new Error('No model identifiers returned by OpenRouter');
             }
@@ -206,7 +261,18 @@ class OpenRouterModelRegistry {
                 return;
             }
 
-            this.models = new Set(parsed.models.map((m) => m.toLowerCase()));
+            // Build map from model ID to info
+            this.models = new Map();
+            for (const model of parsed.models) {
+                if (
+                    typeof model === 'object' &&
+                    model.id &&
+                    typeof model.contextLength === 'number'
+                ) {
+                    this.models.set(model.id.toLowerCase(), model);
+                }
+            }
+
             const timestamp = Date.parse(parsed.fetchedAt);
             this.lastFetchedAt = Number.isNaN(timestamp) ? null : timestamp;
 
@@ -234,11 +300,15 @@ class OpenRouterModelRegistry {
         return Date.now() - this.lastFetchedAt < CACHE_TTL_MS;
     }
 
-    private async writeCache(models: string[]): Promise<void> {
-        const uniqueModels = Array.from(new Set(models.map((m) => m.trim()))).filter(
-            (m) => m.length > 0
-        );
-        uniqueModels.sort((a, b) => a.localeCompare(b));
+    private async writeCache(models: OpenRouterModelInfo[]): Promise<void> {
+        // Deduplicate by ID and sort
+        const modelMap = new Map<string, OpenRouterModelInfo>();
+        for (const model of models) {
+            if (model.id.trim()) {
+                modelMap.set(model.id.toLowerCase(), model);
+            }
+        }
+        const uniqueModels = Array.from(modelMap.values()).sort((a, b) => a.id.localeCompare(b.id));
 
         await fs.mkdir(path.dirname(this.cachePath), { recursive: true });
 
@@ -250,11 +320,11 @@ class OpenRouterModelRegistry {
 
         await fs.writeFile(this.cachePath, JSON.stringify(cachePayload, null, 2), 'utf-8');
 
-        this.models = new Set(uniqueModels.map((m) => m.toLowerCase()));
+        this.models = new Map(uniqueModels.map((m) => [m.id.toLowerCase(), m]));
         this.lastFetchedAt = now.getTime();
     }
 
-    private extractModelIds(payload: unknown): string[] {
+    private extractModels(payload: unknown): OpenRouterModelInfo[] {
         if (!payload) {
             return [];
         }
@@ -268,24 +338,30 @@ class OpenRouterModelRegistry {
             return [];
         }
 
-        const ids: string[] = [];
+        const models: OpenRouterModelInfo[] = [];
         for (const item of raw) {
-            if (typeof item === 'string') {
-                ids.push(item);
-                continue;
-            }
             if (item && typeof item === 'object') {
-                const maybeId = this.firstString([
-                    (item as Record<string, unknown>).id,
-                    (item as Record<string, unknown>).model,
-                    (item as Record<string, unknown>).name,
-                ]);
-                if (maybeId) {
-                    ids.push(maybeId);
+                const record = item as Record<string, unknown>;
+                const id = this.firstString([record.id, record.model, record.name]);
+                if (id) {
+                    // Get context_length from item or top_provider
+                    let contextLength = DEFAULT_CONTEXT_LENGTH;
+                    if (typeof record.context_length === 'number') {
+                        contextLength = record.context_length;
+                    } else if (
+                        record.top_provider &&
+                        typeof record.top_provider === 'object' &&
+                        typeof (record.top_provider as Record<string, unknown>).context_length ===
+                            'number'
+                    ) {
+                        contextLength = (record.top_provider as Record<string, unknown>)
+                            .context_length as number;
+                    }
+                    models.push({ id, contextLength });
                 }
             }
         }
-        return ids;
+        return models;
     }
 
     private firstString(values: Array<unknown>): string | null {
@@ -329,6 +405,22 @@ export async function refreshOpenRouterModelCache(options?: RefreshOptions): Pro
  */
 export function getCachedOpenRouterModels(): string[] | null {
     return openRouterModelRegistry.getCachedModels();
+}
+
+/**
+ * Get context length for an OpenRouter model.
+ * @returns context length if model is in cache, null if not found or cache is stale
+ */
+export function getOpenRouterModelContextLength(modelId: string): number | null {
+    return openRouterModelRegistry.getContextLength(modelId);
+}
+
+/**
+ * Get model info for an OpenRouter model.
+ * @returns model info if found in cache, null otherwise
+ */
+export function getOpenRouterModelInfo(modelId: string): OpenRouterModelInfo | null {
+    return openRouterModelRegistry.getModelInfo(modelId);
 }
 
 /**

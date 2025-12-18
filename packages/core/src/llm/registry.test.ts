@@ -21,6 +21,13 @@ import { LLMErrorCode } from './error-codes.js';
 import { ErrorScope, ErrorType } from '../errors/types.js';
 import type { IDextoLogger } from '../logger/v2/types.js';
 
+// Mock the OpenRouter model registry
+vi.mock('./providers/openrouter-model-registry.js', () => ({
+    getOpenRouterModelContextLength: vi.fn(),
+}));
+
+import { getOpenRouterModelContextLength } from './providers/openrouter-model-registry.js';
+
 const mockLogger: IDextoLogger = {
     debug: vi.fn(),
     info: vi.fn(),
@@ -238,6 +245,29 @@ describe('getEffectiveMaxInputTokens', () => {
                 type: ErrorType.USER,
             })
         );
+    });
+
+    describe('OpenRouter provider', () => {
+        it('uses context length from OpenRouter registry when available', () => {
+            vi.mocked(getOpenRouterModelContextLength).mockReturnValue(200000);
+            const config = {
+                provider: 'openrouter',
+                model: 'anthropic/claude-3.5-sonnet',
+            } as any;
+            expect(getEffectiveMaxInputTokens(config, mockLogger)).toBe(200000);
+        });
+
+        it('falls back to 128000 when model not in OpenRouter cache', () => {
+            vi.mocked(getOpenRouterModelContextLength).mockReturnValue(null);
+            const config = {
+                provider: 'openrouter',
+                model: 'unknown/model',
+            } as any;
+            expect(getEffectiveMaxInputTokens(config, mockLogger)).toBe(128000);
+            expect(mockLogger.warn).toHaveBeenCalledWith(
+                expect.stringContaining('not found in cache')
+            );
+        });
     });
 });
 
@@ -486,6 +516,17 @@ describe('Provider-Specific Tests', () => {
             expect(getMaxInputTokensForModel('cohere', 'command-r-plus', mockLogger)).toBe(128000);
             expect(getMaxInputTokensForModel('cohere', 'command-r', mockLogger)).toBe(128000);
             expect(getMaxInputTokensForModel('cohere', 'command-r7b', mockLogger)).toBe(128000);
+        });
+    });
+
+    describe('OpenRouter provider', () => {
+        it('has correct capabilities for gateway routing', () => {
+            expect(getSupportedProviders()).toContain('openrouter');
+            expect(getSupportedModels('openrouter')).toEqual([]);
+            expect(getDefaultModelForProvider('openrouter')).toBe(null);
+            expect(supportsBaseURL('openrouter')).toBe(true);
+            expect(requiresBaseURL('openrouter')).toBe(false); // Auto-injected
+            expect(acceptsAnyModel('openrouter')).toBe(true);
         });
     });
 });

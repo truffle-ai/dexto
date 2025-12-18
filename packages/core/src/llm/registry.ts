@@ -24,6 +24,7 @@ import {
     type TokenUsage,
 } from './types.js';
 import type { IDextoLogger } from '../logger/v2/types.js';
+import { getOpenRouterModelContextLength } from './providers/openrouter-model-registry.js';
 
 /**
  * Pricing metadata for a model (USD per 1M tokens).
@@ -1128,7 +1129,23 @@ export function getEffectiveMaxInputTokens(config: LLMConfig, logger: IDextoLogg
         }
     }
 
-    // Priority 2: baseURL is set but maxInputTokens is missing - default to 128k tokens
+    // Priority 2: OpenRouter - look up context length from cached model registry
+    if (config.provider === 'openrouter') {
+        const contextLength = getOpenRouterModelContextLength(config.model);
+        if (contextLength !== null) {
+            logger.debug(
+                `Using maxInputTokens from OpenRouter registry for ${config.model}: ${contextLength}`
+            );
+            return contextLength;
+        }
+        // Cache miss or stale - fall through to default
+        logger.warn(
+            `OpenRouter model ${config.model} not found in cache, defaulting to ${DEFAULT_MAX_INPUT_TOKENS} tokens`
+        );
+        return DEFAULT_MAX_INPUT_TOKENS;
+    }
+
+    // Priority 3: baseURL is set but maxInputTokens is missing - default to 128k tokens
     if (config.baseURL) {
         logger.warn(
             `baseURL is set but maxInputTokens is missing. Defaulting to ${DEFAULT_MAX_INPUT_TOKENS}. ` +
@@ -1137,7 +1154,7 @@ export function getEffectiveMaxInputTokens(config: LLMConfig, logger: IDextoLogg
         return DEFAULT_MAX_INPUT_TOKENS;
     }
 
-    // Priority 3: Check if provider accepts any model (like openai-compatible)
+    // Priority 4: Check if provider accepts any model (like openai-compatible)
     if (acceptsAnyModel(config.provider)) {
         logger.debug(
             `Provider ${config.provider} accepts any model, defaulting to ${DEFAULT_MAX_INPUT_TOKENS} tokens`
