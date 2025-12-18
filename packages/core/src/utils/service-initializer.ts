@@ -188,7 +188,8 @@ export async function createAgentServices(
         },
         logger
     );
-    await toolManager.initialize();
+    // NOTE: toolManager.initialize() is called in DextoAgent.start() after agent reference is set
+    // This allows custom tools to access the agent for bidirectional communication
 
     const mcpServerCount = Object.keys(config.mcpServers).length;
     if (mcpServerCount === 0) {

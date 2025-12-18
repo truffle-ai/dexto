@@ -159,6 +159,17 @@ export class ToolManager {
     }
 
     /**
+     * Set agent reference for custom tools (called after construction to avoid circular dependencies)
+     * Must be called before initialize() if custom tools are configured
+     */
+    setAgent(agent: any): void {
+        if (this.internalToolsProvider) {
+            this.internalToolsProvider.setAgent(agent);
+            this.logger.debug('Agent reference configured for custom tools');
+        }
+    }
+
+    /**
      * Invalidate the tools cache when tool sources change
      */
     private invalidateCache(): void {

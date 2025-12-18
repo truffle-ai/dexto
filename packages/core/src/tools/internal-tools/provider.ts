@@ -27,6 +27,7 @@ export class InternalToolsProvider {
     private config: InternalToolsConfig;
     private customToolConfigs: CustomToolsConfig;
     private logger: IDextoLogger;
+    private agent?: any; // Set after construction to avoid circular dependency
 
     constructor(
         services: InternalToolsServices,
@@ -42,6 +43,14 @@ export class InternalToolsProvider {
             config,
             customToolConfigs,
         });
+    }
+
+    /**
+     * Set agent reference after construction (avoids circular dependency)
+     * Must be called before initialize() if custom tools need agent access
+     */
+    setAgent(agent: any): void {
+        this.agent = agent;
     }
 
     /**
@@ -135,8 +144,15 @@ export class InternalToolsProvider {
      * Tools are stored by their original ID - prefixing is handled by ToolManager.
      */
     private registerCustomTools(): void {
+        if (!this.agent) {
+            throw new Error(
+                'Agent reference not set. Call setAgent() before initialize() when using custom tools.'
+            );
+        }
+
         const context: ToolCreationContext = {
             logger: this.logger,
+            agent: this.agent,
             services: this.services, // Optional - custom tools can use or ignore
         };
 

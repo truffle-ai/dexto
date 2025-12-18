@@ -1,15 +1,49 @@
 import type { InternalTool } from './types.js';
 import type { IDextoLogger } from '../logger/v2/types.js';
+import type { DextoAgent } from '../agent/DextoAgent.js';
 import { z } from 'zod';
 import { ToolError } from './errors.js';
 import { BaseRegistry, type RegistryErrorFactory } from '../providers/base-registry.js';
 
 /**
  * Context passed to custom tool providers when creating tools.
- * Provides optional access to Dexto services for integration.
+ * Provides access to the agent instance for bidirectional communication.
+ *
+ * **Bidirectional Services Pattern:**
+ * Some services need both:
+ * - Agent → Service: LLM calls tools that invoke service methods
+ * - Service → Agent: Service emits events that trigger agent invocation
+ *
+ * Example use case: Scheduler service
+ * - LLM creates schedules via tools (Agent → Service)
+ * - Scheduler triggers agent when schedule fires (Service → Agent)
+ *
+ * Implementation pattern:
+ * ```typescript
+ * create: (config, context) => {
+ *     const service = new MyService(config, context.logger);
+ *
+ *     // Wire up Service → Agent communication
+ *     service.on('event', async (data) => {
+ *         await context.agent.sendMessage({
+ *             role: 'user',
+ *             content: data.prompt,
+ *         });
+ *     });
+ *
+ *     // Return Agent → Service tools
+ *     return [createMyTool(service)];
+ * }
+ * ```
+ *
+ * **Future Consideration:**
+ * For complex event routing or decoupled architectures, consider using an Event Bus pattern
+ * where services emit events to a central bus and the agent/app subscribes. This would
+ * provide better separation of concerns at the cost of more indirection and complexity.
  */
 export interface ToolCreationContext {
     logger: IDextoLogger;
+    agent: DextoAgent;
     services?: {
         searchService?: any;
         approvalManager?: any;
