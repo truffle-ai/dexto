@@ -1,13 +1,15 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
-import { Loader2, Plus, X } from 'lucide-react';
+import { Loader2, Plus, X, ChevronDown } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { validateBaseURL } from './types';
 import { useValidateOpenRouterModel } from '../hooks/useOpenRouter';
 
+export type CustomModelProvider = 'openai-compatible' | 'openrouter';
+
 export interface CustomModelFormData {
-    provider: 'openai-compatible' | 'openrouter';
+    provider: CustomModelProvider;
     name: string;
     baseURL: string;
     displayName: string;
@@ -15,100 +17,59 @@ export interface CustomModelFormData {
     maxOutputTokens: string;
 }
 
-interface BaseFormProps {
+interface CustomModelFormProps {
     formData: CustomModelFormData;
     onChange: (updates: Partial<CustomModelFormData>) => void;
     onSubmit: () => void;
+    onCancel: () => void;
     isSubmitting?: boolean;
+    error?: string | null;
 }
 
+const PROVIDER_OPTIONS: { value: CustomModelProvider; label: string; description: string }[] = [
+    {
+        value: 'openai-compatible',
+        label: 'OpenAI-Compatible',
+        description: 'Local or self-hosted models (Ollama, vLLM, etc.)',
+    },
+    {
+        value: 'openrouter',
+        label: 'OpenRouter',
+        description: 'Access 100+ models via OpenRouter API',
+    },
+];
+
 /**
- * OpenAI-Compatible model form fields
+ * Unified custom model form with provider dropdown
  */
-export function OpenAICompatibleForm({
+export function CustomModelForm({
     formData,
     onChange,
     onSubmit,
+    onCancel,
     isSubmitting,
-}: BaseFormProps) {
-    const [localError, setLocalError] = useState<string | null>(null);
-
-    const handleSubmit = () => {
-        // Validate baseURL
-        if (!formData.baseURL.trim()) {
-            setLocalError('Base URL is required');
-            return;
-        }
-        const urlValidation = validateBaseURL(formData.baseURL);
-        if (!urlValidation.isValid) {
-            setLocalError(urlValidation.error || 'Invalid Base URL');
-            return;
-        }
-        setLocalError(null);
-        onSubmit();
-    };
-
-    return (
-        <div className="space-y-2">
-            <Input
-                value={formData.name}
-                onChange={(e) => onChange({ name: e.target.value })}
-                placeholder="Model name *"
-                className="h-8 text-xs"
-            />
-            <Input
-                value={formData.baseURL}
-                onChange={(e) => {
-                    onChange({ baseURL: e.target.value });
-                    setLocalError(null);
-                }}
-                placeholder="Base URL * (e.g., http://localhost:11434/v1)"
-                className={cn('h-8 text-xs', localError && 'border-red-500')}
-            />
-            {localError && <div className="text-[10px] text-red-500">{localError}</div>}
-            <div className="grid grid-cols-2 gap-2">
-                <Input
-                    value={formData.maxInputTokens}
-                    onChange={(e) => onChange({ maxInputTokens: e.target.value })}
-                    placeholder="Max input tokens (default: 128k)"
-                    type="number"
-                    className="h-8 text-xs"
-                />
-                <Input
-                    value={formData.maxOutputTokens}
-                    onChange={(e) => onChange({ maxOutputTokens: e.target.value })}
-                    placeholder="Max output tokens (optional)"
-                    type="number"
-                    className="h-8 text-xs"
-                />
-            </div>
-            <Button
-                onClick={handleSubmit}
-                size="sm"
-                className="w-full h-8 text-xs"
-                disabled={isSubmitting || !formData.name.trim() || !formData.baseURL.trim()}
-            >
-                <Plus className="h-3 w-3 mr-1" />
-                Add Model
-            </Button>
-        </div>
-    );
-}
-
-/**
- * OpenRouter model form with real-time validation
- */
-export function OpenRouterForm({ formData, onChange, onSubmit, isSubmitting }: BaseFormProps) {
+    error,
+}: CustomModelFormProps) {
     const { mutateAsync: validateOpenRouterModel } = useValidateOpenRouterModel();
     const validationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const [dropdownOpen, setDropdownOpen] = useState(false);
 
+    const [localError, setLocalError] = useState<string | null>(null);
     const [validation, setValidation] = useState<{
         status: 'idle' | 'validating' | 'valid' | 'invalid';
         error?: string;
     }>({ status: 'idle' });
 
-    // Debounced validation
+    // Reset validation when provider changes
     useEffect(() => {
+        setValidation({ status: 'idle' });
+        setLocalError(null);
+    }, [formData.provider]);
+
+    // Debounced validation for OpenRouter
+    useEffect(() => {
+        if (formData.provider !== 'openrouter') return;
+
         const modelId = formData.name.trim();
 
         // Reset if empty
@@ -159,75 +120,272 @@ export function OpenRouterForm({ formData, onChange, onSubmit, isSubmitting }: B
                 clearTimeout(validationTimerRef.current);
             }
         };
-    }, [formData.name, validateOpenRouterModel]);
+    }, [formData.name, formData.provider, validateOpenRouterModel]);
 
     const handleSubmit = () => {
-        if (validation.status !== 'valid') {
-            return;
+        // Validate based on provider
+        if (formData.provider === 'openai-compatible') {
+            if (!formData.name.trim()) {
+                setLocalError('Model name is required');
+                return;
+            }
+            if (!formData.baseURL.trim()) {
+                setLocalError('Base URL is required');
+                return;
+            }
+            const urlValidation = validateBaseURL(formData.baseURL);
+            if (!urlValidation.isValid) {
+                setLocalError(urlValidation.error || 'Invalid Base URL');
+                return;
+            }
+        } else if (formData.provider === 'openrouter') {
+            if (validation.status !== 'valid') {
+                return;
+            }
         }
+        setLocalError(null);
         onSubmit();
     };
 
-    const isValid = validation.status === 'valid';
-    const isInvalid = validation.status === 'invalid';
-    const isValidating = validation.status === 'validating';
+    const isOpenRouter = formData.provider === 'openrouter';
+    const isValid = isOpenRouter ? validation.status === 'valid' : true;
+    const isInvalid = isOpenRouter && validation.status === 'invalid';
+    const isValidating = isOpenRouter && validation.status === 'validating';
+
+    const canSubmit = isOpenRouter
+        ? validation.status === 'valid' && formData.name.trim()
+        : formData.name.trim() && formData.baseURL.trim();
+
+    const displayError = localError || error || (isInvalid && validation.error);
+
+    const selectedProvider = PROVIDER_OPTIONS.find((p) => p.value === formData.provider);
 
     return (
-        <div className="space-y-2">
-            <div className="relative">
-                <Input
-                    value={formData.name}
-                    onChange={(e) => onChange({ name: e.target.value })}
-                    placeholder="Model ID * (e.g., anthropic/claude-3.5-sonnet)"
-                    className={cn(
-                        'h-8 text-xs pr-8',
-                        isValid && 'border-green-500 focus-visible:ring-green-500',
-                        isInvalid && 'border-red-500 focus-visible:ring-red-500'
-                    )}
-                />
-                {/* Validation status indicator */}
-                {formData.name.trim() && (
-                    <div className="absolute right-2 top-1/2 -translate-y-1/2">
-                        {isValidating && (
-                            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+        <div className="flex flex-col h-full">
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border/30">
+                <h3 className="text-sm font-semibold text-foreground">Add Custom Model</h3>
+                <button
+                    onClick={onCancel}
+                    className="p-1.5 rounded-md hover:bg-muted transition-colors"
+                >
+                    <X className="h-4 w-4 text-muted-foreground" />
+                </button>
+            </div>
+
+            {/* Form Content */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                {/* Error Display */}
+                {displayError && (
+                    <div className="p-2 rounded-md bg-destructive/10 border border-destructive/30">
+                        <p className="text-xs text-destructive">{displayError}</p>
+                    </div>
+                )}
+
+                {/* Provider Dropdown */}
+                <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-muted-foreground">Provider</label>
+                    <div className="relative">
+                        <button
+                            type="button"
+                            onClick={() => setDropdownOpen(!dropdownOpen)}
+                            className={cn(
+                                'w-full flex items-center justify-between px-3 py-2 rounded-md',
+                                'bg-muted/50 border border-border/50 text-sm',
+                                'hover:bg-muted transition-colors',
+                                dropdownOpen && 'ring-2 ring-ring'
+                            )}
+                        >
+                            <span className="text-foreground">{selectedProvider?.label}</span>
+                            <ChevronDown
+                                className={cn(
+                                    'h-4 w-4 text-muted-foreground transition-transform',
+                                    dropdownOpen && 'rotate-180'
+                                )}
+                            />
+                        </button>
+                        {dropdownOpen && (
+                            <div className="absolute z-50 w-full mt-1 rounded-md border border-border bg-popover shadow-lg">
+                                {PROVIDER_OPTIONS.map((option) => (
+                                    <button
+                                        key={option.value}
+                                        type="button"
+                                        onClick={() => {
+                                            onChange({
+                                                provider: option.value,
+                                                name: '',
+                                                baseURL: '',
+                                                displayName: '',
+                                            });
+                                            setDropdownOpen(false);
+                                        }}
+                                        className={cn(
+                                            'w-full px-3 py-2 text-left hover:bg-accent transition-colors',
+                                            'first:rounded-t-md last:rounded-b-md',
+                                            formData.provider === option.value && 'bg-accent/50'
+                                        )}
+                                    >
+                                        <div className="text-sm font-medium">{option.label}</div>
+                                        <div className="text-xs text-muted-foreground">
+                                            {option.description}
+                                        </div>
+                                    </button>
+                                ))}
+                            </div>
                         )}
-                        {isValid && (
-                            <svg
-                                className="h-4 w-4 text-green-500"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
+                    </div>
+                </div>
+
+                {/* Model Name/ID */}
+                <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-muted-foreground">
+                        {isOpenRouter ? 'Model ID' : 'Model Name'} *
+                    </label>
+                    <div className="relative">
+                        <Input
+                            value={formData.name}
+                            onChange={(e) => {
+                                onChange({ name: e.target.value });
+                                setLocalError(null);
+                            }}
+                            placeholder={
+                                isOpenRouter
+                                    ? 'e.g., anthropic/claude-3.5-sonnet'
+                                    : 'e.g., llama3.2:latest'
+                            }
+                            className={cn(
+                                'h-9 text-sm pr-8',
+                                isOpenRouter &&
+                                    isValid &&
+                                    'border-green-500 focus-visible:ring-green-500',
+                                isOpenRouter &&
+                                    isInvalid &&
+                                    'border-red-500 focus-visible:ring-red-500'
+                            )}
+                        />
+                        {/* Validation status indicator for OpenRouter */}
+                        {isOpenRouter && formData.name.trim() && (
+                            <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                                {isValidating && (
+                                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                                )}
+                                {isValid && (
+                                    <svg
+                                        className="h-4 w-4 text-green-500"
+                                        fill="none"
+                                        viewBox="0 0 24 24"
+                                        stroke="currentColor"
+                                    >
+                                        <path
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            strokeWidth={2}
+                                            d="M5 13l4 4L19 7"
+                                        />
+                                    </svg>
+                                )}
+                                {isInvalid && <X className="h-4 w-4 text-red-500" />}
+                            </div>
+                        )}
+                    </div>
+                    {isOpenRouter && (
+                        <p className="text-[10px] text-muted-foreground">
+                            Find model IDs at{' '}
+                            <a
+                                href="https://openrouter.ai/models"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-primary hover:underline"
                             >
-                                <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M5 13l4 4L19 7"
-                                />
-                            </svg>
-                        )}
-                        {isInvalid && <X className="h-4 w-4 text-red-500" />}
+                                openrouter.ai/models
+                            </a>
+                        </p>
+                    )}
+                </div>
+
+                {/* Base URL - only for OpenAI-compatible */}
+                {!isOpenRouter && (
+                    <div className="space-y-1.5">
+                        <label className="text-xs font-medium text-muted-foreground">
+                            Base URL *
+                        </label>
+                        <Input
+                            value={formData.baseURL}
+                            onChange={(e) => {
+                                onChange({ baseURL: e.target.value });
+                                setLocalError(null);
+                            }}
+                            placeholder="e.g., http://localhost:11434/v1"
+                            className="h-9 text-sm"
+                        />
+                        <p className="text-[10px] text-muted-foreground">
+                            The API endpoint URL (must include /v1 for OpenAI-compatible APIs)
+                        </p>
+                    </div>
+                )}
+
+                {/* Display Name - optional */}
+                <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-muted-foreground">
+                        Display Name <span className="text-muted-foreground/60">(optional)</span>
+                    </label>
+                    <Input
+                        value={formData.displayName}
+                        onChange={(e) => onChange({ displayName: e.target.value })}
+                        placeholder="Friendly name for the model"
+                        className="h-9 text-sm"
+                    />
+                </div>
+
+                {/* Token limits - only for OpenAI-compatible */}
+                {!isOpenRouter && (
+                    <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1.5">
+                            <label className="text-xs font-medium text-muted-foreground">
+                                Max Input Tokens
+                            </label>
+                            <Input
+                                value={formData.maxInputTokens}
+                                onChange={(e) => onChange({ maxInputTokens: e.target.value })}
+                                placeholder="128000"
+                                type="number"
+                                className="h-9 text-sm"
+                            />
+                        </div>
+                        <div className="space-y-1.5">
+                            <label className="text-xs font-medium text-muted-foreground">
+                                Max Output Tokens
+                            </label>
+                            <Input
+                                value={formData.maxOutputTokens}
+                                onChange={(e) => onChange({ maxOutputTokens: e.target.value })}
+                                placeholder="Optional"
+                                type="number"
+                                className="h-9 text-sm"
+                            />
+                        </div>
                     </div>
                 )}
             </div>
-            {isInvalid && validation.error && (
-                <div className="text-[10px] text-red-500">{validation.error}</div>
-            )}
-            <Input
-                value={formData.displayName}
-                onChange={(e) => onChange({ displayName: e.target.value })}
-                placeholder="Display name (optional)"
-                className="h-8 text-xs"
-            />
-            <Button
-                onClick={handleSubmit}
-                size="sm"
-                className="w-full h-8 text-xs"
-                disabled={isSubmitting || !isValid}
-            >
-                <Plus className="h-3 w-3 mr-1" />
-                Add Model
-            </Button>
+
+            {/* Footer */}
+            <div className="flex-shrink-0 px-4 py-3 border-t border-border/30 flex gap-2">
+                <Button variant="outline" onClick={onCancel} className="flex-1 h-9 text-sm">
+                    Cancel
+                </Button>
+                <Button
+                    onClick={handleSubmit}
+                    disabled={isSubmitting || !canSubmit}
+                    className="flex-1 h-9 text-sm"
+                >
+                    {isSubmitting ? (
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    ) : (
+                        <Plus className="h-4 w-4 mr-2" />
+                    )}
+                    Add & Select Model
+                </Button>
+            </div>
         </div>
     );
 }
