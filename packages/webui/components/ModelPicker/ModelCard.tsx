@@ -191,7 +191,7 @@ export function ModelCard({
                                 logoSizes[size].container
                             )}
                         >
-                            {isCustom ? (
+                            {isCustom && !PROVIDER_LOGOS[provider] ? (
                                 <Bot className="h-6 w-6 text-muted-foreground" />
                             ) : PROVIDER_LOGOS[provider] ? (
                                 <img

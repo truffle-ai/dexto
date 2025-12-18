@@ -471,13 +471,25 @@ export default function ModelPickerModal() {
         return result;
     }, [providers, providerFilter, modelMatchesSearch]);
 
-    // Filtered custom models (shown when no filter or 'custom' in filter)
+    // Filtered custom models (shown when no filter, 'custom' filter, or provider-specific filter)
     const filteredCustomModels = useMemo(() => {
-        // Show custom models if: no filter (show all) OR 'custom' is in filter
-        if (providerFilter.length > 0 && !providerFilter.includes('custom')) return [];
+        const hasCustomFilter = providerFilter.includes('custom');
+        const hasOpenRouterFilter = providerFilter.includes('openrouter');
+        const noFilter = providerFilter.length === 0;
+
+        // If filter is set but neither 'custom' nor 'openrouter', hide custom models
+        if (!noFilter && !hasCustomFilter && !hasOpenRouterFilter) return [];
+
+        let filtered = customModels;
+
+        // If openrouter filter is active (without custom), only show openrouter custom models
+        if (hasOpenRouterFilter && !hasCustomFilter && !noFilter) {
+            filtered = customModels.filter((cm) => cm.provider === 'openrouter');
+        }
+
         const q = search.trim().toLowerCase();
-        if (!q) return customModels;
-        return customModels.filter(
+        if (!q) return filtered;
+        return filtered.filter(
             (cm) =>
                 cm.name.toLowerCase().includes(q) ||
                 (cm.displayName?.toLowerCase().includes(q) ?? false) ||
@@ -487,8 +499,9 @@ export default function ModelPickerModal() {
     }, [providerFilter, search, customModels]);
 
     // Available providers for filter
+    // OpenRouter always shown (users add their own models via custom models)
     const availableProviders = useMemo(() => {
-        return LLM_PROVIDERS.filter((p) => providers[p]?.models.length);
+        return LLM_PROVIDERS.filter((p) => p === 'openrouter' || providers[p]?.models.length);
     }, [providers]);
 
     const isCurrentModel = (providerId: string, modelName: string) =>
@@ -536,7 +549,7 @@ export default function ModelPickerModal() {
                     avoidCollisions={true}
                     collisionPadding={16}
                     className={cn(
-                        'w-[calc(100vw-32px)] max-w-[650px]',
+                        'w-[calc(100vw-32px)] max-w-[700px]',
                         isWelcomeScreen ? 'max-h-[min(400px,50vh)]' : 'max-h-[min(580px,75vh)]',
                         'flex flex-col p-0 overflow-hidden',
                         'rounded-xl border border-border/60 bg-popover/98 backdrop-blur-xl shadow-xl'
@@ -839,10 +852,14 @@ export default function ModelPickerModal() {
                                         filteredCustomModels.length === 0 ? (
                                             <div className="flex flex-col items-center justify-center py-8 text-center">
                                                 <p className="text-sm font-medium text-muted-foreground">
-                                                    No models found
+                                                    {providerFilter.includes('openrouter')
+                                                        ? 'No OpenRouter models yet'
+                                                        : 'No models found'}
                                                 </p>
                                                 <p className="text-xs text-muted-foreground/70 mt-1">
-                                                    Try adjusting your search or filters
+                                                    {providerFilter.includes('openrouter')
+                                                        ? 'Click the + button to add an OpenRouter model'
+                                                        : 'Try adjusting your search or filters'}
                                                 </p>
                                             </div>
                                         ) : (

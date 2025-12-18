@@ -12,7 +12,7 @@ export const PROVIDER_LOGOS: Record<LLMProvider, string> = {
     xai: '/logos/grok.svg',
     'openai-compatible': '/logos/openai.svg',
     cohere: '/logos/cohere-color.svg',
-    openrouter: '', // Uses Bot icon fallback (aggregator, no single logo)
+    openrouter: '/logos/openrouter.svg',
 };
 
 // Provider pricing URLs (for quick access from Model Picker)
