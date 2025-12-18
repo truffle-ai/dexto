@@ -6,14 +6,11 @@
 
 import { z } from 'zod';
 import { createPatch } from 'diff';
-import { InternalTool, ToolExecutionContext } from '../../types.js';
-import {
-    FileSystemService,
-    FileSystemErrorCode,
-    BufferEncoding,
-} from '../../../filesystem/index.js';
-import { DextoRuntimeError } from '../../../errors/index.js';
-import type { DiffDisplayData, FileDisplayData } from '../../display-types.js';
+import { InternalTool, ToolExecutionContext, DextoRuntimeError } from '@dexto/core';
+import type { DiffDisplayData, FileDisplayData } from '@dexto/core';
+import { FileSystemService } from './filesystem-service.js';
+import { FileSystemErrorCode } from './error-codes.js';
+import { BufferEncoding } from './types.js';
 
 const WriteFileInputSchema = z
     .object({

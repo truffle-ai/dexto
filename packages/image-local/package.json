@@ -1,0 +1,40 @@
+{
+  "name": "@dexto/image-local",
+  "version": "1.0.0",
+  "description": "Local development base image for Dexto agents with filesystem and process tools",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "dexto-bundle build",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "dexto",
+    "image",
+    "local-development",
+    "base-image",
+    "filesystem",
+    "process"
+  ],
+  "dependencies": {
+    "@dexto/core": "workspace:*",
+    "@dexto/tools-filesystem": "workspace:*",
+    "@dexto/tools-process": "workspace:*"
+  },
+  "devDependencies": {
+    "@dexto/bundler": "workspace:*",
+    "typescript": "^5.3.3"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ]
+}

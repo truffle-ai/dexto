@@ -38,8 +38,6 @@ import { ApprovalManager } from '../approval/manager.js';
 import { MemoryManager } from '../memory/index.js';
 import { PluginManager } from '../plugins/manager.js';
 import { registerBuiltInPlugins } from '../plugins/registrations/builtins.js';
-import { FileSystemService } from '../filesystem/index.js';
-import { ProcessService } from '../process/index.js';
 
 /**
  * Type for the core agent services returned by createAgentServices
@@ -150,44 +148,7 @@ export async function createAgentServices(
     await pluginManager.initialize(config.plugins.custom, config.plugins.registry);
     logger.info('Plugin manager initialized');
 
-    // TODO: Conditional initialization of FileSystemService and ProcessService
-    // These services are only needed when specific internal tools are enabled:
-    // - FileSystemService: Required by read-file, write-file, edit-file, glob-files, grep-content tools
-    // - ProcessService: Required by bash-exec, bash-output, kill-process tools
-    //
-    // Consider lazy initialization pattern:
-    // 1. Check config.internalTools to see which tools are enabled
-    // 2. Only initialize services if their dependent tools are present
-    // 3. This avoids overhead for agents that don't need file/process operations
-    //
-    // Current behavior: Always initialized for backward compatibility
-    // 7. Initialize FileSystemService and ProcessService for internal tools
-    const fileSystemService = new FileSystemService(
-        {
-            allowedPaths: ['.'],
-            blockedPaths: ['.git', 'node_modules/.bin', '.env'],
-            blockedExtensions: ['.exe', '.dll', '.so'],
-            workingDirectory: process.cwd(),
-            // Note: enableBackups and backupPath are not configured here
-            // Backups are disabled by default. To enable per-agent backups,
-            // filesystem config would need to be added to AgentConfig schema
-        },
-        logger
-    );
-    await fileSystemService.initialize();
-    logger.debug('FileSystemService initialized');
-
-    const processService = new ProcessService(
-        {
-            securityLevel: 'moderate',
-            workingDirectory: process.cwd(),
-        },
-        logger
-    );
-    await processService.initialize();
-    logger.debug('ProcessService initialized');
-
-    // 8. Initialize resource manager (MCP + internal resources)
+    // 7. Initialize resource manager (MCP + internal resources)
     // Moved before tool manager so it can be passed to internal tools
     const resourceManager = new ResourceManager(
         mcpManager,
@@ -220,8 +181,6 @@ export async function createAgentServices(
         {
             internalToolsServices: {
                 searchService,
-                fileSystemService,
-                processService,
                 resourceManager,
             },
             internalToolsConfig: config.internalTools,

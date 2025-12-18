@@ -6,12 +6,12 @@
 
 import { z } from 'zod';
 import { createPatch } from 'diff';
-import { InternalTool, ToolExecutionContext } from '../../types.js';
-import { FileSystemService } from '../../../filesystem/index.js';
-import type { DiffDisplayData } from '../../display-types.js';
-import { ToolError } from '../../errors.js';
-import { ToolErrorCode } from '../../error-codes.js';
-import { DextoRuntimeError } from '../../../errors/index.js';
+import { InternalTool, ToolExecutionContext } from '@dexto/core';
+import { FileSystemService } from './filesystem-service.js';
+import type { DiffDisplayData } from '@dexto/core';
+import { ToolError } from '@dexto/core';
+import { ToolErrorCode } from '@dexto/core';
+import { DextoRuntimeError } from '@dexto/core';
 
 const EditFileInputSchema = z
     .object({

@@ -5,8 +5,8 @@
  */
 
 import { z } from 'zod';
-import { InternalTool, ToolExecutionContext } from '../../types.js';
-import { ProcessService } from '../../../process/index.js';
+import { InternalTool, ToolExecutionContext } from '@dexto/core';
+import { ProcessService } from './process-service.js';
 
 const KillProcessInputSchema = z
     .object({
