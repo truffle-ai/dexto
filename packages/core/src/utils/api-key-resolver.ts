@@ -14,6 +14,8 @@ export const PROVIDER_API_KEY_MAP: Record<LLMProvider, string[]> = {
     groq: ['GROQ_API_KEY'],
     cohere: ['COHERE_API_KEY'],
     xai: ['XAI_API_KEY', 'X_AI_API_KEY'],
+    openrouter: ['OPENROUTER_API_KEY'],
+    // TODO: dexto: ['DEXTO_API_KEY'],
     // perplexity: ['PERPLEXITY_API_KEY'],
     // together: ['TOGETHER_API_KEY'],
     // fireworks: ['FIREWORKS_API_KEY'],

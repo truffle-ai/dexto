@@ -158,6 +158,7 @@ export const TestConfigs = {
             xai: 'grok-beta',
             cohere: 'command-r',
             'openai-compatible': 'gpt-5-mini',
+            openrouter: 'anthropic/claude-3.5-haiku', // OpenRouter model format: provider/model
         };
 
         return {

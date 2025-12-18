@@ -33,6 +33,13 @@ function _createVercelModel(llmConfig: ValidatedLLMConfig): LanguageModel {
             }
             return createOpenAI({ apiKey, baseURL }).chat(model);
         }
+        case 'openrouter': {
+            // OpenRouter - unified API gateway for 100+ models
+            // baseURL is auto-injected by resolver, but we validate it here as well
+            const baseURL = llmConfig.baseURL || 'https://openrouter.ai/api/v1';
+            return createOpenAI({ apiKey, baseURL }).chat(model);
+        }
+        // TODO: Add 'dexto' case (similar to openrouter, uses https://api.dexto.ai/v1)
         case 'anthropic':
             return createAnthropic({ apiKey })(model);
         case 'google':

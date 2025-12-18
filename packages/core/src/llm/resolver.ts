@@ -10,7 +10,15 @@ import {
     getProviderFromModel,
     isValidProviderModel,
     getEffectiveMaxInputTokens,
+    supportsBaseURL,
 } from './registry.js';
+import {
+    lookupOpenRouterModel,
+    scheduleOpenRouterModelRefresh,
+} from './providers/openrouter-model-registry.js';
+
+// Default baseURL for OpenRouter provider
+const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1';
 import type { LLMUpdateContext } from './types.js';
 import { resolveApiKeyForProvider } from '@core/utils/api-key-resolver.js';
 import type { IDextoLogger } from '@core/logger/v2/types.js';
@@ -110,12 +118,42 @@ export function resolveLLMConfig(
         updates.maxInputTokens ??
         getEffectiveMaxInputTokens({ provider, model, apiKey: apiKey || previous.apiKey }, logger);
 
+    // BaseURL resolution with auto-injection for openrouter
+    let baseURL: string | undefined;
+    if (updates.baseURL) {
+        baseURL = updates.baseURL;
+    } else if (provider === 'openrouter') {
+        // Auto-inject OpenRouter baseURL and schedule model registry refresh
+        baseURL = OPENROUTER_BASE_URL;
+        scheduleOpenRouterModelRefresh({ apiKey });
+    } else if (supportsBaseURL(provider)) {
+        baseURL = previous.baseURL;
+    } else {
+        baseURL = undefined;
+    }
+
+    // OpenRouter model validation (warning only - cache might be stale)
+    if (provider === 'openrouter') {
+        const lookupStatus = lookupOpenRouterModel(model);
+        if (lookupStatus === 'invalid') {
+            warnings.push({
+                code: LLMErrorCode.MODEL_INCOMPATIBLE,
+                message: `Model '${model}' not found in OpenRouter catalog. Check model ID at https://openrouter.ai/models`,
+                severity: 'warning',
+                scope: ErrorScope.LLM,
+                type: ErrorType.USER,
+                context: { provider, model },
+            });
+        }
+        // 'unknown' status means cache is stale - we allow it but don't warn
+    }
+
     return {
         candidate: {
             provider,
             model,
             apiKey,
-            baseURL: updates.baseURL ?? previous.baseURL,
+            baseURL,
             maxIterations: updates.maxIterations ?? previous.maxIterations,
             maxInputTokens,
             maxOutputTokens: updates.maxOutputTokens ?? previous.maxOutputTokens,
