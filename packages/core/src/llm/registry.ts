@@ -307,6 +307,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 pricing: {
                     inputPerM: 2.5,
                     outputPerM: 10.0,
+                    cacheReadPerM: 1.25,
                     currency: 'USD',
                     unit: 'per_million_tokens',
                 },
@@ -515,6 +516,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 pricing: {
                     inputPerM: 0.5,
                     outputPerM: 3.0,
+                    cacheReadPerM: 0.05,
                     currency: 'USD',
                     unit: 'per_million_tokens',
                 },
@@ -527,6 +529,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 pricing: {
                     inputPerM: 2.0,
                     outputPerM: 12.0,
+                    cacheReadPerM: 0.2,
                     currency: 'USD',
                     unit: 'per_million_tokens',
                 },
@@ -539,6 +542,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 pricing: {
                     inputPerM: 2.0,
                     outputPerM: 120.0,
+                    cacheReadPerM: 0.2,
                     currency: 'USD',
                     unit: 'per_million_tokens',
                 },
@@ -565,6 +569,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 pricing: {
                     inputPerM: 0.3,
                     outputPerM: 2.5,
+                    cacheReadPerM: 0.03,
                     currency: 'USD',
                     unit: 'per_million_tokens',
                 },
@@ -604,6 +609,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 pricing: {
                     inputPerM: 0.075,
                     outputPerM: 0.3,
+                    cacheReadPerM: 0.01875,
                     currency: 'USD',
                     unit: 'per_million_tokens',
                 },
@@ -659,6 +665,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 pricing: {
                     inputPerM: 1.0,
                     outputPerM: 3.0,
+                    cacheReadPerM: 0.5,
                     currency: 'USD',
                     unit: 'per_million_tokens',
                 },
