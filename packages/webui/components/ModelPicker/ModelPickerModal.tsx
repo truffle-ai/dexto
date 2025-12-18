@@ -8,6 +8,7 @@ import {
     type SwitchLLMPayload,
     type CustomModel,
 } from '../hooks/useLLM';
+import { OpenAICompatibleForm, OpenRouterForm, type CustomModelFormData } from './CustomModelForms';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { Button } from '../ui/button';
 import { Alert, AlertDescription } from '../ui/alert';
@@ -35,7 +36,6 @@ import {
     favKey,
     validateBaseURL,
 } from './types';
-import { Input } from '../ui/input';
 import { cn } from '../../lib/utils';
 import type { LLMProvider } from '@dexto/core';
 import { LLM_PROVIDERS } from '@dexto/core';
@@ -54,9 +54,11 @@ export default function ModelPickerModal() {
     const [showCustomForm, setShowCustomForm] = useState(false);
 
     // Custom models form state (data comes from API via useCustomModels)
-    const [customModelForm, setCustomModelForm] = useState({
+    const [customModelForm, setCustomModelForm] = useState<CustomModelFormData>({
+        provider: 'openai-compatible',
         name: '',
         baseURL: '',
+        displayName: '',
         maxInputTokens: '',
         maxOutputTokens: '',
     });
@@ -91,7 +93,6 @@ export default function ModelPickerModal() {
     const { mutate: createCustomModel, mutateAsync: createCustomModelAsync } =
         useCreateCustomModel();
     const { mutate: deleteCustomModelMutation } = useDeleteCustomModel();
-
     useEffect(() => {
         if (catalogData && 'providers' in catalogData) {
             setProviders(catalogData.providers);
@@ -198,31 +199,31 @@ export default function ModelPickerModal() {
     }, []);
 
     const addCustomModel = useCallback(() => {
-        const { name, baseURL, maxInputTokens, maxOutputTokens } = customModelForm;
+        const { provider, name, baseURL, maxInputTokens, maxOutputTokens, displayName } =
+            customModelForm;
 
-        if (!name.trim() || !baseURL.trim()) {
-            setError('Model name and Base URL are required');
-            return;
-        }
-
-        const urlValidation = validateBaseURL(baseURL);
-        if (!urlValidation.isValid) {
-            setError(urlValidation.error || 'Invalid Base URL');
+        if (!name.trim()) {
+            setError('Model name is required');
             return;
         }
 
         createCustomModel(
             {
+                provider,
                 name: name.trim(),
-                baseURL: baseURL.trim(),
-                maxInputTokens: maxInputTokens ? parseInt(maxInputTokens, 10) : undefined,
-                maxOutputTokens: maxOutputTokens ? parseInt(maxOutputTokens, 10) : undefined,
+                ...(provider === 'openai-compatible' &&
+                    baseURL.trim() && { baseURL: baseURL.trim() }),
+                ...(displayName?.trim() && { displayName: displayName.trim() }),
+                ...(maxInputTokens && { maxInputTokens: parseInt(maxInputTokens, 10) }),
+                ...(maxOutputTokens && { maxOutputTokens: parseInt(maxOutputTokens, 10) }),
             },
             {
                 onSuccess: () => {
                     setCustomModelForm({
+                        provider: 'openai-compatible',
                         name: '',
                         baseURL: '',
+                        displayName: '',
                         maxInputTokens: '',
                         maxOutputTokens: '',
                     });
@@ -320,13 +321,14 @@ export default function ModelPickerModal() {
     }
 
     function onPickCustomModel(customModel: CustomModel) {
+        const provider = (customModel.provider ?? 'openai-compatible') as LLMProvider;
         const modelInfo: ModelInfo = {
             name: customModel.name,
             displayName: customModel.displayName || customModel.name,
             maxInputTokens: customModel.maxInputTokens || 128000,
             supportedFileTypes: ['pdf', 'image', 'audio'],
         };
-        onPickModel('openai-compatible', modelInfo, customModel.baseURL);
+        onPickModel(provider, modelInfo, customModel.baseURL);
     }
 
     function onApiKeySaved(meta: { provider: string; envVar: string }) {
@@ -370,23 +372,24 @@ export default function ModelPickerModal() {
                 const providerId = providerIdRaw as LLMProvider;
                 if (!LLM_PROVIDERS.includes(providerId)) return null;
 
-                // Check if it's a custom model
-                if (providerId === 'openai-compatible') {
-                    const customModel = customModels.find((cm) => cm.name === modelName);
-                    if (customModel) {
-                        return {
-                            providerId,
-                            provider: undefined,
-                            model: {
-                                name: customModel.name,
-                                displayName: customModel.displayName || customModel.name,
-                                maxInputTokens: customModel.maxInputTokens || 128000,
-                                supportedFileTypes: ['pdf', 'image', 'audio'] as string[],
-                            },
-                            isCustom: true,
-                            customModel,
-                        };
-                    }
+                // Check if it's a custom model (check by model name match and provider type)
+                const customModel = customModels.find(
+                    (cm) =>
+                        cm.name === modelName && (cm.provider ?? 'openai-compatible') === providerId
+                );
+                if (customModel) {
+                    return {
+                        providerId,
+                        provider: undefined,
+                        model: {
+                            name: customModel.name,
+                            displayName: customModel.displayName || customModel.name,
+                            maxInputTokens: customModel.maxInputTokens || 128000,
+                            supportedFileTypes: ['pdf', 'image', 'audio'] as string[],
+                        },
+                        isCustom: true,
+                        customModel,
+                    };
                 }
 
                 const provider = providers[providerId];
@@ -443,7 +446,8 @@ export default function ModelPickerModal() {
             (cm) =>
                 cm.name.toLowerCase().includes(q) ||
                 (cm.displayName?.toLowerCase().includes(q) ?? false) ||
-                cm.baseURL.toLowerCase().includes(q)
+                (cm.provider?.toLowerCase().includes(q) ?? false) ||
+                (cm.baseURL?.toLowerCase().includes(q) ?? false)
         );
     }, [providerFilter, search, customModels]);
 
@@ -612,62 +616,66 @@ export default function ModelPickerModal() {
                                         <X className="h-3 w-3 text-muted-foreground" />
                                     </button>
                                 </div>
-                                <div className="grid grid-cols-2 gap-2">
-                                    <Input
-                                        value={customModelForm.name}
-                                        onChange={(e) =>
+                                {/* Provider Selection Tabs */}
+                                <div className="flex gap-1 p-1 bg-muted/30 rounded-lg">
+                                    <button
+                                        onClick={() =>
                                             setCustomModelForm((prev) => ({
                                                 ...prev,
-                                                name: e.target.value,
+                                                provider: 'openai-compatible',
+                                                name: '',
+                                                baseURL: '',
+                                                displayName: '',
                                             }))
                                         }
-                                        placeholder="Model name *"
-                                        className="h-8 text-xs"
-                                    />
-                                    <Input
-                                        value={customModelForm.baseURL}
-                                        onChange={(e) =>
+                                        className={cn(
+                                            'flex-1 px-2 py-1.5 text-[11px] font-medium rounded-md transition-colors',
+                                            customModelForm.provider === 'openai-compatible'
+                                                ? 'bg-background text-foreground shadow-sm'
+                                                : 'text-muted-foreground hover:text-foreground'
+                                        )}
+                                    >
+                                        OpenAI-Compatible
+                                    </button>
+                                    <button
+                                        onClick={() =>
                                             setCustomModelForm((prev) => ({
                                                 ...prev,
-                                                baseURL: e.target.value,
+                                                provider: 'openrouter',
+                                                name: '',
+                                                baseURL: '',
+                                                displayName: '',
                                             }))
                                         }
-                                        placeholder="Base URL *"
-                                        className="h-8 text-xs"
-                                    />
-                                    <Input
-                                        value={customModelForm.maxInputTokens}
-                                        onChange={(e) =>
-                                            setCustomModelForm((prev) => ({
-                                                ...prev,
-                                                maxInputTokens: e.target.value,
-                                            }))
-                                        }
-                                        placeholder="Max input tokens (default: 128k)"
-                                        type="number"
-                                        className="h-8 text-xs"
-                                    />
-                                    <Input
-                                        value={customModelForm.maxOutputTokens}
-                                        onChange={(e) =>
-                                            setCustomModelForm((prev) => ({
-                                                ...prev,
-                                                maxOutputTokens: e.target.value,
-                                            }))
-                                        }
-                                        placeholder="Max output tokens (optional)"
-                                        type="number"
-                                        className="h-8 text-xs"
-                                    />
+                                        className={cn(
+                                            'flex-1 px-2 py-1.5 text-[11px] font-medium rounded-md transition-colors',
+                                            customModelForm.provider === 'openrouter'
+                                                ? 'bg-background text-foreground shadow-sm'
+                                                : 'text-muted-foreground hover:text-foreground'
+                                        )}
+                                    >
+                                        OpenRouter
+                                    </button>
                                 </div>
-                                <Button
-                                    onClick={addCustomModel}
-                                    size="sm"
-                                    className="w-full h-8 text-xs"
-                                >
-                                    <Plus className="h-3 w-3 mr-1" />
-                                    Add Model
-                                </Button>
+
+                                {/* Provider-specific form */}
+                                {customModelForm.provider === 'openai-compatible' ? (
+                                    <OpenAICompatibleForm
+                                        formData={customModelForm}
+                                        onChange={(updates) =>
+                                            setCustomModelForm((prev) => ({ ...prev, ...updates }))
+                                        }
+                                        onSubmit={addCustomModel}
+                                    />
+                                ) : (
+                                    <OpenRouterForm
+                                        formData={customModelForm}
+                                        onChange={(updates) =>
+                                            setCustomModelForm((prev) => ({ ...prev, ...updates }))
+                                        }
+                                        onSubmit={addCustomModel}
+                                    />
+                                )}
                             </div>
 
                             {customModels.length > 0 && (
@@ -888,32 +896,37 @@ export default function ModelPickerModal() {
                                                 size="sm"
                                             />
                                         ))}
-                                        {filteredCustomModels.map((cm) => (
-                                            <ModelCard
-                                                key={`custom|${cm.name}`}
-                                                provider="openai-compatible"
-                                                model={{
-                                                    name: cm.name,
-                                                    displayName: cm.displayName || cm.name,
-                                                    maxInputTokens: cm.maxInputTokens || 128000,
-                                                    supportedFileTypes: ['pdf', 'image', 'audio'],
-                                                }}
-                                                isFavorite={favorites.includes(
-                                                    favKey('openai-compatible', cm.name)
-                                                )}
-                                                isActive={isCurrentModel(
-                                                    'openai-compatible',
-                                                    cm.name
-                                                )}
-                                                onClick={() => onPickCustomModel(cm)}
-                                                onToggleFavorite={() =>
-                                                    toggleFavorite('openai-compatible', cm.name)
-                                                }
-                                                onDelete={() => deleteCustomModel(cm.name)}
-                                                size="sm"
-                                                isCustom
-                                            />
-                                        ))}
+                                        {filteredCustomModels.map((cm) => {
+                                            const cmProvider = (cm.provider ??
+                                                'openai-compatible') as LLMProvider;
+                                            return (
+                                                <ModelCard
+                                                    key={`custom|${cm.name}`}
+                                                    provider={cmProvider}
+                                                    model={{
+                                                        name: cm.name,
+                                                        displayName: cm.displayName || cm.name,
+                                                        maxInputTokens: cm.maxInputTokens || 128000,
+                                                        supportedFileTypes: [
+                                                            'pdf',
+                                                            'image',
+                                                            'audio',
+                                                        ],
+                                                    }}
+                                                    isFavorite={favorites.includes(
+                                                        favKey(cmProvider, cm.name)
+                                                    )}
+                                                    isActive={isCurrentModel(cmProvider, cm.name)}
+                                                    onClick={() => onPickCustomModel(cm)}
+                                                    onToggleFavorite={() =>
+                                                        toggleFavorite(cmProvider, cm.name)
+                                                    }
+                                                    onDelete={() => deleteCustomModel(cm.name)}
+                                                    size="sm"
+                                                    isCustom
+                                                />
+                                            );
+                                        })}
                                     </div>
                                 )}
                             </div>

@@ -115,24 +115,29 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
 
                 // Add custom models first
                 for (const custom of loadedCustomModels) {
-                    modelList.push({
-                        provider: 'openai-compatible' as LLMProvider,
+                    // Use provider from custom model, default to openai-compatible for legacy models
+                    const customProvider = (custom.provider ?? 'openai-compatible') as LLMProvider;
+                    const modelOption: ModelOption = {
+                        provider: customProvider,
                         name: custom.name,
                         displayName: custom.displayName || custom.name,
                         maxInputTokens: custom.maxInputTokens || 128000,
                         isDefault: false,
                         isCurrent:
-                            currentConfig.provider === 'openai-compatible' &&
+                            currentConfig.provider === customProvider &&
                             currentConfig.model === custom.name,
                         isCustom: true,
-                        baseURL: custom.baseURL,
-                    });
+                    };
+                    if (custom.baseURL) {
+                        modelOption.baseURL = custom.baseURL;
+                    }
+                    modelList.push(modelOption);
                 }
 
                 // Add registry models
                 for (const provider of providers) {
-                    // Skip openai-compatible as those are shown via custom models
-                    if (provider === 'openai-compatible') continue;
+                    // Skip openai-compatible and openrouter as those are shown via custom models
+                    if (provider === 'openai-compatible' || provider === 'openrouter') continue;
 
                     const providerModels = allModels[provider];
                     for (const model of providerModels) {
@@ -495,7 +500,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                         </Text>
                         <Text color={isSelected ? 'white' : 'gray'} dimColor={!isSelected}>
                             {' '}
-                            ({item.isCustom ? 'custom' : item.provider})
+                            ({item.provider})
                         </Text>
                         <Text color={isSelected ? 'white' : 'gray'} dimColor={!isSelected}>
                             {' '}

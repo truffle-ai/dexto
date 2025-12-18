@@ -91,8 +91,10 @@ export function useDeleteCustomModel() {
 
     return useMutation({
         mutationFn: async (name: string) => {
+            // URL-encode the name to handle OpenRouter model IDs with slashes (e.g., anthropic/claude-3.5-sonnet)
+            const encodedName = encodeURIComponent(name);
             const response = await client.api.llm['custom-models'][':name'].$delete({
-                param: { name },
+                param: { name: encodedName },
             });
             if (!response.ok) {
                 throw new Error(`Failed to delete custom model: ${response.status}`);

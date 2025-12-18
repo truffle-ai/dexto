@@ -3,6 +3,7 @@ import { Sparkles, FlaskConical, Zap } from 'lucide-react';
 import type { LLMProvider } from '@dexto/core';
 
 // Provider logo file mapping - single source of truth
+// Empty string means "use Bot icon fallback" in components
 export const PROVIDER_LOGOS: Record<LLMProvider, string> = {
     openai: '/logos/openai.svg',
     anthropic: '/logos/claude-color.svg',
@@ -11,6 +12,7 @@ export const PROVIDER_LOGOS: Record<LLMProvider, string> = {
     xai: '/logos/grok.svg',
     'openai-compatible': '/logos/openai.svg',
     cohere: '/logos/cohere-color.svg',
+    openrouter: '', // Uses Bot icon fallback (aggregator, no single logo)
 };
 
 // Provider pricing URLs (for quick access from Model Picker)
@@ -21,6 +23,7 @@ export const PROVIDER_PRICING_URLS: Partial<Record<LLMProvider, string>> = {
     groq: 'https://groq.com/pricing/',
     xai: 'https://docs.x.ai/docs/models',
     cohere: 'https://cohere.com/pricing',
+    openrouter: 'https://openrouter.ai/models',
     // 'openai-compatible' intentionally omitted (varies by vendor)
 };
 

@@ -105,5 +105,7 @@ export {
     getCustomModel,
     getCustomModelsPath,
     CustomModelSchema,
+    CUSTOM_MODEL_PROVIDERS,
     type CustomModel,
+    type CustomModelProvider,
 } from './models/custom-models.js';

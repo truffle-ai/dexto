@@ -1,7 +1,7 @@
 /**
  * Custom Models Persistence
  *
- * Manages saved openai-compatible model configurations.
+ * Manages saved custom model configurations for openai-compatible and openrouter providers.
  * Stored in ~/.dexto/models/custom-models.json
  */
 
@@ -10,16 +10,34 @@ import { promises as fs } from 'fs';
 import * as path from 'path';
 import { getDextoGlobalPath } from '../utils/path.js';
 
+/** Providers that support custom models */
+export const CUSTOM_MODEL_PROVIDERS = ['openai-compatible', 'openrouter'] as const;
+export type CustomModelProvider = (typeof CUSTOM_MODEL_PROVIDERS)[number];
+
 /**
- * Schema for a saved openai-compatible model configuration.
+ * Schema for a saved custom model configuration.
+ * - openai-compatible: requires baseURL
+ * - openrouter: baseURL is auto-injected, maxInputTokens from registry
  */
-export const CustomModelSchema = z.object({
-    name: z.string().min(1),
-    baseURL: z.string().url(),
-    displayName: z.string().optional(),
-    maxInputTokens: z.number().int().positive().optional(),
-    maxOutputTokens: z.number().int().positive().optional(),
-});
+export const CustomModelSchema = z
+    .object({
+        name: z.string().min(1),
+        provider: z.enum(CUSTOM_MODEL_PROVIDERS).default('openai-compatible'),
+        baseURL: z.string().url().optional(),
+        displayName: z.string().optional(),
+        maxInputTokens: z.number().int().positive().optional(),
+        maxOutputTokens: z.number().int().positive().optional(),
+    })
+    .superRefine((data, ctx) => {
+        // baseURL is required for openai-compatible
+        if (data.provider === 'openai-compatible' && !data.baseURL) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['baseURL'],
+                message: 'Base URL is required for openai-compatible provider',
+            });
+        }
+    });
 
 export type CustomModel = z.output<typeof CustomModelSchema>;
 

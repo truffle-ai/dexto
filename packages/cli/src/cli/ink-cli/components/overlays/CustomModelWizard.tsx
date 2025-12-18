@@ -1,23 +1,29 @@
 /**
  * CustomModelWizard Component
- * Multi-step wizard for adding a custom openai-compatible model
+ * Multi-step wizard for adding custom models (openai-compatible or openrouter)
  */
 
 import React, { useState, useEffect, forwardRef, useImperativeHandle, useCallback } from 'react';
 import { Box, Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
-import { saveCustomModel, type CustomModel } from '@dexto/agent-management';
-import { logger } from '@dexto/core';
+import {
+    saveCustomModel,
+    CUSTOM_MODEL_PROVIDERS,
+    type CustomModel,
+    type CustomModelProvider,
+} from '@dexto/agent-management';
+import { logger, lookupOpenRouterModel, refreshOpenRouterModelCache } from '@dexto/core';
 
 interface WizardStep {
-    field: keyof CustomModel;
+    field: string;
     label: string;
     placeholder: string;
     required: boolean;
     validate?: (value: string) => string | null;
 }
 
-const WIZARD_STEPS: WizardStep[] = [
+/** Steps for openai-compatible provider */
+const OPENAI_COMPATIBLE_STEPS: WizardStep[] = [
     {
         field: 'name',
         label: 'Model Name',
@@ -63,6 +69,60 @@ const WIZARD_STEPS: WizardStep[] = [
     },
 ];
 
+/** Steps for openrouter provider (simpler - no baseURL or maxInputTokens needed) */
+const OPENROUTER_STEPS: WizardStep[] = [
+    {
+        field: 'name',
+        label: 'OpenRouter Model ID',
+        placeholder: 'e.g., anthropic/claude-3.5-sonnet, openai/gpt-4o',
+        required: true,
+        validate: (v) => {
+            if (!v.trim()) return 'Model ID is required';
+            // OpenRouter models typically have format: provider/model-name
+            if (!v.includes('/')) {
+                return 'OpenRouter models use format: provider/model (e.g., anthropic/claude-3.5-sonnet)';
+            }
+            // Async validation happens in handleNext
+            return null;
+        },
+    },
+    {
+        field: 'displayName',
+        label: 'Display Name (optional)',
+        placeholder: 'e.g., Claude 3.5 Sonnet',
+        required: false,
+    },
+];
+
+/**
+ * Validate OpenRouter model ID against the registry.
+ * Refreshes cache if stale and returns error message if invalid.
+ */
+async function validateOpenRouterModel(modelId: string): Promise<string | null> {
+    let status = lookupOpenRouterModel(modelId);
+
+    // If cache is stale/empty, try to refresh
+    if (status === 'unknown') {
+        try {
+            await refreshOpenRouterModelCache();
+            status = lookupOpenRouterModel(modelId);
+        } catch {
+            // Network failed - allow the model (graceful degradation)
+            return null;
+        }
+    }
+
+    if (status === 'invalid') {
+        return `Model '${modelId}' not found in OpenRouter. Check the model ID at https://openrouter.ai/models`;
+    }
+
+    return null;
+}
+
+function getStepsForProvider(provider: CustomModelProvider): WizardStep[] {
+    return provider === 'openrouter' ? OPENROUTER_STEPS : OPENAI_COMPATIBLE_STEPS;
+}
+
 interface CustomModelWizardProps {
     isVisible: boolean;
     onComplete: (model: CustomModel) => void;
@@ -78,31 +138,49 @@ export interface CustomModelWizardHandle {
  */
 const CustomModelWizard = forwardRef<CustomModelWizardHandle, CustomModelWizardProps>(
     function CustomModelWizard({ isVisible, onComplete, onClose }, ref) {
+        // Provider selection (step 0) then wizard steps
+        const [selectedProvider, setSelectedProvider] = useState<CustomModelProvider | null>(null);
+        const [providerIndex, setProviderIndex] = useState(0);
         const [currentStep, setCurrentStep] = useState(0);
         const [values, setValues] = useState<Record<string, string>>({});
         const [currentInput, setCurrentInput] = useState('');
         const [error, setError] = useState<string | null>(null);
         const [isSaving, setIsSaving] = useState(false);
+        const [isValidating, setIsValidating] = useState(false);
 
         // Reset when becoming visible
         useEffect(() => {
             if (isVisible) {
+                setSelectedProvider(null);
+                setProviderIndex(0);
                 setCurrentStep(0);
                 setValues({});
                 setCurrentInput('');
                 setError(null);
                 setIsSaving(false);
+                setIsValidating(false);
             }
         }, [isVisible]);
 
-        const currentStepConfig = WIZARD_STEPS[currentStep];
+        const wizardSteps = selectedProvider ? getStepsForProvider(selectedProvider) : [];
+        const currentStepConfig = wizardSteps[currentStep];
+
+        const handleProviderSelect = useCallback(() => {
+            const provider = CUSTOM_MODEL_PROVIDERS[providerIndex];
+            if (provider) {
+                setSelectedProvider(provider);
+                setCurrentStep(0);
+                setCurrentInput('');
+                setError(null);
+            }
+        }, [providerIndex]);
 
         const handleNext = useCallback(async () => {
-            if (!currentStepConfig || isSaving) return;
+            if (!currentStepConfig || isSaving || isValidating) return;
 
             const value = currentInput.trim();
 
-            // Validate
+            // Sync validation
             if (currentStepConfig.validate) {
                 const validationError = currentStepConfig.validate(value);
                 if (validationError) {
@@ -114,6 +192,22 @@ const CustomModelWizard = forwardRef<CustomModelWizardHandle, CustomModelWizardP
                 return;
             }
 
+            // Async validation for OpenRouter model name
+            if (selectedProvider === 'openrouter' && currentStepConfig.field === 'name') {
+                setIsValidating(true);
+                setError(null);
+                try {
+                    const openRouterError = await validateOpenRouterModel(value);
+                    if (openRouterError) {
+                        setError(openRouterError);
+                        setIsValidating(false);
+                        return;
+                    }
+                } finally {
+                    setIsValidating(false);
+                }
+            }
+
             // Save value
             const newValues = { ...values, [currentStepConfig.field]: value };
             setValues(newValues);
@@ -121,12 +215,17 @@ const CustomModelWizard = forwardRef<CustomModelWizardHandle, CustomModelWizardP
             setCurrentInput('');
 
             // Check if we're done
-            if (currentStep >= WIZARD_STEPS.length - 1) {
+            if (currentStep >= wizardSteps.length - 1) {
                 // Build model and save
                 const model: CustomModel = {
                     name: newValues.name || '',
-                    baseURL: newValues.baseURL || '',
+                    provider: selectedProvider!,
                 };
+
+                // Add baseURL for openai-compatible
+                if (selectedProvider === 'openai-compatible' && newValues.baseURL) {
+                    model.baseURL = newValues.baseURL;
+                }
 
                 if (newValues.displayName?.trim()) {
                     model.displayName = newValues.displayName.trim();
@@ -152,28 +251,42 @@ const CustomModelWizard = forwardRef<CustomModelWizardHandle, CustomModelWizardP
             } else {
                 setCurrentStep(currentStep + 1);
             }
-        }, [currentInput, currentStep, currentStepConfig, isSaving, onComplete, values]);
+        }, [
+            currentInput,
+            currentStep,
+            currentStepConfig,
+            isSaving,
+            isValidating,
+            onComplete,
+            selectedProvider,
+            values,
+            wizardSteps.length,
+        ]);
 
         const handleBack = useCallback(() => {
             if (currentStep > 0) {
                 setCurrentStep(currentStep - 1);
                 // Restore previous value
-                const prevStep = WIZARD_STEPS[currentStep - 1];
+                const prevStep = wizardSteps[currentStep - 1];
                 if (prevStep) {
                     setCurrentInput(values[prevStep.field] || '');
                 }
                 setError(null);
+            } else if (selectedProvider) {
+                // Go back to provider selection
+                setSelectedProvider(null);
+                setError(null);
             } else {
                 onClose();
             }
-        }, [currentStep, onClose, values]);
+        }, [currentStep, onClose, selectedProvider, values, wizardSteps]);
 
         // Handle keyboard input
         useImperativeHandle(
             ref,
             () => ({
                 handleInput: (input: string, key: Key): boolean => {
-                    if (!isVisible || isSaving) return false;
+                    if (!isVisible || isSaving || isValidating) return false;
 
                     // Escape to go back/close
                     if (key.escape) {
@@ -181,6 +294,28 @@ const CustomModelWizard = forwardRef<CustomModelWizardHandle, CustomModelWizardP
                         return true;
                     }
 
+                    // Provider selection mode
+                    if (!selectedProvider) {
+                        if (key.upArrow) {
+                            setProviderIndex((prev) =>
+                                prev > 0 ? prev - 1 : CUSTOM_MODEL_PROVIDERS.length - 1
+                            );
+                            return true;
+                        }
+                        if (key.downArrow) {
+                            setProviderIndex((prev) =>
+                                prev < CUSTOM_MODEL_PROVIDERS.length - 1 ? prev + 1 : 0
+                            );
+                            return true;
+                        }
+                        if (key.return) {
+                            handleProviderSelect();
+                            return true;
+                        }
+                        return true; // Consume all input during provider selection
+                    }
+
+                    // Wizard step mode
                     // Enter to submit current step
                     if (key.return) {
                         void handleNext();
@@ -204,10 +339,62 @@ const CustomModelWizard = forwardRef<CustomModelWizardHandle, CustomModelWizardP
                     return false;
                 },
             }),
-            [isVisible, isSaving, handleBack, handleNext]
+            [
+                isVisible,
+                isSaving,
+                isValidating,
+                handleBack,
+                handleNext,
+                handleProviderSelect,
+                selectedProvider,
+            ]
         );
 
-        if (!isVisible || !currentStepConfig) return null;
+        if (!isVisible) return null;
+
+        // Provider selection screen
+        if (!selectedProvider) {
+            return (
+                <Box
+                    flexDirection="column"
+                    borderStyle="round"
+                    borderColor="green"
+                    paddingX={1}
+                    marginTop={1}
+                >
+                    <Box marginBottom={1}>
+                        <Text bold color="green">
+                            Add Custom Model
+                        </Text>
+                    </Box>
+
+                    <Text bold>Select Provider:</Text>
+
+                    <Box flexDirection="column" marginTop={1}>
+                        {CUSTOM_MODEL_PROVIDERS.map((provider, index) => (
+                            <Box key={provider}>
+                                <Text
+                                    color={index === providerIndex ? 'cyan' : 'gray'}
+                                    bold={index === providerIndex}
+                                >
+                                    {index === providerIndex ? '❯ ' : '  '}
+                                    {provider === 'openai-compatible'
+                                        ? 'OpenAI-Compatible (local/custom endpoint)'
+                                        : 'OpenRouter (100+ cloud models)'}
+                                </Text>
+                            </Box>
+                        ))}
+                    </Box>
+
+                    <Box marginTop={1}>
+                        <Text dimColor>↑↓ navigate • Enter select • Esc cancel</Text>
+                    </Box>
+                </Box>
+            );
+        }
+
+        // Wizard steps screen
+        if (!currentStepConfig) return null;
 
         return (
             <Box
@@ -224,7 +411,7 @@ const CustomModelWizard = forwardRef<CustomModelWizardHandle, CustomModelWizardP
                     </Text>
                     <Text dimColor>
                         {' '}
-                        (Step {currentStep + 1}/{WIZARD_STEPS.length})
+                        ({selectedProvider}) Step {currentStep + 1}/{wizardSteps.length}
                     </Text>
                 </Box>
 
@@ -248,6 +435,13 @@ const CustomModelWizard = forwardRef<CustomModelWizardHandle, CustomModelWizardP
                     </Box>
                 )}
 
+                {/* Validating indicator */}
+                {isValidating && (
+                    <Box marginTop={1}>
+                        <Text color="yellow">Validating model...</Text>
+                    </Box>
+                )}
+
                 {/* Saving indicator */}
                 {isSaving && (
                     <Box marginTop={1}>
@@ -258,7 +452,8 @@ const CustomModelWizard = forwardRef<CustomModelWizardHandle, CustomModelWizardP
                 {/* Help text */}
                 <Box marginTop={1}>
                     <Text dimColor>
-                        Enter to continue • Esc to {currentStep > 0 ? 'go back' : 'cancel'}
+                        Enter to continue • Esc to{' '}
+                        {currentStep > 0 ? 'go back' : 'back to provider'}
                     </Text>
                 </Box>
             </Box>

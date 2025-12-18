@@ -481,7 +481,9 @@ export function createLlmRouter(getAgent: () => DextoAgent) {
             return ctx.json({ ok: true as const, model });
         })
         .openapi(deleteCustomModelRoute, async (ctx) => {
-            const { name } = ctx.req.valid('param');
+            const { name: encodedName } = ctx.req.valid('param');
+            // Decode URL-encoded name to handle OpenRouter model IDs with slashes
+            const name = decodeURIComponent(encodedName);
             const deleted = await deleteCustomModel(name);
             if (!deleted) {
                 throw new DextoRuntimeError(
