@@ -2,8 +2,7 @@
  * ModelSelector Component (Refactored)
  * Features:
  * - Search filtering
- * - Custom models support (add/delete)
- * - Keyboard shortcuts: Shift+D to delete custom model
+ * - Custom models support (add/edit/delete via arrow navigation)
  */
 
 import React, {
@@ -68,7 +67,8 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
     const [selectedIndex, setSelectedIndex] = useState(0);
     const [searchQuery, setSearchQuery] = useState('');
     const [scrollOffset, setScrollOffset] = useState(0);
-    const [pendingDeleteModel, setPendingDeleteModel] = useState<string | null>(null);
+    const [customModelAction, setCustomModelAction] = useState<'edit' | 'delete' | null>(null);
+    const [pendingDeleteConfirm, setPendingDeleteConfirm] = useState(false);
     const selectedIndexRef = useRef(selectedIndex);
     const deleteTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -93,7 +93,8 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
         setSearchQuery('');
         setSelectedIndex(0);
         setScrollOffset(0);
-        setPendingDeleteModel(null);
+        setCustomModelAction(null);
+        setPendingDeleteConfirm(false);
         if (deleteTimeoutRef.current) {
             clearTimeout(deleteTimeoutRef.current);
             deleteTimeoutRef.current = null;
@@ -232,6 +233,16 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
         }
     };
 
+    // Helper to clear action state
+    const clearActionState = () => {
+        setCustomModelAction(null);
+        setPendingDeleteConfirm(false);
+        if (deleteTimeoutRef.current) {
+            clearTimeout(deleteTimeoutRef.current);
+            deleteTimeoutRef.current = null;
+        }
+    };
+
     // Expose handleInput method via ref
     useImperativeHandle(
         ref,
@@ -241,47 +252,80 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
 
                 // Escape always works
                 if (key.escape) {
+                    // If in action mode, just clear it first
+                    if (customModelAction) {
+                        clearActionState();
+                        return true;
+                    }
                     onClose();
                     return true;
                 }
 
-                // Handle character input for search
-                if (input && !key.return && !key.upArrow && !key.downArrow && !key.tab) {
-                    // Shift+D to delete custom model (requires double-press confirmation)
-                    if (input === 'D' && key.shift) {
-                        const item = filteredItems[selectedIndexRef.current];
-                        if (item && !isAddCustomOption(item) && item.isCustom) {
-                            if (pendingDeleteModel === item.name) {
-                                // Second press - actually delete
-                                if (deleteTimeoutRef.current) {
-                                    clearTimeout(deleteTimeoutRef.current);
-                                    deleteTimeoutRef.current = null;
-                                }
-                                setPendingDeleteModel(null);
-                                void handleDeleteCustomModel(item);
-                            } else {
-                                // First press - set pending and start timeout
-                                setPendingDeleteModel(item.name);
-                                if (deleteTimeoutRef.current) {
-                                    clearTimeout(deleteTimeoutRef.current);
-                                }
-                                deleteTimeoutRef.current = setTimeout(() => {
-                                    setPendingDeleteModel(null);
-                                    deleteTimeoutRef.current = null;
-                                }, 3000); // 3 second timeout
-                            }
-                            return true;
-                        }
-                        return false;
-                    }
+                const itemsLength = filteredItems.length;
+                const currentItem = filteredItems[selectedIndexRef.current];
+                const isOnCustomModel =
+                    currentItem && !isAddCustomOption(currentItem) && currentItem.isCustom;
 
-                    // Any other input clears the pending delete confirmation
-                    if (pendingDeleteModel) {
-                        setPendingDeleteModel(null);
+                // Right arrow - enter/advance action mode for custom models
+                if (key.rightArrow) {
+                    if (!isOnCustomModel) return false;
+
+                    if (customModelAction === null) {
+                        // Enter edit mode
+                        setCustomModelAction('edit');
+                        return true;
+                    } else if (customModelAction === 'edit') {
+                        // Advance to delete mode
+                        setCustomModelAction('delete');
+                        setPendingDeleteConfirm(false);
+                        return true;
+                    } else if (customModelAction === 'delete') {
+                        // In delete mode, right arrow confirms deletion
+                        if (pendingDeleteConfirm) {
+                            // Second press - actually delete
+                            if (deleteTimeoutRef.current) {
+                                clearTimeout(deleteTimeoutRef.current);
+                                deleteTimeoutRef.current = null;
+                            }
+                            clearActionState();
+                            void handleDeleteCustomModel(currentItem as ModelOption);
+                        } else {
+                            // First press in delete mode - set pending confirmation
+                            setPendingDeleteConfirm(true);
+                            if (deleteTimeoutRef.current) {
+                                clearTimeout(deleteTimeoutRef.current);
+                            }
+                            deleteTimeoutRef.current = setTimeout(() => {
+                                setPendingDeleteConfirm(false);
+                                deleteTimeoutRef.current = null;
+                            }, 3000); // 3 second timeout
+                        }
+                        return true;
+                    }
+                }
+
+                // Left arrow - go back in action mode
+                if (key.leftArrow) {
+                    if (customModelAction === 'delete') {
+                        setCustomModelAction('edit');
+                        setPendingDeleteConfirm(false);
                         if (deleteTimeoutRef.current) {
                             clearTimeout(deleteTimeoutRef.current);
                             deleteTimeoutRef.current = null;
                         }
+                        return true;
+                    } else if (customModelAction === 'edit') {
+                        setCustomModelAction(null);
+                        return true;
+                    }
+                    return false;
+                }
+
+                // Handle character input for search
+                if (input && !key.return && !key.upArrow && !key.downArrow && !key.tab) {
+                    // Any character input clears action state and adds to search
+                    if (customModelAction) {
+                        clearActionState();
                     }
 
                     // Backspace
@@ -305,17 +349,12 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                     return true;
                 }
 
-                const itemsLength = filteredItems.length;
                 if (itemsLength === 0) return false;
 
                 if (key.upArrow) {
-                    // Clear pending delete on navigation
-                    if (pendingDeleteModel) {
-                        setPendingDeleteModel(null);
-                        if (deleteTimeoutRef.current) {
-                            clearTimeout(deleteTimeoutRef.current);
-                            deleteTimeoutRef.current = null;
-                        }
+                    // Clear action state on vertical navigation
+                    if (customModelAction) {
+                        clearActionState();
                     }
                     const nextIndex = (selectedIndexRef.current - 1 + itemsLength) % itemsLength;
                     setSelectedIndex(nextIndex);
@@ -324,13 +363,9 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                 }
 
                 if (key.downArrow) {
-                    // Clear pending delete on navigation
-                    if (pendingDeleteModel) {
-                        setPendingDeleteModel(null);
-                        if (deleteTimeoutRef.current) {
-                            clearTimeout(deleteTimeoutRef.current);
-                            deleteTimeoutRef.current = null;
-                        }
+                    // Clear action state on vertical navigation
+                    if (customModelAction) {
+                        clearActionState();
                     }
                     const nextIndex = (selectedIndexRef.current + 1) % itemsLength;
                     setSelectedIndex(nextIndex);
@@ -343,9 +378,38 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                     if (item) {
                         if (isAddCustomOption(item)) {
                             onAddCustomModel();
-                        } else {
-                            onSelectModel(item.provider, item.name, item.baseURL);
+                            return true;
                         }
+
+                        // Handle action mode confirmations
+                        if (customModelAction === 'edit' && item.isCustom) {
+                            // TODO: Implement edit - for now, open add custom with pre-fill
+                            // For now just close and let user re-add
+                            onAddCustomModel();
+                            return true;
+                        }
+
+                        if (customModelAction === 'delete' && item.isCustom) {
+                            if (pendingDeleteConfirm) {
+                                // Already confirmed, delete
+                                clearActionState();
+                                void handleDeleteCustomModel(item);
+                            } else {
+                                // Set pending confirmation
+                                setPendingDeleteConfirm(true);
+                                if (deleteTimeoutRef.current) {
+                                    clearTimeout(deleteTimeoutRef.current);
+                                }
+                                deleteTimeoutRef.current = setTimeout(() => {
+                                    setPendingDeleteConfirm(false);
+                                    deleteTimeoutRef.current = null;
+                                }, 3000);
+                            }
+                            return true;
+                        }
+
+                        // Normal selection
+                        onSelectModel(item.provider, item.name, item.baseURL);
                         return true;
                     }
                 }
@@ -353,7 +417,15 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                 return false;
             },
         }),
-        [isVisible, filteredItems, onClose, onSelectModel, onAddCustomModel, pendingDeleteModel]
+        [
+            isVisible,
+            filteredItems,
+            onClose,
+            onSelectModel,
+            onAddCustomModel,
+            customModelAction,
+            pendingDeleteConfirm,
+        ]
     );
 
     if (!isVisible) return null;
@@ -380,7 +452,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
             {/* Navigation hints */}
             <Box paddingX={0} paddingY={0}>
                 <Text dimColor>↑↓ navigate, Enter select, Esc close</Text>
-                {hasCustomModels && <Text dimColor>, Shift+D delete custom</Text>}
+                {hasCustomModels && <Text dimColor>, →← for custom actions</Text>}
             </Box>
 
             {/* Search input */}
@@ -412,6 +484,9 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                     );
                 }
 
+                // Show action buttons for selected custom models
+                const showActions = isSelected && item.isCustom;
+
                 return (
                     <Box key={`${item.provider}-${item.name}`} paddingX={0} paddingY={0}>
                         {item.isCustom && <Text color={isSelected ? 'yellow' : 'gray'}>★ </Text>}
@@ -432,11 +507,34 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                                 [DEFAULT]
                             </Text>
                         )}
-                        {item.isCurrent && (
+                        {item.isCurrent && !showActions && (
                             <Text color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>
                                 {' '}
                                 ← Current
                             </Text>
+                        )}
+                        {/* Action buttons for custom models - always shown when selected */}
+                        {showActions && (
+                            <>
+                                <Text> </Text>
+                                <Text
+                                    color={customModelAction === 'edit' ? 'green' : 'gray'}
+                                    bold={customModelAction === 'edit'}
+                                    inverse={customModelAction === 'edit'}
+                                >
+                                    {' '}
+                                    Edit{' '}
+                                </Text>
+                                <Text> </Text>
+                                <Text
+                                    color={customModelAction === 'delete' ? 'red' : 'gray'}
+                                    bold={customModelAction === 'delete'}
+                                    inverse={customModelAction === 'delete'}
+                                >
+                                    {' '}
+                                    Delete{' '}
+                                </Text>
+                            </>
                         )}
                     </Box>
                 );
@@ -458,10 +556,18 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
             )}
 
             {/* Delete confirmation message */}
-            {pendingDeleteModel && (
+            {customModelAction === 'delete' && pendingDeleteConfirm && (
                 <Box paddingX={0} paddingY={0} marginTop={1}>
-                    <Text color="yellow">
-                        ⚠️ Press Shift+D again to delete '{pendingDeleteModel}'
+                    <Text color="yellow">⚠️ Press → or Enter again to confirm delete</Text>
+                </Box>
+            )}
+            {/* Action mode hints */}
+            {customModelAction && !pendingDeleteConfirm && (
+                <Box paddingX={0} paddingY={0} marginTop={1}>
+                    <Text dimColor>
+                        ← {customModelAction === 'edit' ? 'deselect' : 'edit'} | →{' '}
+                        {customModelAction === 'edit' ? 'delete' : 'confirm'} | Enter{' '}
+                        {customModelAction}
                     </Text>
                 </Box>
             )}
