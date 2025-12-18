@@ -200,6 +200,8 @@ export const LLMConfigSchema = LLMConfigBaseSchema.superRefine((data, ctx) => {
             }
         }
     }
+    // Note: OpenRouter model validation happens in resolver.ts during switchLLM only
+    // to avoid network calls during startup/serverless cold starts
 }) // Brand the validated type so it can be distinguished at compile time
     .brand<'ValidatedLLMConfig'>();
 // Input type and output types for the zod schema

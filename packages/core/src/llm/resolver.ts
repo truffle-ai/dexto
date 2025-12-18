@@ -14,7 +14,7 @@ import {
 } from './registry.js';
 import {
     lookupOpenRouterModel,
-    scheduleOpenRouterModelRefresh,
+    refreshOpenRouterModelCache,
 } from './providers/openrouter-model-registry.js';
 
 // Default baseURL for OpenRouter provider
@@ -23,17 +23,21 @@ import type { LLMUpdateContext } from './types.js';
 import { resolveApiKeyForProvider } from '@core/utils/api-key-resolver.js';
 import type { IDextoLogger } from '@core/logger/v2/types.js';
 
+// TODO: Consider consolidating validation into async Zod schema (superRefine supports async).
+// Currently OpenRouter validation is here to avoid network calls during startup/serverless.
+// If startup validation is desired, move to schema with safeParseAsync() and handle serverless separately.
+
 /**
  * Convenience function that combines resolveLLM and validateLLM
  */
-export function resolveAndValidateLLMConfig(
+export async function resolveAndValidateLLMConfig(
     previous: ValidatedLLMConfig,
     updates: LLMUpdates,
     logger: IDextoLogger
-): Result<ValidatedLLMConfig, LLMUpdateContext> {
-    const { candidate, warnings } = resolveLLMConfig(previous, updates, logger);
+): Promise<Result<ValidatedLLMConfig, LLMUpdateContext>> {
+    const { candidate, warnings } = await resolveLLMConfig(previous, updates, logger);
 
-    // If resolver produced any errors, fail immediately (don’t try to validate a broken candidate)
+    // If resolver produced any errors, fail immediately (don't try to validate a broken candidate)
     if (hasErrors(warnings)) {
         const { errors } = splitIssues(warnings);
         return fail<ValidatedLLMConfig, LLMUpdateContext>(errors);
@@ -48,11 +52,11 @@ export function resolveAndValidateLLMConfig(
  * @param updates - The updates to the LLM config
  * @returns The resolved LLM config
  */
-export function resolveLLMConfig(
+export async function resolveLLMConfig(
     previous: ValidatedLLMConfig,
     updates: LLMUpdates,
     logger: IDextoLogger
-): { candidate: LLMConfig; warnings: Issue<LLMUpdateContext>[] } {
+): Promise<{ candidate: LLMConfig; warnings: Issue<LLMUpdateContext>[] }> {
     const warnings: Issue<LLMUpdateContext>[] = [];
 
     // Provider inference (if not provided, infer from model or previous provider)
@@ -123,29 +127,43 @@ export function resolveLLMConfig(
     if (updates.baseURL) {
         baseURL = updates.baseURL;
     } else if (provider === 'openrouter') {
-        // Auto-inject OpenRouter baseURL and schedule model registry refresh
+        // Auto-inject OpenRouter baseURL
         baseURL = OPENROUTER_BASE_URL;
-        scheduleOpenRouterModelRefresh({ apiKey });
     } else if (supportsBaseURL(provider)) {
         baseURL = previous.baseURL;
     } else {
         baseURL = undefined;
     }
 
-    // OpenRouter model validation (warning only - cache might be stale)
+    // OpenRouter model validation with cache refresh
     if (provider === 'openrouter') {
-        const lookupStatus = lookupOpenRouterModel(model);
+        let lookupStatus = lookupOpenRouterModel(model);
+
+        if (lookupStatus === 'unknown') {
+            // Cache stale/empty - try to refresh before validating
+            try {
+                await refreshOpenRouterModelCache({ apiKey });
+                lookupStatus = lookupOpenRouterModel(model);
+            } catch {
+                // Network failed - keep 'unknown' status, allow gracefully
+                logger.debug(
+                    `OpenRouter model cache refresh failed, allowing model '${model}' without validation`
+                );
+            }
+        }
+
         if (lookupStatus === 'invalid') {
+            // Model definitively not found in fresh cache - this is an error
             warnings.push({
                 code: LLMErrorCode.MODEL_INCOMPATIBLE,
                 message: `Model '${model}' not found in OpenRouter catalog. Check model ID at https://openrouter.ai/models`,
-                severity: 'warning',
+                severity: 'error',
                 scope: ErrorScope.LLM,
                 type: ErrorType.USER,
                 context: { provider, model },
             });
         }
-        // 'unknown' status means cache is stale - we allow it but don't warn
+        // 'unknown' after failed refresh = allow (network issue, graceful degradation)
     }
 
     return {
