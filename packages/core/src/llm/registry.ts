@@ -838,7 +838,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
     // Model validation is handled dynamically via openrouter-model-registry.ts
     openrouter: {
         models: [], // Empty - accepts any model name (validated against OpenRouter's catalog)
-        baseURLSupport: 'optional', // Auto-injects https://openrouter.ai/api/v1
+        baseURLSupport: 'none', // Fixed endpoint - baseURL auto-injected in resolver, no user override allowed
         supportedFileTypes: ['pdf', 'image', 'audio'], // Allow all types - user assumes responsibility for model capabilities
     },
     // TODO: Add 'dexto' provider (similar to openrouter, uses https://api.dexto.ai/v1)

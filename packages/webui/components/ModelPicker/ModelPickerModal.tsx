@@ -579,7 +579,7 @@ export default function ModelPickerModal() {
                                     <button
                                         onClick={() => setShowCustomForm(true)}
                                         className="p-2 rounded-lg transition-colors flex-shrink-0 bg-muted/50 text-muted-foreground hover:text-foreground hover:bg-muted"
-                                        title="Add custom model"
+                                        title="Add new model"
                                     >
                                         <Plus className="h-4 w-4" />
                                     </button>
@@ -886,6 +886,7 @@ export default function ModelPickerModal() {
                                                         <ModelCard
                                                             key={`custom|${cm.name}`}
                                                             provider={cmProvider}
+                                                            providerInfo={providers[cmProvider]}
                                                             model={{
                                                                 name: cm.name,
                                                                 displayName:

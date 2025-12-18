@@ -71,14 +71,14 @@ export function ModelCard({
     isCustom = false,
 }: ModelCardProps) {
     const displayName = model.displayName || model.name;
-    const hasApiKey = isCustom || providerInfo?.hasApiKey || false;
+    const hasApiKey = providerInfo?.hasApiKey ?? false;
     const { providerName, modelName, suffix } = parseModelName(displayName, provider);
 
     // Build description lines for tooltip
     const priceLines = formatPricingLines(model.pricing || undefined);
     const descriptionLines = [
         `Model: ${displayName}`,
-        isCustom ? 'Custom Model (OpenAI Compatible)' : `Provider: ${providerInfo?.name}`,
+        isCustom ? 'Custom Model' : `Provider: ${providerInfo?.name}`,
         `Max tokens: ${model.maxInputTokens.toLocaleString()}`,
         model.supportedFileTypes.length > 0 && `Supports: ${model.supportedFileTypes.join(', ')}`,
         !hasApiKey && 'API key required (click to add)',
