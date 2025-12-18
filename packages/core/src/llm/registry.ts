@@ -508,6 +508,18 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
     google: {
         models: [
             {
+                name: 'gemini-3-flash-preview',
+                displayName: 'Gemini 3 Flash Preview',
+                maxInputTokens: 1048576,
+                supportedFileTypes: ['pdf', 'image', 'audio'],
+                pricing: {
+                    inputPerM: 0.5,
+                    outputPerM: 3.0,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
                 name: 'gemini-3-pro-preview',
                 displayName: 'Gemini 3 Pro Preview',
                 maxInputTokens: 1048576,
