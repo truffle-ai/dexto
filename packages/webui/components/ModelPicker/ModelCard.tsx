@@ -28,6 +28,7 @@ const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
     groq: 'Groq',
     xai: 'Grok',
     cohere: 'Cohere',
+    openrouter: 'OpenRouter',
     'openai-compatible': 'Custom',
 };
 
@@ -37,6 +38,11 @@ function parseModelName(
     provider: string
 ): { providerName: string; modelName: string; suffix?: string } {
     const providerName = PROVIDER_DISPLAY_NAMES[provider] || provider;
+
+    // For custom model providers, show the full display name without parsing
+    if (provider === 'openrouter' || provider === 'openai-compatible') {
+        return { providerName, modelName: displayName };
+    }
 
     // Extract suffix like (Reasoning) if present
     const suffixMatch = displayName.match(/\(([^)]+)\)$/);
