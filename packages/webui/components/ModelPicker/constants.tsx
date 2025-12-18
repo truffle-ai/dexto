@@ -60,6 +60,11 @@ export const needsDarkModeInversion = (provider: LLMProvider): boolean => {
     return !COLORED_LOGOS.includes(provider);
 };
 
+// Helper to check if a provider has a logo
+export const hasLogo = (provider: LLMProvider): boolean => {
+    return !!PROVIDER_LOGOS[provider];
+};
+
 // Model capability icons - sleek emojis for current capabilities
 export const CAPABILITY_ICONS = {
     // File type capabilities (what we currently use)

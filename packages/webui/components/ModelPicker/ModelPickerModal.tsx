@@ -39,7 +39,7 @@ import {
 import { cn } from '../../lib/utils';
 import type { LLMProvider } from '@dexto/core';
 import { LLM_PROVIDERS } from '@dexto/core';
-import { PROVIDER_LOGOS, needsDarkModeInversion } from './constants';
+import { PROVIDER_LOGOS, needsDarkModeInversion, hasLogo } from './constants';
 import { useAnalytics } from '@/lib/analytics/index.js';
 
 export default function ModelPickerModal() {
@@ -386,12 +386,6 @@ export default function ModelPickerModal() {
     const triggerLabel = currentLLM?.displayName || currentLLM?.model || 'Choose Model';
     const isWelcomeScreen = !currentSessionId;
 
-    // Check if current model is a custom model (show Bot icon instead of provider logo)
-    const isCurrentModelCustom = useMemo(() => {
-        if (!currentLLM) return false;
-        return customModels.some((cm) => cm.name === currentLLM.model);
-    }, [currentLLM, customModels]);
-
     // Toggle a filter (add if not present, remove if present)
     const toggleFilter = useCallback((filter: LLMProvider | 'custom') => {
         setProviderFilter((prev) =>
@@ -517,10 +511,7 @@ export default function ModelPickerModal() {
                         className="flex items-center gap-2 cursor-pointer"
                         title="Choose model"
                     >
-                        {isCurrentModelCustom ? (
-                            <Bot className="h-4 w-4" />
-                        ) : currentLLM?.provider &&
-                          PROVIDER_LOGOS[currentLLM.provider as LLMProvider] ? (
+                        {currentLLM?.provider && hasLogo(currentLLM.provider as LLMProvider) ? (
                             <img
                                 src={PROVIDER_LOGOS[currentLLM.provider as LLMProvider]}
                                 alt={`${currentLLM.provider} logo`}
@@ -741,9 +732,7 @@ export default function ModelPickerModal() {
                                                             )}
                                                         >
                                                             <div className="w-8 h-8 flex items-center justify-center rounded-lg bg-muted/60 flex-shrink-0">
-                                                                {isCustom ? (
-                                                                    <Bot className="h-4 w-4 text-muted-foreground" />
-                                                                ) : PROVIDER_LOGOS[providerId] ? (
+                                                                {hasLogo(providerId) ? (
                                                                     <img
                                                                         src={
                                                                             PROVIDER_LOGOS[
@@ -770,7 +759,8 @@ export default function ModelPickerModal() {
                                                                     {model.displayName ||
                                                                         model.name}
                                                                 </div>
-                                                                {isCustom && (
+                                                                {providerId ===
+                                                                    'openai-compatible' && (
                                                                     <div className="text-xs text-muted-foreground truncate">
                                                                         Custom
                                                                     </div>

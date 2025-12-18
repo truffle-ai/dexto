@@ -3,7 +3,7 @@ import { Star, HelpCircle, Lock, Bot, X } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 import type { LLMProvider } from '@dexto/core';
-import { PROVIDER_LOGOS, needsDarkModeInversion, formatPricingLines } from './constants';
+import { PROVIDER_LOGOS, needsDarkModeInversion, formatPricingLines, hasLogo } from './constants';
 import { CapabilityIcons } from './CapabilityIcons';
 import type { ModelInfo, ProviderCatalog } from './types';
 
@@ -78,7 +78,7 @@ export function ModelCard({
     const priceLines = formatPricingLines(model.pricing || undefined);
     const descriptionLines = [
         `Model: ${displayName}`,
-        isCustom ? 'Custom Model' : `Provider: ${providerInfo?.name}`,
+        provider === 'openai-compatible' ? 'Custom Model' : `Provider: ${providerInfo?.name}`,
         `Max tokens: ${model.maxInputTokens.toLocaleString()}`,
         model.supportedFileTypes.length > 0 && `Supports: ${model.supportedFileTypes.join(', ')}`,
         !hasApiKey && 'API key required (click to add)',
@@ -191,9 +191,7 @@ export function ModelCard({
                                 logoSizes[size].container
                             )}
                         >
-                            {isCustom && !PROVIDER_LOGOS[provider] ? (
-                                <Bot className="h-6 w-6 text-muted-foreground" />
-                            ) : PROVIDER_LOGOS[provider] ? (
+                            {hasLogo(provider) ? (
                                 <img
                                     src={PROVIDER_LOGOS[provider]}
                                     alt={`${provider} logo`}
