@@ -20,7 +20,12 @@ import { loadCustomModels, deleteCustomModel, type CustomModel } from '@dexto/ag
 
 interface ModelSelectorProps {
     isVisible: boolean;
-    onSelectModel: (provider: LLMProvider, model: string, baseURL?: string) => void;
+    onSelectModel: (
+        provider: LLMProvider,
+        model: string,
+        displayName?: string,
+        baseURL?: string
+    ) => void;
     onClose: () => void;
     onAddCustomModel: () => void;
     agent: DextoAgent;
@@ -414,7 +419,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                         }
 
                         // Normal selection
-                        onSelectModel(item.provider, item.name, item.baseURL);
+                        onSelectModel(item.provider, item.name, item.displayName, item.baseURL);
                         return true;
                     }
                 }

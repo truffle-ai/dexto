@@ -325,7 +325,7 @@ export function createLlmRouter(getAgent: () => DextoAgent) {
     });
 
     return app
-        .openapi(currentRoute, (ctx) => {
+        .openapi(currentRoute, async (ctx) => {
             const agent = getAgent();
             const { sessionId } = ctx.req.valid('query');
 
@@ -335,10 +335,20 @@ export function createLlmRouter(getAgent: () => DextoAgent) {
 
             let displayName: string | undefined;
             try {
+                // First check registry for built-in models
                 const model = LLM_REGISTRY[currentConfig.provider]?.models.find(
                     (m) => m.name.toLowerCase() === String(currentConfig.model).toLowerCase()
                 );
                 displayName = model?.displayName || undefined;
+
+                // If not found in registry, check custom models
+                if (!displayName) {
+                    const customModels = await loadCustomModels();
+                    const customModel = customModels.find(
+                        (cm) => cm.name.toLowerCase() === String(currentConfig.model).toLowerCase()
+                    );
+                    displayName = customModel?.displayName || undefined;
+                }
             } catch {
                 // ignore lookup errors
             }
