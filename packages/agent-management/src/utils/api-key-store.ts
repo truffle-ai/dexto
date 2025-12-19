@@ -42,3 +42,65 @@ export function listProviderKeyStatus(): Record<string, { hasApiKey: boolean; en
     }
     return result;
 }
+
+/**
+ * Providers that use a shared env var for API keys (vs per-endpoint like openai-compatible).
+ * For these providers, we save to the env var if none exists, otherwise per-model override.
+ */
+export const SHARED_API_KEY_PROVIDERS = ['glama', 'openrouter', 'litellm'] as const;
+
+export type ApiKeyStorageStrategy = {
+    /** Save the key to provider env var (e.g., GLAMA_API_KEY) */
+    saveToProviderEnvVar: boolean;
+    /** Save the key as per-model override in custom model config */
+    saveAsPerModel: boolean;
+};
+
+/**
+ * Determine where to store an API key for a custom model.
+ *
+ * Logic:
+ * - For glama/openrouter/litellm (shared env var providers):
+ *   - If NO provider key exists → save to provider env var for reuse
+ *   - If provider key EXISTS and user entered SAME key → don't save (uses fallback)
+ *   - If provider key EXISTS and user entered DIFFERENT key → save as per-model override
+ * - For openai-compatible: always save as per-model (each endpoint needs own key)
+ *
+ * @param provider - The custom model provider
+ * @param userEnteredKey - The API key entered by user (trimmed, may be empty)
+ * @param providerHasKey - Whether the provider already has a key configured
+ * @param existingProviderKey - The existing provider key value (for comparison)
+ */
+export function determineApiKeyStorage(
+    provider: string,
+    userEnteredKey: string | undefined,
+    providerHasKey: boolean,
+    existingProviderKey: string | undefined
+): ApiKeyStorageStrategy {
+    const result: ApiKeyStorageStrategy = {
+        saveToProviderEnvVar: false,
+        saveAsPerModel: false,
+    };
+
+    if (!userEnteredKey) {
+        return result;
+    }
+
+    const hasSharedEnvVarKey = (SHARED_API_KEY_PROVIDERS as readonly string[]).includes(provider);
+
+    if (hasSharedEnvVarKey) {
+        if (!providerHasKey) {
+            // No provider key exists - save to provider env var for reuse
+            result.saveToProviderEnvVar = true;
+        } else if (existingProviderKey && userEnteredKey !== existingProviderKey) {
+            // Provider has key but user entered different one - save as per-model override
+            result.saveAsPerModel = true;
+        }
+        // If user entered same key as provider, don't save anything (uses fallback)
+    } else {
+        // openai-compatible: always save as per-model (each endpoint needs own key)
+        result.saveAsPerModel = true;
+    }
+
+    return result;
+}

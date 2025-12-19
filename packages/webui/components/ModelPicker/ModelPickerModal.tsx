@@ -222,38 +222,32 @@ export default function ModelPickerModal() {
         setIsAddingModel(true);
 
         try {
-            // Smart API key storage logic:
-            // For providers with shared env var keys (glama, openrouter, litellm):
-            // - If NO provider key exists AND user entered a key → save to provider env var
-            // - If provider key EXISTS AND user entered SAME key → don't save (will use fallback)
-            // - If provider key EXISTS AND user entered DIFFERENT key → save as per-model override
-            // For openai-compatible: always save as per-model (each endpoint needs its own key)
-            const hasSharedEnvVarKey =
-                provider === 'glama' || provider === 'openrouter' || provider === 'litellm';
+            // Determine API key storage strategy
+            // TODO: Deduplicate - canonical version is determineApiKeyStorage() in @dexto/agent-management
+            // Can't import directly as WebUI runs in browser. Move to @dexto/core if this changes often.
+            const SHARED_API_KEY_PROVIDERS = ['glama', 'openrouter', 'litellm'];
             const userEnteredKey = apiKey?.trim();
             const providerHasKey = providerKeyData?.hasKey ?? false;
             const existingProviderKey = providerKeyData?.apiKey;
+            const hasSharedEnvVarKey = SHARED_API_KEY_PROVIDERS.includes(provider);
 
-            let shouldSaveAsPerModel = false;
+            let saveToProviderEnvVar = false;
+            let saveAsPerModel = false;
 
             if (userEnteredKey) {
                 if (hasSharedEnvVarKey) {
                     if (!providerHasKey) {
-                        // No provider key exists - save to provider env var
-                        await saveApiKey({
-                            provider: provider as LLMProvider,
-                            apiKey: userEnteredKey,
-                        });
-                        // Don't save as per-model - it will use the provider fallback
+                        saveToProviderEnvVar = true;
                     } else if (existingProviderKey && userEnteredKey !== existingProviderKey) {
-                        // Provider has key but user entered different one - save as per-model override
-                        shouldSaveAsPerModel = true;
+                        saveAsPerModel = true;
                     }
-                    // If user entered same key as provider, don't save anything (uses fallback)
                 } else {
-                    // openai-compatible: always save as per-model
-                    shouldSaveAsPerModel = true;
+                    saveAsPerModel = true;
                 }
+            }
+
+            if (saveToProviderEnvVar && userEnteredKey) {
+                await saveApiKey({ provider: provider as LLMProvider, apiKey: userEnteredKey });
             }
 
             // Create the custom model
@@ -266,7 +260,7 @@ export default function ModelPickerModal() {
                 ...(displayName?.trim() && { displayName: displayName.trim() }),
                 ...(maxInputTokens && { maxInputTokens: parseInt(maxInputTokens, 10) }),
                 ...(maxOutputTokens && { maxOutputTokens: parseInt(maxOutputTokens, 10) }),
-                ...(shouldSaveAsPerModel && userEnteredKey && { apiKey: userEnteredKey }),
+                ...(saveAsPerModel && userEnteredKey && { apiKey: userEnteredKey }),
             });
 
             // Then switch to the newly created model
@@ -277,7 +271,7 @@ export default function ModelPickerModal() {
                 ...(provider === 'openai-compatible' &&
                     baseURL.trim() && { baseURL: baseURL.trim() }),
                 ...(provider === 'litellm' && baseURL.trim() && { baseURL: baseURL.trim() }),
-                ...(shouldSaveAsPerModel && userEnteredKey && { apiKey: userEnteredKey }),
+                ...(saveAsPerModel && userEnteredKey && { apiKey: userEnteredKey }),
                 ...(currentSessionId && { sessionId: currentSessionId }),
             };
 

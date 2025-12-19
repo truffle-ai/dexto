@@ -14,6 +14,7 @@ import {
     saveProviderApiKey,
     getProviderKeyStatus,
     resolveApiKeyForProvider,
+    determineApiKeyStorage,
 } from '@dexto/agent-management';
 import {
     logger,
@@ -337,57 +338,37 @@ const CustomModelWizard = forwardRef<CustomModelWizardHandle, CustomModelWizardP
                     model.maxInputTokens = parseInt(newValues.maxInputTokens, 10);
                 }
 
-                // Smart API key storage logic:
-                // For providers with shared env var keys (glama, openrouter, litellm):
-                // - If NO provider key exists AND user entered a key → save to provider env var
-                // - If provider key EXISTS AND user entered SAME key → don't save (will use fallback)
-                // - If provider key EXISTS AND user entered DIFFERENT key → save as per-model override
-                // For openai-compatible: always save as per-model (each endpoint needs its own key)
-                const hasSharedEnvVarKey =
-                    selectedProvider === 'glama' ||
-                    selectedProvider === 'openrouter' ||
-                    selectedProvider === 'litellm';
+                // Determine API key storage strategy using shared logic
                 const userEnteredKey = newValues.apiKey?.trim();
+                const providerKeyStatus = getProviderKeyStatus(selectedProvider as LLMProvider);
+                const existingProviderKey = resolveApiKeyForProvider(
+                    selectedProvider as LLMProvider
+                );
 
-                let shouldSaveAsPerModel = false;
+                const keyStorage = determineApiKeyStorage(
+                    selectedProvider!,
+                    userEnteredKey,
+                    providerKeyStatus.hasApiKey,
+                    existingProviderKey
+                );
 
-                if (userEnteredKey) {
-                    if (hasSharedEnvVarKey) {
-                        const providerKeyStatus = getProviderKeyStatus(
-                            selectedProvider as LLMProvider
+                if (keyStorage.saveToProviderEnvVar && userEnteredKey) {
+                    try {
+                        await saveProviderApiKey(
+                            selectedProvider as LLMProvider,
+                            userEnteredKey,
+                            process.cwd()
                         );
-                        const existingProviderKey = resolveApiKeyForProvider(
-                            selectedProvider as LLMProvider
+                    } catch (err) {
+                        logger.warn(
+                            `Failed to save provider API key: ${err instanceof Error ? err.message : 'Unknown error'}`
                         );
-
-                        if (!providerKeyStatus.hasApiKey) {
-                            // No provider key exists - save to provider env var
-                            try {
-                                await saveProviderApiKey(
-                                    selectedProvider as LLMProvider,
-                                    userEnteredKey,
-                                    process.cwd()
-                                );
-                                // Don't save as per-model - it will use the provider fallback
-                            } catch (err) {
-                                logger.warn(
-                                    `Failed to save provider API key: ${err instanceof Error ? err.message : 'Unknown error'}`
-                                );
-                                // Fall back to per-model storage
-                                shouldSaveAsPerModel = true;
-                            }
-                        } else if (existingProviderKey && userEnteredKey !== existingProviderKey) {
-                            // Provider has key but user entered different one - save as per-model override
-                            shouldSaveAsPerModel = true;
-                        }
-                        // If user entered same key as provider, don't save anything (uses fallback)
-                    } else {
-                        // openai-compatible: always save as per-model
-                        shouldSaveAsPerModel = true;
+                        // Fall back to per-model storage
+                        keyStorage.saveAsPerModel = true;
                     }
                 }
 
-                if (shouldSaveAsPerModel && userEnteredKey) {
+                if (keyStorage.saveAsPerModel && userEnteredKey) {
                     model.apiKey = userEnteredKey;
                 }
 

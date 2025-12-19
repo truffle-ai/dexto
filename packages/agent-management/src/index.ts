@@ -90,6 +90,9 @@ export {
     saveProviderApiKey,
     getProviderKeyStatus,
     listProviderKeyStatus,
+    determineApiKeyStorage,
+    SHARED_API_KEY_PROVIDERS,
+    type ApiKeyStorageStrategy,
 } from './utils/api-key-store.js';
 export {
     resolveApiKeyForProvider,
