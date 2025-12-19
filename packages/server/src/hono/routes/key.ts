@@ -56,10 +56,12 @@ export function createKeyRouter() {
                                 provider: z.enum(LLM_PROVIDERS).describe('Provider identifier'),
                                 envVar: z.string().describe('Environment variable name'),
                                 hasKey: z.boolean().describe('Whether API key is configured'),
-                                apiKey: z
+                                keyValue: z
                                     .string()
                                     .optional()
-                                    .describe('API key value if configured'),
+                                    .describe(
+                                        'API key value if configured (named to avoid redaction)'
+                                    ),
                             })
                             .strict()
                             .describe('API key status response'),
@@ -109,7 +111,7 @@ export function createKeyRouter() {
                 provider,
                 envVar: keyStatus.envVar,
                 hasKey: keyStatus.hasApiKey,
-                ...(apiKey && { apiKey }),
+                ...(apiKey && { keyValue: apiKey }),
             });
         })
         .openapi(saveKeyRoute, async (ctx) => {

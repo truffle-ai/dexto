@@ -561,6 +561,17 @@ const CustomModelWizard = forwardRef<CustomModelWizardHandle, CustomModelWizardP
                 <Box flexDirection="column">
                     <Text bold>{currentStepConfig.label}:</Text>
                     <Text dimColor>{currentStepConfig.placeholder}</Text>
+                    {/* Show existing key status for API key step */}
+                    {currentStepConfig.field === 'apiKey' &&
+                        selectedProvider &&
+                        (() => {
+                            const keyStatus = getProviderKeyStatus(selectedProvider as LLMProvider);
+                            return keyStatus.hasApiKey ? (
+                                <Text color="green">✓ {keyStatus.envVar} already set</Text>
+                            ) : (
+                                <Text color="yellow">No {keyStatus.envVar} configured</Text>
+                            );
+                        })()}
                 </Box>
 
                 {/* Input field */}

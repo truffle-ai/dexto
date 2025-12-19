@@ -78,10 +78,10 @@ export function CustomModelForm({
 
     // Pre-populate API key when provider key data is fetched (only if form apiKey is empty)
     useEffect(() => {
-        if (providerKeyData?.apiKey && !formData.apiKey) {
-            onChange({ apiKey: providerKeyData.apiKey });
+        if (providerKeyData?.keyValue && !formData.apiKey) {
+            onChange({ apiKey: providerKeyData.keyValue });
         }
-    }, [providerKeyData?.apiKey, formData.apiKey, onChange]);
+    }, [providerKeyData?.keyValue, formData.apiKey, onChange]);
 
     // Reset validation when provider changes
     useEffect(() => {

@@ -228,7 +228,7 @@ export default function ModelPickerModal() {
             const SHARED_API_KEY_PROVIDERS = ['glama', 'openrouter', 'litellm'];
             const userEnteredKey = apiKey?.trim();
             const providerHasKey = providerKeyData?.hasKey ?? false;
-            const existingProviderKey = providerKeyData?.apiKey;
+            const existingProviderKey = providerKeyData?.keyValue;
             const hasSharedEnvVarKey = SHARED_API_KEY_PROVIDERS.includes(provider);
 
             let saveToProviderEnvVar = false;
