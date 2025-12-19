@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
-import { Loader2, Plus, X, ChevronDown, Eye, EyeOff } from 'lucide-react';
+import { Loader2, Plus, X, ChevronDown, Eye, EyeOff, Check } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { validateBaseURL } from './types';
 import { useValidateOpenRouterModel } from '../hooks/useOpenRouter';
@@ -26,6 +26,7 @@ interface CustomModelFormProps {
     onCancel: () => void;
     isSubmitting?: boolean;
     error?: string | null;
+    isEditing?: boolean;
 }
 
 const PROVIDER_OPTIONS: { value: CustomModelProvider; label: string; description: string }[] = [
@@ -61,6 +62,7 @@ export function CustomModelForm({
     onCancel,
     isSubmitting,
     error,
+    isEditing = false,
 }: CustomModelFormProps) {
     const { mutateAsync: validateOpenRouterModel } = useValidateOpenRouterModel();
     const validationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -204,7 +206,9 @@ export function CustomModelForm({
         <div className="flex flex-col h-full">
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-border/30">
-                <h3 className="text-sm font-semibold text-foreground">Add Custom Model</h3>
+                <h3 className="text-sm font-semibold text-foreground">
+                    {isEditing ? 'Edit Custom Model' : 'Add Custom Model'}
+                </h3>
                 <button
                     onClick={onCancel}
                     className="p-1.5 rounded-md hover:bg-muted transition-colors"
@@ -483,10 +487,12 @@ export function CustomModelForm({
                 >
                     {isSubmitting ? (
                         <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    ) : isEditing ? (
+                        <Check className="h-4 w-4 mr-2" />
                     ) : (
                         <Plus className="h-4 w-4 mr-2" />
                     )}
-                    Add & Select Model
+                    {isEditing ? 'Save & Select Model' : 'Add & Select Model'}
                 </Button>
             </div>
         </div>

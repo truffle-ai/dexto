@@ -1,5 +1,5 @@
 import React from 'react';
-import { Star, HelpCircle, Lock, Bot, X } from 'lucide-react';
+import { Star, HelpCircle, Lock, Bot, X, Pencil } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 import type { LLMProvider } from '@dexto/core';
@@ -16,6 +16,7 @@ interface ModelCardProps {
     onClick: () => void;
     onToggleFavorite: () => void;
     onDelete?: () => void;
+    onEdit?: () => void;
     size?: 'sm' | 'md' | 'lg';
     isCustom?: boolean;
 }
@@ -80,6 +81,7 @@ export function ModelCard({
     onClick,
     onToggleFavorite,
     onDelete,
+    onEdit,
     size = 'md',
     isCustom = false,
 }: ModelCardProps) {
@@ -155,22 +157,40 @@ export function ModelCard({
                             </Tooltip>
                         )}
 
-                        {/* Delete Button - Top Left for custom models */}
-                        {isCustom && onDelete && (
-                            <button
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    onDelete();
-                                }}
-                                className={cn(
-                                    'absolute top-2 left-2 p-1.5 rounded-full transition-all duration-200 z-10',
-                                    'hover:bg-destructive/20 hover:scale-110 active:scale-95',
-                                    'opacity-0 group-hover:opacity-100'
+                        {/* Action Buttons - Top Left for custom models */}
+                        {isCustom && (onEdit || onDelete) && (
+                            <div className="absolute top-2 left-2 flex gap-1 z-10 opacity-0 group-hover:opacity-100 transition-all duration-200">
+                                {onEdit && (
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            onEdit();
+                                        }}
+                                        className={cn(
+                                            'p-1.5 rounded-full transition-all duration-200',
+                                            'hover:bg-primary/20 hover:scale-110 active:scale-95'
+                                        )}
+                                        aria-label="Edit custom model"
+                                    >
+                                        <Pencil className="h-4 w-4 text-muted-foreground/60 hover:text-primary" />
+                                    </button>
                                 )}
-                                aria-label="Delete custom model"
-                            >
-                                <X className="h-4 w-4 text-muted-foreground/60 hover:text-destructive" />
-                            </button>
+                                {onDelete && (
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            onDelete();
+                                        }}
+                                        className={cn(
+                                            'p-1.5 rounded-full transition-all duration-200',
+                                            'hover:bg-destructive/20 hover:scale-110 active:scale-95'
+                                        )}
+                                        aria-label="Delete custom model"
+                                    >
+                                        <X className="h-4 w-4 text-muted-foreground/60 hover:text-destructive" />
+                                    </button>
+                                )}
+                            </div>
                         )}
 
                         {/* Favorite Star - Top Right */}

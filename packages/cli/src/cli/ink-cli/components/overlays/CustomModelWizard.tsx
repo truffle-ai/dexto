@@ -8,6 +8,7 @@ import { Box, Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
 import {
     saveCustomModel,
+    deleteCustomModel,
     CUSTOM_MODEL_PROVIDERS,
     type CustomModel,
     type CustomModelProvider,
@@ -228,6 +229,8 @@ interface CustomModelWizardProps {
     isVisible: boolean;
     onComplete: (model: CustomModel) => void;
     onClose: () => void;
+    /** Optional model to edit - if provided, form will be pre-populated */
+    initialModel?: CustomModel | null;
 }
 
 export interface CustomModelWizardHandle {
@@ -238,7 +241,7 @@ export interface CustomModelWizardHandle {
  * Multi-step wizard for custom model configuration
  */
 const CustomModelWizard = forwardRef<CustomModelWizardHandle, CustomModelWizardProps>(
-    function CustomModelWizard({ isVisible, onComplete, onClose }, ref) {
+    function CustomModelWizard({ isVisible, onComplete, onClose, initialModel }, ref) {
         // Provider selection (step 0) then wizard steps
         const [selectedProvider, setSelectedProvider] = useState<CustomModelProvider | null>(null);
         const [providerIndex, setProviderIndex] = useState(0);
@@ -248,20 +251,42 @@ const CustomModelWizard = forwardRef<CustomModelWizardHandle, CustomModelWizardP
         const [error, setError] = useState<string | null>(null);
         const [isSaving, setIsSaving] = useState(false);
         const [isValidating, setIsValidating] = useState(false);
+        // Track original name when editing (to handle renames)
+        const [originalName, setOriginalName] = useState<string | null>(null);
+        const isEditing = initialModel !== null && initialModel !== undefined;
 
         // Reset when becoming visible
         useEffect(() => {
             if (isVisible) {
-                setSelectedProvider(null);
-                setProviderIndex(0);
-                setCurrentStep(0);
-                setValues({});
-                setCurrentInput('');
+                if (initialModel) {
+                    // Editing mode - pre-populate from initialModel
+                    const provider = initialModel.provider ?? 'openai-compatible';
+                    setSelectedProvider(provider);
+                    setOriginalName(initialModel.name);
+                    setValues({
+                        name: initialModel.name,
+                        baseURL: initialModel.baseURL ?? '',
+                        displayName: initialModel.displayName ?? '',
+                        maxInputTokens: initialModel.maxInputTokens?.toString() ?? '',
+                        apiKey: initialModel.apiKey ?? '',
+                    });
+                    setCurrentStep(0);
+                    setCurrentInput(initialModel.name);
+                    setProviderIndex(CUSTOM_MODEL_PROVIDERS.indexOf(provider));
+                } else {
+                    // Adding mode - reset everything
+                    setSelectedProvider(null);
+                    setOriginalName(null);
+                    setProviderIndex(0);
+                    setCurrentStep(0);
+                    setValues({});
+                    setCurrentInput('');
+                }
                 setError(null);
                 setIsSaving(false);
                 setIsValidating(false);
             }
-        }, [isVisible]);
+        }, [isVisible, initialModel]);
 
         const wizardSteps = selectedProvider ? getStepsForProvider(selectedProvider) : [];
         const currentStepConfig = wizardSteps[currentStep];
@@ -375,6 +400,14 @@ const CustomModelWizard = forwardRef<CustomModelWizardHandle, CustomModelWizardP
                 // Save to storage
                 setIsSaving(true);
                 try {
+                    // If editing and name changed, delete the old model first
+                    if (originalName && originalName !== model.name) {
+                        try {
+                            await deleteCustomModel(originalName);
+                        } catch {
+                            // Continue even if delete fails - the old model might already be gone
+                        }
+                    }
                     await saveCustomModel(model);
                     onComplete(model);
                 } catch (err) {
@@ -387,7 +420,12 @@ const CustomModelWizard = forwardRef<CustomModelWizardHandle, CustomModelWizardP
                     setIsSaving(false);
                 }
             } else {
-                setCurrentStep(currentStep + 1);
+                const nextStep = currentStep + 1;
+                setCurrentStep(nextStep);
+                // Pre-populate next step from stored values (for edit mode)
+                const nextStepConfig = wizardSteps[nextStep];
+                const nextValue = nextStepConfig ? newValues[nextStepConfig.field] : undefined;
+                setCurrentInput(nextValue ?? '');
             }
         }, [
             currentInput,
@@ -398,7 +436,8 @@ const CustomModelWizard = forwardRef<CustomModelWizardHandle, CustomModelWizardP
             onComplete,
             selectedProvider,
             values,
-            wizardSteps.length,
+            wizardSteps,
+            originalName,
         ]);
 
         const handleBack = useCallback(() => {
@@ -502,7 +541,7 @@ const CustomModelWizard = forwardRef<CustomModelWizardHandle, CustomModelWizardP
                 >
                     <Box marginBottom={1}>
                         <Text bold color="green">
-                            Add Custom Model
+                            {isEditing ? 'Edit Custom Model' : 'Add Custom Model'}
                         </Text>
                     </Box>
 
@@ -549,7 +588,7 @@ const CustomModelWizard = forwardRef<CustomModelWizardHandle, CustomModelWizardP
                 {/* Header */}
                 <Box marginBottom={1}>
                     <Text bold color="green">
-                        Add Custom Model
+                        {isEditing ? 'Edit Custom Model' : 'Add Custom Model'}
                     </Text>
                     <Text dimColor>
                         {' '}
@@ -567,7 +606,9 @@ const CustomModelWizard = forwardRef<CustomModelWizardHandle, CustomModelWizardP
                         (() => {
                             const keyStatus = getProviderKeyStatus(selectedProvider as LLMProvider);
                             return keyStatus.hasApiKey ? (
-                                <Text color="green">✓ {keyStatus.envVar} already set</Text>
+                                <Text color="green">
+                                    ✓ {keyStatus.envVar} already set, press Enter to skip
+                                </Text>
                             ) : (
                                 <Text color="yellow">No {keyStatus.envVar} configured</Text>
                             );

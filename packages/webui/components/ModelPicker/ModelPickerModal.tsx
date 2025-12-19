@@ -65,6 +65,8 @@ export default function ModelPickerModal() {
         maxOutputTokens: '',
         apiKey: '',
     });
+    // Track original name when editing (to handle renames)
+    const [editingModelName, setEditingModelName] = useState<string | null>(null);
 
     // API key modal
     const [keyModalOpen, setKeyModalOpen] = useState(false);
@@ -250,7 +252,21 @@ export default function ModelPickerModal() {
                 await saveApiKey({ provider: provider as LLMProvider, apiKey: userEnteredKey });
             }
 
-            // Create the custom model
+            // If editing and name changed, delete the old model first
+            if (editingModelName && editingModelName !== name.trim()) {
+                try {
+                    await new Promise<void>((resolve, reject) => {
+                        deleteCustomModelMutation(editingModelName, {
+                            onSuccess: () => resolve(),
+                            onError: (err: Error) => reject(err),
+                        });
+                    });
+                } catch {
+                    // Continue even if delete fails - the old model might already be gone
+                }
+            }
+
+            // Create/update the custom model
             await createCustomModelAsync({
                 provider,
                 name: name.trim(),
@@ -300,6 +316,7 @@ export default function ModelPickerModal() {
                 maxOutputTokens: '',
                 apiKey: '',
             });
+            setEditingModelName(null);
             setShowCustomForm(false);
             setError(null);
             setOpen(false);
@@ -317,6 +334,8 @@ export default function ModelPickerModal() {
         refreshCurrentLLM,
         providerKeyData,
         saveApiKey,
+        editingModelName,
+        deleteCustomModelMutation,
     ]);
 
     const deleteCustomModel = useCallback(
@@ -329,6 +348,21 @@ export default function ModelPickerModal() {
         },
         [deleteCustomModelMutation]
     );
+
+    const editCustomModel = useCallback((model: CustomModel) => {
+        setCustomModelForm({
+            provider: model.provider ?? 'openai-compatible',
+            name: model.name,
+            baseURL: model.baseURL ?? '',
+            displayName: model.displayName ?? '',
+            maxInputTokens: model.maxInputTokens?.toString() ?? '',
+            maxOutputTokens: model.maxOutputTokens?.toString() ?? '',
+            apiKey: model.apiKey ?? '',
+        });
+        setEditingModelName(model.name);
+        setShowCustomForm(true);
+        setError(null);
+    }, []);
 
     const modelMatchesSearch = useCallback(
         (providerId: LLMProvider, model: ModelInfo): boolean => {
@@ -604,10 +638,12 @@ export default function ModelPickerModal() {
                             onSubmit={addCustomModel}
                             onCancel={() => {
                                 setShowCustomForm(false);
+                                setEditingModelName(null);
                                 setError(null);
                             }}
                             isSubmitting={isAddingModel}
                             error={error}
+                            isEditing={editingModelName !== null}
                         />
                     ) : (
                         <>
@@ -965,6 +1001,7 @@ export default function ModelPickerModal() {
                                                             onToggleFavorite={() =>
                                                                 toggleFavorite(cmProvider, cm.name)
                                                             }
+                                                            onEdit={() => editCustomModel(cm)}
                                                             onDelete={() =>
                                                                 deleteCustomModel(cm.name)
                                                             }

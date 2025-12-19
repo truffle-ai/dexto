@@ -3,7 +3,7 @@
  * Smart container for managing all overlays (selectors, autocomplete, approval)
  */
 
-import React, { useCallback, useRef, useImperativeHandle, forwardRef } from 'react';
+import React, { useCallback, useRef, useImperativeHandle, forwardRef, useState } from 'react';
 import { Box } from 'ink';
 import type { DextoAgent, McpServerConfig, McpServerStatus, McpServerType } from '@dexto/core';
 import type { TextBuffer } from '../components/shared/text-buffer.js';
@@ -419,14 +419,29 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
             [setUi, setInput, setMessages, setSession, agent, session.id, buffer]
         );
 
+        // State for editing custom model
+        const [editingModel, setEditingModel] = useState<CustomModel | null>(null);
+
         // Handle "Add custom model" from model selector
         const handleAddCustomModel = useCallback(() => {
+            setEditingModel(null);
             setUi((prev) => ({ ...prev, activeOverlay: 'custom-model-wizard' }));
         }, [setUi]);
+
+        // Handle "Edit custom model" from model selector
+        const handleEditCustomModel = useCallback(
+            (model: CustomModel) => {
+                setEditingModel(model);
+                setUi((prev) => ({ ...prev, activeOverlay: 'custom-model-wizard' }));
+            },
+            [setUi]
+        );
 
         // Handle custom model wizard completion
         const handleCustomModelComplete = useCallback(
             (model: CustomModel) => {
+                const wasEditing = editingModel !== null;
+                setEditingModel(null);
                 setUi((prev) => ({ ...prev, activeOverlay: 'none' }));
                 buffer.setText('');
                 setInput((prev) => ({ ...prev, historyIndex: -1 }));
@@ -436,12 +451,14 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     {
                         id: generateMessageId('system'),
                         role: 'system',
-                        content: `✅ Custom model "${model.displayName || model.name}" saved`,
+                        content: wasEditing
+                            ? `✅ Custom model "${model.displayName || model.name}" updated`
+                            : `✅ Custom model "${model.displayName || model.name}" saved`,
                         timestamp: new Date(),
                     },
                 ]);
             },
-            [setUi, setInput, setMessages, buffer]
+            [setUi, setInput, setMessages, buffer, editingModel]
         );
 
         // Handle API key saved - retry the model switch
@@ -1701,6 +1718,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             onSelectModel={handleModelSelect}
                             onClose={handleClose}
                             onAddCustomModel={handleAddCustomModel}
+                            onEditCustomModel={handleEditCustomModel}
                             agent={agent}
                         />
                     </Box>
@@ -1836,7 +1854,11 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         ref={customModelWizardRef}
                         isVisible={true}
                         onComplete={handleCustomModelComplete}
-                        onClose={handleClose}
+                        onClose={() => {
+                            setEditingModel(null);
+                            handleClose();
+                        }}
+                        initialModel={editingModel}
                     />
                 )}
 

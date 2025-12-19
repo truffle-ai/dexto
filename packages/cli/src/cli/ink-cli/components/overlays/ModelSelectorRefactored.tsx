@@ -28,6 +28,7 @@ interface ModelSelectorProps {
     ) => void;
     onClose: () => void;
     onAddCustomModel: () => void;
+    onEditCustomModel: (model: CustomModel) => void;
     agent: DextoAgent;
 }
 
@@ -63,7 +64,7 @@ const MAX_VISIBLE_ITEMS = 10;
  * Model selector with search and custom model support
  */
 const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(function ModelSelector(
-    { isVisible, onSelectModel, onClose, onAddCustomModel, agent },
+    { isVisible, onSelectModel, onClose, onAddCustomModel, onEditCustomModel, agent },
     ref
 ) {
     const [models, setModels] = useState<ModelOption[]>([]);
@@ -399,9 +400,15 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
 
                         // Handle action mode confirmations
                         if (customModelAction === 'edit' && item.isCustom) {
-                            // TODO: Implement edit - for now, open add custom with pre-fill
-                            // For now just close and let user re-add
-                            onAddCustomModel();
+                            // Find the full custom model data
+                            const customModel = customModels.find(
+                                (cm) =>
+                                    cm.name === item.name &&
+                                    (cm.provider ?? 'openai-compatible') === item.provider
+                            );
+                            if (customModel) {
+                                onEditCustomModel(customModel);
+                            }
                             return true;
                         }
 
