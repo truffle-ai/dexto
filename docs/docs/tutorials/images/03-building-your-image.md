@@ -1,5 +1,6 @@
 ---
 sidebar_position: 3
+slug: /tutorials/images/03-building-your-image
 ---
 
 # Building Your Own Image
@@ -235,7 +236,7 @@ console.log(imageMetadata.target);        // 'cloud-production'
 
 ## Next Steps
 
-- [Building a Web App](/docs/tutorials/images/building-web-app) - Use your image in a web service
+- [Building a Web App](/docs/tutorials/images/04-building-web-app) - Use your image in a web service
 - [Provider Development](https://github.com/truffle-ai/dexto/blob/main/packages/core/src/providers/README.md) - Deep dive
 - [Examples](https://github.com/truffle-ai/dexto/tree/main/examples/image-examples) - More examples
 

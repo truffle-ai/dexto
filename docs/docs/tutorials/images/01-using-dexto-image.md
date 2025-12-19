@@ -1,5 +1,6 @@
 ---
 sidebar_position: 1
+slug: /tutorials/images/01-using-dexto-image
 ---
 
 # Dexto Images
@@ -107,9 +108,9 @@ The image provides storage (SQLite, filesystem), built-in tools, and plugin infr
 
 Now that you know how to use images, learn how to customize them:
 
-- [Adding Custom Tools](/docs/tutorials/images/adding-custom-tools) - Add your own functionality
-- [Building Your Own Image](/docs/tutorials/images/building-your-image) - Create organizational standards
-- [Building a Web App](/docs/tutorials/images/building-web-app) - Turn your agent into a web service
+- [Adding Custom Tools](/docs/tutorials/images/02-adding-custom-tools) - Add your own functionality
+- [Building Your Own Image](/docs/tutorials/images/03-building-your-image) - Create organizational standards
+- [Building a Web App](/docs/tutorials/images/04-building-web-app) - Turn your agent into a web service
 
 ## Key Takeaways
 

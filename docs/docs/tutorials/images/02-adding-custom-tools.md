@@ -1,5 +1,6 @@
 ---
 sidebar_position: 2
+slug: /tutorials/images/02-adding-custom-tools
 ---
 
 # Adding Custom Tools
@@ -15,7 +16,7 @@ A weather agent that combines:
 
 ## Prerequisites
 
-- Completed the [Using an Official Image](/docs/tutorials/images/using-official-image) tutorial
+- Completed the [Using Dexto Images](./01-using-dexto-image) tutorial
 - An OpenAI or Anthropic API key
 
 ## Step 1: Set Up Your Project
@@ -184,8 +185,8 @@ The agent now uses both the custom weather tool and the text-utils tool from the
 
 ## Next Steps
 
-- [Building Your Own Image](/docs/tutorials/images/building-your-image) - Create distributable images
-- [Building a Web App](/docs/tutorials/images/building-web-app) - Turn your agent into a web service
+- [Building Your Own Image](/docs/tutorials/images/03-building-your-image) - Create distributable images
+- [Building a Web App](/docs/tutorials/images/04-building-web-app) - Turn your agent into a web service
 
 ## Key Takeaways
 

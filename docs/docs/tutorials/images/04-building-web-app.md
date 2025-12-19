@@ -1,5 +1,6 @@
 ---
 sidebar_position: 4
+slug: /tutorials/images/04-building-web-app
 ---
 
 # Building a Web App
@@ -441,9 +442,7 @@ The harness provides this complete API automatically. You can explore all endpoi
 
 ## Next Steps
 
-- [Deployment Guide](/docs/guides/deployment) - Detailed deployment instructions
-- [API Reference](/docs/api/overview) - Complete API documentation
-- [Security Best Practices](/docs/guides/security) - Secure your application
+Explore the API at `http://localhost:3000/openapi.json` to see all available endpoints and their schemas.
 
 ## Key Takeaways
 

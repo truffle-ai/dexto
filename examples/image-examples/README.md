@@ -1,47 +1,20 @@
 # Dexto Image Examples
 
-**Image** = A pre-configured, distributable backend for Dexto agents (storage, database, cache, tools)
+**Image** = A pre-configured, distributable package for Dexto agents (storage, database, cache, tools)
 
 Think of it like choosing a Linux distribution: Ubuntu for desktops, Alpine for containers, your own for your organization.
 
 ## Structure
 
 ```
-harness-examples/
-├── 00-building-image/          # Building an image from scratch
-├── 01-using-official-image/    # Pattern 1: Use an image
-├── 02-runtime-customization/   # Pattern 2: Runtime customization
-└── 03-extending-image/         # Pattern 3: Extend into new image
+image-examples/
+├── 01-using-official-image/    # Pattern 1: Use @dexto/image-local
+├── 02-runtime-customization/   # Pattern 2: Add custom tools at runtime
+├── 03-extending-image/         # Pattern 3: Create a new distributable image
+└── 04-simple-server/           # Pattern 4: Web server with image
 ```
-
-**Example 0** is the foundation - a convention-based image implementation that the other examples build upon.
 
 ## The Four Patterns
-
-### Pattern 0: Build an Image from Scratch → [Example 0](./00-building-image/)
-
-**Create a base image using convention-based folders**
-
-```typescript
-// dexto.image.ts
-export default defineImage({
-  name: 'image-local',
-  // Providers auto-discovered from:
-  //   tools/*/index.ts
-  //   blob-store/*/index.ts
-  //   etc.
-});
-```
-
-```bash
-dexto-bundle build  # Creates dist/index.js
-```
-
-**When:** Building organizational standards, custom distributions
-
-**Value:** Convention over configuration, auto-discovery, distributable
-
-**Dependencies:** `@dexto/core` (dev only), `@dexto/bundler` (dev only)
 
 ---
 

@@ -98,8 +98,9 @@ The CLI loads images dynamically with this priority:
 1. `--image` CLI flag
 2. `image` field in agent config
 3. `DEXTO_IMAGE` environment variable
+4. `@dexto/image-local` (default for convenience)
 
-**Note:** Images are completely optional. If no image is specified through any of these methods, the agent will run using `@dexto/core` directly with whatever providers you've registered manually (or none at all).
+**Note:** Images are architecturally optional - agents can run with zero providers using `@dexto/core` directly. However, for convenience, the CLI defaults to `@dexto/image-local` unless you explicitly override it.
 
 **When to use:**
 - Building infrastructure or tooling
@@ -152,13 +153,13 @@ You can use images in three ways:
 2. **Extend at runtime** - Add custom tools to an official harness
 3. **Build your own image** - Package a custom harness for your organization
 
-See our [tutorials](/docs/tutorials/images/using-official-image) for detailed walkthroughs of each approach.
+See our [tutorials](../tutorials/images/01-using-dexto-image) for detailed walkthroughs of each approach.
 
 ## Next Steps
 
 Ready to build with images? Check out our tutorials:
 
-- [Using an Official Image](/docs/tutorials/images/using-official-image)
-- [Adding Custom Tools](/docs/tutorials/images/adding-custom-tools)
-- [Building Your Own Image](/docs/tutorials/images/building-your-image)
-- [Building a Web App](/docs/tutorials/images/building-web-app)
+- [Using Dexto Images](../tutorials/images/01-using-dexto-image)
+- [Adding Custom Tools](../tutorials/images/02-adding-custom-tools)
+- [Building Your Own Image](../tutorials/images/03-building-your-image)
+- [Building a Web App](../tutorials/images/04-building-web-app)

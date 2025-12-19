@@ -157,6 +157,8 @@ customTools:
 
 **Important:** The config is pure data. It can't load images or execute code. Your application handles that.
 
+**Validation:** If your config declares custom tools (like `filesystem-tools`), the providers MUST be registered before the agent starts. The agent will fail immediately with a clear error if required providers are missing. This fail-fast behavior prevents silent degradation where agents load without their required capabilities.
+
 :::tip Config Reusability
 A single config file can be loaded and then enriched with runtime data (like `userId`, `authContext`) to create multiple agent instances. For example, in a multi-tenant app, you might load one base config and then add tenant-specific data before creating each agent:
 
@@ -219,11 +221,14 @@ import { DextoAgent, loadAgentConfig } from '@dexto/core';
 
 const config = await loadAgentConfig('./agent.yml');
 
-// Load image based on flag/config/env
-const imageName = cliFlag || config.image || process.env.DEXTO_IMAGE;
-if (imageName) {
-  await import(imageName);
-}
+// Load image with priority: CLI flag > config > env > default
+const imageName =
+  cliFlag ||
+  config.image ||
+  process.env.DEXTO_IMAGE ||
+  '@dexto/image-local'; // Default for convenience
+
+await import(imageName);
 
 const agent = new DextoAgent(config, './agent.yml');
 ```
@@ -364,8 +369,6 @@ When you need to distribute a standard setup:
 - Multiple apps in your organization
 - Open source distribution
 - Reusable configurations
-
-See our [Image Examples](../../examples/image-examples) for details.
 
 ## Next Steps
 
