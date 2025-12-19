@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi, type MockInstance } from 'vitest';
 import * as path from 'node:path';
 import { ToolManager } from './tool-manager.js';
 import { MCPManager } from '../mcp/manager.js';
@@ -662,8 +662,8 @@ describe('ToolManager Integration Tests', () => {
         let mockMcpManager: MCPManager;
         let mockAllowedToolsProvider: IAllowedToolsProvider;
         let mockAgentEventBus: AgentEventBus;
-        let requestDirectoryAccessSpy: ReturnType<typeof vi.spyOn>;
-        let requestToolConfirmationSpy: ReturnType<typeof vi.spyOn>;
+        let requestDirectoryAccessSpy: MockInstance;
+        let requestToolConfirmationSpy: MockInstance;
 
         // Mock internal tools provider
         let mockInternalToolsProvider: any;
