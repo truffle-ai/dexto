@@ -896,7 +896,34 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
     // - Models: https://cloud.google.com/vertex-ai/generative-ai/docs/models
     vertex: {
         models: [
-            // Gemini models on Vertex AI
+            // Gemini 3 models on Vertex AI (Preview)
+            {
+                name: 'gemini-3-flash-preview',
+                displayName: 'Gemini 3 Flash (Vertex)',
+                maxInputTokens: 1048576,
+                supportedFileTypes: ['pdf', 'image', 'audio'],
+                pricing: {
+                    inputPerM: 0.5,
+                    outputPerM: 3.0,
+                    cacheReadPerM: 0.05,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
+                name: 'gemini-3-pro-preview',
+                displayName: 'Gemini 3 Pro (Vertex)',
+                maxInputTokens: 1048576,
+                supportedFileTypes: ['pdf', 'image', 'audio'],
+                pricing: {
+                    inputPerM: 2.0,
+                    outputPerM: 12.0,
+                    cacheReadPerM: 0.2,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            // Gemini 2.x models on Vertex AI
             {
                 name: 'gemini-2.5-pro',
                 displayName: 'Gemini 2.5 Pro (Vertex)',
@@ -937,8 +964,22 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                     unit: 'per_million_tokens',
                 },
             },
-            // Claude models on Vertex AI (via Anthropic partnership)
+            // Claude 4.5 models on Vertex AI (via Anthropic partnership)
             // Note: Claude model IDs use @ suffix format on Vertex
+            {
+                name: 'claude-opus-4-5@20251101',
+                displayName: 'Claude 4.5 Opus (Vertex)',
+                maxInputTokens: 200000,
+                supportedFileTypes: ['pdf', 'image'],
+                pricing: {
+                    inputPerM: 5.0,
+                    outputPerM: 25.0,
+                    cacheWritePerM: 6.25,
+                    cacheReadPerM: 0.5,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
             {
                 name: 'claude-sonnet-4-5@20250929',
                 displayName: 'Claude 4.5 Sonnet (Vertex)',
@@ -953,6 +994,64 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                     unit: 'per_million_tokens',
                 },
             },
+            {
+                name: 'claude-haiku-4-5@20251001',
+                displayName: 'Claude 4.5 Haiku (Vertex)',
+                maxInputTokens: 200000,
+                supportedFileTypes: ['pdf', 'image'],
+                pricing: {
+                    inputPerM: 1.0,
+                    outputPerM: 5.0,
+                    cacheWritePerM: 1.25,
+                    cacheReadPerM: 0.1,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            // Claude 4.1 and 4.0 models on Vertex AI
+            {
+                name: 'claude-opus-4-1@20250805',
+                displayName: 'Claude 4.1 Opus (Vertex)',
+                maxInputTokens: 200000,
+                supportedFileTypes: ['pdf', 'image'],
+                pricing: {
+                    inputPerM: 15.0,
+                    outputPerM: 75.0,
+                    cacheWritePerM: 18.75,
+                    cacheReadPerM: 1.5,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
+                name: 'claude-opus-4@20250514',
+                displayName: 'Claude 4 Opus (Vertex)',
+                maxInputTokens: 200000,
+                supportedFileTypes: ['pdf', 'image'],
+                pricing: {
+                    inputPerM: 15.0,
+                    outputPerM: 75.0,
+                    cacheWritePerM: 18.75,
+                    cacheReadPerM: 1.5,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
+                name: 'claude-sonnet-4@20250514',
+                displayName: 'Claude 4 Sonnet (Vertex)',
+                maxInputTokens: 200000,
+                supportedFileTypes: ['pdf', 'image'],
+                pricing: {
+                    inputPerM: 3.0,
+                    outputPerM: 15.0,
+                    cacheWritePerM: 3.75,
+                    cacheReadPerM: 0.3,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            // Claude 3.x models on Vertex AI
             {
                 name: 'claude-3-7-sonnet@20250219',
                 displayName: 'Claude 3.7 Sonnet (Vertex)',
