@@ -162,6 +162,7 @@ export const TestConfigs = {
             litellm: 'gpt-4', // LiteLLM model names follow the provider's convention
             glama: 'openai/gpt-4o', // Glama model format: provider/model
             vertex: 'gemini-2.5-pro', // Vertex AI uses ADC auth, not API keys
+            bedrock: 'anthropic.claude-3-5-haiku-20241022-v1:0', // Bedrock uses AWS credentials, not API keys
         };
 
         return {

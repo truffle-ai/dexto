@@ -8,6 +8,7 @@ import { createGroq } from '@ai-sdk/groq';
 import { createXai } from '@ai-sdk/xai';
 import { createVertex } from '@ai-sdk/google-vertex';
 import { createVertexAnthropic } from '@ai-sdk/google-vertex/anthropic';
+import { createAmazonBedrock } from '@ai-sdk/amazon-bedrock';
 import { VercelLLMService } from './vercel.js';
 import { LanguageModel } from 'ai';
 import { SessionEventBus } from '../../events/index.js';
@@ -86,6 +87,31 @@ function _createVercelModel(llmConfig: ValidatedLLMConfig): LanguageModel {
                 project: projectId,
                 location: location || 'us-central1',
             })(model);
+        }
+        case 'bedrock': {
+            // Amazon Bedrock - AWS-hosted gateway for Claude, Nova, Llama, Mistral
+            // Auth via AWS credentials (env vars or credential provider)
+            //
+            // TODO: Add credentialProvider support for:
+            // - ~/.aws/credentials file profiles (fromIni)
+            // - AWS SSO sessions (fromSSO)
+            // - IAM roles on EC2/Lambda (fromNodeProviderChain)
+            // This would require adding @aws-sdk/credential-providers dependency
+            // and exposing a config option like llmConfig.bedrock?.credentialProvider
+            //
+            // Current implementation: SDK reads directly from env vars:
+            // - AWS_REGION (required)
+            // - AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY (required)
+            // - AWS_SESSION_TOKEN (optional, for temporary credentials)
+            const region = process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION;
+            if (!region) {
+                throw LLMError.missingConfig(
+                    'bedrock',
+                    'AWS_REGION or AWS_DEFAULT_REGION environment variable'
+                );
+            }
+            // SDK automatically reads AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_SESSION_TOKEN
+            return createAmazonBedrock({ region })(model);
         }
         // TODO: Add 'dexto' case (similar to openrouter, uses https://api.dexto.ai/v1)
         case 'anthropic':

@@ -60,11 +60,11 @@ llm:
 
 - **provider** - LLM provider name
   - Built-in: `openai`, `anthropic`, `google`, `xai`, `groq`, `cohere`
-  - Cloud platforms: `vertex` (Google Cloud)
+  - Cloud platforms: `vertex` (Google Cloud), `bedrock` (AWS)
   - Gateways: `openrouter`, `litellm`, `glama`
   - Custom: `openai-compatible`
 - **model** - Model identifier for the provider
-- **apiKey** - API key or environment variable (not required for `vertex`)
+- **apiKey** - API key or environment variable (not required for `vertex` or `bedrock`)
 
 ### Optional Fields
 
@@ -143,6 +143,22 @@ Vertex uses Application Default Credentials (ADC), not API keys. Set these envir
 - `GOOGLE_VERTEX_PROJECT` - Your GCP project ID (required)
 - `GOOGLE_VERTEX_LOCATION` - Region (optional, defaults to us-central1)
 - `GOOGLE_APPLICATION_CREDENTIALS` - Path to service account JSON (for production)
+
+### Amazon Bedrock
+
+Access Claude, Nova, Llama, and Mistral models through AWS:
+
+```yaml
+llm:
+  provider: bedrock
+  model: anthropic.claude-sonnet-4-5-20250929-v1:0
+```
+
+Bedrock uses AWS credentials, not API keys. Set these environment variables:
+- `AWS_REGION` - AWS region (required, e.g., us-east-1)
+- `AWS_ACCESS_KEY_ID` - Your AWS access key (required)
+- `AWS_SECRET_ACCESS_KEY` - Your AWS secret key (required)
+- `AWS_SESSION_TOKEN` - Session token (optional, for temporary credentials)
 
 ### Token Control
 

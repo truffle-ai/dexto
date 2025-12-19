@@ -215,7 +215,7 @@ llm:
 
 **Supported providers:**
 - **Built-in:** `openai`, `anthropic`, `google`, `groq`, `xai`, `cohere`
-- **Cloud platforms:** `vertex` (Google Cloud Vertex AI)
+- **Cloud platforms:** `vertex` (Google Cloud), `bedrock` (AWS)
 - **Gateways:** `openrouter`, `litellm`, `glama`
 - **Custom:** `openai-compatible`
 

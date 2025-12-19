@@ -148,6 +148,25 @@ export async function resolveLLMConfig(
         }
     }
 
+    // Amazon Bedrock validation - requires AWS_REGION for credential resolution
+    // The SDK also needs AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY, but those errors
+    // are clearer when thrown by the SDK itself
+    if (provider === 'bedrock') {
+        const region = process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION;
+        if (!region || !region.trim()) {
+            warnings.push({
+                code: LLMErrorCode.CONFIG_MISSING,
+                message:
+                    'AWS_REGION environment variable is required for Amazon Bedrock. ' +
+                    'Also ensure AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are set.',
+                severity: 'error',
+                scope: ErrorScope.LLM,
+                type: ErrorType.USER,
+                context: { provider, model },
+            });
+        }
+    }
+
     // OpenRouter model validation with cache refresh
     if (provider === 'openrouter') {
         let lookupStatus = lookupOpenRouterModel(model);

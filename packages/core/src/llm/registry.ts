@@ -1098,6 +1098,225 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
         baseURLSupport: 'none', // Auto-constructed from projectId and region
         supportedFileTypes: ['pdf', 'image', 'audio'],
     },
+    // Amazon Bedrock - AWS-hosted gateway for Claude, Nova, Llama, Mistral, and more
+    // Auth: AWS credentials (env vars AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION)
+    //
+    // Setup instructions:
+    // 1. Create an AWS account and enable Bedrock in your region
+    // 2. Request model access in AWS Console → Bedrock → Model access
+    // 3. Create IAM credentials with bedrock:InvokeModel permission
+    // 4. Set env vars: AWS_REGION, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
+    //
+    // Cross-region inference: Models with 'us.' prefix support cross-region routing
+    // Model IDs: https://docs.aws.amazon.com/bedrock/latest/userguide/model-ids.html
+    //
+    // TODO: Add dynamic model fetching via bedrock:ListFoundationModels API
+    bedrock: {
+        models: [
+            // Claude 4.5 models (latest)
+            {
+                name: 'anthropic.claude-sonnet-4-5-20250929-v1:0',
+                displayName: 'Claude 4.5 Sonnet (Bedrock)',
+                maxInputTokens: 200000,
+                default: true,
+                supportedFileTypes: ['pdf', 'image'],
+                pricing: {
+                    inputPerM: 3.0,
+                    outputPerM: 15.0,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
+                name: 'anthropic.claude-haiku-4-5-20251001-v1:0',
+                displayName: 'Claude 4.5 Haiku (Bedrock)',
+                maxInputTokens: 200000,
+                supportedFileTypes: ['pdf', 'image'],
+                pricing: {
+                    inputPerM: 1.0,
+                    outputPerM: 5.0,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            // Claude 4.x models
+            {
+                name: 'anthropic.claude-opus-4-1-20250805-v1:0',
+                displayName: 'Claude 4.1 Opus (Bedrock)',
+                maxInputTokens: 200000,
+                supportedFileTypes: ['pdf', 'image'],
+                pricing: {
+                    inputPerM: 15.0,
+                    outputPerM: 75.0,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
+                name: 'anthropic.claude-opus-4-20250514-v1:0',
+                displayName: 'Claude 4 Opus (Bedrock)',
+                maxInputTokens: 200000,
+                supportedFileTypes: ['pdf', 'image'],
+                pricing: {
+                    inputPerM: 15.0,
+                    outputPerM: 75.0,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
+                name: 'anthropic.claude-sonnet-4-20250514-v1:0',
+                displayName: 'Claude 4 Sonnet (Bedrock)',
+                maxInputTokens: 200000,
+                supportedFileTypes: ['pdf', 'image'],
+                pricing: {
+                    inputPerM: 3.0,
+                    outputPerM: 15.0,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            // Claude 3.x models
+            {
+                name: 'anthropic.claude-3-7-sonnet-20250219-v1:0',
+                displayName: 'Claude 3.7 Sonnet (Bedrock)',
+                maxInputTokens: 200000,
+                supportedFileTypes: ['pdf', 'image'],
+                pricing: {
+                    inputPerM: 3.0,
+                    outputPerM: 15.0,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
+                name: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
+                displayName: 'Claude 3.5 Sonnet v2 (Bedrock)',
+                maxInputTokens: 200000,
+                supportedFileTypes: ['pdf', 'image'],
+                pricing: {
+                    inputPerM: 3.0,
+                    outputPerM: 15.0,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
+                name: 'anthropic.claude-3-5-haiku-20241022-v1:0',
+                displayName: 'Claude 3.5 Haiku (Bedrock)',
+                maxInputTokens: 200000,
+                supportedFileTypes: ['pdf', 'image'],
+                pricing: {
+                    inputPerM: 0.8,
+                    outputPerM: 4.0,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            // Amazon Nova models (cross-region)
+            {
+                name: 'us.amazon.nova-pro-v1:0',
+                displayName: 'Amazon Nova Pro',
+                maxInputTokens: 300000,
+                supportedFileTypes: ['pdf', 'image'],
+                pricing: {
+                    inputPerM: 0.8,
+                    outputPerM: 3.2,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
+                name: 'us.amazon.nova-lite-v1:0',
+                displayName: 'Amazon Nova Lite',
+                maxInputTokens: 300000,
+                supportedFileTypes: ['pdf', 'image'],
+                pricing: {
+                    inputPerM: 0.06,
+                    outputPerM: 0.24,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
+                name: 'us.amazon.nova-micro-v1:0',
+                displayName: 'Amazon Nova Micro',
+                maxInputTokens: 128000,
+                supportedFileTypes: [],
+                pricing: {
+                    inputPerM: 0.035,
+                    outputPerM: 0.14,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            // Meta Llama models (cross-region)
+            {
+                name: 'us.meta.llama3-3-70b-instruct-v1:0',
+                displayName: 'Llama 3.3 70B (Bedrock)',
+                maxInputTokens: 128000,
+                supportedFileTypes: [],
+                pricing: {
+                    inputPerM: 0.72,
+                    outputPerM: 0.72,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
+                name: 'us.meta.llama4-maverick-17b-instruct-v1:0',
+                displayName: 'Llama 4 Maverick 17B (Bedrock)',
+                maxInputTokens: 128000,
+                supportedFileTypes: ['image'],
+                pricing: {
+                    inputPerM: 0.19,
+                    outputPerM: 0.85,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
+                name: 'us.meta.llama4-scout-17b-instruct-v1:0',
+                displayName: 'Llama 4 Scout 17B (Bedrock)',
+                maxInputTokens: 128000,
+                supportedFileTypes: ['image'],
+                pricing: {
+                    inputPerM: 0.17,
+                    outputPerM: 0.42,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            // DeepSeek R1 (cross-region) - reasoning model
+            {
+                name: 'us.deepseek.r1-v1:0',
+                displayName: 'DeepSeek R1 (Bedrock)',
+                maxInputTokens: 128000,
+                supportedFileTypes: [],
+                pricing: {
+                    inputPerM: 1.35,
+                    outputPerM: 5.4,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            // Mistral models
+            {
+                name: 'mistral.mistral-large-2402-v1:0',
+                displayName: 'Mistral Large (Bedrock)',
+                maxInputTokens: 32000,
+                supportedFileTypes: [],
+                pricing: {
+                    inputPerM: 4.0,
+                    outputPerM: 12.0,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+        ],
+        baseURLSupport: 'none', // Auto-constructed from region
+        supportedFileTypes: ['pdf', 'image'],
+    },
     // TODO: Add 'dexto' provider (similar to openrouter, uses https://api.dexto.ai/v1)
 };
 

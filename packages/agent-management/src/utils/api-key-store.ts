@@ -49,6 +49,23 @@ export function getProviderKeyStatus(provider: LLMProvider): {
         };
     }
 
+    // Amazon Bedrock uses AWS credentials, not API keys.
+    // Setup instructions:
+    // 1. Create an AWS account and enable Bedrock in your region
+    // 2. Request model access in AWS Console → Bedrock → Model access
+    // 3. Create IAM credentials with bedrock:InvokeModel permission
+    // 4. Set env vars: AWS_REGION, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
+    //
+    // TODO: Improve Bedrock setup flow - add dedicated setup modal with these instructions
+    // For now, we check AWS_REGION as the "key" equivalent (credentials checked at runtime)
+    if (provider === 'bedrock') {
+        const region = process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION;
+        return {
+            hasApiKey: Boolean(region && region.trim()),
+            envVar: 'AWS_REGION',
+        };
+    }
+
     const envVar = getPrimaryApiKeyEnvVar(provider);
     const key = resolveApiKeyForProvider(provider);
     return { hasApiKey: Boolean(key && key.trim()), envVar };

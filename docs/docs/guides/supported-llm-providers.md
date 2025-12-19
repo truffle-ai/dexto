@@ -137,6 +137,53 @@ llm:
 
 ## Cloud Platform Providers
 
+### Amazon Bedrock
+
+Access Claude, Nova, Llama, Mistral, and more through AWS:
+
+```yaml
+llm:
+  provider: bedrock
+  model: anthropic.claude-sonnet-4-5-20250929-v1:0
+```
+
+**Claude models:**
+- `anthropic.claude-sonnet-4-5-20250929-v1:0` (default), `anthropic.claude-haiku-4-5-20251001-v1:0`
+- `anthropic.claude-opus-4-1-20250805-v1:0`, `anthropic.claude-opus-4-20250514-v1:0`
+- `anthropic.claude-3-7-sonnet-20250219-v1:0`, `anthropic.claude-3-5-sonnet-20241022-v2:0`
+
+**Amazon Nova models:**
+- `us.amazon.nova-pro-v1:0`, `us.amazon.nova-lite-v1:0`, `us.amazon.nova-micro-v1:0`
+
+**Other models:**
+- `us.meta.llama3-3-70b-instruct-v1:0`, `us.meta.llama4-maverick-17b-instruct-v1:0`
+- `us.deepseek.r1-v1:0`, `mistral.mistral-large-2402-v1:0`
+
+**Features:** Enterprise security, AWS billing, access to Claude/Nova/Llama/Mistral
+
+**Authentication:** Uses AWS credentials, not API keys.
+
+<details>
+<summary>Setup Instructions</summary>
+
+1. Create an AWS account and enable Bedrock in your region
+2. Request model access in [AWS Console → Bedrock → Model access](https://console.aws.amazon.com/bedrock/home#/modelaccess)
+3. Create IAM credentials with `bedrock:InvokeModel` permission
+4. Set environment variables:
+   ```bash
+   export AWS_REGION="us-east-1"
+   export AWS_ACCESS_KEY_ID="your-access-key"
+   export AWS_SECRET_ACCESS_KEY="your-secret-key"
+   # Optional: for temporary credentials
+   export AWS_SESSION_TOKEN="your-session-token"
+   ```
+
+**Cross-region inference:** Models with `us.` prefix support cross-region routing.
+
+</details>
+
+---
+
 ### Google Cloud Vertex AI
 
 Access Google's Gemini and Anthropic's Claude models through Google Cloud Platform:
@@ -374,6 +421,12 @@ COHERE_API_KEY=your_cohere_key
 GOOGLE_VERTEX_PROJECT=your_gcp_project_id
 GOOGLE_VERTEX_LOCATION=us-central1  # Optional
 GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json  # For service account auth
+
+# Amazon Bedrock (uses AWS credentials, not API keys)
+AWS_REGION=us-east-1
+AWS_ACCESS_KEY_ID=your_aws_access_key
+AWS_SECRET_ACCESS_KEY=your_aws_secret_key
+AWS_SESSION_TOKEN=your_session_token  # Optional, for temporary credentials
 
 # Gateway providers
 OPENROUTER_API_KEY=your_openrouter_key

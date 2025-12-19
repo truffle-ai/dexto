@@ -21,6 +21,10 @@ export const PROVIDER_API_KEY_MAP: Record<LLMProvider, string[]> = {
     // GOOGLE_APPLICATION_CREDENTIALS points to service account JSON (optional)
     // Primary config is GOOGLE_VERTEX_PROJECT (required) + GOOGLE_VERTEX_LOCATION (optional)
     vertex: [],
+    // Bedrock uses AWS credentials, not API keys
+    // AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY + AWS_REGION (required)
+    // AWS_SESSION_TOKEN (optional, for temporary credentials)
+    bedrock: [],
     // TODO: dexto: ['DEXTO_API_KEY'],
     // perplexity: ['PERPLEXITY_API_KEY'],
     // together: ['TOGETHER_API_KEY'],

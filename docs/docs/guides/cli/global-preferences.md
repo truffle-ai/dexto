@@ -51,14 +51,14 @@ llm:
 
 **Supported providers:**
 - **Built-in:** `openai`, `anthropic`, `google`, `groq`, `xai`, `cohere`
-- **Cloud platforms:** `vertex` (Google Cloud Vertex AI)
+- **Cloud platforms:** `vertex` (Google Cloud), `bedrock` (AWS)
 - **Gateways:** `openrouter`, `litellm`, `glama`
 - **Custom:** `openai-compatible`
 
 **Required fields:**
 - **provider** - LLM provider name
 - **model** - Model identifier for the provider
-- **apiKey** - Environment variable reference (`$VAR_NAME`) - not required for `vertex`
+- **apiKey** - Environment variable reference (`$VAR_NAME`) - not required for `vertex` or `bedrock`
 
 **API key format:**
 - Must start with `$`
@@ -193,6 +193,17 @@ llm:
   model: anthropic/claude-sonnet-4-5-20250929
   apiKey: $OPENROUTER_API_KEY
 ```
+
+### Amazon Bedrock
+
+```yaml
+llm:
+  provider: bedrock
+  model: anthropic.claude-sonnet-4-5-20250929-v1:0
+  # No apiKey needed - uses AWS credentials
+```
+
+Requires `AWS_REGION`, `AWS_ACCESS_KEY_ID`, and `AWS_SECRET_ACCESS_KEY` environment variables.
 
 ## Best Practices
 
