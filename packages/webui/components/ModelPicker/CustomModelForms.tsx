@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
-import { Loader2, Plus, X, ChevronDown } from 'lucide-react';
+import { Loader2, Plus, X, ChevronDown, Eye, EyeOff } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { validateBaseURL } from './types';
 import { useValidateOpenRouterModel } from '../hooks/useOpenRouter';
+import { useProviderApiKey, type LLMProvider } from '../hooks/useLLM';
 
 export type CustomModelProvider = 'openai-compatible' | 'openrouter' | 'litellm' | 'glama';
 
@@ -15,6 +16,7 @@ export interface CustomModelFormData {
     displayName: string;
     maxInputTokens: string;
     maxOutputTokens: string;
+    apiKey: string;
 }
 
 interface CustomModelFormProps {
@@ -63,6 +65,7 @@ export function CustomModelForm({
     const { mutateAsync: validateOpenRouterModel } = useValidateOpenRouterModel();
     const validationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [dropdownOpen, setDropdownOpen] = useState(false);
+    const [showApiKey, setShowApiKey] = useState(false);
 
     const [localError, setLocalError] = useState<string | null>(null);
     const [validation, setValidation] = useState<{
@@ -70,10 +73,21 @@ export function CustomModelForm({
         error?: string;
     }>({ status: 'idle' });
 
+    // Fetch provider API key for pre-population
+    const { data: providerKeyData } = useProviderApiKey(formData.provider as LLMProvider);
+
+    // Pre-populate API key when provider key data is fetched (only if form apiKey is empty)
+    useEffect(() => {
+        if (providerKeyData?.apiKey && !formData.apiKey) {
+            onChange({ apiKey: providerKeyData.apiKey });
+        }
+    }, [providerKeyData?.apiKey, formData.apiKey, onChange]);
+
     // Reset validation when provider changes
     useEffect(() => {
         setValidation({ status: 'idle' });
         setLocalError(null);
+        setShowApiKey(false);
     }, [formData.provider]);
 
     // Debounced validation for OpenRouter
@@ -242,6 +256,7 @@ export function CustomModelForm({
                                                 name: '',
                                                 baseURL: '',
                                                 displayName: '',
+                                                apiKey: '',
                                             });
                                             setDropdownOpen(false);
                                         }}
@@ -385,6 +400,44 @@ export function CustomModelForm({
                         placeholder="Friendly name for the model"
                         className="h-9 text-sm"
                     />
+                </div>
+
+                {/* API Key - optional, with eye toggle */}
+                <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-muted-foreground">
+                        API Key <span className="text-muted-foreground/60">(optional)</span>
+                    </label>
+                    <div className="relative">
+                        <Input
+                            value={formData.apiKey}
+                            onChange={(e) => onChange({ apiKey: e.target.value })}
+                            placeholder={
+                                providerKeyData?.hasKey
+                                    ? 'Using provider key (enter to override)'
+                                    : 'Enter API key for this endpoint'
+                            }
+                            type={showApiKey ? 'text' : 'password'}
+                            className="h-9 text-sm pr-10"
+                        />
+                        <button
+                            type="button"
+                            onClick={() => setShowApiKey(!showApiKey)}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-muted transition-colors"
+                        >
+                            {showApiKey ? (
+                                <EyeOff className="h-4 w-4 text-muted-foreground" />
+                            ) : (
+                                <Eye className="h-4 w-4 text-muted-foreground" />
+                            )}
+                        </button>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">
+                        {formData.provider === 'openai-compatible'
+                            ? 'Required if your endpoint needs authentication'
+                            : providerKeyData?.hasKey
+                              ? `Overrides ${providerKeyData.envVar} for this model`
+                              : `Saved as ${providerKeyData?.envVar || 'provider env var'} for reuse`}
+                    </p>
                 </div>
 
                 {/* Token limits - for OpenAI-compatible and LiteLLM */}

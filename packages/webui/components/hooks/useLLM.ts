@@ -35,6 +35,24 @@ export function useSwitchLLM() {
     });
 }
 
+export function useProviderApiKey(provider: LLMProvider | null, options?: { enabled?: boolean }) {
+    return useQuery({
+        queryKey: [...queryKeys.llm.catalog, 'key', provider],
+        queryFn: async () => {
+            if (!provider) return null;
+            const response = await client.api.llm.key[':provider'].$get({
+                param: { provider },
+            });
+            if (!response.ok) {
+                throw new Error(`Failed to fetch API key: ${response.status}`);
+            }
+            return await response.json();
+        },
+        enabled: (options?.enabled ?? true) && !!provider,
+        staleTime: 30 * 1000, // 30 seconds
+    });
+}
+
 export function useSaveApiKey() {
     const queryClient = useQueryClient();
 
@@ -46,8 +64,12 @@ export function useSaveApiKey() {
             }
             return await response.json();
         },
-        onSuccess: () => {
+        onSuccess: (_data, variables) => {
             queryClient.invalidateQueries({ queryKey: queryKeys.llm.catalog });
+            // Also invalidate the specific provider key query
+            queryClient.invalidateQueries({
+                queryKey: [...queryKeys.llm.catalog, 'key', variables.provider],
+            });
         },
     });
 }

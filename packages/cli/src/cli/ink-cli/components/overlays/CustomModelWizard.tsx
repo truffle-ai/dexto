@@ -11,8 +11,16 @@ import {
     CUSTOM_MODEL_PROVIDERS,
     type CustomModel,
     type CustomModelProvider,
+    saveProviderApiKey,
+    getProviderKeyStatus,
+    resolveApiKeyForProvider,
 } from '@dexto/agent-management';
-import { logger, lookupOpenRouterModel, refreshOpenRouterModelCache } from '@dexto/core';
+import {
+    logger,
+    lookupOpenRouterModel,
+    refreshOpenRouterModelCache,
+    type LLMProvider,
+} from '@dexto/core';
 
 interface WizardStep {
     field: string;
@@ -21,6 +29,14 @@ interface WizardStep {
     required: boolean;
     validate?: (value: string) => string | null;
 }
+
+/** Common API key step - added to all providers */
+const API_KEY_STEP: WizardStep = {
+    field: 'apiKey',
+    label: 'API Key (optional)',
+    placeholder: 'Enter API key for authentication',
+    required: false,
+};
 
 /** Steps for openai-compatible provider */
 const OPENAI_COMPATIBLE_STEPS: WizardStep[] = [
@@ -67,6 +83,7 @@ const OPENAI_COMPATIBLE_STEPS: WizardStep[] = [
             return null;
         },
     },
+    API_KEY_STEP,
 ];
 
 /** Steps for openrouter provider (simpler - no baseURL or maxInputTokens needed) */
@@ -92,6 +109,7 @@ const OPENROUTER_STEPS: WizardStep[] = [
         placeholder: 'e.g., Claude 3.5 Sonnet',
         required: false,
     },
+    { ...API_KEY_STEP, placeholder: 'Saved as OPENROUTER_API_KEY if not set, otherwise per-model' },
 ];
 
 /** Steps for glama provider (fixed endpoint, similar to OpenRouter but no live validation) */
@@ -116,6 +134,7 @@ const GLAMA_STEPS: WizardStep[] = [
         placeholder: 'e.g., GPT-4o via Glama',
         required: false,
     },
+    { ...API_KEY_STEP, placeholder: 'Saved as GLAMA_API_KEY if not set, otherwise per-model' },
 ];
 
 /** Steps for litellm provider (requires baseURL for user's proxy) */
@@ -163,6 +182,7 @@ const LITELLM_STEPS: WizardStep[] = [
             return null;
         },
     },
+    { ...API_KEY_STEP, placeholder: 'Saved as LITELLM_API_KEY if not set, otherwise per-model' },
 ];
 
 /**
@@ -315,6 +335,60 @@ const CustomModelWizard = forwardRef<CustomModelWizardHandle, CustomModelWizardP
                 }
                 if (newValues.maxInputTokens?.trim()) {
                     model.maxInputTokens = parseInt(newValues.maxInputTokens, 10);
+                }
+
+                // Smart API key storage logic:
+                // For providers with shared env var keys (glama, openrouter, litellm):
+                // - If NO provider key exists AND user entered a key → save to provider env var
+                // - If provider key EXISTS AND user entered SAME key → don't save (will use fallback)
+                // - If provider key EXISTS AND user entered DIFFERENT key → save as per-model override
+                // For openai-compatible: always save as per-model (each endpoint needs its own key)
+                const hasSharedEnvVarKey =
+                    selectedProvider === 'glama' ||
+                    selectedProvider === 'openrouter' ||
+                    selectedProvider === 'litellm';
+                const userEnteredKey = newValues.apiKey?.trim();
+
+                let shouldSaveAsPerModel = false;
+
+                if (userEnteredKey) {
+                    if (hasSharedEnvVarKey) {
+                        const providerKeyStatus = getProviderKeyStatus(
+                            selectedProvider as LLMProvider
+                        );
+                        const existingProviderKey = resolveApiKeyForProvider(
+                            selectedProvider as LLMProvider
+                        );
+
+                        if (!providerKeyStatus.hasApiKey) {
+                            // No provider key exists - save to provider env var
+                            try {
+                                await saveProviderApiKey(
+                                    selectedProvider as LLMProvider,
+                                    userEnteredKey,
+                                    process.cwd()
+                                );
+                                // Don't save as per-model - it will use the provider fallback
+                            } catch (err) {
+                                logger.warn(
+                                    `Failed to save provider API key: ${err instanceof Error ? err.message : 'Unknown error'}`
+                                );
+                                // Fall back to per-model storage
+                                shouldSaveAsPerModel = true;
+                            }
+                        } else if (existingProviderKey && userEnteredKey !== existingProviderKey) {
+                            // Provider has key but user entered different one - save as per-model override
+                            shouldSaveAsPerModel = true;
+                        }
+                        // If user entered same key as provider, don't save anything (uses fallback)
+                    } else {
+                        // openai-compatible: always save as per-model
+                        shouldSaveAsPerModel = true;
+                    }
+                }
+
+                if (shouldSaveAsPerModel && userEnteredKey) {
+                    model.apiKey = userEnteredKey;
                 }
 
                 // Save to storage

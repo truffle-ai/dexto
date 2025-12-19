@@ -5,6 +5,8 @@ import {
     useCustomModels,
     useCreateCustomModel,
     useDeleteCustomModel,
+    useProviderApiKey,
+    useSaveApiKey,
     type SwitchLLMPayload,
     type CustomModel,
 } from '../hooks/useLLM';
@@ -61,6 +63,7 @@ export default function ModelPickerModal() {
         displayName: '',
         maxInputTokens: '',
         maxOutputTokens: '',
+        apiKey: '',
     });
 
     // API key modal
@@ -93,6 +96,12 @@ export default function ModelPickerModal() {
     const { mutate: createCustomModel, mutateAsync: createCustomModelAsync } =
         useCreateCustomModel();
     const { mutate: deleteCustomModelMutation } = useDeleteCustomModel();
+    const { mutateAsync: saveApiKey } = useSaveApiKey();
+
+    // Fetch provider API key status for the current form provider (for smart storage logic)
+    const { data: providerKeyData } = useProviderApiKey(customModelForm.provider as LLMProvider, {
+        enabled: open && showCustomForm,
+    });
     useEffect(() => {
         if (catalogData && 'providers' in catalogData) {
             setProviders(catalogData.providers);
@@ -202,7 +211,7 @@ export default function ModelPickerModal() {
     const switchLLMMutation = useSwitchLLM();
 
     const addCustomModel = useCallback(async () => {
-        const { provider, name, baseURL, maxInputTokens, maxOutputTokens, displayName } =
+        const { provider, name, baseURL, maxInputTokens, maxOutputTokens, displayName, apiKey } =
             customModelForm;
 
         if (!name.trim()) {
@@ -213,23 +222,62 @@ export default function ModelPickerModal() {
         setIsAddingModel(true);
 
         try {
-            // First, create the custom model
+            // Smart API key storage logic:
+            // For providers with shared env var keys (glama, openrouter, litellm):
+            // - If NO provider key exists AND user entered a key → save to provider env var
+            // - If provider key EXISTS AND user entered SAME key → don't save (will use fallback)
+            // - If provider key EXISTS AND user entered DIFFERENT key → save as per-model override
+            // For openai-compatible: always save as per-model (each endpoint needs its own key)
+            const hasSharedEnvVarKey =
+                provider === 'glama' || provider === 'openrouter' || provider === 'litellm';
+            const userEnteredKey = apiKey?.trim();
+            const providerHasKey = providerKeyData?.hasKey ?? false;
+            const existingProviderKey = providerKeyData?.apiKey;
+
+            let shouldSaveAsPerModel = false;
+
+            if (userEnteredKey) {
+                if (hasSharedEnvVarKey) {
+                    if (!providerHasKey) {
+                        // No provider key exists - save to provider env var
+                        await saveApiKey({
+                            provider: provider as LLMProvider,
+                            apiKey: userEnteredKey,
+                        });
+                        // Don't save as per-model - it will use the provider fallback
+                    } else if (existingProviderKey && userEnteredKey !== existingProviderKey) {
+                        // Provider has key but user entered different one - save as per-model override
+                        shouldSaveAsPerModel = true;
+                    }
+                    // If user entered same key as provider, don't save anything (uses fallback)
+                } else {
+                    // openai-compatible: always save as per-model
+                    shouldSaveAsPerModel = true;
+                }
+            }
+
+            // Create the custom model
             await createCustomModelAsync({
                 provider,
                 name: name.trim(),
                 ...(provider === 'openai-compatible' &&
                     baseURL.trim() && { baseURL: baseURL.trim() }),
+                ...(provider === 'litellm' && baseURL.trim() && { baseURL: baseURL.trim() }),
                 ...(displayName?.trim() && { displayName: displayName.trim() }),
                 ...(maxInputTokens && { maxInputTokens: parseInt(maxInputTokens, 10) }),
                 ...(maxOutputTokens && { maxOutputTokens: parseInt(maxOutputTokens, 10) }),
+                ...(shouldSaveAsPerModel && userEnteredKey && { apiKey: userEnteredKey }),
             });
 
             // Then switch to the newly created model
+            // Include apiKey if it was saved as per-model override
             const switchPayload: SwitchLLMPayload = {
                 provider: provider as LLMProvider,
                 model: name.trim(),
                 ...(provider === 'openai-compatible' &&
                     baseURL.trim() && { baseURL: baseURL.trim() }),
+                ...(provider === 'litellm' && baseURL.trim() && { baseURL: baseURL.trim() }),
+                ...(shouldSaveAsPerModel && userEnteredKey && { apiKey: userEnteredKey }),
                 ...(currentSessionId && { sessionId: currentSessionId }),
             };
 
@@ -256,6 +304,7 @@ export default function ModelPickerModal() {
                 displayName: '',
                 maxInputTokens: '',
                 maxOutputTokens: '',
+                apiKey: '',
             });
             setShowCustomForm(false);
             setError(null);
@@ -272,6 +321,8 @@ export default function ModelPickerModal() {
         currentSessionId,
         currentLLM,
         refreshCurrentLLM,
+        providerKeyData,
+        saveApiKey,
     ]);
 
     const deleteCustomModel = useCallback(
@@ -303,7 +354,8 @@ export default function ModelPickerModal() {
         providerId: LLMProvider,
         model: ModelInfo,
         customBaseURL?: string,
-        skipApiKeyCheck = false
+        skipApiKeyCheck = false,
+        customApiKey?: string
     ) {
         const provider = providers[providerId];
         const effectiveBaseURL = customBaseURL || baseURL;
@@ -317,7 +369,7 @@ export default function ModelPickerModal() {
             }
         }
 
-        if (!skipApiKeyCheck && provider && !provider.hasApiKey) {
+        if (!skipApiKeyCheck && provider && !provider.hasApiKey && !customApiKey) {
             setPendingSelection({ provider: providerId, model });
             setPendingKeyProvider(providerId);
             setKeyModalOpen(true);
@@ -328,6 +380,7 @@ export default function ModelPickerModal() {
             provider: providerId,
             model: model.name,
             ...(supportsBaseURL && effectiveBaseURL && { baseURL: effectiveBaseURL }),
+            ...(customApiKey && { apiKey: customApiKey }),
             ...(currentSessionId && { sessionId: currentSessionId }),
         };
 
@@ -363,7 +416,8 @@ export default function ModelPickerModal() {
             maxInputTokens: customModel.maxInputTokens || 128000,
             supportedFileTypes: ['pdf', 'image', 'audio'],
         };
-        onPickModel(provider, modelInfo, customModel.baseURL);
+        // Pass the custom model's apiKey for per-model override
+        onPickModel(provider, modelInfo, customModel.baseURL, false, customModel.apiKey);
     }
 
     function onApiKeySaved(meta: { provider: string; envVar: string }) {

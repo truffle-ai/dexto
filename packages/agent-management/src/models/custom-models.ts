@@ -21,8 +21,15 @@ export type CustomModelProvider = (typeof CUSTOM_MODEL_PROVIDERS)[number];
 
 /**
  * Schema for a saved custom model configuration.
- * - openai-compatible: requires baseURL
+ * - openai-compatible: requires baseURL, optional per-model apiKey
  * - openrouter: baseURL is auto-injected, maxInputTokens from registry
+ * - litellm: requires baseURL, uses LITELLM_API_KEY or per-model override
+ * - glama: fixed baseURL, uses GLAMA_API_KEY or per-model override
+ *
+ * TODO: For hosted deployments, API keys should be stored in a secure
+ * key management service (e.g., AWS Secrets Manager, HashiCorp Vault)
+ * rather than in the local JSON file. Current approach is suitable for
+ * local CLI usage where the file is in ~/.dexto/ (user-private).
  */
 export const CustomModelSchema = z
     .object({
@@ -32,6 +39,9 @@ export const CustomModelSchema = z
         displayName: z.string().optional(),
         maxInputTokens: z.number().int().positive().optional(),
         maxOutputTokens: z.number().int().positive().optional(),
+        // Optional per-model API key. For openai-compatible this is the primary key source.
+        // For litellm/glama/openrouter this overrides the provider-level env var key.
+        apiKey: z.string().optional(),
     })
     .superRefine((data, ctx) => {
         // baseURL is required for openai-compatible and litellm
