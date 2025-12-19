@@ -4,6 +4,7 @@ import type { DextoAgent } from '../agent/DextoAgent.js';
 import { z } from 'zod';
 import { ToolError } from './errors.js';
 import { BaseRegistry, type RegistryErrorFactory } from '../providers/base-registry.js';
+import { customToolSchemaRegistry } from './custom-tool-schema-registry.js';
 
 /**
  * Context passed to custom tool providers when creating tools.
@@ -106,10 +107,42 @@ const customToolErrorFactory: RegistryErrorFactory = {
  * and are validated at runtime using their Zod schemas.
  *
  * Extends BaseRegistry for common registry functionality.
+ *
+ * When a provider is registered, its config schema is also registered in the
+ * customToolSchemaRegistry for early validation at config load time.
  */
 export class CustomToolRegistry extends BaseRegistry<CustomToolProvider> {
     constructor() {
         super(customToolErrorFactory);
+    }
+
+    /**
+     * Register a custom tool provider.
+     * Also registers the provider's config schema for early validation.
+     *
+     * @param provider - The custom tool provider to register
+     * @throws Error if a provider with the same type is already registered
+     */
+    override register(provider: CustomToolProvider): void {
+        // Register the provider with the base registry
+        super.register(provider);
+
+        // Also register the provider's config schema for early validation
+        customToolSchemaRegistry.register(provider.type, provider.configSchema);
+    }
+
+    /**
+     * Unregister a custom tool provider.
+     * Note: This does NOT unregister the schema from customToolSchemaRegistry
+     * to avoid breaking active configs that reference the schema.
+     *
+     * @param type - The provider type to unregister
+     * @returns true if the provider was unregistered, false if it wasn't registered
+     */
+    override unregister(type: string): boolean {
+        // Only unregister from this registry, not from schema registry
+        // Schema registry should persist for the lifetime of the application
+        return super.unregister(type);
     }
 }
 

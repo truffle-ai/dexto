@@ -21,24 +21,49 @@ export const InternalToolsSchema = z
 // Derive type from schema
 export type InternalToolsConfig = z.output<typeof InternalToolsSchema>;
 
-// Custom tool provider configuration schema
-export const CustomToolConfigSchema = z
-    .object({
-        type: z.string().describe('Custom tool provider type (registered via customToolRegistry)'),
-    })
-    .passthrough()
-    .describe(
-        'Custom tool provider configuration. Provider-specific fields are validated at runtime by the registered provider.'
-    );
+/**
+ * Get the custom tool config schema based on registered providers.
+ *
+ * This function creates a discriminated union of all registered provider schemas,
+ * enabling early validation of provider-specific fields at config load time.
+ *
+ * IMPORTANT: Providers must be registered (via image imports or customToolRegistry)
+ * before config validation for early validation to work. If no providers are
+ * registered, falls back to passthrough schema for backward compatibility.
+ *
+ * @returns Discriminated union schema or passthrough schema
+ */
+function getCustomToolConfigSchema(): z.ZodType<any> {
+    // Import here to avoid circular dependency
+    const { customToolSchemaRegistry } = require('./custom-tool-schema-registry.js');
+    return customToolSchemaRegistry.createUnionSchema();
+}
+
+/**
+ * Custom tool configuration schema.
+ *
+ * This schema is built dynamically from registered providers:
+ * - If providers are registered → discriminated union with full validation
+ * - If no providers registered → passthrough schema (backward compatible)
+ *
+ * Provider-specific fields are validated based on their registered schemas.
+ */
+export const CustomToolConfigSchema = z.lazy(() => getCustomToolConfigSchema());
 
 export type CustomToolConfig = z.output<typeof CustomToolConfigSchema>;
 
-// Array of custom tool provider configurations
+/**
+ * Array of custom tool provider configurations.
+ *
+ * Custom tools must be registered via customToolRegistry before loading agent config
+ * for early validation to work. If providers are not registered, validation will
+ * fall back to runtime validation by the provider.
+ */
 export const CustomToolsSchema = z
     .array(CustomToolConfigSchema)
     .default([])
     .describe(
-        'Array of custom tool provider configurations. Custom tools must be registered via customToolRegistry before loading agent config.'
+        'Array of custom tool provider configurations. Providers are validated against registered schemas.'
     );
 
 export type CustomToolsConfig = z.output<typeof CustomToolsSchema>;

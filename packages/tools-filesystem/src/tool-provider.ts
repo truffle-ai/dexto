@@ -17,41 +17,58 @@ import { createGlobFilesTool } from './glob-files-tool.js';
 import { createGrepContentTool } from './grep-content-tool.js';
 
 /**
- * Configuration schema for FileSystem tools provider
+ * Default configuration constants for FileSystem tools.
+ * These are the SINGLE SOURCE OF TRUTH for all default values.
+ */
+const DEFAULT_ALLOWED_PATHS = ['.'];
+const DEFAULT_BLOCKED_PATHS = ['.git', 'node_modules/.bin', '.env'];
+const DEFAULT_BLOCKED_EXTENSIONS = ['.exe', '.dll', '.so'];
+const DEFAULT_MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+const DEFAULT_ENABLE_BACKUPS = false;
+const DEFAULT_BACKUP_RETENTION_DAYS = 7;
+
+/**
+ * Configuration schema for FileSystem tools provider.
+ *
+ * This is the SINGLE SOURCE OF TRUTH for all configuration:
+ * - Validation rules
+ * - Default values (using constants above)
+ * - Documentation
+ * - Type definitions
+ *
+ * Services receive fully-validated config from this schema and use it as-is,
+ * with no additional defaults or fallbacks needed.
  */
 const FileSystemToolsConfigSchema = z
     .object({
         type: z.literal('filesystem-tools'),
         allowedPaths: z
             .array(z.string())
-            .optional()
-            .default(['.'])
+            .default(DEFAULT_ALLOWED_PATHS)
             .describe('List of allowed base paths for file operations'),
         blockedPaths: z
             .array(z.string())
-            .optional()
-            .default(['.git', 'node_modules/.bin', '.env'])
+            .default(DEFAULT_BLOCKED_PATHS)
             .describe('List of blocked paths to exclude from operations'),
         blockedExtensions: z
             .array(z.string())
-            .optional()
-            .default(['.exe', '.dll', '.so'])
+            .default(DEFAULT_BLOCKED_EXTENSIONS)
             .describe('List of blocked file extensions'),
         maxFileSize: z
             .number()
             .int()
             .positive()
-            .optional()
-            .default(10 * 1024 * 1024) // 10MB
-            .describe('Maximum file size in bytes (default: 10MB)'),
+            .default(DEFAULT_MAX_FILE_SIZE)
+            .describe(
+                `Maximum file size in bytes (default: ${DEFAULT_MAX_FILE_SIZE / 1024 / 1024}MB)`
+            ),
         workingDirectory: z
             .string()
             .optional()
             .describe('Working directory for file operations (defaults to process.cwd())'),
         enableBackups: z
             .boolean()
-            .optional()
-            .default(false)
+            .default(DEFAULT_ENABLE_BACKUPS)
             .describe('Enable automatic backups of modified files'),
         backupPath: z
             .string()
@@ -61,9 +78,10 @@ const FileSystemToolsConfigSchema = z
             .number()
             .int()
             .positive()
-            .optional()
-            .default(7)
-            .describe('Number of days to retain backup files (default: 7)'),
+            .default(DEFAULT_BACKUP_RETENTION_DAYS)
+            .describe(
+                `Number of days to retain backup files (default: ${DEFAULT_BACKUP_RETENTION_DAYS})`
+            ),
     })
     .strict();
 

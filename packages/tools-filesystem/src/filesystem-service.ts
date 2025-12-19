@@ -29,12 +29,16 @@ import { PathValidator } from './path-validator.js';
 import { FileSystemError } from './errors.js';
 
 const DEFAULT_ENCODING: BufferEncoding = 'utf-8';
-const DEFAULT_MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const DEFAULT_MAX_RESULTS = 1000;
 const DEFAULT_MAX_SEARCH_RESULTS = 100;
 
 /**
  * FileSystemService - Handles all file system operations with security checks
+ *
+ * This service receives fully-validated configuration from the FileSystem Tools Provider.
+ * All defaults have been applied by the provider's schema, so the service trusts the config
+ * and uses it as-is without any fallback logic.
+ *
  * TODO: Add tests for this class
  * TODO: instantiate only when internal file tools are enabled to avoid file dependencies which won't work in serverless
  */
@@ -44,18 +48,16 @@ export class FileSystemService {
     private initialized: boolean = false;
     private logger: IDextoLogger;
 
-    constructor(config: Partial<FileSystemConfig> = {}, logger: IDextoLogger) {
-        // Set defaults
-        this.config = {
-            allowedPaths: config.allowedPaths || ['.'],
-            blockedPaths: config.blockedPaths || ['.git', 'node_modules/.bin', '.env'],
-            blockedExtensions: config.blockedExtensions || ['.exe', '.dll', '.so'],
-            maxFileSize: config.maxFileSize || DEFAULT_MAX_FILE_SIZE,
-            enableBackups: config.enableBackups ?? true,
-            backupPath: config.backupPath, // Optional absolute override, defaults handled by getBackupDir()
-            backupRetentionDays: config.backupRetentionDays || 7,
-            workingDirectory: config.workingDirectory,
-        };
+    /**
+     * Create a new FileSystemService with validated configuration.
+     *
+     * @param config - Fully-validated configuration from provider schema.
+     *                 All required fields have values, defaults already applied.
+     * @param logger - Logger instance for this service
+     */
+    constructor(config: FileSystemConfig, logger: IDextoLogger) {
+        // Config is already fully validated with defaults applied - just use it
+        this.config = config;
 
         this.logger = logger.createChild(DextoLogComponent.FILESYSTEM);
         this.pathValidator = new PathValidator(this.config, this.logger);

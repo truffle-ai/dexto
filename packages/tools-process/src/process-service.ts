@@ -22,9 +22,6 @@ import type { IDextoLogger } from '@dexto/core';
 import { DextoLogComponent } from '@dexto/core';
 
 const DEFAULT_TIMEOUT = 120000; // 2 minutes
-const DEFAULT_MAX_TIMEOUT = 600000; // 10 minutes
-const DEFAULT_MAX_CONCURRENT_PROCESSES = 5;
-const DEFAULT_MAX_OUTPUT_BUFFER = 1024 * 1024; // 1MB
 
 /**
  * Background process tracking
@@ -43,6 +40,11 @@ interface BackgroundProcess {
 
 /**
  * ProcessService - Handles command execution and process management
+ *
+ * This service receives fully-validated configuration from the Process Tools Provider.
+ * All defaults have been applied by the provider's schema, so the service trusts the config
+ * and uses it as-is without any fallback logic.
+ *
  * TODO: Add tests for this class
  */
 export class ProcessService {
@@ -52,19 +54,16 @@ export class ProcessService {
     private backgroundProcesses: Map<string, BackgroundProcess> = new Map();
     private logger: IDextoLogger;
 
-    constructor(config: Partial<ProcessConfig> = {}, logger: IDextoLogger) {
-        // Set defaults
-        this.config = {
-            securityLevel: config.securityLevel || 'moderate',
-            maxTimeout: config.maxTimeout || DEFAULT_MAX_TIMEOUT,
-            maxConcurrentProcesses:
-                config.maxConcurrentProcesses || DEFAULT_MAX_CONCURRENT_PROCESSES,
-            maxOutputBuffer: config.maxOutputBuffer || DEFAULT_MAX_OUTPUT_BUFFER,
-            allowedCommands: config.allowedCommands || [],
-            blockedCommands: config.blockedCommands || [],
-            environment: config.environment || {},
-            workingDirectory: config.workingDirectory,
-        };
+    /**
+     * Create a new ProcessService with validated configuration.
+     *
+     * @param config - Fully-validated configuration from provider schema.
+     *                 All required fields have values, defaults already applied.
+     * @param logger - Logger instance for this service
+     */
+    constructor(config: ProcessConfig, logger: IDextoLogger) {
+        // Config is already fully validated with defaults applied - just use it
+        this.config = config;
 
         this.logger = logger.createChild(DextoLogComponent.PROCESS);
         this.commandValidator = new CommandValidator(this.config, this.logger);
