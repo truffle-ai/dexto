@@ -58,9 +58,13 @@ llm:
 
 ### Required Fields
 
-- **provider** - LLM provider name (openai, anthropic, google, xai, groq, cohere, openai-compatible)
+- **provider** - LLM provider name
+  - Built-in: `openai`, `anthropic`, `google`, `xai`, `groq`, `cohere`
+  - Cloud platforms: `vertex` (Google Cloud)
+  - Gateways: `openrouter`, `litellm`, `glama`
+  - Custom: `openai-compatible`
 - **model** - Model identifier for the provider
-- **apiKey** - API key or environment variable (e.g., `$OPENAI_API_KEY`)
+- **apiKey** - API key or environment variable (not required for `vertex`)
 
 ### Optional Fields
 
@@ -97,6 +101,48 @@ llm:
   baseURL: http://localhost:11434/v1
   maxInputTokens: 8000
 ```
+
+### Gateway Providers
+
+**OpenRouter:**
+```yaml
+llm:
+  provider: openrouter
+  model: anthropic/claude-sonnet-4-5-20250929
+  apiKey: $OPENROUTER_API_KEY
+```
+
+**Glama:**
+```yaml
+llm:
+  provider: glama
+  model: openai/gpt-4o
+  apiKey: $GLAMA_API_KEY
+```
+
+**LiteLLM (self-hosted proxy):**
+```yaml
+llm:
+  provider: litellm
+  model: gpt-4
+  apiKey: $LITELLM_API_KEY
+  baseURL: http://localhost:4000
+```
+
+### Google Cloud Vertex AI
+
+Access Gemini and Claude models through GCP:
+
+```yaml
+llm:
+  provider: vertex
+  model: gemini-2.5-pro
+```
+
+Vertex uses Application Default Credentials (ADC), not API keys. Set these environment variables:
+- `GOOGLE_VERTEX_PROJECT` - Your GCP project ID (required)
+- `GOOGLE_VERTEX_LOCATION` - Region (optional, defaults to us-central1)
+- `GOOGLE_APPLICATION_CREDENTIALS` - Path to service account JSON (for production)
 
 ### Token Control
 

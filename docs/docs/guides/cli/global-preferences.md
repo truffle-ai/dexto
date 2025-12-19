@@ -44,15 +44,21 @@ Global AI provider configuration used as defaults for all agents:
 
 ```yaml
 llm:
-  provider: openai          # openai, anthropic, google, groq, cohere
+  provider: openai          # See supported providers below
   model: gpt-5-mini         # Valid model for provider
-  apiKey: $OPENAI_API_KEY   # Environment variable reference (required)
+  apiKey: $OPENAI_API_KEY   # Environment variable reference (not required for vertex)
 ```
+
+**Supported providers:**
+- **Built-in:** `openai`, `anthropic`, `google`, `groq`, `xai`, `cohere`
+- **Cloud platforms:** `vertex` (Google Cloud Vertex AI)
+- **Gateways:** `openrouter`, `litellm`, `glama`
+- **Custom:** `openai-compatible`
 
 **Required fields:**
 - **provider** - LLM provider name
 - **model** - Model identifier for the provider
-- **apiKey** - **Must** be environment variable reference (`$VAR_NAME`)
+- **apiKey** - Environment variable reference (`$VAR_NAME`) - not required for `vertex`
 
 **API key format:**
 - Must start with `$`
@@ -166,6 +172,26 @@ llm:
   provider: google
   model: gemini-2.0-flash
   apiKey: $GOOGLE_GENERATIVE_AI_API_KEY
+```
+
+### Google Cloud Vertex AI
+
+```yaml
+llm:
+  provider: vertex
+  model: gemini-2.5-pro
+  # No apiKey needed - uses Application Default Credentials
+```
+
+Requires `GOOGLE_VERTEX_PROJECT` environment variable set to your GCP project ID.
+
+### OpenRouter
+
+```yaml
+llm:
+  provider: openrouter
+  model: anthropic/claude-sonnet-4-5-20250929
+  apiKey: $OPENROUTER_API_KEY
 ```
 
 ## Best Practices

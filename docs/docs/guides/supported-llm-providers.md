@@ -135,54 +135,61 @@ llm:
 
 ---
 
-## OpenAI-Compatible Providers
+## Cloud Platform Providers
 
-Use any provider that implements the OpenAI SDK interface:
+### Google Cloud Vertex AI
 
-```yaml
-llm:
-  provider: openai-compatible
-  model: your-custom-model
-  apiKey: $YOUR_API_KEY
-  baseURL: https://api.your-provider.com/v1
-  maxInputTokens: 100000
-```
-
-### Local Models
-
-Run models locally using Ollama, LM Studio, or similar:
+Access Google's Gemini and Anthropic's Claude models through Google Cloud Platform:
 
 ```yaml
 llm:
-  provider: openai-compatible
-  model: gemma3n:e2b
-  apiKey: dummy
-  baseURL: http://localhost:11434/v1
-  maxInputTokens: 8000
+  provider: vertex
+  model: gemini-2.5-pro
 ```
 
-**Popular options:**
-- **Ollama** - Easy local model hosting
-- **LM Studio** - User-friendly interface
-- **vLLM** - High-performance serving
-- **TGI** - Hugging Face serving
+**Gemini models:**
+- `gemini-3-flash-preview`, `gemini-3-pro-preview` (Preview)
+- `gemini-2.5-pro` (default), `gemini-2.5-flash`
+- `gemini-2.0-flash`
+
+**Claude models on Vertex:**
+- `claude-opus-4-5@20251101`, `claude-sonnet-4-5@20250929`, `claude-haiku-4-5@20251001`
+- `claude-opus-4-1@20250805`, `claude-opus-4@20250514`, `claude-sonnet-4@20250514`
+- `claude-3-7-sonnet@20250219`, `claude-3-5-sonnet-v2@20241022`, `claude-3-5-haiku@20241022`
+
+**Features:** Enterprise security, unified billing through GCP, access to both Gemini and Claude
+
+**Authentication:** Uses Google Cloud Application Default Credentials (ADC), not API keys.
+
+<details>
+<summary>Setup Instructions</summary>
+
+**Option 1: Service Account Key (Recommended for production)**
+
+1. Go to [Google Cloud Console → IAM & Admin → Service Accounts](https://console.cloud.google.com/iam-admin/serviceaccounts)
+2. Create a service account with **Vertex AI User** role
+3. Create and download a JSON key
+4. Set environment variables:
+   ```bash
+   export GOOGLE_APPLICATION_CREDENTIALS="/path/to/service-account-key.json"
+   export GOOGLE_VERTEX_PROJECT="your-project-id"
+   # Optional: defaults to us-central1 for Gemini, us-east5 for Claude
+   export GOOGLE_VERTEX_LOCATION="us-central1"
+   ```
+
+**Option 2: gcloud CLI (For local development)**
+
+1. Install [Google Cloud CLI](https://cloud.google.com/sdk/docs/install)
+2. Run: `gcloud auth application-default login`
+3. Set: `export GOOGLE_VERTEX_PROJECT="your-project-id"`
+
+**For Claude models:** Enable them in [Vertex AI Model Garden](https://console.cloud.google.com/vertex-ai/model-garden)
+
+</details>
 
 ---
 
-### Azure OpenAI
-
-```yaml
-llm:
-  provider: openai-compatible
-  model: gpt-5
-  apiKey: $AZURE_OPENAI_API_KEY
-  baseURL: https://your-resource.openai.azure.com/openai/deployments/gpt-5
-  maxInputTokens: 128000
-```
-
-**Notes:** Replace `your-resource` with your Azure resource name. Supports all OpenAI models available in Azure.
-
----
+## Gateway Providers
 
 ### OpenRouter
 
@@ -201,7 +208,9 @@ llm:
 - `google/gemini-pro-1.5`
 - `mistralai/mistral-large`
 
-**Note:** OpenRouter is a dedicated provider with automatic model validation. The base URL is handled automatically.
+**Features:** Single API for 100+ models, automatic model validation, unified billing
+
+**Learn more:** [openrouter.ai](https://openrouter.ai/)
 
 ---
 
@@ -248,6 +257,55 @@ llm:
 **Model naming:** Format is `provider/model` (e.g., `openai/gpt-4o`, `anthropic/claude-3-sonnet`)
 
 **Learn more:** [glama.ai](https://glama.ai/)
+
+---
+
+## OpenAI-Compatible Providers
+
+Use any provider that implements the OpenAI SDK interface:
+
+```yaml
+llm:
+  provider: openai-compatible
+  model: your-custom-model
+  apiKey: $YOUR_API_KEY
+  baseURL: https://api.your-provider.com/v1
+  maxInputTokens: 100000
+```
+
+### Local Models
+
+Run models locally using Ollama, LM Studio, or similar:
+
+```yaml
+llm:
+  provider: openai-compatible
+  model: gemma3n:e2b
+  apiKey: dummy
+  baseURL: http://localhost:11434/v1
+  maxInputTokens: 8000
+```
+
+**Popular options:**
+- **Ollama** - Easy local model hosting
+- **LM Studio** - User-friendly interface
+- **vLLM** - High-performance serving
+- **TGI** - Hugging Face serving
+
+---
+
+### Azure OpenAI
+
+```yaml
+llm:
+  provider: openai-compatible
+  model: gpt-5
+  apiKey: $AZURE_OPENAI_API_KEY
+  baseURL: https://your-resource.openai.azure.com/openai/deployments/gpt-5
+  maxInputTokens: 128000
+```
+
+**Notes:** Replace `your-resource` with your Azure resource name. Supports all OpenAI models available in Azure.
 
 ---
 
@@ -312,10 +370,17 @@ GROQ_API_KEY=your_groq_key
 XAI_API_KEY=your_xai_key
 COHERE_API_KEY=your_cohere_key
 
-# Custom providers
+# Google Cloud Vertex AI (uses ADC, not API keys)
+GOOGLE_VERTEX_PROJECT=your_gcp_project_id
+GOOGLE_VERTEX_LOCATION=us-central1  # Optional
+GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json  # For service account auth
+
+# Gateway providers
 OPENROUTER_API_KEY=your_openrouter_key
 LITELLM_API_KEY=your_litellm_key
 GLAMA_API_KEY=your_glama_key
+
+# OpenAI-compatible providers
 TOGETHER_API_KEY=your_together_key
 AZURE_OPENAI_API_KEY=your_azure_key
 PERPLEXITY_API_KEY=your_perplexity_key
