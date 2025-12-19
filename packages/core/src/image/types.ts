@@ -122,6 +122,18 @@ export interface ImageDefinition {
     utils?: Record<string, string>;
 
     /**
+     * Selective named exports from packages.
+     * Allows re-exporting specific types and values from dependencies.
+     *
+     * Example:
+     * {
+     *   '@dexto/core': ['logger', 'createAgentCard', 'type DextoAgent'],
+     *   '@dexto/utils': ['formatDate', 'parseConfig']
+     * }
+     */
+    exports?: Record<string, string[]>;
+
+    /**
      * Parent image to extend (for image inheritance).
      * Optional: enables creating specialized images from base images.
      */

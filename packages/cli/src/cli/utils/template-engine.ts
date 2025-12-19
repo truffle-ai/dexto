@@ -23,7 +23,11 @@ interface TemplateContext {
  * Generates src/index.ts for an app using an image
  */
 export function generateIndexForImage(context: TemplateContext): string {
-    return `import { createAgent } from '${context.imageName}';
+    return `// Register image providers (side-effect import)
+// This auto-registers custom tools, blob storage, etc.
+import '${context.imageName}';
+
+import { DextoAgent } from '@dexto/core';
 import { loadAgentConfig } from '@dexto/agent-management';
 
 async function main() {
@@ -32,9 +36,8 @@ async function main() {
     // Load agent configuration
     const config = await loadAgentConfig('./agents/default.yml');
 
-    // Create agent using the image harness
-    // The image provides a complete harness with providers pre-configured
-    const agent = createAgent(config, './agents/default.yml');
+    // Create agent - providers are already registered via image import above
+    const agent = new DextoAgent(config, './agents/default.yml');
 
     await agent.start();
     console.log('✅ Agent started\\n');

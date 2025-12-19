@@ -353,6 +353,9 @@ importers:
       '@dexto/core':
         specifier: workspace:*
         version: link:../core
+      '@dexto/image-local':
+        specifier: workspace:*
+        version: link:../image-local
       '@dexto/registry':
         specifier: workspace:*
         version: link:../registry
@@ -630,6 +633,9 @@ importers:
       '@dexto/core':
         specifier: workspace:*
         version: link:../core
+      '@dexto/image-local':
+        specifier: workspace:*
+        version: link:../image-local
       '@hono/node-server':
         specifier: 1.19.5
         version: 1.19.5(hono@4.10.4)

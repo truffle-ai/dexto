@@ -367,6 +367,13 @@ export const AgentConfigSchema = z
             )
             .default('default-agent'),
 
+        image: z
+            .string()
+            .describe(
+                'Image package that provides required providers (e.g., "@dexto/image-local"). Optional - platform can load images via CLI flag, environment variable, or static imports.'
+            )
+            .optional(),
+
         mcpServers: McpServersConfigSchema.describe(
             'Configurations for MCP (Model Context Protocol) servers used by the agent'
         ).default({}),

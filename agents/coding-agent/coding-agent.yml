@@ -1,6 +1,10 @@
 # Coding Agent Configuration
 # Optimized for software development with internal coding tools
 
+# Image: Specifies the provider bundle for this agent
+# This agent requires local development tools (filesystem, process)
+image: '@dexto/image-local'
+
 # System prompt configuration - defines the agent's behavior as a coding assistant
 systemPrompt:
   contributors:
@@ -43,9 +47,9 @@ greeting: "👨‍💻 Ready to code! What are we building today?"
 
 # LLM configuration - using a powerful model for coding tasks
 llm:
-  provider: anthropic
-  model: claude-haiku-4-5-20251001  # More powerful model for complex coding tasks
-  apiKey: $ANTHROPIC_API_KEY
+  provider: openai  
+  model: gpt-5-mini  # More powerful model for complex coding tasks
+  apiKey: $OPENAI_API_KEY
 
 storage:
   cache:
@@ -68,33 +72,35 @@ toolConfirmation:
     # Tools that never require approval (safe, read-only operations)
     alwaysAllow:
       - internal--ask_user
-      - internal--read_file      # Read files without approval
-      - internal--glob_files     # Search for files without approval
-      - internal--grep_content   # Search within files without approval
-      - internal--bash_output    # Check background process output
-      - internal--kill_process   # Kill processes without approval
+      - custom--filesystem-tools--read_file      # Read files without approval
+      - custom--filesystem-tools--glob_files     # Search for files without approval
+      - custom--filesystem-tools--grep_content   # Search within files without approval
+      - custom--process-tools--bash_output       # Check background process output
+      - custom--process-tools--kill_process      # Kill processes without approval
 
     # Tools that are always denied (dangerous operations)
     # Uncomment to restrict certain operations
     # alwaysDeny:
-    #   - internal--bash_exec--rm -rf*  # Prevent recursive deletion
+    #   - custom--process-tools--bash_exec--rm -rf*  # Prevent recursive deletion
 
 # Elicitation configuration - required for ask_user tool
 elicitation:
   enabled: true
   timeout: 120000
 
-# Internal tools - all coding tools enabled
+# Internal tools - core tools that are always available
 internalTools:
   - ask_user       # Ask questions and collect input
-  - read_file      # Read file contents with pagination support
-  - glob_files     # Find files using glob patterns (e.g., "**/*.ts")
-  - grep_content   # Search file contents using regex patterns
-  - write_file     # Write content to files (requires approval)
-  - edit_file      # Edit files by replacing text (requires approval)
-  - bash_exec      # Execute shell commands (requires approval)
-  - bash_output    # Retrieve output from background processes
-  - kill_process   # Terminate background processes
+
+# Custom tools - filesystem and process tools from image-local
+customTools:
+  - type: filesystem-tools
+    allowedPaths: ["."]
+    blockedPaths: [".git", "node_modules/.bin", ".env"]
+    blockedExtensions: [".exe", ".dll", ".so"]
+    enableBackups: false
+  - type: process-tools
+    securityLevel: moderate
 
 # Internal resources configuration - expanded for coding projects
 internalResources:

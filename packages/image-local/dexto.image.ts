@@ -92,4 +92,10 @@ export default defineImage({
 
     // Runtime constraints
     constraints: ['filesystem-required', 'offline-capable'],
+
+    // Re-export all utilities from core for convenience
+    // This allows apps to use image-local without directly depending on core
+    exports: {
+        '@dexto/core': ['*'], // Wildcard - re-export everything
+    },
 });

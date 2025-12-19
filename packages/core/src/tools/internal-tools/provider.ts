@@ -163,11 +163,8 @@ export class InternalToolsProvider {
                 const provider = customToolRegistry.get(validatedConfig.type);
 
                 if (!provider) {
-                    this.logger.warn(
-                        `Custom tool provider '${validatedConfig.type}' not found in registry. ` +
-                            `Make sure to register it before loading agent config.`
-                    );
-                    continue;
+                    const availableTypes = customToolRegistry.getTypes();
+                    throw ToolError.unknownCustomToolProvider(validatedConfig.type, availableTypes);
                 }
 
                 // Create tools from provider
@@ -189,10 +186,19 @@ export class InternalToolsProvider {
                     );
                 }
             } catch (error) {
+                // Re-throw validation errors (unknown provider, invalid config)
+                // These are user errors that should fail fast
+                if (
+                    error instanceof Error &&
+                    error.message.includes('Unknown custom tool provider')
+                ) {
+                    throw error;
+                }
+
+                // Log and continue for other errors (e.g., provider initialization failures)
                 this.logger.error(
                     `Failed to register custom tool provider: ${error instanceof Error ? error.message : String(error)}`
                 );
-                // Continue with other providers rather than failing completely
             }
         }
     }

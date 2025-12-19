@@ -18,7 +18,7 @@ describe('template-engine', () => {
                 imageName: '@dexto/image-local',
             });
 
-            expect(result).toContain("import { createAgent } from '@dexto/image-local'");
+            expect(result).toContain("import { createAgent } from '@dexto/core'");
             expect(result).toContain("import { loadAgentConfig } from '@dexto/agent-management'");
             expect(result).toContain('Starting my-app');
             expect(result).toContain(

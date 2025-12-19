@@ -445,6 +445,116 @@ describe('InternalToolsProvider', () => {
         });
     });
 
+    describe('Custom Tool Provider Validation', () => {
+        // Mock agent for custom tool tests
+        const mockAgent = {
+            agentEventBus: { emit: vi.fn() },
+        } as any;
+
+        it('should throw error when custom tool provider is not found', async () => {
+            const customToolsConfig = [
+                {
+                    type: 'nonexistent-provider',
+                    config: {},
+                },
+            ];
+
+            const provider = new InternalToolsProvider(
+                mockServices,
+                [],
+                customToolsConfig,
+                mockLogger
+            );
+            provider.setAgent(mockAgent);
+
+            // Should throw during initialization because provider is missing
+            await expect(provider.initialize()).rejects.toThrow(DextoRuntimeError);
+            await expect(provider.initialize()).rejects.toThrow(
+                "Unknown custom tool provider: 'nonexistent-provider'"
+            );
+        });
+
+        it('should include available types in error message', async () => {
+            const customToolsConfig = [
+                {
+                    type: 'missing-provider',
+                    config: {},
+                },
+            ];
+
+            const provider = new InternalToolsProvider(
+                mockServices,
+                [],
+                customToolsConfig,
+                mockLogger
+            );
+            provider.setAgent(mockAgent);
+
+            const error = (await provider.initialize().catch((e) => e)) as DextoRuntimeError;
+            expect(error).toBeInstanceOf(DextoRuntimeError);
+            expect(error.code).toBe(ToolErrorCode.CUSTOM_TOOL_PROVIDER_UNKNOWN);
+            expect(error.scope).toBe(ErrorScope.TOOLS);
+            expect(error.type).toBe(ErrorType.USER);
+            // Error context should include available types (even if empty)
+            expect(error.context).toHaveProperty('availableTypes');
+        });
+
+        it('should fail fast on first missing provider', async () => {
+            const customToolsConfig = [
+                {
+                    type: 'first-missing-provider',
+                    config: {},
+                },
+                {
+                    type: 'second-missing-provider',
+                    config: {},
+                },
+            ];
+
+            const provider = new InternalToolsProvider(
+                mockServices,
+                [],
+                customToolsConfig,
+                mockLogger
+            );
+            provider.setAgent(mockAgent);
+
+            // Should throw on the first missing provider
+            await expect(provider.initialize()).rejects.toThrow(
+                "Unknown custom tool provider: 'first-missing-provider'"
+            );
+        });
+
+        it('should initialize successfully when no custom tools are configured', async () => {
+            const provider = new InternalToolsProvider(mockServices, [], [], mockLogger);
+
+            await provider.initialize();
+
+            expect(provider.getToolCount()).toBe(0);
+        });
+
+        it('should throw error if agent not set before initialization with custom tools', async () => {
+            const customToolsConfig = [
+                {
+                    type: 'some-provider',
+                    config: {},
+                },
+            ];
+
+            const provider = new InternalToolsProvider(
+                mockServices,
+                [],
+                customToolsConfig,
+                mockLogger
+            );
+            // Don't call setAgent()
+
+            await expect(provider.initialize()).rejects.toThrow(
+                'Agent reference not set. Call setAgent() before initialize() when using custom tools.'
+            );
+        });
+    });
+
     describe('Required Features', () => {
         it('should throw when tool requires a feature that is disabled', async () => {
             // Create ApprovalManager with elicitation DISABLED
