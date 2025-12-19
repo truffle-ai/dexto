@@ -876,6 +876,129 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
         baseURLSupport: 'none', // Fixed endpoint - baseURL auto-injected
         supportedFileTypes: ['pdf', 'image', 'audio'], // Allow all types - user assumes responsibility for model capabilities
     },
+    // https://cloud.google.com/vertex-ai
+    // Google Vertex AI - GCP-hosted gateway for Gemini and Claude models
+    // Supports both Google's Gemini models and Anthropic's Claude via partnership
+    //
+    // Setup instructions:
+    // 1. Create a Google Cloud account and project
+    // 2. Enable the Vertex AI API: gcloud services enable aiplatform.googleapis.com
+    // 3. Enable desired Claude models (requires Anthropic Model Garden)
+    // 4. Install Google Cloud CLI: https://cloud.google.com/sdk/docs/install
+    // 5. Configure ADC: gcloud auth application-default login
+    // 6. Set env vars: GOOGLE_VERTEX_PROJECT (required), GOOGLE_VERTEX_LOCATION (optional)
+    //
+    // TODO: Add dynamic model fetching via publishers.models.list API
+    // - Requires: projectId, region, ADC auth
+    // - Endpoints: GET projects/{project}/locations/{location}/publishers/{google,anthropic}/models
+    // - Note: API doesn't return aliases (e.g., gemini-2.0-flash), only versioned IDs
+    // - Docs: https://cloud.google.com/vertex-ai/docs/reference/rest/v1/projects.locations.models/list
+    // - Models: https://cloud.google.com/vertex-ai/generative-ai/docs/models
+    vertex: {
+        models: [
+            // Gemini models on Vertex AI
+            {
+                name: 'gemini-2.5-pro',
+                displayName: 'Gemini 2.5 Pro (Vertex)',
+                maxInputTokens: 1048576,
+                default: true,
+                supportedFileTypes: ['pdf', 'image', 'audio'],
+                pricing: {
+                    inputPerM: 1.25,
+                    outputPerM: 10.0,
+                    cacheReadPerM: 0.31,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
+                name: 'gemini-2.5-flash',
+                displayName: 'Gemini 2.5 Flash (Vertex)',
+                maxInputTokens: 1048576,
+                supportedFileTypes: ['pdf', 'image', 'audio'],
+                pricing: {
+                    inputPerM: 0.15,
+                    outputPerM: 0.6,
+                    cacheReadPerM: 0.0375,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
+                name: 'gemini-2.0-flash',
+                displayName: 'Gemini 2.0 Flash (Vertex)',
+                maxInputTokens: 1048576,
+                supportedFileTypes: ['pdf', 'image', 'audio'],
+                pricing: {
+                    inputPerM: 0.1,
+                    outputPerM: 0.4,
+                    cacheReadPerM: 0.025,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            // Claude models on Vertex AI (via Anthropic partnership)
+            // Note: Claude model IDs use @ suffix format on Vertex
+            {
+                name: 'claude-sonnet-4-5@20250929',
+                displayName: 'Claude 4.5 Sonnet (Vertex)',
+                maxInputTokens: 200000,
+                supportedFileTypes: ['pdf', 'image'],
+                pricing: {
+                    inputPerM: 3.0,
+                    outputPerM: 15.0,
+                    cacheWritePerM: 3.75,
+                    cacheReadPerM: 0.3,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
+                name: 'claude-3-7-sonnet@20250219',
+                displayName: 'Claude 3.7 Sonnet (Vertex)',
+                maxInputTokens: 200000,
+                supportedFileTypes: ['pdf', 'image'],
+                pricing: {
+                    inputPerM: 3.0,
+                    outputPerM: 15.0,
+                    cacheWritePerM: 3.75,
+                    cacheReadPerM: 0.3,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
+                name: 'claude-3-5-sonnet-v2@20241022',
+                displayName: 'Claude 3.5 Sonnet v2 (Vertex)',
+                maxInputTokens: 200000,
+                supportedFileTypes: ['pdf', 'image'],
+                pricing: {
+                    inputPerM: 3.0,
+                    outputPerM: 15.0,
+                    cacheWritePerM: 3.75,
+                    cacheReadPerM: 0.3,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
+                name: 'claude-3-5-haiku@20241022',
+                displayName: 'Claude 3.5 Haiku (Vertex)',
+                maxInputTokens: 200000,
+                supportedFileTypes: ['pdf', 'image'],
+                pricing: {
+                    inputPerM: 0.8,
+                    outputPerM: 4.0,
+                    cacheWritePerM: 1.0,
+                    cacheReadPerM: 0.08,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+        ],
+        baseURLSupport: 'none', // Auto-constructed from projectId and region
+        supportedFileTypes: ['pdf', 'image', 'audio'],
+    },
     // TODO: Add 'dexto' provider (similar to openrouter, uses https://api.dexto.ai/v1)
 };
 

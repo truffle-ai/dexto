@@ -15,6 +15,7 @@ export const PROVIDER_LOGOS: Record<LLMProvider, string> = {
     openrouter: '/logos/openrouter.svg',
     litellm: '/logos/litellm.svg',
     glama: '/logos/glama.svg',
+    vertex: '/logos/gemini-color.svg', // Vertex AI uses Gemini logo (primary model family)
 };
 
 // Provider pricing URLs (for quick access from Model Picker)
@@ -28,6 +29,7 @@ export const PROVIDER_PRICING_URLS: Partial<Record<LLMProvider, string>> = {
     openrouter: 'https://openrouter.ai/models',
     litellm: 'https://docs.litellm.ai/',
     glama: 'https://glama.ai/',
+    vertex: 'https://cloud.google.com/vertex-ai/generative-ai/pricing',
     // 'openai-compatible' intentionally omitted (varies by vendor)
 };
 
@@ -57,7 +59,12 @@ export function formatPricingLines(pricing?: {
 }
 
 // Logos that have hardcoded colors and don't need dark mode inversion
-export const COLORED_LOGOS: readonly LLMProvider[] = ['google', 'cohere', 'anthropic'] as const;
+export const COLORED_LOGOS: readonly LLMProvider[] = [
+    'google',
+    'cohere',
+    'anthropic',
+    'vertex',
+] as const;
 
 // Helper to check if a logo needs dark mode inversion
 export const needsDarkModeInversion = (provider: LLMProvider): boolean => {

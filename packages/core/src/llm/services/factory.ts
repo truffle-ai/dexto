@@ -6,6 +6,8 @@ import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { createGroq } from '@ai-sdk/groq';
 import { createXai } from '@ai-sdk/xai';
+import { createVertex } from '@ai-sdk/google-vertex';
+import { createVertexAnthropic } from '@ai-sdk/google-vertex/anthropic';
 import { VercelLLMService } from './vercel.js';
 import { LanguageModel } from 'ai';
 import { SessionEventBus } from '../../events/index.js';
@@ -53,6 +55,37 @@ function _createVercelModel(llmConfig: ValidatedLLMConfig): LanguageModel {
             // Fixed endpoint, no user configuration needed
             const baseURL = 'https://glama.ai/api/gateway/openai/v1';
             return createOpenAI({ apiKey, baseURL }).chat(model);
+        }
+        case 'vertex': {
+            // Google Vertex AI - supports both Gemini and Claude models
+            // Auth via Application Default Credentials (ADC)
+            // TODO: Integrate with agent config (llmConfig.vertex?.projectId) as primary,
+            // falling back to env vars. This would allow per-agent Vertex configuration.
+            const projectId = process.env.GOOGLE_VERTEX_PROJECT;
+            if (!projectId) {
+                throw LLMError.missingConfig(
+                    'vertex',
+                    'GOOGLE_VERTEX_PROJECT environment variable'
+                );
+            }
+            const location = process.env.GOOGLE_VERTEX_LOCATION;
+
+            // Route based on model type: Claude models use /anthropic subpath
+            if (model.includes('claude')) {
+                // Claude models on Vertex use the /anthropic subpath export
+                // Default to us-east5 for Claude (limited region availability)
+                return createVertexAnthropic({
+                    project: projectId,
+                    location: location || 'us-east5',
+                })(model);
+            }
+
+            // Gemini models use the main export
+            // Default to us-central1 for Gemini (widely available)
+            return createVertex({
+                project: projectId,
+                location: location || 'us-central1',
+            })(model);
         }
         // TODO: Add 'dexto' case (similar to openrouter, uses https://api.dexto.ai/v1)
         case 'anthropic':

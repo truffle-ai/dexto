@@ -2,7 +2,7 @@ import { LLMErrorCode } from './error-codes.js';
 import { ErrorScope, ErrorType } from '@core/errors/types.js';
 import { DextoRuntimeError } from '@core/errors/index.js';
 import { NonEmptyTrimmed, EnvExpandedString, OptionalURL } from '@core/utils/result.js';
-import { getPrimaryApiKeyEnvVar } from '@core/utils/api-key-resolver.js';
+import { getPrimaryApiKeyEnvVar, PROVIDER_API_KEY_MAP } from '@core/utils/api-key-resolver.js';
 import { z } from 'zod';
 import {
     supportsBaseURL,
@@ -88,7 +88,9 @@ export const LLMConfigSchema = LLMConfigBaseSchema.superRefine((data, ctx) => {
     const maxInputTokensIsSet = data.maxInputTokens != null;
 
     // API key validation with provider context
-    if (!data.apiKey?.trim()) {
+    // Skip validation for providers that don't use API keys (e.g., Vertex uses ADC)
+    const providerRequiresApiKey = PROVIDER_API_KEY_MAP[data.provider]?.length > 0;
+    if (providerRequiresApiKey && !data.apiKey?.trim()) {
         const primaryVar = getPrimaryApiKeyEnvVar(data.provider);
         ctx.addIssue({
             code: z.ZodIssueCode.custom,

@@ -17,6 +17,10 @@ export const PROVIDER_API_KEY_MAP: Record<LLMProvider, string[]> = {
     openrouter: ['OPENROUTER_API_KEY'],
     litellm: ['LITELLM_API_KEY', 'LITELLM_KEY'],
     glama: ['GLAMA_API_KEY'],
+    // Vertex uses ADC (Application Default Credentials), not API keys
+    // GOOGLE_APPLICATION_CREDENTIALS points to service account JSON (optional)
+    // Primary config is GOOGLE_VERTEX_PROJECT (required) + GOOGLE_VERTEX_LOCATION (optional)
+    vertex: [],
     // TODO: dexto: ['DEXTO_API_KEY'],
     // perplexity: ['PERPLEXITY_API_KEY'],
     // together: ['TOGETHER_API_KEY'],

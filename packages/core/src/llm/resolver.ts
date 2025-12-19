@@ -130,6 +130,24 @@ export async function resolveLLMConfig(
         baseURL = undefined;
     }
 
+    // Vertex AI validation - requires GOOGLE_VERTEX_PROJECT for ADC authentication
+    // This upfront check provides immediate feedback rather than failing at first API call
+    if (provider === 'vertex') {
+        const projectId = process.env.GOOGLE_VERTEX_PROJECT;
+        if (!projectId || !projectId.trim()) {
+            warnings.push({
+                code: LLMErrorCode.CONFIG_MISSING,
+                message:
+                    'GOOGLE_VERTEX_PROJECT environment variable is required for Vertex AI. ' +
+                    'Set it to your GCP project ID and ensure ADC is configured via `gcloud auth application-default login`',
+                severity: 'error',
+                scope: ErrorScope.LLM,
+                type: ErrorType.USER,
+                context: { provider, model },
+            });
+        }
+    }
+
     // OpenRouter model validation with cache refresh
     if (provider === 'openrouter') {
         let lookupStatus = lookupOpenRouterModel(model);

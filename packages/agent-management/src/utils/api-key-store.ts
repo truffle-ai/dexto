@@ -30,6 +30,25 @@ export function getProviderKeyStatus(provider: LLMProvider): {
     hasApiKey: boolean;
     envVar: string;
 } {
+    // Vertex AI uses ADC (Application Default Credentials), not API keys.
+    // Setup instructions:
+    // 1. Create a Google Cloud account and project
+    // 2. Enable the Vertex AI API: gcloud services enable aiplatform.googleapis.com
+    // 3. Enable desired Claude models (requires Anthropic Model Garden)
+    // 4. Install Google Cloud CLI: https://cloud.google.com/sdk/docs/install
+    // 5. Configure ADC: gcloud auth application-default login
+    // 6. Set env vars: GOOGLE_VERTEX_PROJECT (required), GOOGLE_VERTEX_LOCATION (optional)
+    //
+    // TODO: Improve Vertex setup flow - add dedicated setup modal with these instructions
+    // For now, we check GOOGLE_VERTEX_PROJECT as the "key" equivalent
+    if (provider === 'vertex') {
+        const projectId = process.env.GOOGLE_VERTEX_PROJECT;
+        return {
+            hasApiKey: Boolean(projectId && projectId.trim()),
+            envVar: 'GOOGLE_VERTEX_PROJECT',
+        };
+    }
+
     const envVar = getPrimaryApiKeyEnvVar(provider);
     const key = resolveApiKeyForProvider(provider);
     return { hasApiKey: Boolean(key && key.trim()), envVar };
