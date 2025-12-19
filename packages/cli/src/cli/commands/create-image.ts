@@ -17,6 +17,7 @@ import {
     generateExampleTool,
 } from '../utils/template-engine.js';
 import fs from 'fs-extra';
+import { getExecutionContext } from '@dexto/agent-management';
 
 /**
  * Creates a Dexto image project - a distributable agent harness package
@@ -130,6 +131,9 @@ export async function createImage(name?: string): Promise<string> {
     let projectPath: string | undefined;
 
     try {
+        // Save original cwd before changing directories (for resolving relative paths)
+        const originalCwd = process.cwd();
+
         // Create project directory
         projectPath = await createProjectDirectory(projectName, spinner);
 
@@ -206,22 +210,45 @@ export async function createImage(name?: string): Promise<string> {
 
         spinner.message('Installing dependencies...');
 
+        // Detect if we're in dexto source - use workspace protocol for local development
+        const executionContext = getExecutionContext();
+        const isDextoSource = executionContext === 'dexto-source';
+
+        const coreVersion = isDextoSource ? 'workspace:*' : '^1.3.0';
+        const bundlerVersion = isDextoSource ? 'workspace:*' : '^1.3.0';
+
         // Determine dependencies based on whether extending
-        const dependencies: string[] = [];
-        const devDependencies = ['typescript@^5.0.0', '@types/node@^20.0.0', '@dexto/bundler'];
+        const dependencies: string[] = [`@dexto/core@${coreVersion}`, 'zod'];
+        const devDependencies = [
+            'typescript@^5.0.0',
+            '@types/node@^20.0.0',
+            `@dexto/bundler@${bundlerVersion}`,
+        ];
 
         if (baseImage) {
-            // Extending an image
-            dependencies.push('@dexto/core', 'zod', baseImage);
-        } else {
-            // New base image
-            dependencies.push('@dexto/core', 'zod');
+            // Resolve base image path if we're in dexto source
+            let resolvedBaseImage = baseImage;
+            if (isDextoSource && baseImage.startsWith('@dexto/image-')) {
+                // In dexto source, resolve official images to local workspace packages
+                // e.g., @dexto/image-local -> packages/image-local
+                const imagePkgName = baseImage.replace('@dexto/', '');
+                const imagePkgPath = path.resolve(originalCwd, 'packages', imagePkgName);
+                if (await fs.pathExists(imagePkgPath)) {
+                    resolvedBaseImage = imagePkgPath;
+                }
+            }
+            dependencies.push(resolvedBaseImage);
         }
 
-        await installDependencies(projectPath, {
-            dependencies,
-            devDependencies,
-        });
+        // Install dependencies (use pnpm in dexto source for workspace protocol support)
+        await installDependencies(
+            projectPath,
+            {
+                dependencies,
+                devDependencies,
+            },
+            isDextoSource ? 'pnpm' : undefined
+        );
 
         spinner.stop(chalk.green(`✓ Successfully created image: ${projectName}`));
 

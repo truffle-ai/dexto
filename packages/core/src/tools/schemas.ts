@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { INTERNAL_TOOL_NAMES } from './internal-tools/constants.js';
+import { customToolSchemaRegistry } from './custom-tool-schema-registry.js';
 
 export const TOOL_CONFIRMATION_MODES = ['manual', 'auto-approve', 'auto-deny'] as const;
 export type ToolConfirmationMode = (typeof TOOL_CONFIRMATION_MODES)[number];
@@ -34,8 +35,6 @@ export type InternalToolsConfig = z.output<typeof InternalToolsSchema>;
  * @returns Discriminated union schema or passthrough schema
  */
 function getCustomToolConfigSchema(): z.ZodType<any> {
-    // Import here to avoid circular dependency
-    const { customToolSchemaRegistry } = require('./custom-tool-schema-registry.js');
     return customToolSchemaRegistry.createUnionSchema();
 }
 

@@ -23,10 +23,11 @@ interface TemplateContext {
  * Generates src/index.ts for an app using an image
  */
 export function generateIndexForImage(context: TemplateContext): string {
-    return `// Register image providers (side-effect import)
-// This auto-registers custom tools, blob storage, etc.
+    return `// Load image environment (Pattern 1: Static Import)
+// This auto-registers providers as a side-effect
 import '${context.imageName}';
 
+// Import from core packages
 import { DextoAgent } from '@dexto/core';
 import { loadAgentConfig } from '@dexto/agent-management';
 
@@ -36,7 +37,7 @@ async function main() {
     // Load agent configuration
     const config = await loadAgentConfig('./agents/default.yml');
 
-    // Create agent - providers are already registered via image import above
+    // Create agent - providers already registered by image environment
     const agent = new DextoAgent(config, './agents/default.yml');
 
     await agent.start();
@@ -316,7 +317,8 @@ pnpm add ${imageName}
  * Generates an example custom tool provider
  */
 export function generateExampleTool(toolName: string = 'example-tool'): string {
-    const providerName = toolName.replace(/-/g, '_');
+    // Convert kebab-case to camelCase for provider name
+    const providerName = toolName.replace(/-([a-z])/g, (_, char) => char.toUpperCase());
     return `import { z } from 'zod';
 import type { CustomToolProvider, InternalTool, ToolCreationContext } from '@dexto/core';
 
@@ -432,5 +434,167 @@ Edit \`agents/default.yml\` to configure:
 - [Dexto Documentation](https://docs.dexto.ai)
 - [Agent Configuration Guide](https://docs.dexto.ai/guides/configuration)
 - [Using Images](https://docs.dexto.ai/guides/images)
+`;
+}
+
+/**
+ * Generates auto-discovery script for from-core mode
+ */
+export function generateDiscoveryScript(): string {
+    return `#!/usr/bin/env tsx
+/**
+ * Provider Auto-Discovery Script
+ *
+ * Scans conventional folders (tools/, blob-store/, compression/, plugins/)
+ * and generates src/providers.ts with import + registration statements.
+ */
+
+import * as fs from 'fs/promises';
+import * as path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const projectRoot = path.resolve(__dirname, '..');
+
+interface ProviderInfo {
+    category: 'customTools' | 'blobStore' | 'compression' | 'plugins';
+    folderName: string;
+    path: string;
+    registryName: string;
+}
+
+const PROVIDER_CATEGORIES = [
+    { folder: 'tools', category: 'customTools' as const, registry: 'customToolRegistry' },
+    { folder: 'blob-store', category: 'blobStore' as const, registry: 'blobStoreRegistry' },
+    { folder: 'compression', category: 'compression' as const, registry: 'compressionRegistry' },
+    { folder: 'plugins', category: 'plugins' as const, registry: 'pluginRegistry' },
+];
+
+async function discoverProviders(): Promise<ProviderInfo[]> {
+    const providers: ProviderInfo[] = [];
+
+    for (const { folder, category, registry } of PROVIDER_CATEGORIES) {
+        const folderPath = path.join(projectRoot, folder);
+
+        try {
+            const entries = await fs.readdir(folderPath, { withFileTypes: true });
+
+            for (const entry of entries) {
+                if (!entry.isDirectory()) continue;
+                if (entry.name.startsWith('.')) continue;
+
+                // Check if provider has index.ts
+                const indexPath = path.join(folderPath, entry.name, 'index.ts');
+                try {
+                    await fs.access(indexPath);
+                    providers.push({
+                        category,
+                        folderName: entry.name,
+                        path: \`../\${folder}/\${entry.name}/index.js\`,
+                        registryName: registry,
+                    });
+                } catch {
+                    // No index.ts found, skip
+                }
+            }
+        } catch {
+            // Folder doesn't exist or can't be read, skip
+        }
+    }
+
+    return providers;
+}
+
+function generateProvidersFile(providers: ProviderInfo[]): string {
+    // Helper to convert kebab-case to camelCase for valid JS identifiers
+    const toCamelCase = (str: string): string => {
+        return str.replace(/-([a-z])/g, (_, char) => char.toUpperCase());
+    };
+
+    const imports: string[] = [];
+    const registrations: string[] = [];
+    const registries = new Set<string>();
+
+    providers.forEach((provider, index) => {
+        const varName = \`provider\${index}\`;
+        const providerName = \`\${toCamelCase(provider.folderName)}Provider\`;
+        imports.push(\`import { \${providerName} as \${varName} } from '\${provider.path}';\`);
+        registrations.push(\`    \${provider.registryName}.register(\${varName});\`);
+        registries.add(provider.registryName);
+    });
+
+    const registryImports = Array.from(registries).join(', ');
+
+    return \`// AUTO-GENERATED - DO NOT EDIT
+// This file is generated by scripts/discover-providers.ts
+// Run 'pnpm run discover' to regenerate
+
+import { \${registryImports} } from '@dexto/core';
+\${imports.join('\\n')}
+
+/**
+ * Register all discovered providers
+ * Called automatically when this module is imported
+ */
+export function registerProviders(): void {
+\${registrations.join('\\n')}
+}
+
+// Auto-register on import
+registerProviders();
+
+console.log('✓ Registered \${providers.length} provider(s)');
+\`;
+}
+
+function generateEntryPoint(): string {
+    return \`// AUTO-GENERATED - DO NOT EDIT
+// This file is the build entry point that wires everything together
+// Run 'pnpm run discover' to regenerate
+
+// Register providers first
+import './_providers.js';
+
+// Then run the user's app
+import './index.js';
+\`;
+}
+
+async function main() {
+    console.log('🔍 Discovering providers...\\n');
+
+    const providers = await discoverProviders();
+
+    if (providers.length === 0) {
+        console.log('⚠️  No providers found');
+        console.log('   Add providers to: tools/, blob-store/, compression/, or plugins/\\n');
+    } else {
+        console.log(\`✅ Found \${providers.length} provider(s):\`);
+        providers.forEach(p => {
+            console.log(\`   • \${p.category}/\${p.folderName}\`);
+        });
+        console.log();
+    }
+
+    // Generate provider registrations
+    const providersPath = path.join(projectRoot, 'src', '_providers.ts');
+    const providersContent = generateProvidersFile(providers);
+    await fs.writeFile(providersPath, providersContent, 'utf-8');
+    console.log(\`📝 Generated: src/_providers.ts\`);
+
+    // Generate build entry point
+    const entryPath = path.join(projectRoot, 'src', '_entry.ts');
+    const entryContent = generateEntryPoint();
+    await fs.writeFile(entryPath, entryContent, 'utf-8');
+    console.log(\`📝 Generated: src/_entry.ts\`);
+
+    console.log();
+}
+
+main().catch(error => {
+    console.error('❌ Discovery failed:', error);
+    process.exit(1);
+});
 `;
 }

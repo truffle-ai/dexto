@@ -7,7 +7,7 @@ import { getPackageManager, getPackageManagerInstallCommand } from '../utils/pac
 
 /**
  * Creates a Dexto project with manual provider registration (advanced pattern)
- * For most use cases, consider using `create-image` or `create-app --extend-image` instead
+ * For most use cases, consider using `create-image` or `create-app --from-core` instead
  * @param name - The name of the project
  * @returns The absolute path to the created project directory
  */
@@ -34,8 +34,8 @@ export async function createProject(name?: string): Promise<string> {
                 '\n⚠️  Advanced Pattern: Manual Provider Registration\n' +
                     'This creates a project with manual provider registration.\n\n' +
                     'Consider using:\n' +
-                    '  • `dexto create-image` for distributable harness packages\n' +
-                    '  • `dexto create-app --extend-image` for app-specific tools\n'
+                    '  • `dexto create-image` for distributable images\n' +
+                    '  • `dexto create-app --from-core` for standalone apps\n'
             )
         );
 

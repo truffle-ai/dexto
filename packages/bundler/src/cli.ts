@@ -3,6 +3,14 @@
  * CLI for bundling Dexto base images
  */
 
+// Suppress experimental warnings (e.g., Type Stripping)
+process.removeAllListeners('warning');
+process.on('warning', (warning) => {
+    if (warning.name !== 'ExperimentalWarning') {
+        console.warn(warning);
+    }
+});
+
 import { Command } from 'commander';
 import { bundle } from './bundler.js';
 import { readFileSync } from 'node:fs';
@@ -55,9 +63,27 @@ program
                 result.warnings.forEach((w) => console.log(`  - ${w}`));
             }
 
+            // Read package.json to get the actual package name
+            const packageJsonPath = join(process.cwd(), 'package.json');
+            let packageName = result.metadata.name;
+            try {
+                if (readFileSync) {
+                    const pkgJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
+                    packageName = pkgJson.name || result.metadata.name;
+                }
+            } catch {
+                // Use metadata name as fallback
+            }
+
             console.log(pc.green('\n✅ Image is ready to use!'));
-            console.log('   Import it in your app:');
-            console.log(pc.dim(`   import { createAgent } from '@dexto/${result.metadata.name}';`));
+            console.log('   To use this image in an app:');
+            console.log(
+                pc.dim(
+                    `   1. Install it: pnpm add ${packageName}@file:../${packageName.split('/').pop()}`
+                )
+            );
+            console.log(pc.dim(`   2. Import it:  import { createAgent } from '${packageName}';`));
+            console.log(pc.dim(`\n   Or publish to npm and install normally.`));
         } catch (error) {
             console.error(pc.red('\n❌ Build failed:'), error);
             process.exit(1);
