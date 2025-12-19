@@ -6,7 +6,7 @@ import { cn } from '../../lib/utils';
 import { validateBaseURL } from './types';
 import { useValidateOpenRouterModel } from '../hooks/useOpenRouter';
 
-export type CustomModelProvider = 'openai-compatible' | 'openrouter';
+export type CustomModelProvider = 'openai-compatible' | 'openrouter' | 'litellm' | 'glama';
 
 export interface CustomModelFormData {
     provider: CustomModelProvider;
@@ -36,6 +36,16 @@ const PROVIDER_OPTIONS: { value: CustomModelProvider; label: string; description
         value: 'openrouter',
         label: 'OpenRouter',
         description: 'Access 100+ models via OpenRouter API',
+    },
+    {
+        value: 'litellm',
+        label: 'LiteLLM',
+        description: 'Unified proxy for 100+ LLM providers',
+    },
+    {
+        value: 'glama',
+        label: 'Glama',
+        description: 'OpenAI-compatible gateway for multiple providers',
     },
 ];
 
@@ -124,7 +134,7 @@ export function CustomModelForm({
 
     const handleSubmit = () => {
         // Validate based on provider
-        if (formData.provider === 'openai-compatible') {
+        if (formData.provider === 'openai-compatible' || formData.provider === 'litellm') {
             if (!formData.name.trim()) {
                 setLocalError('Model name is required');
                 return;
@@ -142,19 +152,35 @@ export function CustomModelForm({
             if (validation.status !== 'valid') {
                 return;
             }
+        } else if (formData.provider === 'glama') {
+            // Glama requires model name in provider/model format
+            if (!formData.name.trim()) {
+                setLocalError('Model name is required');
+                return;
+            }
+            if (!formData.name.includes('/')) {
+                setLocalError('Glama models use format: provider/model (e.g., openai/gpt-4o)');
+                return;
+            }
         }
         setLocalError(null);
         onSubmit();
     };
 
     const isOpenRouter = formData.provider === 'openrouter';
+    const isLiteLLM = formData.provider === 'litellm';
+    const isGlama = formData.provider === 'glama';
+    // OpenRouter and Glama have fixed endpoints (no baseURL needed from user)
+    const requiresBaseURL = !isOpenRouter && !isGlama;
     const isValid = isOpenRouter ? validation.status === 'valid' : true;
     const isInvalid = isOpenRouter && validation.status === 'invalid';
     const isValidating = isOpenRouter && validation.status === 'validating';
 
     const canSubmit = isOpenRouter
         ? validation.status === 'valid' && formData.name.trim()
-        : formData.name.trim() && formData.baseURL.trim();
+        : isGlama
+          ? formData.name.trim() && formData.name.includes('/')
+          : formData.name.trim() && formData.baseURL.trim();
 
     const displayError = localError || error || (isInvalid && validation.error);
 
@@ -251,7 +277,11 @@ export function CustomModelForm({
                             placeholder={
                                 isOpenRouter
                                     ? 'e.g., anthropic/claude-3.5-sonnet'
-                                    : 'e.g., llama3.2:latest'
+                                    : isGlama
+                                      ? 'e.g., openai/gpt-4o, anthropic/claude-3-sonnet'
+                                      : isLiteLLM
+                                        ? 'e.g., gpt-4, claude-3-sonnet'
+                                        : 'e.g., llama3.2:latest'
                             }
                             className={cn(
                                 'h-9 text-sm pr-8',
@@ -301,10 +331,24 @@ export function CustomModelForm({
                             </a>
                         </p>
                     )}
+                    {isGlama && (
+                        <p className="text-[10px] text-muted-foreground">
+                            Format: provider/model (e.g., openai/gpt-4o). See{' '}
+                            <a
+                                href="https://glama.ai/"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-primary hover:underline"
+                            >
+                                glama.ai
+                            </a>{' '}
+                            for supported providers.
+                        </p>
+                    )}
                 </div>
 
-                {/* Base URL - only for OpenAI-compatible */}
-                {!isOpenRouter && (
+                {/* Base URL - for OpenAI-compatible and LiteLLM */}
+                {requiresBaseURL && (
                     <div className="space-y-1.5">
                         <label className="text-xs font-medium text-muted-foreground">
                             Base URL *
@@ -315,11 +359,17 @@ export function CustomModelForm({
                                 onChange({ baseURL: e.target.value });
                                 setLocalError(null);
                             }}
-                            placeholder="e.g., http://localhost:11434/v1"
+                            placeholder={
+                                isLiteLLM
+                                    ? 'e.g., http://localhost:4000'
+                                    : 'e.g., http://localhost:11434/v1'
+                            }
                             className="h-9 text-sm"
                         />
                         <p className="text-[10px] text-muted-foreground">
-                            The API endpoint URL (must include /v1 for OpenAI-compatible APIs)
+                            {isLiteLLM
+                                ? 'Your LiteLLM proxy URL'
+                                : 'The API endpoint URL (must include /v1 for OpenAI-compatible APIs)'}
                         </p>
                     </div>
                 )}
@@ -337,8 +387,8 @@ export function CustomModelForm({
                     />
                 </div>
 
-                {/* Token limits - only for OpenAI-compatible */}
-                {!isOpenRouter && (
+                {/* Token limits - for OpenAI-compatible and LiteLLM */}
+                {requiresBaseURL && (
                     <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1.5">
                             <label className="text-xs font-medium text-muted-foreground">

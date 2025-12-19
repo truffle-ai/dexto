@@ -159,6 +159,8 @@ export const TestConfigs = {
             cohere: 'command-r',
             'openai-compatible': 'gpt-5-mini',
             openrouter: 'anthropic/claude-3.5-haiku', // OpenRouter model format: provider/model
+            litellm: 'gpt-4', // LiteLLM model names follow the provider's convention
+            glama: 'openai/gpt-4o', // Glama model format: provider/model
         };
 
         return {

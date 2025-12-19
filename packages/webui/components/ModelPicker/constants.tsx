@@ -13,6 +13,8 @@ export const PROVIDER_LOGOS: Record<LLMProvider, string> = {
     'openai-compatible': '/logos/openai.svg',
     cohere: '/logos/cohere-color.svg',
     openrouter: '/logos/openrouter.svg',
+    litellm: '/logos/litellm.svg',
+    glama: '/logos/glama.svg',
 };
 
 // Provider pricing URLs (for quick access from Model Picker)
@@ -24,6 +26,8 @@ export const PROVIDER_PRICING_URLS: Partial<Record<LLMProvider, string>> = {
     xai: 'https://docs.x.ai/docs/models',
     cohere: 'https://cohere.com/pricing',
     openrouter: 'https://openrouter.ai/models',
+    litellm: 'https://docs.litellm.ai/',
+    glama: 'https://glama.ai/',
     // 'openai-compatible' intentionally omitted (varies by vendor)
 };
 

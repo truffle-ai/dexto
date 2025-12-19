@@ -1,6 +1,6 @@
 /**
  * CustomModelWizard Component
- * Multi-step wizard for adding custom models (openai-compatible or openrouter)
+ * Multi-step wizard for adding custom models (openai-compatible, openrouter, or litellm)
  */
 
 import React, { useState, useEffect, forwardRef, useImperativeHandle, useCallback } from 'react';
@@ -94,6 +94,77 @@ const OPENROUTER_STEPS: WizardStep[] = [
     },
 ];
 
+/** Steps for glama provider (fixed endpoint, similar to OpenRouter but no live validation) */
+const GLAMA_STEPS: WizardStep[] = [
+    {
+        field: 'name',
+        label: 'Glama Model ID',
+        placeholder: 'e.g., openai/gpt-4o, anthropic/claude-3-sonnet',
+        required: true,
+        validate: (v) => {
+            if (!v.trim()) return 'Model ID is required';
+            // Glama models typically have format: provider/model-name
+            if (!v.includes('/')) {
+                return 'Glama models use format: provider/model (e.g., openai/gpt-4o)';
+            }
+            return null;
+        },
+    },
+    {
+        field: 'displayName',
+        label: 'Display Name (optional)',
+        placeholder: 'e.g., GPT-4o via Glama',
+        required: false,
+    },
+];
+
+/** Steps for litellm provider (requires baseURL for user's proxy) */
+const LITELLM_STEPS: WizardStep[] = [
+    {
+        field: 'name',
+        label: 'Model Name',
+        placeholder: 'e.g., gpt-4, claude-3-sonnet, bedrock/anthropic.claude-v2',
+        required: true,
+        validate: (v) => (v.trim() ? null : 'Model name is required'),
+    },
+    {
+        field: 'baseURL',
+        label: 'LiteLLM Proxy URL',
+        placeholder: 'e.g., http://localhost:4000',
+        required: true,
+        validate: (v) => {
+            if (!v.trim()) return 'Base URL is required';
+            try {
+                const url = new URL(v);
+                if (!['http:', 'https:'].includes(url.protocol)) {
+                    return 'URL must use http:// or https://';
+                }
+                return null;
+            } catch {
+                return 'Invalid URL format';
+            }
+        },
+    },
+    {
+        field: 'displayName',
+        label: 'Display Name (optional)',
+        placeholder: 'e.g., My LiteLLM GPT-4',
+        required: false,
+    },
+    {
+        field: 'maxInputTokens',
+        label: 'Max Input Tokens (optional)',
+        placeholder: 'e.g., 128000 (leave blank for default)',
+        required: false,
+        validate: (v) => {
+            if (!v.trim()) return null;
+            const num = parseInt(v, 10);
+            if (isNaN(num) || num <= 0) return 'Must be a positive number';
+            return null;
+        },
+    },
+];
+
 /**
  * Validate OpenRouter model ID against the registry.
  * Refreshes cache if stale and returns error message if invalid.
@@ -120,7 +191,16 @@ async function validateOpenRouterModel(modelId: string): Promise<string | null> 
 }
 
 function getStepsForProvider(provider: CustomModelProvider): WizardStep[] {
-    return provider === 'openrouter' ? OPENROUTER_STEPS : OPENAI_COMPATIBLE_STEPS;
+    switch (provider) {
+        case 'openrouter':
+            return OPENROUTER_STEPS;
+        case 'glama':
+            return GLAMA_STEPS;
+        case 'litellm':
+            return LITELLM_STEPS;
+        default:
+            return OPENAI_COMPATIBLE_STEPS;
+    }
 }
 
 interface CustomModelWizardProps {
@@ -222,8 +302,11 @@ const CustomModelWizard = forwardRef<CustomModelWizardHandle, CustomModelWizardP
                     provider: selectedProvider!,
                 };
 
-                // Add baseURL for openai-compatible
-                if (selectedProvider === 'openai-compatible' && newValues.baseURL) {
+                // Add baseURL for openai-compatible and litellm
+                if (
+                    (selectedProvider === 'openai-compatible' || selectedProvider === 'litellm') &&
+                    newValues.baseURL
+                ) {
                     model.baseURL = newValues.baseURL;
                 }
 
@@ -380,7 +463,11 @@ const CustomModelWizard = forwardRef<CustomModelWizardHandle, CustomModelWizardP
                                     {index === providerIndex ? '❯ ' : '  '}
                                     {provider === 'openai-compatible'
                                         ? 'OpenAI-Compatible (local/custom endpoint)'
-                                        : 'OpenRouter (100+ cloud models)'}
+                                        : provider === 'litellm'
+                                          ? 'LiteLLM (unified proxy for 100+ providers)'
+                                          : provider === 'glama'
+                                            ? 'Glama (OpenAI-compatible gateway)'
+                                            : 'OpenRouter (100+ cloud models)'}
                                 </Text>
                             </Box>
                         ))}

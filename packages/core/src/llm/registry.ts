@@ -860,6 +860,22 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
         baseURLSupport: 'none', // Fixed endpoint - baseURL auto-injected in resolver, no user override allowed
         supportedFileTypes: ['pdf', 'image', 'audio'], // Allow all types - user assumes responsibility for model capabilities
     },
+    // https://docs.litellm.ai/
+    // LiteLLM is an OpenAI-compatible proxy that unifies 100+ LLM providers.
+    // User must host their own LiteLLM proxy and provide the baseURL.
+    litellm: {
+        models: [], // Empty - accepts any model name (user's proxy determines available models)
+        baseURLSupport: 'required', // User must provide their LiteLLM proxy URL
+        supportedFileTypes: ['pdf', 'image', 'audio'], // Allow all types - user assumes responsibility for model capabilities
+    },
+    // https://glama.ai/
+    // Glama is an OpenAI-compatible gateway providing unified access to multiple LLM providers.
+    // Fixed endpoint: https://glama.ai/api/gateway/openai/v1
+    glama: {
+        models: [], // Empty - accepts any model name (format: provider/model e.g., openai/gpt-4o)
+        baseURLSupport: 'none', // Fixed endpoint - baseURL auto-injected
+        supportedFileTypes: ['pdf', 'image', 'audio'], // Allow all types - user assumes responsibility for model capabilities
+    },
     // TODO: Add 'dexto' provider (similar to openrouter, uses https://api.dexto.ai/v1)
 };
 

@@ -190,11 +190,9 @@ Access 100+ models through one API:
 
 ```yaml
 llm:
-  provider: openai-compatible
+  provider: openrouter
   model: anthropic/claude-sonnet-4-5-20250929
   apiKey: $OPENROUTER_API_KEY
-  baseURL: https://openrouter.ai/api/v1
-  maxInputTokens: 200000
 ```
 
 **Popular models:**
@@ -202,6 +200,54 @@ llm:
 - `meta-llama/llama-3.1-405b-instruct`
 - `google/gemini-pro-1.5`
 - `mistralai/mistral-large`
+
+**Note:** OpenRouter is a dedicated provider with automatic model validation. The base URL is handled automatically.
+
+---
+
+### LiteLLM
+
+Unified proxy for 100+ LLM providers. Host your own LiteLLM proxy to access multiple providers through a single interface:
+
+```yaml
+llm:
+  provider: litellm
+  model: gpt-4
+  apiKey: $LITELLM_API_KEY
+  baseURL: http://localhost:4000
+```
+
+**Features:**
+- Single API for OpenAI, Anthropic, AWS Bedrock, Azure, Vertex AI, and more
+- Load balancing and fallbacks
+- Cost tracking and rate limiting
+- Self-hosted for full control
+
+**Model naming:** Model names follow LiteLLM's format (e.g., `gpt-4`, `claude-3-sonnet`, `bedrock/anthropic.claude-v2`)
+
+**Learn more:** [docs.litellm.ai](https://docs.litellm.ai/)
+
+---
+
+### Glama
+
+OpenAI-compatible gateway providing unified access to multiple LLM providers with single billing:
+
+```yaml
+llm:
+  provider: glama
+  model: openai/gpt-4o
+  apiKey: $GLAMA_API_KEY
+```
+
+**Features:**
+- Single API for OpenAI, Anthropic, Google, and more
+- Unified billing across providers
+- No base URL configuration needed (fixed endpoint)
+
+**Model naming:** Format is `provider/model` (e.g., `openai/gpt-4o`, `anthropic/claude-3-sonnet`)
+
+**Learn more:** [glama.ai](https://glama.ai/)
 
 ---
 
@@ -268,6 +314,8 @@ COHERE_API_KEY=your_cohere_key
 
 # Custom providers
 OPENROUTER_API_KEY=your_openrouter_key
+LITELLM_API_KEY=your_litellm_key
+GLAMA_API_KEY=your_glama_key
 TOGETHER_API_KEY=your_together_key
 AZURE_OPENAI_API_KEY=your_azure_key
 PERPLEXITY_API_KEY=your_perplexity_key

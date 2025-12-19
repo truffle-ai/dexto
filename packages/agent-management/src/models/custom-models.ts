@@ -11,7 +11,12 @@ import * as path from 'path';
 import { getDextoGlobalPath } from '../utils/path.js';
 
 /** Providers that support custom models */
-export const CUSTOM_MODEL_PROVIDERS = ['openai-compatible', 'openrouter'] as const;
+export const CUSTOM_MODEL_PROVIDERS = [
+    'openai-compatible',
+    'openrouter',
+    'litellm',
+    'glama',
+] as const;
 export type CustomModelProvider = (typeof CUSTOM_MODEL_PROVIDERS)[number];
 
 /**
@@ -29,12 +34,15 @@ export const CustomModelSchema = z
         maxOutputTokens: z.number().int().positive().optional(),
     })
     .superRefine((data, ctx) => {
-        // baseURL is required for openai-compatible
-        if (data.provider === 'openai-compatible' && !data.baseURL) {
+        // baseURL is required for openai-compatible and litellm
+        if (
+            (data.provider === 'openai-compatible' || data.provider === 'litellm') &&
+            !data.baseURL
+        ) {
             ctx.addIssue({
                 code: z.ZodIssueCode.custom,
                 path: ['baseURL'],
-                message: 'Base URL is required for openai-compatible provider',
+                message: `Base URL is required for ${data.provider} provider`,
             });
         }
     });

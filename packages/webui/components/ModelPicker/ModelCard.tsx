@@ -30,6 +30,8 @@ const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
     cohere: 'Cohere',
     openrouter: 'OpenRouter',
     'openai-compatible': 'Custom',
+    litellm: 'LiteLLM',
+    glama: 'Glama',
 };
 
 // Parse display name into provider and model parts
@@ -40,7 +42,12 @@ function parseModelName(
     const providerName = PROVIDER_DISPLAY_NAMES[provider] || provider;
 
     // For custom model providers, show the full display name without parsing
-    if (provider === 'openrouter' || provider === 'openai-compatible') {
+    if (
+        provider === 'openrouter' ||
+        provider === 'openai-compatible' ||
+        provider === 'litellm' ||
+        provider === 'glama'
+    ) {
         return { providerName, modelName: displayName };
     }
 

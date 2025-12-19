@@ -141,8 +141,14 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
 
                 // Add registry models
                 for (const provider of providers) {
-                    // Skip openai-compatible and openrouter as those are shown via custom models
-                    if (provider === 'openai-compatible' || provider === 'openrouter') continue;
+                    // Skip openai-compatible, openrouter, litellm, and glama as those are shown via custom models
+                    if (
+                        provider === 'openai-compatible' ||
+                        provider === 'openrouter' ||
+                        provider === 'litellm' ||
+                        provider === 'glama'
+                    )
+                        continue;
 
                     const providerModels = allModels[provider];
                     for (const model of providerModels) {

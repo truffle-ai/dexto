@@ -39,6 +39,21 @@ function _createVercelModel(llmConfig: ValidatedLLMConfig): LanguageModel {
             const baseURL = llmConfig.baseURL || 'https://openrouter.ai/api/v1';
             return createOpenAI({ apiKey, baseURL }).chat(model);
         }
+        case 'litellm': {
+            // LiteLLM - OpenAI-compatible proxy for 100+ LLM providers
+            // User must provide their own LiteLLM proxy URL
+            const baseURL = llmConfig.baseURL;
+            if (!baseURL) {
+                throw LLMError.baseUrlMissing('litellm');
+            }
+            return createOpenAI({ apiKey, baseURL }).chat(model);
+        }
+        case 'glama': {
+            // Glama - OpenAI-compatible gateway for multiple LLM providers
+            // Fixed endpoint, no user configuration needed
+            const baseURL = 'https://glama.ai/api/gateway/openai/v1';
+            return createOpenAI({ apiKey, baseURL }).chat(model);
+        }
         // TODO: Add 'dexto' case (similar to openrouter, uses https://api.dexto.ai/v1)
         case 'anthropic':
             return createAnthropic({ apiKey })(model);

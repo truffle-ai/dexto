@@ -524,9 +524,47 @@ describe('Provider-Specific Tests', () => {
             expect(getSupportedProviders()).toContain('openrouter');
             expect(getSupportedModels('openrouter')).toEqual([]);
             expect(getDefaultModelForProvider('openrouter')).toBe(null);
-            expect(supportsBaseURL('openrouter')).toBe(true);
+            expect(supportsBaseURL('openrouter')).toBe(false); // Fixed endpoint, auto-injected in resolver
             expect(requiresBaseURL('openrouter')).toBe(false); // Auto-injected
             expect(acceptsAnyModel('openrouter')).toBe(true);
+        });
+    });
+
+    describe('LiteLLM provider', () => {
+        it('has correct capabilities for proxy routing', () => {
+            expect(getSupportedProviders()).toContain('litellm');
+            expect(getSupportedModels('litellm')).toEqual([]);
+            expect(getDefaultModelForProvider('litellm')).toBe(null);
+            expect(supportsBaseURL('litellm')).toBe(true);
+            expect(requiresBaseURL('litellm')).toBe(true); // User must provide proxy URL
+            expect(acceptsAnyModel('litellm')).toBe(true);
+        });
+
+        it('supports all file types for user-hosted proxy', () => {
+            expect(getSupportedFileTypesForModel('litellm', 'any-model')).toEqual([
+                'pdf',
+                'image',
+                'audio',
+            ]);
+        });
+    });
+
+    describe('Glama provider', () => {
+        it('has correct capabilities for gateway routing', () => {
+            expect(getSupportedProviders()).toContain('glama');
+            expect(getSupportedModels('glama')).toEqual([]);
+            expect(getDefaultModelForProvider('glama')).toBe(null);
+            expect(supportsBaseURL('glama')).toBe(false); // Fixed endpoint, auto-injected
+            expect(requiresBaseURL('glama')).toBe(false);
+            expect(acceptsAnyModel('glama')).toBe(true);
+        });
+
+        it('supports all file types for gateway', () => {
+            expect(getSupportedFileTypesForModel('glama', 'openai/gpt-4o')).toEqual([
+                'pdf',
+                'image',
+                'audio',
+            ]);
         });
     });
 });
