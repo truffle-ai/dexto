@@ -24,7 +24,7 @@ export default defineImage({
 
     // Extend the base image - bundler will import it for side-effect registration
     // This automatically inherits all providers from the base image
-    extends: '../../00-building-image/dist/index.js',
+    extends: '@dexto/image-local',
 
     // Providers are AUTO-DISCOVERED from:
     //   tools/weather-helper/index.ts

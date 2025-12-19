@@ -1,3 +1,6 @@
+# Image: Specifies the provider bundle for this agent
+image: '@dexto/image-local'
+
 systemPrompt:
   contributors:
     - id: main-prompt
@@ -6,10 +9,10 @@ systemPrompt:
       content: |
         You are a helpful AI assistant running via Dexto's REST API server.
         You have access to:
-        - Local filesystem storage and SQLite database
-        - Custom text utilities tools (count_words, transform_case, reverse_text)
+        - Filesystem tools (read, write, edit files)
+        - Process tools (bash execution)
 
-        When asked to analyze or manipulate text, use your built-in text utility tools.
+        When asked to work with files or run commands, use your built-in tools.
         You're accessible via HTTP at http://localhost:3000
 
 llm:
@@ -17,10 +20,13 @@ llm:
   model: gpt-4o-mini
   apiKey: $OPENAI_API_KEY
 
-# Enable the custom text-utils tool that's bundled in the image
-customTools:
-  - type: text-utils
-    maxLength: 10000
+# Enable filesystem and process tools from the image (optional - can be enabled as needed)
+# customTools:
+#   - type: filesystem-tools
+#     allowedPaths: ['.']
+#     blockedPaths: ['.git', 'node_modules']
+#   - type: process-tools
+#     securityLevel: moderate
 
 # Note: Storage config not specified - will use image defaults:
 # - blob: local filesystem (./data/blobs)

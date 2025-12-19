@@ -9,6 +9,8 @@
   },
   "dependencies": {
     "@dexto/agent-management": "workspace:*",
+    "@dexto/core": "workspace:*",
+    "@dexto/image-local": "workspace:*",
     "zod": "^3.25.0"
   },
   "devDependencies": {

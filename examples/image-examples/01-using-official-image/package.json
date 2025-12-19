@@ -8,7 +8,9 @@
     "start": "tsx src/index.ts"
   },
   "dependencies": {
-    "@dexto/agent-management": "workspace:*"
+    "@dexto/agent-management": "workspace:*",
+    "@dexto/core": "workspace:*",
+    "@dexto/image-local": "workspace:*"
   },
   "devDependencies": {
     "tsx": "^4.7.0",

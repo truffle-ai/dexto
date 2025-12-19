@@ -20,19 +20,27 @@ image-examples/
 
 ### Pattern 1: Use an Image → [Example 1](./01-using-official-image/)
 
-**Use an official image with defaults to start building apps quickly**
+**Use an official image with defaults - this is what `dexto create-app` generates**
 
 ```typescript
-import { createAgent } from '@dexto/image-local';
-const agent = createAgent(config);
-// Done! Storage, database, cache, tools all configured.
+// Static import for side-effect registration
+import '@dexto/image-local';
+
+import { DextoAgent } from '@dexto/core';
+const agent = new DextoAgent(config);
+// Done! Providers auto-registered, ready to use.
+```
+
+**agents/default.yml:**
+```yaml
+image: '@dexto/image-local'
 ```
 
 **When:** Getting started, prototypes, simple apps
 
-**Value:** Zero boilerplate, focus on your app logic
+**Value:** Zero boilerplate, matches `create-app` output
 
-**Dependencies:** None! Just the image package
+**Command:** `dexto create-app my-app --from-image @dexto/image-local`
 
 ---
 
@@ -41,22 +49,29 @@ const agent = createAgent(config);
 **Add custom tools at runtime without building a new image**
 
 ```typescript
-// Import from IMAGE, not @dexto/core!
-import { createAgent, customToolRegistry } from '@dexto/image-local';
+// Import image for side-effect registration
+import '@dexto/image-local';
+
+import { DextoAgent, customToolRegistry } from '@dexto/core';
 import { myWeatherTool } from './tools/weather.js';
 
-// Add at runtime
+// Add at runtime (before creating agent)
 customToolRegistry.register(myWeatherTool);
 
 // Agent has: image providers + runtime additions
-const agent = createAgent(config);
+const agent = new DextoAgent(config);
+```
+
+**agents/default.yml:**
+```yaml
+image: '@dexto/image-local'
+customTools:
+  - type: weather-helper
 ```
 
 **When:** Need 1-2 app-specific tools, domain-specific functionality
 
-**Value:** Reuse image infrastructure, add your business logic
-
-**Dependencies:** None! Registries re-exported by image
+**Value:** Instant iteration, no build step, easy testing
 
 **Key Difference:** This is RUNTIME (no build), not creating a new image
 
@@ -65,6 +80,8 @@ const agent = createAgent(config);
 ### Pattern 3: Extend an Image → [Example 3](./03-extending-image/)
 
 **Create a NEW distributable image that inherits from a base**
+
+This is what `dexto create-image` generates for extending existing images.
 
 ```typescript
 // dexto.image.ts
@@ -84,7 +101,7 @@ npm publish         # Share with org as @myorg/image-weather
 
 **Value:** Create org-specific images, share infrastructure across teams
 
-**Dependencies:** `@dexto/core` (dev only), `@dexto/bundler` (dev only)
+**Command:** `dexto create-image my-org-image`
 
 **Key Difference:** Builds a NEW IMAGE (distributable), not runtime customization
 
@@ -92,14 +109,14 @@ npm publish         # Share with org as @myorg/image-weather
 
 ## Comparison Table
 
-| Aspect | Use Image | Runtime Custom | Extend Image | Build Image |
-|--------|-----------|----------------|--------------|-------------|
-| **Example** | 01 | 02 | 03 | 00 |
-| **Build Step?** | ❌ No | ❌ No | ✅ Yes | ✅ Yes |
-| **@dexto/core?** | ❌ No | ❌ No | Dev only | Dev only |
-| **Distributable?** | - | ❌ No | ✅ Yes | ✅ Yes |
-| **When** | Start/prototype | App-specific | Org standard | Foundation |
-| **Registries** | From image | From image | N/A | N/A |
+| Aspect | Use Image | Runtime Custom | Extend Image |
+|--------|-----------|----------------|--------------|
+| **Example** | 01 | 02 | 03 |
+| **Build Step?** | ❌ No | ❌ No | ✅ Yes |
+| **@dexto/core?** | ❌ No | ❌ No | Dev only |
+| **Distributable?** | - | ❌ No | ✅ Yes |
+| **When** | Start/prototype | App-specific | Org standard |
+| **Registries** | From image | From image | N/A |
 
 ---
 
@@ -177,23 +194,21 @@ From Dexto root:
 # Build dependencies
 pnpm --filter @dexto/core build
 pnpm --filter @dexto/agent-management build
+pnpm --filter @dexto/image-local build
 pnpm --filter @dexto/bundler build
-
-# Build the reference image (Example 0)
-cd examples/harness-examples/00-building-image
-pnpm run build
 
 # Set API key
 export OPENAI_API_KEY="your-key-here"
 
 # Run examples
-cd ../01-using-official-image && pnpm start
+cd examples/image-examples/01-using-official-image && pnpm start
 cd ../02-runtime-customization && pnpm start
+cd ../03-extending-image && pnpm run build  # Build the extended image
 ```
 
 ## Learning Path
 
-1. **Study Example 0** - Understand how images are built (convention-based)
+1. **Study @dexto/image-local** - Understand how images are built (see `packages/image-local/`)
 2. **Run Example 1** - See how simple it is to use an image
 3. **Try Example 2** - Learn to add tools at runtime
 4. **Study Example 3** - See how to extend into a new distributable image
@@ -210,18 +225,26 @@ Each example's README has detailed explanations and code walkthroughs.
 
 ### Side-Effect Registration
 ```typescript
-import { createAgent } from '@dexto/image-local';
+import '@dexto/image-local';
 // ↑ This import auto-registers all providers
-const agent = createAgent(config);  // Ready to use!
+
+import { DextoAgent } from '@dexto/core';
+const agent = new DextoAgent(config);  // Ready to use!
 ```
 
-### Registry Re-exports (NEW!)
-Images now re-export registries, so you don't need `@dexto/core`:
+### Config-Based Image Loading
+Images can also be loaded via config (recommended for flexibility):
 
-```typescript
-// Import from IMAGE, not @dexto/core!
-import { customToolRegistry } from '@dexto/image-local';
+```yaml
+# agents/default.yml
+image: '@dexto/image-local'
 ```
+
+The CLI will load the image automatically based on priority:
+1. CLI flag: `--image @dexto/image-local`
+2. Config field: `image: '@dexto/image-local'`
+3. Environment: `DEXTO_IMAGE=@dexto/image-local`
+4. Default: `@dexto/image-local`
 
 ### Provider = Implementation
 - BlobStore: local, S3, Supabase, GCS
@@ -230,7 +253,7 @@ import { customToolRegistry } from '@dexto/image-local';
 
 ## Before & After
 
-### Before (Manual Setup - 30+ lines)
+### Before Images (Manual Setup - 30+ lines)
 
 ```typescript
 import { DextoAgent, blobStoreRegistry } from '@dexto/core';
@@ -246,15 +269,24 @@ databaseRegistry.register(sqliteProvider);
 const agent = new DextoAgent(config);
 ```
 
-### After (With Image - 3 lines)
+**~30 lines of boilerplate for every app!**
+
+### After Images (Pattern 1 - Simple)
 
 ```typescript
-import { createAgent } from '@dexto/image-local';
-const agent = createAgent(config);
-// All providers already registered!
+// Static import - auto-registers providers
+import '@dexto/image-local';
+
+import { DextoAgent } from '@dexto/core';
+const agent = new DextoAgent(config); // Providers already registered!
 ```
 
-**90% reduction in boilerplate**
+**Config:**
+```yaml
+image: '@dexto/image-local'
+```
+
+**85% reduction in boilerplate! 🎉**
 
 ## Decision Tree
 
@@ -267,21 +299,23 @@ const agent = createAgent(config);
 **Creating org-wide standard with 3+ custom providers?**
 → Use Example 3 (extend into new image)
 
-**Building completely custom distribution?**
-→ Study Example 0, create your own base image
+**Building completely custom base image?**
+→ Study `@dexto/image-local` source (`packages/image-local/`), create your own base image
 
-## Official Images (Future)
+## Official Images
 
-When mature, images will be published as:
-- **`@dexto/image-local`** - Local dev (SQLite, filesystem, offline)
+Available images:
+- **`@dexto/image-local`** - Local dev (SQLite, filesystem tools, process tools, offline-capable)
+
+Future images:
 - **`@dexto/image-cloud`** - Production (Postgres, S3, scalable)
 - **`@dexto/image-edge`** - Serverless (D1, R2, cold-start optimized)
 
-For now, Example 0 serves as the reference implementation using convention-based structure.
+See `packages/image-local/` for the reference implementation using convention-based structure.
 
 ## Next Steps
 
 - Read [Architecture Docs](../../feature-plans/architecture/)
-- Study [Example 0 Implementation](./00-building-image/)
+- Study [@dexto/image-local Implementation](../../packages/image-local/)
 - Learn [Provider Development](../../packages/core/src/providers/README.md)
-- Read [Architecture Decisions](./ARCHITECTURE-DECISIONS.md)
+- Explore the [Base Images Architecture](../../feature-plans/architecture/02-base-images-and-implementation.md)

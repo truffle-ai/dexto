@@ -9,6 +9,8 @@
   },
   "dependencies": {
     "@dexto/agent-management": "workspace:*",
+    "@dexto/core": "workspace:*",
+    "@dexto/image-local": "workspace:*",
     "@dexto/server": "workspace:*"
   },
   "devDependencies": {

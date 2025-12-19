@@ -1,23 +1,23 @@
-# Example 2: Extending an Official Image
+# Example 2: Runtime Customization
 
-This example demonstrates how to **extend an official Dexto image** with your own custom providers while retaining all the benefits of the base image.
+This example demonstrates how to **add custom tools at runtime** to an official Dexto image without building a new image.
 
 ## What This Shows
 
-The **extensibility pattern** - combine official images with custom providers:
+The **runtime customization pattern** - use an official image and add app-specific tools:
 
 1. **Start with Official Image** - `@dexto/image-local` provides storage/database/cache
-2. **Add Custom Provider** - Register your own tool (weather helper)
-3. **Best of Both Worlds** - Image handles infrastructure, you add domain logic
+2. **Add Custom Tools at Runtime** - Register your own tool (weather helper) at app startup
+3. **No Build Step Required** - Just register and use, no image building
 4. **Zero Boilerplate** - No need to register storage providers manually
 
 ## Use Case
 
 Perfect when you:
 - ✅ Want the convenience of an official image
-- ✅ Need to add organization-specific tools
+- ✅ Need to add 1-2 app-specific tools
 - ✅ Don't want to manage infrastructure providers yourself
-- ✅ Want to ship custom functionality to your team
+- ✅ Don't need to distribute your custom tools as a package
 
 ## Quick Start
 
@@ -49,14 +49,13 @@ pnpm start
 
 ## Key Concepts
 
-### Extension Pattern
+### Runtime Customization Pattern
 
 ```typescript
 // Official image provides infrastructure
-import { createAgent } from '@dexto/image-local';
+import { createAgent, customToolRegistry } from '@dexto/image-local';
 
-// You add domain logic
-import { customToolRegistry } from '@dexto/core';
+// You add domain logic at runtime (no build step!)
 customToolRegistry.register(yourCustomTool);
 
 // Agent has both!
@@ -79,19 +78,20 @@ const agent = createAgent(config);
 
 ## When to Use This Pattern
 
-✅ **Use Extension When:**
-- You need 1-3 custom providers
+✅ **Use Runtime Customization When:**
+- You need 1-2 app-specific custom tools
 - Building a single app or service
-- Want to move fast
+- Want to move fast without a build step
 - Official image covers 90% of your needs
+- Tools don't need to be shared across multiple apps
 
-❌ **Don't Use Extension When:**
-- Need 10+ custom providers (create custom image)
-- Building a platform others will use (create custom image)
-- Official image doesn't fit your needs (create custom image)
+❌ **Don't Use Runtime Customization When:**
+- Need 3+ custom providers to share across apps (create custom image instead - see Example 3)
+- Building a platform others will use (create custom image instead)
+- Want to distribute tools as a package (create custom image instead)
 
 ## See Also
 
 - [Example 1: Using Official Image](../01-using-official-image/)
-- [Example 3: Creating Custom Image](../03-creating-custom-image/)
+- [Example 3: Extending Image (Build-time)](../03-extending-image/) - For distributable custom images
 - [Base Images Architecture](../../../feature-plans/architecture/02-base-images-and-implementation.md)

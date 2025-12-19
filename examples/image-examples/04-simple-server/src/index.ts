@@ -1,12 +1,7 @@
 /**
- * Example: Starting a Dexto API Server
+ * Example 4: Starting a Dexto API Server
  *
- * This demonstrates how to spin up a full REST API server:
- * - Import base image
- * - Create agent
- * - Start server with one function call
- *
- * The server provides:
+ * This demonstrates how to spin up a full REST API server with:
  * - REST API endpoints at /api/*
  * - OpenAPI documentation at /openapi.json
  * - Health check at /health
@@ -14,32 +9,24 @@
  * - Server-Sent Events for real-time streaming
  */
 
-// Import from local harness implementation (Example 0)
-import { createAgent, imageMetadata } from '../../00-building-image/dist/index.js';
+// Import from core packages
+import { DextoAgent } from '@dexto/core';
 import { loadAgentConfig } from '@dexto/agent-management';
 import { startDextoServer } from '@dexto/server';
 import { resolve } from 'node:path';
 import { existsSync } from 'node:fs';
 
 async function main() {
-    console.log('🚀 Dexto Server Example\n');
-
-    // Show what image we're using
-    console.log('Using Base Image:');
-    console.log(`  Name:        ${imageMetadata.name}`);
-    console.log(`  Version:     ${imageMetadata.version}`);
-    console.log(`  Target:      ${imageMetadata.target}`);
-    console.log(`  Built:       ${imageMetadata.builtAt}`);
-    console.log(`  Core:        v${imageMetadata.coreVersion}\n`);
+    console.log('🚀 Example 4: Dexto Server\n');
 
     // Load agent configuration
-    console.log('📝 Loading agent configuration...');
+    console.log('📝 Loading configuration...');
     const config = await loadAgentConfig('./agents/default.yml');
-    console.log('✅ Config loaded\n');
+    console.log('✅ Config loaded (image: @dexto/image-local)\n');
 
-    // Create agent - providers already registered by image!
+    // Create agent
     console.log('🤖 Creating agent...');
-    const agent = createAgent(config, './agents/default.yml');
+    const agent = new DextoAgent(config, './agents/default.yml');
     console.log('✅ Agent created\n');
 
     // Start the server - this handles ALL the wiring!

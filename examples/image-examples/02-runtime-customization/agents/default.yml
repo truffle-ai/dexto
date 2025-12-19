@@ -1,29 +1,24 @@
+# Image: Specifies the provider bundle for this agent
+image: '@dexto/image-local'
+
 systemPrompt:
   contributors:
-    - type: static
+    - id: main-prompt
+      type: static
+      priority: 100
       content: |
         You are a helpful AI assistant with access to:
-        - Weather information (custom tool added by this app)
-        - Text utilities (bundled in the base image)
+        - Weather information (custom tool added at runtime)
 
         When asked about weather, use the get_weather tool.
-        When asked to manipulate text, use the text utility tools (count_words, transform_case, reverse_text).
 
 llm:
-  provider: anthropic
-  model: claude-sonnet-4-5-20250514
-  apiKey: $ANTHROPIC_API_KEY
+  provider: openai
+  model: gpt-4o
+  apiKey: $OPENAI_API_KEY
 
-# Custom tool configuration
+# Custom tools - enable the runtime-added weather tool
 customTools:
-  # Custom weather tool added by extending the image
   - type: weather-helper
-    defaultCity: New York
+    defaultCity: San Francisco
     units: fahrenheit
-
-  # Text utils tool comes from the base image
-  - type: text-utils
-    maxLength: 10000
-
-# Storage uses image-local defaults (no need to specify!)
-# The image provides: SQLite database, local filesystem, in-memory cache

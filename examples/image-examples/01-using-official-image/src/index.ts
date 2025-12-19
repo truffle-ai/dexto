@@ -1,82 +1,55 @@
 /**
- * Example: Using @dexto/image-local Base Image
+ * Example 1: Using an Official Image
  *
- * This demonstrates the power of base images:
- * - No manual provider registration
- * - No boilerplate
- * - Just import, configure, and use
+ * This is the output of: dexto create-app my-app --from-image @dexto/image-local
+ *
+ * Pattern 1: Static Import
+ * - Image is imported as a side-effect (auto-registers providers)
+ * - Image is also specified in agents/default.yml config
+ * - Use DextoAgent from @dexto/core (not createAgent from image)
  */
 
-// Import from local harness implementation (Example 0)
-import { createAgent, imageMetadata } from '../../00-building-image/dist/index.js';
+// Load image environment (Pattern 1: Static Import)
+// This auto-registers providers as a side-effect
+import '@dexto/image-local';
+
+// Import from core packages
+import { DextoAgent } from '@dexto/core';
 import { loadAgentConfig } from '@dexto/agent-management';
 
 async function main() {
-    console.log('🚀 Dexto Base Image Example\n');
-
-    // Show what image we're using
-    console.log('Using Base Image:');
-    console.log(`  Name:        ${imageMetadata.name}`);
-    console.log(`  Version:     ${imageMetadata.version}`);
-    console.log(`  Target:      ${imageMetadata.target}`);
-    console.log(`  Built:       ${imageMetadata.builtAt}`);
-    console.log(`  Core:        v${imageMetadata.coreVersion}`);
-    console.log(`  Constraints: ${imageMetadata.constraints.join(', ')}\n`);
+    console.log('🚀 Example 1: Using Official Image\n');
 
     // Load agent configuration
-    console.log('📝 Loading agent configuration...');
+    console.log('📝 Loading configuration from agents/default.yml');
     const config = await loadAgentConfig('./agents/default.yml');
-    console.log('✅ Config loaded\n');
+    console.log('✅ Config loaded (image: @dexto/image-local)\n');
 
-    // Create agent - providers already registered by image!
+    // Create agent - providers already registered by image import
     console.log('🤖 Creating agent...');
-    const agent = createAgent(config, './agents/default.yml');
-
-    console.log('✅ Agent created (providers already registered by image)');
-    console.log('   No manual provider registration needed!\n');
+    const agent = new DextoAgent(config, './agents/default.yml');
+    console.log('✅ Agent created\n');
 
     // Start agent
     console.log('🔌 Starting agent...');
     await agent.start();
     console.log('✅ Agent started\n');
 
-    // Create a session (sessionId will be auto-generated)
+    // Create a session
     console.log('📝 Creating session...');
     const session = await agent.createSession();
-    console.log(`✅ Session created: ${session.id}\n`);
+    console.log(`✅ Session: ${session.id}\n`);
 
-    // Test 1: Simple greeting
-    console.log('💬 Test 1: Simple greeting...');
-    const response1 = await agent.run(
-        'Hello! Can you tell me about yourself in one sentence?',
-        undefined,
-        undefined,
-        session.id
+    // Example interaction
+    console.log('💬 Sending message...');
+    const response = await agent.run(
+        'Hello! Can you list the files in the current directory?',
+        undefined, // imageDataInput
+        undefined, // fileDataInput
+        session.id // sessionId
     );
     console.log('📨 Agent response:');
-    console.log(`   ${response1}\n`);
-
-    // Test 2: Use the bundled text-utils tool
-    console.log('💬 Test 2: Testing text utilities (bundled in image)...');
-    const response2 = await agent.run(
-        'Count the words in this sentence: "The quick brown fox jumps over the lazy dog"',
-        undefined,
-        undefined,
-        session.id
-    );
-    console.log('📨 Agent response:');
-    console.log(`   ${response2}\n`);
-
-    // Test 3: Transform text
-    console.log('💬 Test 3: Transform text to uppercase...');
-    const response3 = await agent.run(
-        'Transform this text to uppercase: "hello world"',
-        undefined,
-        undefined,
-        session.id
-    );
-    console.log('📨 Agent response:');
-    console.log(`   ${response3}\n`);
+    console.log(`   ${response}\n`);
 
     // Cleanup
     console.log('🛑 Stopping agent...');
@@ -85,14 +58,14 @@ async function main() {
 
     console.log('✨ Example complete!');
     console.log('\nKey Takeaways:');
-    console.log('  ✓ Imported @dexto/image-local');
-    console.log('  ✓ Called createAgent() - providers already registered!');
-    console.log('  ✓ Used text-utils tool bundled in the image');
-    console.log('  ✓ No boilerplate, no manual provider registration');
-    console.log('  ✓ This is the power of base images 🎉');
+    console.log('  ✓ Image imported as side-effect: import "@dexto/image-local"');
+    console.log('  ✓ Image specified in config: image: "@dexto/image-local"');
+    console.log('  ✓ Used DextoAgent from @dexto/core');
+    console.log('  ✓ Providers auto-registered (filesystem-tools, process-tools)');
+    console.log('  ✓ This matches `dexto create-app` output 🎉');
 }
 
 main().catch((error) => {
-    console.error('❌ Error:', error);
+    console.error('Error:', error);
     process.exit(1);
 });
