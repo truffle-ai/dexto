@@ -158,7 +158,7 @@ program
                 p.intro(chalk.inverse('Create Dexto Image'));
 
                 // Create the image project structure
-                const projectPath = await createImage(name);
+                await createImage(name);
 
                 p.outro(chalk.greenBright('Dexto image created successfully!'));
                 safeExit('create-image', 0);
@@ -352,7 +352,7 @@ async function bootstrapAgentFromGlobalOpts() {
     if (imageName) {
         try {
             await import(imageName);
-        } catch (err) {
+        } catch (_err) {
             console.error(`❌ Failed to load image '${imageName}'`);
             console.error(
                 `💡 Install it with: ${
@@ -911,11 +911,7 @@ program
                     // Validate that if config specifies an image, it matches what was loaded
                     if (validatedConfig.image && validatedConfig.image !== imageName) {
                         console.error(
-                            `❌ Config specifies image '${validatedConfig.image}' but ${
-                                imageName
-                                    ? `'${imageName}' was loaded instead`
-                                    : 'no image was loaded'
-                            }`
+                            `❌ Config specifies image '${validatedConfig.image}' but '${imageName}' was loaded instead`
                         );
                         console.error(
                             `💡 Either remove 'image' from config or ensure it matches the loaded image`
