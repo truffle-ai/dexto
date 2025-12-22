@@ -110,8 +110,19 @@ function _createVercelModel(llmConfig: ValidatedLLMConfig): LanguageModel {
                     'AWS_REGION or AWS_DEFAULT_REGION environment variable'
                 );
             }
+
+            // Auto-detect cross-region inference profile prefix based on user's region
+            // Users can override by explicitly using prefixed model IDs (e.g., eu.anthropic.claude...)
+            // Cross-region profiles are required for newer models in most regions
+            let modelId = model;
+            const hasRegionPrefix = model.startsWith('eu.') || model.startsWith('us.');
+            if (!hasRegionPrefix) {
+                const prefix = region.startsWith('eu-') ? 'eu.' : 'us.';
+                modelId = `${prefix}${model}`;
+            }
+
             // SDK automatically reads AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_SESSION_TOKEN
-            return createAmazonBedrock({ region })(model);
+            return createAmazonBedrock({ region })(modelId);
         }
         // TODO: Add 'dexto' case (similar to openrouter, uses https://api.dexto.ai/v1)
         case 'anthropic':
