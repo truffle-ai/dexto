@@ -1139,6 +1139,18 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                     unit: 'per_million_tokens',
                 },
             },
+            {
+                name: 'anthropic.claude-opus-4-5-20251101-v1:0',
+                displayName: 'Claude 4.5 Opus (AWS Bedrock)',
+                maxInputTokens: 200000,
+                supportedFileTypes: ['pdf', 'image'],
+                pricing: {
+                    inputPerM: 15.0,
+                    outputPerM: 75.0,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
             // Claude 4.x models
             {
                 name: 'anthropic.claude-opus-4-1-20250805-v1:0',
