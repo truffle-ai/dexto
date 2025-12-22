@@ -188,6 +188,8 @@ const LITELLM_STEPS: WizardStep[] = [
 ];
 
 /** Steps for bedrock provider (custom model IDs, no baseURL/apiKey needed) */
+// TODO: Add VERTEX_STEPS for custom Vertex AI model IDs (similar to Bedrock - ADC auth, no API key)
+// Would allow users to add model IDs not yet in registry (e.g., new Gemini previews)
 const BEDROCK_STEPS: WizardStep[] = [
     {
         field: 'name',

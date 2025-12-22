@@ -12,6 +12,7 @@ import {
 } from '../hooks/useLLM';
 import { CustomModelForm, type CustomModelFormData } from './CustomModelForms';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 import { Button } from '../ui/button';
 import { Alert, AlertDescription } from '../ui/alert';
 import { ApiKeyModal } from '../ApiKeyModal';
@@ -666,13 +667,20 @@ export default function ModelPickerModal() {
                                             placeholder="Search models..."
                                         />
                                     </div>
-                                    <button
-                                        onClick={() => setShowCustomForm(true)}
-                                        className="p-2 rounded-lg transition-colors flex-shrink-0 bg-muted/50 text-muted-foreground hover:text-foreground hover:bg-muted"
-                                        title="Add new model"
-                                    >
-                                        <Plus className="h-4 w-4" />
-                                    </button>
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <button
+                                                onClick={() => setShowCustomForm(true)}
+                                                className="p-2 rounded-lg transition-colors flex-shrink-0 bg-muted/50 text-muted-foreground hover:text-foreground hover:bg-muted"
+                                            >
+                                                <Plus className="h-4 w-4" />
+                                                <span className="sr-only">Add custom model</span>
+                                            </button>
+                                        </TooltipTrigger>
+                                        <TooltipContent side="bottom">
+                                            Add custom model
+                                        </TooltipContent>
+                                    </Tooltip>
                                 </div>
 
                                 {/* Provider Filter Pills - only in All view */}

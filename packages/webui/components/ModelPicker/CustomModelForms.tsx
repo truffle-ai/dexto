@@ -72,6 +72,8 @@ const PROVIDER_OPTIONS: { value: CustomModelProvider; label: string; description
         label: 'AWS Bedrock',
         description: 'Custom Bedrock model IDs (uses AWS credentials)',
     },
+    // TODO: Add 'vertex' provider for custom Vertex AI model IDs (uses ADC auth like Bedrock)
+    // Would allow users to add model IDs not yet in registry (e.g., new Gemini previews)
 ];
 
 // ============================================================================
