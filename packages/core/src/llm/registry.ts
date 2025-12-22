@@ -1201,19 +1201,6 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                     unit: 'per_million_tokens',
                 },
             },
-            // DeepSeek
-            {
-                name: 'deepseek.r1-v1:0',
-                displayName: 'DeepSeek R1',
-                maxInputTokens: 64000,
-                supportedFileTypes: [],
-                pricing: {
-                    inputPerM: 1.35,
-                    outputPerM: 5.4,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
             // OpenAI GPT-OSS
             {
                 name: 'openai.gpt-oss-120b-1:0',

@@ -28,6 +28,16 @@ const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
     'openai-compatible': 'Custom',
 };
 
+// Providers that have multi-vendor models (don't strip provider prefixes from display name)
+const MULTI_VENDOR_PROVIDERS = new Set([
+    'openrouter',
+    'openai-compatible',
+    'litellm',
+    'glama',
+    'bedrock',
+    'vertex',
+]);
+
 export function CompactModelCard({
     provider,
     model,
@@ -106,7 +116,12 @@ export function CompactModelCard({
                                 {providerName}
                             </span>
                             <span className="text-[10px] text-muted-foreground leading-tight truncate">
-                                {displayName.replace(new RegExp(`^${providerName}\\s*`, 'i'), '')}
+                                {MULTI_VENDOR_PROVIDERS.has(provider)
+                                    ? displayName
+                                    : displayName.replace(
+                                          new RegExp(`^${providerName}\\s*`, 'i'),
+                                          ''
+                                      )}
                             </span>
                         </div>
 

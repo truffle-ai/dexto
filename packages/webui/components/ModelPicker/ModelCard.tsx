@@ -42,12 +42,14 @@ function parseModelName(
 ): { providerName: string; modelName: string; suffix?: string } {
     const providerName = PROVIDER_DISPLAY_NAMES[provider] || provider;
 
-    // For custom model providers, show the full display name without parsing
+    // For multi-vendor or custom model providers, show the full display name without parsing
     if (
         provider === 'openrouter' ||
         provider === 'openai-compatible' ||
         provider === 'litellm' ||
-        provider === 'glama'
+        provider === 'glama' ||
+        provider === 'bedrock' ||
+        provider === 'vertex'
     ) {
         return { providerName, modelName: displayName };
     }

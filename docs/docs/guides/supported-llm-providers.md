@@ -154,10 +154,10 @@ llm:
 - `amazon.nova-premier-v1:0`, `amazon.nova-pro-v1:0`, `amazon.nova-lite-v1:0`, `amazon.nova-micro-v1:0`
 
 **Other models:**
-- `deepseek.r1-v1:0`, `openai.gpt-oss-120b-1:0`, `openai.gpt-oss-20b-1:0`
+- `openai.gpt-oss-120b-1:0`, `openai.gpt-oss-20b-1:0`
 - `qwen.qwen3-coder-30b-a3b-v1:0`, `qwen.qwen3-coder-480b-a35b-v1:0`
 
-**Features:** Enterprise security, AWS billing, access to Claude/Nova/DeepSeek/Qwen
+**Features:** Enterprise security, AWS billing, access to Claude/Nova/GPT-OSS/Qwen
 
 <details>
 <summary>Setup Instructions</summary>

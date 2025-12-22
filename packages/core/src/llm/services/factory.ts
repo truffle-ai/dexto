@@ -113,13 +113,10 @@ function _createVercelModel(llmConfig: ValidatedLLMConfig): LanguageModel {
 
             // Auto-detect cross-region inference profile prefix based on user's region
             // Users can override by explicitly using prefixed model IDs (e.g., eu.anthropic.claude...)
-            // Only anthropic.* and amazon.* models support cross-region inference
             let modelId = model;
             const hasRegionPrefix =
                 model.startsWith('eu.') || model.startsWith('us.') || model.startsWith('global.');
-            const supportsCrossRegion =
-                model.startsWith('anthropic.') || model.startsWith('amazon.');
-            if (!hasRegionPrefix && supportsCrossRegion) {
+            if (!hasRegionPrefix) {
                 const prefix = region.startsWith('eu-') ? 'eu.' : 'us.';
                 modelId = `${prefix}${model}`;
             }
