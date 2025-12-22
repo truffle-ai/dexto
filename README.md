@@ -325,7 +325,7 @@ Switch between providers instantly—no code changes required.
 | Provider | Models | Setup |
 |----------|--------|-------|
 | **Vertex AI** | Gemini (`gemini-2.5-pro`), Claude (`claude-sonnet-4-5@20250929`) | GCP credentials ([docs](https://docs.dexto.ai/docs/guides/supported-llm-providers#google-cloud-vertex-ai)) |
-| **Bedrock** | Claude (`anthropic.claude-sonnet-4-5-20250929-v1:0`), Nova, Llama, Mistral | AWS credentials ([docs](https://docs.dexto.ai/docs/guides/supported-llm-providers#amazon-bedrock)) |
+| **AWS Bedrock** | Claude (`anthropic.claude-sonnet-4-5-20250929-v1:0`), Nova, Llama, Mistral | AWS credentials ([docs](https://docs.dexto.ai/docs/guides/supported-llm-providers#amazon-bedrock)) |
 
 #### Gateway Providers
 

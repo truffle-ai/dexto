@@ -16,7 +16,7 @@ export const PROVIDER_LOGOS: Record<LLMProvider, string> = {
     litellm: '/logos/litellm.svg',
     glama: '/logos/glama.svg',
     vertex: '/logos/gemini-color.svg', // Vertex AI uses Gemini logo (primary model family)
-    bedrock: '', // AWS Bedrock - uses Bot icon fallback (TODO: add AWS logo)
+    bedrock: '/logos/aws-color.svg',
 };
 
 // Provider pricing URLs (for quick access from Model Picker)

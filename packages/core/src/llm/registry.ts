@@ -1116,7 +1116,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             // Claude 4.5 models (latest)
             {
                 name: 'anthropic.claude-sonnet-4-5-20250929-v1:0',
-                displayName: 'Claude 4.5 Sonnet (Bedrock)',
+                displayName: 'Claude 4.5 Sonnet (AWS Bedrock)',
                 maxInputTokens: 200000,
                 default: true,
                 supportedFileTypes: ['pdf', 'image'],
@@ -1129,7 +1129,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             },
             {
                 name: 'anthropic.claude-haiku-4-5-20251001-v1:0',
-                displayName: 'Claude 4.5 Haiku (Bedrock)',
+                displayName: 'Claude 4.5 Haiku (AWS Bedrock)',
                 maxInputTokens: 200000,
                 supportedFileTypes: ['pdf', 'image'],
                 pricing: {
@@ -1142,7 +1142,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             // Claude 4.x models
             {
                 name: 'anthropic.claude-opus-4-1-20250805-v1:0',
-                displayName: 'Claude 4.1 Opus (Bedrock)',
+                displayName: 'Claude 4.1 Opus (AWS Bedrock)',
                 maxInputTokens: 200000,
                 supportedFileTypes: ['pdf', 'image'],
                 pricing: {
@@ -1154,7 +1154,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             },
             {
                 name: 'anthropic.claude-opus-4-20250514-v1:0',
-                displayName: 'Claude 4 Opus (Bedrock)',
+                displayName: 'Claude 4 Opus (AWS Bedrock)',
                 maxInputTokens: 200000,
                 supportedFileTypes: ['pdf', 'image'],
                 pricing: {
@@ -1166,7 +1166,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             },
             {
                 name: 'anthropic.claude-sonnet-4-20250514-v1:0',
-                displayName: 'Claude 4 Sonnet (Bedrock)',
+                displayName: 'Claude 4 Sonnet (AWS Bedrock)',
                 maxInputTokens: 200000,
                 supportedFileTypes: ['pdf', 'image'],
                 pricing: {
@@ -1179,7 +1179,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             // Claude 3.x models
             {
                 name: 'anthropic.claude-3-7-sonnet-20250219-v1:0',
-                displayName: 'Claude 3.7 Sonnet (Bedrock)',
+                displayName: 'Claude 3.7 Sonnet (AWS Bedrock)',
                 maxInputTokens: 200000,
                 supportedFileTypes: ['pdf', 'image'],
                 pricing: {
@@ -1191,7 +1191,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             },
             {
                 name: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
-                displayName: 'Claude 3.5 Sonnet v2 (Bedrock)',
+                displayName: 'Claude 3.5 Sonnet v2 (AWS Bedrock)',
                 maxInputTokens: 200000,
                 supportedFileTypes: ['pdf', 'image'],
                 pricing: {
@@ -1203,7 +1203,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             },
             {
                 name: 'anthropic.claude-3-5-haiku-20241022-v1:0',
-                displayName: 'Claude 3.5 Haiku (Bedrock)',
+                displayName: 'Claude 3.5 Haiku (AWS Bedrock)',
                 maxInputTokens: 200000,
                 supportedFileTypes: ['pdf', 'image'],
                 pricing: {
@@ -1253,7 +1253,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             // Meta Llama models (cross-region)
             {
                 name: 'us.meta.llama3-3-70b-instruct-v1:0',
-                displayName: 'Llama 3.3 70B (Bedrock)',
+                displayName: 'Llama 3.3 70B (AWS Bedrock)',
                 maxInputTokens: 128000,
                 supportedFileTypes: [],
                 pricing: {
@@ -1265,7 +1265,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             },
             {
                 name: 'us.meta.llama4-maverick-17b-instruct-v1:0',
-                displayName: 'Llama 4 Maverick 17B (Bedrock)',
+                displayName: 'Llama 4 Maverick 17B (AWS Bedrock)',
                 maxInputTokens: 128000,
                 supportedFileTypes: ['image'],
                 pricing: {
@@ -1277,7 +1277,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             },
             {
                 name: 'us.meta.llama4-scout-17b-instruct-v1:0',
-                displayName: 'Llama 4 Scout 17B (Bedrock)',
+                displayName: 'Llama 4 Scout 17B (AWS Bedrock)',
                 maxInputTokens: 128000,
                 supportedFileTypes: ['image'],
                 pricing: {
@@ -1290,7 +1290,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             // DeepSeek R1 (cross-region) - reasoning model
             {
                 name: 'us.deepseek.r1-v1:0',
-                displayName: 'DeepSeek R1 (Bedrock)',
+                displayName: 'DeepSeek R1 (AWS Bedrock)',
                 maxInputTokens: 128000,
                 supportedFileTypes: [],
                 pricing: {
@@ -1303,7 +1303,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             // Mistral models
             {
                 name: 'mistral.mistral-large-2402-v1:0',
-                displayName: 'Mistral Large (Bedrock)',
+                displayName: 'Mistral Large (AWS Bedrock)',
                 maxInputTokens: 32000,
                 supportedFileTypes: [],
                 pricing: {
