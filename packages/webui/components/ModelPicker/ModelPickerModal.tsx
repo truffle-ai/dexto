@@ -282,31 +282,33 @@ export default function ModelPickerModal() {
                 ...(saveAsPerModel && userEnteredKey && { apiKey: userEnteredKey }),
             });
 
-            // Then switch to the newly created model
-            // Include apiKey if it was saved as per-model override
-            const switchPayload: SwitchLLMPayload = {
-                provider: provider as LLMProvider,
-                model: name.trim(),
-                ...(provider === 'openai-compatible' &&
-                    baseURL.trim() && { baseURL: baseURL.trim() }),
-                ...(provider === 'litellm' && baseURL.trim() && { baseURL: baseURL.trim() }),
-                ...(saveAsPerModel && userEnteredKey && { apiKey: userEnteredKey }),
-                ...(currentSessionId && { sessionId: currentSessionId }),
-            };
+            // Only switch to the model for new models, not edits
+            // (user is already using edited model or chose not to switch)
+            if (!editingModelName) {
+                const switchPayload: SwitchLLMPayload = {
+                    provider: provider as LLMProvider,
+                    model: name.trim(),
+                    ...(provider === 'openai-compatible' &&
+                        baseURL.trim() && { baseURL: baseURL.trim() }),
+                    ...(provider === 'litellm' && baseURL.trim() && { baseURL: baseURL.trim() }),
+                    ...(saveAsPerModel && userEnteredKey && { apiKey: userEnteredKey }),
+                    ...(currentSessionId && { sessionId: currentSessionId }),
+                };
 
-            await switchLLMMutation.mutateAsync(switchPayload);
-            await refreshCurrentLLM();
+                await switchLLMMutation.mutateAsync(switchPayload);
+                await refreshCurrentLLM();
 
-            // Track the switch
-            if (currentLLM) {
-                analyticsRef.current.trackLLMSwitched({
-                    fromProvider: currentLLM.provider,
-                    fromModel: currentLLM.model,
-                    toProvider: provider,
-                    toModel: name.trim(),
-                    sessionId: currentSessionId || undefined,
-                    trigger: 'user_action',
-                });
+                // Track the switch
+                if (currentLLM) {
+                    analyticsRef.current.trackLLMSwitched({
+                        fromProvider: currentLLM.provider,
+                        fromModel: currentLLM.model,
+                        toProvider: provider,
+                        toModel: name.trim(),
+                        sessionId: currentSessionId || undefined,
+                        trigger: 'user_action',
+                    });
+                }
             }
 
             // Reset form and close

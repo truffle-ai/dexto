@@ -439,26 +439,46 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
 
         // Handle custom model wizard completion
         const handleCustomModelComplete = useCallback(
-            (model: CustomModel) => {
+            async (model: CustomModel) => {
                 const wasEditing = editingModel !== null;
                 setEditingModel(null);
                 setUi((prev) => ({ ...prev, activeOverlay: 'none' }));
                 buffer.setText('');
                 setInput((prev) => ({ ...prev, historyIndex: -1 }));
 
-                setMessages((prev) => [
-                    ...prev,
-                    {
-                        id: generateMessageId('system'),
-                        role: 'system',
-                        content: wasEditing
-                            ? `✅ Custom model "${model.displayName || model.name}" updated`
-                            : `✅ Custom model "${model.displayName || model.name}" saved`,
-                        timestamp: new Date(),
-                    },
-                ]);
+                if (wasEditing) {
+                    // For edits, just show confirmation message
+                    setMessages((prev) => [
+                        ...prev,
+                        {
+                            id: generateMessageId('system'),
+                            role: 'system',
+                            content: `✅ Custom model "${model.displayName || model.name}" updated`,
+                            timestamp: new Date(),
+                        },
+                    ]);
+                } else {
+                    // For new models, auto-switch to the newly created model
+                    setMessages((prev) => [
+                        ...prev,
+                        {
+                            id: generateMessageId('system'),
+                            role: 'system',
+                            content: `✅ Custom model "${model.displayName || model.name}" saved`,
+                            timestamp: new Date(),
+                        },
+                    ]);
+
+                    // Switch to the new model
+                    await handleModelSelect(
+                        model.provider,
+                        model.name,
+                        model.displayName,
+                        model.baseURL
+                    );
+                }
             },
-            [setUi, setInput, setMessages, buffer, editingModel]
+            [setUi, setInput, setMessages, buffer, editingModel, handleModelSelect]
         );
 
         // Handle API key saved - retry the model switch
