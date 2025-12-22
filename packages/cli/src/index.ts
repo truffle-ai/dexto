@@ -359,7 +359,7 @@ async function bootstrapAgentFromGlobalOpts() {
                     existsSync('package.json') ? 'npm install' : 'npm install -g'
                 } ${imageName}`
             );
-            process.exit(1);
+            safeExit('bootstrap', 1, 'image-load-failed');
         }
     }
 
