@@ -3,8 +3,6 @@
 // Project setup commands
 export { createDextoProject, type CreateAppOptions } from './create-app.js';
 
-export { createProject, postCreateProject } from './create-project.js';
-
 export { createImage } from './create-image.js';
 
 export { getUserInputToInitDextoApp, initDexto, postInitDexto } from './init-app.js';

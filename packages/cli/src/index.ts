@@ -45,8 +45,6 @@ import { getPort } from './utils/port-utils.js';
 import {
     createDextoProject,
     type CreateAppOptions,
-    createProject,
-    postCreateProject,
     createImage,
     getUserInputToInitDextoApp,
     initDexto,
@@ -172,30 +170,7 @@ program
         })
     );
 
-// 4) `create-project` SUB-COMMAND (Manual registration - advanced)
-program
-    .command('create-project [name]')
-    .description('Create a Dexto project with manual provider registration (advanced)')
-    .action(
-        withAnalytics('create-project', async (name?: string) => {
-            try {
-                p.intro(chalk.inverse('Create Dexto Project'));
-
-                // Create the project structure
-                const projectPath = await createProject(name);
-
-                p.outro(chalk.greenBright('Dexto project created successfully!'));
-                await postCreateProject(path.basename(projectPath));
-                safeExit('create-project', 0);
-            } catch (err) {
-                if (err instanceof ExitSignal) throw err;
-                console.error(`❌ dexto create-project command failed: ${err}`);
-                safeExit('create-project', 1, 'error');
-            }
-        })
-    );
-
-// 5) `init-app` SUB-COMMAND
+// 4) `init-app` SUB-COMMAND
 program
     .command('init-app')
     .description('Initialize an existing Typescript app with Dexto')
@@ -241,7 +216,7 @@ program
         })
     );
 
-// 4) `setup` SUB-COMMAND
+// 5) `setup` SUB-COMMAND
 program
     .command('setup')
     .description('Configure global Dexto preferences')
@@ -265,7 +240,7 @@ program
         })
     );
 
-// 5) `install` SUB-COMMAND
+// 6) `install` SUB-COMMAND
 program
     .command('install [agents...]')
     .description('Install agents from registry or custom YAML files/directories')
@@ -298,7 +273,7 @@ Examples:
         )
     );
 
-// 6) `uninstall` SUB-COMMAND
+// 7) `uninstall` SUB-COMMAND
 program
     .command('uninstall [agents...]')
     .description('Uninstall agents from the local installation')
@@ -320,7 +295,7 @@ program
         )
     );
 
-// 7) `list-agents` SUB-COMMAND
+// 8) `list-agents` SUB-COMMAND
 program
     .command('list-agents')
     .description('List available and installed agents')
@@ -340,7 +315,7 @@ program
         })
     );
 
-// 8) `which` SUB-COMMAND
+// 9) `which` SUB-COMMAND
 program
     .command('which <agent>')
     .description('Show the path to an agent')
@@ -453,7 +428,7 @@ async function getMostRecentSessionId(
     return mostRecentId;
 }
 
-// 9) `session` SUB-COMMAND
+// 10) `session` SUB-COMMAND
 const sessionCommand = program.command('session').description('Manage chat sessions');
 
 sessionCommand
@@ -515,7 +490,7 @@ sessionCommand
         })
     );
 
-// 10) `search` SUB-COMMAND
+// 11) `search` SUB-COMMAND
 program
     .command('search')
     .description('Search session history')
@@ -576,7 +551,7 @@ program
         )
     );
 
-// 11) `mcp` SUB-COMMAND
+// 12) `mcp` SUB-COMMAND
 // For now, this mode simply aggregates and re-expose tools from configured MCP servers (no agent)
 // dexto --mode mcp will be moved to this sub-command in the future
 program
@@ -667,7 +642,7 @@ program
         )
     );
 
-// 10) Main dexto CLI - Interactive/One shot (CLI/HEADLESS) or run in other modes (--mode web/server/mcp)
+// 13) Main dexto CLI - Interactive/One shot (CLI/HEADLESS) or run in other modes (--mode web/server/mcp)
 program
     .argument(
         '[prompt...]',
@@ -1384,5 +1359,5 @@ program
         )
     );
 
-// 11) PARSE & EXECUTE
+// 14) PARSE & EXECUTE
 program.parseAsync(process.argv);
