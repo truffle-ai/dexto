@@ -156,7 +156,7 @@ llm:
 
 **Other models:**
 - `meta.llama3-3-70b-instruct-v1:0`, `meta.llama4-maverick-17b-instruct-v1:0`
-- `deepseek.r1-v1:0`, `mistral.mistral-large-2402-v1:0`
+- `deepseek.r1-v1:0`, `mistral.pixtral-large-2502-v1:0`
 
 **Features:** Enterprise security, AWS billing, access to Claude/Nova/Llama/Mistral
 

@@ -1266,13 +1266,13 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             },
             // Mistral models
             {
-                name: 'mistral.mistral-large-2402-v1:0',
-                displayName: 'Mistral Large (AWS Bedrock)',
-                maxInputTokens: 32000,
-                supportedFileTypes: [],
+                name: 'mistral.pixtral-large-2502-v1:0',
+                displayName: 'Pixtral Large (AWS Bedrock)',
+                maxInputTokens: 128000,
+                supportedFileTypes: ['image'],
                 pricing: {
-                    inputPerM: 4.0,
-                    outputPerM: 12.0,
+                    inputPerM: 2.0,
+                    outputPerM: 6.0,
                     currency: 'USD',
                     unit: 'per_million_tokens',
                 },
