@@ -7,6 +7,7 @@
 
 // Main provider export
 export { fileSystemToolsProvider } from './tool-provider.js';
+export type { FileToolOptions, DirectoryApprovalCallbacks } from './file-tool-types.js';
 
 // Service and utilities (for advanced use cases)
 export { FileSystemService } from './filesystem-service.js';

@@ -45,6 +45,10 @@ import { customToolSchemaRegistry } from './custom-tool-schema-registry.js';
 export interface ToolCreationContext {
     logger: IDextoLogger;
     agent: DextoAgent;
+    /**
+     * Optional services available to custom tool providers.
+     * Includes approvalManager for tools that need approval flows.
+     */
     services?: {
         searchService?: any;
         approvalManager?: any;

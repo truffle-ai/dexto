@@ -10,15 +10,23 @@ import { FileSystemConfig, PathValidation } from './types.js';
 import type { IDextoLogger } from '@dexto/core';
 
 /**
+ * Callback type for checking if a path is in an approved directory.
+ * Used to consult ApprovalManager without creating a direct dependency.
+ */
+export type DirectoryApprovalChecker = (filePath: string) => boolean;
+
+/**
  * PathValidator - Validates file paths for security and policy compliance
  *
  * Security checks:
  * 1. Path traversal detection (../, symbolic links)
- * 2. Allowed paths enforcement (whitelist)
+ * 2. Allowed paths enforcement (whitelist + approved directories)
  * 3. Blocked paths detection (blacklist)
  * 4. File extension restrictions
  * 5. Absolute path normalization
- * TODO: Add tests
+ *
+ * PathValidator can optionally consult an external approval checker (e.g., ApprovalManager)
+ * to determine if paths outside the config's allowed paths are accessible.
  */
 export class PathValidator {
     private config: FileSystemConfig;
@@ -26,6 +34,7 @@ export class PathValidator {
     private normalizedBlockedPaths: string[];
     private normalizedBlockedExtensions: string[];
     private logger: IDextoLogger;
+    private directoryApprovalChecker: DirectoryApprovalChecker | undefined;
 
     constructor(config: FileSystemConfig, logger: IDextoLogger) {
         this.config = config;
@@ -47,6 +56,17 @@ export class PathValidator {
         this.logger.debug(
             `PathValidator initialized with ${this.normalizedAllowedPaths.length} allowed paths`
         );
+    }
+
+    /**
+     * Set a callback to check if a path is in an approved directory.
+     * This allows PathValidator to consult ApprovalManager without a direct dependency.
+     *
+     * @param checker Function that returns true if path is in an approved directory
+     */
+    setDirectoryApprovalChecker(checker: DirectoryApprovalChecker): void {
+        this.directoryApprovalChecker = checker;
+        this.logger.debug('Directory approval checker configured');
     }
 
     /**
@@ -144,6 +164,7 @@ export class PathValidator {
 
     /**
      * Check if path is within allowed paths (whitelist check)
+     * Also consults the directory approval checker if configured.
      */
     private isPathAllowed(normalizedPath: string): boolean {
         // Empty allowedPaths means all paths are allowed
@@ -151,12 +172,23 @@ export class PathValidator {
             return true;
         }
 
-        // Check if path is within any allowed path
-        return this.normalizedAllowedPaths.some((allowedPath) => {
+        // Check if path is within any config-allowed path
+        const isInConfigPaths = this.normalizedAllowedPaths.some((allowedPath) => {
             const relative = path.relative(allowedPath, normalizedPath);
             // Path is allowed if it doesn't escape the allowed directory
             return !relative.startsWith('..') && !path.isAbsolute(relative);
         });
+
+        if (isInConfigPaths) {
+            return true;
+        }
+
+        // Fallback: check ApprovalManager via callback (includes working dir + approved dirs)
+        if (this.directoryApprovalChecker) {
+            return this.directoryApprovalChecker(normalizedPath);
+        }
+
+        return false;
     }
 
     /**
@@ -192,6 +224,62 @@ export class PathValidator {
      */
     isPathAllowedQuick(normalizedPath: string): boolean {
         return this.isPathAllowed(normalizedPath) && !this.isPathBlocked(normalizedPath);
+    }
+
+    /**
+     * Check if a file path is within the configured allowed paths (from config only).
+     * This method does NOT consult ApprovalManager - it only checks the static config paths.
+     *
+     * This is used by file tools to determine if a path needs directory approval.
+     * Paths within config-allowed directories don't need directory approval prompts.
+     *
+     * @param filePath The file path to check (can be relative or absolute)
+     * @returns true if the path is within config-allowed paths, false otherwise
+     */
+    isPathWithinAllowed(filePath: string): boolean {
+        if (!filePath || filePath.trim() === '') {
+            return false;
+        }
+
+        // Normalize the path to absolute
+        const workingDir = this.config.workingDirectory || process.cwd();
+        let normalizedPath: string;
+
+        try {
+            normalizedPath = path.isAbsolute(filePath)
+                ? path.resolve(filePath)
+                : path.resolve(workingDir, filePath);
+
+            // Try to resolve symlinks for existing files
+            try {
+                normalizedPath = realpathSync.native(normalizedPath);
+            } catch {
+                // Path doesn't exist yet, use resolved path
+            }
+        } catch {
+            // Failed to normalize, treat as not within allowed
+            return false;
+        }
+
+        // Only check config paths - do NOT consult approval checker here
+        // This method is used for prompting decisions, not execution decisions
+        return this.isInConfigAllowedPaths(normalizedPath);
+    }
+
+    /**
+     * Check if path is within config-allowed paths only (no approval checker).
+     * Used for prompting decisions.
+     */
+    private isInConfigAllowedPaths(normalizedPath: string): boolean {
+        // Empty allowedPaths means all paths are allowed
+        if (this.normalizedAllowedPaths.length === 0) {
+            return true;
+        }
+
+        return this.normalizedAllowedPaths.some((allowedPath) => {
+            const relative = path.relative(allowedPath, normalizedPath);
+            return !relative.startsWith('..') && !path.isAbsolute(relative);
+        });
     }
 
     /**

@@ -15,6 +15,10 @@ import { createWriteFileTool } from './write-file-tool.js';
 import { createEditFileTool } from './edit-file-tool.js';
 import { createGlobFilesTool } from './glob-files-tool.js';
 import { createGrepContentTool } from './grep-content-tool.js';
+import type { FileToolOptions } from './file-tool-types.js';
+
+// Re-export for convenience
+export type { FileToolOptions } from './file-tool-types.js';
 
 /**
  * Default configuration constants for FileSystem tools.
@@ -108,7 +112,7 @@ export const fileSystemToolsProvider: CustomToolProvider<
     configSchema: FileSystemToolsConfigSchema,
 
     create: (config: FileSystemToolsConfig, context: ToolCreationContext): InternalTool[] => {
-        const { logger } = context;
+        const { logger, services } = context;
 
         logger.debug('Creating FileSystemService for filesystem tools');
 
@@ -135,11 +139,43 @@ export const fileSystemToolsProvider: CustomToolProvider<
 
         logger.debug('FileSystemService created - initialization will complete on first tool use');
 
+        // Set up directory approval checker callback if approvalManager is available
+        // This allows FileSystemService to check approved directories during validation
+        const approvalManager = services?.approvalManager;
+        if (approvalManager) {
+            const approvalChecker = (filePath: string) => {
+                // Use isDirectoryApproved() for EXECUTION decisions (checks both 'session' and 'once' types)
+                // isDirectorySessionApproved() is only for PROMPTING decisions (checks 'session' type only)
+                return approvalManager.isDirectoryApproved(filePath);
+            };
+            fileSystemService.setDirectoryApprovalChecker(approvalChecker);
+            logger.debug('Directory approval checker configured for FileSystemService');
+        }
+
+        // Create directory approval callbacks for file tools
+        // These allow tools to check and request directory approval
+        const directoryApproval = approvalManager
+            ? {
+                  isSessionApproved: (filePath: string) =>
+                      approvalManager.isDirectorySessionApproved(filePath),
+                  addApproved: (directory: string, type: 'session' | 'once') =>
+                      approvalManager.addApprovedDirectory(directory, type),
+              }
+            : undefined;
+
+        // Create options for file tools with directory approval support
+        const fileToolOptions: FileToolOptions = {
+            fileSystemService,
+            directoryApproval,
+        };
+
         // Create and return all file operation tools
+        // File tools (read, write, edit) support directory approval for external paths
+        // Glob and grep tools don't need directory approval (they only discover files)
         return [
-            createReadFileTool(fileSystemService),
-            createWriteFileTool(fileSystemService),
-            createEditFileTool(fileSystemService),
+            createReadFileTool(fileToolOptions),
+            createWriteFileTool(fileToolOptions),
+            createEditFileTool(fileToolOptions),
             createGlobFilesTool(fileSystemService),
             createGrepContentTool(fileSystemService),
         ];

@@ -749,6 +749,88 @@ export class ToolManager {
     }
 
     /**
+     * Check if a tool has a custom approval override and handle it.
+     * Tools can implement getApprovalOverride() to request specialized approval flows
+     * (e.g., directory access approval for file tools) instead of default tool confirmation.
+     *
+     * @param toolName The fully qualified tool name
+     * @param args The tool arguments
+     * @param sessionId Optional session ID
+     * @returns { handled: true } if custom approval was processed, { handled: false } to continue normal flow
+     */
+    private async checkCustomApprovalOverride(
+        toolName: string,
+        args: Record<string, unknown>,
+        sessionId?: string
+    ): Promise<{ handled: boolean }> {
+        // Get the actual tool name without prefix
+        let actualToolName: string | undefined;
+        if (toolName.startsWith(ToolManager.INTERNAL_TOOL_PREFIX)) {
+            actualToolName = toolName.substring(ToolManager.INTERNAL_TOOL_PREFIX.length);
+        } else if (toolName.startsWith(ToolManager.CUSTOM_TOOL_PREFIX)) {
+            actualToolName = toolName.substring(ToolManager.CUSTOM_TOOL_PREFIX.length);
+        }
+
+        if (!actualToolName || !this.internalToolsProvider) {
+            return { handled: false };
+        }
+
+        // Get the tool and check if it has custom approval override
+        const tool = this.internalToolsProvider.getTool(actualToolName);
+        if (!tool?.getApprovalOverride) {
+            return { handled: false };
+        }
+
+        // Get the custom approval request from the tool
+        const approvalRequest = tool.getApprovalOverride(args);
+        if (!approvalRequest) {
+            // Tool decided no custom approval needed, continue normal flow
+            return { handled: false };
+        }
+
+        this.logger.debug(
+            `Tool '${toolName}' requested custom approval: type=${approvalRequest.type}`
+        );
+
+        // Add sessionId to the approval request if not already present
+        if (sessionId && !approvalRequest.sessionId) {
+            approvalRequest.sessionId = sessionId;
+        }
+
+        // Request the custom approval through ApprovalManager
+        const response = await this.approvalManager.requestApproval(approvalRequest);
+
+        if (response.status === ApprovalStatus.APPROVED) {
+            // Let the tool handle the approved response (e.g., remember directory)
+            if (tool.onApprovalGranted) {
+                tool.onApprovalGranted(response);
+            }
+
+            this.logger.info(
+                `Custom approval granted for '${toolName}', type=${approvalRequest.type}, session=${sessionId ?? 'global'}`
+            );
+            return { handled: true };
+        }
+
+        // Handle denial - throw appropriate error based on approval type
+        this.logger.info(
+            `Custom approval denied for '${toolName}', type=${approvalRequest.type}, reason=${response.reason ?? 'unknown'}`
+        );
+
+        // For directory access, throw specific error
+        if (approvalRequest.type === 'directory_access') {
+            const metadata = approvalRequest.metadata as { parentDir?: string } | undefined;
+            throw ToolError.directoryAccessDenied(
+                metadata?.parentDir ?? 'unknown directory',
+                sessionId
+            );
+        }
+
+        // For other custom approval types, throw generic execution denied
+        throw ToolError.executionDenied(toolName, sessionId);
+    }
+
+    /**
      * Handle tool approval/confirmation flow
      * Checks allowed list, manages approval modes (manual, auto-approve, auto-deny),
      * and handles remember choice logic
@@ -771,6 +853,18 @@ export class ToolManager {
             );
             this.logger.debug(`🚫 Tool execution blocked by policy: ${toolName}`);
             throw ToolError.executionDenied(toolName, sessionId);
+        }
+
+        // PRECEDENCE 1.5: Check if tool has custom approval override (e.g., directory access for file tools)
+        // This allows tools to request specialized approval flows instead of default tool confirmation
+        const customApprovalResult = await this.checkCustomApprovalOverride(
+            toolName,
+            args,
+            sessionId
+        );
+        if (customApprovalResult.handled) {
+            // Custom approval was handled (approved or threw an error)
+            return { requireApproval: true, approvalStatus: 'approved' };
         }
 
         // PRECEDENCE 2: Check static alwaysAllow list

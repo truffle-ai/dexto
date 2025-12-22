@@ -126,6 +126,27 @@ export class FileSystemService {
     }
 
     /**
+     * Set a callback to check if a path is in an approved directory.
+     * This allows PathValidator to consult ApprovalManager without a direct dependency.
+     *
+     * @param checker Function that returns true if path is in an approved directory
+     */
+    setDirectoryApprovalChecker(checker: (filePath: string) => boolean): void {
+        this.pathValidator.setDirectoryApprovalChecker(checker);
+    }
+
+    /**
+     * Check if a file path is within the configured allowed paths (config only).
+     * This is used by file tools to determine if directory approval is needed.
+     *
+     * @param filePath The file path to check (can be relative or absolute)
+     * @returns true if the path is within config-allowed paths, false otherwise
+     */
+    isPathWithinConfigAllowed(filePath: string): boolean {
+        return this.pathValidator.isPathWithinAllowed(filePath);
+    }
+
+    /**
      * Read a file with validation and size limits
      */
     async readFile(filePath: string, options: ReadFileOptions = {}): Promise<FileContent> {
