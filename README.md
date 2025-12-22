@@ -343,6 +343,8 @@ dexto -m gemini-2.5-pro
 
 You can configure things like LLM, system prompt, MCP servers, storage, sessions, human-in-the loop, telemetry and more!
 
+You can also switch within the interactive CLI (/model) and in the web UI easily without needing to set up configuration.
+
 See our [Configuration Guide](https://docs.dexto.ai/docs/category/agent-configuration-guide) and [Supported LLM Providers](https://docs.dexto.ai/docs/guides/supported-llm-providers) for complete setup instructions.
 
 
