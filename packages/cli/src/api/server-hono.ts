@@ -1,5 +1,5 @@
 import os from 'node:os';
-import type { AgentCard, ValidatedAgentConfig } from '@dexto/core';
+import type { AgentCard } from '@dexto/core';
 import { DextoAgent, createAgentCard, logger, AgentError } from '@dexto/core';
 import {
     loadAgentConfig,

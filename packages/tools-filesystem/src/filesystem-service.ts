@@ -270,6 +270,9 @@ export class FileSystemService {
 
         try {
             // Create regex from pattern
+            // TODO: Add ReDoS protection - user-provided regex patterns can cause catastrophic backtracking.
+            // Consider using 'safe-regex' package to validate patterns, or switch to 're2' for linear-time matching.
+            // See: https://owasp.org/www-community/attacks/Regular_expression_Denial_of_Service_-_ReDoS
             const flags = options.caseInsensitive ? 'i' : '';
             const regex = new RegExp(pattern, flags);
 

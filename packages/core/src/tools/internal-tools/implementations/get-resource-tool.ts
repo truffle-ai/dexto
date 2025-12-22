@@ -100,17 +100,27 @@ export function createGetResourceTool(resourceManager: ResourceManager): Interna
 
                 // Handle format: metadata
                 if (format === 'metadata') {
-                    // Get metadata without loading data
-                    const blob = await blobStore.retrieve(blobUri, 'buffer');
+                    // Get metadata without loading blob data by using listBlobs()
+                    const allBlobs = await blobStore.listBlobs();
+                    const blobRef = allBlobs.find((b) => b.uri === blobUri);
+
+                    if (!blobRef) {
+                        return {
+                            success: false,
+                            error: `Resource metadata not found: ${reference}`,
+                            _hint: 'Use list_resources to see available resources',
+                        };
+                    }
+
                     return {
                         success: true,
                         format: 'metadata',
                         reference: blobUri,
-                        mimeType: blob.metadata.mimeType,
-                        size: blob.metadata.size,
-                        filename: blob.metadata.originalName,
-                        source: blob.metadata.source,
-                        createdAt: blob.metadata.createdAt.toISOString(),
+                        mimeType: blobRef.metadata.mimeType,
+                        size: blobRef.metadata.size,
+                        filename: blobRef.metadata.originalName,
+                        source: blobRef.metadata.source,
+                        createdAt: blobRef.metadata.createdAt.toISOString(),
                     };
                 }
 

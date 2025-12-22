@@ -20,8 +20,6 @@ export function generateEntryPoint(
     coreVersion: string,
     discoveredProviders?: DiscoveredProviders
 ): GeneratedCode {
-    const warnings: string[] = [];
-
     // Generate imports section
     const imports = generateImports(definition, discoveredProviders);
 
@@ -74,25 +72,11 @@ function generateImports(
     // Core imports
     imports.push(`import { DextoAgent } from '@dexto/core';`);
 
-    // Determine which registries are needed based on discovered providers or manual config
-    const registries: Set<string> = new Set();
-
-    if (discoveredProviders) {
-        if (discoveredProviders.blobStore.length > 0) registries.add('blobStoreRegistry');
-        if (discoveredProviders.customTools.length > 0) registries.add('customToolRegistry');
-        if (discoveredProviders.plugins.length > 0) registries.add('pluginRegistry');
-        if (discoveredProviders.compression.length > 0) registries.add('compressionRegistry');
-    }
-
-    // Also check manual provider registration from definition
-    if (definition.providers.blobStore) registries.add('blobStoreRegistry');
-    if (definition.providers.customTools) registries.add('customToolRegistry');
-    if (definition.providers.plugins) registries.add('pluginRegistry');
-    if (definition.providers.compression) registries.add('compressionRegistry');
-
-    if (registries.size > 0) {
-        imports.push(`import { ${Array.from(registries).join(', ')} } from '@dexto/core';`);
-    }
+    // Always import all registries since we re-export them in generateFactory()
+    // This ensures the re-exports don't reference unimported identifiers
+    imports.push(
+        `import { customToolRegistry, pluginRegistry, compressionRegistry, blobStoreRegistry } from '@dexto/core';`
+    );
 
     // Import discovered providers
     if (discoveredProviders) {

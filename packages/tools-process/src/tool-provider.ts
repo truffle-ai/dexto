@@ -137,13 +137,16 @@ export const processToolsProvider: CustomToolProvider<'process-tools', ProcessTo
             logger
         );
 
-        // Initialize service (synchronous in current implementation)
+        // Start service initialization
+        // TODO: Implement proper lazy initialization - the CustomToolProvider.create interface is sync,
+        // but initialize() is async. Current pattern starts init in background; tools may fail if
+        // called before init completes. Consider adding waitForInit() to service and having tools await it.
         processService.initialize().catch((error) => {
+            // Log error but don't rethrow - rethrowing from .catch() without await goes to unhandled rejection
             logger.error(`Failed to initialize ProcessService: ${error.message}`);
-            throw error;
         });
 
-        logger.info('ProcessService initialized - process operation tools available');
+        logger.debug('ProcessService initialization started');
 
         // Create and return all process operation tools
         return [

@@ -124,23 +124,21 @@ export function createListResourcesTool(resourceManager: ResourceManager): Inter
                         size: blob.metadata.size,
                         createdAt: blob.metadata.createdAt.toISOString(),
                     });
-
-                    if (resources.length >= limit) {
-                        break;
-                    }
                 }
 
-                // Sort by creation time (newest first)
+                // Sort by creation time (newest first), then apply limit
+                // This ensures we return the N newest resources, not arbitrary N resources
                 resources.sort(
                     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
                 );
+                const limitedResources = resources.slice(0, limit);
 
                 return {
                     success: true,
-                    count: resources.length,
-                    resources,
+                    count: limitedResources.length,
+                    resources: limitedResources,
                     _hint:
-                        resources.length > 0
+                        limitedResources.length > 0
                             ? 'Use get_resource with a reference to get a shareable URL or metadata'
                             : 'No resources found matching the criteria',
                 };
