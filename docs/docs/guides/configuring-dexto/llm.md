@@ -154,10 +154,16 @@ llm:
   model: anthropic.claude-sonnet-4-5-20250929-v1:0
 ```
 
-Bedrock uses AWS credentials, not API keys. Set these environment variables:
+**Authentication options:**
+
+**Option 1: API Key (simplest)**
 - `AWS_REGION` - AWS region (required, e.g., us-east-1)
-- `AWS_ACCESS_KEY_ID` - Your AWS access key (required)
-- `AWS_SECRET_ACCESS_KEY` - Your AWS secret key (required)
+- `AWS_BEARER_TOKEN_BEDROCK` - Bedrock API key ([generate here](https://console.aws.amazon.com/bedrock/home#/api-keys))
+
+**Option 2: IAM Credentials (for production)**
+- `AWS_REGION` - AWS region (required, e.g., us-east-1)
+- `AWS_ACCESS_KEY_ID` - Your AWS access key
+- `AWS_SECRET_ACCESS_KEY` - Your AWS secret key
 - `AWS_SESSION_TOKEN` - Session token (optional, for temporary credentials)
 
 ### Token Control

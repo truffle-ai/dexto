@@ -200,10 +200,12 @@ llm:
 llm:
   provider: bedrock
   model: anthropic.claude-sonnet-4-5-20250929-v1:0
-  # No apiKey needed - uses AWS credentials
+  # No apiKey needed - uses AWS credentials or Bedrock API key
 ```
 
-Requires `AWS_REGION`, `AWS_ACCESS_KEY_ID`, and `AWS_SECRET_ACCESS_KEY` environment variables.
+Requires `AWS_REGION` plus either:
+- `AWS_BEARER_TOKEN_BEDROCK` - Bedrock API key (simplest), or
+- `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY` - IAM credentials (for production)
 
 ## Best Practices
 

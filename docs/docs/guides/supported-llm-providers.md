@@ -161,15 +161,28 @@ llm:
 
 **Features:** Enterprise security, AWS billing, access to Claude/Nova/Llama/Mistral
 
-**Authentication:** Uses AWS credentials, not API keys.
-
 <details>
 <summary>Setup Instructions</summary>
 
 1. Create an AWS account and enable Bedrock in your region
 2. Request model access in [AWS Console → Bedrock → Model access](https://console.aws.amazon.com/bedrock/home#/modelaccess)
-3. Create IAM credentials with `bedrock:InvokeModel` permission
-4. Set environment variables:
+
+**Option 1: API Key (Recommended for development)**
+
+Generate a Bedrock API key directly from the console - no IAM setup required:
+
+1. Go to [AWS Console → Bedrock → API keys](https://console.aws.amazon.com/bedrock/home#/api-keys)
+2. Click "Generate API Key" and copy the key
+3. Set environment variables:
+   ```bash
+   export AWS_REGION="us-east-1"
+   export AWS_BEARER_TOKEN_BEDROCK="your-api-key"
+   ```
+
+**Option 2: IAM Credentials (Recommended for production)**
+
+1. Create IAM credentials with `bedrock:InvokeModel` permission
+2. Set environment variables:
    ```bash
    export AWS_REGION="us-east-1"
    export AWS_ACCESS_KEY_ID="your-access-key"
@@ -422,8 +435,10 @@ GOOGLE_VERTEX_PROJECT=your_gcp_project_id
 GOOGLE_VERTEX_LOCATION=us-central1  # Optional
 GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json  # For service account auth
 
-# Amazon Bedrock (uses AWS credentials, not API keys)
+# Amazon Bedrock
 AWS_REGION=us-east-1
+AWS_BEARER_TOKEN_BEDROCK=your_bedrock_api_key  # Option 1: API key (simplest)
+# OR use IAM credentials (Option 2):
 AWS_ACCESS_KEY_ID=your_aws_access_key
 AWS_SECRET_ACCESS_KEY=your_aws_secret_key
 AWS_SESSION_TOKEN=your_session_token  # Optional, for temporary credentials
