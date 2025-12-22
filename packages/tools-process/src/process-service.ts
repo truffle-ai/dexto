@@ -51,6 +51,7 @@ export class ProcessService {
     private config: ProcessConfig;
     private commandValidator: CommandValidator;
     private initialized: boolean = false;
+    private initPromise: Promise<void> | null = null;
     private backgroundProcesses: Map<string, BackgroundProcess> = new Map();
     private logger: IDextoLogger;
 
@@ -70,9 +71,22 @@ export class ProcessService {
     }
 
     /**
-     * Initialize the service
+     * Initialize the service.
+     * Safe to call multiple times - subsequent calls return the same promise.
      */
-    async initialize(): Promise<void> {
+    initialize(): Promise<void> {
+        if (this.initPromise) {
+            return this.initPromise;
+        }
+
+        this.initPromise = this.doInitialize();
+        return this.initPromise;
+    }
+
+    /**
+     * Internal initialization logic.
+     */
+    private async doInitialize(): Promise<void> {
         if (this.initialized) {
             this.logger.debug('ProcessService already initialized');
             return;
@@ -86,15 +100,25 @@ export class ProcessService {
     }
 
     /**
+     * Ensure the service is initialized before use.
+     * Tools should call this at the start of their execute methods.
+     * Safe to call multiple times - will await the same initialization promise.
+     */
+    async ensureInitialized(): Promise<void> {
+        if (this.initialized) {
+            return;
+        }
+        await this.initialize();
+    }
+
+    /**
      * Execute a command
      */
     async executeCommand(
         command: string,
         options: ExecuteOptions = {}
     ): Promise<ProcessResult | ProcessHandle> {
-        if (!this.initialized) {
-            throw ProcessError.notInitialized();
-        }
+        await this.ensureInitialized();
 
         // Validate command
         const validation = this.commandValidator.validateCommand(command);
@@ -485,9 +509,7 @@ export class ProcessService {
      * Get output from a background process
      */
     async getProcessOutput(processId: string): Promise<ProcessOutput> {
-        if (!this.initialized) {
-            throw ProcessError.notInitialized();
-        }
+        await this.ensureInitialized();
 
         const bgProcess = this.backgroundProcesses.get(processId);
         if (!bgProcess) {
@@ -519,9 +541,7 @@ export class ProcessService {
      * Kill a background process
      */
     async killProcess(processId: string): Promise<void> {
-        if (!this.initialized) {
-            throw ProcessError.notInitialized();
-        }
+        await this.ensureInitialized();
 
         const bgProcess = this.backgroundProcesses.get(processId);
         if (!bgProcess) {
@@ -557,9 +577,7 @@ export class ProcessService {
      * List all background processes
      */
     async listProcesses(): Promise<ProcessInfo[]> {
-        if (!this.initialized) {
-            throw ProcessError.notInitialized();
-        }
+        await this.ensureInitialized();
 
         return Array.from(this.backgroundProcesses.values()).map((bgProcess) => ({
             processId: bgProcess.processId,

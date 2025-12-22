@@ -7,6 +7,7 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { glob } from 'glob';
+import safeRegex from 'safe-regex';
 import { getDextoPath, IDextoLogger, DextoLogComponent } from '@dexto/core';
 import {
     FileSystemConfig,
@@ -46,6 +47,7 @@ export class FileSystemService {
     private config: FileSystemConfig;
     private pathValidator: PathValidator;
     private initialized: boolean = false;
+    private initPromise: Promise<void> | null = null;
     private logger: IDextoLogger;
 
     /**
@@ -73,9 +75,22 @@ export class FileSystemService {
     }
 
     /**
-     * Initialize the service
+     * Initialize the service.
+     * Safe to call multiple times - subsequent calls return the same promise.
      */
-    async initialize(): Promise<void> {
+    initialize(): Promise<void> {
+        if (this.initPromise) {
+            return this.initPromise;
+        }
+
+        this.initPromise = this.doInitialize();
+        return this.initPromise;
+    }
+
+    /**
+     * Internal initialization logic.
+     */
+    private async doInitialize(): Promise<void> {
         if (this.initialized) {
             this.logger.debug('FileSystemService already initialized');
             return;
@@ -99,12 +114,22 @@ export class FileSystemService {
     }
 
     /**
+     * Ensure the service is initialized before use.
+     * Tools should call this at the start of their execute methods.
+     * Safe to call multiple times - will await the same initialization promise.
+     */
+    async ensureInitialized(): Promise<void> {
+        if (this.initialized) {
+            return;
+        }
+        await this.initialize();
+    }
+
+    /**
      * Read a file with validation and size limits
      */
     async readFile(filePath: string, options: ReadFileOptions = {}): Promise<FileContent> {
-        if (!this.initialized) {
-            throw FileSystemError.notInitialized();
-        }
+        await this.ensureInitialized();
 
         // Validate path
         const validation = this.pathValidator.validatePath(filePath);
@@ -184,9 +209,7 @@ export class FileSystemService {
      * Find files matching a glob pattern
      */
     async globFiles(pattern: string, options: GlobOptions = {}): Promise<GlobResult> {
-        if (!this.initialized) {
-            throw FileSystemError.notInitialized();
-        }
+        await this.ensureInitialized();
 
         const cwd: string = options.cwd || this.config.workingDirectory || process.cwd();
         const maxResults = options.maxResults || DEFAULT_MAX_RESULTS;
@@ -259,9 +282,7 @@ export class FileSystemService {
      * Search for content in files (grep-like functionality)
      */
     async searchContent(pattern: string, options: GrepOptions = {}): Promise<SearchResult> {
-        if (!this.initialized) {
-            throw FileSystemError.notInitialized();
-        }
+        await this.ensureInitialized();
 
         const searchPath: string = options.path || this.config.workingDirectory || process.cwd();
         const globPattern = options.glob || '**/*';
@@ -269,10 +290,15 @@ export class FileSystemService {
         const contextLines = options.contextLines || 0;
 
         try {
-            // Create regex from pattern
-            // TODO: Add ReDoS protection - user-provided regex patterns can cause catastrophic backtracking.
-            // Consider using 'safe-regex' package to validate patterns, or switch to 're2' for linear-time matching.
+            // Validate regex pattern for ReDoS safety before creating RegExp
             // See: https://owasp.org/www-community/attacks/Regular_expression_Denial_of_Service_-_ReDoS
+            if (!safeRegex(pattern)) {
+                throw FileSystemError.invalidPattern(
+                    pattern,
+                    'Pattern may cause catastrophic backtracking (ReDoS). Please simplify the regex.'
+                );
+            }
+
             const flags = options.caseInsensitive ? 'i' : '';
             const regex = new RegExp(pattern, flags);
 
@@ -370,9 +396,7 @@ export class FileSystemService {
         content: string,
         options: WriteFileOptions = {}
     ): Promise<WriteResult> {
-        if (!this.initialized) {
-            throw FileSystemError.notInitialized();
-        }
+        await this.ensureInitialized();
 
         // Validate path
         const validation = this.pathValidator.validatePath(filePath);
@@ -435,9 +459,7 @@ export class FileSystemService {
         operation: EditOperation,
         options: EditFileOptions = {}
     ): Promise<EditResult> {
-        if (!this.initialized) {
-            throw FileSystemError.notInitialized();
-        }
+        await this.ensureInitialized();
 
         // Validate path
         const validation = this.pathValidator.validatePath(filePath);

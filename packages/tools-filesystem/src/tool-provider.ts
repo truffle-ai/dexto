@@ -127,16 +127,13 @@ export const fileSystemToolsProvider: CustomToolProvider<
             logger
         );
 
-        // Start service initialization
-        // TODO: Implement proper lazy initialization - the CustomToolProvider.create interface is sync,
-        // but initialize() is async. Current pattern starts init in background; tools may fail if
-        // called before init completes. Consider adding waitForInit() to service and having tools await it.
+        // Start initialization in background - service methods use ensureInitialized() for lazy init
+        // This means tools will wait for initialization to complete before executing
         fileSystemService.initialize().catch((error) => {
-            // Log error but don't rethrow - rethrowing from .catch() without await goes to unhandled rejection
             logger.error(`Failed to initialize FileSystemService: ${error.message}`);
         });
 
-        logger.debug('FileSystemService initialization started');
+        logger.debug('FileSystemService created - initialization will complete on first tool use');
 
         // Create and return all file operation tools
         return [

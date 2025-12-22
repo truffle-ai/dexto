@@ -42,15 +42,6 @@ async function loadImageForConfig(config: { image?: string | undefined }): Promi
         logger.error(errorMsg);
         throw new Error(errorMsg);
     }
-
-    // Validate that if config specifies an image, it matches what was loaded
-    if (config.image && config.image !== imageName) {
-        const errorMsg = `Config specifies image '${config.image}' but ${
-            imageName ? `'${imageName}' was loaded instead` : 'no image was loaded'
-        }`;
-        logger.error(errorMsg);
-        throw new Error(errorMsg);
-    }
 }
 
 /**
