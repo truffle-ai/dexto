@@ -120,12 +120,18 @@ program
     .option('--from-image <package>', 'Use existing image (e.g., @dexto/image-local)')
     .option('--extend-image <package>', 'Extend image with custom providers')
     .option('--from-core', 'Build from @dexto/core (advanced)')
+    .option('--type <type>', 'App type: script, webapp (default: script)')
     .action(
         withAnalytics(
             'create-app',
             async (
                 name?: string,
-                options?: { fromImage?: string; extendImage?: string; fromCore?: boolean }
+                options?: {
+                    fromImage?: string;
+                    extendImage?: string;
+                    fromCore?: boolean;
+                    type?: 'script' | 'webapp';
+                }
             ) => {
                 try {
                     p.intro(chalk.inverse('Create Dexto App'));

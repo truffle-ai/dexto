@@ -17,6 +17,10 @@ import {
 } from '../utils/scaffolding-utils.js';
 import {
     generateIndexForImage,
+    generateWebServerIndex,
+    generateWebAppHTML,
+    generateWebAppJS,
+    generateWebAppCSS,
     generateDextoImageFile,
     generateAppReadme,
     generateImageReadme,
@@ -26,10 +30,12 @@ import {
 import { getExecutionContext } from '@dexto/agent-management';
 
 type AppMode = 'from-image' | 'from-core';
+type AppType = 'script' | 'webapp';
 
 export interface CreateAppOptions {
     fromImage?: string;
     fromCore?: boolean;
+    type?: AppType;
 }
 
 /**
@@ -54,7 +60,33 @@ export async function createDextoProject(
         ? name
         : await promptForProjectName('my-dexto-app', 'What do you want to name your app?');
 
-    // Step 2: Determine app mode (from flags or prompt)
+    // Step 2: Determine app type
+    let appType: AppType = options?.type || 'script';
+
+    if (!options?.type) {
+        appType = (await p.select({
+            message: 'What type of app?',
+            options: [
+                {
+                    value: 'script',
+                    label: 'Script',
+                    hint: 'Simple script (default)',
+                },
+                {
+                    value: 'webapp',
+                    label: 'Web App',
+                    hint: 'REST API server with web frontend',
+                },
+            ],
+        })) as AppType;
+
+        if (p.isCancel(appType)) {
+            p.cancel('App creation cancelled');
+            process.exit(0);
+        }
+    }
+
+    // Step 3: Determine app mode (from flags or prompt)
     let mode: AppMode;
     let baseImage: string | undefined;
 
@@ -169,7 +201,7 @@ export async function createDextoProject(
         }
 
         // Scaffold from existing image
-        await scaffoldFromImage(projectPath, projectName, baseImage, originalCwd, spinner);
+        await scaffoldFromImage(projectPath, projectName, baseImage, appType, originalCwd, spinner);
 
         spinner.stop(chalk.green(`✓ Successfully created app: ${projectName}`));
 
@@ -194,6 +226,7 @@ async function scaffoldFromImage(
     projectPath: string,
     projectName: string,
     imageName: string,
+    appType: AppType,
     originalCwd: string,
     spinner: ReturnType<typeof p.spinner>
 ): Promise<void> {
@@ -226,13 +259,30 @@ async function scaffoldFromImage(
     await ensureDirectory('src');
     await ensureDirectory('agents');
 
-    // Create src/index.ts
-    const indexContent = generateIndexForImage({
-        projectName,
-        packageName: projectName,
-        description: 'Dexto application',
-        imageName: packageNameForImport, // Use the actual package name for imports
-    });
+    // Create src/index.ts based on app type
+    let indexContent: string;
+    if (appType === 'webapp') {
+        indexContent = generateWebServerIndex({
+            projectName,
+            packageName: projectName,
+            description: 'Dexto web server application',
+            imageName: packageNameForImport,
+        });
+
+        // Create web app directory and files
+        await ensureDirectory('app');
+        await ensureDirectory('app/assets');
+        await fs.writeFile('app/index.html', generateWebAppHTML(projectName));
+        await fs.writeFile('app/assets/main.js', generateWebAppJS());
+        await fs.writeFile('app/assets/style.css', generateWebAppCSS());
+    } else {
+        indexContent = generateIndexForImage({
+            projectName,
+            packageName: projectName,
+            description: 'Dexto application',
+            imageName: packageNameForImport,
+        });
+    }
     await fs.writeFile('src/index.ts', indexContent);
 
     // Create default agent config
@@ -295,6 +345,7 @@ storage:
     // Add scripts
     const packageJsonPath = path.join(projectPath, 'package.json');
     const packageJson = JSON.parse(await fs.readFile(packageJsonPath, 'utf8'));
+
     packageJson.scripts = {
         start: 'tsx src/index.ts',
         build: 'tsc',
@@ -363,16 +414,24 @@ storage:
     // Install dependencies (use pnpm in dexto source for workspace protocol support)
     // Image is loaded as "environment" - we import from core packages directly
     const coreVersion = isDextoSource ? 'workspace:*' : '^1.3.0';
+    const serverVersion = isDextoSource ? 'workspace:*' : '^1.3.0';
+
+    const dependencies = [
+        resolvedImageName, // Image provides the environment/providers
+        `@dexto/core@${coreVersion}`, // Import DextoAgent from here
+        `@dexto/agent-management@${agentMgmtVersion}`, // Import loadAgentConfig from here
+        'tsx',
+    ];
+
+    // Add @dexto/server dependency for webapp type
+    if (appType === 'webapp') {
+        dependencies.push(`@dexto/server@${serverVersion}`);
+    }
 
     await installDependencies(
         projectPath,
         {
-            dependencies: [
-                resolvedImageName, // Image provides the environment/providers
-                `@dexto/core@${coreVersion}`, // Import DextoAgent from here
-                `@dexto/agent-management@${agentMgmtVersion}`, // Import loadAgentConfig from here
-                'tsx',
-            ],
+            dependencies,
             devDependencies: ['typescript@^5.0.0', '@types/node@^20.0.0'],
         },
         isDextoSource ? 'pnpm' : undefined

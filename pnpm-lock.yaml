@@ -865,6 +865,81 @@ importers:
         specifier: ^6.0.6
         version: 6.4.1(@types/node@20.19.11)(jiti@2.5.1)(lightningcss@1.30.1)(tsx@4.21.0)(yaml@2.8.1)
 
+  test-web-app:
+    dependencies:
+      '@dexto/agent-management':
+        specifier: workspace:*
+        version: link:../packages/agent-management
+      '@dexto/core':
+        specifier: workspace:*
+        version: link:../packages/core
+      '@dexto/image-local':
+        specifier: link:/Users/shaun/Desktop/Projects/dexto/packages/image-local
+        version: link:../packages/image-local
+      '@dexto/server':
+        specifier: workspace:*
+        version: link:../packages/server
+      tsx:
+        specifier: ^4.21.0
+        version: 4.21.0
+    devDependencies:
+      '@types/node':
+        specifier: ^20.19.11
+        version: 20.19.11
+      typescript:
+        specifier: ^5.9.2
+        version: 5.9.2
+
+  test-web-app2:
+    dependencies:
+      '@dexto/agent-management':
+        specifier: workspace:*
+        version: link:../packages/agent-management
+      '@dexto/core':
+        specifier: workspace:*
+        version: link:../packages/core
+      '@dexto/image-local':
+        specifier: link:/Users/shaun/Desktop/Projects/dexto/packages/image-local
+        version: link:../packages/image-local
+      '@dexto/server':
+        specifier: workspace:*
+        version: link:../packages/server
+      tsx:
+        specifier: ^4.21.0
+        version: 4.21.0
+    devDependencies:
+      '@types/node':
+        specifier: ^20.19.11
+        version: 20.19.11
+      typescript:
+        specifier: ^5.9.2
+        version: 5.9.2
+
+  test-webapp:
+    dependencies:
+      '@dexto/agent-management':
+        specifier: workspace:*
+        version: link:../packages/agent-management
+      '@dexto/core':
+        specifier: workspace:*
+        version: link:../packages/core
+      '@dexto/image-local':
+        specifier: link:/Users/shaun/Desktop/Projects/dexto/packages/image-local
+        version: link:../packages/image-local
+      '@dexto/server':
+        specifier: workspace:*
+        version: link:../packages/server
+      tsx:
+        specifier: ^4.21.0
+        version: 4.21.0
+    devDependencies:
+      '@types/node':
+        specifier: ^20.19.11
+        version: 20.19.11
+      typescript:
+        specifier: ^5.9.2
+        version: 5.9.2
+
 packages:
 
   '@ai-sdk/anthropic@2.0.56':
@@ -11768,7 +11843,6 @@ snapshots:
       '@esbuild/win32-arm64': 0.27.2
       '@esbuild/win32-ia32': 0.27.2
       '@esbuild/win32-x64': 0.27.2
-    optional: true
 
   escalade@3.2.0: {}
 
@@ -14689,7 +14763,6 @@ snapshots:
       get-tsconfig: 4.10.1
     optionalDependencies:
       fsevents: 2.3.3
-    optional: true
 
   tunnel-agent@0.6.0:
     dependencies:

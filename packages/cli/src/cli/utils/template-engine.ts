@@ -68,6 +68,521 @@ main().catch((error) => {
 }
 
 /**
+ * Generates src/index.ts for a web server application using an image
+ */
+export function generateWebServerIndex(context: TemplateContext): string {
+    return `// Load image environment (Pattern 1: Static Import)
+// This auto-registers providers as a side-effect
+import '${context.imageName}';
+
+// Import from core packages
+import { DextoAgent } from '@dexto/core';
+import { loadAgentConfig } from '@dexto/agent-management';
+import { startDextoServer } from '@dexto/server';
+import { resolve } from 'node:path';
+import { existsSync } from 'node:fs';
+
+async function main() {
+    console.log('🚀 Starting ${context.projectName}\\n');
+
+    // Load agent configuration
+    console.log('📝 Loading configuration...');
+    const config = await loadAgentConfig('./agents/default.yml');
+    console.log('✅ Config loaded\\n');
+
+    // Create agent
+    console.log('🤖 Creating agent...');
+    const agent = new DextoAgent(config, './agents/default.yml');
+    console.log('✅ Agent created\\n');
+
+    // Start the server
+    console.log('🌐 Starting Dexto server...');
+
+    const webRoot = resolve(process.cwd(), 'app');
+
+    if (!existsSync(webRoot)) {
+        console.error(\`❌ Error: Web root not found at \${webRoot}\`);
+        console.error('   Make sure the app/ directory exists');
+        process.exit(1);
+    }
+
+    console.log(\`📁 Serving static files from: \${webRoot}\`);
+
+    const { stop } = await startDextoServer(agent, {
+        port: 3000,
+        webRoot,
+        agentCard: {
+            name: '${context.projectName}',
+            description: '${context.description}',
+        },
+    });
+
+    console.log('\\n✅ Server is running!\\n');
+    console.log('🌐 Open your browser:');
+    console.log('  http://localhost:3000\\n');
+    console.log('📚 Available endpoints:');
+    console.log('  • Web UI:        http://localhost:3000');
+    console.log('  • REST API:      http://localhost:3000/api/*');
+    console.log('  • Health Check:  http://localhost:3000/health');
+    console.log('  • OpenAPI Spec:  http://localhost:3000/openapi.json');
+    console.log('  • Agent Card:    http://localhost:3000/.well-known/agent-card.json\\n');
+
+    console.log('Press Ctrl+C to stop the server...\\n');
+
+    // Handle graceful shutdown
+    const shutdown = async () => {
+        console.log('\\n🛑 Shutting down...');
+        await stop();
+        console.log('✅ Server stopped\\n');
+        process.exit(0);
+    };
+
+    process.on('SIGINT', shutdown);
+    process.on('SIGTERM', shutdown);
+}
+
+main().catch((error) => {
+    console.error('Error:', error);
+    process.exit(1);
+});
+`;
+}
+
+/**
+ * Generates HTML for web app
+ */
+export function generateWebAppHTML(projectName: string): string {
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${projectName}</title>
+    <link rel="stylesheet" href="/assets/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🤖 ${projectName}</h1>
+            <p class="subtitle">AI-Powered Assistant</p>
+            <div class="session-info">
+                <span id="session-status">Initializing...</span>
+            </div>
+        </header>
+
+        <div class="chat-container">
+            <div id="messages" class="messages"></div>
+
+            <div class="input-container">
+                <input
+                    type="text"
+                    id="message-input"
+                    placeholder="Type your message..."
+                    disabled
+                />
+                <button id="send-button" disabled>Send</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/assets/main.js"></script>
+</body>
+</html>
+`;
+}
+
+/**
+ * Generates JavaScript for web app
+ */
+export function generateWebAppJS(): string {
+    return `// Dexto Chat - Frontend
+// Use relative URL so it works regardless of hostname/port
+const API_BASE = '/api';
+
+let sessionId = null;
+let isProcessing = false;
+
+// DOM elements
+const messagesContainer = document.getElementById('messages');
+const messageInput = document.getElementById('message-input');
+const sendButton = document.getElementById('send-button');
+const sessionStatus = document.getElementById('session-status');
+
+// Initialize the app
+async function init() {
+    try {
+        sessionStatus.textContent = 'Creating session...';
+
+        // Create a new session
+        const response = await fetch(\`\${API_BASE}/sessions\`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({}),
+        });
+
+        if (!response.ok) {
+            throw new Error(\`Failed to create session: \${response.statusText}\`);
+        }
+
+        const data = await response.json();
+        sessionId = data.session.id;
+
+        sessionStatus.textContent = \`Session: \${sessionId.substring(0, 12)}...\`;
+
+        // Enable input
+        messageInput.disabled = false;
+        sendButton.disabled = false;
+        messageInput.focus();
+
+        // Add welcome message
+        addMessage('assistant', "Hello! I'm your Dexto assistant. How can I help you today?");
+    } catch (error) {
+        console.error('Initialization error:', error);
+        const errorMsg = error.message || String(error);
+        showError(\`Failed to initialize: \${errorMsg}\`);
+        sessionStatus.textContent = \`Error: \${errorMsg}\`;
+
+        // Log more details for debugging
+        console.error('Full error details:', {
+            error,
+            apiBase: API_BASE,
+            url: \`\${API_BASE}/sessions\`,
+        });
+    }
+}
+
+// Send a message to the agent
+async function sendMessage() {
+    const text = messageInput.value.trim();
+    if (!text || isProcessing) return;
+
+    // Add user message to UI
+    addMessage('user', text);
+    messageInput.value = '';
+    messageInput.disabled = true;
+    sendButton.disabled = true;
+    isProcessing = true;
+
+    // Add loading indicator
+    const loadingId = addMessage('assistant', 'Thinking...', true);
+
+    try {
+        const response = await fetch(\`\${API_BASE}/message-sync\`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                content: text,
+                sessionId: sessionId,
+            }),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.error?.message || response.statusText);
+        }
+
+        const data = await response.json();
+
+        // Remove loading indicator
+        removeMessage(loadingId);
+
+        // Add agent response
+        addMessage('assistant', data.response);
+
+        // Show token usage in console
+        if (data.tokenUsage) {
+            console.log('Token usage:', data.tokenUsage);
+        }
+    } catch (error) {
+        console.error('Send message error:', error);
+        removeMessage(loadingId);
+        showError(\`Failed to send message: \${error.message}\`);
+    } finally {
+        isProcessing = false;
+        messageInput.disabled = false;
+        sendButton.disabled = false;
+        messageInput.focus();
+    }
+}
+
+// Add a message to the chat UI
+function addMessage(role, content, isLoading = false) {
+    const messageId = \`msg-\${Date.now()}-\${Math.random()}\`;
+    const messageEl = document.createElement('div');
+    messageEl.className = \`message \${role}\`;
+    messageEl.id = messageId;
+
+    const avatar = document.createElement('div');
+    avatar.className = 'message-avatar';
+    avatar.textContent = role === 'user' ? '👤' : '🤖';
+
+    const contentEl = document.createElement('div');
+    contentEl.className = \`message-content \${isLoading ? 'loading' : ''}\`;
+    contentEl.textContent = content;
+
+    messageEl.appendChild(avatar);
+    messageEl.appendChild(contentEl);
+
+    messagesContainer.appendChild(messageEl);
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+    return messageId;
+}
+
+// Remove a message from the UI
+function removeMessage(messageId) {
+    const messageEl = document.getElementById(messageId);
+    if (messageEl) {
+        messageEl.remove();
+    }
+}
+
+// Show an error message
+function showError(message) {
+    const errorEl = document.createElement('div');
+    errorEl.className = 'error-message';
+    errorEl.textContent = \`Error: \${message}\`;
+    messagesContainer.appendChild(errorEl);
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+    // Auto-remove after 5 seconds
+    setTimeout(() => errorEl.remove(), 5000);
+}
+
+// Event listeners
+sendButton.addEventListener('click', sendMessage);
+
+messageInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+    }
+});
+
+// Initialize when page loads
+document.addEventListener('DOMContentLoaded', init);
+`;
+}
+
+/**
+ * Generates CSS for web app
+ */
+export function generateWebAppCSS(): string {
+    return `* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.container {
+    width: 100%;
+    max-width: 800px;
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    height: 90vh;
+    max-height: 700px;
+}
+
+header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 24px;
+    text-align: center;
+}
+
+header h1 {
+    font-size: 28px;
+    margin-bottom: 8px;
+}
+
+.subtitle {
+    font-size: 14px;
+    opacity: 0.9;
+    margin-bottom: 12px;
+}
+
+.session-info {
+    font-size: 12px;
+    opacity: 0.8;
+    font-family: 'Monaco', 'Courier New', monospace;
+}
+
+.chat-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.message {
+    display: flex;
+    gap: 12px;
+    animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.message.user {
+    flex-direction: row-reverse;
+}
+
+.message-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    flex-shrink: 0;
+}
+
+.message.user .message-avatar {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.message.assistant .message-avatar {
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+}
+
+.message-content {
+    max-width: 70%;
+    padding: 12px 16px;
+    border-radius: 12px;
+    line-height: 1.5;
+}
+
+.message.user .message-content {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-bottom-right-radius: 4px;
+}
+
+.message.assistant .message-content {
+    background: #f5f5f5;
+    color: #333;
+    border-bottom-left-radius: 4px;
+}
+
+.message-content.loading {
+    font-style: italic;
+    opacity: 0.7;
+}
+
+.input-container {
+    display: flex;
+    gap: 12px;
+    padding: 20px 24px;
+    border-top: 1px solid #e5e5e5;
+    background: white;
+}
+
+#message-input {
+    flex: 1;
+    padding: 12px 16px;
+    border: 2px solid #e5e5e5;
+    border-radius: 24px;
+    font-size: 15px;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+#message-input:focus {
+    border-color: #667eea;
+}
+
+#message-input:disabled {
+    background: #f5f5f5;
+    cursor: not-allowed;
+}
+
+#send-button {
+    padding: 12px 28px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    border-radius: 24px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.2s, opacity 0.2s;
+}
+
+#send-button:hover:not(:disabled) {
+    transform: translateY(-2px);
+}
+
+#send-button:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+#send-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.error-message {
+    background: #fee;
+    color: #c33;
+    padding: 12px 16px;
+    border-radius: 8px;
+    margin: 16px 24px;
+    border-left: 4px solid #c33;
+}
+
+/* Scrollbar styling */
+.messages::-webkit-scrollbar {
+    width: 8px;
+}
+
+.messages::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+
+.messages::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 4px;
+}
+
+.messages::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+`;
+}
+
+/**
  * Generates dexto.image.ts file for an image project
  */
 export function generateDextoImageFile(context: TemplateContext): string {
