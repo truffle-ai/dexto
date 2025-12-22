@@ -1,0 +1,51 @@
+# Example agent configuration with custom providers
+# This demonstrates:
+# - Custom blob storage provider (Supabase)
+# - Custom tool provider (DateTime Helper)
+
+systemPrompt:
+  contributors:
+    - id: primary
+      type: static
+      priority: 0
+      content: |
+        You are a helpful AI assistant with access to blob storage and datetime utilities.
+        You can help users store and retrieve files, and work with dates and times.
+
+llm:
+  provider: anthropic
+  model: claude-sonnet-4-5-20250514
+  apiKey: $ANTHROPIC_API_KEY
+
+storage:
+  cache:
+    type: in-memory
+  database:
+    type: in-memory  # Or use sqlite for persistence
+  blob:
+    type: supabase
+    supabaseUrl: $SUPABASE_URL        # Loaded from .env
+    supabaseKey: $SUPABASE_KEY        # Loaded from .env
+    bucket: dexto-blobs               # Must match your Supabase bucket name
+    maxBlobSize: 52428800             # 50MB per blob
+    maxTotalSize: 1073741824          # 1GB total storage
+    cleanupAfterDays: 30              # Clean up blobs older than 30 days
+    tableName: blob_metadata          # Postgres table for metadata (optional, defaults to 'blob_metadata')
+    # pathPrefix: my-agent/             # Optional path prefix for all blobs
+    # public: false                     # Optional, whether to make blobs public
+
+# Enable internal tools that work with blobs
+internalTools:
+  - read_file
+  - write_file
+  - glob_files
+
+# Enable custom tools from registered providers
+customTools:
+  - type: datetime-helper
+    defaultTimezone: America/New_York
+    includeMilliseconds: false
+
+toolConfirmation:
+  mode: auto-approve  # Or 'manual' for interactive confirmation
+  allowedToolsStorage: memory

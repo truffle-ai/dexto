@@ -1,0 +1,14 @@
+# Node
+node_modules/
+dist/
+*.log
+
+# Data directories
+data/
+blobs/
+*.db
+*.sqlite
+
+# Environment
+.env
+.env.local

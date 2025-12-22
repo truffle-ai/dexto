@@ -1,0 +1,34 @@
+# Image: Specifies the provider bundle for this agent
+image: '@dexto/image-local'
+
+systemPrompt:
+  contributors:
+    - id: main-prompt
+      type: static
+      priority: 100
+      content: |
+        You are a helpful AI assistant running via Dexto's REST API server.
+        You have access to:
+        - Filesystem tools (read, write, edit files)
+        - Process tools (bash execution)
+
+        When asked to work with files or run commands, use your built-in tools.
+        You're accessible via HTTP at http://localhost:3000
+
+llm:
+  provider: openai
+  model: gpt-4o-mini
+  apiKey: $OPENAI_API_KEY
+
+# Enable filesystem and process tools from the image (optional - can be enabled as needed)
+# customTools:
+#   - type: filesystem-tools
+#     allowedPaths: ['.']
+#     blockedPaths: ['.git', 'node_modules']
+#   - type: process-tools
+#     securityLevel: moderate
+
+# Note: Storage config not specified - will use image defaults:
+# - blob: local filesystem (./data/blobs)
+# - database: sqlite (./data/agent.db)
+# - cache: in-memory

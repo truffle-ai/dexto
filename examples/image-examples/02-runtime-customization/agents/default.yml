@@ -1,0 +1,24 @@
+# Image: Specifies the provider bundle for this agent
+image: '@dexto/image-local'
+
+systemPrompt:
+  contributors:
+    - id: main-prompt
+      type: static
+      priority: 100
+      content: |
+        You are a helpful AI assistant with access to:
+        - Weather information (custom tool added at runtime)
+
+        When asked about weather, use the get_weather tool.
+
+llm:
+  provider: openai
+  model: gpt-4o
+  apiKey: $OPENAI_API_KEY
+
+# Custom tools - enable the runtime-added weather tool
+customTools:
+  - type: weather-helper
+    defaultCity: San Francisco
+    units: fahrenheit
