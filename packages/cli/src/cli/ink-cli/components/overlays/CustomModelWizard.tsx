@@ -1,6 +1,11 @@
 /**
  * CustomModelWizard Component
- * Multi-step wizard for adding custom models (openai-compatible, openrouter, or litellm)
+ * Multi-step wizard for adding custom models (openai-compatible, openrouter, litellm, glama, bedrock)
+ *
+ * Architecture:
+ * - Provider configs centralized in ./custom-model-wizard/provider-config.ts
+ * - Shared UI components in ./custom-model-wizard/shared/
+ * - This file is the orchestrator - handles state, navigation, and keyboard input
  */
 
 import React, { useState, useEffect, forwardRef, useImperativeHandle, useCallback } from 'react';
@@ -17,247 +22,20 @@ import {
     resolveApiKeyForProvider,
     determineApiKeyStorage,
 } from '@dexto/agent-management';
+import { logger, type LLMProvider } from '@dexto/core';
+
+// Import from new modular architecture
 import {
-    logger,
-    lookupOpenRouterModel,
-    refreshOpenRouterModelCache,
-    type LLMProvider,
-} from '@dexto/core';
-
-interface WizardStep {
-    field: string;
-    label: string;
-    placeholder: string;
-    required: boolean;
-    validate?: (value: string) => string | null;
-}
-
-/** Common API key step - added to all providers */
-const API_KEY_STEP: WizardStep = {
-    field: 'apiKey',
-    label: 'API Key (optional)',
-    placeholder: 'Enter API key for authentication',
-    required: false,
-};
-
-/** Steps for openai-compatible provider */
-const OPENAI_COMPATIBLE_STEPS: WizardStep[] = [
-    {
-        field: 'name',
-        label: 'Model Name',
-        placeholder: 'e.g., llama-3-70b, mixtral-8x7b',
-        required: true,
-        validate: (v) => (v.trim() ? null : 'Model name is required'),
-    },
-    {
-        field: 'baseURL',
-        label: 'API Base URL',
-        placeholder: 'e.g., http://localhost:11434/v1',
-        required: true,
-        validate: (v) => {
-            if (!v.trim()) return 'Base URL is required';
-            try {
-                const url = new URL(v);
-                if (!['http:', 'https:'].includes(url.protocol)) {
-                    return 'URL must use http:// or https://';
-                }
-                return null;
-            } catch {
-                return 'Invalid URL format';
-            }
-        },
-    },
-    {
-        field: 'displayName',
-        label: 'Display Name (optional)',
-        placeholder: 'e.g., My Local Llama 3',
-        required: false,
-    },
-    {
-        field: 'maxInputTokens',
-        label: 'Max Input Tokens (optional)',
-        placeholder: 'e.g., 128000 (leave blank for default)',
-        required: false,
-        validate: (v) => {
-            if (!v.trim()) return null;
-            const num = parseInt(v, 10);
-            if (isNaN(num) || num <= 0) return 'Must be a positive number';
-            return null;
-        },
-    },
-    API_KEY_STEP,
-];
-
-/** Steps for openrouter provider (simpler - no baseURL or maxInputTokens needed) */
-const OPENROUTER_STEPS: WizardStep[] = [
-    {
-        field: 'name',
-        label: 'OpenRouter Model ID',
-        placeholder: 'e.g., anthropic/claude-3.5-sonnet, openai/gpt-4o',
-        required: true,
-        validate: (v) => {
-            if (!v.trim()) return 'Model ID is required';
-            // OpenRouter models typically have format: provider/model-name
-            if (!v.includes('/')) {
-                return 'OpenRouter models use format: provider/model (e.g., anthropic/claude-3.5-sonnet)';
-            }
-            // Async validation happens in handleNext
-            return null;
-        },
-    },
-    {
-        field: 'displayName',
-        label: 'Display Name (optional)',
-        placeholder: 'e.g., Claude 3.5 Sonnet',
-        required: false,
-    },
-    { ...API_KEY_STEP, placeholder: 'Saved as OPENROUTER_API_KEY if not set, otherwise per-model' },
-];
-
-/** Steps for glama provider (fixed endpoint, similar to OpenRouter but no live validation) */
-const GLAMA_STEPS: WizardStep[] = [
-    {
-        field: 'name',
-        label: 'Glama Model ID',
-        placeholder: 'e.g., openai/gpt-4o, anthropic/claude-3-sonnet',
-        required: true,
-        validate: (v) => {
-            if (!v.trim()) return 'Model ID is required';
-            // Glama models typically have format: provider/model-name
-            if (!v.includes('/')) {
-                return 'Glama models use format: provider/model (e.g., openai/gpt-4o)';
-            }
-            return null;
-        },
-    },
-    {
-        field: 'displayName',
-        label: 'Display Name (optional)',
-        placeholder: 'e.g., GPT-4o via Glama',
-        required: false,
-    },
-    { ...API_KEY_STEP, placeholder: 'Saved as GLAMA_API_KEY if not set, otherwise per-model' },
-];
-
-/** Steps for litellm provider (requires baseURL for user's proxy) */
-const LITELLM_STEPS: WizardStep[] = [
-    {
-        field: 'name',
-        label: 'Model Name',
-        placeholder: 'e.g., gpt-4, claude-3-sonnet, bedrock/anthropic.claude-v2',
-        required: true,
-        validate: (v) => (v.trim() ? null : 'Model name is required'),
-    },
-    {
-        field: 'baseURL',
-        label: 'LiteLLM Proxy URL',
-        placeholder: 'e.g., http://localhost:4000',
-        required: true,
-        validate: (v) => {
-            if (!v.trim()) return 'Base URL is required';
-            try {
-                const url = new URL(v);
-                if (!['http:', 'https:'].includes(url.protocol)) {
-                    return 'URL must use http:// or https://';
-                }
-                return null;
-            } catch {
-                return 'Invalid URL format';
-            }
-        },
-    },
-    {
-        field: 'displayName',
-        label: 'Display Name (optional)',
-        placeholder: 'e.g., My LiteLLM GPT-4',
-        required: false,
-    },
-    {
-        field: 'maxInputTokens',
-        label: 'Max Input Tokens (optional)',
-        placeholder: 'e.g., 128000 (leave blank for default)',
-        required: false,
-        validate: (v) => {
-            if (!v.trim()) return null;
-            const num = parseInt(v, 10);
-            if (isNaN(num) || num <= 0) return 'Must be a positive number';
-            return null;
-        },
-    },
-    { ...API_KEY_STEP, placeholder: 'Saved as LITELLM_API_KEY if not set, otherwise per-model' },
-];
-
-/** Steps for bedrock provider (custom model IDs, no baseURL/apiKey needed) */
-// TODO: Add VERTEX_STEPS for custom Vertex AI model IDs (similar to Bedrock - ADC auth, no API key)
-// Would allow users to add model IDs not yet in registry (e.g., new Gemini previews)
-const BEDROCK_STEPS: WizardStep[] = [
-    {
-        field: 'name',
-        label: 'Bedrock Model ID',
-        placeholder: 'e.g., anthropic.claude-3-haiku-20240307-v1:0',
-        required: true,
-        validate: (v) => (v.trim() ? null : 'Model ID is required'),
-    },
-    {
-        field: 'displayName',
-        label: 'Display Name (optional)',
-        placeholder: 'e.g., Claude 3 Haiku',
-        required: false,
-    },
-    {
-        field: 'maxInputTokens',
-        label: 'Max Input Tokens (optional)',
-        placeholder: 'e.g., 200000 (leave blank for default)',
-        required: false,
-        validate: (v) => {
-            if (!v.trim()) return null;
-            const num = parseInt(v, 10);
-            if (isNaN(num) || num <= 0) return 'Must be a positive number';
-            return null;
-        },
-    },
-    // NO apiKey step - Bedrock uses AWS credentials from environment
-];
-
-/**
- * Validate OpenRouter model ID against the registry.
- * Refreshes cache if stale and returns error message if invalid.
- */
-async function validateOpenRouterModel(modelId: string): Promise<string | null> {
-    let status = lookupOpenRouterModel(modelId);
-
-    // If cache is stale/empty, try to refresh
-    if (status === 'unknown') {
-        try {
-            await refreshOpenRouterModelCache();
-            status = lookupOpenRouterModel(modelId);
-        } catch {
-            // Network failed - allow the model (graceful degradation)
-            return null;
-        }
-    }
-
-    if (status === 'invalid') {
-        return `Model '${modelId}' not found in OpenRouter. Check the model ID at https://openrouter.ai/models`;
-    }
-
-    return null;
-}
-
-function getStepsForProvider(provider: CustomModelProvider): WizardStep[] {
-    switch (provider) {
-        case 'openrouter':
-            return OPENROUTER_STEPS;
-        case 'glama':
-            return GLAMA_STEPS;
-        case 'litellm':
-            return LITELLM_STEPS;
-        case 'bedrock':
-            return BEDROCK_STEPS;
-        default:
-            return OPENAI_COMPATIBLE_STEPS;
-    }
-}
+    getProviderConfig,
+    getAvailableProviders,
+    runAsyncValidation,
+} from './custom-model-wizard/provider-config.js';
+import {
+    ProviderSelector,
+    WizardStepInput,
+    SetupInfoBanner,
+    ApiKeyStep,
+} from './custom-model-wizard/shared/index.js';
 
 interface CustomModelWizardProps {
     isVisible: boolean;
@@ -272,7 +50,8 @@ export interface CustomModelWizardHandle {
 }
 
 /**
- * Multi-step wizard for custom model configuration
+ * Multi-step wizard for custom model configuration.
+ * Uses data-driven provider configs instead of scattered conditionals.
  */
 const CustomModelWizard = forwardRef<CustomModelWizardHandle, CustomModelWizardProps>(
     function CustomModelWizard({ isVisible, onComplete, onClose, initialModel }, ref) {
@@ -288,6 +67,11 @@ const CustomModelWizard = forwardRef<CustomModelWizardHandle, CustomModelWizardP
         // Track original name when editing (to handle renames)
         const [originalName, setOriginalName] = useState<string | null>(null);
         const isEditing = initialModel !== null && initialModel !== undefined;
+
+        // Get provider config (data-driven, no conditionals)
+        const providerConfig = selectedProvider ? getProviderConfig(selectedProvider) : null;
+        const wizardSteps = providerConfig?.steps ?? [];
+        const currentStepConfig = wizardSteps[currentStep];
 
         // Reset when becoming visible
         useEffect(() => {
@@ -322,9 +106,6 @@ const CustomModelWizard = forwardRef<CustomModelWizardHandle, CustomModelWizardP
             }
         }, [isVisible, initialModel]);
 
-        const wizardSteps = selectedProvider ? getStepsForProvider(selectedProvider) : [];
-        const currentStepConfig = wizardSteps[currentStep];
-
         const handleProviderSelect = useCallback(() => {
             const provider = CUSTOM_MODEL_PROVIDERS[providerIndex];
             if (provider) {
@@ -336,7 +117,7 @@ const CustomModelWizard = forwardRef<CustomModelWizardHandle, CustomModelWizardP
         }, [providerIndex]);
 
         const handleNext = useCallback(async () => {
-            if (!currentStepConfig || isSaving || isValidating) return;
+            if (!currentStepConfig || !selectedProvider || isSaving || isValidating) return;
 
             const value = currentInput.trim();
 
@@ -352,20 +133,24 @@ const CustomModelWizard = forwardRef<CustomModelWizardHandle, CustomModelWizardP
                 return;
             }
 
-            // Async validation for OpenRouter model name
-            if (selectedProvider === 'openrouter' && currentStepConfig.field === 'name') {
+            // Async validation (data-driven - no provider-specific conditionals)
+            const asyncError = await (async () => {
                 setIsValidating(true);
                 setError(null);
                 try {
-                    const openRouterError = await validateOpenRouterModel(value);
-                    if (openRouterError) {
-                        setError(openRouterError);
-                        setIsValidating(false);
-                        return;
-                    }
+                    return await runAsyncValidation(
+                        selectedProvider,
+                        currentStepConfig.field,
+                        value
+                    );
                 } finally {
                     setIsValidating(false);
                 }
+            })();
+
+            if (asyncError) {
+                setError(asyncError);
+                return;
             }
 
             // Save value
@@ -376,36 +161,45 @@ const CustomModelWizard = forwardRef<CustomModelWizardHandle, CustomModelWizardP
 
             // Check if we're done
             if (currentStep >= wizardSteps.length - 1) {
-                // Build model and save
-                const model: CustomModel = {
-                    name: newValues.name || '',
-                    provider: selectedProvider!,
-                };
+                await saveModel(newValues);
+            } else {
+                const nextStep = currentStep + 1;
+                setCurrentStep(nextStep);
+                // Pre-populate next step from stored values (for edit mode)
+                const nextStepConfig = wizardSteps[nextStep];
+                const nextValue = nextStepConfig ? newValues[nextStepConfig.field] : undefined;
+                setCurrentInput(nextValue ?? '');
+            }
+        }, [
+            currentInput,
+            currentStep,
+            currentStepConfig,
+            isSaving,
+            isValidating,
+            selectedProvider,
+            values,
+            wizardSteps,
+        ]);
 
-                // Add baseURL for openai-compatible and litellm
-                if (
-                    (selectedProvider === 'openai-compatible' || selectedProvider === 'litellm') &&
-                    newValues.baseURL
-                ) {
-                    model.baseURL = newValues.baseURL;
-                }
+        /**
+         * Build and save the model using provider config's buildModel function.
+         */
+        const saveModel = useCallback(
+            async (finalValues: Record<string, string>) => {
+                if (!selectedProvider || !providerConfig) return;
 
-                if (newValues.displayName?.trim()) {
-                    model.displayName = newValues.displayName.trim();
-                }
-                if (newValues.maxInputTokens?.trim()) {
-                    model.maxInputTokens = parseInt(newValues.maxInputTokens, 10);
-                }
+                // Build model using provider config (no conditionals!)
+                const model = providerConfig.buildModel(finalValues, selectedProvider);
 
-                // Determine API key storage strategy using shared logic
-                const userEnteredKey = newValues.apiKey?.trim();
+                // Handle API key storage
+                const userEnteredKey = finalValues.apiKey?.trim();
                 const providerKeyStatus = getProviderKeyStatus(selectedProvider as LLMProvider);
                 const existingProviderKey = resolveApiKeyForProvider(
                     selectedProvider as LLMProvider
                 );
 
                 const keyStorage = determineApiKeyStorage(
-                    selectedProvider!,
+                    selectedProvider,
                     userEnteredKey,
                     providerKeyStatus.hasApiKey,
                     existingProviderKey
@@ -453,26 +247,9 @@ const CustomModelWizard = forwardRef<CustomModelWizardHandle, CustomModelWizardP
                     );
                     setIsSaving(false);
                 }
-            } else {
-                const nextStep = currentStep + 1;
-                setCurrentStep(nextStep);
-                // Pre-populate next step from stored values (for edit mode)
-                const nextStepConfig = wizardSteps[nextStep];
-                const nextValue = nextStepConfig ? newValues[nextStepConfig.field] : undefined;
-                setCurrentInput(nextValue ?? '');
-            }
-        }, [
-            currentInput,
-            currentStep,
-            currentStepConfig,
-            isSaving,
-            isValidating,
-            onComplete,
-            selectedProvider,
-            values,
-            wizardSteps,
-            originalName,
-        ]);
+            },
+            [selectedProvider, providerConfig, originalName, onComplete]
+        );
 
         const handleBack = useCallback(() => {
             if (currentStep > 0) {
@@ -507,15 +284,16 @@ const CustomModelWizard = forwardRef<CustomModelWizardHandle, CustomModelWizardP
 
                     // Provider selection mode
                     if (!selectedProvider) {
+                        const providers = getAvailableProviders();
                         if (key.upArrow) {
                             setProviderIndex((prev) =>
-                                prev > 0 ? prev - 1 : CUSTOM_MODEL_PROVIDERS.length - 1
+                                prev > 0 ? prev - 1 : providers.length - 1
                             );
                             return true;
                         }
                         if (key.downArrow) {
                             setProviderIndex((prev) =>
-                                prev < CUSTOM_MODEL_PROVIDERS.length - 1 ? prev + 1 : 0
+                                prev < providers.length - 1 ? prev + 1 : 0
                             );
                             return true;
                         }
@@ -527,7 +305,6 @@ const CustomModelWizard = forwardRef<CustomModelWizardHandle, CustomModelWizardP
                     }
 
                     // Wizard step mode
-                    // Enter to submit current step
                     if (key.return) {
                         void handleNext();
                         return true;
@@ -563,55 +340,13 @@ const CustomModelWizard = forwardRef<CustomModelWizardHandle, CustomModelWizardP
 
         if (!isVisible) return null;
 
-        // Provider selection screen
+        // Provider selection screen (using shared component)
         if (!selectedProvider) {
-            return (
-                <Box
-                    flexDirection="column"
-                    borderStyle="round"
-                    borderColor="green"
-                    paddingX={1}
-                    marginTop={1}
-                >
-                    <Box marginBottom={1}>
-                        <Text bold color="green">
-                            {isEditing ? 'Edit Custom Model' : 'Add Custom Model'}
-                        </Text>
-                    </Box>
-
-                    <Text bold>Select Provider:</Text>
-
-                    <Box flexDirection="column" marginTop={1}>
-                        {CUSTOM_MODEL_PROVIDERS.map((provider, index) => (
-                            <Box key={provider}>
-                                <Text
-                                    color={index === providerIndex ? 'cyan' : 'gray'}
-                                    bold={index === providerIndex}
-                                >
-                                    {index === providerIndex ? '❯ ' : '  '}
-                                    {provider === 'openai-compatible'
-                                        ? 'OpenAI-Compatible (local/custom endpoint)'
-                                        : provider === 'litellm'
-                                          ? 'LiteLLM (unified proxy for 100+ providers)'
-                                          : provider === 'glama'
-                                            ? 'Glama (OpenAI-compatible gateway)'
-                                            : provider === 'bedrock'
-                                              ? 'AWS Bedrock (custom model IDs)'
-                                              : 'OpenRouter (100+ cloud models)'}
-                                </Text>
-                            </Box>
-                        ))}
-                    </Box>
-
-                    <Box marginTop={1}>
-                        <Text dimColor>↑↓ navigate • Enter select • Esc cancel</Text>
-                    </Box>
-                </Box>
-            );
+            return <ProviderSelector selectedIndex={providerIndex} isEditing={isEditing} />;
         }
 
         // Wizard steps screen
-        if (!currentStepConfig) return null;
+        if (!currentStepConfig || !providerConfig) return null;
 
         return (
             <Box
@@ -628,73 +363,34 @@ const CustomModelWizard = forwardRef<CustomModelWizardHandle, CustomModelWizardP
                     </Text>
                     <Text dimColor>
                         {' '}
-                        ({selectedProvider}) Step {currentStep + 1}/{wizardSteps.length}
+                        ({providerConfig.displayName}) Step {currentStep + 1}/{wizardSteps.length}
                     </Text>
                 </Box>
 
-                {/* Bedrock setup info - shown on first step only */}
-                {selectedProvider === 'bedrock' && currentStep === 0 && (
-                    <Box flexDirection="column" marginBottom={1}>
-                        <Text color="blue">
-                            ℹ Bedrock uses AWS credentials from your environment.
-                        </Text>
-                        <Text dimColor>
-                            Ensure AWS_REGION and either AWS_BEARER_TOKEN_BEDROCK or IAM credentials
-                            are set.
-                        </Text>
-                        <Text dimColor>
-                            Setup guide:
-                            https://docs.dexto.ai/guides/supported-llm-providers#amazon-bedrock
-                        </Text>
-                    </Box>
+                {/* Setup info banner - data-driven, shown on first step only */}
+                {providerConfig.setupInfo && currentStep === 0 && (
+                    <SetupInfoBanner
+                        title={providerConfig.setupInfo.title}
+                        description={providerConfig.setupInfo.description}
+                        docsUrl={providerConfig.setupInfo.docsUrl}
+                    />
                 )}
 
-                {/* Current step prompt */}
-                <Box flexDirection="column">
-                    <Text bold>{currentStepConfig.label}:</Text>
-                    <Text dimColor>{currentStepConfig.placeholder}</Text>
-                    {/* Show existing key status for API key step */}
-                    {currentStepConfig.field === 'apiKey' &&
-                        selectedProvider &&
-                        (() => {
-                            const keyStatus = getProviderKeyStatus(selectedProvider as LLMProvider);
-                            return keyStatus.hasApiKey ? (
-                                <Text color="green">
-                                    ✓ {keyStatus.envVar} already set, press Enter to skip
-                                </Text>
-                            ) : (
-                                <Text color="yellow">No {keyStatus.envVar} configured</Text>
-                            );
-                        })()}
-                </Box>
-
-                {/* Input field */}
-                <Box marginTop={1}>
-                    <Text color="cyan">&gt; </Text>
-                    <Text>{currentInput}</Text>
-                    <Text color="cyan">_</Text>
-                </Box>
-
-                {/* Error message */}
-                {error && (
-                    <Box marginTop={1}>
-                        <Text color="red">{error}</Text>
-                    </Box>
-                )}
-
-                {/* Validating indicator */}
-                {isValidating && (
-                    <Box marginTop={1}>
-                        <Text color="yellow">Validating model...</Text>
-                    </Box>
-                )}
-
-                {/* Saving indicator */}
-                {isSaving && (
-                    <Box marginTop={1}>
-                        <Text color="yellow">Saving...</Text>
-                    </Box>
-                )}
+                {/* Step input with optional API key status */}
+                <WizardStepInput
+                    step={currentStepConfig}
+                    currentInput={currentInput}
+                    error={error}
+                    isValidating={isValidating}
+                    isSaving={isSaving}
+                    stepNumber={currentStep + 1}
+                    totalSteps={wizardSteps.length}
+                    additionalContent={
+                        currentStepConfig.field === 'apiKey' ? (
+                            <ApiKeyStep provider={selectedProvider} />
+                        ) : undefined
+                    }
+                />
 
                 {/* Help text */}
                 <Box marginTop={1}>
