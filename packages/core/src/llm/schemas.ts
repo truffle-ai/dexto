@@ -8,6 +8,7 @@ import {
     supportsBaseURL,
     requiresBaseURL,
     acceptsAnyModel,
+    supportsCustomModels,
     getSupportedModels,
     isValidProviderModel,
     getMaxInputTokensForModel,
@@ -133,7 +134,8 @@ export const LLMConfigSchema = LLMConfigBaseSchema.superRefine((data, ctx) => {
             },
         });
     } else {
-        if (!acceptsAnyModel(data.provider)) {
+        // Skip model validation for providers that accept any model OR support custom models
+        if (!acceptsAnyModel(data.provider) && !supportsCustomModels(data.provider)) {
             const supportedModelsList = getSupportedModels(data.provider);
             if (!isValidProviderModel(data.provider, data.model)) {
                 ctx.addIssue({
@@ -151,7 +153,12 @@ export const LLMConfigSchema = LLMConfigBaseSchema.superRefine((data, ctx) => {
             }
         }
 
-        if (maxInputTokensIsSet && !acceptsAnyModel(data.provider)) {
+        // Skip token cap validation for providers that accept any model OR support custom models
+        if (
+            maxInputTokensIsSet &&
+            !acceptsAnyModel(data.provider) &&
+            !supportsCustomModels(data.provider)
+        ) {
             try {
                 const cap = getMaxInputTokensForModel(data.provider, data.model);
                 if (data.maxInputTokens! > cap) {
