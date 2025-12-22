@@ -149,16 +149,15 @@ llm:
 
 **Claude models:**
 - `anthropic.claude-sonnet-4-5-20250929-v1:0` (default), `anthropic.claude-haiku-4-5-20251001-v1:0`, `anthropic.claude-opus-4-5-20251101-v1:0`
-- `anthropic.claude-sonnet-4-20250514-v1:0`, `anthropic.claude-3-7-sonnet-20250219-v1:0`
 
 **Amazon Nova models:**
-- `amazon.nova-pro-v1:0`, `amazon.nova-lite-v1:0`, `amazon.nova-micro-v1:0`
+- `amazon.nova-premier-v1:0`, `amazon.nova-pro-v1:0`, `amazon.nova-lite-v1:0`, `amazon.nova-micro-v1:0`
 
 **Other models:**
-- `meta.llama3-3-70b-instruct-v1:0`, `meta.llama4-maverick-17b-instruct-v1:0`
-- `deepseek.r1-v1:0`, `mistral.mistral-large-2402-v1:0`, `mistral.pixtral-large-2502-v1:0`
+- `deepseek.r1-v1:0`, `openai.gpt-oss-120b-1:0`, `openai.gpt-oss-20b-1:0`
+- `qwen.qwen3-coder-30b-a3b-v1:0`, `qwen.qwen3-coder-480b-a35b-v1:0`
 
-**Features:** Enterprise security, AWS billing, access to Claude/Nova/Llama/Mistral
+**Features:** Enterprise security, AWS billing, access to Claude/Nova/DeepSeek/Qwen
 
 <details>
 <summary>Setup Instructions</summary>

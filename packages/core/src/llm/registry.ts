@@ -1098,164 +1098,114 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
         baseURLSupport: 'none', // Auto-constructed from projectId and region
         supportedFileTypes: ['pdf', 'image', 'audio'],
     },
-    // Amazon Bedrock - AWS-hosted gateway for Claude, Nova, Llama, Mistral, and more
-    // Auth: AWS credentials (env vars AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION)
+    // Amazon Bedrock - AWS-hosted gateway for Claude, Nova, and more
+    // Auth: AWS credentials (env vars) or Bedrock API key (AWS_BEARER_TOKEN_BEDROCK)
     //
-    // Setup instructions:
-    // 1. Create an AWS account and enable Bedrock in your region
-    // 2. Request model access in AWS Console → Bedrock → Model access
-    // 3. Create IAM credentials with bedrock:InvokeModel permission
-    // 4. Set env vars: AWS_REGION, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
-    //
-    // Cross-region inference: Models with 'us.' prefix support cross-region routing
-    // Model IDs: https://docs.aws.amazon.com/bedrock/latest/userguide/model-ids.html
-    //
-    // TODO: Add dynamic model fetching via bedrock:ListFoundationModels API
+    // Cross-region inference: Auto-added for anthropic.* and amazon.* models
+    // For custom models, use openai-compatible provider with Bedrock endpoint
     bedrock: {
         models: [
             // Claude 4.5 models (latest)
             {
                 name: 'anthropic.claude-sonnet-4-5-20250929-v1:0',
-                displayName: 'Claude 4.5 Sonnet (AWS Bedrock)',
+                displayName: 'Claude 4.5 Sonnet',
                 maxInputTokens: 200000,
                 default: true,
                 supportedFileTypes: ['pdf', 'image'],
                 pricing: {
                     inputPerM: 3.0,
                     outputPerM: 15.0,
+                    cacheWritePerM: 3.75,
+                    cacheReadPerM: 0.3,
                     currency: 'USD',
                     unit: 'per_million_tokens',
                 },
             },
             {
                 name: 'anthropic.claude-haiku-4-5-20251001-v1:0',
-                displayName: 'Claude 4.5 Haiku (AWS Bedrock)',
+                displayName: 'Claude 4.5 Haiku',
                 maxInputTokens: 200000,
                 supportedFileTypes: ['pdf', 'image'],
                 pricing: {
                     inputPerM: 1.0,
                     outputPerM: 5.0,
+                    cacheWritePerM: 1.25,
+                    cacheReadPerM: 0.1,
                     currency: 'USD',
                     unit: 'per_million_tokens',
                 },
             },
             {
                 name: 'anthropic.claude-opus-4-5-20251101-v1:0',
-                displayName: 'Claude 4.5 Opus (AWS Bedrock)',
+                displayName: 'Claude 4.5 Opus',
                 maxInputTokens: 200000,
                 supportedFileTypes: ['pdf', 'image'],
                 pricing: {
-                    inputPerM: 15.0,
-                    outputPerM: 75.0,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            // Claude 4.x models
-            {
-                name: 'anthropic.claude-sonnet-4-20250514-v1:0',
-                displayName: 'Claude 4 Sonnet (AWS Bedrock)',
-                maxInputTokens: 200000,
-                supportedFileTypes: ['pdf', 'image'],
-                pricing: {
-                    inputPerM: 3.0,
-                    outputPerM: 15.0,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            // Claude 3.x models
-            {
-                name: 'anthropic.claude-3-7-sonnet-20250219-v1:0',
-                displayName: 'Claude 3.7 Sonnet (AWS Bedrock)',
-                maxInputTokens: 200000,
-                supportedFileTypes: ['pdf', 'image'],
-                pricing: {
-                    inputPerM: 3.0,
-                    outputPerM: 15.0,
+                    inputPerM: 5.0,
+                    outputPerM: 25.0,
+                    cacheWritePerM: 6.25,
+                    cacheReadPerM: 0.5,
                     currency: 'USD',
                     unit: 'per_million_tokens',
                 },
             },
             // Amazon Nova models
             {
+                name: 'amazon.nova-premier-v1:0',
+                displayName: 'Nova Premier',
+                maxInputTokens: 1000000,
+                supportedFileTypes: ['image'],
+                pricing: {
+                    inputPerM: 2.5,
+                    outputPerM: 12.5,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
                 name: 'amazon.nova-pro-v1:0',
-                displayName: 'Amazon Nova Pro',
+                displayName: 'Nova Pro',
                 maxInputTokens: 300000,
                 supportedFileTypes: ['pdf', 'image'],
                 pricing: {
                     inputPerM: 0.8,
                     outputPerM: 3.2,
+                    cacheReadPerM: 0.2,
                     currency: 'USD',
                     unit: 'per_million_tokens',
                 },
             },
             {
                 name: 'amazon.nova-lite-v1:0',
-                displayName: 'Amazon Nova Lite',
+                displayName: 'Nova Lite',
                 maxInputTokens: 300000,
                 supportedFileTypes: ['pdf', 'image'],
                 pricing: {
                     inputPerM: 0.06,
                     outputPerM: 0.24,
+                    cacheReadPerM: 0.015,
                     currency: 'USD',
                     unit: 'per_million_tokens',
                 },
             },
             {
                 name: 'amazon.nova-micro-v1:0',
-                displayName: 'Amazon Nova Micro',
+                displayName: 'Nova Micro',
                 maxInputTokens: 128000,
                 supportedFileTypes: [],
                 pricing: {
                     inputPerM: 0.035,
                     outputPerM: 0.14,
+                    cacheReadPerM: 0.00875,
                     currency: 'USD',
                     unit: 'per_million_tokens',
                 },
             },
-            // Meta Llama models
-            {
-                name: 'meta.llama3-3-70b-instruct-v1:0',
-                displayName: 'Llama 3.3 70B (AWS Bedrock)',
-                maxInputTokens: 128000,
-                supportedFileTypes: [],
-                pricing: {
-                    inputPerM: 0.72,
-                    outputPerM: 0.72,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            {
-                name: 'meta.llama4-maverick-17b-instruct-v1:0',
-                displayName: 'Llama 4 Maverick 17B (AWS Bedrock)',
-                maxInputTokens: 128000,
-                supportedFileTypes: ['image'],
-                pricing: {
-                    inputPerM: 0.19,
-                    outputPerM: 0.85,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            {
-                name: 'meta.llama4-scout-17b-instruct-v1:0',
-                displayName: 'Llama 4 Scout 17B (AWS Bedrock)',
-                maxInputTokens: 128000,
-                supportedFileTypes: ['image'],
-                pricing: {
-                    inputPerM: 0.17,
-                    outputPerM: 0.42,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            // DeepSeek R1 - reasoning model
+            // DeepSeek
             {
                 name: 'deepseek.r1-v1:0',
-                displayName: 'DeepSeek R1 (AWS Bedrock)',
-                maxInputTokens: 128000,
+                displayName: 'DeepSeek R1',
+                maxInputTokens: 64000,
                 supportedFileTypes: [],
                 pricing: {
                     inputPerM: 1.35,
@@ -1264,27 +1214,52 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                     unit: 'per_million_tokens',
                 },
             },
-            // Mistral models
+            // OpenAI GPT-OSS
             {
-                name: 'mistral.mistral-large-2402-v1:0',
-                displayName: 'Mistral Large (AWS Bedrock)',
-                maxInputTokens: 32000,
+                name: 'openai.gpt-oss-120b-1:0',
+                displayName: 'GPT-OSS 120B',
+                maxInputTokens: 128000,
                 supportedFileTypes: [],
                 pricing: {
-                    inputPerM: 4.0,
-                    outputPerM: 12.0,
+                    inputPerM: 0.15,
+                    outputPerM: 0.6,
                     currency: 'USD',
                     unit: 'per_million_tokens',
                 },
             },
             {
-                name: 'mistral.pixtral-large-2502-v1:0',
-                displayName: 'Pixtral Large (AWS Bedrock)',
+                name: 'openai.gpt-oss-20b-1:0',
+                displayName: 'GPT-OSS 20B',
                 maxInputTokens: 128000,
-                supportedFileTypes: ['image'],
+                supportedFileTypes: [],
                 pricing: {
-                    inputPerM: 2.0,
-                    outputPerM: 6.0,
+                    inputPerM: 0.07,
+                    outputPerM: 0.3,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            // Qwen
+            {
+                name: 'qwen.qwen3-coder-30b-a3b-v1:0',
+                displayName: 'Qwen3 Coder 30B',
+                maxInputTokens: 262144,
+                supportedFileTypes: [],
+                pricing: {
+                    inputPerM: 0.15,
+                    outputPerM: 0.6,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
+                name: 'qwen.qwen3-coder-480b-a35b-v1:0',
+                displayName: 'Qwen3 Coder 480B',
+                maxInputTokens: 262144,
+                supportedFileTypes: [],
+                pricing: {
+                    inputPerM: 0.22,
+                    outputPerM: 1.8,
                     currency: 'USD',
                     unit: 'per_million_tokens',
                 },

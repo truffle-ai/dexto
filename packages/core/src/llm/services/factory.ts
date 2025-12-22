@@ -113,16 +113,12 @@ function _createVercelModel(llmConfig: ValidatedLLMConfig): LanguageModel {
 
             // Auto-detect cross-region inference profile prefix based on user's region
             // Users can override by explicitly using prefixed model IDs (e.g., eu.anthropic.claude...)
-            // Cross-region profiles are required for newer Claude/Nova/Llama/DeepSeek models
-            // Note: Mistral models do NOT support cross-region inference
+            // Only anthropic.* and amazon.* models support cross-region inference
             let modelId = model;
             const hasRegionPrefix =
                 model.startsWith('eu.') || model.startsWith('us.') || model.startsWith('global.');
             const supportsCrossRegion =
-                model.startsWith('anthropic.') ||
-                model.startsWith('amazon.') ||
-                model.startsWith('meta.') ||
-                model.startsWith('deepseek.');
+                model.startsWith('anthropic.') || model.startsWith('amazon.');
             if (!hasRegionPrefix && supportsCrossRegion) {
                 const prefix = region.startsWith('eu-') ? 'eu.' : 'us.';
                 modelId = `${prefix}${model}`;
