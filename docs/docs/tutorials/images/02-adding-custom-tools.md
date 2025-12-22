@@ -22,18 +22,14 @@ A weather agent that combines:
 ## Step 1: Set Up Your Project
 
 ```bash
-dexto create-app weather-agent --extend-image
+dexto create-app weather-agent
 ```
 
-When prompted:
-- Select `@dexto/image-local` as the base image
-- Choose "Yes" to include an example custom tool
+When prompted, select `@dexto/image-local` as the base image.
 
 This creates a project with:
 - Base image infrastructure pre-configured
-- Convention-based folders (`tools/`, `plugins/`, etc.)
-- Bundler scripts for building your extensions
-- Example tool to guide you
+- Ready for runtime tool customization
 
 ## Step 2: Create a Custom Tool
 
