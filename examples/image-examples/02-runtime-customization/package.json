@@ -8,9 +8,9 @@
     "start": "tsx src/index.ts"
   },
   "dependencies": {
-    "@dexto/agent-management": "workspace:*",
-    "@dexto/core": "workspace:*",
-    "@dexto/image-local": "workspace:*",
+    "@dexto/agent-management": "link:../../../packages/agent-management",
+    "@dexto/core": "link:../../../packages/core",
+    "@dexto/image-local": "link:../../../packages/image-local",
     "zod": "^3.25.0"
   },
   "devDependencies": {

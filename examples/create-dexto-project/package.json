@@ -41,7 +41,7 @@
     "framework"
   ],
   "dependencies": {
-    "@dexto/core": "workspace:*",
+    "@dexto/core": "link:../../packages/core",
     "@supabase/supabase-js": "^2.45.0",
     "yaml": "^2.8.2",
     "zod": "^3.25.0"
