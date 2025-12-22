@@ -232,8 +232,11 @@ const CustomModelWizard = forwardRef<CustomModelWizardHandle, CustomModelWizardP
                     if (originalName && originalName !== model.name) {
                         try {
                             await deleteCustomModel(originalName);
-                        } catch {
-                            // Continue even if delete fails - the old model might already be gone
+                        } catch (err) {
+                            // Log but continue - old model might already be deleted
+                            logger.warn(
+                                `Failed to delete old model "${originalName}" during rename: ${err instanceof Error ? err.message : String(err)}`
+                            );
                         }
                     }
                     await saveCustomModel(model);
