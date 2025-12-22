@@ -191,7 +191,7 @@ Generate a Bedrock API key directly from the console - no IAM setup required:
    export AWS_SESSION_TOKEN="your-session-token"
    ```
 
-**Cross-region inference:** Models with `us.` prefix support cross-region routing.
+**Cross-region inference:** Dexto auto-detects and adds the appropriate region prefix (`eu.` or `us.`) based on your `AWS_REGION`. You can override by using explicit prefixed model IDs (e.g., `eu.anthropic.claude-sonnet-4-5-20250929-v1:0`).
 
 </details>
 
