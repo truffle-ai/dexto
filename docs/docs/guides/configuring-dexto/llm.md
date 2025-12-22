@@ -13,6 +13,14 @@ For supported providers and models, see **[Supported LLM Providers](../supported
 For complete field documentation, see **[agent.yml → LLM Configuration](./agent-yml.md#llm-configuration)**.
 :::
 
+:::info Interactive Model Switching
+Prefer not to edit YAML? Switch models interactively during a session:
+- **CLI**: Type `/model` to open the model picker
+- **WebUI**: Click the model name in the header
+
+Custom models can also be added through the interactive wizard.
+:::
+
 ## Overview
 
 Large Language Models (LLMs) are the brain of your Dexto agents. Dexto supports multiple LLM providers out-of-the-box, including OpenAI, Anthropic, Google, and other OpenAI SDK-compatible providers.

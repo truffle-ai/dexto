@@ -193,6 +193,15 @@ Generate a Bedrock API key directly from the console - no IAM setup required:
 
 </details>
 
+:::tip Custom Model IDs
+Need a model not in our registry (e.g., new preview models)?
+- **CLI**: `/model` → "Add Custom Model" → AWS Bedrock
+- **WebUI**: Model picker → "+" → AWS Bedrock
+
+Uses AWS credentials from your environment.
+Set `AWS_REGION` and either `AWS_BEARER_TOKEN_BEDROCK` or IAM credentials as explained above.
+:::
+
 ---
 
 ### Google Cloud Vertex AI
@@ -270,6 +279,14 @@ llm:
 
 **Learn more:** [openrouter.ai](https://openrouter.ai/)
 
+:::tip Adding Models Not in Registry
+Can't find your model? Add any OpenRouter model via the custom model wizard:
+- **CLI**: `/model` → "Add Custom Model" → OpenRouter
+- **WebUI**: Model picker → "+" → OpenRouter
+
+Model IDs are validated against OpenRouter's registry automatically.
+:::
+
 ---
 
 ### LiteLLM
@@ -294,6 +311,14 @@ llm:
 
 **Learn more:** [docs.litellm.ai](https://docs.litellm.ai/)
 
+:::tip Adding Custom Models
+Your LiteLLM proxy supports more models than our picker shows:
+- **CLI**: `/model` → "Add Custom Model" → LiteLLM
+- **WebUI**: Model picker → "+" → LiteLLM
+
+Enter any model your proxy supports, plus your proxy URL.
+:::
+
 ---
 
 ### Glama
@@ -315,6 +340,14 @@ llm:
 **Model naming:** Format is `provider/model` (e.g., `openai/gpt-4o`, `anthropic/claude-3-sonnet`)
 
 **Learn more:** [glama.ai](https://glama.ai/)
+
+:::tip Adding Custom Models
+Need a model not in our picker?
+- **CLI**: `/model` → "Add Custom Model" → Glama
+- **WebUI**: Model picker → "+" → Glama
+
+Model IDs use `provider/model` format (e.g., `openai/gpt-4o`).
+:::
 
 ---
 
@@ -349,6 +382,14 @@ llm:
 - **LM Studio** - User-friendly interface
 - **vLLM** - High-performance serving
 - **TGI** - Hugging Face serving
+
+:::tip Adding Custom Models via CLI/WebUI
+Need to add a local model or custom endpoint?
+- **CLI**: `/model` → "Add Custom Model" → OpenAI-Compatible
+- **WebUI**: Model picker → "+" → OpenAI-Compatible
+
+Enter model name and base URL (e.g., `http://localhost:11434/v1` for Ollama).
+:::
 
 ---
 
