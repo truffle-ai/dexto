@@ -12,7 +12,7 @@
     }
   },
   "scripts": {
-    "build": "dexto-bundle build",
+    "build": "tsx ../image-bundler/dist/cli.js build",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist"
   },
