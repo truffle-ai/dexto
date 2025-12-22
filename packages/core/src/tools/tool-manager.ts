@@ -23,6 +23,7 @@ import {
     generateBashPatternSuggestions,
     isDangerousCommand,
 } from './bash-pattern-utils.js';
+import type { FileSystemService } from '../filesystem/index.js';
 
 /**
  * Options for internal tools configuration in ToolManager
@@ -75,6 +76,7 @@ export class ToolManager {
     private approvalMode: 'manual' | 'auto-approve' | 'auto-deny';
     private agentEventBus: AgentEventBus;
     private toolPolicies: ToolPolicies | undefined;
+    private fileSystemService: FileSystemService | undefined;
 
     // Plugin support - set after construction to avoid circular dependencies
     private pluginManager?: PluginManager;
@@ -84,6 +86,16 @@ export class ToolManager {
     // Tool source prefixing - ALL tools get prefixed by source
     private static readonly MCP_TOOL_PREFIX = 'mcp--';
     private static readonly INTERNAL_TOOL_PREFIX = 'internal--';
+
+    // File tools that require directory access approval for external paths
+    private static readonly FILE_TOOLS = new Set([
+        'read_file',
+        'write_file',
+        'edit_file',
+        'internal--read_file',
+        'internal--write_file',
+        'internal--edit_file',
+    ]);
 
     // Tool caching for performance
     private toolsCache: ToolSet = {};
@@ -107,6 +119,9 @@ export class ToolManager {
         this.agentEventBus = agentEventBus;
         this.toolPolicies = toolPolicies;
         this.logger = logger.createChild(DextoLogComponent.TOOLS);
+
+        // Store fileSystemService for directory access checks
+        this.fileSystemService = options?.internalToolsServices?.fileSystemService;
 
         // Initialize internal tools if configured
         if (options?.internalToolsConfig && options.internalToolsConfig.length > 0) {
@@ -136,6 +151,16 @@ export class ToolManager {
             await this.internalToolsProvider.initialize();
         }
         this.logger.debug('ToolManager initialization complete');
+    }
+
+    /**
+     * Set the FileSystemService for directory access checks.
+     * This is primarily used for testing purposes.
+     *
+     * @param service The FileSystemService instance
+     */
+    setFileSystemService(service: FileSystemService): void {
+        this.fileSystemService = service;
     }
 
     /**
@@ -224,6 +249,125 @@ export class ToolManager {
             approved: false,
             suggestedPatterns: generateBashPatternSuggestions(command),
         };
+    }
+
+    // ==================== File Tool / Directory Access Helpers ====================
+
+    /**
+     * Check if a tool is a file operation tool that may require directory approval
+     */
+    private isFileTool(toolName: string): boolean {
+        return ToolManager.FILE_TOOLS.has(toolName);
+    }
+
+    /**
+     * Get the file operation type from tool name
+     */
+    private getFileOperationType(toolName: string): 'read' | 'write' | 'edit' {
+        if (toolName.includes('read')) return 'read';
+        if (toolName.includes('write')) return 'write';
+        return 'edit';
+    }
+
+    /**
+     * Check and handle directory access approval for file tools.
+     * If a file path is outside the allowed directories, request directory approval.
+     *
+     * Similar to bash pattern approval - if directory access is approved,
+     * we skip the normal tool confirmation flow.
+     *
+     * Approval flow:
+     * 1. Working directory (config) → No directory prompt, follow tool config
+     * 2. Session-approved directory → No directory prompt, follow tool config
+     * 3. Once-approved or never approved → Directory prompt
+     *    - User chooses "Yes (session)" → Add as 'session', skip tool confirmation
+     *    - User chooses "Yes (once)" → Add as 'once', skip tool confirmation (prompts again next time)
+     *    - User denies → Throw error
+     *
+     * @returns object with:
+     *   - `handled`: true if this method handled approval (skip tool confirmation)
+     *   - `handled`: false if path is within allowed dirs (continue normal tool approval)
+     *   - throws if directory access is denied
+     */
+    private async checkDirectoryAccess(
+        toolName: string,
+        args: Record<string, unknown>,
+        sessionId?: string
+    ): Promise<{ handled: boolean }> {
+        // Only check file tools
+        if (!this.isFileTool(toolName)) {
+            return { handled: false };
+        }
+
+        // Skip if no fileSystemService (directory checking not available)
+        if (!this.fileSystemService) {
+            this.logger.debug('FileSystemService not available, skipping directory access check');
+            return { handled: false };
+        }
+
+        // Extract file path from args
+        const filePath = args.file_path as string | undefined;
+        if (!filePath) {
+            return { handled: false }; // No file path to check
+        }
+
+        // Check if path is within allowed directories (working dir from config)
+        // If so, continue normal tool approval flow (no directory prompt needed)
+        if (this.fileSystemService.isPathWithinAllowed(filePath)) {
+            this.logger.debug(`Path ${filePath} is within allowed directories`);
+            return { handled: false };
+        }
+
+        // Path is outside config-allowed directories
+        // Check if directory is session-approved (only 'session' type skips prompt)
+        // 'once' type still requires prompting each time
+        if (this.approvalManager.isDirectorySessionApproved(filePath)) {
+            this.logger.debug(
+                `Path ${filePath} is in session-approved directory - no directory prompt needed`
+            );
+            return { handled: false }; // Continue to tool confirmation (follows agent config)
+        }
+
+        // Need to request directory approval (either never approved or only 'once' approved)
+        const parentDir = this.fileSystemService.getParentDirectory(filePath);
+        const operation = this.getFileOperationType(toolName);
+
+        this.logger.info(
+            `Requesting directory access approval for ${parentDir} (tool: ${toolName}, operation: ${operation})`
+        );
+
+        const requestMetadata: Parameters<typeof this.approvalManager.requestDirectoryAccess>[0] = {
+            path: filePath,
+            parentDir,
+            operation,
+            toolName,
+        };
+        if (sessionId !== undefined) {
+            requestMetadata.sessionId = sessionId;
+        }
+        const response = await this.approvalManager.requestDirectoryAccess(requestMetadata);
+
+        if (response.status === ApprovalStatus.APPROVED) {
+            // Check if user wants to remember this directory for the session
+            const rememberDirectory =
+                response.data &&
+                'rememberDirectory' in response.data &&
+                response.data.rememberDirectory === true;
+
+            // Add directory with appropriate type: 'session' or 'once'
+            const approvalType = rememberDirectory ? 'session' : 'once';
+            this.approvalManager.addApprovedDirectory(parentDir, approvalType);
+            this.logger.info(
+                `Directory ${parentDir} added to approved directories (type: ${approvalType})`
+            );
+
+            // Directory approved - skip tool confirmation (like bash pattern approval)
+            return { handled: true };
+        }
+
+        // Directory access denied
+        this.logger.info(`Directory access denied for ${parentDir}`);
+        throw ToolError.directoryAccessDenied(parentDir, sessionId);
     }
 
     getMcpManager(): MCPManager {
@@ -692,6 +836,16 @@ export class ToolManager {
             );
             this.logger.debug(`🚫 Tool execution blocked by policy: ${toolName}`);
             throw ToolError.executionDenied(toolName, sessionId);
+        }
+
+        // PRECEDENCE 1.5: Check directory access for file tools (external paths)
+        // Similar to bash patterns - if directory approval handles it, skip tool confirmation
+        const directoryResult = await this.checkDirectoryAccess(toolName, args, sessionId);
+        if (directoryResult.handled) {
+            this.logger.debug(
+                `Directory access approved for ${toolName} - skipping tool confirmation`
+            );
+            return { requireApproval: true, approvalStatus: 'approved' };
         }
 
         // PRECEDENCE 2: Check static alwaysAllow list

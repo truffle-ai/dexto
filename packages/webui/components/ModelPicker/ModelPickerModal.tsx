@@ -5,10 +5,14 @@ import {
     useCustomModels,
     useCreateCustomModel,
     useDeleteCustomModel,
+    useProviderApiKey,
+    useSaveApiKey,
     type SwitchLLMPayload,
     type CustomModel,
 } from '../hooks/useLLM';
+import { CustomModelForm, type CustomModelFormData } from './CustomModelForms';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 import { Button } from '../ui/button';
 import { Alert, AlertDescription } from '../ui/alert';
 import { ApiKeyModal } from '../ApiKeyModal';
@@ -21,7 +25,6 @@ import {
     Loader2,
     Star,
     Plus,
-    X,
     Filter,
 } from 'lucide-react';
 import { SearchBar } from './SearchBar';
@@ -35,11 +38,10 @@ import {
     favKey,
     validateBaseURL,
 } from './types';
-import { Input } from '../ui/input';
 import { cn } from '../../lib/utils';
 import type { LLMProvider } from '@dexto/core';
 import { LLM_PROVIDERS } from '@dexto/core';
-import { PROVIDER_LOGOS, needsDarkModeInversion } from './constants';
+import { PROVIDER_LOGOS, needsDarkModeInversion, hasLogo } from './constants';
 import { useAnalytics } from '@/lib/analytics/index.js';
 
 export default function ModelPickerModal() {
@@ -54,12 +56,17 @@ export default function ModelPickerModal() {
     const [showCustomForm, setShowCustomForm] = useState(false);
 
     // Custom models form state (data comes from API via useCustomModels)
-    const [customModelForm, setCustomModelForm] = useState({
+    const [customModelForm, setCustomModelForm] = useState<CustomModelFormData>({
+        provider: 'openai-compatible',
         name: '',
         baseURL: '',
+        displayName: '',
         maxInputTokens: '',
         maxOutputTokens: '',
+        apiKey: '',
     });
+    // Track original name when editing (to handle renames)
+    const [editingModelName, setEditingModelName] = useState<string | null>(null);
 
     // API key modal
     const [keyModalOpen, setKeyModalOpen] = useState(false);
@@ -88,10 +95,14 @@ export default function ModelPickerModal() {
 
     // Load custom models from API (always enabled so trigger shows correct icon)
     const { data: customModels = [] } = useCustomModels();
-    const { mutate: createCustomModel, mutateAsync: createCustomModelAsync } =
-        useCreateCustomModel();
+    const { mutateAsync: createCustomModelAsync } = useCreateCustomModel();
     const { mutate: deleteCustomModelMutation } = useDeleteCustomModel();
+    const { mutateAsync: saveApiKey } = useSaveApiKey();
 
+    // Fetch provider API key status for the current form provider (for smart storage logic)
+    const { data: providerKeyData } = useProviderApiKey(customModelForm.provider as LLMProvider, {
+        enabled: open && showCustomForm,
+    });
     useEffect(() => {
         if (catalogData && 'providers' in catalogData) {
             setProviders(catalogData.providers);
@@ -197,44 +208,141 @@ export default function ModelPickerModal() {
         });
     }, []);
 
-    const addCustomModel = useCallback(() => {
-        const { name, baseURL, maxInputTokens, maxOutputTokens } = customModelForm;
+    const [isAddingModel, setIsAddingModel] = useState(false);
+    const switchLLMMutation = useSwitchLLM();
 
-        if (!name.trim() || !baseURL.trim()) {
-            setError('Model name and Base URL are required');
+    const addCustomModel = useCallback(async () => {
+        const { provider, name, baseURL, maxInputTokens, maxOutputTokens, displayName, apiKey } =
+            customModelForm;
+
+        if (!name.trim()) {
+            setError('Model name is required');
             return;
         }
 
-        const urlValidation = validateBaseURL(baseURL);
-        if (!urlValidation.isValid) {
-            setError(urlValidation.error || 'Invalid Base URL');
-            return;
-        }
+        setIsAddingModel(true);
 
-        createCustomModel(
-            {
-                name: name.trim(),
-                baseURL: baseURL.trim(),
-                maxInputTokens: maxInputTokens ? parseInt(maxInputTokens, 10) : undefined,
-                maxOutputTokens: maxOutputTokens ? parseInt(maxOutputTokens, 10) : undefined,
-            },
-            {
-                onSuccess: () => {
-                    setCustomModelForm({
-                        name: '',
-                        baseURL: '',
-                        maxInputTokens: '',
-                        maxOutputTokens: '',
-                    });
-                    setShowCustomForm(false);
-                    setError(null);
-                },
-                onError: (err: Error) => {
-                    setError(err.message);
-                },
+        try {
+            // Determine API key storage strategy
+            // TODO: Deduplicate - canonical version is determineApiKeyStorage() in @dexto/agent-management
+            // Can't import directly as WebUI runs in browser. Move to @dexto/core if this changes often.
+            const SHARED_API_KEY_PROVIDERS = ['glama', 'openrouter', 'litellm'];
+            const userEnteredKey = apiKey?.trim();
+            const providerHasKey = providerKeyData?.hasKey ?? false;
+            const hasSharedEnvVarKey = SHARED_API_KEY_PROVIDERS.includes(provider);
+
+            let saveToProviderEnvVar = false;
+            let saveAsPerModel = false;
+
+            // Only process if user actually entered a new key
+            if (userEnteredKey) {
+                if (hasSharedEnvVarKey) {
+                    if (!providerHasKey) {
+                        // No existing key - save to provider env var
+                        saveToProviderEnvVar = true;
+                    } else {
+                        // Provider already has a key - save as per-model override
+                        saveAsPerModel = true;
+                    }
+                } else {
+                    // Non-shared providers always save per-model
+                    saveAsPerModel = true;
+                }
             }
-        );
-    }, [customModelForm, createCustomModel]);
+            // If user didn't enter a key, we don't modify anything - existing key (if any) is used
+
+            if (saveToProviderEnvVar && userEnteredKey) {
+                await saveApiKey({ provider: provider as LLMProvider, apiKey: userEnteredKey });
+            }
+
+            // If editing and name changed, delete the old model first
+            if (editingModelName && editingModelName !== name.trim()) {
+                try {
+                    await new Promise<void>((resolve, reject) => {
+                        deleteCustomModelMutation(editingModelName, {
+                            onSuccess: () => resolve(),
+                            onError: (err: Error) => reject(err),
+                        });
+                    });
+                } catch (err) {
+                    // Log but continue - old model might already be deleted
+                    console.warn(`Failed to delete old model "${editingModelName}":`, err);
+                }
+            }
+
+            // Create/update the custom model
+            await createCustomModelAsync({
+                provider,
+                name: name.trim(),
+                ...(provider === 'openai-compatible' &&
+                    baseURL.trim() && { baseURL: baseURL.trim() }),
+                ...(provider === 'litellm' && baseURL.trim() && { baseURL: baseURL.trim() }),
+                ...(displayName?.trim() && { displayName: displayName.trim() }),
+                ...(maxInputTokens && { maxInputTokens: parseInt(maxInputTokens, 10) }),
+                ...(maxOutputTokens && { maxOutputTokens: parseInt(maxOutputTokens, 10) }),
+                ...(saveAsPerModel && userEnteredKey && { apiKey: userEnteredKey }),
+            });
+
+            // Only switch to the model for new models, not edits
+            // (user is already using edited model or chose not to switch)
+            if (!editingModelName) {
+                const switchPayload: SwitchLLMPayload = {
+                    provider: provider as LLMProvider,
+                    model: name.trim(),
+                    ...(provider === 'openai-compatible' &&
+                        baseURL.trim() && { baseURL: baseURL.trim() }),
+                    ...(provider === 'litellm' && baseURL.trim() && { baseURL: baseURL.trim() }),
+                    ...(saveAsPerModel && userEnteredKey && { apiKey: userEnteredKey }),
+                    ...(currentSessionId && { sessionId: currentSessionId }),
+                };
+
+                await switchLLMMutation.mutateAsync(switchPayload);
+                await refreshCurrentLLM();
+
+                // Track the switch
+                if (currentLLM) {
+                    analyticsRef.current.trackLLMSwitched({
+                        fromProvider: currentLLM.provider,
+                        fromModel: currentLLM.model,
+                        toProvider: provider,
+                        toModel: name.trim(),
+                        sessionId: currentSessionId || undefined,
+                        trigger: 'user_action',
+                    });
+                }
+            }
+
+            // Reset form and close
+            setCustomModelForm({
+                provider: 'openai-compatible',
+                name: '',
+                baseURL: '',
+                displayName: '',
+                maxInputTokens: '',
+                maxOutputTokens: '',
+                apiKey: '',
+            });
+            setEditingModelName(null);
+            setShowCustomForm(false);
+            setError(null);
+            setOpen(false);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to add model');
+        } finally {
+            setIsAddingModel(false);
+        }
+    }, [
+        customModelForm,
+        createCustomModelAsync,
+        switchLLMMutation,
+        currentSessionId,
+        currentLLM,
+        refreshCurrentLLM,
+        providerKeyData,
+        saveApiKey,
+        editingModelName,
+        deleteCustomModelMutation,
+    ]);
 
     const deleteCustomModel = useCallback(
         (name: string) => {
@@ -246,6 +354,21 @@ export default function ModelPickerModal() {
         },
         [deleteCustomModelMutation]
     );
+
+    const editCustomModel = useCallback((model: CustomModel) => {
+        setCustomModelForm({
+            provider: model.provider ?? 'openai-compatible',
+            name: model.name,
+            baseURL: model.baseURL ?? '',
+            displayName: model.displayName ?? '',
+            maxInputTokens: model.maxInputTokens?.toString() ?? '',
+            maxOutputTokens: model.maxOutputTokens?.toString() ?? '',
+            apiKey: model.apiKey ?? '',
+        });
+        setEditingModelName(model.name);
+        setShowCustomForm(true);
+        setError(null);
+    }, []);
 
     const modelMatchesSearch = useCallback(
         (providerId: LLMProvider, model: ModelInfo): boolean => {
@@ -261,13 +384,12 @@ export default function ModelPickerModal() {
         [search, providers]
     );
 
-    const switchLLMMutation = useSwitchLLM();
-
     function onPickModel(
         providerId: LLMProvider,
         model: ModelInfo,
         customBaseURL?: string,
-        skipApiKeyCheck = false
+        skipApiKeyCheck = false,
+        customApiKey?: string
     ) {
         const provider = providers[providerId];
         const effectiveBaseURL = customBaseURL || baseURL;
@@ -281,7 +403,7 @@ export default function ModelPickerModal() {
             }
         }
 
-        if (!skipApiKeyCheck && provider && !provider.hasApiKey) {
+        if (!skipApiKeyCheck && provider && !provider.hasApiKey && !customApiKey) {
             setPendingSelection({ provider: providerId, model });
             setPendingKeyProvider(providerId);
             setKeyModalOpen(true);
@@ -292,6 +414,7 @@ export default function ModelPickerModal() {
             provider: providerId,
             model: model.name,
             ...(supportsBaseURL && effectiveBaseURL && { baseURL: effectiveBaseURL }),
+            ...(customApiKey && { apiKey: customApiKey }),
             ...(currentSessionId && { sessionId: currentSessionId }),
         };
 
@@ -320,13 +443,15 @@ export default function ModelPickerModal() {
     }
 
     function onPickCustomModel(customModel: CustomModel) {
+        const provider = (customModel.provider ?? 'openai-compatible') as LLMProvider;
         const modelInfo: ModelInfo = {
             name: customModel.name,
             displayName: customModel.displayName || customModel.name,
             maxInputTokens: customModel.maxInputTokens || 128000,
             supportedFileTypes: ['pdf', 'image', 'audio'],
         };
-        onPickModel('openai-compatible', modelInfo, customModel.baseURL);
+        // Pass the custom model's apiKey for per-model override
+        onPickModel(provider, modelInfo, customModel.baseURL, false, customModel.apiKey);
     }
 
     function onApiKeySaved(meta: { provider: string; envVar: string }) {
@@ -349,12 +474,6 @@ export default function ModelPickerModal() {
     const triggerLabel = currentLLM?.displayName || currentLLM?.model || 'Choose Model';
     const isWelcomeScreen = !currentSessionId;
 
-    // Check if current model is a custom model (show Bot icon instead of provider logo)
-    const isCurrentModelCustom = useMemo(() => {
-        if (!currentLLM) return false;
-        return customModels.some((cm) => cm.name === currentLLM.model);
-    }, [currentLLM, customModels]);
-
     // Toggle a filter (add if not present, remove if present)
     const toggleFilter = useCallback((filter: LLMProvider | 'custom') => {
         setProviderFilter((prev) =>
@@ -370,23 +489,24 @@ export default function ModelPickerModal() {
                 const providerId = providerIdRaw as LLMProvider;
                 if (!LLM_PROVIDERS.includes(providerId)) return null;
 
-                // Check if it's a custom model
-                if (providerId === 'openai-compatible') {
-                    const customModel = customModels.find((cm) => cm.name === modelName);
-                    if (customModel) {
-                        return {
-                            providerId,
-                            provider: undefined,
-                            model: {
-                                name: customModel.name,
-                                displayName: customModel.displayName || customModel.name,
-                                maxInputTokens: customModel.maxInputTokens || 128000,
-                                supportedFileTypes: ['pdf', 'image', 'audio'] as string[],
-                            },
-                            isCustom: true,
-                            customModel,
-                        };
-                    }
+                // Check if it's a custom model (check by model name match and provider type)
+                const customModel = customModels.find(
+                    (cm) =>
+                        cm.name === modelName && (cm.provider ?? 'openai-compatible') === providerId
+                );
+                if (customModel) {
+                    return {
+                        providerId,
+                        provider: undefined,
+                        model: {
+                            name: customModel.name,
+                            displayName: customModel.displayName || customModel.name,
+                            maxInputTokens: customModel.maxInputTokens || 128000,
+                            supportedFileTypes: ['pdf', 'image', 'audio'] as string[],
+                        },
+                        isCustom: true,
+                        customModel,
+                    };
                 }
 
                 const provider = providers[providerId];
@@ -433,23 +553,37 @@ export default function ModelPickerModal() {
         return result;
     }, [providers, providerFilter, modelMatchesSearch]);
 
-    // Filtered custom models (shown when no filter or 'custom' in filter)
+    // Filtered custom models (shown when no filter, 'custom' filter, or provider-specific filter)
     const filteredCustomModels = useMemo(() => {
-        // Show custom models if: no filter (show all) OR 'custom' is in filter
-        if (providerFilter.length > 0 && !providerFilter.includes('custom')) return [];
+        const hasCustomFilter = providerFilter.includes('custom');
+        const hasOpenRouterFilter = providerFilter.includes('openrouter');
+        const noFilter = providerFilter.length === 0;
+
+        // If filter is set but neither 'custom' nor 'openrouter', hide custom models
+        if (!noFilter && !hasCustomFilter && !hasOpenRouterFilter) return [];
+
+        let filtered = customModels;
+
+        // If openrouter filter is active (without custom), only show openrouter custom models
+        if (hasOpenRouterFilter && !hasCustomFilter && !noFilter) {
+            filtered = customModels.filter((cm) => cm.provider === 'openrouter');
+        }
+
         const q = search.trim().toLowerCase();
-        if (!q) return customModels;
-        return customModels.filter(
+        if (!q) return filtered;
+        return filtered.filter(
             (cm) =>
                 cm.name.toLowerCase().includes(q) ||
                 (cm.displayName?.toLowerCase().includes(q) ?? false) ||
-                cm.baseURL.toLowerCase().includes(q)
+                (cm.provider?.toLowerCase().includes(q) ?? false) ||
+                (cm.baseURL?.toLowerCase().includes(q) ?? false)
         );
     }, [providerFilter, search, customModels]);
 
     // Available providers for filter
+    // OpenRouter always shown (users add their own models via custom models)
     const availableProviders = useMemo(() => {
-        return LLM_PROVIDERS.filter((p) => providers[p]?.models.length);
+        return LLM_PROVIDERS.filter((p) => p === 'openrouter' || providers[p]?.models.length);
     }, [providers]);
 
     const isCurrentModel = (providerId: string, modelName: string) =>
@@ -465,10 +599,7 @@ export default function ModelPickerModal() {
                         className="flex items-center gap-2 cursor-pointer"
                         title="Choose model"
                     >
-                        {isCurrentModelCustom ? (
-                            <Bot className="h-4 w-4" />
-                        ) : currentLLM?.provider &&
-                          PROVIDER_LOGOS[currentLLM.provider as LLMProvider] ? (
+                        {currentLLM?.provider && hasLogo(currentLLM.provider as LLMProvider) ? (
                             <img
                                 src={PROVIDER_LOGOS[currentLLM.provider as LLMProvider]}
                                 alt={`${currentLLM.provider} logo`}
@@ -497,453 +628,435 @@ export default function ModelPickerModal() {
                     avoidCollisions={true}
                     collisionPadding={16}
                     className={cn(
-                        'w-[calc(100vw-32px)] max-w-[650px]',
+                        'w-[calc(100vw-32px)] max-w-[700px]',
                         isWelcomeScreen ? 'max-h-[min(400px,50vh)]' : 'max-h-[min(580px,75vh)]',
                         'flex flex-col p-0 overflow-hidden',
                         'rounded-xl border border-border/60 bg-popover/98 backdrop-blur-xl shadow-xl'
                     )}
                 >
-                    {/* Header - Search + Add Custom Button + Filters */}
-                    <div className="flex-shrink-0 px-3 pt-3 pb-2 border-b border-border/30 space-y-2">
-                        {(error || catalogError) && (
-                            <Alert variant="destructive" className="py-2">
-                                <AlertDescription className="text-xs">
-                                    {error || catalogError?.message}
-                                </AlertDescription>
-                            </Alert>
-                        )}
-                        <div className="flex items-center gap-2">
-                            <div className="flex-1">
-                                <SearchBar
-                                    value={search}
-                                    onChange={setSearch}
-                                    placeholder="Search models..."
-                                />
-                            </div>
-                            <button
-                                onClick={() => setShowCustomForm(!showCustomForm)}
-                                className={cn(
-                                    'p-2 rounded-lg transition-colors flex-shrink-0',
-                                    showCustomForm
-                                        ? 'bg-primary text-primary-foreground'
-                                        : 'bg-muted/50 text-muted-foreground hover:text-foreground hover:bg-muted'
+                    {/* Full-screen Add Custom Model Form - replaces all content when active */}
+                    {showCustomForm ? (
+                        <CustomModelForm
+                            formData={customModelForm}
+                            onChange={(updates) =>
+                                setCustomModelForm((prev) => ({ ...prev, ...updates }))
+                            }
+                            onSubmit={addCustomModel}
+                            onCancel={() => {
+                                setShowCustomForm(false);
+                                setEditingModelName(null);
+                                setError(null);
+                            }}
+                            isSubmitting={isAddingModel}
+                            error={error}
+                            isEditing={editingModelName !== null}
+                        />
+                    ) : (
+                        <>
+                            {/* Header - Search + Add Custom Button + Filters */}
+                            <div className="flex-shrink-0 px-3 pt-3 pb-2 border-b border-border/30 space-y-2">
+                                {(error || catalogError) && (
+                                    <Alert variant="destructive" className="py-2">
+                                        <AlertDescription className="text-xs">
+                                            {error || catalogError?.message}
+                                        </AlertDescription>
+                                    </Alert>
                                 )}
-                                title="Add custom model"
-                            >
-                                <Plus className="h-4 w-4" />
-                            </button>
-                        </div>
-
-                        {/* Provider Filter Pills - only in All view */}
-                        {activeView === 'all' && availableProviders.length > 1 && (
-                            <div className="flex items-center gap-1.5 flex-wrap pt-1">
-                                <Filter className="h-3 w-3 text-muted-foreground flex-shrink-0" />
-                                <button
-                                    onClick={() => setProviderFilter([])}
-                                    className={cn(
-                                        'px-2 py-1 text-[11px] font-medium rounded-md transition-colors',
-                                        providerFilter.length === 0
-                                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                                            : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground'
-                                    )}
-                                >
-                                    All
-                                </button>
-                                {availableProviders.map((providerId) => (
-                                    <button
-                                        key={providerId}
-                                        onClick={() => toggleFilter(providerId)}
-                                        className={cn(
-                                            'flex items-center gap-1 px-2 py-1 text-[11px] font-medium rounded-md transition-colors',
-                                            providerFilter.includes(providerId)
-                                                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                                                : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground'
-                                        )}
-                                    >
-                                        {PROVIDER_LOGOS[providerId] && (
-                                            <img
-                                                src={PROVIDER_LOGOS[providerId]}
-                                                alt=""
-                                                width={10}
-                                                height={10}
-                                                className={cn(
-                                                    'object-contain',
-                                                    needsDarkModeInversion(providerId) &&
-                                                        !providerFilter.includes(providerId) &&
-                                                        'dark:invert dark:brightness-0 dark:contrast-200'
-                                                )}
-                                            />
-                                        )}
-                                        <span className="hidden sm:inline">
-                                            {providers[providerId]?.name || providerId}
-                                        </span>
-                                    </button>
-                                ))}
-                                {customModels.length > 0 && (
-                                    <button
-                                        onClick={() => toggleFilter('custom')}
-                                        className={cn(
-                                            'flex items-center gap-1 px-2 py-1 text-[11px] font-medium rounded-md transition-colors',
-                                            providerFilter.includes('custom')
-                                                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                                                : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground'
-                                        )}
-                                    >
-                                        <Bot className="h-2.5 w-2.5" />
-                                        <span className="hidden sm:inline">Custom</span>
-                                    </button>
-                                )}
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Custom Model Form (collapsible) */}
-                    {showCustomForm && (
-                        <div className="flex-shrink-0 px-3 py-3 border-b border-border/30 bg-muted/10">
-                            <div className="space-y-2">
-                                <div className="flex items-center justify-between">
-                                    <span className="text-xs font-medium text-foreground">
-                                        Add Custom Model
-                                    </span>
-                                    <button
-                                        onClick={() => setShowCustomForm(false)}
-                                        className="p-1 rounded hover:bg-muted transition-colors"
-                                    >
-                                        <X className="h-3 w-3 text-muted-foreground" />
-                                    </button>
-                                </div>
-                                <div className="grid grid-cols-2 gap-2">
-                                    <Input
-                                        value={customModelForm.name}
-                                        onChange={(e) =>
-                                            setCustomModelForm((prev) => ({
-                                                ...prev,
-                                                name: e.target.value,
-                                            }))
-                                        }
-                                        placeholder="Model name *"
-                                        className="h-8 text-xs"
-                                    />
-                                    <Input
-                                        value={customModelForm.baseURL}
-                                        onChange={(e) =>
-                                            setCustomModelForm((prev) => ({
-                                                ...prev,
-                                                baseURL: e.target.value,
-                                            }))
-                                        }
-                                        placeholder="Base URL *"
-                                        className="h-8 text-xs"
-                                    />
-                                    <Input
-                                        value={customModelForm.maxInputTokens}
-                                        onChange={(e) =>
-                                            setCustomModelForm((prev) => ({
-                                                ...prev,
-                                                maxInputTokens: e.target.value,
-                                            }))
-                                        }
-                                        placeholder="Max input tokens (default: 128k)"
-                                        type="number"
-                                        className="h-8 text-xs"
-                                    />
-                                    <Input
-                                        value={customModelForm.maxOutputTokens}
-                                        onChange={(e) =>
-                                            setCustomModelForm((prev) => ({
-                                                ...prev,
-                                                maxOutputTokens: e.target.value,
-                                            }))
-                                        }
-                                        placeholder="Max output tokens (optional)"
-                                        type="number"
-                                        className="h-8 text-xs"
-                                    />
-                                </div>
-                                <Button
-                                    onClick={addCustomModel}
-                                    size="sm"
-                                    className="w-full h-8 text-xs"
-                                >
-                                    <Plus className="h-3 w-3 mr-1" />
-                                    Add Model
-                                </Button>
-                            </div>
-
-                            {customModels.length > 0 && (
-                                <div className="mt-3 pt-3 border-t border-border/30">
-                                    <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
-                                        Saved Custom Models
-                                    </span>
-                                    <div className="flex gap-1.5 mt-2 flex-wrap">
-                                        {customModels.map((cm) => (
-                                            <div
-                                                key={cm.name}
-                                                className="group flex items-center gap-1.5 px-2 py-1 rounded-md bg-card/60 border border-border/40 text-[11px]"
-                                            >
-                                                <Bot className="h-2.5 w-2.5 text-muted-foreground" />
-                                                <button
-                                                    className="hover:text-primary transition-colors"
-                                                    onClick={() => onPickCustomModel(cm)}
-                                                >
-                                                    {cm.name}
-                                                </button>
-                                                <button
-                                                    onClick={() => deleteCustomModel(cm.name)}
-                                                    className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
-                                                >
-                                                    <X className="h-2.5 w-2.5" />
-                                                </button>
-                                            </div>
-                                        ))}
+                                <div className="flex items-center gap-2">
+                                    <div className="flex-1">
+                                        <SearchBar
+                                            value={search}
+                                            onChange={setSearch}
+                                            placeholder="Search models..."
+                                        />
                                     </div>
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <button
+                                                onClick={() => setShowCustomForm(true)}
+                                                className="p-2 rounded-lg transition-colors flex-shrink-0 bg-muted/50 text-muted-foreground hover:text-foreground hover:bg-muted"
+                                            >
+                                                <Plus className="h-4 w-4" />
+                                                <span className="sr-only">Add custom model</span>
+                                            </button>
+                                        </TooltipTrigger>
+                                        <TooltipContent side="bottom">
+                                            Add custom model
+                                        </TooltipContent>
+                                    </Tooltip>
                                 </div>
-                            )}
-                        </div>
-                    )}
 
-                    {/* Main Content */}
-                    <div className="flex-1 min-h-0 overflow-y-auto p-3">
-                        {loading ? (
-                            <div className="flex items-center justify-center py-8">
-                                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                            </div>
-                        ) : activeView === 'favorites' ? (
-                            /* Favorites List View */
-                            favoriteModels.length === 0 ? (
-                                <div className="flex flex-col items-center justify-center py-8 text-center">
-                                    <Star className="h-8 w-8 text-muted-foreground/30 mb-2" />
-                                    <p className="text-sm font-medium text-muted-foreground">
-                                        No favorites yet
-                                    </p>
-                                    <p className="text-xs text-muted-foreground/70 mt-1">
-                                        Click &quot;Show all&quot; to browse and add favorites
-                                    </p>
-                                </div>
-                            ) : (
-                                <div className="space-y-1">
-                                    {favoriteModels
-                                        .filter(({ providerId, model }) => {
-                                            if (!search.trim()) return true;
-                                            const q = search.trim().toLowerCase();
-                                            return (
-                                                model.name.toLowerCase().includes(q) ||
-                                                (model.displayName?.toLowerCase().includes(q) ??
-                                                    false) ||
-                                                providerId.toLowerCase().includes(q)
-                                            );
-                                        })
-                                        .map(({ providerId, model, isCustom, customModel }) => (
-                                            <div
-                                                key={favKey(providerId, model.name)}
-                                                onClick={() =>
-                                                    isCustom && customModel
-                                                        ? onPickCustomModel(customModel)
-                                                        : onPickModel(providerId, model)
-                                                }
-                                                onKeyDown={(e) => {
-                                                    if (e.target !== e.currentTarget) return;
-                                                    if (e.key === 'Enter' || e.key === ' ') {
-                                                        e.preventDefault();
-                                                        isCustom && customModel
-                                                            ? onPickCustomModel(customModel)
-                                                            : onPickModel(providerId, model);
-                                                    }
-                                                }}
-                                                role="button"
-                                                tabIndex={0}
+                                {/* Provider Filter Pills - only in All view */}
+                                {activeView === 'all' && availableProviders.length > 1 && (
+                                    <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                                        <Filter className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                                        <button
+                                            onClick={() => setProviderFilter([])}
+                                            className={cn(
+                                                'px-2 py-1 text-[11px] font-medium rounded-md transition-colors',
+                                                providerFilter.length === 0
+                                                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                                    : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground'
+                                            )}
+                                        >
+                                            All
+                                        </button>
+                                        {availableProviders.map((providerId) => (
+                                            <button
+                                                key={providerId}
+                                                onClick={() => toggleFilter(providerId)}
                                                 className={cn(
-                                                    'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors cursor-pointer',
-                                                    'hover:bg-accent/50',
-                                                    isCurrentModel(providerId, model.name)
-                                                        ? 'bg-primary/10 border border-primary/30'
-                                                        : 'border border-transparent'
+                                                    'flex items-center gap-1 px-2 py-1 text-[11px] font-medium rounded-md transition-colors',
+                                                    providerFilter.includes(providerId)
+                                                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                                        : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground'
                                                 )}
                                             >
-                                                <div className="w-8 h-8 flex items-center justify-center rounded-lg bg-muted/60 flex-shrink-0">
-                                                    {isCustom ? (
-                                                        <Bot className="h-4 w-4 text-muted-foreground" />
-                                                    ) : PROVIDER_LOGOS[providerId] ? (
-                                                        <img
-                                                            src={PROVIDER_LOGOS[providerId]}
-                                                            alt=""
-                                                            width={20}
-                                                            height={20}
-                                                            className={cn(
-                                                                'object-contain',
-                                                                needsDarkModeInversion(
+                                                {PROVIDER_LOGOS[providerId] && (
+                                                    <img
+                                                        src={PROVIDER_LOGOS[providerId]}
+                                                        alt=""
+                                                        width={10}
+                                                        height={10}
+                                                        className={cn(
+                                                            'object-contain',
+                                                            needsDarkModeInversion(providerId) &&
+                                                                !providerFilter.includes(
                                                                     providerId
                                                                 ) &&
-                                                                    'dark:invert dark:brightness-0 dark:contrast-200'
-                                                            )}
-                                                        />
-                                                    ) : (
-                                                        <Bot className="h-4 w-4 text-muted-foreground" />
-                                                    )}
-                                                </div>
-                                                <div className="flex-1 text-left min-w-0">
-                                                    <div className="text-sm font-medium text-foreground truncate">
-                                                        {model.displayName || model.name}
-                                                    </div>
-                                                    {isCustom && (
-                                                        <div className="text-xs text-muted-foreground truncate">
-                                                            Custom
-                                                        </div>
-                                                    )}
-                                                </div>
-                                                <div className="flex items-center gap-1 flex-shrink-0">
-                                                    {model.supportedFileTypes.includes('image') && (
-                                                        <span
-                                                            className="w-5 h-5 rounded bg-emerald-500/20 flex items-center justify-center"
-                                                            title="Vision"
-                                                        >
-                                                            <svg
-                                                                className="w-3 h-3 text-emerald-400"
-                                                                fill="none"
-                                                                viewBox="0 0 24 24"
-                                                                stroke="currentColor"
-                                                            >
-                                                                <path
-                                                                    strokeLinecap="round"
-                                                                    strokeLinejoin="round"
-                                                                    strokeWidth={2}
-                                                                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                                                                />
-                                                                <path
-                                                                    strokeLinecap="round"
-                                                                    strokeLinejoin="round"
-                                                                    strokeWidth={2}
-                                                                    d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-                                                                />
-                                                            </svg>
-                                                        </span>
-                                                    )}
-                                                    {model.supportedFileTypes.includes('pdf') && (
-                                                        <span
-                                                            className="w-5 h-5 rounded bg-blue-500/20 flex items-center justify-center"
-                                                            title="PDF"
-                                                        >
-                                                            <svg
-                                                                className="w-3 h-3 text-blue-400"
-                                                                fill="none"
-                                                                viewBox="0 0 24 24"
-                                                                stroke="currentColor"
-                                                            >
-                                                                <path
-                                                                    strokeLinecap="round"
-                                                                    strokeLinejoin="round"
-                                                                    strokeWidth={2}
-                                                                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                                                                />
-                                                            </svg>
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        toggleFavorite(providerId, model.name);
-                                                    }}
-                                                    className="p-1 rounded hover:bg-yellow-500/20 transition-colors flex-shrink-0"
-                                                >
-                                                    <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                                                </button>
-                                            </div>
-                                        ))}
-                                </div>
-                            )
-                        ) : (
-                            /* All Models Card Grid View */
-                            <div>
-                                {allModels.length === 0 && filteredCustomModels.length === 0 ? (
-                                    <div className="flex flex-col items-center justify-center py-8 text-center">
-                                        <p className="text-sm font-medium text-muted-foreground">
-                                            No models found
-                                        </p>
-                                        <p className="text-xs text-muted-foreground/70 mt-1">
-                                            Try adjusting your search or filters
-                                        </p>
-                                    </div>
-                                ) : (
-                                    <div
-                                        className="grid gap-2 justify-center"
-                                        style={{
-                                            gridTemplateColumns: 'repeat(auto-fill, 140px)',
-                                        }}
-                                    >
-                                        {allModels.map(({ providerId, provider, model }) => (
-                                            <ModelCard
-                                                key={`${providerId}|${model.name}`}
-                                                provider={providerId}
-                                                model={model}
-                                                providerInfo={provider}
-                                                isFavorite={favorites.includes(
-                                                    favKey(providerId, model.name)
+                                                                'dark:invert dark:brightness-0 dark:contrast-200'
+                                                        )}
+                                                    />
                                                 )}
-                                                isActive={isCurrentModel(providerId, model.name)}
-                                                onClick={() => onPickModel(providerId, model)}
-                                                onToggleFavorite={() =>
-                                                    toggleFavorite(providerId, model.name)
-                                                }
-                                                size="sm"
-                                            />
+                                                <span className="hidden sm:inline">
+                                                    {providers[providerId]?.name || providerId}
+                                                </span>
+                                            </button>
                                         ))}
-                                        {filteredCustomModels.map((cm) => (
-                                            <ModelCard
-                                                key={`custom|${cm.name}`}
-                                                provider="openai-compatible"
-                                                model={{
-                                                    name: cm.name,
-                                                    displayName: cm.displayName || cm.name,
-                                                    maxInputTokens: cm.maxInputTokens || 128000,
-                                                    supportedFileTypes: ['pdf', 'image', 'audio'],
-                                                }}
-                                                isFavorite={favorites.includes(
-                                                    favKey('openai-compatible', cm.name)
-                                                )}
-                                                isActive={isCurrentModel(
-                                                    'openai-compatible',
-                                                    cm.name
-                                                )}
-                                                onClick={() => onPickCustomModel(cm)}
-                                                onToggleFavorite={() =>
-                                                    toggleFavorite('openai-compatible', cm.name)
-                                                }
-                                                onDelete={() => deleteCustomModel(cm.name)}
-                                                size="sm"
-                                                isCustom
-                                            />
-                                        ))}
+                                        <button
+                                            onClick={() => toggleFilter('custom')}
+                                            className={cn(
+                                                'flex items-center gap-1 px-2 py-1 text-[11px] font-medium rounded-md transition-colors',
+                                                providerFilter.includes('custom')
+                                                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                                    : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground'
+                                            )}
+                                        >
+                                            <Bot className="h-2.5 w-2.5" />
+                                            <span className="hidden sm:inline">Custom</span>
+                                        </button>
                                     </div>
                                 )}
                             </div>
-                        )}
-                    </div>
 
-                    {/* Bottom Navigation Bar */}
-                    <div className="flex-shrink-0 border-t border-border/30 px-3 py-2 flex items-center justify-end">
-                        <button
-                            onClick={() =>
-                                setActiveView(activeView === 'favorites' ? 'all' : 'favorites')
-                            }
-                            className="flex items-center gap-1.5 text-sm font-medium text-primary hover:text-primary/80 transition-colors"
-                        >
-                            {activeView === 'favorites' ? (
-                                <>
-                                    Show all
-                                    <ChevronUp className="h-4 w-4" />
-                                </>
-                            ) : (
-                                <>
-                                    Favorites
-                                    <ChevronLeft className="h-4 w-4 rotate-180" />
-                                </>
-                            )}
-                            {activeView === 'favorites' && favoriteModels.length > 0 && (
-                                <span className="ml-1 w-2 h-2 rounded-full bg-primary" />
-                            )}
-                        </button>
-                    </div>
+                            {/* Main Content */}
+                            <div className="flex-1 min-h-0 overflow-y-auto p-3">
+                                {loading ? (
+                                    <div className="flex items-center justify-center py-8">
+                                        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                                    </div>
+                                ) : activeView === 'favorites' ? (
+                                    /* Favorites List View */
+                                    favoriteModels.length === 0 ? (
+                                        <div className="flex flex-col items-center justify-center py-8 text-center">
+                                            <Star className="h-8 w-8 text-muted-foreground/30 mb-2" />
+                                            <p className="text-sm font-medium text-muted-foreground">
+                                                No favorites yet
+                                            </p>
+                                            <p className="text-xs text-muted-foreground/70 mt-1">
+                                                Click &quot;Show all&quot; to browse and add
+                                                favorites
+                                            </p>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-1">
+                                            {favoriteModels
+                                                .filter(({ providerId, model }) => {
+                                                    if (!search.trim()) return true;
+                                                    const q = search.trim().toLowerCase();
+                                                    return (
+                                                        model.name.toLowerCase().includes(q) ||
+                                                        (model.displayName
+                                                            ?.toLowerCase()
+                                                            .includes(q) ??
+                                                            false) ||
+                                                        providerId.toLowerCase().includes(q)
+                                                    );
+                                                })
+                                                .map(
+                                                    ({
+                                                        providerId,
+                                                        model,
+                                                        isCustom,
+                                                        customModel,
+                                                    }) => (
+                                                        <div
+                                                            key={favKey(providerId, model.name)}
+                                                            onClick={() =>
+                                                                isCustom && customModel
+                                                                    ? onPickCustomModel(customModel)
+                                                                    : onPickModel(providerId, model)
+                                                            }
+                                                            onKeyDown={(e) => {
+                                                                if (e.target !== e.currentTarget)
+                                                                    return;
+                                                                if (
+                                                                    e.key === 'Enter' ||
+                                                                    e.key === ' '
+                                                                ) {
+                                                                    e.preventDefault();
+                                                                    isCustom && customModel
+                                                                        ? onPickCustomModel(
+                                                                              customModel
+                                                                          )
+                                                                        : onPickModel(
+                                                                              providerId,
+                                                                              model
+                                                                          );
+                                                                }
+                                                            }}
+                                                            role="button"
+                                                            tabIndex={0}
+                                                            className={cn(
+                                                                'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors cursor-pointer',
+                                                                'hover:bg-accent/50',
+                                                                isCurrentModel(
+                                                                    providerId,
+                                                                    model.name
+                                                                )
+                                                                    ? 'bg-primary/10 border border-primary/30'
+                                                                    : 'border border-transparent'
+                                                            )}
+                                                        >
+                                                            <div className="w-8 h-8 flex items-center justify-center rounded-lg bg-muted/60 flex-shrink-0">
+                                                                {hasLogo(providerId) ? (
+                                                                    <img
+                                                                        src={
+                                                                            PROVIDER_LOGOS[
+                                                                                providerId
+                                                                            ]
+                                                                        }
+                                                                        alt=""
+                                                                        width={20}
+                                                                        height={20}
+                                                                        className={cn(
+                                                                            'object-contain',
+                                                                            needsDarkModeInversion(
+                                                                                providerId
+                                                                            ) &&
+                                                                                'dark:invert dark:brightness-0 dark:contrast-200'
+                                                                        )}
+                                                                    />
+                                                                ) : (
+                                                                    <Bot className="h-4 w-4 text-muted-foreground" />
+                                                                )}
+                                                            </div>
+                                                            <div className="flex-1 text-left min-w-0">
+                                                                <div className="text-sm font-medium text-foreground truncate">
+                                                                    {model.displayName ||
+                                                                        model.name}
+                                                                </div>
+                                                                {providerId ===
+                                                                    'openai-compatible' && (
+                                                                    <div className="text-xs text-muted-foreground truncate">
+                                                                        Custom
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                            <div className="flex items-center gap-1 flex-shrink-0">
+                                                                {model.supportedFileTypes.includes(
+                                                                    'image'
+                                                                ) && (
+                                                                    <span
+                                                                        className="w-5 h-5 rounded bg-emerald-500/20 flex items-center justify-center"
+                                                                        title="Vision"
+                                                                    >
+                                                                        <svg
+                                                                            className="w-3 h-3 text-emerald-400"
+                                                                            fill="none"
+                                                                            viewBox="0 0 24 24"
+                                                                            stroke="currentColor"
+                                                                        >
+                                                                            <path
+                                                                                strokeLinecap="round"
+                                                                                strokeLinejoin="round"
+                                                                                strokeWidth={2}
+                                                                                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                                                                            />
+                                                                            <path
+                                                                                strokeLinecap="round"
+                                                                                strokeLinejoin="round"
+                                                                                strokeWidth={2}
+                                                                                d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                                                                            />
+                                                                        </svg>
+                                                                    </span>
+                                                                )}
+                                                                {model.supportedFileTypes.includes(
+                                                                    'pdf'
+                                                                ) && (
+                                                                    <span
+                                                                        className="w-5 h-5 rounded bg-blue-500/20 flex items-center justify-center"
+                                                                        title="PDF"
+                                                                    >
+                                                                        <svg
+                                                                            className="w-3 h-3 text-blue-400"
+                                                                            fill="none"
+                                                                            viewBox="0 0 24 24"
+                                                                            stroke="currentColor"
+                                                                        >
+                                                                            <path
+                                                                                strokeLinecap="round"
+                                                                                strokeLinejoin="round"
+                                                                                strokeWidth={2}
+                                                                                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                                                                            />
+                                                                        </svg>
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    toggleFavorite(
+                                                                        providerId,
+                                                                        model.name
+                                                                    );
+                                                                }}
+                                                                className="p-1 rounded hover:bg-yellow-500/20 transition-colors flex-shrink-0"
+                                                            >
+                                                                <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                                                            </button>
+                                                        </div>
+                                                    )
+                                                )}
+                                        </div>
+                                    )
+                                ) : (
+                                    /* All Models Card Grid View */
+                                    <div>
+                                        {allModels.length === 0 &&
+                                        filteredCustomModels.length === 0 ? (
+                                            <div className="flex flex-col items-center justify-center py-8 text-center">
+                                                <p className="text-sm font-medium text-muted-foreground">
+                                                    {providerFilter.includes('openrouter')
+                                                        ? 'No OpenRouter models yet'
+                                                        : 'No models found'}
+                                                </p>
+                                                <p className="text-xs text-muted-foreground/70 mt-1">
+                                                    {providerFilter.includes('openrouter')
+                                                        ? 'Click the + button to add an OpenRouter model'
+                                                        : 'Try adjusting your search or filters'}
+                                                </p>
+                                            </div>
+                                        ) : (
+                                            <div
+                                                className="grid gap-2 justify-center"
+                                                style={{
+                                                    gridTemplateColumns: 'repeat(auto-fill, 140px)',
+                                                }}
+                                            >
+                                                {allModels.map(
+                                                    ({ providerId, provider, model }) => (
+                                                        <ModelCard
+                                                            key={`${providerId}|${model.name}`}
+                                                            provider={providerId}
+                                                            model={model}
+                                                            providerInfo={provider}
+                                                            isFavorite={favorites.includes(
+                                                                favKey(providerId, model.name)
+                                                            )}
+                                                            isActive={isCurrentModel(
+                                                                providerId,
+                                                                model.name
+                                                            )}
+                                                            onClick={() =>
+                                                                onPickModel(providerId, model)
+                                                            }
+                                                            onToggleFavorite={() =>
+                                                                toggleFavorite(
+                                                                    providerId,
+                                                                    model.name
+                                                                )
+                                                            }
+                                                            size="sm"
+                                                        />
+                                                    )
+                                                )}
+                                                {filteredCustomModels.map((cm) => {
+                                                    const cmProvider = (cm.provider ??
+                                                        'openai-compatible') as LLMProvider;
+                                                    return (
+                                                        <ModelCard
+                                                            key={`custom|${cm.name}`}
+                                                            provider={cmProvider}
+                                                            providerInfo={providers[cmProvider]}
+                                                            model={{
+                                                                name: cm.name,
+                                                                displayName:
+                                                                    cm.displayName || cm.name,
+                                                                maxInputTokens:
+                                                                    cm.maxInputTokens || 128000,
+                                                                supportedFileTypes: [
+                                                                    'pdf',
+                                                                    'image',
+                                                                    'audio',
+                                                                ],
+                                                            }}
+                                                            isFavorite={favorites.includes(
+                                                                favKey(cmProvider, cm.name)
+                                                            )}
+                                                            isActive={isCurrentModel(
+                                                                cmProvider,
+                                                                cm.name
+                                                            )}
+                                                            onClick={() => onPickCustomModel(cm)}
+                                                            onToggleFavorite={() =>
+                                                                toggleFavorite(cmProvider, cm.name)
+                                                            }
+                                                            onEdit={() => editCustomModel(cm)}
+                                                            onDelete={() =>
+                                                                deleteCustomModel(cm.name)
+                                                            }
+                                                            size="sm"
+                                                            isCustom
+                                                        />
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Bottom Navigation Bar */}
+                            <div className="flex-shrink-0 border-t border-border/30 px-3 py-2 flex items-center justify-end">
+                                <button
+                                    onClick={() =>
+                                        setActiveView(
+                                            activeView === 'favorites' ? 'all' : 'favorites'
+                                        )
+                                    }
+                                    className="flex items-center gap-1.5 text-sm font-medium text-primary hover:text-primary/80 transition-colors"
+                                >
+                                    {activeView === 'favorites' ? (
+                                        <>
+                                            Show all
+                                            <ChevronUp className="h-4 w-4" />
+                                        </>
+                                    ) : (
+                                        <>
+                                            Favorites
+                                            <ChevronLeft className="h-4 w-4 rotate-180" />
+                                        </>
+                                    )}
+                                    {activeView === 'favorites' && favoriteModels.length > 0 && (
+                                        <span className="ml-1 w-2 h-2 rounded-full bg-primary" />
+                                    )}
+                                </button>
+                            </div>
+                        </>
+                    )}
                 </PopoverContent>
             </Popover>
 

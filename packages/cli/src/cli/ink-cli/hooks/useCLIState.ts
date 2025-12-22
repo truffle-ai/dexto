@@ -7,7 +7,7 @@
 
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useStdout } from 'ink';
-import type { DextoAgent, QueuedMessage } from '@dexto/core';
+import { getModelDisplayName, type DextoAgent, type QueuedMessage } from '@dexto/core';
 import type { Message, StartupInfo, UIState, InputState, SessionState } from '../state/types.js';
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
 import { useAgentEvents } from './useAgentEvents.js';
@@ -120,11 +120,12 @@ export function useCLIState({
         pasteCounter: 0,
     });
 
-    // Session state
+    // Session state - use display name for built-in models at startup
+    const initialConfig = agent.getCurrentLLMConfig();
     const [session, setSession] = useState<SessionState>({
         id: initialSessionId,
         hasActiveSession: initialSessionId !== null,
-        modelName: agent.getCurrentLLMConfig().model,
+        modelName: getModelDisplayName(initialConfig.model, initialConfig.provider),
     });
 
     // Approval state

@@ -2,7 +2,7 @@
   "openapi": "3.0.0",
   "info": {
     "title": "Dexto API",
-    "version": "1.3.0",
+    "version": "1.4.0",
     "description": "OpenAPI spec for the Dexto REST API server"
   },
   "servers": [
@@ -77,6 +77,10 @@
     {
       "name": "queue",
       "description": "Manage message queue for busy sessions"
+    },
+    {
+      "name": "openrouter",
+      "description": "OpenRouter model validation and cache management"
     }
   ],
   "components": {
@@ -2795,7 +2799,12 @@
                         "google",
                         "groq",
                         "xai",
-                        "cohere"
+                        "cohere",
+                        "openrouter",
+                        "litellm",
+                        "glama",
+                        "vertex",
+                        "bedrock"
                       ],
                       "description": "LLM provider"
                     }
@@ -3116,7 +3125,12 @@
                             "google",
                             "groq",
                             "xai",
-                            "cohere"
+                            "cohere",
+                            "openrouter",
+                            "litellm",
+                            "glama",
+                            "vertex",
+                            "bedrock"
                           ],
                           "description": "LLM provider (e.g., 'openai', 'anthropic', 'google', 'groq')"
                         },
@@ -4232,6 +4246,651 @@
                               ],
                               "additionalProperties": false,
                               "description": "Provider catalog entry with models and capabilities"
+                            },
+                            "openrouter": {
+                              "type": "object",
+                              "properties": {
+                                "name": {
+                                  "type": "string",
+                                  "description": "Provider display name"
+                                },
+                                "hasApiKey": {
+                                  "type": "boolean",
+                                  "description": "Whether API key is configured"
+                                },
+                                "primaryEnvVar": {
+                                  "type": "string",
+                                  "description": "Primary environment variable for API key"
+                                },
+                                "supportsBaseURL": {
+                                  "type": "boolean",
+                                  "description": "Whether custom base URLs are supported"
+                                },
+                                "models": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "name": {
+                                        "type": "string",
+                                        "description": "Model name identifier"
+                                      },
+                                      "maxInputTokens": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "exclusiveMinimum": true,
+                                        "description": "Maximum input tokens"
+                                      },
+                                      "default": {
+                                        "type": "boolean",
+                                        "description": "Whether this is a default model"
+                                      },
+                                      "supportedFileTypes": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string",
+                                          "enum": [
+                                            "audio",
+                                            "pdf",
+                                            "image"
+                                          ]
+                                        },
+                                        "description": "File types this model supports"
+                                      },
+                                      "displayName": {
+                                        "type": "string",
+                                        "description": "Human-readable display name"
+                                      },
+                                      "pricing": {
+                                        "type": "object",
+                                        "properties": {
+                                          "inputPerM": {
+                                            "type": "number",
+                                            "description": "Input cost per million tokens (USD)"
+                                          },
+                                          "outputPerM": {
+                                            "type": "number",
+                                            "description": "Output cost per million tokens (USD)"
+                                          },
+                                          "cacheReadPerM": {
+                                            "type": "number",
+                                            "description": "Cache read cost per million tokens"
+                                          },
+                                          "cacheWritePerM": {
+                                            "type": "number",
+                                            "description": "Cache write cost per million tokens"
+                                          },
+                                          "currency": {
+                                            "type": "string",
+                                            "enum": [
+                                              "USD"
+                                            ],
+                                            "description": "Currency"
+                                          },
+                                          "unit": {
+                                            "type": "string",
+                                            "enum": [
+                                              "per_million_tokens"
+                                            ],
+                                            "description": "Unit"
+                                          }
+                                        },
+                                        "required": [
+                                          "inputPerM",
+                                          "outputPerM"
+                                        ],
+                                        "description": "Pricing information in USD per million tokens"
+                                      }
+                                    },
+                                    "required": [
+                                      "name",
+                                      "maxInputTokens",
+                                      "supportedFileTypes"
+                                    ],
+                                    "additionalProperties": false,
+                                    "description": "Model information from LLM registry"
+                                  },
+                                  "description": "Models available from this provider"
+                                },
+                                "supportedFileTypes": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string",
+                                    "enum": [
+                                      "audio",
+                                      "pdf",
+                                      "image"
+                                    ]
+                                  },
+                                  "description": "Provider-level file type support"
+                                }
+                              },
+                              "required": [
+                                "name",
+                                "hasApiKey",
+                                "primaryEnvVar",
+                                "supportsBaseURL",
+                                "models",
+                                "supportedFileTypes"
+                              ],
+                              "additionalProperties": false,
+                              "description": "Provider catalog entry with models and capabilities"
+                            },
+                            "litellm": {
+                              "type": "object",
+                              "properties": {
+                                "name": {
+                                  "type": "string",
+                                  "description": "Provider display name"
+                                },
+                                "hasApiKey": {
+                                  "type": "boolean",
+                                  "description": "Whether API key is configured"
+                                },
+                                "primaryEnvVar": {
+                                  "type": "string",
+                                  "description": "Primary environment variable for API key"
+                                },
+                                "supportsBaseURL": {
+                                  "type": "boolean",
+                                  "description": "Whether custom base URLs are supported"
+                                },
+                                "models": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "name": {
+                                        "type": "string",
+                                        "description": "Model name identifier"
+                                      },
+                                      "maxInputTokens": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "exclusiveMinimum": true,
+                                        "description": "Maximum input tokens"
+                                      },
+                                      "default": {
+                                        "type": "boolean",
+                                        "description": "Whether this is a default model"
+                                      },
+                                      "supportedFileTypes": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string",
+                                          "enum": [
+                                            "audio",
+                                            "pdf",
+                                            "image"
+                                          ]
+                                        },
+                                        "description": "File types this model supports"
+                                      },
+                                      "displayName": {
+                                        "type": "string",
+                                        "description": "Human-readable display name"
+                                      },
+                                      "pricing": {
+                                        "type": "object",
+                                        "properties": {
+                                          "inputPerM": {
+                                            "type": "number",
+                                            "description": "Input cost per million tokens (USD)"
+                                          },
+                                          "outputPerM": {
+                                            "type": "number",
+                                            "description": "Output cost per million tokens (USD)"
+                                          },
+                                          "cacheReadPerM": {
+                                            "type": "number",
+                                            "description": "Cache read cost per million tokens"
+                                          },
+                                          "cacheWritePerM": {
+                                            "type": "number",
+                                            "description": "Cache write cost per million tokens"
+                                          },
+                                          "currency": {
+                                            "type": "string",
+                                            "enum": [
+                                              "USD"
+                                            ],
+                                            "description": "Currency"
+                                          },
+                                          "unit": {
+                                            "type": "string",
+                                            "enum": [
+                                              "per_million_tokens"
+                                            ],
+                                            "description": "Unit"
+                                          }
+                                        },
+                                        "required": [
+                                          "inputPerM",
+                                          "outputPerM"
+                                        ],
+                                        "description": "Pricing information in USD per million tokens"
+                                      }
+                                    },
+                                    "required": [
+                                      "name",
+                                      "maxInputTokens",
+                                      "supportedFileTypes"
+                                    ],
+                                    "additionalProperties": false,
+                                    "description": "Model information from LLM registry"
+                                  },
+                                  "description": "Models available from this provider"
+                                },
+                                "supportedFileTypes": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string",
+                                    "enum": [
+                                      "audio",
+                                      "pdf",
+                                      "image"
+                                    ]
+                                  },
+                                  "description": "Provider-level file type support"
+                                }
+                              },
+                              "required": [
+                                "name",
+                                "hasApiKey",
+                                "primaryEnvVar",
+                                "supportsBaseURL",
+                                "models",
+                                "supportedFileTypes"
+                              ],
+                              "additionalProperties": false,
+                              "description": "Provider catalog entry with models and capabilities"
+                            },
+                            "glama": {
+                              "type": "object",
+                              "properties": {
+                                "name": {
+                                  "type": "string",
+                                  "description": "Provider display name"
+                                },
+                                "hasApiKey": {
+                                  "type": "boolean",
+                                  "description": "Whether API key is configured"
+                                },
+                                "primaryEnvVar": {
+                                  "type": "string",
+                                  "description": "Primary environment variable for API key"
+                                },
+                                "supportsBaseURL": {
+                                  "type": "boolean",
+                                  "description": "Whether custom base URLs are supported"
+                                },
+                                "models": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "name": {
+                                        "type": "string",
+                                        "description": "Model name identifier"
+                                      },
+                                      "maxInputTokens": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "exclusiveMinimum": true,
+                                        "description": "Maximum input tokens"
+                                      },
+                                      "default": {
+                                        "type": "boolean",
+                                        "description": "Whether this is a default model"
+                                      },
+                                      "supportedFileTypes": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string",
+                                          "enum": [
+                                            "audio",
+                                            "pdf",
+                                            "image"
+                                          ]
+                                        },
+                                        "description": "File types this model supports"
+                                      },
+                                      "displayName": {
+                                        "type": "string",
+                                        "description": "Human-readable display name"
+                                      },
+                                      "pricing": {
+                                        "type": "object",
+                                        "properties": {
+                                          "inputPerM": {
+                                            "type": "number",
+                                            "description": "Input cost per million tokens (USD)"
+                                          },
+                                          "outputPerM": {
+                                            "type": "number",
+                                            "description": "Output cost per million tokens (USD)"
+                                          },
+                                          "cacheReadPerM": {
+                                            "type": "number",
+                                            "description": "Cache read cost per million tokens"
+                                          },
+                                          "cacheWritePerM": {
+                                            "type": "number",
+                                            "description": "Cache write cost per million tokens"
+                                          },
+                                          "currency": {
+                                            "type": "string",
+                                            "enum": [
+                                              "USD"
+                                            ],
+                                            "description": "Currency"
+                                          },
+                                          "unit": {
+                                            "type": "string",
+                                            "enum": [
+                                              "per_million_tokens"
+                                            ],
+                                            "description": "Unit"
+                                          }
+                                        },
+                                        "required": [
+                                          "inputPerM",
+                                          "outputPerM"
+                                        ],
+                                        "description": "Pricing information in USD per million tokens"
+                                      }
+                                    },
+                                    "required": [
+                                      "name",
+                                      "maxInputTokens",
+                                      "supportedFileTypes"
+                                    ],
+                                    "additionalProperties": false,
+                                    "description": "Model information from LLM registry"
+                                  },
+                                  "description": "Models available from this provider"
+                                },
+                                "supportedFileTypes": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string",
+                                    "enum": [
+                                      "audio",
+                                      "pdf",
+                                      "image"
+                                    ]
+                                  },
+                                  "description": "Provider-level file type support"
+                                }
+                              },
+                              "required": [
+                                "name",
+                                "hasApiKey",
+                                "primaryEnvVar",
+                                "supportsBaseURL",
+                                "models",
+                                "supportedFileTypes"
+                              ],
+                              "additionalProperties": false,
+                              "description": "Provider catalog entry with models and capabilities"
+                            },
+                            "vertex": {
+                              "type": "object",
+                              "properties": {
+                                "name": {
+                                  "type": "string",
+                                  "description": "Provider display name"
+                                },
+                                "hasApiKey": {
+                                  "type": "boolean",
+                                  "description": "Whether API key is configured"
+                                },
+                                "primaryEnvVar": {
+                                  "type": "string",
+                                  "description": "Primary environment variable for API key"
+                                },
+                                "supportsBaseURL": {
+                                  "type": "boolean",
+                                  "description": "Whether custom base URLs are supported"
+                                },
+                                "models": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "name": {
+                                        "type": "string",
+                                        "description": "Model name identifier"
+                                      },
+                                      "maxInputTokens": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "exclusiveMinimum": true,
+                                        "description": "Maximum input tokens"
+                                      },
+                                      "default": {
+                                        "type": "boolean",
+                                        "description": "Whether this is a default model"
+                                      },
+                                      "supportedFileTypes": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string",
+                                          "enum": [
+                                            "audio",
+                                            "pdf",
+                                            "image"
+                                          ]
+                                        },
+                                        "description": "File types this model supports"
+                                      },
+                                      "displayName": {
+                                        "type": "string",
+                                        "description": "Human-readable display name"
+                                      },
+                                      "pricing": {
+                                        "type": "object",
+                                        "properties": {
+                                          "inputPerM": {
+                                            "type": "number",
+                                            "description": "Input cost per million tokens (USD)"
+                                          },
+                                          "outputPerM": {
+                                            "type": "number",
+                                            "description": "Output cost per million tokens (USD)"
+                                          },
+                                          "cacheReadPerM": {
+                                            "type": "number",
+                                            "description": "Cache read cost per million tokens"
+                                          },
+                                          "cacheWritePerM": {
+                                            "type": "number",
+                                            "description": "Cache write cost per million tokens"
+                                          },
+                                          "currency": {
+                                            "type": "string",
+                                            "enum": [
+                                              "USD"
+                                            ],
+                                            "description": "Currency"
+                                          },
+                                          "unit": {
+                                            "type": "string",
+                                            "enum": [
+                                              "per_million_tokens"
+                                            ],
+                                            "description": "Unit"
+                                          }
+                                        },
+                                        "required": [
+                                          "inputPerM",
+                                          "outputPerM"
+                                        ],
+                                        "description": "Pricing information in USD per million tokens"
+                                      }
+                                    },
+                                    "required": [
+                                      "name",
+                                      "maxInputTokens",
+                                      "supportedFileTypes"
+                                    ],
+                                    "additionalProperties": false,
+                                    "description": "Model information from LLM registry"
+                                  },
+                                  "description": "Models available from this provider"
+                                },
+                                "supportedFileTypes": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string",
+                                    "enum": [
+                                      "audio",
+                                      "pdf",
+                                      "image"
+                                    ]
+                                  },
+                                  "description": "Provider-level file type support"
+                                }
+                              },
+                              "required": [
+                                "name",
+                                "hasApiKey",
+                                "primaryEnvVar",
+                                "supportsBaseURL",
+                                "models",
+                                "supportedFileTypes"
+                              ],
+                              "additionalProperties": false,
+                              "description": "Provider catalog entry with models and capabilities"
+                            },
+                            "bedrock": {
+                              "type": "object",
+                              "properties": {
+                                "name": {
+                                  "type": "string",
+                                  "description": "Provider display name"
+                                },
+                                "hasApiKey": {
+                                  "type": "boolean",
+                                  "description": "Whether API key is configured"
+                                },
+                                "primaryEnvVar": {
+                                  "type": "string",
+                                  "description": "Primary environment variable for API key"
+                                },
+                                "supportsBaseURL": {
+                                  "type": "boolean",
+                                  "description": "Whether custom base URLs are supported"
+                                },
+                                "models": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "name": {
+                                        "type": "string",
+                                        "description": "Model name identifier"
+                                      },
+                                      "maxInputTokens": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "exclusiveMinimum": true,
+                                        "description": "Maximum input tokens"
+                                      },
+                                      "default": {
+                                        "type": "boolean",
+                                        "description": "Whether this is a default model"
+                                      },
+                                      "supportedFileTypes": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string",
+                                          "enum": [
+                                            "audio",
+                                            "pdf",
+                                            "image"
+                                          ]
+                                        },
+                                        "description": "File types this model supports"
+                                      },
+                                      "displayName": {
+                                        "type": "string",
+                                        "description": "Human-readable display name"
+                                      },
+                                      "pricing": {
+                                        "type": "object",
+                                        "properties": {
+                                          "inputPerM": {
+                                            "type": "number",
+                                            "description": "Input cost per million tokens (USD)"
+                                          },
+                                          "outputPerM": {
+                                            "type": "number",
+                                            "description": "Output cost per million tokens (USD)"
+                                          },
+                                          "cacheReadPerM": {
+                                            "type": "number",
+                                            "description": "Cache read cost per million tokens"
+                                          },
+                                          "cacheWritePerM": {
+                                            "type": "number",
+                                            "description": "Cache write cost per million tokens"
+                                          },
+                                          "currency": {
+                                            "type": "string",
+                                            "enum": [
+                                              "USD"
+                                            ],
+                                            "description": "Currency"
+                                          },
+                                          "unit": {
+                                            "type": "string",
+                                            "enum": [
+                                              "per_million_tokens"
+                                            ],
+                                            "description": "Unit"
+                                          }
+                                        },
+                                        "required": [
+                                          "inputPerM",
+                                          "outputPerM"
+                                        ],
+                                        "description": "Pricing information in USD per million tokens"
+                                      }
+                                    },
+                                    "required": [
+                                      "name",
+                                      "maxInputTokens",
+                                      "supportedFileTypes"
+                                    ],
+                                    "additionalProperties": false,
+                                    "description": "Model information from LLM registry"
+                                  },
+                                  "description": "Models available from this provider"
+                                },
+                                "supportedFileTypes": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string",
+                                    "enum": [
+                                      "audio",
+                                      "pdf",
+                                      "image"
+                                    ]
+                                  },
+                                  "description": "Provider-level file type support"
+                                }
+                              },
+                              "required": [
+                                "name",
+                                "hasApiKey",
+                                "primaryEnvVar",
+                                "supportsBaseURL",
+                                "models",
+                                "supportedFileTypes"
+                              ],
+                              "additionalProperties": false,
+                              "description": "Provider catalog entry with models and capabilities"
                             }
                           },
                           "description": "Providers grouped by ID with their models and capabilities"
@@ -4353,95 +5012,6 @@
         }
       }
     },
-    "/api/llm/key": {
-      "post": {
-        "summary": "Save Provider API Key",
-        "description": "Stores an API key for a provider in .env and makes it available immediately",
-        "tags": [
-          "llm"
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "provider": {
-                    "type": "string",
-                    "enum": [
-                      "openai",
-                      "openai-compatible",
-                      "anthropic",
-                      "google",
-                      "groq",
-                      "xai",
-                      "cohere"
-                    ],
-                    "description": "LLM provider identifier (e.g., openai, anthropic)"
-                  },
-                  "apiKey": {
-                    "type": "string",
-                    "minLength": 1,
-                    "description": "API key for the provider (writeOnly - never returned in responses)",
-                    "writeOnly": true
-                  }
-                },
-                "required": [
-                  "provider",
-                  "apiKey"
-                ],
-                "description": "Request body for saving a provider API key"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "API key saved",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "ok": {
-                      "type": "boolean",
-                      "enum": [
-                        true
-                      ],
-                      "description": "Operation success indicator"
-                    },
-                    "provider": {
-                      "type": "string",
-                      "enum": [
-                        "openai",
-                        "openai-compatible",
-                        "anthropic",
-                        "google",
-                        "groq",
-                        "xai",
-                        "cohere"
-                      ],
-                      "description": "Provider for which the key was saved"
-                    },
-                    "envVar": {
-                      "type": "string",
-                      "description": "Environment variable name where key was stored"
-                    }
-                  },
-                  "required": [
-                    "ok",
-                    "provider",
-                    "envVar"
-                  ],
-                  "additionalProperties": false,
-                  "description": "API key save response"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/llm/switch": {
       "post": {
         "summary": "Switch LLM",
@@ -4466,7 +5036,12 @@
                           "google",
                           "groq",
                           "xai",
-                          "cohere"
+                          "cohere",
+                          "openrouter",
+                          "litellm",
+                          "glama",
+                          "vertex",
+                          "bedrock"
                         ],
                         "description": "LLM provider (e.g., 'openai', 'anthropic', 'google', 'groq')"
                       },
@@ -4551,7 +5126,12 @@
                             "google",
                             "groq",
                             "xai",
-                            "cohere"
+                            "cohere",
+                            "openrouter",
+                            "litellm",
+                            "glama",
+                            "vertex",
+                            "bedrock"
                           ],
                           "description": "LLM provider (e.g., 'openai', 'anthropic', 'google', 'groq')"
                         },
@@ -4647,6 +5227,17 @@
                             "type": "string",
                             "minLength": 1
                           },
+                          "provider": {
+                            "type": "string",
+                            "enum": [
+                              "openai-compatible",
+                              "openrouter",
+                              "litellm",
+                              "glama",
+                              "bedrock"
+                            ],
+                            "default": "openai-compatible"
+                          },
                           "baseURL": {
                             "type": "string",
                             "format": "uri"
@@ -4663,11 +5254,13 @@
                             "type": "integer",
                             "minimum": 0,
                             "exclusiveMinimum": true
+                          },
+                          "apiKey": {
+                            "type": "string"
                           }
                         },
                         "required": [
-                          "name",
-                          "baseURL"
+                          "name"
                         ]
                       },
                       "description": "List of custom models"
@@ -4698,6 +5291,17 @@
                     "type": "string",
                     "minLength": 1
                   },
+                  "provider": {
+                    "type": "string",
+                    "enum": [
+                      "openai-compatible",
+                      "openrouter",
+                      "litellm",
+                      "glama",
+                      "bedrock"
+                    ],
+                    "default": "openai-compatible"
+                  },
                   "baseURL": {
                     "type": "string",
                     "format": "uri"
@@ -4714,11 +5318,13 @@
                     "type": "integer",
                     "minimum": 0,
                     "exclusiveMinimum": true
+                  },
+                  "apiKey": {
+                    "type": "string"
                   }
                 },
                 "required": [
-                  "name",
-                  "baseURL"
+                  "name"
                 ]
               }
             }
@@ -4746,6 +5352,17 @@
                           "type": "string",
                           "minLength": 1
                         },
+                        "provider": {
+                          "type": "string",
+                          "enum": [
+                            "openai-compatible",
+                            "openrouter",
+                            "litellm",
+                            "glama",
+                            "bedrock"
+                          ],
+                          "default": "openai-compatible"
+                        },
                         "baseURL": {
                           "type": "string",
                           "format": "uri"
@@ -4762,11 +5379,13 @@
                           "type": "integer",
                           "minimum": 0,
                           "exclusiveMinimum": true
+                        },
+                        "apiKey": {
+                          "type": "string"
                         }
                       },
                       "required": [
-                        "name",
-                        "baseURL"
+                        "name"
                       ]
                     }
                   },
@@ -5509,7 +6128,12 @@
                               "google",
                               "groq",
                               "xai",
-                              "cohere"
+                              "cohere",
+                              "openrouter",
+                              "litellm",
+                              "glama",
+                              "vertex",
+                              "bedrock"
                             ],
                             "description": "Provider identifier for assistant messages"
                           },
@@ -6152,7 +6776,12 @@
                                   "google",
                                   "groq",
                                   "xai",
-                                  "cohere"
+                                  "cohere",
+                                  "openrouter",
+                                  "litellm",
+                                  "glama",
+                                  "vertex",
+                                  "bedrock"
                                 ],
                                 "description": "Provider identifier for assistant messages"
                               },
@@ -6560,7 +7189,12 @@
                                       "google",
                                       "groq",
                                       "xai",
-                                      "cohere"
+                                      "cohere",
+                                      "openrouter",
+                                      "litellm",
+                                      "glama",
+                                      "vertex",
+                                      "bedrock"
                                     ],
                                     "description": "Provider identifier for assistant messages"
                                   },
@@ -10167,7 +10801,12 @@
                               "google",
                               "groq",
                               "xai",
-                              "cohere"
+                              "cohere",
+                              "openrouter",
+                              "litellm",
+                              "glama",
+                              "vertex",
+                              "bedrock"
                             ],
                             "description": "LLM provider (e.g., 'openai', 'anthropic', 'google', 'groq')"
                           },
@@ -13092,6 +13731,332 @@
           },
           "404": {
             "description": "Session or message not found"
+          }
+        }
+      }
+    },
+    "/api/openrouter/validate/{modelId}": {
+      "get": {
+        "summary": "Validate OpenRouter Model",
+        "description": "Validates an OpenRouter model ID against the cached model registry. Refreshes cache if stale.",
+        "tags": [
+          "openrouter"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "OpenRouter model ID to validate (e.g., anthropic/claude-3.5-sonnet)"
+            },
+            "required": true,
+            "description": "OpenRouter model ID to validate (e.g., anthropic/claude-3.5-sonnet)",
+            "name": "modelId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Validation result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "valid": {
+                      "type": "boolean",
+                      "description": "Whether the model ID is valid"
+                    },
+                    "modelId": {
+                      "type": "string",
+                      "description": "The model ID that was validated"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "valid",
+                        "invalid",
+                        "unknown"
+                      ],
+                      "description": "Validation status: valid, invalid, or unknown (cache empty)"
+                    },
+                    "error": {
+                      "type": "string",
+                      "description": "Error message if invalid"
+                    },
+                    "info": {
+                      "type": "object",
+                      "properties": {
+                        "contextLength": {
+                          "type": "number",
+                          "description": "Model context length in tokens"
+                        }
+                      },
+                      "required": [
+                        "contextLength"
+                      ],
+                      "description": "Model information if valid"
+                    }
+                  },
+                  "required": [
+                    "valid",
+                    "modelId",
+                    "status"
+                  ],
+                  "description": "Model validation response"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/openrouter/refresh-cache": {
+      "post": {
+        "summary": "Refresh OpenRouter Model Cache",
+        "description": "Forces a refresh of the OpenRouter model registry cache from the API.",
+        "tags": [
+          "openrouter"
+        ],
+        "responses": {
+          "200": {
+            "description": "Cache refreshed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ],
+                      "description": "Success indicator"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Status message"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "message"
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Cache refresh failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ],
+                      "description": "Failure indicator"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Error message"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "message"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/llm/key/{provider}": {
+      "get": {
+        "summary": "Get Provider API Key Status",
+        "description": "Retrieves the API key status for a provider. Returns a masked key value (e.g., sk-proj...xyz4) for UI display purposes.",
+        "tags": [
+          "llm"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "openai",
+                "openai-compatible",
+                "anthropic",
+                "google",
+                "groq",
+                "xai",
+                "cohere",
+                "openrouter",
+                "litellm",
+                "glama",
+                "vertex",
+                "bedrock"
+              ],
+              "description": "LLM provider identifier"
+            },
+            "required": true,
+            "description": "LLM provider identifier",
+            "name": "provider",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "API key status and value",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "provider": {
+                      "type": "string",
+                      "enum": [
+                        "openai",
+                        "openai-compatible",
+                        "anthropic",
+                        "google",
+                        "groq",
+                        "xai",
+                        "cohere",
+                        "openrouter",
+                        "litellm",
+                        "glama",
+                        "vertex",
+                        "bedrock"
+                      ],
+                      "description": "Provider identifier"
+                    },
+                    "envVar": {
+                      "type": "string",
+                      "description": "Environment variable name"
+                    },
+                    "hasKey": {
+                      "type": "boolean",
+                      "description": "Whether API key is configured"
+                    },
+                    "keyValue": {
+                      "type": "string",
+                      "description": "Masked API key value if configured (e.g., sk-proj...xyz4)"
+                    }
+                  },
+                  "required": [
+                    "provider",
+                    "envVar",
+                    "hasKey"
+                  ],
+                  "additionalProperties": false,
+                  "description": "API key status response"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/llm/key": {
+      "post": {
+        "summary": "Save Provider API Key",
+        "description": "Stores an API key for a provider in .env and makes it available immediately",
+        "tags": [
+          "llm"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "provider": {
+                    "type": "string",
+                    "enum": [
+                      "openai",
+                      "openai-compatible",
+                      "anthropic",
+                      "google",
+                      "groq",
+                      "xai",
+                      "cohere",
+                      "openrouter",
+                      "litellm",
+                      "glama",
+                      "vertex",
+                      "bedrock"
+                    ],
+                    "description": "LLM provider identifier (e.g., openai, anthropic)"
+                  },
+                  "apiKey": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "API key for the provider (writeOnly - never returned in responses)",
+                    "writeOnly": true
+                  }
+                },
+                "required": [
+                  "provider",
+                  "apiKey"
+                ],
+                "description": "Request body for saving a provider API key"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "API key saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ],
+                      "description": "Operation success indicator"
+                    },
+                    "provider": {
+                      "type": "string",
+                      "enum": [
+                        "openai",
+                        "openai-compatible",
+                        "anthropic",
+                        "google",
+                        "groq",
+                        "xai",
+                        "cohere",
+                        "openrouter",
+                        "litellm",
+                        "glama",
+                        "vertex",
+                        "bedrock"
+                      ],
+                      "description": "Provider for which the key was saved"
+                    },
+                    "envVar": {
+                      "type": "string",
+                      "description": "Environment variable name where key was stored"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "provider",
+                    "envVar"
+                  ],
+                  "additionalProperties": false,
+                  "description": "API key save response"
+                }
+              }
+            }
           }
         }
       }

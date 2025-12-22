@@ -1,72 +1,48 @@
 /**
  * CustomModelWizard Component
- * Multi-step wizard for adding a custom openai-compatible model
+ * Multi-step wizard for adding custom models (openai-compatible, openrouter, litellm, glama, bedrock)
+ *
+ * Architecture:
+ * - Provider configs centralized in ./custom-model-wizard/provider-config.ts
+ * - Shared UI components in ./custom-model-wizard/shared/
+ * - This file is the orchestrator - handles state, navigation, and keyboard input
  */
 
 import React, { useState, useEffect, forwardRef, useImperativeHandle, useCallback } from 'react';
 import { Box, Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
-import { saveCustomModel, type CustomModel } from '@dexto/agent-management';
-import { logger } from '@dexto/core';
+import {
+    saveCustomModel,
+    deleteCustomModel,
+    CUSTOM_MODEL_PROVIDERS,
+    type CustomModel,
+    type CustomModelProvider,
+    saveProviderApiKey,
+    getProviderKeyStatus,
+    resolveApiKeyForProvider,
+    determineApiKeyStorage,
+} from '@dexto/agent-management';
+import { logger, type LLMProvider } from '@dexto/core';
 
-interface WizardStep {
-    field: keyof CustomModel;
-    label: string;
-    placeholder: string;
-    required: boolean;
-    validate?: (value: string) => string | null;
-}
-
-const WIZARD_STEPS: WizardStep[] = [
-    {
-        field: 'name',
-        label: 'Model Name',
-        placeholder: 'e.g., llama-3-70b, mixtral-8x7b',
-        required: true,
-        validate: (v) => (v.trim() ? null : 'Model name is required'),
-    },
-    {
-        field: 'baseURL',
-        label: 'API Base URL',
-        placeholder: 'e.g., http://localhost:11434/v1',
-        required: true,
-        validate: (v) => {
-            if (!v.trim()) return 'Base URL is required';
-            try {
-                const url = new URL(v);
-                if (!['http:', 'https:'].includes(url.protocol)) {
-                    return 'URL must use http:// or https://';
-                }
-                return null;
-            } catch {
-                return 'Invalid URL format';
-            }
-        },
-    },
-    {
-        field: 'displayName',
-        label: 'Display Name (optional)',
-        placeholder: 'e.g., My Local Llama 3',
-        required: false,
-    },
-    {
-        field: 'maxInputTokens',
-        label: 'Max Input Tokens (optional)',
-        placeholder: 'e.g., 128000 (leave blank for default)',
-        required: false,
-        validate: (v) => {
-            if (!v.trim()) return null;
-            const num = parseInt(v, 10);
-            if (isNaN(num) || num <= 0) return 'Must be a positive number';
-            return null;
-        },
-    },
-];
+// Import from new modular architecture
+import {
+    getProviderConfig,
+    getAvailableProviders,
+    runAsyncValidation,
+} from './custom-model-wizard/provider-config.js';
+import {
+    ProviderSelector,
+    WizardStepInput,
+    SetupInfoBanner,
+    ApiKeyStep,
+} from './custom-model-wizard/shared/index.js';
 
 interface CustomModelWizardProps {
     isVisible: boolean;
     onComplete: (model: CustomModel) => void;
     onClose: () => void;
+    /** Optional model to edit - if provided, form will be pre-populated */
+    initialModel?: CustomModel | null;
 }
 
 export interface CustomModelWizardHandle {
@@ -74,35 +50,78 @@ export interface CustomModelWizardHandle {
 }
 
 /**
- * Multi-step wizard for custom model configuration
+ * Multi-step wizard for custom model configuration.
+ * Uses data-driven provider configs instead of scattered conditionals.
  */
 const CustomModelWizard = forwardRef<CustomModelWizardHandle, CustomModelWizardProps>(
-    function CustomModelWizard({ isVisible, onComplete, onClose }, ref) {
+    function CustomModelWizard({ isVisible, onComplete, onClose, initialModel }, ref) {
+        // Provider selection (step 0) then wizard steps
+        const [selectedProvider, setSelectedProvider] = useState<CustomModelProvider | null>(null);
+        const [providerIndex, setProviderIndex] = useState(0);
         const [currentStep, setCurrentStep] = useState(0);
         const [values, setValues] = useState<Record<string, string>>({});
         const [currentInput, setCurrentInput] = useState('');
         const [error, setError] = useState<string | null>(null);
         const [isSaving, setIsSaving] = useState(false);
+        const [isValidating, setIsValidating] = useState(false);
+        // Track original name when editing (to handle renames)
+        const [originalName, setOriginalName] = useState<string | null>(null);
+        const isEditing = initialModel !== null && initialModel !== undefined;
+
+        // Get provider config (data-driven, no conditionals)
+        const providerConfig = selectedProvider ? getProviderConfig(selectedProvider) : null;
+        const wizardSteps = providerConfig?.steps ?? [];
+        const currentStepConfig = wizardSteps[currentStep];
 
         // Reset when becoming visible
         useEffect(() => {
             if (isVisible) {
-                setCurrentStep(0);
-                setValues({});
-                setCurrentInput('');
+                if (initialModel) {
+                    // Editing mode - pre-populate from initialModel
+                    const provider = initialModel.provider ?? 'openai-compatible';
+                    setSelectedProvider(provider);
+                    setOriginalName(initialModel.name);
+                    setValues({
+                        name: initialModel.name,
+                        baseURL: initialModel.baseURL ?? '',
+                        displayName: initialModel.displayName ?? '',
+                        maxInputTokens: initialModel.maxInputTokens?.toString() ?? '',
+                        apiKey: initialModel.apiKey ?? '',
+                    });
+                    setCurrentStep(0);
+                    setCurrentInput(initialModel.name);
+                    setProviderIndex(CUSTOM_MODEL_PROVIDERS.indexOf(provider));
+                } else {
+                    // Adding mode - reset everything
+                    setSelectedProvider(null);
+                    setOriginalName(null);
+                    setProviderIndex(0);
+                    setCurrentStep(0);
+                    setValues({});
+                    setCurrentInput('');
+                }
                 setError(null);
                 setIsSaving(false);
+                setIsValidating(false);
             }
-        }, [isVisible]);
+        }, [isVisible, initialModel]);
 
-        const currentStepConfig = WIZARD_STEPS[currentStep];
+        const handleProviderSelect = useCallback(() => {
+            const provider = CUSTOM_MODEL_PROVIDERS[providerIndex];
+            if (provider) {
+                setSelectedProvider(provider);
+                setCurrentStep(0);
+                setCurrentInput('');
+                setError(null);
+            }
+        }, [providerIndex]);
 
         const handleNext = useCallback(async () => {
-            if (!currentStepConfig || isSaving) return;
+            if (!currentStepConfig || !selectedProvider || isSaving || isValidating) return;
 
             const value = currentInput.trim();
 
-            // Validate
+            // Sync validation
             if (currentStepConfig.validate) {
                 const validationError = currentStepConfig.validate(value);
                 if (validationError) {
@@ -114,6 +133,26 @@ const CustomModelWizard = forwardRef<CustomModelWizardHandle, CustomModelWizardP
                 return;
             }
 
+            // Async validation (data-driven - no provider-specific conditionals)
+            const asyncError = await (async () => {
+                setIsValidating(true);
+                setError(null);
+                try {
+                    return await runAsyncValidation(
+                        selectedProvider,
+                        currentStepConfig.field,
+                        value
+                    );
+                } finally {
+                    setIsValidating(false);
+                }
+            })();
+
+            if (asyncError) {
+                setError(asyncError);
+                return;
+            }
+
             // Save value
             const newValues = { ...values, [currentStepConfig.field]: value };
             setValues(newValues);
@@ -121,23 +160,85 @@ const CustomModelWizard = forwardRef<CustomModelWizardHandle, CustomModelWizardP
             setCurrentInput('');
 
             // Check if we're done
-            if (currentStep >= WIZARD_STEPS.length - 1) {
-                // Build model and save
-                const model: CustomModel = {
-                    name: newValues.name || '',
-                    baseURL: newValues.baseURL || '',
-                };
+            if (currentStep >= wizardSteps.length - 1) {
+                await saveModel(newValues);
+            } else {
+                const nextStep = currentStep + 1;
+                setCurrentStep(nextStep);
+                // Pre-populate next step from stored values (for edit mode)
+                const nextStepConfig = wizardSteps[nextStep];
+                const nextValue = nextStepConfig ? newValues[nextStepConfig.field] : undefined;
+                setCurrentInput(nextValue ?? '');
+            }
+        }, [
+            currentInput,
+            currentStep,
+            currentStepConfig,
+            isSaving,
+            isValidating,
+            selectedProvider,
+            values,
+            wizardSteps,
+        ]);
 
-                if (newValues.displayName?.trim()) {
-                    model.displayName = newValues.displayName.trim();
+        /**
+         * Build and save the model using provider config's buildModel function.
+         */
+        const saveModel = useCallback(
+            async (finalValues: Record<string, string>) => {
+                if (!selectedProvider || !providerConfig) return;
+
+                // Build model using provider config (no conditionals!)
+                const model = providerConfig.buildModel(finalValues, selectedProvider);
+
+                // Handle API key storage
+                const userEnteredKey = finalValues.apiKey?.trim();
+                const providerKeyStatus = getProviderKeyStatus(selectedProvider as LLMProvider);
+                const existingProviderKey = resolveApiKeyForProvider(
+                    selectedProvider as LLMProvider
+                );
+
+                const keyStorage = determineApiKeyStorage(
+                    selectedProvider,
+                    userEnteredKey,
+                    providerKeyStatus.hasApiKey,
+                    existingProviderKey
+                );
+
+                if (keyStorage.saveToProviderEnvVar && userEnteredKey) {
+                    try {
+                        await saveProviderApiKey(
+                            selectedProvider as LLMProvider,
+                            userEnteredKey,
+                            process.cwd()
+                        );
+                    } catch (err) {
+                        logger.warn(
+                            `Failed to save provider API key: ${err instanceof Error ? err.message : 'Unknown error'}`
+                        );
+                        // Fall back to per-model storage
+                        keyStorage.saveAsPerModel = true;
+                    }
                 }
-                if (newValues.maxInputTokens?.trim()) {
-                    model.maxInputTokens = parseInt(newValues.maxInputTokens, 10);
+
+                if (keyStorage.saveAsPerModel && userEnteredKey) {
+                    model.apiKey = userEnteredKey;
                 }
 
                 // Save to storage
                 setIsSaving(true);
                 try {
+                    // If editing and name changed, delete the old model first
+                    if (originalName && originalName !== model.name) {
+                        try {
+                            await deleteCustomModel(originalName);
+                        } catch (err) {
+                            // Log but continue - old model might already be deleted
+                            logger.warn(
+                                `Failed to delete old model "${originalName}" during rename: ${err instanceof Error ? err.message : String(err)}`
+                            );
+                        }
+                    }
                     await saveCustomModel(model);
                     onComplete(model);
                 } catch (err) {
@@ -149,31 +250,34 @@ const CustomModelWizard = forwardRef<CustomModelWizardHandle, CustomModelWizardP
                     );
                     setIsSaving(false);
                 }
-            } else {
-                setCurrentStep(currentStep + 1);
-            }
-        }, [currentInput, currentStep, currentStepConfig, isSaving, onComplete, values]);
+            },
+            [selectedProvider, providerConfig, originalName, onComplete]
+        );
 
         const handleBack = useCallback(() => {
             if (currentStep > 0) {
                 setCurrentStep(currentStep - 1);
                 // Restore previous value
-                const prevStep = WIZARD_STEPS[currentStep - 1];
+                const prevStep = wizardSteps[currentStep - 1];
                 if (prevStep) {
                     setCurrentInput(values[prevStep.field] || '');
                 }
                 setError(null);
+            } else if (selectedProvider) {
+                // Go back to provider selection
+                setSelectedProvider(null);
+                setError(null);
             } else {
                 onClose();
             }
-        }, [currentStep, onClose, values]);
+        }, [currentStep, onClose, selectedProvider, values, wizardSteps]);
 
         // Handle keyboard input
         useImperativeHandle(
             ref,
             () => ({
                 handleInput: (input: string, key: Key): boolean => {
-                    if (!isVisible || isSaving) return false;
+                    if (!isVisible || isSaving || isValidating) return false;
 
                     // Escape to go back/close
                     if (key.escape) {
@@ -181,7 +285,29 @@ const CustomModelWizard = forwardRef<CustomModelWizardHandle, CustomModelWizardP
                         return true;
                     }
 
-                    // Enter to submit current step
+                    // Provider selection mode
+                    if (!selectedProvider) {
+                        const providers = getAvailableProviders();
+                        if (key.upArrow) {
+                            setProviderIndex((prev) =>
+                                prev > 0 ? prev - 1 : providers.length - 1
+                            );
+                            return true;
+                        }
+                        if (key.downArrow) {
+                            setProviderIndex((prev) =>
+                                prev < providers.length - 1 ? prev + 1 : 0
+                            );
+                            return true;
+                        }
+                        if (key.return) {
+                            handleProviderSelect();
+                            return true;
+                        }
+                        return true; // Consume all input during provider selection
+                    }
+
+                    // Wizard step mode
                     if (key.return) {
                         void handleNext();
                         return true;
@@ -204,10 +330,26 @@ const CustomModelWizard = forwardRef<CustomModelWizardHandle, CustomModelWizardP
                     return false;
                 },
             }),
-            [isVisible, isSaving, handleBack, handleNext]
+            [
+                isVisible,
+                isSaving,
+                isValidating,
+                handleBack,
+                handleNext,
+                handleProviderSelect,
+                selectedProvider,
+            ]
         );
 
-        if (!isVisible || !currentStepConfig) return null;
+        if (!isVisible) return null;
+
+        // Provider selection screen (using shared component)
+        if (!selectedProvider) {
+            return <ProviderSelector selectedIndex={providerIndex} isEditing={isEditing} />;
+        }
+
+        // Wizard steps screen
+        if (!currentStepConfig || !providerConfig) return null;
 
         return (
             <Box
@@ -220,45 +362,42 @@ const CustomModelWizard = forwardRef<CustomModelWizardHandle, CustomModelWizardP
                 {/* Header */}
                 <Box marginBottom={1}>
                     <Text bold color="green">
-                        Add Custom Model
+                        {isEditing ? 'Edit Custom Model' : 'Add Custom Model'}
                     </Text>
                     <Text dimColor>
                         {' '}
-                        (Step {currentStep + 1}/{WIZARD_STEPS.length})
+                        ({providerConfig.displayName}) Step {currentStep + 1}/{wizardSteps.length}
                     </Text>
                 </Box>
 
-                {/* Current step prompt */}
-                <Box flexDirection="column">
-                    <Text bold>{currentStepConfig.label}:</Text>
-                    <Text dimColor>{currentStepConfig.placeholder}</Text>
-                </Box>
-
-                {/* Input field */}
-                <Box marginTop={1}>
-                    <Text color="cyan">&gt; </Text>
-                    <Text>{currentInput}</Text>
-                    <Text color="cyan">_</Text>
-                </Box>
-
-                {/* Error message */}
-                {error && (
-                    <Box marginTop={1}>
-                        <Text color="red">{error}</Text>
-                    </Box>
+                {/* Setup info banner - data-driven, shown on first step only */}
+                {providerConfig.setupInfo && currentStep === 0 && (
+                    <SetupInfoBanner
+                        title={providerConfig.setupInfo.title}
+                        description={providerConfig.setupInfo.description}
+                        docsUrl={providerConfig.setupInfo.docsUrl}
+                    />
                 )}
 
-                {/* Saving indicator */}
-                {isSaving && (
-                    <Box marginTop={1}>
-                        <Text color="yellow">Saving...</Text>
-                    </Box>
-                )}
+                {/* Step input with optional API key status */}
+                <WizardStepInput
+                    step={currentStepConfig}
+                    currentInput={currentInput}
+                    error={error}
+                    isValidating={isValidating}
+                    isSaving={isSaving}
+                    additionalContent={
+                        currentStepConfig.field === 'apiKey' ? (
+                            <ApiKeyStep provider={selectedProvider} />
+                        ) : undefined
+                    }
+                />
 
                 {/* Help text */}
                 <Box marginTop={1}>
                     <Text dimColor>
-                        Enter to continue • Esc to {currentStep > 0 ? 'go back' : 'cancel'}
+                        Enter to continue • Esc to{' '}
+                        {currentStep > 0 ? 'go back' : 'back to provider'}
                     </Text>
                 </Box>
             </Box>

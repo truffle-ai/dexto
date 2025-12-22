@@ -2,8 +2,7 @@
  * ModelSelector Component (Refactored)
  * Features:
  * - Search filtering
- * - Custom models support (add/delete)
- * - Keyboard shortcuts: Shift+D to delete custom model
+ * - Custom models support (add/edit/delete via arrow navigation)
  */
 
 import React, {
@@ -13,6 +12,7 @@ import React, {
     useRef,
     useImperativeHandle,
     useMemo,
+    useCallback,
 } from 'react';
 import { Box, Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
@@ -21,9 +21,15 @@ import { loadCustomModels, deleteCustomModel, type CustomModel } from '@dexto/ag
 
 interface ModelSelectorProps {
     isVisible: boolean;
-    onSelectModel: (provider: LLMProvider, model: string, baseURL?: string) => void;
+    onSelectModel: (
+        provider: LLMProvider,
+        model: string,
+        displayName?: string,
+        baseURL?: string
+    ) => void;
     onClose: () => void;
     onAddCustomModel: () => void;
+    onEditCustomModel: (model: CustomModel) => void;
     agent: DextoAgent;
 }
 
@@ -59,7 +65,7 @@ const MAX_VISIBLE_ITEMS = 10;
  * Model selector with search and custom model support
  */
 const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(function ModelSelector(
-    { isVisible, onSelectModel, onClose, onAddCustomModel, agent },
+    { isVisible, onSelectModel, onClose, onAddCustomModel, onEditCustomModel, agent },
     ref
 ) {
     const [models, setModels] = useState<ModelOption[]>([]);
@@ -68,7 +74,8 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
     const [selectedIndex, setSelectedIndex] = useState(0);
     const [searchQuery, setSearchQuery] = useState('');
     const [scrollOffset, setScrollOffset] = useState(0);
-    const [pendingDeleteModel, setPendingDeleteModel] = useState<string | null>(null);
+    const [customModelAction, setCustomModelAction] = useState<'edit' | 'delete' | null>(null);
+    const [pendingDeleteConfirm, setPendingDeleteConfirm] = useState(false);
     const selectedIndexRef = useRef(selectedIndex);
     const deleteTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -93,7 +100,8 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
         setSearchQuery('');
         setSelectedIndex(0);
         setScrollOffset(0);
-        setPendingDeleteModel(null);
+        setCustomModelAction(null);
+        setPendingDeleteConfirm(false);
         if (deleteTimeoutRef.current) {
             clearTimeout(deleteTimeoutRef.current);
             deleteTimeoutRef.current = null;
@@ -114,24 +122,35 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
 
                 // Add custom models first
                 for (const custom of loadedCustomModels) {
-                    modelList.push({
-                        provider: 'openai-compatible' as LLMProvider,
+                    // Use provider from custom model, default to openai-compatible for legacy models
+                    const customProvider = (custom.provider ?? 'openai-compatible') as LLMProvider;
+                    const modelOption: ModelOption = {
+                        provider: customProvider,
                         name: custom.name,
                         displayName: custom.displayName || custom.name,
                         maxInputTokens: custom.maxInputTokens || 128000,
                         isDefault: false,
                         isCurrent:
-                            currentConfig.provider === 'openai-compatible' &&
+                            currentConfig.provider === customProvider &&
                             currentConfig.model === custom.name,
                         isCustom: true,
-                        baseURL: custom.baseURL,
-                    });
+                    };
+                    if (custom.baseURL) {
+                        modelOption.baseURL = custom.baseURL;
+                    }
+                    modelList.push(modelOption);
                 }
 
                 // Add registry models
                 for (const provider of providers) {
-                    // Skip openai-compatible as those are shown via custom models
-                    if (provider === 'openai-compatible') continue;
+                    // Skip openai-compatible, openrouter, litellm, and glama as those are shown via custom models
+                    if (
+                        provider === 'openai-compatible' ||
+                        provider === 'openrouter' ||
+                        provider === 'litellm' ||
+                        provider === 'glama'
+                    )
+                        continue;
 
                     const providerModels = allModels[provider];
                     for (const model of providerModels) {
@@ -215,20 +234,33 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
     }, [selectedIndex, scrollOffset]);
 
     // Handle delete custom model
-    const handleDeleteCustomModel = async (model: ModelOption) => {
-        if (!model.isCustom) return;
+    const handleDeleteCustomModel = useCallback(
+        async (model: ModelOption) => {
+            if (!model.isCustom) return;
 
-        try {
-            await deleteCustomModel(model.name);
-            // Refresh the list
-            const updated = await loadCustomModels();
-            setCustomModels(updated);
-            // Update models list
-            setModels((prev) => prev.filter((m) => !(m.isCustom && m.name === model.name)));
-        } catch (error) {
-            agent.logger.error(
-                `Failed to delete custom model: ${error instanceof Error ? error.message : 'Unknown error'}`
-            );
+            try {
+                await deleteCustomModel(model.name);
+                // Refresh the list
+                const updated = await loadCustomModels();
+                setCustomModels(updated);
+                // Update models list
+                setModels((prev) => prev.filter((m) => !(m.isCustom && m.name === model.name)));
+            } catch (error) {
+                agent.logger.error(
+                    `Failed to delete custom model: ${error instanceof Error ? error.message : 'Unknown error'}`
+                );
+            }
+        },
+        [agent]
+    );
+
+    // Helper to clear action state
+    const clearActionState = () => {
+        setCustomModelAction(null);
+        setPendingDeleteConfirm(false);
+        if (deleteTimeoutRef.current) {
+            clearTimeout(deleteTimeoutRef.current);
+            deleteTimeoutRef.current = null;
         }
     };
 
@@ -241,47 +273,80 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
 
                 // Escape always works
                 if (key.escape) {
+                    // If in action mode, just clear it first
+                    if (customModelAction) {
+                        clearActionState();
+                        return true;
+                    }
                     onClose();
                     return true;
                 }
 
-                // Handle character input for search
-                if (input && !key.return && !key.upArrow && !key.downArrow && !key.tab) {
-                    // Shift+D to delete custom model (requires double-press confirmation)
-                    if (input === 'D' && key.shift) {
-                        const item = filteredItems[selectedIndexRef.current];
-                        if (item && !isAddCustomOption(item) && item.isCustom) {
-                            if (pendingDeleteModel === item.name) {
-                                // Second press - actually delete
-                                if (deleteTimeoutRef.current) {
-                                    clearTimeout(deleteTimeoutRef.current);
-                                    deleteTimeoutRef.current = null;
-                                }
-                                setPendingDeleteModel(null);
-                                void handleDeleteCustomModel(item);
-                            } else {
-                                // First press - set pending and start timeout
-                                setPendingDeleteModel(item.name);
-                                if (deleteTimeoutRef.current) {
-                                    clearTimeout(deleteTimeoutRef.current);
-                                }
-                                deleteTimeoutRef.current = setTimeout(() => {
-                                    setPendingDeleteModel(null);
-                                    deleteTimeoutRef.current = null;
-                                }, 3000); // 3 second timeout
-                            }
-                            return true;
-                        }
-                        return false;
-                    }
+                const itemsLength = filteredItems.length;
+                const currentItem = filteredItems[selectedIndexRef.current];
+                const isOnCustomModel =
+                    currentItem && !isAddCustomOption(currentItem) && currentItem.isCustom;
 
-                    // Any other input clears the pending delete confirmation
-                    if (pendingDeleteModel) {
-                        setPendingDeleteModel(null);
+                // Right arrow - enter/advance action mode for custom models
+                if (key.rightArrow) {
+                    if (!isOnCustomModel) return false;
+
+                    if (customModelAction === null) {
+                        // Enter edit mode
+                        setCustomModelAction('edit');
+                        return true;
+                    } else if (customModelAction === 'edit') {
+                        // Advance to delete mode
+                        setCustomModelAction('delete');
+                        setPendingDeleteConfirm(false);
+                        return true;
+                    } else if (customModelAction === 'delete') {
+                        // In delete mode, right arrow confirms deletion
+                        if (pendingDeleteConfirm) {
+                            // Second press - actually delete
+                            if (deleteTimeoutRef.current) {
+                                clearTimeout(deleteTimeoutRef.current);
+                                deleteTimeoutRef.current = null;
+                            }
+                            clearActionState();
+                            void handleDeleteCustomModel(currentItem as ModelOption);
+                        } else {
+                            // First press in delete mode - set pending confirmation
+                            setPendingDeleteConfirm(true);
+                            if (deleteTimeoutRef.current) {
+                                clearTimeout(deleteTimeoutRef.current);
+                            }
+                            deleteTimeoutRef.current = setTimeout(() => {
+                                setPendingDeleteConfirm(false);
+                                deleteTimeoutRef.current = null;
+                            }, 3000); // 3 second timeout
+                        }
+                        return true;
+                    }
+                }
+
+                // Left arrow - go back in action mode
+                if (key.leftArrow) {
+                    if (customModelAction === 'delete') {
+                        setCustomModelAction('edit');
+                        setPendingDeleteConfirm(false);
                         if (deleteTimeoutRef.current) {
                             clearTimeout(deleteTimeoutRef.current);
                             deleteTimeoutRef.current = null;
                         }
+                        return true;
+                    } else if (customModelAction === 'edit') {
+                        setCustomModelAction(null);
+                        return true;
+                    }
+                    return false;
+                }
+
+                // Handle character input for search
+                if (input && !key.return && !key.upArrow && !key.downArrow && !key.tab) {
+                    // Any character input clears action state and adds to search
+                    if (customModelAction) {
+                        clearActionState();
                     }
 
                     // Backspace
@@ -305,17 +370,12 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                     return true;
                 }
 
-                const itemsLength = filteredItems.length;
                 if (itemsLength === 0) return false;
 
                 if (key.upArrow) {
-                    // Clear pending delete on navigation
-                    if (pendingDeleteModel) {
-                        setPendingDeleteModel(null);
-                        if (deleteTimeoutRef.current) {
-                            clearTimeout(deleteTimeoutRef.current);
-                            deleteTimeoutRef.current = null;
-                        }
+                    // Clear action state on vertical navigation
+                    if (customModelAction) {
+                        clearActionState();
                     }
                     const nextIndex = (selectedIndexRef.current - 1 + itemsLength) % itemsLength;
                     setSelectedIndex(nextIndex);
@@ -324,13 +384,9 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                 }
 
                 if (key.downArrow) {
-                    // Clear pending delete on navigation
-                    if (pendingDeleteModel) {
-                        setPendingDeleteModel(null);
-                        if (deleteTimeoutRef.current) {
-                            clearTimeout(deleteTimeoutRef.current);
-                            deleteTimeoutRef.current = null;
-                        }
+                    // Clear action state on vertical navigation
+                    if (customModelAction) {
+                        clearActionState();
                     }
                     const nextIndex = (selectedIndexRef.current + 1) % itemsLength;
                     setSelectedIndex(nextIndex);
@@ -343,9 +399,44 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                     if (item) {
                         if (isAddCustomOption(item)) {
                             onAddCustomModel();
-                        } else {
-                            onSelectModel(item.provider, item.name, item.baseURL);
+                            return true;
                         }
+
+                        // Handle action mode confirmations
+                        if (customModelAction === 'edit' && item.isCustom) {
+                            // Find the full custom model data
+                            const customModel = customModels.find(
+                                (cm) =>
+                                    cm.name === item.name &&
+                                    (cm.provider ?? 'openai-compatible') === item.provider
+                            );
+                            if (customModel) {
+                                onEditCustomModel(customModel);
+                            }
+                            return true;
+                        }
+
+                        if (customModelAction === 'delete' && item.isCustom) {
+                            if (pendingDeleteConfirm) {
+                                // Already confirmed, delete
+                                clearActionState();
+                                void handleDeleteCustomModel(item);
+                            } else {
+                                // Set pending confirmation
+                                setPendingDeleteConfirm(true);
+                                if (deleteTimeoutRef.current) {
+                                    clearTimeout(deleteTimeoutRef.current);
+                                }
+                                deleteTimeoutRef.current = setTimeout(() => {
+                                    setPendingDeleteConfirm(false);
+                                    deleteTimeoutRef.current = null;
+                                }, 3000);
+                            }
+                            return true;
+                        }
+
+                        // Normal selection
+                        onSelectModel(item.provider, item.name, item.displayName, item.baseURL);
                         return true;
                     }
                 }
@@ -353,7 +444,18 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                 return false;
             },
         }),
-        [isVisible, filteredItems, onClose, onSelectModel, onAddCustomModel, pendingDeleteModel]
+        [
+            isVisible,
+            filteredItems,
+            onClose,
+            onSelectModel,
+            onAddCustomModel,
+            onEditCustomModel,
+            customModelAction,
+            pendingDeleteConfirm,
+            customModels,
+            handleDeleteCustomModel,
+        ]
     );
 
     if (!isVisible) return null;
@@ -380,7 +482,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
             {/* Navigation hints */}
             <Box paddingX={0} paddingY={0}>
                 <Text dimColor>↑↓ navigate, Enter select, Esc close</Text>
-                {hasCustomModels && <Text dimColor>, Shift+D delete custom</Text>}
+                {hasCustomModels && <Text dimColor>, →← for custom actions</Text>}
             </Box>
 
             {/* Search input */}
@@ -412,6 +514,9 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                     );
                 }
 
+                // Show action buttons for selected custom models
+                const showActions = isSelected && item.isCustom;
+
                 return (
                     <Box key={`${item.provider}-${item.name}`} paddingX={0} paddingY={0}>
                         {item.isCustom && <Text color={isSelected ? 'yellow' : 'gray'}>★ </Text>}
@@ -420,7 +525,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                         </Text>
                         <Text color={isSelected ? 'white' : 'gray'} dimColor={!isSelected}>
                             {' '}
-                            ({item.isCustom ? 'custom' : item.provider})
+                            ({item.provider})
                         </Text>
                         <Text color={isSelected ? 'white' : 'gray'} dimColor={!isSelected}>
                             {' '}
@@ -432,11 +537,34 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                                 [DEFAULT]
                             </Text>
                         )}
-                        {item.isCurrent && (
+                        {item.isCurrent && !showActions && (
                             <Text color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>
                                 {' '}
                                 ← Current
                             </Text>
+                        )}
+                        {/* Action buttons for custom models - always shown when selected */}
+                        {showActions && (
+                            <>
+                                <Text> </Text>
+                                <Text
+                                    color={customModelAction === 'edit' ? 'green' : 'gray'}
+                                    bold={customModelAction === 'edit'}
+                                    inverse={customModelAction === 'edit'}
+                                >
+                                    {' '}
+                                    Edit{' '}
+                                </Text>
+                                <Text> </Text>
+                                <Text
+                                    color={customModelAction === 'delete' ? 'red' : 'gray'}
+                                    bold={customModelAction === 'delete'}
+                                    inverse={customModelAction === 'delete'}
+                                >
+                                    {' '}
+                                    Delete{' '}
+                                </Text>
+                            </>
                         )}
                     </Box>
                 );
@@ -458,10 +586,18 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
             )}
 
             {/* Delete confirmation message */}
-            {pendingDeleteModel && (
+            {customModelAction === 'delete' && pendingDeleteConfirm && (
                 <Box paddingX={0} paddingY={0} marginTop={1}>
-                    <Text color="yellow">
-                        ⚠️ Press Shift+D again to delete '{pendingDeleteModel}'
+                    <Text color="yellow">⚠️ Press → or Enter again to confirm delete</Text>
+                </Box>
+            )}
+            {/* Action mode hints */}
+            {customModelAction && !pendingDeleteConfirm && (
+                <Box paddingX={0} paddingY={0} marginTop={1}>
+                    <Text dimColor>
+                        ← {customModelAction === 'edit' ? 'deselect' : 'edit'} | →{' '}
+                        {customModelAction === 'edit' ? 'delete' : 'confirm'} | Enter{' '}
+                        {customModelAction}
                     </Text>
                 </Box>
             )}

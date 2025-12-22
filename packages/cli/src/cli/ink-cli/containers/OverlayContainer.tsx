@@ -3,7 +3,7 @@
  * Smart container for managing all overlays (selectors, autocomplete, approval)
  */
 
-import React, { useCallback, useRef, useImperativeHandle, forwardRef } from 'react';
+import React, { useCallback, useRef, useImperativeHandle, forwardRef, useState } from 'react';
 import { Box } from 'ink';
 import type { DextoAgent, McpServerConfig, McpServerStatus, McpServerType } from '@dexto/core';
 import type { TextBuffer } from '../components/shared/text-buffer.js';
@@ -272,6 +272,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                 rememberPattern?: string;
                 formData?: Record<string, unknown>;
                 enableAcceptEditsMode?: boolean;
+                rememberDirectory?: boolean;
             }) => {
                 if (!approval || !eventBus) return;
 
@@ -288,6 +289,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         rememberChoice: options.rememberChoice,
                         rememberPattern: options.rememberPattern,
                         formData: options.formData,
+                        rememberDirectory: options.rememberDirectory,
                     },
                 });
 
@@ -343,7 +345,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
 
         // Handle model selection
         const handleModelSelect = useCallback(
-            async (provider: string, model: string, baseURL?: string) => {
+            async (provider: string, model: string, displayName?: string, baseURL?: string) => {
                 setUi((prev) => ({ ...prev, activeOverlay: 'none', mcpWizardServerType: null }));
                 buffer.setText('');
                 setInput((prev) => ({ ...prev, historyIndex: -1 }));
@@ -354,7 +356,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         {
                             id: generateMessageId('system'),
                             role: 'system',
-                            content: `🔄 Switching to ${model} (${provider})...`,
+                            content: `🔄 Switching to ${displayName || model} (${provider})...`,
                             timestamp: new Date(),
                         },
                     ]);
@@ -364,15 +366,15 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         session.id || undefined
                     );
 
-                    // Update session state with new model name
-                    setSession((prev) => ({ ...prev, modelName: model }));
+                    // Update session state with display name (fallback to model ID)
+                    setSession((prev) => ({ ...prev, modelName: displayName || model }));
 
                     setMessages((prev) => [
                         ...prev,
                         {
                             id: generateMessageId('system'),
                             role: 'system',
-                            content: `✅ Successfully switched to ${model} (${provider})`,
+                            content: `✅ Successfully switched to ${displayName || model} (${provider})`,
                             timestamp: new Date(),
                         },
                     ]);
@@ -385,7 +387,11 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         setUi((prev) => ({
                             ...prev,
                             activeOverlay: 'api-key-input',
-                            pendingModelSwitch: { provider: missingProvider, model },
+                            pendingModelSwitch: {
+                                provider: missingProvider,
+                                model,
+                                ...(displayName && { displayName }),
+                            },
                         }));
                         setMessages((prev) => [
                             ...prev,
@@ -413,29 +419,66 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
             [setUi, setInput, setMessages, setSession, agent, session.id, buffer]
         );
 
+        // State for editing custom model
+        const [editingModel, setEditingModel] = useState<CustomModel | null>(null);
+
         // Handle "Add custom model" from model selector
         const handleAddCustomModel = useCallback(() => {
+            setEditingModel(null);
             setUi((prev) => ({ ...prev, activeOverlay: 'custom-model-wizard' }));
         }, [setUi]);
 
+        // Handle "Edit custom model" from model selector
+        const handleEditCustomModel = useCallback(
+            (model: CustomModel) => {
+                setEditingModel(model);
+                setUi((prev) => ({ ...prev, activeOverlay: 'custom-model-wizard' }));
+            },
+            [setUi]
+        );
+
         // Handle custom model wizard completion
         const handleCustomModelComplete = useCallback(
-            (model: CustomModel) => {
+            async (model: CustomModel) => {
+                const wasEditing = editingModel !== null;
+                setEditingModel(null);
                 setUi((prev) => ({ ...prev, activeOverlay: 'none' }));
                 buffer.setText('');
                 setInput((prev) => ({ ...prev, historyIndex: -1 }));
 
-                setMessages((prev) => [
-                    ...prev,
-                    {
-                        id: generateMessageId('system'),
-                        role: 'system',
-                        content: `✅ Custom model "${model.displayName || model.name}" saved`,
-                        timestamp: new Date(),
-                    },
-                ]);
+                if (wasEditing) {
+                    // For edits, just show confirmation message
+                    setMessages((prev) => [
+                        ...prev,
+                        {
+                            id: generateMessageId('system'),
+                            role: 'system',
+                            content: `✅ Custom model "${model.displayName || model.name}" updated`,
+                            timestamp: new Date(),
+                        },
+                    ]);
+                } else {
+                    // For new models, auto-switch to the newly created model
+                    setMessages((prev) => [
+                        ...prev,
+                        {
+                            id: generateMessageId('system'),
+                            role: 'system',
+                            content: `✅ Custom model "${model.displayName || model.name}" saved`,
+                            timestamp: new Date(),
+                        },
+                    ]);
+
+                    // Switch to the new model
+                    await handleModelSelect(
+                        model.provider,
+                        model.name,
+                        model.displayName,
+                        model.baseURL
+                    );
+                }
             },
-            [setUi, setInput, setMessages, buffer]
+            [setUi, setInput, setMessages, buffer, editingModel, handleModelSelect]
         );
 
         // Handle API key saved - retry the model switch
@@ -470,12 +513,13 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
 
                 // Retry the model switch
                 try {
+                    const pendingDisplayName = pending.displayName || pending.model;
                     setMessages((prev) => [
                         ...prev,
                         {
                             id: generateMessageId('system'),
                             role: 'system',
-                            content: `🔄 Retrying switch to ${pending.model} (${pending.provider})...`,
+                            content: `🔄 Retrying switch to ${pendingDisplayName} (${pending.provider})...`,
                             timestamp: new Date(),
                         },
                     ]);
@@ -485,15 +529,15 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         session.id || undefined
                     );
 
-                    // Update session state with new model name
-                    setSession((prev) => ({ ...prev, modelName: pending.model }));
+                    // Update session state with display name (fallback to model ID)
+                    setSession((prev) => ({ ...prev, modelName: pendingDisplayName }));
 
                     setMessages((prev) => [
                         ...prev,
                         {
                             id: generateMessageId('system'),
                             role: 'system',
-                            content: `✅ Successfully switched to ${pending.model} (${pending.provider})`,
+                            content: `✅ Successfully switched to ${pendingDisplayName} (${pending.provider})`,
                             timestamp: new Date(),
                         },
                     ]);
@@ -1694,6 +1738,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             onSelectModel={handleModelSelect}
                             onClose={handleClose}
                             onAddCustomModel={handleAddCustomModel}
+                            onEditCustomModel={handleEditCustomModel}
                             agent={agent}
                         />
                     </Box>
@@ -1829,7 +1874,11 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         ref={customModelWizardRef}
                         isVisible={true}
                         onComplete={handleCustomModelComplete}
-                        onClose={handleClose}
+                        onClose={() => {
+                            setEditingModel(null);
+                            handleClose();
+                        }}
+                        initialModel={editingModel}
                     />
                 )}
 

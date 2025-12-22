@@ -35,6 +35,16 @@ export class LLMError {
         );
     }
 
+    static missingConfig(provider: LLMProvider, configName: string) {
+        return new DextoRuntimeError(
+            LLMErrorCode.CONFIG_MISSING,
+            ErrorScope.LLM,
+            ErrorType.USER,
+            `Provider '${provider}' requires ${configName}`,
+            { provider, configName }
+        );
+    }
+
     static unsupportedProvider(provider: string) {
         const availableProviders = getSupportedProviders();
         return new DextoRuntimeError(

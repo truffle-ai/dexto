@@ -1,7 +1,7 @@
 /**
  * Custom Models Persistence
  *
- * Manages saved openai-compatible model configurations.
+ * Manages saved custom model configurations for openai-compatible and openrouter providers.
  * Stored in ~/.dexto/models/custom-models.json
  */
 
@@ -10,16 +10,53 @@ import { promises as fs } from 'fs';
 import * as path from 'path';
 import { getDextoGlobalPath } from '../utils/path.js';
 
+/** Providers that support custom models */
+export const CUSTOM_MODEL_PROVIDERS = [
+    'openai-compatible',
+    'openrouter',
+    'litellm',
+    'glama',
+    'bedrock',
+] as const;
+export type CustomModelProvider = (typeof CUSTOM_MODEL_PROVIDERS)[number];
+
 /**
- * Schema for a saved openai-compatible model configuration.
+ * Schema for a saved custom model configuration.
+ * - openai-compatible: requires baseURL, optional per-model apiKey
+ * - openrouter: baseURL is auto-injected, maxInputTokens from registry
+ * - litellm: requires baseURL, uses LITELLM_API_KEY or per-model override
+ * - glama: fixed baseURL, uses GLAMA_API_KEY or per-model override
+ *
+ * TODO: For hosted deployments, API keys should be stored in a secure
+ * key management service (e.g., AWS Secrets Manager, HashiCorp Vault)
+ * rather than in the local JSON file. Current approach is suitable for
+ * local CLI usage where the file is in ~/.dexto/ (user-private).
  */
-export const CustomModelSchema = z.object({
-    name: z.string().min(1),
-    baseURL: z.string().url(),
-    displayName: z.string().optional(),
-    maxInputTokens: z.number().int().positive().optional(),
-    maxOutputTokens: z.number().int().positive().optional(),
-});
+export const CustomModelSchema = z
+    .object({
+        name: z.string().min(1),
+        provider: z.enum(CUSTOM_MODEL_PROVIDERS).default('openai-compatible'),
+        baseURL: z.string().url().optional(),
+        displayName: z.string().optional(),
+        maxInputTokens: z.number().int().positive().optional(),
+        maxOutputTokens: z.number().int().positive().optional(),
+        // Optional per-model API key. For openai-compatible this is the primary key source.
+        // For litellm/glama/openrouter this overrides the provider-level env var key.
+        apiKey: z.string().optional(),
+    })
+    .superRefine((data, ctx) => {
+        // baseURL is required for openai-compatible and litellm
+        if (
+            (data.provider === 'openai-compatible' || data.provider === 'litellm') &&
+            !data.baseURL
+        ) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['baseURL'],
+                message: `Base URL is required for ${data.provider} provider`,
+            });
+        }
+    });
 
 export type CustomModel = z.output<typeof CustomModelSchema>;
 

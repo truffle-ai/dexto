@@ -302,6 +302,7 @@ export interface SelectedMcpServer {
 export interface PendingModelSwitch {
     provider: string;
     model: string;
+    displayName?: string;
 }
 
 /**

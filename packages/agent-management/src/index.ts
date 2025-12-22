@@ -90,6 +90,9 @@ export {
     saveProviderApiKey,
     getProviderKeyStatus,
     listProviderKeyStatus,
+    determineApiKeyStorage,
+    SHARED_API_KEY_PROVIDERS,
+    type ApiKeyStorageStrategy,
 } from './utils/api-key-store.js';
 export {
     resolveApiKeyForProvider,
@@ -105,5 +108,7 @@ export {
     getCustomModel,
     getCustomModelsPath,
     CustomModelSchema,
+    CUSTOM_MODEL_PROVIDERS,
     type CustomModel,
+    type CustomModelProvider,
 } from './models/custom-models.js';

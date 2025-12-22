@@ -42,7 +42,7 @@ vi.mock('@dexto/agent-management', async () => {
 });
 
 import { loadEnvironmentVariables, applyLayeredEnvironmentLoading } from './env.js';
-import { updateEnvFile } from '@dexto/core';
+import { updateEnvFile } from '@dexto/agent-management';
 
 function createTempDir() {
     return fs.mkdtempSync(path.join(tmpdir(), 'dexto-env-test-'));

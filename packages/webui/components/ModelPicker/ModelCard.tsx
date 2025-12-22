@@ -1,9 +1,9 @@
 import React from 'react';
-import { Star, HelpCircle, Lock, Bot, X } from 'lucide-react';
+import { Star, HelpCircle, Lock, X, Pencil } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 import type { LLMProvider } from '@dexto/core';
-import { PROVIDER_LOGOS, needsDarkModeInversion, formatPricingLines } from './constants';
+import { PROVIDER_LOGOS, needsDarkModeInversion, formatPricingLines, hasLogo } from './constants';
 import { CapabilityIcons } from './CapabilityIcons';
 import type { ModelInfo, ProviderCatalog } from './types';
 
@@ -16,6 +16,7 @@ interface ModelCardProps {
     onClick: () => void;
     onToggleFavorite: () => void;
     onDelete?: () => void;
+    onEdit?: () => void;
     size?: 'sm' | 'md' | 'lg';
     isCustom?: boolean;
 }
@@ -28,7 +29,10 @@ const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
     groq: 'Groq',
     xai: 'Grok',
     cohere: 'Cohere',
+    openrouter: 'OpenRouter',
     'openai-compatible': 'Custom',
+    litellm: 'LiteLLM',
+    glama: 'Glama',
 };
 
 // Parse display name into provider and model parts
@@ -37,6 +41,18 @@ function parseModelName(
     provider: string
 ): { providerName: string; modelName: string; suffix?: string } {
     const providerName = PROVIDER_DISPLAY_NAMES[provider] || provider;
+
+    // For multi-vendor or custom model providers, show the full display name without parsing
+    if (
+        provider === 'openrouter' ||
+        provider === 'openai-compatible' ||
+        provider === 'litellm' ||
+        provider === 'glama' ||
+        provider === 'bedrock' ||
+        provider === 'vertex'
+    ) {
+        return { providerName, modelName: displayName };
+    }
 
     // Extract suffix like (Reasoning) if present
     const suffixMatch = displayName.match(/\(([^)]+)\)$/);
@@ -67,18 +83,19 @@ export function ModelCard({
     onClick,
     onToggleFavorite,
     onDelete,
+    onEdit,
     size = 'md',
     isCustom = false,
 }: ModelCardProps) {
     const displayName = model.displayName || model.name;
-    const hasApiKey = isCustom || providerInfo?.hasApiKey || false;
+    const hasApiKey = providerInfo?.hasApiKey ?? false;
     const { providerName, modelName, suffix } = parseModelName(displayName, provider);
 
     // Build description lines for tooltip
     const priceLines = formatPricingLines(model.pricing || undefined);
     const descriptionLines = [
         `Model: ${displayName}`,
-        isCustom ? 'Custom Model (OpenAI Compatible)' : `Provider: ${providerInfo?.name}`,
+        provider === 'openai-compatible' ? 'Custom Model' : `Provider: ${providerInfo?.name}`,
         `Max tokens: ${model.maxInputTokens.toLocaleString()}`,
         model.supportedFileTypes.length > 0 && `Supports: ${model.supportedFileTypes.join(', ')}`,
         !hasApiKey && 'API key required (click to add)',
@@ -142,22 +159,40 @@ export function ModelCard({
                             </Tooltip>
                         )}
 
-                        {/* Delete Button - Top Left for custom models */}
-                        {isCustom && onDelete && (
-                            <button
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    onDelete();
-                                }}
-                                className={cn(
-                                    'absolute top-2 left-2 p-1.5 rounded-full transition-all duration-200 z-10',
-                                    'hover:bg-destructive/20 hover:scale-110 active:scale-95',
-                                    'opacity-0 group-hover:opacity-100'
+                        {/* Action Buttons - Top Left for custom models */}
+                        {isCustom && (onEdit || onDelete) && (
+                            <div className="absolute top-2 left-2 flex gap-1 z-10 opacity-0 group-hover:opacity-100 transition-all duration-200">
+                                {onEdit && (
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            onEdit();
+                                        }}
+                                        className={cn(
+                                            'p-1.5 rounded-full transition-all duration-200',
+                                            'hover:bg-primary/20 hover:scale-110 active:scale-95'
+                                        )}
+                                        aria-label="Edit custom model"
+                                    >
+                                        <Pencil className="h-4 w-4 text-muted-foreground/60 hover:text-primary" />
+                                    </button>
                                 )}
-                                aria-label="Delete custom model"
-                            >
-                                <X className="h-4 w-4 text-muted-foreground/60 hover:text-destructive" />
-                            </button>
+                                {onDelete && (
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            onDelete();
+                                        }}
+                                        className={cn(
+                                            'p-1.5 rounded-full transition-all duration-200',
+                                            'hover:bg-destructive/20 hover:scale-110 active:scale-95'
+                                        )}
+                                        aria-label="Delete custom model"
+                                    >
+                                        <X className="h-4 w-4 text-muted-foreground/60 hover:text-destructive" />
+                                    </button>
+                                )}
+                            </div>
                         )}
 
                         {/* Favorite Star - Top Right */}
@@ -191,9 +226,7 @@ export function ModelCard({
                                 logoSizes[size].container
                             )}
                         >
-                            {isCustom ? (
-                                <Bot className="h-6 w-6 text-muted-foreground" />
-                            ) : PROVIDER_LOGOS[provider] ? (
+                            {hasLogo(provider) ? (
                                 <img
                                     src={PROVIDER_LOGOS[provider]}
                                     alt={`${provider} logo`}

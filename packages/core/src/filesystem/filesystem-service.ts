@@ -25,7 +25,7 @@ import {
     FileMetadata,
     BufferEncoding,
 } from './types.js';
-import { PathValidator } from './path-validator.js';
+import { PathValidator, type DirectoryApprovalChecker } from './path-validator.js';
 import { FileSystemError } from './errors.js';
 import type { IDextoLogger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
@@ -96,6 +96,49 @@ export class FileSystemService {
 
         this.initialized = true;
         this.logger.info('FileSystemService initialized successfully');
+    }
+
+    /**
+     * Check if a file path is within the configured allowed paths.
+     * This is a public method for external consumers (like ToolManager) to check
+     * if a path requires directory approval before file operations.
+     *
+     * @param filePath The file path to check (can be relative or absolute)
+     * @returns true if the path is within allowed paths, false otherwise
+     */
+    isPathWithinAllowed(filePath: string): boolean {
+        return this.pathValidator.isPathWithinAllowed(filePath);
+    }
+
+    /**
+     * Get the list of configured allowed paths.
+     * Useful for displaying to users when directory approval is needed.
+     *
+     * @returns Array of allowed path strings
+     */
+    getAllowedPaths(): string[] {
+        return this.pathValidator.getAllowedPaths();
+    }
+
+    /**
+     * Get the parent directory of a file path (resolved to absolute).
+     * Useful for directory approval requests.
+     *
+     * @param filePath The file path
+     * @returns The absolute parent directory path
+     */
+    getParentDirectory(filePath: string): string {
+        return path.dirname(path.resolve(filePath));
+    }
+
+    /**
+     * Set a callback to check if a path is in an approved directory.
+     * This allows PathValidator to consult ApprovalManager without a direct dependency.
+     *
+     * @param checker Function that returns true if path is in an approved directory
+     */
+    setDirectoryApprovalChecker(checker: DirectoryApprovalChecker): void {
+        this.pathValidator.setDirectoryApprovalChecker(checker);
     }
 
     /**

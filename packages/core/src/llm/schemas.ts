@@ -2,12 +2,13 @@ import { LLMErrorCode } from './error-codes.js';
 import { ErrorScope, ErrorType } from '@core/errors/types.js';
 import { DextoRuntimeError } from '@core/errors/index.js';
 import { NonEmptyTrimmed, EnvExpandedString, OptionalURL } from '@core/utils/result.js';
-import { getPrimaryApiKeyEnvVar } from '@core/utils/api-key-resolver.js';
+import { getPrimaryApiKeyEnvVar, PROVIDER_API_KEY_MAP } from '@core/utils/api-key-resolver.js';
 import { z } from 'zod';
 import {
     supportsBaseURL,
     requiresBaseURL,
     acceptsAnyModel,
+    supportsCustomModels,
     getSupportedModels,
     isValidProviderModel,
     getMaxInputTokensForModel,
@@ -88,7 +89,9 @@ export const LLMConfigSchema = LLMConfigBaseSchema.superRefine((data, ctx) => {
     const maxInputTokensIsSet = data.maxInputTokens != null;
 
     // API key validation with provider context
-    if (!data.apiKey?.trim()) {
+    // Skip validation for providers that don't use API keys (e.g., Vertex uses ADC)
+    const providerRequiresApiKey = PROVIDER_API_KEY_MAP[data.provider]?.length > 0;
+    if (providerRequiresApiKey && !data.apiKey?.trim()) {
         const primaryVar = getPrimaryApiKeyEnvVar(data.provider);
         ctx.addIssue({
             code: z.ZodIssueCode.custom,
@@ -131,7 +134,8 @@ export const LLMConfigSchema = LLMConfigBaseSchema.superRefine((data, ctx) => {
             },
         });
     } else {
-        if (!acceptsAnyModel(data.provider)) {
+        // Skip model validation for providers that accept any model OR support custom models
+        if (!acceptsAnyModel(data.provider) && !supportsCustomModels(data.provider)) {
             const supportedModelsList = getSupportedModels(data.provider);
             if (!isValidProviderModel(data.provider, data.model)) {
                 ctx.addIssue({
@@ -149,7 +153,12 @@ export const LLMConfigSchema = LLMConfigBaseSchema.superRefine((data, ctx) => {
             }
         }
 
-        if (maxInputTokensIsSet && !acceptsAnyModel(data.provider)) {
+        // Skip token cap validation for providers that accept any model OR support custom models
+        if (
+            maxInputTokensIsSet &&
+            !acceptsAnyModel(data.provider) &&
+            !supportsCustomModels(data.provider)
+        ) {
             try {
                 const cap = getMaxInputTokensForModel(data.provider, data.model);
                 if (data.maxInputTokens! > cap) {
@@ -200,6 +209,8 @@ export const LLMConfigSchema = LLMConfigBaseSchema.superRefine((data, ctx) => {
             }
         }
     }
+    // Note: OpenRouter model validation happens in resolver.ts during switchLLM only
+    // to avoid network calls during startup/serverless cold starts
 }) // Brand the validated type so it can be distinguished at compile time
     .brand<'ValidatedLLMConfig'>();
 // Input type and output types for the zod schema

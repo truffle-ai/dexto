@@ -12,7 +12,6 @@ import {
 } from '@dexto/core';
 import {
     getProviderKeyStatus,
-    saveProviderApiKey,
     loadCustomModels,
     saveCustomModel,
     deleteCustomModel,
@@ -74,19 +73,6 @@ const CatalogQuerySchema = z
             .describe('Response format mode (grouped by provider or flat list)'),
     })
     .describe('Query parameters for filtering and formatting the LLM catalog');
-
-const SaveKeySchema = z
-    .object({
-        provider: z
-            .enum(LLM_PROVIDERS)
-            .describe('LLM provider identifier (e.g., openai, anthropic)'),
-        apiKey: z
-            .string()
-            .min(1, 'API key is required')
-            .describe('API key for the provider (writeOnly - never returned in responses)')
-            .openapi({ writeOnly: true }),
-    })
-    .describe('Request body for saving a provider API key');
 
 // Combine LLM updates schema with sessionId for API requests
 // LLMUpdatesSchema is no longer strict, so it accepts extra fields like sessionId
@@ -169,36 +155,6 @@ export function createLlmRouter(getAgent: () => DextoAgent) {
                             .describe(
                                 'LLM catalog in grouped or flat format based on mode query parameter'
                             ),
-                    },
-                },
-            },
-        },
-    });
-
-    const saveKeyRoute = createRoute({
-        method: 'post',
-        path: '/llm/key',
-        summary: 'Save Provider API Key',
-        description: 'Stores an API key for a provider in .env and makes it available immediately',
-        tags: ['llm'],
-        request: { body: { content: { 'application/json': { schema: SaveKeySchema } } } },
-        responses: {
-            200: {
-                description: 'API key saved',
-                content: {
-                    'application/json': {
-                        schema: z
-                            .object({
-                                ok: z.literal(true).describe('Operation success indicator'),
-                                provider: z
-                                    .enum(LLM_PROVIDERS)
-                                    .describe('Provider for which the key was saved'),
-                                envVar: z
-                                    .string()
-                                    .describe('Environment variable name where key was stored'),
-                            })
-                            .strict()
-                            .describe('API key save response'),
                     },
                 },
             },
@@ -325,7 +281,7 @@ export function createLlmRouter(getAgent: () => DextoAgent) {
     });
 
     return app
-        .openapi(currentRoute, (ctx) => {
+        .openapi(currentRoute, async (ctx) => {
             const agent = getAgent();
             const { sessionId } = ctx.req.valid('query');
 
@@ -335,10 +291,20 @@ export function createLlmRouter(getAgent: () => DextoAgent) {
 
             let displayName: string | undefined;
             try {
+                // First check registry for built-in models
                 const model = LLM_REGISTRY[currentConfig.provider]?.models.find(
                     (m) => m.name.toLowerCase() === String(currentConfig.model).toLowerCase()
                 );
                 displayName = model?.displayName || undefined;
+
+                // If not found in registry, check custom models
+                if (!displayName) {
+                    const customModels = await loadCustomModels();
+                    const customModel = customModels.find(
+                        (cm) => cm.name.toLowerCase() === String(currentConfig.model).toLowerCase()
+                    );
+                    displayName = customModel?.displayName || undefined;
+                }
             } catch {
                 // ignore lookup errors
             }
@@ -449,11 +415,6 @@ export function createLlmRouter(getAgent: () => DextoAgent) {
 
             return ctx.json({ providers: filtered });
         })
-        .openapi(saveKeyRoute, async (ctx) => {
-            const { provider, apiKey } = ctx.req.valid('json');
-            const meta = await saveProviderApiKey(provider, apiKey, process.cwd());
-            return ctx.json({ ok: true as const, provider, envVar: meta.envVar });
-        })
         .openapi(switchRoute, async (ctx) => {
             const agent = getAgent();
             const raw = ctx.req.valid('json');
@@ -481,7 +442,9 @@ export function createLlmRouter(getAgent: () => DextoAgent) {
             return ctx.json({ ok: true as const, model });
         })
         .openapi(deleteCustomModelRoute, async (ctx) => {
-            const { name } = ctx.req.valid('param');
+            const { name: encodedName } = ctx.req.valid('param');
+            // Decode URL-encoded name to handle OpenRouter model IDs with slashes
+            const name = decodeURIComponent(encodedName);
             const deleted = await deleteCustomModel(name);
             if (!deleted) {
                 throw new DextoRuntimeError(

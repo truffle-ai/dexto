@@ -89,6 +89,20 @@ export const ElicitationMetadataSchema = z
 export const CustomApprovalMetadataSchema = z.record(z.unknown()).describe('Custom metadata');
 
 /**
+ * Directory access metadata schema
+ * Used when a tool tries to access files outside the working directory
+ */
+export const DirectoryAccessMetadataSchema = z
+    .object({
+        path: z.string().describe('Full path being accessed'),
+        parentDir: z.string().describe('Parent directory (what gets approved for session)'),
+        operation: z.enum(['read', 'write', 'edit']).describe('Type of file operation'),
+        toolName: z.string().describe('Name of the tool requesting access'),
+    })
+    .strict()
+    .describe('Directory access metadata');
+
+/**
  * Base approval request schema
  */
 export const BaseApprovalRequestSchema = z
@@ -139,6 +153,14 @@ export const CustomApprovalRequestSchema = BaseApprovalRequestSchema.extend({
 }).strict();
 
 /**
+ * Directory access request schema
+ */
+export const DirectoryAccessRequestSchema = BaseApprovalRequestSchema.extend({
+    type: z.literal(ApprovalType.DIRECTORY_ACCESS),
+    metadata: DirectoryAccessMetadataSchema,
+}).strict();
+
+/**
  * Discriminated union for all approval requests
  */
 export const ApprovalRequestSchema = z.discriminatedUnion('type', [
@@ -146,6 +168,7 @@ export const ApprovalRequestSchema = z.discriminatedUnion('type', [
     CommandConfirmationRequestSchema,
     ElicitationRequestSchema,
     CustomApprovalRequestSchema,
+    DirectoryAccessRequestSchema,
 ]);
 
 /**
@@ -195,6 +218,19 @@ export const ElicitationResponseDataSchema = z
 export const CustomApprovalResponseDataSchema = z
     .record(z.unknown())
     .describe('Custom response data');
+
+/**
+ * Directory access response data schema
+ */
+export const DirectoryAccessResponseDataSchema = z
+    .object({
+        rememberDirectory: z
+            .boolean()
+            .optional()
+            .describe('Remember this directory for the session (allows all file access within it)'),
+    })
+    .strict()
+    .describe('Directory access response data');
 
 /**
  * Base approval response schema
@@ -249,6 +285,13 @@ export const CustomApprovalResponseSchema = BaseApprovalResponseSchema.extend({
 }).strict();
 
 /**
+ * Directory access response schema
+ */
+export const DirectoryAccessResponseSchema = BaseApprovalResponseSchema.extend({
+    data: DirectoryAccessResponseDataSchema.optional(),
+}).strict();
+
+/**
  * Union of all approval responses
  */
 export const ApprovalResponseSchema = z.union([
@@ -256,6 +299,7 @@ export const ApprovalResponseSchema = z.union([
     CommandConfirmationResponseSchema,
     ElicitationResponseSchema,
     CustomApprovalResponseSchema,
+    DirectoryAccessResponseSchema,
 ]);
 
 /**
@@ -276,6 +320,7 @@ export const ApprovalRequestDetailsSchema = z
             CommandConfirmationMetadataSchema,
             ElicitationMetadataSchema,
             CustomApprovalMetadataSchema,
+            DirectoryAccessMetadataSchema,
         ]),
     })
     .superRefine((data, ctx) => {
@@ -306,6 +351,16 @@ export const ApprovalRequestDetailsSchema = z
                 ctx.addIssue({
                     code: z.ZodIssueCode.custom,
                     message: 'Metadata must match ElicitationMetadataSchema for ELICITATION type',
+                    path: ['metadata'],
+                });
+            }
+        } else if (data.type === ApprovalType.DIRECTORY_ACCESS) {
+            const result = DirectoryAccessMetadataSchema.safeParse(data.metadata);
+            if (!result.success) {
+                ctx.addIssue({
+                    code: z.ZodIssueCode.custom,
+                    message:
+                        'Metadata must match DirectoryAccessMetadataSchema for DIRECTORY_ACCESS type',
                     path: ['metadata'],
                 });
             }

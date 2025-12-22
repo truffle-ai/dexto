@@ -158,6 +158,11 @@ export const TestConfigs = {
             xai: 'grok-beta',
             cohere: 'command-r',
             'openai-compatible': 'gpt-5-mini',
+            openrouter: 'anthropic/claude-3.5-haiku', // OpenRouter model format: provider/model
+            litellm: 'gpt-4', // LiteLLM model names follow the provider's convention
+            glama: 'openai/gpt-4o', // Glama model format: provider/model
+            vertex: 'gemini-2.5-pro', // Vertex AI uses ADC auth, not API keys
+            bedrock: 'anthropic.claude-3-5-haiku-20241022-v1:0', // Bedrock uses AWS credentials, not API keys
         };
 
         return {
