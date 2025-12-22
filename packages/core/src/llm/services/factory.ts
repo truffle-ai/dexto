@@ -115,7 +115,8 @@ function _createVercelModel(llmConfig: ValidatedLLMConfig): LanguageModel {
             // Users can override by explicitly using prefixed model IDs (e.g., eu.anthropic.claude...)
             // Cross-region profiles are required for newer models in most regions
             let modelId = model;
-            const hasRegionPrefix = model.startsWith('eu.') || model.startsWith('us.');
+            const hasRegionPrefix =
+                model.startsWith('eu.') || model.startsWith('us.') || model.startsWith('global.');
             if (!hasRegionPrefix) {
                 const prefix = region.startsWith('eu-') ? 'eu.' : 'us.';
                 modelId = `${prefix}${model}`;
