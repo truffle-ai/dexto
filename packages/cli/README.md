@@ -381,6 +381,42 @@ See our [Dexto Agent SDK docs](https://docs.dexto.ai/docs/guides/dexto-sdk) for 
 
 ## Advanced Usage
 
+### Starting a Server
+
+Start a Dexto server programmatically to expose REST and SSE streaming APIs to interact and manage your agent backend.
+
+```typescript
+import { DextoAgent } from '@dexto/core';
+import { startHonoApiServer } from 'dexto';
+
+// Create and configure agent
+const agent = new DextoAgent({
+  llm: {
+    provider: 'openai',
+    model: 'gpt-5-mini',
+    apiKey: process.env.OPENAI_API_KEY
+  },
+  mcpServers: {
+    filesystem: {
+      type: 'stdio',
+      command: 'npx',
+      args: ['-y', '@modelcontextprotocol/server-filesystem', '.']
+    }
+  }
+});
+
+// Start server on port 3001
+const { server } = await startHonoApiServer(agent, 3001);
+
+console.log('Dexto server running at http://localhost:3001');
+// Server provides REST API and SSE streaming endpoints
+// POST /api/message - Send messages
+// GET /api/sessions - List sessions
+// See docs.dexto.ai/api/rest/ for all endpoints
+```
+
+This starts an HTTP server with full REST and SSE APIs, enabling integration with web frontends, webhooks, and other services. See the [REST API Documentation](https://docs.dexto.ai/api/rest/) for available endpoints.
+
 ### Session Management
 
 Create and manage multiple conversation sessions with persistent storage.
