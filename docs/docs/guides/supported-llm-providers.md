@@ -149,15 +149,14 @@ llm:
 
 **Claude models:**
 - `anthropic.claude-sonnet-4-5-20250929-v1:0` (default), `anthropic.claude-haiku-4-5-20251001-v1:0`, `anthropic.claude-opus-4-5-20251101-v1:0`
-- `anthropic.claude-opus-4-1-20250805-v1:0`, `anthropic.claude-opus-4-20250514-v1:0`
-- `anthropic.claude-3-7-sonnet-20250219-v1:0`, `anthropic.claude-3-5-sonnet-20241022-v2:0`
+- `anthropic.claude-sonnet-4-20250514-v1:0`, `anthropic.claude-3-7-sonnet-20250219-v1:0`
 
 **Amazon Nova models:**
-- `us.amazon.nova-pro-v1:0`, `us.amazon.nova-lite-v1:0`, `us.amazon.nova-micro-v1:0`
+- `amazon.nova-pro-v1:0`, `amazon.nova-lite-v1:0`, `amazon.nova-micro-v1:0`
 
 **Other models:**
-- `us.meta.llama3-3-70b-instruct-v1:0`, `us.meta.llama4-maverick-17b-instruct-v1:0`
-- `us.deepseek.r1-v1:0`, `mistral.mistral-large-2402-v1:0`
+- `meta.llama3-3-70b-instruct-v1:0`, `meta.llama4-maverick-17b-instruct-v1:0`
+- `deepseek.r1-v1:0`, `mistral.mistral-large-2402-v1:0`
 
 **Features:** Enterprise security, AWS billing, access to Claude/Nova/Llama/Mistral
 
