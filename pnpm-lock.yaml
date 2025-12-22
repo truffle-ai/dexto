@@ -13,13 +13,6 @@ overrides:
 importers:
 
   .:
-    dependencies:
-      '@ai-sdk/google-vertex':
-        specifier: ^3.0.94
-        version: 3.0.94(zod@3.25.76)
-      '@modelcontextprotocol/sdk':
-        specifier: ^1.18.1
-        version: 1.18.1
     devDependencies:
       '@changesets/cli':
         specifier: ^2.29.6
@@ -114,6 +107,12 @@ importers:
       ws:
         specifier: ^8.18.1
         version: 8.18.3
+
+  examples:
+    dependencies:
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.18.1
+        version: 1.18.1
 
   packages/agent-management:
     dependencies:
@@ -309,6 +308,9 @@ importers:
       '@ai-sdk/google':
         specifier: ^2.0.0
         version: 2.0.11(zod@3.25.76)
+      '@ai-sdk/google-vertex':
+        specifier: ^3.0.94
+        version: 3.0.94(zod@3.25.76)
       '@ai-sdk/groq':
         specifier: ^2.0.0
         version: 2.0.16(zod@3.25.76)

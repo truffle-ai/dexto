@@ -122,9 +122,5 @@
             "@types/react-dom": "^19"
         }
     },
-    "preinstall": "npx only-allow pnpm",
-    "dependencies": {
-        "@ai-sdk/google-vertex": "^3.0.94",
-        "@modelcontextprotocol/sdk": "^1.18.1"
-    }
+    "preinstall": "npx only-allow pnpm"
 }
