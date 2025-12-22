@@ -1321,6 +1321,22 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
 };
 
 /**
+ * Strips Bedrock cross-region inference profile prefix (eu., us., global.) from model ID.
+ * This allows registry lookups to work regardless of whether the user specified a prefix.
+ * @param model The model ID, potentially with a region prefix
+ * @returns The model ID without the region prefix
+ */
+export function stripBedrockRegionPrefix(model: string): string {
+    if (model.startsWith('eu.') || model.startsWith('us.')) {
+        return model.slice(3);
+    }
+    if (model.startsWith('global.')) {
+        return model.slice(7);
+    }
+    return model;
+}
+
+/**
  * Gets the default model for a given provider from the registry.
  * @param provider The name of the provider.
  * @returns The default model for the provider, or null if no default model is found.
@@ -1363,7 +1379,8 @@ export function getMaxInputTokensForModel(
 ): number {
     const providerInfo = LLM_REGISTRY[provider];
 
-    const modelInfo = providerInfo.models.find((m) => m.name.toLowerCase() === model.toLowerCase());
+    const normalizedModel = stripBedrockRegionPrefix(model).toLowerCase();
+    const modelInfo = providerInfo.models.find((m) => m.name.toLowerCase() === normalizedModel);
     if (!modelInfo) {
         const supportedModels = getSupportedModels(provider).join(', ');
         logger?.error(
@@ -1385,7 +1402,8 @@ export function getMaxInputTokensForModel(
  */
 export function isValidProviderModel(provider: LLMProvider, model: string): boolean {
     const providerInfo = LLM_REGISTRY[provider];
-    return providerInfo.models.some((m) => m.name.toLowerCase() === model.toLowerCase());
+    const normalizedModel = stripBedrockRegionPrefix(model).toLowerCase();
+    return providerInfo.models.some((m) => m.name.toLowerCase() === normalizedModel);
 }
 
 /**
@@ -1397,10 +1415,10 @@ export function isValidProviderModel(provider: LLMProvider, model: string): bool
  * @returns The inferred provider name ('openai', 'anthropic', etc.), or 'unknown' if no match is found.
  */
 export function getProviderFromModel(model: string): LLMProvider {
-    const lowerModel = model.toLowerCase();
+    const normalizedModel = stripBedrockRegionPrefix(model).toLowerCase();
     for (const provider of LLM_PROVIDERS) {
         const info = LLM_REGISTRY[provider];
-        if (info.models.some((m) => m.name.toLowerCase() === lowerModel)) {
+        if (info.models.some((m) => m.name.toLowerCase() === normalizedModel)) {
             return provider;
         }
     }
@@ -1464,8 +1482,9 @@ export function getSupportedFileTypesForModel(
         return providerInfo.supportedFileTypes;
     }
 
-    // Find the specific model
-    const modelInfo = providerInfo.models.find((m) => m.name.toLowerCase() === model.toLowerCase());
+    // Find the specific model (strip Bedrock region prefix for lookup)
+    const normalizedModel = stripBedrockRegionPrefix(model).toLowerCase();
+    const modelInfo = providerInfo.models.find((m) => m.name.toLowerCase() === normalizedModel);
     if (!modelInfo) {
         throw LLMError.unknownModel(provider, model);
     }
@@ -1686,7 +1705,8 @@ export function getModelPricing(provider: LLMProvider, model: string): ModelPric
         return undefined; // No pricing for custom endpoints
     }
 
-    const modelInfo = providerInfo.models.find((m) => m.name.toLowerCase() === model.toLowerCase());
+    const normalizedModel = stripBedrockRegionPrefix(model).toLowerCase();
+    const modelInfo = providerInfo.models.find((m) => m.name.toLowerCase() === normalizedModel);
     return modelInfo?.pricing;
 }
 
@@ -1708,7 +1728,8 @@ export function getModelDisplayName(model: string, provider?: LLMProvider): stri
         return model;
     }
 
-    const modelInfo = providerInfo.models.find((m) => m.name.toLowerCase() === model.toLowerCase());
+    const normalizedModel = stripBedrockRegionPrefix(model).toLowerCase();
+    const modelInfo = providerInfo.models.find((m) => m.name.toLowerCase() === normalizedModel);
     return modelInfo?.displayName ?? model;
 }
 

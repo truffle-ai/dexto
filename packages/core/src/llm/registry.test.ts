@@ -16,6 +16,9 @@ import {
     getSupportedFileTypesForModel,
     modelSupportsFileType,
     validateModelFileSupport,
+    stripBedrockRegionPrefix,
+    getModelPricing,
+    getModelDisplayName,
 } from './registry.js';
 import { LLMErrorCode } from './error-codes.js';
 import { ErrorScope, ErrorType } from '../errors/types.js';
@@ -565,6 +568,112 @@ describe('Provider-Specific Tests', () => {
                 'image',
                 'audio',
             ]);
+        });
+    });
+
+    describe('Bedrock provider', () => {
+        it('has correct capabilities', () => {
+            expect(getSupportedProviders()).toContain('bedrock');
+            expect(getSupportedModels('bedrock').length).toBeGreaterThan(0);
+            expect(getDefaultModelForProvider('bedrock')).toBe(
+                'anthropic.claude-sonnet-4-5-20250929-v1:0'
+            );
+            expect(supportsBaseURL('bedrock')).toBe(false);
+            expect(requiresBaseURL('bedrock')).toBe(false);
+            expect(acceptsAnyModel('bedrock')).toBe(false);
+        });
+    });
+});
+
+describe('Bedrock Region Prefix Handling', () => {
+    describe('stripBedrockRegionPrefix', () => {
+        it('strips eu. prefix', () => {
+            expect(stripBedrockRegionPrefix('eu.anthropic.claude-sonnet-4-5-20250929-v1:0')).toBe(
+                'anthropic.claude-sonnet-4-5-20250929-v1:0'
+            );
+        });
+
+        it('strips us. prefix', () => {
+            expect(stripBedrockRegionPrefix('us.anthropic.claude-sonnet-4-5-20250929-v1:0')).toBe(
+                'anthropic.claude-sonnet-4-5-20250929-v1:0'
+            );
+        });
+
+        it('strips global. prefix', () => {
+            expect(
+                stripBedrockRegionPrefix('global.anthropic.claude-sonnet-4-5-20250929-v1:0')
+            ).toBe('anthropic.claude-sonnet-4-5-20250929-v1:0');
+        });
+
+        it('returns model unchanged when no prefix', () => {
+            expect(stripBedrockRegionPrefix('anthropic.claude-sonnet-4-5-20250929-v1:0')).toBe(
+                'anthropic.claude-sonnet-4-5-20250929-v1:0'
+            );
+        });
+
+        it('returns non-bedrock models unchanged', () => {
+            expect(stripBedrockRegionPrefix('gpt-5-mini')).toBe('gpt-5-mini');
+            expect(stripBedrockRegionPrefix('claude-sonnet-4-5-20250929')).toBe(
+                'claude-sonnet-4-5-20250929'
+            );
+        });
+    });
+
+    describe('registry lookups with prefixed models', () => {
+        const bedrockModel = 'anthropic.claude-sonnet-4-5-20250929-v1:0';
+
+        it('isValidProviderModel works with prefixed models', () => {
+            expect(isValidProviderModel('bedrock', bedrockModel)).toBe(true);
+            expect(isValidProviderModel('bedrock', `eu.${bedrockModel}`)).toBe(true);
+            expect(isValidProviderModel('bedrock', `us.${bedrockModel}`)).toBe(true);
+            expect(isValidProviderModel('bedrock', `global.${bedrockModel}`)).toBe(true);
+        });
+
+        it('getProviderFromModel works with prefixed models', () => {
+            expect(getProviderFromModel(bedrockModel)).toBe('bedrock');
+            expect(getProviderFromModel(`eu.${bedrockModel}`)).toBe('bedrock');
+            expect(getProviderFromModel(`us.${bedrockModel}`)).toBe('bedrock');
+            expect(getProviderFromModel(`global.${bedrockModel}`)).toBe('bedrock');
+        });
+
+        it('getMaxInputTokensForModel works with prefixed models', () => {
+            const expected = getMaxInputTokensForModel('bedrock', bedrockModel, mockLogger);
+            expect(getMaxInputTokensForModel('bedrock', `eu.${bedrockModel}`, mockLogger)).toBe(
+                expected
+            );
+            expect(getMaxInputTokensForModel('bedrock', `us.${bedrockModel}`, mockLogger)).toBe(
+                expected
+            );
+            expect(getMaxInputTokensForModel('bedrock', `global.${bedrockModel}`, mockLogger)).toBe(
+                expected
+            );
+        });
+
+        it('getSupportedFileTypesForModel works with prefixed models', () => {
+            const expected = getSupportedFileTypesForModel('bedrock', bedrockModel);
+            expect(getSupportedFileTypesForModel('bedrock', `eu.${bedrockModel}`)).toEqual(
+                expected
+            );
+            expect(getSupportedFileTypesForModel('bedrock', `us.${bedrockModel}`)).toEqual(
+                expected
+            );
+            expect(getSupportedFileTypesForModel('bedrock', `global.${bedrockModel}`)).toEqual(
+                expected
+            );
+        });
+
+        it('getModelPricing works with prefixed models', () => {
+            const expected = getModelPricing('bedrock', bedrockModel);
+            expect(getModelPricing('bedrock', `eu.${bedrockModel}`)).toEqual(expected);
+            expect(getModelPricing('bedrock', `us.${bedrockModel}`)).toEqual(expected);
+            expect(getModelPricing('bedrock', `global.${bedrockModel}`)).toEqual(expected);
+        });
+
+        it('getModelDisplayName works with prefixed models', () => {
+            const expected = getModelDisplayName(bedrockModel, 'bedrock');
+            expect(getModelDisplayName(`eu.${bedrockModel}`, 'bedrock')).toBe(expected);
+            expect(getModelDisplayName(`us.${bedrockModel}`, 'bedrock')).toBe(expected);
+            expect(getModelDisplayName(`global.${bedrockModel}`, 'bedrock')).toBe(expected);
         });
     });
 });
