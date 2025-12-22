@@ -28,8 +28,13 @@ export {
     CustomPluginConfigSchema,
     BuiltInPluginConfigSchema,
     PluginsConfigSchema,
+    RegistryPluginConfigSchema,
 } from './schemas.js';
-export type { PluginsConfig, ValidatedPluginsConfig } from './schemas.js';
+export type { PluginsConfig, ValidatedPluginsConfig, RegistryPluginConfig } from './schemas.js';
+
+// Plugin registry for programmatic plugin registration
+export { PluginRegistry, pluginRegistry } from './registry.js';
+export type { PluginProvider, PluginCreationContext } from './registry.js';
 
 // Error codes
 export { PluginErrorCode } from './error-codes.js';

@@ -35,7 +35,18 @@ const SENSITIVE_PATTERNS: RegExp[] = [
     /\bsk-[A-Za-z0-9]{20,}\b/g, // OpenAI API keys (at least 20 chars after sk-)
     /\bBearer\s+[A-Za-z0-9\-_.=]+\b/gi, // Bearer tokens
     /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g, // Emails
-    /\beyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*/g, // JWT tokens
+];
+
+// JWT pattern - applied selectively (not to signed URLs)
+const JWT_PATTERN = /\beyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*/g;
+
+// Patterns that indicate a URL contains a signed token that should NOT be redacted
+// These are legitimate shareable URLs, not sensitive credentials
+const SIGNED_URL_PATTERNS = [
+    /supabase\.co\/storage\/.*\?token=/i, // Supabase signed URLs
+    /\.r2\.cloudflarestorage\.com\/.*\?/i, // Cloudflare R2 signed URLs
+    /\.s3\..*amazonaws\.com\/.*\?(X-Amz-|AWSAccessKeyId)/i, // AWS S3 presigned URLs
+    /storage\.googleapis\.com\/.*\?/i, // Google Cloud Storage signed URLs
 ];
 
 const REDACTED = '[REDACTED]';
@@ -81,11 +92,23 @@ function truncateFileData(value: unknown, key: string, parent?: Record<string, u
  * @param seen - Internal set to track circular references
  * @returns The redacted data
  */
+/**
+ * Checks if a string is a signed URL that should not have its token redacted
+ */
+function isSignedUrl(value: string): boolean {
+    return SIGNED_URL_PATTERNS.some((pattern) => pattern.test(value));
+}
+
 export function redactSensitiveData(input: unknown, seen = new WeakSet()): unknown {
     if (typeof input === 'string') {
         let result = input;
         for (const pattern of SENSITIVE_PATTERNS) {
             result = result.replace(pattern, REDACTED);
+        }
+        // Only redact JWTs if they're not part of a signed URL
+        // Signed URLs are meant to be shared and their tokens are not credentials
+        if (!isSignedUrl(result)) {
+            result = result.replace(JWT_PATTERN, REDACTED);
         }
         return result;
     }

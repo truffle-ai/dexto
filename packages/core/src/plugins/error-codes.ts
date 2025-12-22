@@ -32,6 +32,15 @@ export enum PluginErrorCode {
 
     /** Required dependency not installed for plugin loading */
     PLUGIN_DEPENDENCY_NOT_INSTALLED = 'PLUGIN_DEPENDENCY_NOT_INSTALLED',
+
+    /** Plugin provider already registered in registry */
+    PLUGIN_PROVIDER_ALREADY_REGISTERED = 'PLUGIN_PROVIDER_ALREADY_REGISTERED',
+
+    /** Plugin provider not found in registry */
+    PLUGIN_PROVIDER_NOT_FOUND = 'PLUGIN_PROVIDER_NOT_FOUND',
+
+    /** Plugin provider configuration validation failed */
+    PLUGIN_PROVIDER_VALIDATION_FAILED = 'PLUGIN_PROVIDER_VALIDATION_FAILED',
 }
 
 export type { PluginErrorCode as default };

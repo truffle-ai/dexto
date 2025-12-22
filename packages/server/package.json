@@ -27,6 +27,7 @@
   "dependencies": {
     "@dexto/agent-management": "workspace:*",
     "@dexto/core": "workspace:*",
+    "@dexto/image-local": "workspace:*",
     "@hono/node-server": "1.19.5",
     "@hono/zod-openapi": "^0.19.1",
     "hono": "^4.6.8",

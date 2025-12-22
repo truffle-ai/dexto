@@ -1,0 +1,19 @@
+{
+  "name": "01-using-official-image",
+  "version": "1.0.0",
+  "description": "Example 1: Using a local harness with defaults",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "@dexto/agent-management": "link:../../../packages/agent-management",
+    "@dexto/core": "link:../../../packages/core",
+    "@dexto/image-local": "link:../../../packages/image-local"
+  },
+  "devDependencies": {
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3"
+  }
+}

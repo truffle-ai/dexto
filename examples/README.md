@@ -34,6 +34,24 @@ Shows a pattern for implementing a multi-agent coordinator/specialist architectu
 
 A simple HTTP server example demonstrating Dexto's resource authorization flow.
 
+### Image Loading Patterns (`image-patterns.ts`)
+
+Demonstrates the four supported patterns for working with Dexto:
+
+1. **Static Import** - Type-safe, for production applications
+2. **Dynamic Loading** - Flexible, for CLI tools and multi-tenant servers
+3. **Import from Image** - Simplest, for quick start and tutorials
+4. **No Image (Manual)** - Advanced, build directly on core with manual provider registration
+
+Each pattern is fully functional and includes detailed comments explaining when to use it.
+
+Run it with:
+```bash
+npx tsx image-patterns.ts
+```
+
+**See also:** [Images and Harnesses Concept](../docs/docs/concepts/images-and-harnesses.md) for detailed documentation on how image loading works.
+
 ## Agent Configuration Examples
 
 See the `/agents/` directory for YAML configuration examples for different use cases.

@@ -86,4 +86,13 @@ export * from './plugins/index.js';
 // Telemetry
 export * from './telemetry/index.js';
 
+// Providers
+export * from './providers/index.js';
+
+// Base Image Infrastructure
+export * from './image/index.js';
+
 // Note: Blob types, schemas, and errors are exported from './storage/index.js'
+// Note: FileSystem and Process tool providers have been moved to separate packages:
+// - @dexto/tools-filesystem
+// - @dexto/tools-process

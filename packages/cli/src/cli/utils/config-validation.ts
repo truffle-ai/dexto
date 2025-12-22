@@ -20,10 +20,10 @@ export async function validateAgentConfig(
 
     if (!parseResult.success) {
         // Check for API key validation errors using raw Zod error (preserves params)
-        logger.error(`Agent config validation error: ${JSON.stringify(parseResult.error)}`);
         const apiKeyError = findApiKeyError(parseResult.error, config);
 
         if (apiKeyError && interactive) {
+            // Interactive API key setup - no need to log error, we have a nice UI for this
             logger.debug(
                 `API key error found for ${apiKeyError.provider} provider, retriggering interactive setup`
             );
@@ -38,6 +38,9 @@ export async function validateAgentConfig(
             // Same config, but EnvExpandedString will now find the API key
             return validateAgentConfig(config, interactive);
         }
+
+        // Log error for non-interactive mode or non-API-key validation errors
+        logger.error(`Agent config validation error: ${JSON.stringify(parseResult.error)}`);
 
         // API key error in non-interactive mode or other validation errors
         console.error(chalk.red('❌ Configuration Error:'));

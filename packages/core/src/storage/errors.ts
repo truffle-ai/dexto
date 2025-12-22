@@ -337,4 +337,32 @@ export class StorageError {
             }
         );
     }
+
+    /**
+     * Unknown blob provider type
+     */
+    static unknownBlobProvider(type: string, availableTypes: string[]): DextoRuntimeError {
+        return new DextoRuntimeError(
+            StorageErrorCode.BLOB_PROVIDER_UNKNOWN,
+            ErrorScope.STORAGE,
+            ErrorType.USER,
+            `Unknown blob store type: '${type}'`,
+            { type, availableTypes },
+            `Available types: ${availableTypes.length > 0 ? availableTypes.join(', ') : 'none'}`
+        );
+    }
+
+    /**
+     * Blob provider already registered
+     */
+    static blobProviderAlreadyRegistered(type: string): DextoRuntimeError {
+        return new DextoRuntimeError(
+            StorageErrorCode.BLOB_PROVIDER_ALREADY_REGISTERED,
+            ErrorScope.STORAGE,
+            ErrorType.USER,
+            `Blob store provider '${type}' is already registered`,
+            { type },
+            `Use unregister() first if you need to replace it`
+        );
+    }
 }

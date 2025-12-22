@@ -31,7 +31,8 @@ import { ErrorScope, ErrorType } from '../../errors/types.js';
 import { LLMErrorCode } from '../error-codes.js';
 import { toError } from '../../utils/error-conversion.js';
 import { isOverflow, type ModelLimits } from '../../context/compression/overflow.js';
-import { ReactiveOverflowStrategy } from '../../context/compression/reactive-overflow.js';
+import { ReactiveOverflowStrategy } from '../../context/compression/strategies/reactive-overflow.js';
+import type { ICompressionStrategy } from '../../context/compression/types.js';
 
 /**
  * Static cache for tool support validation.
@@ -59,8 +60,7 @@ export class TurnExecutor {
      * This allows soft cancel (abort current step) while still continuing with queued messages.
      */
     private stepAbortController: AbortController;
-    // TODO: improve compression configurability
-    private compressionStrategy: ReactiveOverflowStrategy | null = null;
+    private compressionStrategy: ICompressionStrategy | null = null;
     /**
      * Map to track approval metadata by toolCallId.
      * Used to pass approval info from tool execution to result persistence.
@@ -87,7 +87,8 @@ export class TurnExecutor {
         logger: IDextoLogger,
         private messageQueue: MessageQueueService,
         private modelLimits?: ModelLimits,
-        private externalSignal?: AbortSignal
+        private externalSignal?: AbortSignal,
+        compressionStrategy?: ICompressionStrategy | null
     ) {
         this.logger = logger.createChild(DextoLogComponent.EXECUTOR);
         // Initial controller - will be replaced per-step in execute()
@@ -98,8 +99,12 @@ export class TurnExecutor {
         // - Soft cancel: aborts current step, but queue can continue with fresh controller
         // - Hard cancel (external aborted + clearQueue): checked explicitly in loop
 
-        // Initialize compression strategy if model limits are provided
-        if (modelLimits) {
+        // Use provided compression strategy, or fallback to default behavior
+        if (compressionStrategy !== undefined) {
+            // Explicitly provided (could be null to disable, or a strategy instance)
+            this.compressionStrategy = compressionStrategy;
+        } else if (modelLimits) {
+            // Backward compatibility: create default strategy if model limits are provided
             this.compressionStrategy = new ReactiveOverflowStrategy(model, {}, this.logger);
         }
     }

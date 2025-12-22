@@ -71,15 +71,44 @@ dexto --mode mcp
 Create a new Dexto TypeScript application from scratch.
 
 ```bash
-dexto create-app
+dexto create-app [name]
 ```
 
-This command will:
-1. Create project structure
-2. Set up TypeScript configuration
-3. Prompt for LLM provider and API keys
-4. Install dependencies
-5. Generate example files
+**Flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--from-image` | Use an official image (default, fastest) |
+| `--from-core` | Build from core with manual provider registration (advanced) |
+
+**Examples:**
+
+```bash
+# Interactive mode (prompts for all options)
+dexto create-app
+
+# Use official image (default behavior)
+dexto create-app my-app --from-image
+
+# Advanced: build from core
+dexto create-app my-app --from-core
+```
+
+**What happens:**
+1. Creates project structure based on selected mode
+2. Sets up TypeScript configuration
+3. Prompts for LLM provider and API keys
+4. Installs dependencies
+5. Generates example files
+
+**Mode Comparison:**
+
+| Mode | Best For | What You Get | Build Step |
+|------|----------|--------------|------------|
+| `--from-image` | Getting started, standard use cases | Pre-configured harness, zero boilerplate | No |
+| `--from-core` | Full control, learning internals | Manual provider registration | Yes |
+
+**Note:** To add custom tools to an official image at runtime, see [Adding Custom Tools](/docs/tutorials/images/02-adding-custom-tools). To create a distributable image with custom providers, use `create-image` instead.
 
 ### `init-app` - Initialize Existing TypeScript App
 
@@ -91,6 +120,47 @@ dexto init-app
 
 **Requirements:**
 - Must have `package.json` and `tsconfig.json` in current directory
+
+### `create-image` - Create Distributable Image
+
+Create a distributable Dexto image package for reuse across applications.
+
+```bash
+dexto create-image [name]
+```
+
+**Flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--extends <image-name>` | Extend an existing image (e.g., `@dexto/image-local`) |
+
+**Examples:**
+
+```bash
+# Interactive mode (prompts for all options)
+dexto create-image
+
+# Create new base image
+dexto create-image my-org-image
+
+# Extend existing image
+dexto create-image my-extended-image --extends @dexto/image-local
+```
+
+**What happens:**
+1. Creates image project structure with convention-based folders
+2. Sets up bundler configuration for auto-discovery
+3. Configures TypeScript and build scripts
+4. Generates example provider (optional)
+
+**When to create an image:**
+- Sharing infrastructure across 3+ applications
+- Building a platform for your organization
+- Creating domain-specific harnesses (e.g., healthcare, finance)
+- Standardizing storage/tools/plugins across teams
+
+See the [Building Your Own Image](/docs/tutorials/images/03-building-your-image) tutorial for details.
 
 ### `setup` - Configure Global Preferences
 

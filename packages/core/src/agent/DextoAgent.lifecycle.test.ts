@@ -55,7 +55,10 @@ describe('DextoAgent Lifecycle Management', () => {
                 disconnectAll: vi.fn(),
                 initializeFromConfig: vi.fn().mockResolvedValue(undefined),
             } as any,
-            toolManager: {} as any,
+            toolManager: {
+                setAgent: vi.fn(),
+                initialize: vi.fn().mockResolvedValue(undefined),
+            } as any,
             systemPromptManager: {} as any,
             agentEventBus: {
                 on: vi.fn(),

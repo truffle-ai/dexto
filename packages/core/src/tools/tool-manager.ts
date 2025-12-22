@@ -1,7 +1,7 @@
 import { MCPManager } from '../mcp/manager.js';
 import { InternalToolsProvider } from './internal-tools/provider.js';
 import { InternalToolsServices } from './internal-tools/registry.js';
-import type { InternalToolsConfig, ToolPolicies } from './schemas.js';
+import type { InternalToolsConfig, CustomToolsConfig, ToolPolicies } from './schemas.js';
 import { ToolSet, ToolExecutionContext } from './types.js';
 import type { ToolDisplayData } from './display-types.js';
 import { ToolError } from './errors.js';
@@ -30,6 +30,7 @@ import {
 export interface InternalToolsOptions {
     internalToolsServices?: InternalToolsServices;
     internalToolsConfig?: InternalToolsConfig;
+    customToolsConfig?: CustomToolsConfig;
 }
 
 /**
@@ -84,6 +85,7 @@ export class ToolManager {
     // Tool source prefixing - ALL tools get prefixed by source
     private static readonly MCP_TOOL_PREFIX = 'mcp--';
     private static readonly INTERNAL_TOOL_PREFIX = 'internal--';
+    private static readonly CUSTOM_TOOL_PREFIX = 'custom--';
 
     // Tool caching for performance
     private toolsCache: ToolSet = {};
@@ -108,8 +110,11 @@ export class ToolManager {
         this.toolPolicies = toolPolicies;
         this.logger = logger.createChild(DextoLogComponent.TOOLS);
 
-        // Initialize internal tools if configured
-        if (options?.internalToolsConfig && options.internalToolsConfig.length > 0) {
+        // Initialize internal tools and/or custom tools if configured
+        if (
+            (options?.internalToolsConfig && options.internalToolsConfig.length > 0) ||
+            (options?.customToolsConfig && options.customToolsConfig.length > 0)
+        ) {
             // Include approvalManager in services for internal tools
             const internalToolsServices = {
                 ...options.internalToolsServices,
@@ -117,7 +122,8 @@ export class ToolManager {
             };
             this.internalToolsProvider = new InternalToolsProvider(
                 internalToolsServices,
-                options.internalToolsConfig,
+                options.internalToolsConfig || [],
+                options.customToolsConfig || [],
                 this.logger
             );
         }
@@ -150,6 +156,17 @@ export class ToolManager {
         this.sessionManager = sessionManager;
         this.stateManager = stateManager;
         this.logger.debug('Plugin support configured for ToolManager');
+    }
+
+    /**
+     * Set agent reference for custom tools (called after construction to avoid circular dependencies)
+     * Must be called before initialize() if custom tools are configured
+     */
+    setAgent(agent: any): void {
+        if (this.internalToolsProvider) {
+            this.internalToolsProvider.setAgent(agent);
+            this.logger.debug('Agent reference configured for custom tools');
+        }
     }
 
     /**
@@ -255,9 +272,10 @@ export class ToolManager {
     private async buildAllTools(): Promise<ToolSet> {
         const allTools: ToolSet = {};
 
-        // Get tools from both sources (already in final JSON Schema format)
+        // Get tools from all sources (already in final JSON Schema format)
         let mcpTools: ToolSet = {};
         let internalTools: ToolSet = {};
+        let customTools: ToolSet = {};
 
         try {
             mcpTools = await this.mcpManager.getAllTools();
@@ -269,7 +287,7 @@ export class ToolManager {
         }
 
         try {
-            internalTools = this.internalToolsProvider?.getAllTools() || {};
+            internalTools = this.internalToolsProvider?.getInternalTools() || {};
         } catch (error) {
             this.logger.error(
                 `Failed to get internal tools: ${error instanceof Error ? error.message : String(error)}`
@@ -277,7 +295,16 @@ export class ToolManager {
             internalTools = {};
         }
 
-        // Add ALL internal tools with prefix
+        try {
+            customTools = this.internalToolsProvider?.getCustomTools() || {};
+        } catch (error) {
+            this.logger.error(
+                `Failed to get custom tools: ${error instanceof Error ? error.message : String(error)}`
+            );
+            customTools = {};
+        }
+
+        // Add internal tools with 'internal--' prefix
         for (const [toolName, toolDef] of Object.entries(internalTools)) {
             const qualifiedName = `${ToolManager.INTERNAL_TOOL_PREFIX}${toolName}`;
             allTools[qualifiedName] = {
@@ -287,7 +314,17 @@ export class ToolManager {
             };
         }
 
-        // Add ALL MCP tools with prefix
+        // Add custom tools with 'custom--' prefix
+        for (const [toolName, toolDef] of Object.entries(customTools)) {
+            const qualifiedName = `${ToolManager.CUSTOM_TOOL_PREFIX}${toolName}`;
+            allTools[qualifiedName] = {
+                ...toolDef,
+                name: qualifiedName,
+                description: `${toolDef.description || 'No description provided'} (custom tool)`,
+            };
+        }
+
+        // Add MCP tools with 'mcp--' prefix
         for (const [toolName, toolDef] of Object.entries(mcpTools)) {
             const qualifiedName = `${ToolManager.MCP_TOOL_PREFIX}${toolName}`;
             allTools[qualifiedName] = {
@@ -300,9 +337,10 @@ export class ToolManager {
         const totalTools = Object.keys(allTools).length;
         const mcpCount = Object.keys(mcpTools).length;
         const internalCount = Object.keys(internalTools).length;
+        const customCount = Object.keys(customTools).length;
 
         this.logger.debug(
-            `🔧 Unified tool discovery: ${totalTools} total tools (${mcpCount} MCP → ${ToolManager.MCP_TOOL_PREFIX}*, ${internalCount} internal → ${ToolManager.INTERNAL_TOOL_PREFIX}*)`
+            `🔧 Unified tool discovery: ${totalTools} total tools (${mcpCount} MCP, ${internalCount} internal, ${customCount} custom)`
         );
 
         return allTools;
@@ -441,16 +479,33 @@ export class ToolManager {
                     abortSignal
                 );
             }
+            // Route to custom tools
+            else if (toolName.startsWith(ToolManager.CUSTOM_TOOL_PREFIX)) {
+                this.logger.debug(`🔧 Detected custom tool: '${toolName}'`);
+                const actualToolName = toolName.substring(ToolManager.CUSTOM_TOOL_PREFIX.length);
+                if (actualToolName.length === 0) {
+                    throw ToolError.invalidName(toolName, 'tool name cannot be empty after prefix');
+                }
+                if (!this.internalToolsProvider) {
+                    throw ToolError.internalToolsNotInitialized(toolName);
+                }
+                this.logger.debug(`🎯 Custom routing: '${toolName}' -> '${actualToolName}'`);
+                result = await this.internalToolsProvider.executeTool(
+                    actualToolName,
+                    args,
+                    sessionId,
+                    abortSignal
+                );
+            }
             // Tool doesn't have proper prefix
-            // TODO: will update for custom tools
             else {
                 this.logger.debug(`🔧 Detected tool without proper prefix: '${toolName}'`);
                 const stats = await this.getToolStats();
                 this.logger.error(
-                    `❌ Tool missing source prefix: '${toolName}' (expected '${ToolManager.MCP_TOOL_PREFIX}*' or '${ToolManager.INTERNAL_TOOL_PREFIX}*')`
+                    `❌ Tool missing source prefix: '${toolName}' (expected '${ToolManager.MCP_TOOL_PREFIX}*', '${ToolManager.INTERNAL_TOOL_PREFIX}*', or '${ToolManager.CUSTOM_TOOL_PREFIX}*')`
                 );
                 this.logger.debug(
-                    `Available: ${stats.mcp} MCP tools, ${stats.internal} internal tools`
+                    `Available: ${stats.mcp} MCP, ${stats.internal} internal, ${stats.custom} custom tools`
                 );
                 throw ToolError.notFound(toolName);
             }
@@ -533,7 +588,13 @@ export class ToolManager {
         // Check internal tools
         if (toolName.startsWith(ToolManager.INTERNAL_TOOL_PREFIX)) {
             const actualToolName = toolName.substring(ToolManager.INTERNAL_TOOL_PREFIX.length);
-            return this.internalToolsProvider?.hasTool(actualToolName) ?? false;
+            return this.internalToolsProvider?.hasInternalTool(actualToolName) ?? false;
+        }
+
+        // Check custom tools
+        if (toolName.startsWith(ToolManager.CUSTOM_TOOL_PREFIX)) {
+            const actualToolName = toolName.substring(ToolManager.CUSTOM_TOOL_PREFIX.length);
+            return this.internalToolsProvider?.hasCustomTool(actualToolName) ?? false;
         }
 
         // Tool without proper prefix doesn't exist
@@ -547,9 +608,11 @@ export class ToolManager {
         total: number;
         mcp: number;
         internal: number;
+        custom: number;
     }> {
         let mcpTools: ToolSet = {};
         let internalTools: ToolSet = {};
+        let customTools: ToolSet = {};
 
         try {
             mcpTools = await this.mcpManager.getAllTools();
@@ -561,7 +624,7 @@ export class ToolManager {
         }
 
         try {
-            internalTools = this.internalToolsProvider?.getAllTools() || {};
+            internalTools = this.internalToolsProvider?.getInternalTools() || {};
         } catch (error) {
             this.logger.error(
                 `Failed to get internal tools for stats: ${error instanceof Error ? error.message : String(error)}`
@@ -569,22 +632,33 @@ export class ToolManager {
             internalTools = {};
         }
 
+        try {
+            customTools = this.internalToolsProvider?.getCustomTools() || {};
+        } catch (error) {
+            this.logger.error(
+                `Failed to get custom tools for stats: ${error instanceof Error ? error.message : String(error)}`
+            );
+            customTools = {};
+        }
+
         const mcpCount = Object.keys(mcpTools).length;
         const internalCount = Object.keys(internalTools).length;
+        const customCount = Object.keys(customTools).length;
 
         return {
-            total: mcpCount + internalCount, // No conflicts with universal prefixing
+            total: mcpCount + internalCount + customCount,
             mcp: mcpCount,
             internal: internalCount,
+            custom: customCount,
         };
     }
 
     /**
-     * Get the source of a tool (mcp, internal, or unknown)
+     * Get the source of a tool (mcp, internal, custom, or unknown)
      * @param toolName The name of the tool to check
      * @returns The source of the tool
      */
-    getToolSource(toolName: string): 'mcp' | 'internal' | 'unknown' {
+    getToolSource(toolName: string): 'mcp' | 'internal' | 'custom' | 'unknown' {
         if (
             toolName.startsWith(ToolManager.MCP_TOOL_PREFIX) &&
             toolName.length > ToolManager.MCP_TOOL_PREFIX.length
@@ -596,6 +670,12 @@ export class ToolManager {
             toolName.length > ToolManager.INTERNAL_TOOL_PREFIX.length
         ) {
             return 'internal';
+        }
+        if (
+            toolName.startsWith(ToolManager.CUSTOM_TOOL_PREFIX) &&
+            toolName.length > ToolManager.CUSTOM_TOOL_PREFIX.length
+        ) {
+            return 'custom';
         }
         return 'unknown';
     }

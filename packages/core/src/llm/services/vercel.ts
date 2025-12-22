@@ -49,6 +49,9 @@ export class VercelLLMService {
     private logger: IDextoLogger;
     private resourceManager: ResourceManager;
     private messageQueue: MessageQueueService;
+    private compressionStrategy:
+        | import('../../context/compression/types.js').ICompressionStrategy
+        | null;
 
     /**
      * Helper to extract model ID from LanguageModel union type (string | LanguageModelV2)
@@ -66,7 +69,10 @@ export class VercelLLMService {
         config: ValidatedLLMConfig,
         sessionId: string,
         resourceManager: ResourceManager,
-        logger: IDextoLogger
+        logger: IDextoLogger,
+        compressionStrategy?:
+            | import('../../context/compression/types.js').ICompressionStrategy
+            | null
     ) {
         this.logger = logger.createChild(DextoLogComponent.LLM);
         this.model = model;
@@ -75,6 +81,7 @@ export class VercelLLMService {
         this.sessionEventBus = sessionEventBus;
         this.sessionId = sessionId;
         this.resourceManager = resourceManager;
+        this.compressionStrategy = compressionStrategy ?? null;
 
         // Create session-level message queue for mid-task user messages
         this.messageQueue = new MessageQueueService(this.sessionEventBus, this.logger);
@@ -124,7 +131,8 @@ export class VercelLLMService {
             this.logger,
             this.messageQueue,
             undefined, // modelLimits - TurnExecutor will use defaults
-            externalSignal
+            externalSignal,
+            this.compressionStrategy // Pass compression strategy from service
         );
     }
 

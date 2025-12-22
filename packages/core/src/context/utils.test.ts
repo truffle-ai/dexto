@@ -205,7 +205,10 @@ describe('sanitizeToolResult success tracking', () => {
         );
 
         expect(result.meta.success).toBe(true);
-        expect(result.content).toHaveLength(1);
+        // Expect 2 parts: image + blob reference annotation text
+        expect(result.content).toHaveLength(2);
+        expect(result.content[0]?.type).toBe('image');
+        expect(result.content[1]?.type).toBe('text');
     });
 
     it('should track failed tool results with complex output', async () => {
@@ -285,13 +288,26 @@ describe('tool result normalization pipeline', () => {
             mockLogger
         );
 
-        expect(persisted.parts).toHaveLength(1);
+        // Expect 2 parts: image + blob reference annotation text
+        expect(persisted.parts).toHaveLength(2);
         const part = persisted.parts[0];
         if (!part || part.type !== 'image') {
             throw new Error('expected image part after persistence');
         }
         expect(typeof part.image).toBe('string');
         expect(part.image).toMatch(/^@blob:/);
+
+        // Verify annotation text part
+        // Uses "resource_ref:" prefix to avoid expansion by expandBlobsInText()
+        const annotationPart = persisted.parts[1];
+        expect(annotationPart?.type).toBe('text');
+        if (annotationPart?.type === 'text') {
+            expect(annotationPart.text).toContain('resource_ref:blob:');
+            expect(annotationPart.text).toContain('image/jpeg');
+            // Should NOT contain @blob: which would trigger expansion
+            expect(annotationPart.text).not.toContain('@blob:');
+        }
+
         expect(persisted.resources).toBeDefined();
         expect(persisted.resources?.[0]?.kind).toBe('image');
     });

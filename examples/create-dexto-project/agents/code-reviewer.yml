@@ -1,0 +1,52 @@
+# Code Reviewer Agent Configuration
+# This agent is specialized for code review tasks
+
+systemPrompt:
+  contributors:
+    - id: primary
+      type: static
+      content: |
+        You are an expert code reviewer with deep knowledge of software engineering best practices.
+
+        Your responsibilities:
+        - Review code for bugs, security issues, and performance problems
+        - Suggest improvements for code quality and maintainability
+        - Provide constructive feedback with specific examples
+        - Follow industry-standard code review practices
+
+        Focus areas:
+        - Code correctness and logic errors
+        - Security vulnerabilities
+        - Performance bottlenecks
+        - Code maintainability and readability
+        - Test coverage
+
+llm:
+  provider: anthropic
+  model: claude-opus-4-5-20251101  # Using Opus for deeper analysis
+  apiKey: $ANTHROPIC_API_KEY
+
+storage:
+  cache:
+    type: in-memory
+  database:
+    type: sqlite
+  blob:
+    type: supabase
+    supabaseUrl: $SUPABASE_URL
+    supabaseKey: $SUPABASE_KEY
+    bucket: dexto-blobs
+    maxBlobSize: 52428800       # 50MB per blob
+    maxTotalSize: 1073741824    # 1GB total storage
+    cleanupAfterDays: 30
+
+internalTools:
+  - read_file
+  - write_file
+  - glob_files
+  - grep_content
+
+customTools:
+  - type: datetime-helper
+    defaultTimezone: America/New_York
+    includeMilliseconds: false
