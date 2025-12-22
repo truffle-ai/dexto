@@ -198,7 +198,8 @@ Need a model not in our registry (e.g., new preview models)?
 - **CLI**: `/model` → "Add Custom Model" → AWS Bedrock
 - **WebUI**: Model picker → "+" → AWS Bedrock
 
-No API key needed - uses AWS credentials from your environment.
+Uses AWS credentials from your environment.
+Set `AWS_REGION` and either `AWS_BEARER_TOKEN_BEDROCK` or IAM credentials as explained above.
 :::
 
 ---
