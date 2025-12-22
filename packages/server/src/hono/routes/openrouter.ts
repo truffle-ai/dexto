@@ -7,6 +7,7 @@
 
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import {
+    logger,
     lookupOpenRouterModel,
     refreshOpenRouterModelCache,
     getOpenRouterModelInfo,
@@ -113,8 +114,11 @@ export function createOpenRouterRouter() {
                 try {
                     await refreshOpenRouterModelCache();
                     status = lookupOpenRouterModel(modelId);
-                } catch {
+                } catch (error) {
                     // Network failed - return unknown status
+                    logger.warn(
+                        `OpenRouter cache refresh failed during validation: ${error instanceof Error ? error.message : String(error)}`
+                    );
                     return ctx.json({
                         valid: false,
                         modelId,
@@ -152,7 +156,10 @@ export function createOpenRouterRouter() {
                     },
                     200
                 );
-            } catch {
+            } catch (error) {
+                logger.error(
+                    `Failed to refresh OpenRouter cache: ${error instanceof Error ? error.message : String(error)}`
+                );
                 return ctx.json(
                     {
                         ok: false as const,
