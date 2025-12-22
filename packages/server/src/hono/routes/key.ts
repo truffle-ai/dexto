@@ -16,6 +16,18 @@ import {
     resolveApiKeyForProvider,
 } from '@dexto/agent-management';
 
+/**
+ * Masks an API key for safe display, showing only prefix and suffix.
+ * @example maskApiKey('sk-proj-abc123xyz789') → 'sk-proj...z789'
+ */
+function maskApiKey(key: string): string {
+    if (!key) return '';
+    if (key.length < 12) {
+        return key.slice(0, 4) + '...' + key.slice(-4);
+    }
+    return key.slice(0, 7) + '...' + key.slice(-4);
+}
+
 const GetKeyParamsSchema = z
     .object({
         provider: z.enum(LLM_PROVIDERS).describe('LLM provider identifier'),
@@ -41,9 +53,9 @@ export function createKeyRouter() {
     const getKeyRoute = createRoute({
         method: 'get',
         path: '/llm/key/{provider}',
-        summary: 'Get Provider API Key',
+        summary: 'Get Provider API Key Status',
         description:
-            'Retrieves the API key for a provider if one is configured. Returns the actual key value for UI pre-population.',
+            'Retrieves the API key status for a provider. Returns a masked key value (e.g., sk-proj...xyz4) for UI display purposes.',
         tags: ['llm'],
         request: { params: GetKeyParamsSchema },
         responses: {
@@ -60,7 +72,7 @@ export function createKeyRouter() {
                                     .string()
                                     .optional()
                                     .describe(
-                                        'API key value if configured (named to avoid redaction)'
+                                        'Masked API key value if configured (e.g., sk-proj...xyz4)'
                                     ),
                             })
                             .strict()
@@ -106,17 +118,19 @@ export function createKeyRouter() {
             const { provider } = ctx.req.valid('param');
             const keyStatus = getProviderKeyStatus(provider);
             const apiKey = resolveApiKeyForProvider(provider);
+            const maskedKey = apiKey ? maskApiKey(apiKey) : undefined;
 
             return ctx.json({
                 provider,
                 envVar: keyStatus.envVar,
                 hasKey: keyStatus.hasApiKey,
-                ...(apiKey && { keyValue: apiKey }),
+                ...(maskedKey && { keyValue: maskedKey }),
             });
         })
         .openapi(saveKeyRoute, async (ctx) => {
             const { provider, apiKey } = ctx.req.valid('json');
-            const meta = await saveProviderApiKey(provider, apiKey, process.cwd());
+            // saveProviderApiKey uses getDextoEnvPath internally for context-aware .env resolution
+            const meta = await saveProviderApiKey(provider, apiKey);
             return ctx.json({ ok: true as const, provider, envVar: meta.envVar });
         });
 }

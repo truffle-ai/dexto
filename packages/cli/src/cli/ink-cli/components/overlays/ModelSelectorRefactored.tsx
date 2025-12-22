@@ -12,6 +12,7 @@ import React, {
     useRef,
     useImperativeHandle,
     useMemo,
+    useCallback,
 } from 'react';
 import { Box, Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
@@ -233,22 +234,25 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
     }, [selectedIndex, scrollOffset]);
 
     // Handle delete custom model
-    const handleDeleteCustomModel = async (model: ModelOption) => {
-        if (!model.isCustom) return;
+    const handleDeleteCustomModel = useCallback(
+        async (model: ModelOption) => {
+            if (!model.isCustom) return;
 
-        try {
-            await deleteCustomModel(model.name);
-            // Refresh the list
-            const updated = await loadCustomModels();
-            setCustomModels(updated);
-            // Update models list
-            setModels((prev) => prev.filter((m) => !(m.isCustom && m.name === model.name)));
-        } catch (error) {
-            agent.logger.error(
-                `Failed to delete custom model: ${error instanceof Error ? error.message : 'Unknown error'}`
-            );
-        }
-    };
+            try {
+                await deleteCustomModel(model.name);
+                // Refresh the list
+                const updated = await loadCustomModels();
+                setCustomModels(updated);
+                // Update models list
+                setModels((prev) => prev.filter((m) => !(m.isCustom && m.name === model.name)));
+            } catch (error) {
+                agent.logger.error(
+                    `Failed to delete custom model: ${error instanceof Error ? error.message : 'Unknown error'}`
+                );
+            }
+        },
+        [agent]
+    );
 
     // Helper to clear action state
     const clearActionState = () => {
@@ -446,8 +450,11 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
             onClose,
             onSelectModel,
             onAddCustomModel,
+            onEditCustomModel,
             customModelAction,
             pendingDeleteConfirm,
+            customModels,
+            handleDeleteCustomModel,
         ]
     );
 

@@ -228,23 +228,27 @@ export default function ModelPickerModal() {
             const SHARED_API_KEY_PROVIDERS = ['glama', 'openrouter', 'litellm'];
             const userEnteredKey = apiKey?.trim();
             const providerHasKey = providerKeyData?.hasKey ?? false;
-            const existingProviderKey = providerKeyData?.keyValue;
             const hasSharedEnvVarKey = SHARED_API_KEY_PROVIDERS.includes(provider);
 
             let saveToProviderEnvVar = false;
             let saveAsPerModel = false;
 
+            // Only process if user actually entered a new key
             if (userEnteredKey) {
                 if (hasSharedEnvVarKey) {
                     if (!providerHasKey) {
+                        // No existing key - save to provider env var
                         saveToProviderEnvVar = true;
-                    } else if (existingProviderKey && userEnteredKey !== existingProviderKey) {
+                    } else {
+                        // Provider already has a key - save as per-model override
                         saveAsPerModel = true;
                     }
                 } else {
+                    // Non-shared providers always save per-model
                     saveAsPerModel = true;
                 }
             }
+            // If user didn't enter a key, we don't modify anything - existing key (if any) is used
 
             if (saveToProviderEnvVar && userEnteredKey) {
                 await saveApiKey({ provider: provider as LLMProvider, apiKey: userEnteredKey });

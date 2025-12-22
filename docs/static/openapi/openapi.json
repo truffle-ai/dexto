@@ -13820,7 +13820,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Cache refreshed",
+            "description": "Cache refreshed successfully",
             "content": {
               "application/json": {
                 "schema": {
@@ -13845,14 +13845,41 @@
                 }
               }
             }
+          },
+          "500": {
+            "description": "Cache refresh failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ],
+                      "description": "Failure indicator"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Error message"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "message"
+                  ]
+                }
+              }
+            }
           }
         }
       }
     },
     "/api/llm/key/{provider}": {
       "get": {
-        "summary": "Get Provider API Key",
-        "description": "Retrieves the API key for a provider if one is configured. Returns the actual key value for UI pre-population.",
+        "summary": "Get Provider API Key Status",
+        "description": "Retrieves the API key status for a provider. Returns a masked key value (e.g., sk-proj...xyz4) for UI display purposes.",
         "tags": [
           "llm"
         ],
@@ -13918,7 +13945,7 @@
                     },
                     "keyValue": {
                       "type": "string",
-                      "description": "API key value if configured (named to avoid redaction)"
+                      "description": "Masked API key value if configured (e.g., sk-proj...xyz4)"
                     }
                   },
                   "required": [

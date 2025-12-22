@@ -75,12 +75,23 @@ export function createOpenRouterRouter() {
         tags: ['openrouter'],
         responses: {
             200: {
-                description: 'Cache refreshed',
+                description: 'Cache refreshed successfully',
                 content: {
                     'application/json': {
                         schema: z.object({
                             ok: z.literal(true).describe('Success indicator'),
                             message: z.string().describe('Status message'),
+                        }),
+                    },
+                },
+            },
+            500: {
+                description: 'Cache refresh failed',
+                content: {
+                    'application/json': {
+                        schema: z.object({
+                            ok: z.literal(false).describe('Failure indicator'),
+                            message: z.string().describe('Error message'),
                         }),
                     },
                 },
@@ -132,10 +143,23 @@ export function createOpenRouterRouter() {
             });
         })
         .openapi(refreshRoute, async (ctx) => {
-            await refreshOpenRouterModelCache();
-            return ctx.json({
-                ok: true as const,
-                message: 'OpenRouter model cache refreshed successfully',
-            });
+            try {
+                await refreshOpenRouterModelCache();
+                return ctx.json(
+                    {
+                        ok: true as const,
+                        message: 'OpenRouter model cache refreshed successfully',
+                    },
+                    200
+                );
+            } catch {
+                return ctx.json(
+                    {
+                        ok: false as const,
+                        message: 'Failed to refresh OpenRouter model cache',
+                    },
+                    500
+                );
+            }
         });
 }

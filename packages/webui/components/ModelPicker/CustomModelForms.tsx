@@ -82,7 +82,7 @@ interface ProviderFieldsProps {
     formData: CustomModelFormData;
     onChange: (updates: Partial<CustomModelFormData>) => void;
     setLocalError: (error: string | null) => void;
-    providerKeyData?: { hasKey: boolean; envVar: string; keyValue?: string };
+    providerKeyData?: { hasKey: boolean; envVar: string };
 }
 
 /**
@@ -573,24 +573,34 @@ function ApiKeyField({
 }: {
     formData: CustomModelFormData;
     onChange: (updates: Partial<CustomModelFormData>) => void;
-    providerKeyData?: { hasKey: boolean; envVar: string; keyValue?: string };
+    providerKeyData?: { hasKey: boolean; envVar: string };
     showApiKey: boolean;
     setShowApiKey: (show: boolean) => void;
     placeholder?: string;
 }) {
+    const hasExistingKey = providerKeyData?.hasKey ?? false;
+
     return (
         <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground">
-                API Key <span className="text-muted-foreground/60">(optional)</span>
-            </label>
+            <div className="flex items-center gap-2">
+                <label className="text-xs font-medium text-muted-foreground">
+                    API Key <span className="text-muted-foreground/60">(optional)</span>
+                </label>
+                {hasExistingKey && !formData.apiKey && (
+                    <span className="inline-flex items-center gap-1 text-[10px] text-green-600 dark:text-green-400">
+                        <Check className="h-3 w-3" />
+                        Configured
+                    </span>
+                )}
+            </div>
             <div className="relative">
                 <Input
                     value={formData.apiKey}
                     onChange={(e) => onChange({ apiKey: e.target.value })}
                     placeholder={
                         placeholder ||
-                        (providerKeyData?.hasKey
-                            ? 'Using provider key (enter to override)'
+                        (hasExistingKey
+                            ? 'Leave empty to use existing key'
                             : 'Enter API key for this endpoint')
                     }
                     type={showApiKey ? 'text' : 'password'}
@@ -609,9 +619,11 @@ function ApiKeyField({
                 </button>
             </div>
             <p className="text-[10px] text-muted-foreground">
-                {providerKeyData?.hasKey
-                    ? `Overrides ${providerKeyData.envVar} for this model`
-                    : `Saved as ${providerKeyData?.envVar || 'provider env var'} for reuse`}
+                {hasExistingKey
+                    ? formData.apiKey
+                        ? `Will override ${providerKeyData?.envVar} for this model`
+                        : `Using ${providerKeyData?.envVar}`
+                    : `Will be saved as ${providerKeyData?.envVar || 'provider env var'}`}
             </p>
         </div>
     );
@@ -636,15 +648,8 @@ export function CustomModelForm({
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const [localError, setLocalError] = useState<string | null>(null);
 
-    // Fetch provider API key for pre-population
+    // Fetch provider API key status (not the actual key - it's masked for security)
     const { data: providerKeyData } = useProviderApiKey(formData.provider as LLMProvider);
-
-    // Pre-populate API key when provider key data is fetched
-    useEffect(() => {
-        if (providerKeyData?.keyValue && !formData.apiKey) {
-            onChange({ apiKey: providerKeyData.keyValue });
-        }
-    }, [providerKeyData?.keyValue, formData.apiKey, onChange]);
 
     // Reset error when provider changes
     useEffect(() => {
@@ -655,7 +660,7 @@ export function CustomModelForm({
         // Provider-specific validation
         switch (formData.provider) {
             case 'openai-compatible':
-            case 'litellm':
+            case 'litellm': {
                 if (!formData.name.trim()) {
                     setLocalError('Model name is required');
                     return;
@@ -670,6 +675,7 @@ export function CustomModelForm({
                     return;
                 }
                 break;
+            }
             case 'openrouter':
                 if (!formData.name.trim()) {
                     setLocalError('Model ID is required');
@@ -728,7 +734,6 @@ export function CustomModelForm({
                 ? {
                       hasKey: providerKeyData.hasKey,
                       envVar: providerKeyData.envVar,
-                      keyValue: providerKeyData.keyValue,
                   }
                 : undefined,
         };
