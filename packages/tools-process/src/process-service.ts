@@ -221,9 +221,13 @@ export class ProcessService {
             const startTime = Date.now();
             let stdout = '';
             let stderr = '';
+            let stdoutBytes = 0;
+            let stderrBytes = 0;
+            let outputTruncated = false;
             let killed = false;
             let aborted = false;
             let closed = false;
+            const maxBuffer = this.config.maxOutputBuffer;
 
             // Check if already aborted before starting
             if (options.abortSignal?.aborted) {
@@ -272,14 +276,50 @@ export class ProcessService {
 
             options.abortSignal?.addEventListener('abort', abortHandler, { once: true });
 
-            // Collect stdout
+            // Collect stdout with buffer limit
             child.stdout?.on('data', (data) => {
-                stdout += data.toString();
+                if (outputTruncated) return; // Ignore further data after truncation
+
+                const chunk = data.toString();
+                const chunkBytes = Buffer.byteLength(chunk, 'utf8');
+
+                if (stdoutBytes + stderrBytes + chunkBytes <= maxBuffer) {
+                    stdout += chunk;
+                    stdoutBytes += chunkBytes;
+                } else {
+                    // Add remaining bytes up to limit, then truncate
+                    const remaining = maxBuffer - stdoutBytes - stderrBytes;
+                    if (remaining > 0) {
+                        stdout += chunk.slice(0, remaining);
+                        stdoutBytes += remaining;
+                    }
+                    stdout += '\n...[truncated]';
+                    outputTruncated = true;
+                    this.logger.warn(`Output buffer full for command: ${command}`);
+                }
             });
 
-            // Collect stderr
+            // Collect stderr with buffer limit
             child.stderr?.on('data', (data) => {
-                stderr += data.toString();
+                if (outputTruncated) return; // Ignore further data after truncation
+
+                const chunk = data.toString();
+                const chunkBytes = Buffer.byteLength(chunk, 'utf8');
+
+                if (stdoutBytes + stderrBytes + chunkBytes <= maxBuffer) {
+                    stderr += chunk;
+                    stderrBytes += chunkBytes;
+                } else {
+                    // Add remaining bytes up to limit, then truncate
+                    const remaining = maxBuffer - stdoutBytes - stderrBytes;
+                    if (remaining > 0) {
+                        stderr += chunk.slice(0, remaining);
+                        stderrBytes += remaining;
+                    }
+                    stderr += '\n...[truncated]';
+                    outputTruncated = true;
+                    this.logger.warn(`Output buffer full for command: ${command}`);
+                }
             });
 
             // Handle completion
@@ -413,14 +453,15 @@ export class ProcessService {
             1,
             Math.min(options.timeout || DEFAULT_TIMEOUT, this.config.maxTimeout)
         );
+        let killEscalationTimer: ReturnType<typeof setTimeout> | null = null;
         const killTimer = setTimeout(() => {
             if (bgProcess.status === 'running') {
                 this.logger.warn(
                     `Background process ${processId} timed out after ${bgTimeout}ms, sending SIGTERM`
                 );
                 child.kill('SIGTERM');
-                // Escalate to SIGKILL if process doesn't terminate
-                setTimeout(() => {
+                // Escalate to SIGKILL if process doesn't terminate within 5s
+                killEscalationTimer = setTimeout(() => {
                     if (bgProcess.status === 'running') {
                         this.logger.warn(
                             `Background process ${processId} did not respond to SIGTERM, sending SIGKILL`
@@ -467,6 +508,7 @@ export class ProcessService {
         // Handle completion
         child.on('close', (code) => {
             clearTimeout(killTimer);
+            if (killEscalationTimer) clearTimeout(killEscalationTimer);
             bgProcess.status = code === 0 ? 'completed' : 'failed';
             bgProcess.exitCode = code ?? undefined;
             bgProcess.completedAt = new Date();
@@ -478,6 +520,7 @@ export class ProcessService {
         // Handle errors
         child.on('error', (error) => {
             clearTimeout(killTimer);
+            if (killEscalationTimer) clearTimeout(killEscalationTimer);
             bgProcess.status = 'failed';
             bgProcess.completedAt = new Date();
             bgProcess.outputBuffer.complete = true;
