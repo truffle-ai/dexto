@@ -22,6 +22,23 @@ import { promises as fs } from 'fs';
 import { DextoValidationError, AgentErrorCode, ErrorScope, ErrorType } from '@dexto/core';
 import { AgentRegistryEntrySchema } from '../schemas/responses.js';
 
+/**
+ * OpenAPI-safe version of AgentConfigSchema
+ *
+ * This simplified schema is used ONLY for OpenAPI documentation generation.
+ * Runtime validation still uses the full AgentConfigSchema with complete validation.
+ *
+ * Why: The real AgentConfigSchema uses z.lazy() for CustomToolConfigSchema,
+ * which cannot be serialized to OpenAPI JSON by @hono/zod-openapi.
+ *
+ * See lines 785 and 859 where AgentConfigSchema.safeParse() is used for actual validation.
+ */
+const AgentConfigSchemaForOpenAPI = z
+    .record(z.any())
+    .describe(
+        'Complete agent configuration. See AgentConfig type documentation for full schema details.'
+    );
+
 const AgentIdentifierSchema = z
     .object({
         id: z
@@ -106,7 +123,7 @@ const CustomAgentCreateSchema = z
         author: z.string().optional().describe('Author or organization'),
         tags: z.array(z.string()).default([]).describe('Tags for discovery'),
         // Full agent configuration
-        config: AgentConfigSchema.describe('Complete agent configuration'),
+        config: AgentConfigSchemaForOpenAPI.describe('Complete agent configuration'),
     })
     .strict()
     .describe('Request body for creating a new custom agent with full configuration');

@@ -52,6 +52,17 @@ export const CustomToolConfigSchema = z.lazy(() => getCustomToolConfigSchema());
 export type CustomToolConfig = z.output<typeof CustomToolConfigSchema>;
 
 /**
+ * OpenAPI-safe version of CustomToolConfigSchema.
+ * Uses a generic object schema instead of lazy loading for OpenAPI compatibility.
+ */
+export const CustomToolConfigSchemaForOpenAPI = z
+    .object({
+        type: z.string().describe('Tool provider type identifier'),
+    })
+    .passthrough()
+    .describe('Custom tool provider configuration (generic representation for OpenAPI docs)');
+
+/**
  * Array of custom tool provider configurations.
  *
  * Custom tools must be registered via customToolRegistry before loading agent config
@@ -66,6 +77,15 @@ export const CustomToolsSchema = z
     );
 
 export type CustomToolsConfig = z.output<typeof CustomToolsSchema>;
+
+/**
+ * OpenAPI-safe version of CustomToolsSchema.
+ * Uses generic object schema for OpenAPI compatibility.
+ */
+export const CustomToolsSchemaForOpenAPI = z
+    .array(CustomToolConfigSchemaForOpenAPI)
+    .default([])
+    .describe('Array of custom tool provider configurations');
 
 // Tool policies schema - static allow/deny lists for fine-grained control
 export const ToolPoliciesSchema = z

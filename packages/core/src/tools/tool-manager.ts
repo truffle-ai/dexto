@@ -497,23 +497,6 @@ export class ToolManager {
                     abortSignal
                 );
             }
-            // Route to custom tools
-            else if (toolName.startsWith(ToolManager.CUSTOM_TOOL_PREFIX)) {
-                this.logger.debug(`🔧 Detected custom tool: '${toolName}'`);
-                const actualToolName = toolName.substring(ToolManager.CUSTOM_TOOL_PREFIX.length);
-                if (actualToolName.length === 0) {
-                    throw ToolError.invalidName(toolName, 'tool name cannot be empty after prefix');
-                }
-                if (!this.internalToolsProvider) {
-                    throw ToolError.internalToolsNotInitialized(toolName);
-                }
-                this.logger.debug(`🎯 Custom routing: '${toolName}' -> '${actualToolName}'`);
-                result = await this.internalToolsProvider.executeTool(
-                    actualToolName,
-                    args,
-                    sessionId
-                );
-            }
             // Tool doesn't have proper prefix
             else {
                 this.logger.debug(`🔧 Detected tool without proper prefix: '${toolName}'`);

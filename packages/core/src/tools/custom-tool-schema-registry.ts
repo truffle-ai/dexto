@@ -30,30 +30,30 @@ import { DextoLogComponent } from '../logger/v2/types.js';
  * Note: This is a lightweight registry that doesn't extend BaseRegistry
  * to avoid complexity. It simply stores schemas in a Map.
  */
+// Create a no-op logger for when logger is not available
+const createNoOpLogger = (): IDextoLogger => {
+    const noOpLogger: IDextoLogger = {
+        debug: () => {},
+        info: () => {},
+        warn: () => {},
+        error: () => {},
+        silly: () => {},
+        trackException: () => {},
+        setLevel: () => {},
+        getLevel: () => 'info',
+        getLogFilePath: () => null,
+        destroy: () => Promise.resolve(),
+        createChild: () => noOpLogger,
+    };
+    return noOpLogger;
+};
+
 class CustomToolSchemaRegistry {
     private schemas = new Map<string, z.ZodType<any>>();
     private logger: IDextoLogger;
 
-    constructor(logger?: IDextoLogger) {
-        if (logger) {
-            this.logger = logger;
-        } else {
-            // Create a no-op logger
-            const noOpLogger: IDextoLogger = {
-                debug: () => {},
-                info: () => {},
-                warn: () => {},
-                error: () => {},
-                silly: () => {},
-                trackException: () => {},
-                setLevel: () => {},
-                getLevel: () => 'info',
-                getLogFilePath: () => null,
-                destroy: () => Promise.resolve(),
-                createChild: () => noOpLogger,
-            };
-            this.logger = noOpLogger;
-        }
+    constructor(logger: IDextoLogger) {
+        this.logger = logger;
     }
 
     /**
@@ -189,9 +189,10 @@ let globalInstance: CustomToolSchemaRegistry | undefined;
  */
 export function getCustomToolSchemaRegistry(logger?: IDextoLogger): CustomToolSchemaRegistry {
     if (!globalInstance) {
-        globalInstance = new CustomToolSchemaRegistry(
-            logger ? logger.createChild(DextoLogComponent.TOOLS) : undefined
-        );
+        const registryLogger = logger
+            ? logger.createChild(DextoLogComponent.TOOLS)
+            : createNoOpLogger();
+        globalInstance = new CustomToolSchemaRegistry(registryLogger);
     }
     return globalInstance;
 }

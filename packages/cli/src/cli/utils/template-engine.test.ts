@@ -18,13 +18,13 @@ describe('template-engine', () => {
                 imageName: '@dexto/image-local',
             });
 
-            expect(result).toContain("import { createAgent } from '@dexto/core'");
+            expect(result).toContain("import { DextoAgent } from '@dexto/core'");
             expect(result).toContain("import { loadAgentConfig } from '@dexto/agent-management'");
             expect(result).toContain('Starting my-app');
             expect(result).toContain(
                 "const config = await loadAgentConfig('./agents/default.yml')"
             );
-            expect(result).toContain('const agent = createAgent(config');
+            expect(result).toContain('const agent = new DextoAgent(config');
             expect(result).toContain('await agent.start()');
         });
 
@@ -36,10 +36,10 @@ describe('template-engine', () => {
                 imageName: '@dexto/image-local',
             });
 
-            expect(result).toContain('// Create agent using the image harness');
             expect(result).toContain(
-                '// The image provides a complete harness with providers pre-configured'
+                '// Create agent - providers already registered by image environment'
             );
+            expect(result).toContain('// This auto-registers providers as a side-effect');
         });
     });
 
@@ -266,23 +266,26 @@ describe('template-engine', () => {
             const result = generateExampleTool();
 
             expect(result).toContain("import { z } from 'zod'");
-            expect(result).toContain('import type { CustomToolProvider, InternalTool }');
+            expect(result).toContain('import type { CustomToolProvider');
+            expect(result).toContain('InternalTool');
             expect(result).toContain("type: z.literal('example-tool')");
-            expect(result).toContain('export const example_toolProvider: CustomToolProvider');
+            expect(result).toContain('export const exampleToolProvider: CustomToolProvider');
         });
 
         it('should generate tool with custom name', () => {
             const result = generateExampleTool('weather-api');
 
             expect(result).toContain("type: z.literal('weather-api')");
-            expect(result).toContain('export const weather_apiProvider: CustomToolProvider');
-            expect(result).toContain("id: 'weather_api'");
+            expect(result).toContain('export const weatherApiProvider: CustomToolProvider');
+            expect(result).toContain("id: 'weatherApi'");
         });
 
         it('should include zod schemas', () => {
             const result = generateExampleTool('test-tool');
 
-            expect(result).toContain('const ConfigSchema = z.object({');
+            expect(result).toContain('const ConfigSchema = z');
+            expect(result).toContain('.object({');
+            expect(result).toContain('.strict()');
             expect(result).toContain('configSchema: ConfigSchema');
         });
 
@@ -298,10 +301,12 @@ describe('template-engine', () => {
         it('should include create function with tool definition', () => {
             const result = generateExampleTool('test-tool');
 
-            expect(result).toContain('create: (config, context) => {');
+            expect(result).toContain('create: (config');
+            expect(result).toContain('context');
+            expect(result).toContain('InternalTool[]');
             expect(result).toContain('const tool: InternalTool = {');
             expect(result).toContain('inputSchema: z.object({');
-            expect(result).toContain('execute: async (input) => {');
+            expect(result).toContain('execute: async (input');
         });
     });
 

@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { ToolErrorCode } from './error-codes.js';
 import { ErrorScope, ErrorType } from '../errors/types.js';
 import type { IDextoLogger } from '../logger/v2/types.js';
+import { customToolSchemaRegistry } from './custom-tool-schema-registry.js';
 
 // Mock logger for testing
 const mockLogger: IDextoLogger = {
@@ -19,6 +20,12 @@ const mockLogger: IDextoLogger = {
     }),
     destroy: vi.fn(),
 } as any;
+
+// Mock agent for testing
+const mockAgent = {} as any;
+
+// Mock context for testing
+const mockContext = { logger: mockLogger, agent: mockAgent };
 
 // Mock tool for testing
 const createMockTool = (id: string): InternalTool => ({
@@ -74,6 +81,8 @@ describe('CustomToolRegistry', () => {
     let registry: CustomToolRegistry;
 
     beforeEach(() => {
+        // Clear the global schema registry before each test
+        customToolSchemaRegistry.clear();
         registry = new CustomToolRegistry();
     });
 
@@ -153,6 +162,9 @@ describe('CustomToolRegistry', () => {
             registry.register(provider);
             registry.unregister('mock-provider-a');
 
+            // Also clear schema registry for this test since schema registry persists by design
+            customToolSchemaRegistry.clear();
+
             expect(() => registry.register(provider)).not.toThrow();
             expect(registry.has('mock-provider-a')).toBe(true);
         });
@@ -208,7 +220,7 @@ describe('CustomToolRegistry', () => {
             const retrieved = registry.get('mock-provider-a');
             const tools = retrieved?.create(
                 { type: 'mock-provider-a', settingA: 'test' },
-                { logger: mockLogger }
+                mockContext
             );
 
             expect(tools).toHaveLength(2);
@@ -421,6 +433,9 @@ describe('CustomToolRegistry', () => {
             registry.register(provider);
             registry.clear();
 
+            // Also clear schema registry for this test since schema registry persists by design
+            customToolSchemaRegistry.clear();
+
             expect(() => registry.register(provider)).not.toThrow();
             expect(registry.has('mock-provider-a')).toBe(true);
         });
@@ -455,7 +470,7 @@ describe('CustomToolRegistry', () => {
 
             registry.register(provider);
             const retrieved = registry.get('test-logger');
-            retrieved?.create({ type: 'test-logger' }, { logger: mockLogger });
+            retrieved?.create({ type: 'test-logger' }, mockContext);
 
             expect(loggerSpy).toHaveBeenCalledWith(mockLogger);
         });
@@ -480,7 +495,7 @@ describe('CustomToolRegistry', () => {
             const retrieved = registry.get('test-services');
             retrieved?.create(
                 { type: 'test-services' },
-                { logger: mockLogger, services: mockServices }
+                { logger: mockLogger, agent: mockAgent, services: mockServices }
             );
 
             expect(servicesSpy).toHaveBeenCalledWith(mockServices);
@@ -506,7 +521,7 @@ describe('CustomToolRegistry', () => {
             registry.register(provider);
             const validated = registry.validateConfig({ type: 'config-based', toolCount: 3 });
             const retrieved = registry.get('config-based');
-            const tools = retrieved?.create(validated, { logger: mockLogger });
+            const tools = retrieved?.create(validated, mockContext);
 
             expect(tools).toHaveLength(3);
             expect(tools![0]!.id).toBe('tool-0');
@@ -537,7 +552,7 @@ describe('CustomToolRegistry', () => {
 
             registry.register(provider);
             const retrieved = registry.get('zero-tools');
-            const tools = retrieved?.create({ type: 'zero-tools' }, { logger: mockLogger });
+            const tools = retrieved?.create({ type: 'zero-tools' }, mockContext);
 
             expect(tools).toEqual([]);
         });
