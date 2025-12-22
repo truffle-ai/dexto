@@ -1,13 +1,30 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
-import { Loader2, Plus, X, ChevronDown, Eye, EyeOff, Check } from 'lucide-react';
+import {
+    Loader2,
+    Plus,
+    X,
+    ChevronDown,
+    Eye,
+    EyeOff,
+    Check,
+    ExternalLink,
+    Info,
+} from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { validateBaseURL } from './types';
 import { useValidateOpenRouterModel } from '../hooks/useOpenRouter';
 import { useProviderApiKey, type LLMProvider } from '../hooks/useLLM';
 
-export type CustomModelProvider = 'openai-compatible' | 'openrouter' | 'litellm' | 'glama';
+const BEDROCK_DOCS_URL = 'https://docs.dexto.ai/guides/supported-llm-providers#amazon-bedrock';
+
+export type CustomModelProvider =
+    | 'openai-compatible'
+    | 'openrouter'
+    | 'litellm'
+    | 'glama'
+    | 'bedrock';
 
 export interface CustomModelFormData {
     provider: CustomModelProvider;
@@ -50,10 +67,562 @@ const PROVIDER_OPTIONS: { value: CustomModelProvider; label: string; description
         label: 'Glama',
         description: 'OpenAI-compatible gateway for multiple providers',
     },
+    {
+        value: 'bedrock',
+        label: 'AWS Bedrock',
+        description: 'Custom Bedrock model IDs (uses AWS credentials)',
+    },
 ];
 
+// ============================================================================
+// Provider-specific field components
+// ============================================================================
+
+interface ProviderFieldsProps {
+    formData: CustomModelFormData;
+    onChange: (updates: Partial<CustomModelFormData>) => void;
+    setLocalError: (error: string | null) => void;
+    providerKeyData?: { hasKey: boolean; envVar: string; keyValue?: string };
+}
+
 /**
- * Unified custom model form with provider dropdown
+ * Bedrock fields - just model ID, display name, max tokens
+ * No API key (uses AWS credentials)
+ */
+function BedrockFields({ formData, onChange, setLocalError }: ProviderFieldsProps) {
+    return (
+        <>
+            {/* Setup Guide Banner */}
+            <div className="p-3 rounded-md bg-blue-500/10 border border-blue-500/30">
+                <div className="flex items-start gap-2">
+                    <Info className="h-4 w-4 text-blue-500 mt-0.5 flex-shrink-0" />
+                    <div className="space-y-1">
+                        <p className="text-xs text-blue-700 dark:text-blue-300">
+                            Bedrock uses AWS credentials from your environment.
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                            Make sure{' '}
+                            <code className="px-1 py-0.5 rounded bg-muted text-[10px]">
+                                AWS_REGION
+                            </code>{' '}
+                            and either{' '}
+                            <code className="px-1 py-0.5 rounded bg-muted text-[10px]">
+                                AWS_BEARER_TOKEN_BEDROCK
+                            </code>{' '}
+                            or IAM credentials are set.
+                        </p>
+                        <a
+                            href={BEDROCK_DOCS_URL}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-xs text-primary hover:underline mt-1"
+                        >
+                            View setup guide
+                            <ExternalLink className="h-3 w-3" />
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            {/* Model ID */}
+            <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">Model ID *</label>
+                <Input
+                    value={formData.name}
+                    onChange={(e) => {
+                        onChange({ name: e.target.value });
+                        setLocalError(null);
+                    }}
+                    placeholder="e.g., anthropic.claude-3-haiku-20240307-v1:0"
+                    className="h-9 text-sm"
+                />
+                <p className="text-[10px] text-muted-foreground">
+                    Find model IDs in the{' '}
+                    <a
+                        href="https://docs.aws.amazon.com/bedrock/latest/userguide/model-ids.html"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary hover:underline"
+                    >
+                        AWS Bedrock documentation
+                    </a>
+                </p>
+            </div>
+
+            {/* Display Name */}
+            <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">
+                    Display Name <span className="text-muted-foreground/60">(optional)</span>
+                </label>
+                <Input
+                    value={formData.displayName}
+                    onChange={(e) => onChange({ displayName: e.target.value })}
+                    placeholder="Friendly name for the model"
+                    className="h-9 text-sm"
+                />
+            </div>
+
+            {/* Max Input Tokens */}
+            <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">
+                    Max Input Tokens <span className="text-muted-foreground/60">(optional)</span>
+                </label>
+                <Input
+                    value={formData.maxInputTokens}
+                    onChange={(e) => onChange({ maxInputTokens: e.target.value })}
+                    placeholder="e.g., 200000 (leave blank for default)"
+                    type="number"
+                    className="h-9 text-sm"
+                />
+            </div>
+        </>
+    );
+}
+
+/**
+ * OpenRouter fields - model ID with live validation, API key
+ */
+function OpenRouterFields({
+    formData,
+    onChange,
+    setLocalError,
+    providerKeyData,
+}: ProviderFieldsProps) {
+    const { mutateAsync: validateOpenRouterModel } = useValidateOpenRouterModel();
+    const validationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const [showApiKey, setShowApiKey] = useState(false);
+    const [validation, setValidation] = useState<{
+        status: 'idle' | 'validating' | 'valid' | 'invalid';
+        error?: string;
+    }>({ status: 'idle' });
+
+    // Debounced validation
+    useEffect(() => {
+        const modelId = formData.name.trim();
+        if (!modelId) {
+            setValidation({ status: 'idle' });
+            return;
+        }
+        if (!modelId.includes('/')) {
+            setValidation({
+                status: 'invalid',
+                error: 'Format: provider/model (e.g., anthropic/claude-3.5-sonnet)',
+            });
+            return;
+        }
+        if (validationTimerRef.current) clearTimeout(validationTimerRef.current);
+        setValidation({ status: 'validating' });
+        validationTimerRef.current = setTimeout(async () => {
+            try {
+                const result = await validateOpenRouterModel(modelId);
+                setValidation(
+                    result.valid
+                        ? { status: 'valid' }
+                        : {
+                              status: 'invalid',
+                              error: result.error || `Model '${modelId}' not found`,
+                          }
+                );
+            } catch {
+                setValidation({ status: 'invalid', error: 'Validation failed - check model ID' });
+            }
+        }, 500);
+        return () => {
+            if (validationTimerRef.current) clearTimeout(validationTimerRef.current);
+        };
+    }, [formData.name, validateOpenRouterModel]);
+
+    const isValid = validation.status === 'valid';
+    const isInvalid = validation.status === 'invalid';
+    const isValidating = validation.status === 'validating';
+
+    return (
+        <>
+            {/* Model ID */}
+            <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">Model ID *</label>
+                <div className="relative">
+                    <Input
+                        value={formData.name}
+                        onChange={(e) => {
+                            onChange({ name: e.target.value });
+                            setLocalError(null);
+                        }}
+                        placeholder="e.g., anthropic/claude-3.5-sonnet"
+                        className={cn(
+                            'h-9 text-sm pr-8',
+                            isValid && 'border-green-500 focus-visible:ring-green-500',
+                            isInvalid && 'border-red-500 focus-visible:ring-red-500'
+                        )}
+                    />
+                    {formData.name.trim() && (
+                        <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                            {isValidating && (
+                                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                            )}
+                            {isValid && <Check className="h-4 w-4 text-green-500" />}
+                            {isInvalid && <X className="h-4 w-4 text-red-500" />}
+                        </div>
+                    )}
+                </div>
+                {isInvalid && validation.error && (
+                    <p className="text-[10px] text-red-500">{validation.error}</p>
+                )}
+                <p className="text-[10px] text-muted-foreground">
+                    Find model IDs at{' '}
+                    <a
+                        href="https://openrouter.ai/models"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary hover:underline"
+                    >
+                        openrouter.ai/models
+                    </a>
+                </p>
+            </div>
+
+            {/* Display Name */}
+            <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">
+                    Display Name <span className="text-muted-foreground/60">(optional)</span>
+                </label>
+                <Input
+                    value={formData.displayName}
+                    onChange={(e) => onChange({ displayName: e.target.value })}
+                    placeholder="Friendly name for the model"
+                    className="h-9 text-sm"
+                />
+            </div>
+
+            {/* API Key */}
+            <ApiKeyField
+                formData={formData}
+                onChange={onChange}
+                providerKeyData={providerKeyData}
+                showApiKey={showApiKey}
+                setShowApiKey={setShowApiKey}
+            />
+        </>
+    );
+}
+
+/**
+ * Glama fields - model ID (provider/model format), API key
+ */
+function GlamaFields({ formData, onChange, setLocalError, providerKeyData }: ProviderFieldsProps) {
+    const [showApiKey, setShowApiKey] = useState(false);
+
+    return (
+        <>
+            {/* Model ID */}
+            <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">Model ID *</label>
+                <Input
+                    value={formData.name}
+                    onChange={(e) => {
+                        onChange({ name: e.target.value });
+                        setLocalError(null);
+                    }}
+                    placeholder="e.g., openai/gpt-4o, anthropic/claude-3-sonnet"
+                    className="h-9 text-sm"
+                />
+                <p className="text-[10px] text-muted-foreground">
+                    Format: provider/model. See{' '}
+                    <a
+                        href="https://glama.ai/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary hover:underline"
+                    >
+                        glama.ai
+                    </a>{' '}
+                    for supported providers.
+                </p>
+            </div>
+
+            {/* Display Name */}
+            <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">
+                    Display Name <span className="text-muted-foreground/60">(optional)</span>
+                </label>
+                <Input
+                    value={formData.displayName}
+                    onChange={(e) => onChange({ displayName: e.target.value })}
+                    placeholder="Friendly name for the model"
+                    className="h-9 text-sm"
+                />
+            </div>
+
+            {/* API Key */}
+            <ApiKeyField
+                formData={formData}
+                onChange={onChange}
+                providerKeyData={providerKeyData}
+                showApiKey={showApiKey}
+                setShowApiKey={setShowApiKey}
+            />
+        </>
+    );
+}
+
+/**
+ * OpenAI-Compatible fields - model name, baseURL (required), API key, token limits
+ */
+function OpenAICompatibleFields({
+    formData,
+    onChange,
+    setLocalError,
+    providerKeyData,
+}: ProviderFieldsProps) {
+    const [showApiKey, setShowApiKey] = useState(false);
+
+    return (
+        <>
+            {/* Model Name */}
+            <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">Model Name *</label>
+                <Input
+                    value={formData.name}
+                    onChange={(e) => {
+                        onChange({ name: e.target.value });
+                        setLocalError(null);
+                    }}
+                    placeholder="e.g., llama3.2:latest"
+                    className="h-9 text-sm"
+                />
+            </div>
+
+            {/* Base URL */}
+            <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">Base URL *</label>
+                <Input
+                    value={formData.baseURL}
+                    onChange={(e) => {
+                        onChange({ baseURL: e.target.value });
+                        setLocalError(null);
+                    }}
+                    placeholder="e.g., http://localhost:11434/v1"
+                    className="h-9 text-sm"
+                />
+                <p className="text-[10px] text-muted-foreground">
+                    The API endpoint URL (must include /v1 for OpenAI-compatible APIs)
+                </p>
+            </div>
+
+            {/* Display Name */}
+            <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">
+                    Display Name <span className="text-muted-foreground/60">(optional)</span>
+                </label>
+                <Input
+                    value={formData.displayName}
+                    onChange={(e) => onChange({ displayName: e.target.value })}
+                    placeholder="Friendly name for the model"
+                    className="h-9 text-sm"
+                />
+            </div>
+
+            {/* API Key */}
+            <ApiKeyField
+                formData={formData}
+                onChange={onChange}
+                providerKeyData={providerKeyData}
+                showApiKey={showApiKey}
+                setShowApiKey={setShowApiKey}
+                placeholder="Required if your endpoint needs authentication"
+            />
+
+            {/* Token limits */}
+            <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-muted-foreground">
+                        Max Input Tokens
+                    </label>
+                    <Input
+                        value={formData.maxInputTokens}
+                        onChange={(e) => onChange({ maxInputTokens: e.target.value })}
+                        placeholder="128000"
+                        type="number"
+                        className="h-9 text-sm"
+                    />
+                </div>
+                <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-muted-foreground">
+                        Max Output Tokens
+                    </label>
+                    <Input
+                        value={formData.maxOutputTokens}
+                        onChange={(e) => onChange({ maxOutputTokens: e.target.value })}
+                        placeholder="Optional"
+                        type="number"
+                        className="h-9 text-sm"
+                    />
+                </div>
+            </div>
+        </>
+    );
+}
+
+/**
+ * LiteLLM fields - model name, baseURL (required), API key, token limits
+ */
+function LiteLLMFields({
+    formData,
+    onChange,
+    setLocalError,
+    providerKeyData,
+}: ProviderFieldsProps) {
+    const [showApiKey, setShowApiKey] = useState(false);
+
+    return (
+        <>
+            {/* Model Name */}
+            <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">Model Name *</label>
+                <Input
+                    value={formData.name}
+                    onChange={(e) => {
+                        onChange({ name: e.target.value });
+                        setLocalError(null);
+                    }}
+                    placeholder="e.g., gpt-4, claude-3-sonnet"
+                    className="h-9 text-sm"
+                />
+            </div>
+
+            {/* Base URL */}
+            <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">
+                    LiteLLM Proxy URL *
+                </label>
+                <Input
+                    value={formData.baseURL}
+                    onChange={(e) => {
+                        onChange({ baseURL: e.target.value });
+                        setLocalError(null);
+                    }}
+                    placeholder="e.g., http://localhost:4000"
+                    className="h-9 text-sm"
+                />
+                <p className="text-[10px] text-muted-foreground">Your LiteLLM proxy URL</p>
+            </div>
+
+            {/* Display Name */}
+            <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">
+                    Display Name <span className="text-muted-foreground/60">(optional)</span>
+                </label>
+                <Input
+                    value={formData.displayName}
+                    onChange={(e) => onChange({ displayName: e.target.value })}
+                    placeholder="Friendly name for the model"
+                    className="h-9 text-sm"
+                />
+            </div>
+
+            {/* API Key */}
+            <ApiKeyField
+                formData={formData}
+                onChange={onChange}
+                providerKeyData={providerKeyData}
+                showApiKey={showApiKey}
+                setShowApiKey={setShowApiKey}
+            />
+
+            {/* Token limits */}
+            <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-muted-foreground">
+                        Max Input Tokens
+                    </label>
+                    <Input
+                        value={formData.maxInputTokens}
+                        onChange={(e) => onChange({ maxInputTokens: e.target.value })}
+                        placeholder="128000"
+                        type="number"
+                        className="h-9 text-sm"
+                    />
+                </div>
+                <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-muted-foreground">
+                        Max Output Tokens
+                    </label>
+                    <Input
+                        value={formData.maxOutputTokens}
+                        onChange={(e) => onChange({ maxOutputTokens: e.target.value })}
+                        placeholder="Optional"
+                        type="number"
+                        className="h-9 text-sm"
+                    />
+                </div>
+            </div>
+        </>
+    );
+}
+
+/**
+ * Reusable API Key field component
+ */
+function ApiKeyField({
+    formData,
+    onChange,
+    providerKeyData,
+    showApiKey,
+    setShowApiKey,
+    placeholder,
+}: {
+    formData: CustomModelFormData;
+    onChange: (updates: Partial<CustomModelFormData>) => void;
+    providerKeyData?: { hasKey: boolean; envVar: string; keyValue?: string };
+    showApiKey: boolean;
+    setShowApiKey: (show: boolean) => void;
+    placeholder?: string;
+}) {
+    return (
+        <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">
+                API Key <span className="text-muted-foreground/60">(optional)</span>
+            </label>
+            <div className="relative">
+                <Input
+                    value={formData.apiKey}
+                    onChange={(e) => onChange({ apiKey: e.target.value })}
+                    placeholder={
+                        placeholder ||
+                        (providerKeyData?.hasKey
+                            ? 'Using provider key (enter to override)'
+                            : 'Enter API key for this endpoint')
+                    }
+                    type={showApiKey ? 'text' : 'password'}
+                    className="h-9 text-sm pr-10"
+                />
+                <button
+                    type="button"
+                    onClick={() => setShowApiKey(!showApiKey)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-muted transition-colors"
+                >
+                    {showApiKey ? (
+                        <EyeOff className="h-4 w-4 text-muted-foreground" />
+                    ) : (
+                        <Eye className="h-4 w-4 text-muted-foreground" />
+                    )}
+                </button>
+            </div>
+            <p className="text-[10px] text-muted-foreground">
+                {providerKeyData?.hasKey
+                    ? `Overrides ${providerKeyData.envVar} for this model`
+                    : `Saved as ${providerKeyData?.envVar || 'provider env var'} for reuse`}
+            </p>
+        </div>
+    );
+}
+
+// ============================================================================
+// Main form component
+// ============================================================================
+
+/**
+ * Unified custom model form with provider dropdown and provider-specific fields
  */
 export function CustomModelForm({
     formData,
@@ -64,148 +633,125 @@ export function CustomModelForm({
     error,
     isEditing = false,
 }: CustomModelFormProps) {
-    const { mutateAsync: validateOpenRouterModel } = useValidateOpenRouterModel();
-    const validationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [dropdownOpen, setDropdownOpen] = useState(false);
-    const [showApiKey, setShowApiKey] = useState(false);
-
     const [localError, setLocalError] = useState<string | null>(null);
-    const [validation, setValidation] = useState<{
-        status: 'idle' | 'validating' | 'valid' | 'invalid';
-        error?: string;
-    }>({ status: 'idle' });
 
     // Fetch provider API key for pre-population
     const { data: providerKeyData } = useProviderApiKey(formData.provider as LLMProvider);
 
-    // Pre-populate API key when provider key data is fetched (only if form apiKey is empty)
+    // Pre-populate API key when provider key data is fetched
     useEffect(() => {
         if (providerKeyData?.keyValue && !formData.apiKey) {
             onChange({ apiKey: providerKeyData.keyValue });
         }
     }, [providerKeyData?.keyValue, formData.apiKey, onChange]);
 
-    // Reset validation when provider changes
+    // Reset error when provider changes
     useEffect(() => {
-        setValidation({ status: 'idle' });
         setLocalError(null);
-        setShowApiKey(false);
     }, [formData.provider]);
 
-    // Debounced validation for OpenRouter
-    useEffect(() => {
-        if (formData.provider !== 'openrouter') return;
-
-        const modelId = formData.name.trim();
-
-        // Reset if empty
-        if (!modelId) {
-            setValidation({ status: 'idle' });
-            return;
-        }
-
-        // Check format first (must contain /)
-        if (!modelId.includes('/')) {
-            setValidation({
-                status: 'invalid',
-                error: 'Format: provider/model (e.g., anthropic/claude-3.5-sonnet)',
-            });
-            return;
-        }
-
-        // Clear previous timer
-        if (validationTimerRef.current) {
-            clearTimeout(validationTimerRef.current);
-        }
-
-        // Set validating state
-        setValidation({ status: 'validating' });
-
-        // Debounce API call
-        validationTimerRef.current = setTimeout(async () => {
-            try {
-                const result = await validateOpenRouterModel(modelId);
-                if (result.valid) {
-                    setValidation({ status: 'valid' });
-                } else {
-                    setValidation({
-                        status: 'invalid',
-                        error: result.error || `Model '${modelId}' not found`,
-                    });
-                }
-            } catch {
-                setValidation({
-                    status: 'invalid',
-                    error: 'Validation failed - check model ID',
-                });
-            }
-        }, 500);
-
-        return () => {
-            if (validationTimerRef.current) {
-                clearTimeout(validationTimerRef.current);
-            }
-        };
-    }, [formData.name, formData.provider, validateOpenRouterModel]);
-
     const handleSubmit = () => {
-        // Validate based on provider
-        if (formData.provider === 'openai-compatible' || formData.provider === 'litellm') {
-            if (!formData.name.trim()) {
-                setLocalError('Model name is required');
-                return;
-            }
-            if (!formData.baseURL.trim()) {
-                setLocalError('Base URL is required');
-                return;
-            }
-            const urlValidation = validateBaseURL(formData.baseURL);
-            if (!urlValidation.isValid) {
-                setLocalError(urlValidation.error || 'Invalid Base URL');
-                return;
-            }
-        } else if (formData.provider === 'openrouter') {
-            if (validation.status !== 'valid') {
-                return;
-            }
-        } else if (formData.provider === 'glama') {
-            // Glama requires model name in provider/model format
-            if (!formData.name.trim()) {
-                setLocalError('Model name is required');
-                return;
-            }
-            if (!formData.name.includes('/')) {
-                setLocalError('Glama models use format: provider/model (e.g., openai/gpt-4o)');
-                return;
-            }
+        // Provider-specific validation
+        switch (formData.provider) {
+            case 'openai-compatible':
+            case 'litellm':
+                if (!formData.name.trim()) {
+                    setLocalError('Model name is required');
+                    return;
+                }
+                if (!formData.baseURL.trim()) {
+                    setLocalError('Base URL is required');
+                    return;
+                }
+                const urlValidation = validateBaseURL(formData.baseURL);
+                if (!urlValidation.isValid) {
+                    setLocalError(urlValidation.error || 'Invalid Base URL');
+                    return;
+                }
+                break;
+            case 'openrouter':
+                if (!formData.name.trim()) {
+                    setLocalError('Model ID is required');
+                    return;
+                }
+                if (!formData.name.includes('/')) {
+                    setLocalError('Format: provider/model (e.g., anthropic/claude-3.5-sonnet)');
+                    return;
+                }
+                break;
+            case 'glama':
+                if (!formData.name.trim()) {
+                    setLocalError('Model ID is required');
+                    return;
+                }
+                if (!formData.name.includes('/')) {
+                    setLocalError('Glama models use format: provider/model (e.g., openai/gpt-4o)');
+                    return;
+                }
+                break;
+            case 'bedrock':
+                if (!formData.name.trim()) {
+                    setLocalError('Model ID is required');
+                    return;
+                }
+                break;
         }
         setLocalError(null);
         onSubmit();
     };
 
-    const isOpenRouter = formData.provider === 'openrouter';
-    const isLiteLLM = formData.provider === 'litellm';
-    const isGlama = formData.provider === 'glama';
-    // OpenRouter and Glama have fixed endpoints (no baseURL needed from user)
-    const requiresBaseURL = !isOpenRouter && !isGlama;
-    const isValid = isOpenRouter ? validation.status === 'valid' : true;
-    const isInvalid = isOpenRouter && validation.status === 'invalid';
-    const isValidating = isOpenRouter && validation.status === 'validating';
+    const canSubmit = (() => {
+        switch (formData.provider) {
+            case 'openai-compatible':
+            case 'litellm':
+                return formData.name.trim() && formData.baseURL.trim();
+            case 'openrouter':
+            case 'glama':
+                return formData.name.trim() && formData.name.includes('/');
+            case 'bedrock':
+                return formData.name.trim().length > 0;
+            default:
+                return false;
+        }
+    })();
 
-    const canSubmit = isOpenRouter
-        ? validation.status === 'valid' && formData.name.trim()
-        : isGlama
-          ? formData.name.trim() && formData.name.includes('/')
-          : formData.name.trim() && formData.baseURL.trim();
-
-    const displayError = localError || error || (isInvalid && validation.error);
-
+    const displayError = localError || error;
     const selectedProvider = PROVIDER_OPTIONS.find((p) => p.value === formData.provider);
 
+    const renderProviderFields = () => {
+        const props: ProviderFieldsProps = {
+            formData,
+            onChange,
+            setLocalError,
+            providerKeyData: providerKeyData
+                ? {
+                      hasKey: providerKeyData.hasKey,
+                      envVar: providerKeyData.envVar,
+                      keyValue: providerKeyData.keyValue,
+                  }
+                : undefined,
+        };
+
+        switch (formData.provider) {
+            case 'bedrock':
+                return <BedrockFields {...props} />;
+            case 'openrouter':
+                return <OpenRouterFields {...props} />;
+            case 'glama':
+                return <GlamaFields {...props} />;
+            case 'litellm':
+                return <LiteLLMFields {...props} />;
+            case 'openai-compatible':
+            default:
+                return <OpenAICompatibleFields {...props} />;
+        }
+    };
+
     return (
-        <div className="flex flex-col h-full">
+        <div className="flex flex-col flex-1 min-h-0 max-h-full">
             {/* Header */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-border/30">
+            <div className="flex-shrink-0 flex items-center justify-between px-4 py-3 border-b border-border/30">
                 <h3 className="text-sm font-semibold text-foreground">
                     {isEditing ? 'Edit Custom Model' : 'Add Custom Model'}
                 </h3>
@@ -217,8 +763,8 @@ export function CustomModelForm({
                 </button>
             </div>
 
-            {/* Form Content */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            {/* Scrollable Form Content */}
+            <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4">
                 {/* Error Display */}
                 {displayError && (
                     <div className="p-2 rounded-md bg-destructive/10 border border-destructive/30">
@@ -261,6 +807,8 @@ export function CustomModelForm({
                                                 baseURL: '',
                                                 displayName: '',
                                                 apiKey: '',
+                                                maxInputTokens: '',
+                                                maxOutputTokens: '',
                                             });
                                             setDropdownOpen(false);
                                         }}
@@ -281,198 +829,8 @@ export function CustomModelForm({
                     </div>
                 </div>
 
-                {/* Model Name/ID */}
-                <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-muted-foreground">
-                        {isOpenRouter ? 'Model ID' : 'Model Name'} *
-                    </label>
-                    <div className="relative">
-                        <Input
-                            value={formData.name}
-                            onChange={(e) => {
-                                onChange({ name: e.target.value });
-                                setLocalError(null);
-                            }}
-                            placeholder={
-                                isOpenRouter
-                                    ? 'e.g., anthropic/claude-3.5-sonnet'
-                                    : isGlama
-                                      ? 'e.g., openai/gpt-4o, anthropic/claude-3-sonnet'
-                                      : isLiteLLM
-                                        ? 'e.g., gpt-4, claude-3-sonnet'
-                                        : 'e.g., llama3.2:latest'
-                            }
-                            className={cn(
-                                'h-9 text-sm pr-8',
-                                isOpenRouter &&
-                                    isValid &&
-                                    'border-green-500 focus-visible:ring-green-500',
-                                isOpenRouter &&
-                                    isInvalid &&
-                                    'border-red-500 focus-visible:ring-red-500'
-                            )}
-                        />
-                        {/* Validation status indicator for OpenRouter */}
-                        {isOpenRouter && formData.name.trim() && (
-                            <div className="absolute right-2 top-1/2 -translate-y-1/2">
-                                {isValidating && (
-                                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                                )}
-                                {isValid && (
-                                    <svg
-                                        className="h-4 w-4 text-green-500"
-                                        fill="none"
-                                        viewBox="0 0 24 24"
-                                        stroke="currentColor"
-                                    >
-                                        <path
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            strokeWidth={2}
-                                            d="M5 13l4 4L19 7"
-                                        />
-                                    </svg>
-                                )}
-                                {isInvalid && <X className="h-4 w-4 text-red-500" />}
-                            </div>
-                        )}
-                    </div>
-                    {isOpenRouter && (
-                        <p className="text-[10px] text-muted-foreground">
-                            Find model IDs at{' '}
-                            <a
-                                href="https://openrouter.ai/models"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-primary hover:underline"
-                            >
-                                openrouter.ai/models
-                            </a>
-                        </p>
-                    )}
-                    {isGlama && (
-                        <p className="text-[10px] text-muted-foreground">
-                            Format: provider/model (e.g., openai/gpt-4o). See{' '}
-                            <a
-                                href="https://glama.ai/"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-primary hover:underline"
-                            >
-                                glama.ai
-                            </a>{' '}
-                            for supported providers.
-                        </p>
-                    )}
-                </div>
-
-                {/* Base URL - for OpenAI-compatible and LiteLLM */}
-                {requiresBaseURL && (
-                    <div className="space-y-1.5">
-                        <label className="text-xs font-medium text-muted-foreground">
-                            Base URL *
-                        </label>
-                        <Input
-                            value={formData.baseURL}
-                            onChange={(e) => {
-                                onChange({ baseURL: e.target.value });
-                                setLocalError(null);
-                            }}
-                            placeholder={
-                                isLiteLLM
-                                    ? 'e.g., http://localhost:4000'
-                                    : 'e.g., http://localhost:11434/v1'
-                            }
-                            className="h-9 text-sm"
-                        />
-                        <p className="text-[10px] text-muted-foreground">
-                            {isLiteLLM
-                                ? 'Your LiteLLM proxy URL'
-                                : 'The API endpoint URL (must include /v1 for OpenAI-compatible APIs)'}
-                        </p>
-                    </div>
-                )}
-
-                {/* Display Name - optional */}
-                <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-muted-foreground">
-                        Display Name <span className="text-muted-foreground/60">(optional)</span>
-                    </label>
-                    <Input
-                        value={formData.displayName}
-                        onChange={(e) => onChange({ displayName: e.target.value })}
-                        placeholder="Friendly name for the model"
-                        className="h-9 text-sm"
-                    />
-                </div>
-
-                {/* API Key - optional, with eye toggle */}
-                <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-muted-foreground">
-                        API Key <span className="text-muted-foreground/60">(optional)</span>
-                    </label>
-                    <div className="relative">
-                        <Input
-                            value={formData.apiKey}
-                            onChange={(e) => onChange({ apiKey: e.target.value })}
-                            placeholder={
-                                providerKeyData?.hasKey
-                                    ? 'Using provider key (enter to override)'
-                                    : 'Enter API key for this endpoint'
-                            }
-                            type={showApiKey ? 'text' : 'password'}
-                            className="h-9 text-sm pr-10"
-                        />
-                        <button
-                            type="button"
-                            onClick={() => setShowApiKey(!showApiKey)}
-                            className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-muted transition-colors"
-                        >
-                            {showApiKey ? (
-                                <EyeOff className="h-4 w-4 text-muted-foreground" />
-                            ) : (
-                                <Eye className="h-4 w-4 text-muted-foreground" />
-                            )}
-                        </button>
-                    </div>
-                    <p className="text-[10px] text-muted-foreground">
-                        {formData.provider === 'openai-compatible'
-                            ? 'Required if your endpoint needs authentication'
-                            : providerKeyData?.hasKey
-                              ? `Overrides ${providerKeyData.envVar} for this model`
-                              : `Saved as ${providerKeyData?.envVar || 'provider env var'} for reuse`}
-                    </p>
-                </div>
-
-                {/* Token limits - for OpenAI-compatible and LiteLLM */}
-                {requiresBaseURL && (
-                    <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1.5">
-                            <label className="text-xs font-medium text-muted-foreground">
-                                Max Input Tokens
-                            </label>
-                            <Input
-                                value={formData.maxInputTokens}
-                                onChange={(e) => onChange({ maxInputTokens: e.target.value })}
-                                placeholder="128000"
-                                type="number"
-                                className="h-9 text-sm"
-                            />
-                        </div>
-                        <div className="space-y-1.5">
-                            <label className="text-xs font-medium text-muted-foreground">
-                                Max Output Tokens
-                            </label>
-                            <Input
-                                value={formData.maxOutputTokens}
-                                onChange={(e) => onChange({ maxOutputTokens: e.target.value })}
-                                placeholder="Optional"
-                                type="number"
-                                className="h-9 text-sm"
-                            />
-                        </div>
-                    </div>
-                )}
+                {/* Provider-specific fields */}
+                {renderProviderFields()}
             </div>
 
             {/* Footer */}

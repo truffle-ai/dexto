@@ -11,6 +11,7 @@ import {
     isValidProviderModel,
     getEffectiveMaxInputTokens,
     supportsBaseURL,
+    supportsCustomModels,
 } from './registry.js';
 import {
     lookupOpenRouterModel,
@@ -97,10 +98,12 @@ export async function resolveLLMConfig(
 
     // Model fallback
     // if new provider doesn't support the new model, use the default model
+    // Skip fallback for providers that support custom models (they allow arbitrary model IDs)
     let model = updates.model ?? previous.model;
     if (
         provider !== previous.provider &&
         !acceptsAnyModel(provider) &&
+        !supportsCustomModels(provider) &&
         !isValidProviderModel(provider, model)
     ) {
         model = getDefaultModelForProvider(provider) ?? previous.model;

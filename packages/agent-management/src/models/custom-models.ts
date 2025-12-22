@@ -16,6 +16,7 @@ export const CUSTOM_MODEL_PROVIDERS = [
     'openrouter',
     'litellm',
     'glama',
+    'bedrock',
 ] as const;
 export type CustomModelProvider = (typeof CUSTOM_MODEL_PROVIDERS)[number];
 

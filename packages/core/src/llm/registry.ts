@@ -83,6 +83,7 @@ export interface ProviderInfo {
     models: ModelInfo[];
     baseURLSupport: 'none' | 'optional' | 'required'; // Cleaner single field
     supportedFileTypes: SupportedFileType[]; // Provider-level default, used when model doesn't specify
+    supportsCustomModels?: boolean; // Allow arbitrary model IDs beyond fixed list
     // Add other provider-specific metadata if needed
 }
 
@@ -372,6 +373,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
         models: [], // Empty - accepts any model name for custom endpoints
         baseURLSupport: 'required',
         supportedFileTypes: ['pdf', 'image', 'audio'], // Allow all types for custom endpoints - user assumes responsibility for model capabilities
+        supportsCustomModels: true,
     },
     anthropic: {
         models: [
@@ -859,6 +861,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
         models: [], // Empty - accepts any model name (validated against OpenRouter's catalog)
         baseURLSupport: 'none', // Fixed endpoint - baseURL auto-injected in resolver, no user override allowed
         supportedFileTypes: ['pdf', 'image', 'audio'], // Allow all types - user assumes responsibility for model capabilities
+        supportsCustomModels: true,
     },
     // https://docs.litellm.ai/
     // LiteLLM is an OpenAI-compatible proxy that unifies 100+ LLM providers.
@@ -867,6 +870,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
         models: [], // Empty - accepts any model name (user's proxy determines available models)
         baseURLSupport: 'required', // User must provide their LiteLLM proxy URL
         supportedFileTypes: ['pdf', 'image', 'audio'], // Allow all types - user assumes responsibility for model capabilities
+        supportsCustomModels: true,
     },
     // https://glama.ai/
     // Glama is an OpenAI-compatible gateway providing unified access to multiple LLM providers.
@@ -875,6 +879,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
         models: [], // Empty - accepts any model name (format: provider/model e.g., openai/gpt-4o)
         baseURLSupport: 'none', // Fixed endpoint - baseURL auto-injected
         supportedFileTypes: ['pdf', 'image', 'audio'], // Allow all types - user assumes responsibility for model capabilities
+        supportsCustomModels: true,
     },
     // https://cloud.google.com/vertex-ai
     // Google Vertex AI - GCP-hosted gateway for Gemini and Claude models
@@ -1102,8 +1107,9 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
     // Auth: AWS credentials (env vars) or Bedrock API key (AWS_BEARER_TOKEN_BEDROCK)
     //
     // Cross-region inference: Auto-added for anthropic.* and amazon.* models
-    // For custom models, use openai-compatible provider with Bedrock endpoint
+    // supportsCustomModels: true allows users to add custom model IDs beyond the fixed list
     bedrock: {
+        supportsCustomModels: true,
         models: [
             // Claude 4.5 models (latest)
             {
@@ -1401,6 +1407,17 @@ export function acceptsAnyModel(provider: LLMProvider): boolean {
 }
 
 /**
+ * Checks if a provider supports custom model IDs beyond its fixed model list.
+ * This is set explicitly on providers that allow users to add arbitrary model IDs.
+ * @param provider The name of the provider.
+ * @returns True if the provider supports custom models, false otherwise.
+ */
+export function supportsCustomModels(provider: LLMProvider): boolean {
+    const providerInfo = LLM_REGISTRY[provider];
+    return providerInfo.supportsCustomModels === true;
+}
+
+/**
  * Gets the supported file types for a specific model.
  * @param provider The name of the provider.
  * @param model The name of the model.
@@ -1595,7 +1612,7 @@ export function getEffectiveMaxInputTokens(config: LLMConfig, logger: IDextoLogg
         return DEFAULT_MAX_INPUT_TOKENS;
     }
 
-    // Priority 4: No override, no baseURL - use registry.
+    // Priority 5: No override, no baseURL - use registry.
     try {
         const registryMaxInputTokens = getMaxInputTokensForModel(
             config.provider,
@@ -1609,6 +1626,13 @@ export function getEffectiveMaxInputTokens(config: LLMConfig, logger: IDextoLogg
     } catch (error: any) {
         // Handle registry lookup failures gracefully (e.g., typo in validated config)
         if (error instanceof DextoRuntimeError && error.code === LLMErrorCode.MODEL_UNKNOWN) {
+            // For providers that support custom models, use default instead of throwing
+            if (supportsCustomModels(config.provider)) {
+                logger.debug(
+                    `Custom model ${config.model} not in ${config.provider} registry, defaulting to ${DEFAULT_MAX_INPUT_TOKENS} tokens`
+                );
+                return DEFAULT_MAX_INPUT_TOKENS;
+            }
             // Log as error and throw a specific fatal error
             logger.error(
                 `Registry lookup failed for ${config.provider}/${config.model}: ${error.message}. ` +

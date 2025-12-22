@@ -187,6 +187,36 @@ const LITELLM_STEPS: WizardStep[] = [
     { ...API_KEY_STEP, placeholder: 'Saved as LITELLM_API_KEY if not set, otherwise per-model' },
 ];
 
+/** Steps for bedrock provider (custom model IDs, no baseURL/apiKey needed) */
+const BEDROCK_STEPS: WizardStep[] = [
+    {
+        field: 'name',
+        label: 'Bedrock Model ID',
+        placeholder: 'e.g., anthropic.claude-3-haiku-20240307-v1:0',
+        required: true,
+        validate: (v) => (v.trim() ? null : 'Model ID is required'),
+    },
+    {
+        field: 'displayName',
+        label: 'Display Name (optional)',
+        placeholder: 'e.g., Claude 3 Haiku',
+        required: false,
+    },
+    {
+        field: 'maxInputTokens',
+        label: 'Max Input Tokens (optional)',
+        placeholder: 'e.g., 200000 (leave blank for default)',
+        required: false,
+        validate: (v) => {
+            if (!v.trim()) return null;
+            const num = parseInt(v, 10);
+            if (isNaN(num) || num <= 0) return 'Must be a positive number';
+            return null;
+        },
+    },
+    // NO apiKey step - Bedrock uses AWS credentials from environment
+];
+
 /**
  * Validate OpenRouter model ID against the registry.
  * Refreshes cache if stale and returns error message if invalid.
@@ -220,6 +250,8 @@ function getStepsForProvider(provider: CustomModelProvider): WizardStep[] {
             return GLAMA_STEPS;
         case 'litellm':
             return LITELLM_STEPS;
+        case 'bedrock':
+            return BEDROCK_STEPS;
         default:
             return OPENAI_COMPATIBLE_STEPS;
     }
@@ -561,7 +593,9 @@ const CustomModelWizard = forwardRef<CustomModelWizardHandle, CustomModelWizardP
                                           ? 'LiteLLM (unified proxy for 100+ providers)'
                                           : provider === 'glama'
                                             ? 'Glama (OpenAI-compatible gateway)'
-                                            : 'OpenRouter (100+ cloud models)'}
+                                            : provider === 'bedrock'
+                                              ? 'AWS Bedrock (custom model IDs)'
+                                              : 'OpenRouter (100+ cloud models)'}
                                 </Text>
                             </Box>
                         ))}
@@ -595,6 +629,23 @@ const CustomModelWizard = forwardRef<CustomModelWizardHandle, CustomModelWizardP
                         ({selectedProvider}) Step {currentStep + 1}/{wizardSteps.length}
                     </Text>
                 </Box>
+
+                {/* Bedrock setup info - shown on first step only */}
+                {selectedProvider === 'bedrock' && currentStep === 0 && (
+                    <Box flexDirection="column" marginBottom={1}>
+                        <Text color="blue">
+                            ℹ Bedrock uses AWS credentials from your environment.
+                        </Text>
+                        <Text dimColor>
+                            Ensure AWS_REGION and either AWS_BEARER_TOKEN_BEDROCK or IAM credentials
+                            are set.
+                        </Text>
+                        <Text dimColor>
+                            Setup guide:
+                            https://docs.dexto.ai/guides/supported-llm-providers#amazon-bedrock
+                        </Text>
+                    </Box>
+                )}
 
                 {/* Current step prompt */}
                 <Box flexDirection="column">
