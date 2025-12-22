@@ -264,8 +264,9 @@ export default function ModelPickerModal() {
                             onError: (err: Error) => reject(err),
                         });
                     });
-                } catch {
-                    // Continue even if delete fails - the old model might already be gone
+                } catch (err) {
+                    // Log but continue - old model might already be deleted
+                    console.warn(`Failed to delete old model "${editingModelName}":`, err);
                 }
             }
 

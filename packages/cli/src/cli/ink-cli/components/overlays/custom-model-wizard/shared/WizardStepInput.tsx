@@ -18,10 +18,6 @@ interface WizardStepInputProps {
     isValidating: boolean;
     /** Whether saving is in progress */
     isSaving: boolean;
-    /** Current step number (1-based for display) */
-    stepNumber: number;
-    /** Total number of steps */
-    totalSteps: number;
     /** Optional additional content to render after placeholder (e.g., API key status) */
     additionalContent?: React.ReactNode;
 }

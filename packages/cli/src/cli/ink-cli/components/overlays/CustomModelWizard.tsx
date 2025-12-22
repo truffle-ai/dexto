@@ -383,8 +383,6 @@ const CustomModelWizard = forwardRef<CustomModelWizardHandle, CustomModelWizardP
                     error={error}
                     isValidating={isValidating}
                     isSaving={isSaving}
-                    stepNumber={currentStep + 1}
-                    totalSteps={wizardSteps.length}
                     additionalContent={
                         currentStepConfig.field === 'apiKey' ? (
                             <ApiKeyStep provider={selectedProvider} />
