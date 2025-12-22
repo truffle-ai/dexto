@@ -1,5 +1,5 @@
 {
-  "name": "@dexto/bundler",
+  "name": "@dexto/image-bundler",
   "version": "0.1.0",
   "description": "Bundler for Dexto base images",
   "type": "module",

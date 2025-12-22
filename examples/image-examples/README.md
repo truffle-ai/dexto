@@ -195,7 +195,7 @@ From Dexto root:
 pnpm --filter @dexto/core build
 pnpm --filter @dexto/agent-management build
 pnpm --filter @dexto/image-local build
-pnpm --filter @dexto/bundler build
+pnpm --filter @dexto/image-bundler build
 
 # Set API key
 export OPENAI_API_KEY="your-key-here"

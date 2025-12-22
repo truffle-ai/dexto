@@ -222,7 +222,7 @@ export async function createImage(name?: string): Promise<string> {
         const devDependencies = [
             'typescript@^5.0.0',
             '@types/node@^20.0.0',
-            `@dexto/bundler@${bundlerVersion}`,
+            `@dexto/image-bundler@${bundlerVersion}`,
         ];
 
         if (baseImage) {

@@ -94,7 +94,7 @@ This connects the user-facing concept (image) with the technical implementation 
 - **Flag:** `--extend-image`
 - **Best for:** Need 1-3 app-specific tools, custom business logic
 - **What you get:** Image + convention-based folders for custom providers
-- **Dependencies:** Base image + @dexto/bundler
+- **Dependencies:** Base image + @dexto/image-bundler
 - **Example:** Add a weather API tool to the local image
 
 **Mode C: Build from Core** (5% of users - advanced)

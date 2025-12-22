@@ -30,7 +30,7 @@
     "@dexto/tools-process": "workspace:*"
   },
   "devDependencies": {
-    "@dexto/bundler": "workspace:*",
+    "@dexto/image-bundler": "workspace:*",
     "typescript": "^5.3.3"
   },
   "files": [

@@ -2,7 +2,7 @@
  * Provider Auto-Discovery Utility
  *
  * This helper automatically discovers and registers providers from convention-based folders.
- * It follows the same pattern as the @dexto/bundler but at runtime.
+ * It follows the same pattern as the @dexto/image-bundler but at runtime.
  *
  * Convention:
  *   storage/supabase/index.ts      -> Auto-discovered and registered

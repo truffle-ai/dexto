@@ -380,7 +380,7 @@ export default defineImage({
 ### 2. Build with Bundler
 
 ```bash
-pnpm run build  # Uses @dexto/bundler
+pnpm run build  # Uses @dexto/image-bundler
 ```
 
 ### 3. Publish to npm
