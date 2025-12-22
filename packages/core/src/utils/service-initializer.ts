@@ -160,8 +160,8 @@ export async function createAgentServices(
     );
     await resourceManager.initialize();
 
-    // 9. Initialize tool manager with internal tools options
-    // 9.1 - Create allowed tools provider based on configuration
+    // 8. Initialize tool manager with internal tools options
+    // 8.1 - Create allowed tools provider based on configuration
     const allowedToolsProvider = createAllowedToolsProvider(
         {
             type: config.toolConfirmation.allowedToolsStorage,
@@ -170,7 +170,7 @@ export async function createAgentServices(
         logger
     );
 
-    // 9.2 - Initialize tool manager with direct ApprovalManager integration
+    // 8.2 - Initialize tool manager with direct ApprovalManager integration
     const toolManager = new ToolManager(
         mcpManager,
         approvalManager,

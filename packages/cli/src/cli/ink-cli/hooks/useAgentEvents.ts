@@ -18,7 +18,7 @@
 import type React from 'react';
 import { useEffect } from 'react';
 import { setMaxListeners } from 'events';
-import type { DextoAgent, QueuedMessage } from '@dexto/core';
+import { getModelDisplayName, type DextoAgent, type QueuedMessage } from '@dexto/core';
 import type { Message, UIState, SessionState } from '../state/types.js';
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
 
@@ -62,7 +62,13 @@ export function useAgentEvents({
             'llm:switched',
             (payload) => {
                 if (payload.newConfig?.model) {
-                    setSession((prev) => ({ ...prev, modelName: payload.newConfig.model }));
+                    setSession((prev) => ({
+                        ...prev,
+                        modelName: getModelDisplayName(
+                            payload.newConfig.model,
+                            payload.newConfig.provider
+                        ),
+                    }));
                 }
             },
             { signal }

@@ -47,6 +47,22 @@ export class ToolError {
     }
 
     /**
+     * Directory access denied by user
+     * Used when a file tool tries to access a path outside allowed directories
+     * and the user denies the directory access approval
+     */
+    static directoryAccessDenied(directory: string, sessionId?: string) {
+        return new DextoRuntimeError(
+            ToolErrorCode.DIRECTORY_ACCESS_DENIED,
+            ErrorScope.TOOLS,
+            ErrorType.FORBIDDEN,
+            `Access to directory '${directory}' was denied`,
+            { directory, sessionId },
+            'Request access to the directory or work within the allowed working directory'
+        );
+    }
+
+    /**
      * Tool execution timeout
      */
     static executionTimeout(toolName: string, timeoutMs: number, sessionId?: string) {

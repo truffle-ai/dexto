@@ -1574,7 +1574,11 @@ export class DextoAgent {
             : this.stateManager.getRuntimeConfig().llm;
 
         // Build and validate the new configuration using Result pattern internally
-        const result = resolveAndValidateLLMConfig(currentLLMConfig, validatedUpdates, this.logger);
+        const result = await resolveAndValidateLLMConfig(
+            currentLLMConfig,
+            validatedUpdates,
+            this.logger
+        );
         const validatedConfig = ensureOk(result, this.logger);
 
         // Perform the actual LLM switch with validated config

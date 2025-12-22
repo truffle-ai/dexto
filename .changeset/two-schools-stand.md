@@ -6,4 +6,4 @@
 'dexto': patch
 ---
 
-Revamp CLI for coding agent, add new events, improve mcp management, custom models, minor UI changes, prompt management
+Add support for openrouter, bedrock, glama, vertex ai, fix model switching issues and new model experience for each

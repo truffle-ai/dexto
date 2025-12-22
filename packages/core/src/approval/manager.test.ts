@@ -755,4 +755,203 @@ describe('ApprovalManager', () => {
             });
         });
     });
+
+    describe('Directory Access Approval', () => {
+        let manager: ApprovalManager;
+
+        beforeEach(() => {
+            manager = new ApprovalManager(
+                {
+                    toolConfirmation: {
+                        mode: 'manual',
+                        timeout: 120000,
+                    },
+                    elicitation: {
+                        enabled: false,
+                    },
+                },
+                mockLogger
+            );
+        });
+
+        describe('initializeWorkingDirectory', () => {
+            it('should add working directory as session-approved', () => {
+                manager.initializeWorkingDirectory('/home/user/project');
+                expect(manager.isDirectorySessionApproved('/home/user/project/src/file.ts')).toBe(
+                    true
+                );
+            });
+
+            it('should normalize the path before adding', () => {
+                manager.initializeWorkingDirectory('/home/user/../user/project');
+                expect(manager.isDirectorySessionApproved('/home/user/project/file.ts')).toBe(true);
+            });
+        });
+
+        describe('addApprovedDirectory', () => {
+            it('should add directory with session type by default', () => {
+                manager.addApprovedDirectory('/external/project');
+                expect(manager.isDirectorySessionApproved('/external/project/file.ts')).toBe(true);
+            });
+
+            it('should add directory with explicit session type', () => {
+                manager.addApprovedDirectory('/external/project', 'session');
+                expect(manager.isDirectorySessionApproved('/external/project/file.ts')).toBe(true);
+            });
+
+            it('should add directory with once type', () => {
+                manager.addApprovedDirectory('/external/project', 'once');
+                // 'once' type should NOT be session-approved (requires prompt each time)
+                expect(manager.isDirectorySessionApproved('/external/project/file.ts')).toBe(false);
+                // But should be generally approved for execution
+                expect(manager.isDirectoryApproved('/external/project/file.ts')).toBe(true);
+            });
+
+            it('should not downgrade from session to once', () => {
+                manager.addApprovedDirectory('/external/project', 'session');
+                manager.addApprovedDirectory('/external/project', 'once');
+                // Should still be session-approved
+                expect(manager.isDirectorySessionApproved('/external/project/file.ts')).toBe(true);
+            });
+
+            it('should upgrade from once to session', () => {
+                manager.addApprovedDirectory('/external/project', 'once');
+                expect(manager.isDirectorySessionApproved('/external/project/file.ts')).toBe(false);
+
+                manager.addApprovedDirectory('/external/project', 'session');
+                expect(manager.isDirectorySessionApproved('/external/project/file.ts')).toBe(true);
+            });
+
+            it('should normalize paths before adding', () => {
+                manager.addApprovedDirectory('/external/../external/project');
+                expect(manager.isDirectoryApproved('/external/project/file.ts')).toBe(true);
+            });
+        });
+
+        describe('isDirectorySessionApproved', () => {
+            it('should return true for files within session-approved directory', () => {
+                manager.addApprovedDirectory('/external/project', 'session');
+                expect(manager.isDirectorySessionApproved('/external/project/file.ts')).toBe(true);
+                expect(
+                    manager.isDirectorySessionApproved('/external/project/src/deep/file.ts')
+                ).toBe(true);
+            });
+
+            it('should return false for files within once-approved directory', () => {
+                manager.addApprovedDirectory('/external/project', 'once');
+                expect(manager.isDirectorySessionApproved('/external/project/file.ts')).toBe(false);
+            });
+
+            it('should return false for files outside approved directories', () => {
+                manager.addApprovedDirectory('/external/project', 'session');
+                expect(manager.isDirectorySessionApproved('/other/file.ts')).toBe(false);
+            });
+
+            it('should handle path containment correctly', () => {
+                manager.addApprovedDirectory('/external', 'session');
+                // Approving /external should cover /external/sub/file.ts
+                expect(manager.isDirectorySessionApproved('/external/sub/file.ts')).toBe(true);
+                // But not /external-other/file.ts (different directory)
+                expect(manager.isDirectorySessionApproved('/external-other/file.ts')).toBe(false);
+            });
+
+            it('should return true when working directory is initialized', () => {
+                manager.initializeWorkingDirectory('/home/user/project');
+                expect(manager.isDirectorySessionApproved('/home/user/project/any/file.ts')).toBe(
+                    true
+                );
+            });
+        });
+
+        describe('isDirectoryApproved', () => {
+            it('should return true for files within session-approved directory', () => {
+                manager.addApprovedDirectory('/external/project', 'session');
+                expect(manager.isDirectoryApproved('/external/project/file.ts')).toBe(true);
+            });
+
+            it('should return true for files within once-approved directory', () => {
+                manager.addApprovedDirectory('/external/project', 'once');
+                expect(manager.isDirectoryApproved('/external/project/file.ts')).toBe(true);
+            });
+
+            it('should return false for files outside approved directories', () => {
+                manager.addApprovedDirectory('/external/project', 'session');
+                expect(manager.isDirectoryApproved('/other/file.ts')).toBe(false);
+            });
+
+            it('should handle multiple approved directories', () => {
+                manager.addApprovedDirectory('/external/project1', 'session');
+                manager.addApprovedDirectory('/external/project2', 'once');
+
+                expect(manager.isDirectoryApproved('/external/project1/file.ts')).toBe(true);
+                expect(manager.isDirectoryApproved('/external/project2/file.ts')).toBe(true);
+                expect(manager.isDirectoryApproved('/external/project3/file.ts')).toBe(false);
+            });
+
+            it('should handle nested directory approvals', () => {
+                manager.addApprovedDirectory('/external', 'session');
+                // Approving /external should cover all subdirectories
+                expect(manager.isDirectoryApproved('/external/sub/deep/file.ts')).toBe(true);
+            });
+        });
+
+        describe('getApprovedDirectories', () => {
+            it('should return empty map initially', () => {
+                expect(manager.getApprovedDirectories().size).toBe(0);
+            });
+
+            it('should return map with type information', () => {
+                manager.addApprovedDirectory('/external/project1', 'session');
+                manager.addApprovedDirectory('/external/project2', 'once');
+
+                const dirs = manager.getApprovedDirectories();
+                expect(dirs.size).toBe(2);
+                // Check that paths are normalized (absolute)
+                const keys = Array.from(dirs.keys());
+                expect(keys.some((k) => k.includes('project1'))).toBe(true);
+                expect(keys.some((k) => k.includes('project2'))).toBe(true);
+            });
+
+            it('should include working directory after initialization', () => {
+                manager.initializeWorkingDirectory('/home/user/project');
+                const dirs = manager.getApprovedDirectories();
+                expect(dirs.size).toBe(1);
+                // Check that working directory is session type
+                const entries = Array.from(dirs.entries());
+                expect(entries[0]![1]).toBe('session');
+            });
+        });
+
+        describe('Session vs Once Prompting Behavior', () => {
+            // These tests verify the expected prompting flow
+
+            it('working directory should not require prompt (session-approved)', () => {
+                manager.initializeWorkingDirectory('/home/user/project');
+                // isDirectorySessionApproved returns true → no directory prompt needed
+                expect(manager.isDirectorySessionApproved('/home/user/project/src/file.ts')).toBe(
+                    true
+                );
+            });
+
+            it('external dir after session approval should not require prompt', () => {
+                manager.addApprovedDirectory('/external', 'session');
+                // isDirectorySessionApproved returns true → no directory prompt needed
+                expect(manager.isDirectorySessionApproved('/external/file.ts')).toBe(true);
+            });
+
+            it('external dir after once approval should require prompt each time', () => {
+                manager.addApprovedDirectory('/external', 'once');
+                // isDirectorySessionApproved returns false → directory prompt needed
+                expect(manager.isDirectorySessionApproved('/external/file.ts')).toBe(false);
+                // But isDirectoryApproved returns true → execution allowed
+                expect(manager.isDirectoryApproved('/external/file.ts')).toBe(true);
+            });
+
+            it('unapproved external dir should require prompt', () => {
+                // No directories approved
+                expect(manager.isDirectorySessionApproved('/external/file.ts')).toBe(false);
+                expect(manager.isDirectoryApproved('/external/file.ts')).toBe(false);
+            });
+        });
+    });
 });

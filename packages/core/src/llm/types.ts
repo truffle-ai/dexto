@@ -7,6 +7,12 @@ export const LLM_PROVIDERS = [
     'groq',
     'xai',
     'cohere',
+    'openrouter',
+    'litellm',
+    'glama',
+    'vertex',
+    'bedrock',
+    // TODO: Add 'dexto' provider (similar to openrouter, uses https://api.dexto.ai/v1)
 ] as const;
 export type LLMProvider = (typeof LLM_PROVIDERS)[number];
 

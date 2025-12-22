@@ -31,6 +31,8 @@ export interface ApprovalOptions {
     formData?: Record<string, unknown>;
     /** Enable "accept all edits" mode (auto-approve future edit_file/write_file) */
     enableAcceptEditsMode?: boolean;
+    /** Remember directory access for the session */
+    rememberDirectory?: boolean;
 }
 
 interface ApprovalPromptProps {
@@ -56,6 +58,7 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
     ({ approval, onApprove, onDeny, onCancel }, ref) => {
         const isCommandConfirmation = approval.type === 'command_confirmation';
         const isElicitation = approval.type === 'elicitation';
+        const isDirectoryAccess = approval.type === 'directory_access';
 
         // Extract suggested patterns for bash tools
         const suggestedPatterns =
@@ -91,6 +94,13 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
         } else if (isCommandConfirmation) {
             // Command confirmation (no session option)
             options.push({ id: 'yes', label: 'Yes' });
+            options.push({ id: 'no', label: 'No' });
+        } else if (isDirectoryAccess) {
+            // Directory access - offer session-scoped access
+            const parentDir = approval.metadata.parentDir as string | undefined;
+            const dirLabel = parentDir ? ` "${parentDir}"` : '';
+            options.push({ id: 'yes', label: 'Yes (once)' });
+            options.push({ id: 'yes-session', label: `Yes, allow${dirLabel} (session)` });
             options.push({ id: 'no', label: 'No' });
         } else if (isEditOrWriteTool) {
             // Edit/write file tools - offer "accept all edits" mode instead of session
@@ -139,7 +149,12 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
                         if (option.id === 'yes') {
                             onApprove({});
                         } else if (option.id === 'yes-session') {
-                            onApprove({ rememberChoice: true });
+                            // For directory access, remember the directory; otherwise remember the tool
+                            if (isDirectoryAccess) {
+                                onApprove({ rememberDirectory: true });
+                            } else {
+                                onApprove({ rememberChoice: true });
+                            }
                         } else if (option.id === 'yes-accept-edits') {
                             // Approve and enable "accept all edits" mode
                             onApprove({ enableAcceptEditsMode: true });
@@ -170,6 +185,7 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
             [
                 isElicitation,
                 isEditOrWriteTool,
+                isDirectoryAccess,
                 options,
                 suggestedPatterns,
                 onApprove,
@@ -242,21 +258,46 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
             }
         };
 
+        // Extract directory access metadata
+        const directoryPath = approval.metadata.path as string | undefined;
+        const parentDir = approval.metadata.parentDir as string | undefined;
+        const operation = approval.metadata.operation as string | undefined;
+
         return (
             <Box paddingX={0} paddingY={0} flexDirection="column">
                 {/* Compact header with context */}
                 <Box flexDirection="column" marginBottom={0}>
-                    <Box flexDirection="row">
-                        <Text color="yellow" bold>
-                            🔐 Approval:{' '}
-                        </Text>
-                        {toolName && <Text color="cyan">{toolName}</Text>}
-                    </Box>
-                    {isCommandConfirmation && command && (
-                        <Box flexDirection="row" marginTop={0}>
-                            <Text color="gray">{'  Command: '}</Text>
-                            <Text color="red">{command}</Text>
-                        </Box>
+                    {isDirectoryAccess ? (
+                        <>
+                            <Box flexDirection="row">
+                                <Text color="yellow" bold>
+                                    🔐 Directory Access:{' '}
+                                </Text>
+                                <Text color="cyan">{parentDir || directoryPath}</Text>
+                            </Box>
+                            <Box flexDirection="row" marginTop={0}>
+                                <Text color="gray">{'  '}</Text>
+                                <Text dimColor>
+                                    {toolName ? `"${toolName}"` : 'Tool'} wants to{' '}
+                                    {operation || 'access'} files outside working directory
+                                </Text>
+                            </Box>
+                        </>
+                    ) : (
+                        <>
+                            <Box flexDirection="row">
+                                <Text color="yellow" bold>
+                                    🔐 Approval:{' '}
+                                </Text>
+                                {toolName && <Text color="cyan">{toolName}</Text>}
+                            </Box>
+                            {isCommandConfirmation && command && (
+                                <Box flexDirection="row" marginTop={0}>
+                                    <Text color="gray">{'  Command: '}</Text>
+                                    <Text color="red">{command}</Text>
+                                </Box>
+                            )}
+                        </>
                     )}
                 </Box>
 

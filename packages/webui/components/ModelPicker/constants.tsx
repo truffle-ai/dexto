@@ -3,6 +3,7 @@ import { Sparkles, FlaskConical, Zap } from 'lucide-react';
 import type { LLMProvider } from '@dexto/core';
 
 // Provider logo file mapping - single source of truth
+// Empty string means "use Bot icon fallback" in components
 export const PROVIDER_LOGOS: Record<LLMProvider, string> = {
     openai: '/logos/openai.svg',
     anthropic: '/logos/claude-color.svg',
@@ -11,6 +12,11 @@ export const PROVIDER_LOGOS: Record<LLMProvider, string> = {
     xai: '/logos/grok.svg',
     'openai-compatible': '/logos/openai.svg',
     cohere: '/logos/cohere-color.svg',
+    openrouter: '/logos/openrouter.svg',
+    litellm: '/logos/litellm.svg',
+    glama: '/logos/glama.svg',
+    vertex: '/logos/gemini-color.svg', // Vertex AI uses Gemini logo (primary model family)
+    bedrock: '/logos/aws-color.svg',
 };
 
 // Provider pricing URLs (for quick access from Model Picker)
@@ -21,6 +27,11 @@ export const PROVIDER_PRICING_URLS: Partial<Record<LLMProvider, string>> = {
     groq: 'https://groq.com/pricing/',
     xai: 'https://docs.x.ai/docs/models',
     cohere: 'https://cohere.com/pricing',
+    openrouter: 'https://openrouter.ai/models',
+    litellm: 'https://docs.litellm.ai/',
+    glama: 'https://glama.ai/',
+    vertex: 'https://cloud.google.com/vertex-ai/generative-ai/pricing',
+    bedrock: 'https://aws.amazon.com/bedrock/pricing/',
     // 'openai-compatible' intentionally omitted (varies by vendor)
 };
 
@@ -50,11 +61,21 @@ export function formatPricingLines(pricing?: {
 }
 
 // Logos that have hardcoded colors and don't need dark mode inversion
-export const COLORED_LOGOS: readonly LLMProvider[] = ['google', 'cohere', 'anthropic'] as const;
+export const COLORED_LOGOS: readonly LLMProvider[] = [
+    'google',
+    'cohere',
+    'anthropic',
+    'vertex',
+] as const;
 
 // Helper to check if a logo needs dark mode inversion
 export const needsDarkModeInversion = (provider: LLMProvider): boolean => {
     return !COLORED_LOGOS.includes(provider);
+};
+
+// Helper to check if a provider has a logo
+export const hasLogo = (provider: LLMProvider): boolean => {
+    return !!PROVIDER_LOGOS[provider];
 };
 
 // Model capability icons - sleek emojis for current capabilities

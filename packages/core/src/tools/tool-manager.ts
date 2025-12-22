@@ -23,7 +23,6 @@ import {
     generateBashPatternSuggestions,
     isDangerousCommand,
 } from './bash-pattern-utils.js';
-
 /**
  * Options for internal tools configuration in ToolManager
  */

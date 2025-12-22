@@ -16,10 +16,20 @@ import {
     getSupportedFileTypesForModel,
     modelSupportsFileType,
     validateModelFileSupport,
+    stripBedrockRegionPrefix,
+    getModelPricing,
+    getModelDisplayName,
 } from './registry.js';
 import { LLMErrorCode } from './error-codes.js';
 import { ErrorScope, ErrorType } from '../errors/types.js';
 import type { IDextoLogger } from '../logger/v2/types.js';
+
+// Mock the OpenRouter model registry
+vi.mock('./providers/openrouter-model-registry.js', () => ({
+    getOpenRouterModelContextLength: vi.fn(),
+}));
+
+import { getOpenRouterModelContextLength } from './providers/openrouter-model-registry.js';
 
 const mockLogger: IDextoLogger = {
     debug: vi.fn(),
@@ -238,6 +248,29 @@ describe('getEffectiveMaxInputTokens', () => {
                 type: ErrorType.USER,
             })
         );
+    });
+
+    describe('OpenRouter provider', () => {
+        it('uses context length from OpenRouter registry when available', () => {
+            vi.mocked(getOpenRouterModelContextLength).mockReturnValue(200000);
+            const config = {
+                provider: 'openrouter',
+                model: 'anthropic/claude-3.5-sonnet',
+            } as any;
+            expect(getEffectiveMaxInputTokens(config, mockLogger)).toBe(200000);
+        });
+
+        it('falls back to 128000 when model not in OpenRouter cache', () => {
+            vi.mocked(getOpenRouterModelContextLength).mockReturnValue(null);
+            const config = {
+                provider: 'openrouter',
+                model: 'unknown/model',
+            } as any;
+            expect(getEffectiveMaxInputTokens(config, mockLogger)).toBe(128000);
+            expect(mockLogger.warn).toHaveBeenCalledWith(
+                expect.stringContaining('not found in cache')
+            );
+        });
     });
 });
 
@@ -486,6 +519,161 @@ describe('Provider-Specific Tests', () => {
             expect(getMaxInputTokensForModel('cohere', 'command-r-plus', mockLogger)).toBe(128000);
             expect(getMaxInputTokensForModel('cohere', 'command-r', mockLogger)).toBe(128000);
             expect(getMaxInputTokensForModel('cohere', 'command-r7b', mockLogger)).toBe(128000);
+        });
+    });
+
+    describe('OpenRouter provider', () => {
+        it('has correct capabilities for gateway routing', () => {
+            expect(getSupportedProviders()).toContain('openrouter');
+            expect(getSupportedModels('openrouter')).toEqual([]);
+            expect(getDefaultModelForProvider('openrouter')).toBe(null);
+            expect(supportsBaseURL('openrouter')).toBe(false); // Fixed endpoint, auto-injected in resolver
+            expect(requiresBaseURL('openrouter')).toBe(false); // Auto-injected
+            expect(acceptsAnyModel('openrouter')).toBe(true);
+        });
+    });
+
+    describe('LiteLLM provider', () => {
+        it('has correct capabilities for proxy routing', () => {
+            expect(getSupportedProviders()).toContain('litellm');
+            expect(getSupportedModels('litellm')).toEqual([]);
+            expect(getDefaultModelForProvider('litellm')).toBe(null);
+            expect(supportsBaseURL('litellm')).toBe(true);
+            expect(requiresBaseURL('litellm')).toBe(true); // User must provide proxy URL
+            expect(acceptsAnyModel('litellm')).toBe(true);
+        });
+
+        it('supports all file types for user-hosted proxy', () => {
+            expect(getSupportedFileTypesForModel('litellm', 'any-model')).toEqual([
+                'pdf',
+                'image',
+                'audio',
+            ]);
+        });
+    });
+
+    describe('Glama provider', () => {
+        it('has correct capabilities for gateway routing', () => {
+            expect(getSupportedProviders()).toContain('glama');
+            expect(getSupportedModels('glama')).toEqual([]);
+            expect(getDefaultModelForProvider('glama')).toBe(null);
+            expect(supportsBaseURL('glama')).toBe(false); // Fixed endpoint, auto-injected
+            expect(requiresBaseURL('glama')).toBe(false);
+            expect(acceptsAnyModel('glama')).toBe(true);
+        });
+
+        it('supports all file types for gateway', () => {
+            expect(getSupportedFileTypesForModel('glama', 'openai/gpt-4o')).toEqual([
+                'pdf',
+                'image',
+                'audio',
+            ]);
+        });
+    });
+
+    describe('Bedrock provider', () => {
+        it('has correct capabilities', () => {
+            expect(getSupportedProviders()).toContain('bedrock');
+            expect(getSupportedModels('bedrock').length).toBeGreaterThan(0);
+            expect(getDefaultModelForProvider('bedrock')).toBe(
+                'anthropic.claude-sonnet-4-5-20250929-v1:0'
+            );
+            expect(supportsBaseURL('bedrock')).toBe(false);
+            expect(requiresBaseURL('bedrock')).toBe(false);
+            expect(acceptsAnyModel('bedrock')).toBe(false);
+        });
+    });
+});
+
+describe('Bedrock Region Prefix Handling', () => {
+    describe('stripBedrockRegionPrefix', () => {
+        it('strips eu. prefix', () => {
+            expect(stripBedrockRegionPrefix('eu.anthropic.claude-sonnet-4-5-20250929-v1:0')).toBe(
+                'anthropic.claude-sonnet-4-5-20250929-v1:0'
+            );
+        });
+
+        it('strips us. prefix', () => {
+            expect(stripBedrockRegionPrefix('us.anthropic.claude-sonnet-4-5-20250929-v1:0')).toBe(
+                'anthropic.claude-sonnet-4-5-20250929-v1:0'
+            );
+        });
+
+        it('strips global. prefix', () => {
+            expect(
+                stripBedrockRegionPrefix('global.anthropic.claude-sonnet-4-5-20250929-v1:0')
+            ).toBe('anthropic.claude-sonnet-4-5-20250929-v1:0');
+        });
+
+        it('returns model unchanged when no prefix', () => {
+            expect(stripBedrockRegionPrefix('anthropic.claude-sonnet-4-5-20250929-v1:0')).toBe(
+                'anthropic.claude-sonnet-4-5-20250929-v1:0'
+            );
+        });
+
+        it('returns non-bedrock models unchanged', () => {
+            expect(stripBedrockRegionPrefix('gpt-5-mini')).toBe('gpt-5-mini');
+            expect(stripBedrockRegionPrefix('claude-sonnet-4-5-20250929')).toBe(
+                'claude-sonnet-4-5-20250929'
+            );
+        });
+    });
+
+    describe('registry lookups with prefixed models', () => {
+        const bedrockModel = 'anthropic.claude-sonnet-4-5-20250929-v1:0';
+
+        it('isValidProviderModel works with prefixed models', () => {
+            expect(isValidProviderModel('bedrock', bedrockModel)).toBe(true);
+            expect(isValidProviderModel('bedrock', `eu.${bedrockModel}`)).toBe(true);
+            expect(isValidProviderModel('bedrock', `us.${bedrockModel}`)).toBe(true);
+            expect(isValidProviderModel('bedrock', `global.${bedrockModel}`)).toBe(true);
+        });
+
+        it('getProviderFromModel works with prefixed models', () => {
+            expect(getProviderFromModel(bedrockModel)).toBe('bedrock');
+            expect(getProviderFromModel(`eu.${bedrockModel}`)).toBe('bedrock');
+            expect(getProviderFromModel(`us.${bedrockModel}`)).toBe('bedrock');
+            expect(getProviderFromModel(`global.${bedrockModel}`)).toBe('bedrock');
+        });
+
+        it('getMaxInputTokensForModel works with prefixed models', () => {
+            const expected = getMaxInputTokensForModel('bedrock', bedrockModel, mockLogger);
+            expect(getMaxInputTokensForModel('bedrock', `eu.${bedrockModel}`, mockLogger)).toBe(
+                expected
+            );
+            expect(getMaxInputTokensForModel('bedrock', `us.${bedrockModel}`, mockLogger)).toBe(
+                expected
+            );
+            expect(getMaxInputTokensForModel('bedrock', `global.${bedrockModel}`, mockLogger)).toBe(
+                expected
+            );
+        });
+
+        it('getSupportedFileTypesForModel works with prefixed models', () => {
+            const expected = getSupportedFileTypesForModel('bedrock', bedrockModel);
+            expect(getSupportedFileTypesForModel('bedrock', `eu.${bedrockModel}`)).toEqual(
+                expected
+            );
+            expect(getSupportedFileTypesForModel('bedrock', `us.${bedrockModel}`)).toEqual(
+                expected
+            );
+            expect(getSupportedFileTypesForModel('bedrock', `global.${bedrockModel}`)).toEqual(
+                expected
+            );
+        });
+
+        it('getModelPricing works with prefixed models', () => {
+            const expected = getModelPricing('bedrock', bedrockModel);
+            expect(getModelPricing('bedrock', `eu.${bedrockModel}`)).toEqual(expected);
+            expect(getModelPricing('bedrock', `us.${bedrockModel}`)).toEqual(expected);
+            expect(getModelPricing('bedrock', `global.${bedrockModel}`)).toEqual(expected);
+        });
+
+        it('getModelDisplayName works with prefixed models', () => {
+            const expected = getModelDisplayName(bedrockModel, 'bedrock');
+            expect(getModelDisplayName(`eu.${bedrockModel}`, 'bedrock')).toBe(expected);
+            expect(getModelDisplayName(`us.${bedrockModel}`, 'bedrock')).toBe(expected);
+            expect(getModelDisplayName(`global.${bedrockModel}`, 'bedrock')).toBe(expected);
         });
     });
 });

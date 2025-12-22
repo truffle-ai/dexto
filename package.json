@@ -122,8 +122,5 @@
             "@types/react-dom": "^19"
         }
     },
-    "preinstall": "npx only-allow pnpm",
-    "dependencies": {
-        "@modelcontextprotocol/sdk": "^1.18.1"
-    }
+    "preinstall": "npx only-allow pnpm"
 }
