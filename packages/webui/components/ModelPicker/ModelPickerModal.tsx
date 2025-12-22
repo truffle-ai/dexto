@@ -24,7 +24,6 @@ import {
     Loader2,
     Star,
     Plus,
-    X,
     Filter,
 } from 'lucide-react';
 import { SearchBar } from './SearchBar';
@@ -95,8 +94,7 @@ export default function ModelPickerModal() {
 
     // Load custom models from API (always enabled so trigger shows correct icon)
     const { data: customModels = [] } = useCustomModels();
-    const { mutate: createCustomModel, mutateAsync: createCustomModelAsync } =
-        useCreateCustomModel();
+    const { mutateAsync: createCustomModelAsync } = useCreateCustomModel();
     const { mutate: deleteCustomModelMutation } = useDeleteCustomModel();
     const { mutateAsync: saveApiKey } = useSaveApiKey();
 

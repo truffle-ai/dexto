@@ -1,5 +1,5 @@
 import React from 'react';
-import { Star, HelpCircle, Lock, Bot, X, Pencil } from 'lucide-react';
+import { Star, HelpCircle, Lock, X, Pencil } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 import type { LLMProvider } from '@dexto/core';
