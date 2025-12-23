@@ -347,20 +347,24 @@ async function bootstrapAgentFromGlobalOpts() {
     });
 
     // Load image dynamically if specified (same priority as main command)
-    const imageName = globalOpts.image || enrichedConfig.image || process.env.DEXTO_IMAGE;
+    // Priority: CLI flag > Agent config > Environment variable > Default
+    // Images are optional, but default to image-local for convenience
+    const imageName =
+        globalOpts.image || // --image flag
+        enrichedConfig.image || // image field in agent config
+        process.env.DEXTO_IMAGE || // DEXTO_IMAGE env var
+        '@dexto/image-local'; // Default for convenience
 
-    if (imageName) {
-        try {
-            await import(imageName);
-        } catch (_err) {
-            console.error(`❌ Failed to load image '${imageName}'`);
-            console.error(
-                `💡 Install it with: ${
-                    existsSync('package.json') ? 'npm install' : 'npm install -g'
-                } ${imageName}`
-            );
-            safeExit('bootstrap', 1, 'image-load-failed');
-        }
+    try {
+        await import(imageName);
+    } catch (_err) {
+        console.error(`❌ Failed to load image '${imageName}'`);
+        console.error(
+            `💡 Install it with: ${
+                existsSync('package.json') ? 'npm install' : 'npm install -g'
+            } ${imageName}`
+        );
+        safeExit('bootstrap', 1, 'image-load-failed');
     }
 
     // Override approval config for read-only commands (never run conversations)

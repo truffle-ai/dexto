@@ -11,7 +11,7 @@
  * 5. Path containment: approving /ext covers /ext/sub/file.txt
  */
 
-import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vitest';
 import * as path from 'node:path';
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
@@ -20,7 +20,7 @@ import { createWriteFileTool } from './write-file-tool.js';
 import { createEditFileTool } from './edit-file-tool.js';
 import { FileSystemService } from './filesystem-service.js';
 import type { DirectoryApprovalCallbacks, FileToolOptions } from './file-tool-types.js';
-import { ApprovalType } from '@dexto/core';
+import { ApprovalType, ApprovalStatus } from '@dexto/core';
 
 // Create mock logger
 const createMockLogger = () => ({
@@ -115,12 +115,11 @@ describe('Directory Approval Integration Tests', () => {
 
                 expect(override).not.toBeNull();
                 expect(override?.type).toBe(ApprovalType.DIRECTORY_ACCESS);
-                expect(override?.metadata?.path).toBe(path.resolve(externalPath));
-                expect(override?.metadata?.parentDir).toBe(
-                    path.dirname(path.resolve(externalPath))
-                );
-                expect(override?.metadata?.operation).toBe('read');
-                expect(override?.metadata?.toolName).toBe('read_file');
+                const metadata = override?.metadata as any;
+                expect(metadata?.path).toBe(path.resolve(externalPath));
+                expect(metadata?.parentDir).toBe(path.dirname(path.resolve(externalPath)));
+                expect(metadata?.operation).toBe('read');
+                expect(metadata?.toolName).toBe('read_file');
             });
 
             it('should return null when external path is session-approved', async () => {
@@ -163,7 +162,7 @@ describe('Directory Approval Integration Tests', () => {
                 // Then call onApprovalGranted with rememberDirectory: true
                 tool.onApprovalGranted?.({
                     approvalId: 'test-approval',
-                    status: 'approved',
+                    status: ApprovalStatus.APPROVED,
                     data: { rememberDirectory: true },
                 });
 
@@ -184,7 +183,7 @@ describe('Directory Approval Integration Tests', () => {
 
                 tool.onApprovalGranted?.({
                     approvalId: 'test-approval',
-                    status: 'approved',
+                    status: ApprovalStatus.APPROVED,
                     data: { rememberDirectory: false },
                 });
 
@@ -205,7 +204,7 @@ describe('Directory Approval Integration Tests', () => {
 
                 tool.onApprovalGranted?.({
                     approvalId: 'test-approval',
-                    status: 'approved',
+                    status: ApprovalStatus.APPROVED,
                     data: {},
                 });
 
@@ -227,7 +226,7 @@ describe('Directory Approval Integration Tests', () => {
                 // Should not throw
                 tool.onApprovalGranted?.({
                     approvalId: 'test-approval',
-                    status: 'approved',
+                    status: ApprovalStatus.APPROVED,
                     data: { rememberDirectory: true },
                 });
 
@@ -245,7 +244,7 @@ describe('Directory Approval Integration Tests', () => {
                 const testFile = path.join(tempDir, 'readable.txt');
                 await fs.writeFile(testFile, 'Hello, world!\nLine 2');
 
-                const result = await tool.execute({ file_path: testFile }, {});
+                const result = (await tool.execute({ file_path: testFile }, {})) as any;
 
                 expect(result.content).toBe('Hello, world!\nLine 2');
                 expect(result.lines).toBe(2);
@@ -289,8 +288,9 @@ describe('Directory Approval Integration Tests', () => {
 
                 expect(override).not.toBeNull();
                 expect(override?.type).toBe(ApprovalType.DIRECTORY_ACCESS);
-                expect(override?.metadata?.operation).toBe('write');
-                expect(override?.metadata?.toolName).toBe('write_file');
+                const metadata = override?.metadata as any;
+                expect(metadata?.operation).toBe('write');
+                expect(metadata?.toolName).toBe('write_file');
             });
 
             it('should return null when external path is session-approved', async () => {
@@ -323,7 +323,7 @@ describe('Directory Approval Integration Tests', () => {
 
                 tool.onApprovalGranted?.({
                     approvalId: 'test-approval',
-                    status: 'approved',
+                    status: ApprovalStatus.APPROVED,
                     data: { rememberDirectory: true },
                 });
 
@@ -373,8 +373,9 @@ describe('Directory Approval Integration Tests', () => {
 
                 expect(override).not.toBeNull();
                 expect(override?.type).toBe(ApprovalType.DIRECTORY_ACCESS);
-                expect(override?.metadata?.operation).toBe('edit');
-                expect(override?.metadata?.toolName).toBe('edit_file');
+                const metadata = override?.metadata as any;
+                expect(metadata?.operation).toBe('edit');
+                expect(metadata?.toolName).toBe('edit_file');
             });
 
             it('should return null when external path is session-approved', async () => {
@@ -418,7 +419,7 @@ describe('Directory Approval Integration Tests', () => {
             // Simulate session approval
             tool.onApprovalGranted?.({
                 approvalId: 'approval-1',
-                status: 'approved',
+                status: ApprovalStatus.APPROVED,
                 data: { rememberDirectory: true },
             });
 
@@ -452,7 +453,7 @@ describe('Directory Approval Integration Tests', () => {
             // Simulate once approval
             tool.onApprovalGranted?.({
                 approvalId: 'approval-1',
-                status: 'approved',
+                status: ApprovalStatus.APPROVED,
                 data: { rememberDirectory: false },
             });
 
@@ -547,11 +548,13 @@ describe('Directory Approval Integration Tests', () => {
             // Both directories need approval
             const override1 = tool.getApprovalOverride?.({ file_path: dir1Path });
             expect(override1).not.toBeNull();
-            expect(override1?.metadata?.parentDir).toBe('/external/project1');
+            const metadata1 = override1?.metadata as any;
+            expect(metadata1?.parentDir).toBe('/external/project1');
 
             const override2 = tool.getApprovalOverride?.({ file_path: dir2Path });
             expect(override2).not.toBeNull();
-            expect(override2?.metadata?.parentDir).toBe('/external/project2');
+            const metadata2 = override2?.metadata as any;
+            expect(metadata2?.parentDir).toBe('/external/project2');
         });
     });
 
