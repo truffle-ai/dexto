@@ -15,10 +15,6 @@ import { customToolSchemaRegistry } from './custom-tool-schema-registry.js';
  * - Agent → Service: LLM calls tools that invoke service methods
  * - Service → Agent: Service emits events that trigger agent invocation
  *
- * Example use case: Scheduler service
- * - LLM creates schedules via tools (Agent → Service)
- * - Scheduler triggers agent when schedule fires (Service → Agent)
- *
  * Implementation pattern:
  * ```typescript
  * create: (config, context) => {
