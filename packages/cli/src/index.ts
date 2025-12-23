@@ -120,32 +120,21 @@ program
     .option('--from-core', 'Build from @dexto/core (advanced)')
     .option('--type <type>', 'App type: script, webapp (default: script)')
     .action(
-        withAnalytics(
-            'create-app',
-            async (
-                name?: string,
-                options?: {
-                    fromImage?: string;
-                    extendImage?: string;
-                    fromCore?: boolean;
-                    type?: 'script' | 'webapp';
-                }
-            ) => {
-                try {
-                    p.intro(chalk.inverse('Create Dexto App'));
+        withAnalytics('create-app', async (name?: string, options?: CreateAppOptions) => {
+            try {
+                p.intro(chalk.inverse('Create Dexto App'));
 
-                    // Create the app project structure (fully self-contained)
-                    await createDextoProject(name, options);
+                // Create the app project structure (fully self-contained)
+                await createDextoProject(name, options);
 
-                    p.outro(chalk.greenBright('Dexto app created successfully!'));
-                    safeExit('create-app', 0);
-                } catch (err) {
-                    if (err instanceof ExitSignal) throw err;
-                    console.error(`❌ dexto create-app command failed: ${err}`);
-                    safeExit('create-app', 1, 'error');
-                }
+                p.outro(chalk.greenBright('Dexto app created successfully!'));
+                safeExit('create-app', 0);
+            } catch (err) {
+                if (err instanceof ExitSignal) throw err;
+                console.error(`❌ dexto create-app command failed: ${err}`);
+                safeExit('create-app', 1, 'error');
             }
-        )
+        })
     );
 
 // 3) `create-image` SUB-COMMAND
