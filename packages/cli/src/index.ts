@@ -902,7 +902,12 @@ program
                     }
 
                     // Validate that if config specifies an image, it matches what was loaded
-                    if (validatedConfig.image && validatedConfig.image !== imageName) {
+                    // Skip this check if user explicitly provided --image flag (intentional override)
+                    if (
+                        !opts.image &&
+                        validatedConfig.image &&
+                        validatedConfig.image !== imageName
+                    ) {
                         console.error(
                             `❌ Config specifies image '${validatedConfig.image}' but '${imageName}' was loaded instead`
                         );
