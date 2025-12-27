@@ -72,8 +72,12 @@ export interface PromptEvent {
 export interface SetupEvent {
     provider: string;
     model: string;
-    hadApiKeyBefore: boolean;
+    hadApiKeyBefore?: boolean;
     setupMode: 'interactive' | 'non-interactive';
+    setupVariant?: 'quick-start' | 'full' | 'advanced' | 'custom';
+    defaultMode?: string;
+    hasBaseURL?: boolean;
+    apiKeySkipped?: boolean;
 }
 
 export interface InstallAgentEvent {

@@ -81,6 +81,43 @@ const program = new Command();
 // Initialize analytics early (no-op if disabled)
 await initAnalytics({ appVersion: pkg.version });
 
+/**
+ * Recursively removes null values from an object.
+ * This handles YAML files that have explicit `apiKey: null` entries
+ * which would otherwise cause "Expected string, received null" validation errors.
+ */
+function cleanNullValues<T extends Record<string, unknown>>(obj: T): T {
+    if (obj === null || obj === undefined) return obj;
+    if (typeof obj !== 'object') return obj;
+    if (Array.isArray(obj)) {
+        return obj.map((item) =>
+            typeof item === 'object' && item !== null
+                ? cleanNullValues(item as Record<string, unknown>)
+                : item
+        ) as unknown as T;
+    }
+
+    const cleaned: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(obj)) {
+        if (value === null) {
+            // Skip null values - they become undefined (missing)
+            continue;
+        }
+        if (typeof value === 'object' && !Array.isArray(value)) {
+            cleaned[key] = cleanNullValues(value as Record<string, unknown>);
+        } else if (Array.isArray(value)) {
+            cleaned[key] = value.map((item) =>
+                typeof item === 'object' && item !== null
+                    ? cleanNullValues(item as Record<string, unknown>)
+                    : item
+            );
+        } else {
+            cleaned[key] = value;
+        }
+    }
+    return cleaned as T;
+}
+
 // 1) GLOBAL OPTIONS
 program
     .name('dexto')
@@ -345,7 +382,8 @@ async function bootstrapAgentFromGlobalOpts() {
         }),
     };
 
-    const agent = new DextoAgent(enrichedConfig, resolvedPath);
+    // Use relaxed validation for session commands - they don't need LLM calls
+    const agent = new DextoAgent(enrichedConfig, resolvedPath, { strict: false });
     await agent.start();
 
     // Register graceful shutdown
@@ -764,6 +802,11 @@ program
                 let validatedConfig: ValidatedAgentConfig;
                 let resolvedPath: string;
 
+                // Determine validation mode early - used throughout config loading and agent creation
+                // Use relaxed validation for interactive modes (web/cli) where users can configure later
+                // Use strict validation for headless modes (server/mcp) that need full config upfront
+                const isInteractiveMode = opts.mode === 'web' || opts.mode === 'cli';
+
                 try {
                     // Case 1: File path - skip all validation and setup
                     if (opts.agent && isPath(opts.agent)) {
@@ -821,6 +864,20 @@ program
                             }
 
                             await handleSetupCommand({ interactive: true });
+
+                            // Reload preferences after setup to get the newly selected default mode
+                            // (setup may have just saved a different mode than the default 'web')
+                            try {
+                                const newPreferences = await loadGlobalPreferences();
+                                if (newPreferences.defaults?.defaultMode) {
+                                    opts.mode = newPreferences.defaults.defaultMode;
+                                    logger.debug(
+                                        `Updated mode from setup preferences: ${opts.mode}`
+                                    );
+                                }
+                            } catch {
+                                // Ignore errors - will use default mode
+                            }
                         }
 
                         // Now resolve agent (will auto-install with preferences since setup is complete)
@@ -835,20 +892,40 @@ program
                     const rawConfig = await loadAgentConfig(resolvedPath);
                     const mergedConfig = applyCLIOverrides(rawConfig, opts as CLIConfigOverrides);
 
+                    // Clean up null values from config (can happen from YAML files with explicit nulls)
+                    // This prevents "Expected string, received null" errors for optional fields
+                    const cleanedConfig = cleanNullValues(mergedConfig);
+
                     // Enrich config with per-agent paths BEFORE validation
                     // Enrichment adds filesystem paths to storage (schema has in-memory defaults)
                     // Interactive CLI mode: only log to file (console would interfere with chat UI)
                     const isInteractiveCli = opts.mode === 'cli' && !headlessInput;
-                    const enrichedConfig = enrichAgentConfig(mergedConfig, resolvedPath, {
+                    const enrichedConfig = enrichAgentConfig(cleanedConfig, resolvedPath, {
                         isInteractiveCli,
                         logLevel: 'info', // CLI uses info-level logging for visibility
                     });
 
                     // Validate enriched config with interactive setup if needed (for API key issues)
-                    validatedConfig = await validateAgentConfig(
+                    // isInteractiveMode is defined above the try block
+                    const validationResult = await validateAgentConfig(
                         enrichedConfig,
-                        opts.interactive !== false
+                        opts.interactive !== false,
+                        { strict: !isInteractiveMode }
                     );
+
+                    if (validationResult.success && validationResult.config) {
+                        validatedConfig = validationResult.config;
+                    } else if (validationResult.skipped) {
+                        // User chose to continue despite validation errors
+                        // Try to use the enriched config as-is (may fail at runtime)
+                        logger.warn(
+                            'Starting with validation warnings - some features may not work'
+                        );
+                        validatedConfig = enrichedConfig as ValidatedAgentConfig;
+                    } else {
+                        // Validation failed and user didn't skip - show next steps and exit
+                        safeExit('main', 1, 'config-validation-failed');
+                    }
                 } catch (err) {
                     if (err instanceof ExitSignal) throw err;
                     // Config loading failed completely
@@ -919,7 +996,10 @@ program
 
                     // Config is already enriched and validated - ready for agent creation
                     // DextoAgent will parse/validate again (parse-twice pattern)
-                    agent = new DextoAgent(validatedConfig, resolvedPath);
+                    // isInteractiveMode is already defined above for validateAgentConfig
+                    agent = new DextoAgent(validatedConfig, resolvedPath, {
+                        strict: !isInteractiveMode,
+                    });
 
                     // Start the agent (initialize async services)
                     // - web/server modes: initializeHonoApi will set approval handler and start the agent
@@ -1099,6 +1179,31 @@ program
                         } else {
                             // Interactive mode - session management handled via /resume command
                             // Note: -c and -r flags are validated to require a prompt (headless mode only)
+
+                            // Check if API key is configured before trying to create session
+                            // Session creation triggers LLM service init which requires API key
+                            const llmConfig = agent.getCurrentLLMConfig();
+                            const { requiresApiKey, getPrimaryApiKeyEnvVar } = await import(
+                                '@dexto/core'
+                            );
+                            if (requiresApiKey(llmConfig.provider) && !llmConfig.apiKey?.trim()) {
+                                const envVar = getPrimaryApiKeyEnvVar(llmConfig.provider);
+                                console.log(chalk.yellow('\n⚠️  API key not configured\n'));
+                                console.log(
+                                    `Provider '${llmConfig.provider}' requires an API key to start chatting.\n`
+                                );
+                                console.log('To complete setup, choose one of these options:');
+                                console.log(
+                                    `  1. Run ${chalk.cyan('dexto setup')} to configure interactively`
+                                );
+                                console.log(`  2. Set ${chalk.cyan(envVar)} in your environment`);
+                                console.log(
+                                    `  3. Use ${chalk.cyan('dexto --mode web')} to configure in the browser\n`
+                                );
+                                await agent.stop().catch(() => {});
+                                safeExit('main', 0, 'api-key-pending'); // Exit 0 - expected state after skipping setup
+                            }
+
                             // Create session eagerly so slash commands work immediately
                             const session = await agent.createSession();
                             const cliSessionId: string = session.id;
