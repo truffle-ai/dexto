@@ -74,7 +74,7 @@ export interface SetupEvent {
     model: string;
     hadApiKeyBefore?: boolean;
     setupMode: 'interactive' | 'non-interactive';
-    setupVariant?: 'quick-start' | 'full' | 'advanced' | 'custom';
+    setupVariant?: 'quick-start' | 'custom';
     defaultMode?: string;
     hasBaseURL?: boolean;
     apiKeySkipped?: boolean;
