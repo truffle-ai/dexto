@@ -375,6 +375,93 @@ export function hasApiKeyConfigured(provider: LLMProvider): boolean {
 }
 
 /**
+ * Result when user is prompted about pending API key setup
+ */
+export interface PendingSetupPromptResult {
+    action: 'setup' | 'skip' | 'cancel';
+    apiKey?: string;
+}
+
+/**
+ * Prompts user about pending API key setup from a previous incomplete setup.
+ * This is shown when user previously skipped API key setup and is now trying to run dexto.
+ *
+ * @param provider - The provider that needs API key setup
+ * @param model - The model configured for the provider
+ * @returns Result indicating which action the user chose
+ */
+export async function promptForPendingApiKey(
+    provider: LLMProvider,
+    model: string
+): Promise<PendingSetupPromptResult> {
+    const providerName = getProviderDisplayName(provider);
+
+    p.intro(chalk.cyan('🔧 Complete Your Setup'));
+
+    p.note(
+        `You previously set up Dexto with ${chalk.bold(providerName)} but skipped API key configuration.\n\n` +
+            `To use ${providerName}/${model}, you'll need to add your API key.`,
+        'Setup Incomplete'
+    );
+
+    const action = await p.select({
+        message: 'What would you like to do?',
+        options: [
+            {
+                value: 'setup' as const,
+                label: `Set up ${providerName} API key now`,
+                hint: 'Recommended - complete your setup',
+            },
+            {
+                value: 'skip' as const,
+                label: 'Skip for now',
+                hint: 'Continue without API key - will show error when trying to use LLM',
+            },
+            {
+                value: 'cancel' as const,
+                label: 'Exit',
+                hint: 'Exit and set up later with: dexto setup',
+            },
+        ],
+    });
+
+    if (p.isCancel(action)) {
+        p.cancel('Cancelled');
+        return { action: 'cancel' };
+    }
+
+    if (action === 'cancel') {
+        return { action: 'cancel' };
+    }
+
+    if (action === 'skip') {
+        p.log.warn('Continuing without API key. You may see errors when the LLM is invoked.');
+        return { action: 'skip' };
+    }
+
+    // action === 'setup' - use the existing API key setup flow
+    const setupResult = await interactiveApiKeySetup(provider, {
+        exitOnCancel: false,
+        model,
+    });
+
+    if (setupResult.cancelled) {
+        return { action: 'cancel' };
+    }
+
+    if (setupResult.skipped) {
+        p.log.warn('API key setup skipped. You can configure it later with: dexto setup');
+        return { action: 'skip' };
+    }
+
+    if (setupResult.success && setupResult.apiKey) {
+        return { action: 'setup', apiKey: setupResult.apiKey };
+    }
+
+    return { action: 'skip' };
+}
+
+/**
  * Result when user is prompted about missing API key for a specific agent
  */
 export interface AgentApiKeyPromptResult {

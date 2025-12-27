@@ -905,6 +905,53 @@ program
                         }
                     }
 
+                    // Check for pending API key setup (user skipped during initial setup)
+                    if (
+                        isDefaultAgent &&
+                        preferences?.setup?.apiKeyPending &&
+                        opts.interactive !== false
+                    ) {
+                        // Check if API key is still missing (user may have set it manually)
+                        const configuredApiKey = resolveApiKeyForProvider(preferences.llm.provider);
+                        if (!configuredApiKey) {
+                            const { promptForPendingApiKey } = await import(
+                                './cli/utils/api-key-setup.js'
+                            );
+                            const { updateGlobalPreferences } = await import(
+                                '@dexto/agent-management'
+                            );
+
+                            const result = await promptForPendingApiKey(
+                                preferences.llm.provider,
+                                preferences.llm.model
+                            );
+
+                            if (result.action === 'cancel') {
+                                safeExit('main', 0, 'pending-api-key-cancelled');
+                            }
+
+                            if (result.action === 'setup' && result.apiKey) {
+                                // API key was configured - update preferences to clear pending flag
+                                await updateGlobalPreferences({
+                                    setup: { apiKeyPending: false },
+                                });
+                                // Update the merged config with the new API key
+                                mergedConfig.llm.apiKey = result.apiKey;
+                                logger.debug('API key configured, pending flag cleared');
+                            }
+                            // If 'skip', continue without API key (user chose to proceed)
+                        } else {
+                            // API key exists (user set it manually) - clear the pending flag
+                            const { updateGlobalPreferences } = await import(
+                                '@dexto/agent-management'
+                            );
+                            await updateGlobalPreferences({
+                                setup: { apiKeyPending: false },
+                            });
+                            logger.debug('API key found in environment, cleared pending flag');
+                        }
+                    }
+
                     if (isDefaultAgent && preferences) {
                         // Default-agent: Apply user's LLM preferences at runtime
                         // This ensures the base agent always uses user's preferred model/provider
@@ -949,6 +996,14 @@ program
                                 if (result.action === 'use-default') {
                                     // Apply user's default LLM to the agent config
                                     mergedConfig = applyUserPreferences(mergedConfig, preferences);
+                                    // Also resolve the actual API key from environment
+                                    // (preferences store env var reference like $GOOGLE_API_KEY, not the actual key)
+                                    const userApiKey = resolveApiKeyForProvider(
+                                        preferences.llm.provider
+                                    );
+                                    if (userApiKey) {
+                                        mergedConfig.llm.apiKey = userApiKey;
+                                    }
                                     logger.debug(
                                         'Applied user preferences to agent (user chose default)',
                                         {
