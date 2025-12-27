@@ -10857,8 +10857,7 @@
                         },
                         "required": [
                           "provider",
-                          "model",
-                          "apiKey"
+                          "model"
                         ],
                         "additionalProperties": false,
                         "description": "Core LLM configuration for the agent"
