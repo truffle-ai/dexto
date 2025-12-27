@@ -12,6 +12,7 @@ export interface LLMOverrides {
     provider?: LLMProvider;
     model?: string;
     apiKey?: string;
+    baseURL?: string;
 }
 
 /**
@@ -104,11 +105,13 @@ export async function writeLLMPreferences(
     const provider = overrides?.provider ?? preferences.llm.provider;
     const model = overrides?.model ?? preferences.llm.model;
     const apiKey = overrides?.apiKey ?? preferences.llm.apiKey;
+    const baseURL = overrides?.baseURL ?? preferences.llm.baseURL;
 
     logger.debug(`Applying LLM preferences`, {
         finalProvider: provider,
         finalModel: model,
         hasApiKey: Boolean(apiKey),
+        hasBaseURL: Boolean(baseURL),
         source: overrides ? 'CLI overrides + preferences' : 'preferences only',
     });
 
@@ -118,12 +121,31 @@ export async function writeLLMPreferences(
     // Get or create the llm section
     let llmNode = doc.get('llm');
     if (!llmNode || typeof llmNode !== 'object') {
-        doc.set('llm', { provider, model, apiKey });
+        // Create new llm section - only include optional fields if defined
+        const llmConfig: Record<string, string> = { provider, model };
+        if (apiKey) {
+            llmConfig.apiKey = apiKey;
+        }
+        if (baseURL) {
+            llmConfig.baseURL = baseURL;
+        }
+        doc.set('llm', llmConfig);
     } else {
         // Update individual fields to preserve other settings and comments
         doc.setIn(['llm', 'provider'], provider);
         doc.setIn(['llm', 'model'], model);
-        doc.setIn(['llm', 'apiKey'], apiKey);
+        // Only set apiKey if defined, otherwise remove it (for providers that don't need it)
+        if (apiKey) {
+            doc.setIn(['llm', 'apiKey'], apiKey);
+        } else {
+            doc.deleteIn(['llm', 'apiKey']);
+        }
+        // Only set baseURL if defined, otherwise remove it
+        if (baseURL) {
+            doc.setIn(['llm', 'baseURL'], baseURL);
+        } else {
+            doc.deleteIn(['llm', 'baseURL']);
+        }
     }
 
     // Write back to file preserving comments

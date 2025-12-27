@@ -23,6 +23,7 @@ export {
     getGlobalPreferencesPath,
     createInitialPreferences,
     updateGlobalPreferences,
+    type CreatePreferencesOptions,
 } from './loader.js';
 
 export { PreferenceError, PreferenceErrorCode } from './errors.js';

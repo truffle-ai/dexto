@@ -14,6 +14,7 @@ export {
     createInitialPreferences,
     updateGlobalPreferences,
     type GlobalPreferencesUpdates,
+    type CreatePreferencesOptions,
 } from './preferences/loader.js';
 export type { GlobalPreferences } from './preferences/schemas.js';
 export { PreferenceError, PreferenceErrorCode } from './preferences/errors.js';

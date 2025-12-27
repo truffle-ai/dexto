@@ -109,30 +109,93 @@ export function getGlobalPreferencesPath(): string {
 }
 
 /**
+ * Options for creating initial preferences
+ */
+export interface CreatePreferencesOptions {
+    provider: LLMProvider;
+    model: string;
+    /** API key env var (optional for providers like Ollama that don't need auth) */
+    apiKeyVar?: string;
+    defaultAgent?: string;
+    defaultMode?: 'cli' | 'web' | 'server' | 'discord' | 'telegram' | 'mcp';
+    baseURL?: string;
+    setupCompleted?: boolean;
+    /** Whether API key setup was skipped and needs to be configured later */
+    apiKeyPending?: boolean;
+    /** Whether baseURL setup was skipped and needs to be configured later */
+    baseURLPending?: boolean;
+}
+
+/**
  * Create initial preferences from setup data
- * @param provider Selected LLM provider
- * @param model Selected model
- * @param apiKeyVar Environment variable name for API key
- * @param defaultAgent Optional default agent name
+ * @param options Configuration options for preferences
+ */
+export function createInitialPreferences(options: CreatePreferencesOptions): GlobalPreferences;
+
+/**
+ * Create initial preferences from setup data (legacy signature)
+ * @deprecated Use options object instead
  */
 export function createInitialPreferences(
     provider: LLMProvider,
     model: string,
     apiKeyVar: string,
+    defaultAgent?: string
+): GlobalPreferences;
+
+export function createInitialPreferences(
+    providerOrOptions: LLMProvider | CreatePreferencesOptions,
+    model?: string,
+    apiKeyVar?: string,
     defaultAgent: string = 'default-agent'
 ): GlobalPreferences {
+    // Handle options object
+    if (typeof providerOrOptions === 'object') {
+        const opts = providerOrOptions;
+        const llmConfig: GlobalPreferences['llm'] = {
+            provider: opts.provider,
+            model: opts.model,
+        };
+
+        // Only add apiKey if provided (optional for local providers like Ollama)
+        if (opts.apiKeyVar) {
+            llmConfig.apiKey = `$${opts.apiKeyVar}`;
+        }
+
+        // Only add baseURL if provided
+        if (opts.baseURL) {
+            llmConfig.baseURL = opts.baseURL;
+        }
+
+        return {
+            llm: llmConfig,
+            defaults: {
+                defaultAgent: opts.defaultAgent || 'default-agent',
+                defaultMode: opts.defaultMode || 'web',
+            },
+            setup: {
+                completed: opts.setupCompleted ?? true,
+                apiKeyPending: opts.apiKeyPending ?? false,
+                baseURLPending: opts.baseURLPending ?? false,
+            },
+        };
+    }
+
+    // Legacy signature support
     return {
         llm: {
-            provider,
-            model,
+            provider: providerOrOptions,
+            model: model!,
             apiKey: `$${apiKeyVar}`,
         },
         defaults: {
             defaultAgent,
-            defaultMode: 'web', // Default to web mode
+            defaultMode: 'web',
         },
         setup: {
             completed: true,
+            apiKeyPending: false,
+            baseURLPending: false,
         },
     };
 }
