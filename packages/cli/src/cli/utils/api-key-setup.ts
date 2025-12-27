@@ -373,3 +373,125 @@ export function hasApiKeyConfigured(provider: LLMProvider): boolean {
     const envVar = getProviderEnvVar(provider);
     return Boolean(process.env[envVar]);
 }
+
+/**
+ * Result when user is prompted about missing API key for a specific agent
+ */
+export interface AgentApiKeyPromptResult {
+    action: 'add-key' | 'use-default' | 'cancel';
+    apiKey?: string; // Only set if action is 'add-key' and key was successfully added
+}
+
+/**
+ * Prompts user when loading a specific agent that requires an API key they don't have.
+ * Offers options to add the API key, continue with their default LLM, or cancel.
+ *
+ * @param agentProvider - The provider the agent requires
+ * @param agentModel - The model the agent uses
+ * @param userProvider - The user's default provider (from preferences)
+ * @param userModel - The user's default model (from preferences)
+ * @returns Result indicating which action the user chose
+ */
+export async function promptForMissingAgentApiKey(
+    agentProvider: LLMProvider,
+    agentModel: string,
+    userProvider: LLMProvider,
+    userModel: string
+): Promise<AgentApiKeyPromptResult> {
+    const agentProviderName = getProviderDisplayName(agentProvider);
+    const userProviderName = getProviderDisplayName(userProvider);
+    const userDefault = `${userProviderName}/${userModel}`;
+
+    p.intro(chalk.cyan('🔧 Agent Configuration'));
+
+    p.note(
+        `This agent is configured for ${chalk.bold(`${agentProviderName}/${agentModel}`)}\n` +
+            `but you don't have an API key set up for ${agentProviderName}.\n\n` +
+            `Your default LLM is ${chalk.green(userDefault)}.`,
+        'Missing API Key'
+    );
+
+    const action = await p.select({
+        message: 'What would you like to do?',
+        options: [
+            {
+                value: 'use-default' as const,
+                label: `Continue with ${userDefault}`,
+                hint: 'Agent will use your default LLM instead (behavior may differ)',
+            },
+            {
+                value: 'add-key' as const,
+                label: `Set up ${agentProviderName} API key`,
+                hint: `Configure ${agentProviderName} to run agent as intended`,
+            },
+            {
+                value: 'cancel' as const,
+                label: 'Cancel',
+                hint: 'Exit without running the agent',
+            },
+        ],
+    });
+
+    if (p.isCancel(action)) {
+        p.cancel('Cancelled');
+        return { action: 'cancel' };
+    }
+
+    if (action === 'cancel') {
+        return { action: 'cancel' };
+    }
+
+    if (action === 'use-default') {
+        p.log.warn(
+            `Using ${userDefault} instead of ${agentProviderName}/${agentModel}. ` +
+                `Agent behavior may differ from intended.`
+        );
+        return { action: 'use-default' };
+    }
+
+    // action === 'add-key' - use the existing API key setup flow
+    const setupResult = await interactiveApiKeySetup(agentProvider, {
+        exitOnCancel: false,
+        model: agentModel,
+    });
+
+    if (setupResult.cancelled) {
+        return { action: 'cancel' };
+    }
+
+    if (setupResult.skipped) {
+        // User skipped in the API key setup - ask again what they want to do
+        const skipAction = await p.select({
+            message: 'API key setup was skipped. What would you like to do?',
+            options: [
+                {
+                    value: 'use-default' as const,
+                    label: `Continue with ${userDefault}`,
+                    hint: 'Agent will use your default LLM instead',
+                },
+                {
+                    value: 'cancel' as const,
+                    label: 'Cancel',
+                    hint: 'Exit without running the agent',
+                },
+            ],
+        });
+
+        if (p.isCancel(skipAction) || skipAction === 'cancel') {
+            return { action: 'cancel' };
+        }
+
+        p.log.warn(
+            `Using ${userDefault} instead of ${agentProviderName}/${agentModel}. ` +
+                `Agent behavior may differ from intended.`
+        );
+        return { action: 'use-default' };
+    }
+
+    if (setupResult.success && setupResult.apiKey) {
+        return { action: 'add-key', apiKey: setupResult.apiKey };
+    }
+
+    // Shouldn't reach here, but default to cancel
+    return { action: 'cancel' };
+}

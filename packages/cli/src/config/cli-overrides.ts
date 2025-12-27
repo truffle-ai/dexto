@@ -117,6 +117,7 @@ export interface AgentCompatibilityResult {
     agentProvider: LLMProvider;
     agentModel: string;
     userProvider: LLMProvider | undefined;
+    userModel: string | undefined;
     userHasApiKey: boolean;
 }
 
@@ -140,6 +141,7 @@ export function checkAgentCompatibility(
     const agentProvider = agentConfig.llm.provider;
     const agentModel = agentConfig.llm.model;
     const userProvider = preferences?.llm?.provider;
+    const userModel = preferences?.llm?.model;
     const userHasApiKey = Boolean(resolvedApiKey);
 
     // Check if user has API key for this agent's provider
@@ -151,15 +153,15 @@ export function checkAgentCompatibility(
     }
 
     // Check if agent uses a different provider than user's default
-    if (userProvider && agentProvider !== userProvider) {
+    // Only show this as a warning if API key is missing; otherwise just informational
+    if (userProvider && agentProvider !== userProvider && !userHasApiKey) {
+        const userDefault = userModel ? `${userProvider}/${userModel}` : userProvider;
         warnings.push(
-            `This agent uses ${agentProvider}/${agentModel} (your default is ${userProvider}).`
+            `This agent uses ${agentProvider}/${agentModel} (your default is ${userDefault}).`
         );
-        if (!userHasApiKey) {
-            instructions.push(
-                `Make sure you have ${getEnvVarForProvider(agentProvider)} set in your environment.`
-            );
-        }
+        instructions.push(
+            `Make sure you have ${getEnvVarForProvider(agentProvider)} set in your environment.`
+        );
     }
 
     return {
@@ -169,6 +171,7 @@ export function checkAgentCompatibility(
         agentProvider,
         agentModel,
         userProvider,
+        userModel,
         userHasApiKey,
     };
 }

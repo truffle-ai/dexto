@@ -360,11 +360,7 @@ program
 // Helper to bootstrap a minimal agent for non-interactive session/search ops
 async function bootstrapAgentFromGlobalOpts() {
     const globalOpts = program.opts();
-    const resolvedPath = await resolveAgentPath(
-        globalOpts.agent,
-        globalOpts.autoInstall !== false,
-        true
-    );
+    const resolvedPath = await resolveAgentPath(globalOpts.agent, globalOpts.autoInstall !== false);
     const rawConfig = await loadAgentConfig(resolvedPath);
     const mergedConfig = applyCLIOverrides(rawConfig, globalOpts);
     const enrichedConfig = enrichAgentConfig(mergedConfig, resolvedPath, {
@@ -597,8 +593,7 @@ program
 
                     const configPath = await resolveAgentPath(
                         nameOrPath,
-                        globalOpts.autoInstall !== false,
-                        true
+                        globalOpts.autoInstall !== false
                     );
                     console.log(`📄 Loading Dexto config from: ${configPath}`);
                     const config = await loadAgentConfig(configPath);
@@ -816,8 +811,7 @@ program
                     if (opts.agent && isPath(opts.agent)) {
                         resolvedPath = await resolveAgentPath(
                             opts.agent,
-                            opts.autoInstall !== false,
-                            true
+                            opts.autoInstall !== false
                         );
                     }
                     // Cases 2 & 3: Default agent or registry agent
@@ -884,11 +878,10 @@ program
                             }
                         }
 
-                        // Now resolve agent (will auto-install with preferences since setup is complete)
+                        // Now resolve agent (will auto-install since setup is complete)
                         resolvedPath = await resolveAgentPath(
                             opts.agent,
-                            opts.autoInstall !== false,
-                            true
+                            opts.autoInstall !== false
                         );
                     }
 
@@ -931,18 +924,59 @@ program
                         );
 
                         if (!compatibility.compatible && opts.interactive !== false) {
-                            // Show warnings to user
-                            console.log(chalk.yellow('\n⚠️  Agent Compatibility Notice:'));
-                            for (const warning of compatibility.warnings) {
-                                console.log(chalk.yellow(`   ${warning}`));
-                            }
-                            if (compatibility.instructions.length > 0) {
-                                console.log(chalk.dim('\n   To fix:'));
-                                for (const instruction of compatibility.instructions) {
-                                    console.log(chalk.dim(`   ${instruction}`));
+                            // User is missing API key for the agent's provider
+                            if (
+                                !compatibility.userHasApiKey &&
+                                preferences?.llm?.provider &&
+                                preferences?.llm?.model
+                            ) {
+                                // User has a default LLM configured - offer choice
+                                const { promptForMissingAgentApiKey } = await import(
+                                    './cli/utils/api-key-setup.js'
+                                );
+
+                                const result = await promptForMissingAgentApiKey(
+                                    compatibility.agentProvider,
+                                    compatibility.agentModel,
+                                    preferences.llm.provider,
+                                    preferences.llm.model
+                                );
+
+                                if (result.action === 'cancel') {
+                                    safeExit('main', 0, 'agent-api-key-cancelled');
                                 }
+
+                                if (result.action === 'use-default') {
+                                    // Apply user's default LLM to the agent config
+                                    mergedConfig = applyUserPreferences(mergedConfig, preferences);
+                                    logger.debug(
+                                        'Applied user preferences to agent (user chose default)',
+                                        {
+                                            provider: preferences.llm.provider,
+                                            model: preferences.llm.model,
+                                        }
+                                    );
+                                }
+
+                                if (result.action === 'add-key' && result.apiKey) {
+                                    // User added the API key - update the config
+                                    mergedConfig.llm.apiKey = result.apiKey;
+                                    logger.debug('Applied new API key to agent config');
+                                }
+                            } else {
+                                // No default LLM to fall back to - show warnings only
+                                console.log(chalk.yellow('\n⚠️  Agent Compatibility Notice:'));
+                                for (const warning of compatibility.warnings) {
+                                    console.log(chalk.yellow(`   ${warning}`));
+                                }
+                                if (compatibility.instructions.length > 0) {
+                                    console.log(chalk.dim('\n   To fix:'));
+                                    for (const instruction of compatibility.instructions) {
+                                        console.log(chalk.dim(`   ${instruction}`));
+                                    }
+                                }
+                                console.log(''); // Empty line for spacing
                             }
-                            console.log(''); // Empty line for spacing
                         }
                     }
 
@@ -1237,25 +1271,48 @@ program
                             // Check if API key is configured before trying to create session
                             // Session creation triggers LLM service init which requires API key
                             const llmConfig = agent.getCurrentLLMConfig();
-                            const { requiresApiKey, getPrimaryApiKeyEnvVar } = await import(
-                                '@dexto/core'
-                            );
+                            const { requiresApiKey } = await import('@dexto/core');
                             if (requiresApiKey(llmConfig.provider) && !llmConfig.apiKey?.trim()) {
-                                const envVar = getPrimaryApiKeyEnvVar(llmConfig.provider);
-                                console.log(chalk.yellow('\n⚠️  API key not configured\n'));
-                                console.log(
-                                    `Provider '${llmConfig.provider}' requires an API key to start chatting.\n`
+                                // Offer interactive API key setup instead of just exiting
+                                const { interactiveApiKeySetup } = await import(
+                                    './cli/utils/api-key-setup.js'
                                 );
-                                console.log('To complete setup, choose one of these options:');
+
                                 console.log(
-                                    `  1. Run ${chalk.cyan('dexto setup')} to configure interactively`
+                                    chalk.yellow(
+                                        `\n⚠️  API key required for provider '${llmConfig.provider}'\n`
+                                    )
                                 );
-                                console.log(`  2. Set ${chalk.cyan(envVar)} in your environment`);
-                                console.log(
-                                    `  3. Use ${chalk.cyan('dexto --mode web')} to configure in the browser\n`
+
+                                const setupResult = await interactiveApiKeySetup(
+                                    llmConfig.provider,
+                                    {
+                                        exitOnCancel: false,
+                                        model: llmConfig.model,
+                                    }
                                 );
-                                await agent.stop().catch(() => {});
-                                safeExit('main', 0, 'api-key-pending'); // Exit 0 - expected state after skipping setup
+
+                                if (setupResult.cancelled) {
+                                    await agent.stop().catch(() => {});
+                                    safeExit('main', 0, 'api-key-setup-cancelled');
+                                }
+
+                                if (setupResult.skipped) {
+                                    // User chose to skip - exit with instructions
+                                    await agent.stop().catch(() => {});
+                                    safeExit('main', 0, 'api-key-pending');
+                                }
+
+                                if (setupResult.success && setupResult.apiKey) {
+                                    // API key was entered and saved - reload config and continue
+                                    // Update the agent's LLM config with the new API key
+                                    await agent.switchLLM({
+                                        provider: llmConfig.provider,
+                                        model: llmConfig.model,
+                                        apiKey: setupResult.apiKey,
+                                    });
+                                    logger.info('API key configured successfully, continuing...');
+                                }
                             }
 
                             // Create session eagerly so slash commands work immediately
@@ -1313,8 +1370,8 @@ program
 
                             safeExit('main', 0);
                         }
-                        break;
                     }
+                    // falls through - safeExit returns never, but eslint doesn't know that
 
                     case 'web': {
                         // Default to 3000 for web mode
