@@ -1,9 +1,18 @@
 /**
  * CLI-specific configuration types and utilities
  * This file handles CLI argument processing and config merging logic
+ *
+ * TODO: Future preference system enhancement
+ * Currently, global preferences are only applied to the default-agent at runtime.
+ * Future improvements could include:
+ * - Per-agent preference overrides (~/.dexto/agents/{id}/preferences.yml)
+ * - Agent capability requirements (requires: { vision: true, toolUse: true })
+ * - Merge strategy configuration (global > agent, agent > global, field-specific)
+ * - User-controlled preference scopes via CLI flags (--prefer-global-llm)
  */
 
-import type { AgentConfig, LLMConfig } from '@dexto/core';
+import type { AgentConfig, LLMConfig, LLMProvider } from '@dexto/core';
+import type { GlobalPreferences } from '@dexto/agent-management';
 
 /**
  * CLI config override type for fields that can be overridden via CLI
@@ -57,4 +66,130 @@ export function applyCLIOverrides(
 
     // Return merged config without validation - validation happens later
     return mergedConfig;
+}
+
+/**
+ * Applies global user preferences to an agent configuration at runtime.
+ * This is used for the default-agent to ensure user's LLM preferences are applied.
+ *
+ * Unlike writeLLMPreferences() which modifies files, this performs an in-memory merge.
+ *
+ * @param baseConfig The configuration loaded from agent file
+ * @param preferences Global user preferences
+ * @returns Merged configuration with user preferences applied
+ */
+export function applyUserPreferences(
+    baseConfig: AgentConfig,
+    preferences: GlobalPreferences
+): AgentConfig {
+    // Create a deep copy to avoid mutating the original
+    const mergedConfig = JSON.parse(JSON.stringify(baseConfig)) as AgentConfig;
+
+    // Apply LLM preferences (user preferences override agent defaults)
+    if (preferences.llm) {
+        mergedConfig.llm = {
+            ...mergedConfig.llm,
+            provider: preferences.llm.provider,
+            model: preferences.llm.model,
+        };
+
+        // Only override apiKey if user has one configured
+        if (preferences.llm.apiKey) {
+            mergedConfig.llm.apiKey = preferences.llm.apiKey;
+        }
+
+        // Only override baseURL if user has one configured
+        if (preferences.llm.baseURL) {
+            mergedConfig.llm.baseURL = preferences.llm.baseURL;
+        }
+    }
+
+    return mergedConfig;
+}
+
+/**
+ * Result of agent compatibility check
+ */
+export interface AgentCompatibilityResult {
+    compatible: boolean;
+    warnings: string[];
+    instructions: string[];
+    agentProvider: LLMProvider;
+    agentModel: string;
+    userProvider: LLMProvider | undefined;
+    userHasApiKey: boolean;
+}
+
+/**
+ * Check if user's current setup is compatible with an agent's requirements.
+ * Used when switching to non-default agents to warn users about potential issues.
+ *
+ * @param agentConfig The agent's configuration
+ * @param preferences User's global preferences (if available)
+ * @param resolvedApiKey Whether user has a valid API key for the agent's provider
+ * @returns Compatibility result with warnings and instructions
+ */
+export function checkAgentCompatibility(
+    agentConfig: AgentConfig,
+    preferences: GlobalPreferences | null,
+    resolvedApiKey: string | undefined
+): AgentCompatibilityResult {
+    const warnings: string[] = [];
+    const instructions: string[] = [];
+
+    const agentProvider = agentConfig.llm.provider;
+    const agentModel = agentConfig.llm.model;
+    const userProvider = preferences?.llm?.provider;
+    const userHasApiKey = Boolean(resolvedApiKey);
+
+    // Check if user has API key for this agent's provider
+    if (!userHasApiKey) {
+        warnings.push(
+            `This agent uses ${agentProvider} but you don't have an API key configured for it.`
+        );
+        instructions.push(`Run: dexto setup --provider ${agentProvider}`);
+    }
+
+    // Check if agent uses a different provider than user's default
+    if (userProvider && agentProvider !== userProvider) {
+        warnings.push(
+            `This agent uses ${agentProvider}/${agentModel} (your default is ${userProvider}).`
+        );
+        if (!userHasApiKey) {
+            instructions.push(
+                `Make sure you have ${getEnvVarForProvider(agentProvider)} set in your environment.`
+            );
+        }
+    }
+
+    return {
+        compatible: warnings.length === 0,
+        warnings,
+        instructions,
+        agentProvider,
+        agentModel,
+        userProvider,
+        userHasApiKey,
+    };
+}
+
+/**
+ * Get the environment variable name for a provider's API key
+ */
+function getEnvVarForProvider(provider: LLMProvider): string {
+    const envVarMap: Record<LLMProvider, string> = {
+        openai: 'OPENAI_API_KEY',
+        'openai-compatible': 'OPENAI_API_KEY',
+        anthropic: 'ANTHROPIC_API_KEY',
+        google: 'GOOGLE_GENERATIVE_AI_API_KEY',
+        groq: 'GROQ_API_KEY',
+        xai: 'XAI_API_KEY',
+        cohere: 'COHERE_API_KEY',
+        openrouter: 'OPENROUTER_API_KEY',
+        litellm: 'LITELLM_API_KEY',
+        glama: 'GLAMA_API_KEY',
+        vertex: 'GOOGLE_APPLICATION_CREDENTIALS',
+        bedrock: 'AWS_ACCESS_KEY_ID',
+    };
+    return envVarMap[provider];
 }

@@ -39,7 +39,11 @@ import type { ValidatedAgentConfig } from '@dexto/core';
 import { startHonoApiServer } from './api/server-hono.js';
 import { validateCliOptions, handleCliOptionsError } from './cli/utils/options.js';
 import { validateAgentConfig } from './cli/utils/config-validation.js';
-import { applyCLIOverrides } from './config/cli-overrides.js';
+import {
+    applyCLIOverrides,
+    applyUserPreferences,
+    checkAgentCompatibility,
+} from './config/cli-overrides.js';
 import { enrichAgentConfig } from '@dexto/agent-management';
 import { getPort } from './utils/port-utils.js';
 import {
@@ -890,7 +894,57 @@ program
 
                     // Load raw config and apply CLI overrides
                     const rawConfig = await loadAgentConfig(resolvedPath);
-                    const mergedConfig = applyCLIOverrides(rawConfig, opts as CLIConfigOverrides);
+                    let mergedConfig = applyCLIOverrides(rawConfig, opts as CLIConfigOverrides);
+
+                    // ——— PREFERENCE-AWARE CONFIG HANDLING ———
+                    // For default-agent (no explicit agent specified): Apply user preferences
+                    // For specific agents: Check compatibility and warn if needed
+                    const isDefaultAgent = !opts.agent;
+                    let preferences: Awaited<ReturnType<typeof loadGlobalPreferences>> | null =
+                        null;
+
+                    if (globalPreferencesExist()) {
+                        try {
+                            preferences = await loadGlobalPreferences();
+                        } catch {
+                            // Preferences exist but couldn't load - continue without them
+                            logger.debug('Could not load preferences, continuing without them');
+                        }
+                    }
+
+                    if (isDefaultAgent && preferences) {
+                        // Default-agent: Apply user's LLM preferences at runtime
+                        // This ensures the base agent always uses user's preferred model/provider
+                        mergedConfig = applyUserPreferences(mergedConfig, preferences);
+                        logger.debug('Applied user preferences to default-agent', {
+                            provider: preferences.llm.provider,
+                            model: preferences.llm.model,
+                        });
+                    } else if (!isDefaultAgent && mergedConfig.llm) {
+                        // Specific agent: Check if user has the required provider configured
+                        const agentProvider = mergedConfig.llm.provider;
+                        const resolvedApiKey = resolveApiKeyForProvider(agentProvider);
+                        const compatibility = checkAgentCompatibility(
+                            mergedConfig,
+                            preferences,
+                            resolvedApiKey
+                        );
+
+                        if (!compatibility.compatible && opts.interactive !== false) {
+                            // Show warnings to user
+                            console.log(chalk.yellow('\n⚠️  Agent Compatibility Notice:'));
+                            for (const warning of compatibility.warnings) {
+                                console.log(chalk.yellow(`   ${warning}`));
+                            }
+                            if (compatibility.instructions.length > 0) {
+                                console.log(chalk.dim('\n   To fix:'));
+                                for (const instruction of compatibility.instructions) {
+                                    console.log(chalk.dim(`   ${instruction}`));
+                                }
+                            }
+                            console.log(''); // Empty line for spacing
+                        }
+                    }
 
                     // Clean up null values from config (can happen from YAML files with explicit nulls)
                     // This prevents "Expected string, received null" errors for optional fields
