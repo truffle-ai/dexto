@@ -448,8 +448,8 @@ describe('Provider-Specific Tests', () => {
     describe('Google provider', () => {
         it('has correct capabilities and models', () => {
             expect(getSupportedProviders()).toContain('google');
-            expect(getSupportedModels('google')).toContain('gemini-2.5-pro');
-            expect(getDefaultModelForProvider('google')).toBe('gemini-2.5-pro');
+            expect(getSupportedModels('google')).toContain('gemini-3-flash-preview');
+            expect(getDefaultModelForProvider('google')).toBe('gemini-3-flash-preview');
             expect(supportsBaseURL('google')).toBe(false);
             expect(requiresBaseURL('google')).toBe(false);
             expect(acceptsAnyModel('google')).toBe(false);

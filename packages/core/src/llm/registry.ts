@@ -514,6 +514,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 name: 'gemini-3-flash-preview',
                 displayName: 'Gemini 3 Flash Preview',
                 maxInputTokens: 1048576,
+                default: true,
                 supportedFileTypes: ['pdf', 'image', 'audio'],
                 pricing: {
                     inputPerM: 0.5,
@@ -553,7 +554,6 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 name: 'gemini-2.5-pro',
                 displayName: 'Gemini 2.5 Pro',
                 maxInputTokens: 1048576,
-                default: true,
                 supportedFileTypes: ['pdf', 'image', 'audio'],
                 pricing: {
                     inputPerM: 1.25,
@@ -906,6 +906,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 name: 'gemini-3-flash-preview',
                 displayName: 'Gemini 3 Flash (Vertex)',
                 maxInputTokens: 1048576,
+                default: true,
                 supportedFileTypes: ['pdf', 'image', 'audio'],
                 pricing: {
                     inputPerM: 0.5,
@@ -933,7 +934,6 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 name: 'gemini-2.5-pro',
                 displayName: 'Gemini 2.5 Pro (Vertex)',
                 maxInputTokens: 1048576,
-                default: true,
                 supportedFileTypes: ['pdf', 'image', 'audio'],
                 pricing: {
                     inputPerM: 1.25,
@@ -1415,6 +1415,34 @@ export function acceptsAnyModel(provider: LLMProvider): boolean {
 export function supportsCustomModels(provider: LLMProvider): boolean {
     const providerInfo = LLM_REGISTRY[provider];
     return providerInfo.supportsCustomModels === true;
+}
+
+/**
+ * Providers that don't require API keys.
+ * These include:
+ * - Local/self-hosted providers (openai-compatible for Ollama, vLLM, LocalAI)
+ * - Proxies that handle auth internally (litellm)
+ * - Cloud auth providers (vertex uses ADC, bedrock uses AWS credentials)
+ */
+const API_KEY_OPTIONAL_PROVIDERS: Set<LLMProvider> = new Set([
+    'openai-compatible', // Ollama, vLLM, LocalAI - often no auth needed
+    'litellm', // Self-hosted proxy - handles auth internally
+    'vertex', // Uses Google Cloud ADC (Application Default Credentials)
+    'bedrock', // Uses AWS credentials (access key + secret or IAM role)
+]);
+
+/**
+ * Checks if a provider requires an API key.
+ * Returns false for:
+ * - Local providers (openai-compatible for Ollama, vLLM, LocalAI)
+ * - Self-hosted proxies (litellm)
+ * - Cloud auth providers (vertex, bedrock)
+ *
+ * @param provider The name of the provider.
+ * @returns True if the provider requires an API key, false otherwise.
+ */
+export function requiresApiKey(provider: LLMProvider): boolean {
+    return !API_KEY_OPTIONAL_PROVIDERS.has(provider);
 }
 
 /**
