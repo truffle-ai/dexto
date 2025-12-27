@@ -10264,11 +10264,6 @@
                         ],
                         "additionalProperties": false,
                         "description": "Agent metadata including description, author, and tags"
-                      },
-                      "injectPreferences": {
-                        "type": "boolean",
-                        "default": true,
-                        "description": "Whether to inject user preferences into agent config"
                       }
                     },
                     "required": [

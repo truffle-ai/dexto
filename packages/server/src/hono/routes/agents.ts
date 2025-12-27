@@ -69,10 +69,6 @@ const CustomAgentInstallSchema = z
             })
             .strict()
             .describe('Agent metadata including description, author, and tags'),
-        injectPreferences: z
-            .boolean()
-            .default(true)
-            .describe('Whether to inject user preferences into agent config'),
     })
     .strict()
     .describe('Request body for installing a custom agent from file system')
@@ -83,7 +79,6 @@ const CustomAgentInstallSchema = z
             displayName,
             sourcePath: value.sourcePath,
             metadata: value.metadata,
-            injectPreferences: value.injectPreferences,
         };
     });
 
@@ -553,20 +548,16 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
 
             // Check if this is a custom agent installation (has sourcePath and metadata)
             if ('sourcePath' in body && 'metadata' in body) {
-                const { id, displayName, sourcePath, metadata, injectPreferences } =
-                    body as ReturnType<typeof CustomAgentInstallSchema.parse>;
+                const { id, displayName, sourcePath, metadata } = body as ReturnType<
+                    typeof CustomAgentInstallSchema.parse
+                >;
 
-                await AgentFactory.installCustomAgent(
-                    id,
-                    sourcePath,
-                    {
-                        name: displayName,
-                        description: metadata.description,
-                        author: metadata.author,
-                        tags: metadata.tags,
-                    },
-                    injectPreferences
-                );
+                await AgentFactory.installCustomAgent(id, sourcePath, {
+                    name: displayName,
+                    description: metadata.description,
+                    author: metadata.author,
+                    tags: metadata.tags,
+                });
                 return ctx.json(
                     { installed: true as const, id, name: displayName, type: 'custom' as const },
                     201
@@ -670,17 +661,12 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
 
             try {
                 // Install the custom agent
-                await AgentFactory.installCustomAgent(
-                    id,
-                    tmpFile,
-                    {
-                        name,
-                        description,
-                        author: author || 'Custom',
-                        tags: tags || [],
-                    },
-                    false // Don't inject preferences
-                );
+                await AgentFactory.installCustomAgent(id, tmpFile, {
+                    name,
+                    description,
+                    author: author || 'Custom',
+                    tags: tags || [],
+                });
 
                 // Clean up temp file
                 await fs.unlink(tmpFile).catch(() => {});

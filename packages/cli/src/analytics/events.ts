@@ -84,7 +84,6 @@ export interface InstallAgentEvent {
     agent: string;
     status: 'installed' | 'skipped' | 'failed';
     force: boolean;
-    injectPreferences: boolean;
     reason?: string;
     error_message?: string;
 }

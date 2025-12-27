@@ -102,10 +102,9 @@ export interface AgentRegistry {
     /**
      * Installs an agent from the registry by ID
      * @param agentId - Unique agent identifier
-     * @param injectPreferences - Whether to inject global preferences (default: true)
      * @returns Path to the installed agent config
      */
-    installAgent(agentId: string, injectPreferences?: boolean): Promise<string>;
+    installAgent(agentId: string): Promise<string>;
     /**
      * Uninstalls an agent by ID
      * @param agentId - Unique agent identifier
@@ -120,12 +119,7 @@ export interface AgentRegistry {
      * Resolves an agent ID or path and optionally auto-installs if needed
      * @param idOrPath - Agent ID from registry or filesystem path
      * @param autoInstall - Whether to auto-install from registry (default: true)
-     * @param injectPreferences - Whether to inject preferences during install (default: true)
      * @returns Path to the agent config file
      */
-    resolveAgent(
-        idOrPath: string,
-        autoInstall?: boolean,
-        injectPreferences?: boolean
-    ): Promise<string>;
+    resolveAgent(idOrPath: string, autoInstall?: boolean): Promise<string>;
 }
