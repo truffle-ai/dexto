@@ -258,8 +258,9 @@ describe('Setup Command', () => {
     describe('Interactive setup', () => {
         it('shows setup type selection when interactive without provider', async () => {
             // User selects 'custom' setup, then provider selection happens
+            // New wizard flow uses p.select for all selections
             mockPrompts.select.mockResolvedValueOnce('custom'); // Setup type
-            mockSelectProvider.mockResolvedValue('anthropic');
+            mockPrompts.select.mockResolvedValueOnce('anthropic'); // Provider (via selectProviderWithBack)
             mockPrompts.select.mockResolvedValueOnce('claude-haiku-4-5-20251001'); // Model
             mockPrompts.select.mockResolvedValueOnce('web'); // Default mode
 
@@ -269,7 +270,7 @@ describe('Setup Command', () => {
 
             await handleSetupCommand(options);
 
-            expect(mockSelectProvider).toHaveBeenCalled();
+            // Wizard uses p.select directly, not selectProvider
             expect(mockCreateInitialPreferences).toHaveBeenCalledWith(
                 expect.objectContaining({
                     provider: 'anthropic',
@@ -302,8 +303,9 @@ describe('Setup Command', () => {
         });
 
         it('runs interactive API key setup when no API key exists', async () => {
+            // New wizard flow uses p.select for provider selection
             mockPrompts.select.mockResolvedValueOnce('custom'); // Setup type
-            mockSelectProvider.mockResolvedValue('openai');
+            mockPrompts.select.mockResolvedValueOnce('openai'); // Provider (via selectProviderWithBack)
             mockPrompts.select.mockResolvedValueOnce('gpt-4'); // Model
             mockPrompts.select.mockResolvedValueOnce('web'); // Default mode
             mockHasApiKeyConfigured.mockReturnValue(false); // No API key exists
@@ -314,17 +316,19 @@ describe('Setup Command', () => {
 
             await handleSetupCommand(options);
 
+            // API key setup is called with provider and model option
             expect(mockInteractiveApiKeySetup).toHaveBeenCalledWith(
                 'openai',
                 expect.objectContaining({
                     exitOnCancel: false,
+                    model: 'gpt-4',
                 })
             );
         });
 
         it('skips interactive API key setup when API key already exists', async () => {
             mockPrompts.select.mockResolvedValueOnce('custom'); // Setup type
-            mockSelectProvider.mockResolvedValue('openai');
+            mockPrompts.select.mockResolvedValueOnce('openai'); // Provider (via selectProviderWithBack)
             mockPrompts.select.mockResolvedValueOnce('gpt-4'); // Model
             mockPrompts.select.mockResolvedValueOnce('web'); // Default mode
             mockHasApiKeyConfigured.mockReturnValue(true); // API key exists
@@ -357,7 +361,7 @@ describe('Setup Command', () => {
         it('validates schema correctly with defaults and uses new options signature', async () => {
             // Interactive mode with provider - goes through full setup flow
             mockPrompts.select.mockResolvedValueOnce('custom'); // Setup type
-            mockSelectProvider.mockResolvedValue('google');
+            mockPrompts.select.mockResolvedValueOnce('google'); // Provider (via selectProviderWithBack)
             mockPrompts.select.mockResolvedValueOnce('gemini-2.5-pro'); // Model
             mockPrompts.select.mockResolvedValueOnce('web'); // Default mode
 
@@ -477,7 +481,7 @@ describe('Setup Command', () => {
 
             // Setup mocks for interactive flow
             mockPrompts.select.mockResolvedValueOnce('custom'); // Setup type
-            mockSelectProvider.mockResolvedValue('openai');
+            mockPrompts.select.mockResolvedValueOnce('openai'); // Provider (via selectProviderWithBack)
             mockPrompts.select.mockResolvedValueOnce('gpt-4'); // Model
             mockPrompts.select.mockResolvedValueOnce('web'); // Mode (won't be reached due to error)
 

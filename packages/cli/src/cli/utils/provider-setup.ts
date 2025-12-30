@@ -256,7 +256,7 @@ function buildProviderOptions(): Array<{ value: LLMProvider; label: string; hint
  * Interactive provider selection
  * @returns Selected provider
  */
-export async function selectProvider(): Promise<LLMProvider> {
+export async function selectProvider(): Promise<LLMProvider | null> {
     const options = buildProviderOptions();
 
     const choice = await p.select({
@@ -265,8 +265,7 @@ export async function selectProvider(): Promise<LLMProvider> {
     });
 
     if (p.isCancel(choice)) {
-        p.cancel('Setup cancelled');
-        process.exit(1);
+        return null;
     }
 
     return choice as LLMProvider;

@@ -90,6 +90,85 @@ const SetupCommandSchema = z
 export type CLISetupOptions = z.output<typeof SetupCommandSchema>;
 export type CLISetupOptionsInput = z.input<typeof SetupCommandSchema>;
 
+// ============================================================================
+// Setup Wizard Types and Helpers
+// ============================================================================
+
+/**
+ * Setup wizard step identifiers
+ */
+type SetupStep = 'setupType' | 'provider' | 'model' | 'apiKey' | 'mode' | 'complete';
+
+/**
+ * Setup wizard state - accumulates data as user progresses through steps
+ * Note: Properties explicitly allow undefined for back navigation to clear values
+ */
+interface SetupWizardState {
+    step: SetupStep;
+    setupType?: 'quick' | 'custom' | undefined;
+    provider?: LLMProvider | undefined;
+    model?: string | undefined;
+    baseURL?: string | undefined;
+    apiKeySkipped?: boolean | undefined;
+    defaultMode?: 'cli' | 'web' | 'server' | 'discord' | 'telegram' | 'mcp' | undefined;
+    /** Quick start handles its own preferences saving */
+    quickStartHandled?: boolean | undefined;
+}
+
+/**
+ * Get the steps to display for the current provider.
+ * Local/Ollama providers skip the API Key step.
+ */
+function getWizardSteps(provider?: LLMProvider): Array<{ key: SetupStep; label: string }> {
+    const isLocalProvider = provider === 'local' || provider === 'ollama';
+
+    if (isLocalProvider) {
+        return [
+            { key: 'provider', label: 'Provider' },
+            { key: 'model', label: 'Model' },
+            { key: 'mode', label: 'Mode' },
+        ];
+    }
+
+    return [
+        { key: 'provider', label: 'Provider' },
+        { key: 'model', label: 'Model' },
+        { key: 'apiKey', label: 'API Key' },
+        { key: 'mode', label: 'Mode' },
+    ];
+}
+
+/**
+ * Display step progress indicator for the setup wizard
+ */
+function showStepProgress(currentStep: SetupStep, provider?: LLMProvider): void {
+    // Don't show progress for setupType (it's the entry point)
+    if (currentStep === 'setupType' || currentStep === 'complete') {
+        return;
+    }
+
+    const steps = getWizardSteps(provider);
+    const currentIndex = steps.findIndex((s) => s.key === currentStep);
+
+    if (currentIndex === -1) {
+        return;
+    }
+
+    const progress = steps
+        .map((step, i) => {
+            if (i < currentIndex) return chalk.green(`✓ ${step.label}`);
+            if (i === currentIndex) return chalk.cyan(`● ${step.label}`);
+            return chalk.dim(`○ ${step.label}`);
+        })
+        .join('  ');
+
+    console.log(`\n  ${progress}\n`);
+}
+
+// ============================================================================
+// Setup Command Validation
+// ============================================================================
+
 /**
  * Validate setup command options with comprehensive validation
  */
@@ -218,14 +297,49 @@ async function handleQuickStart(): Promise<void> {
 }
 
 /**
- * Full interactive setup flow
+ * Full interactive setup flow with wizard navigation.
+ * Users can go back to previous steps to change their selections.
  */
 async function handleInteractiveSetup(_options: CLISetupOptions): Promise<void> {
     console.log(chalk.cyan('\n🗿 Dexto Setup\n'));
 
     p.intro(chalk.cyan("Let's configure your AI agent"));
 
-    // Show quick start option first
+    // Initialize wizard state
+    let state: SetupWizardState = { step: 'setupType' };
+
+    // Wizard loop - process steps until complete
+    while (state.step !== 'complete') {
+        switch (state.step) {
+            case 'setupType':
+                state = await wizardStepSetupType(state);
+                break;
+            case 'provider':
+                state = await wizardStepProvider(state);
+                break;
+            case 'model':
+                state = await wizardStepModel(state);
+                break;
+            case 'apiKey':
+                state = await wizardStepApiKey(state);
+                break;
+            case 'mode':
+                state = await wizardStepMode(state);
+                break;
+        }
+    }
+
+    // Save preferences and show completion
+    // Quick start handles its own saving, so skip for that path
+    if (!state.quickStartHandled) {
+        await saveWizardPreferences(state);
+    }
+}
+
+/**
+ * Wizard Step: Setup Type (Quick Start vs Custom)
+ */
+async function wizardStepSetupType(state: SetupWizardState): Promise<SetupWizardState> {
     const setupType = await p.select({
         message: 'How would you like to set up Dexto?',
         options: [
@@ -248,71 +362,62 @@ async function handleInteractiveSetup(_options: CLISetupOptions): Promise<void> 
     }
 
     if (setupType === 'quick') {
+        // Quick start bypasses the wizard - handle it directly
         await handleQuickStart();
-        return;
+        return { ...state, step: 'complete', quickStartHandled: true };
     }
 
-    // Custom setup - choose provider
-    const provider = await selectProvider();
-    const _providerInfo = getProviderInfo(provider); // Keep for future use (e.g., displaying API key URL)
+    return { ...state, step: 'provider', setupType: 'custom' };
+}
+
+/**
+ * Wizard Step: Provider Selection
+ */
+async function wizardStepProvider(state: SetupWizardState): Promise<SetupWizardState> {
+    showStepProgress('provider', state.provider);
+
+    const provider = await selectProviderWithBack();
+
+    if (provider === '_back') {
+        return { ...state, step: 'setupType', provider: undefined };
+    }
+
+    return { ...state, step: 'model', provider };
+}
+
+/**
+ * Wizard Step: Model Selection
+ */
+async function wizardStepModel(state: SetupWizardState): Promise<SetupWizardState> {
+    const provider = state.provider!;
+    showStepProgress('model', provider);
 
     // Handle local providers with special setup flow
     if (provider === 'local') {
         const localResult = await setupLocalModels();
         if (localResult.cancelled) {
-            p.cancel('Setup cancelled');
-            process.exit(0);
+            // User cancelled - go back to provider selection
+            return { ...state, step: 'provider', model: undefined };
+        }
+        if (localResult.back) {
+            return { ...state, step: 'provider', model: undefined };
         }
         const model = getLocalModelForPreferences(localResult, 'local');
-        const defaultMode = await selectDefaultMode();
-
-        const preferences = createInitialPreferences({
-            provider,
-            model,
-            defaultMode,
-            setupCompleted: true,
-        });
-
-        await saveGlobalPreferences(preferences);
-
-        capture('dexto_setup', {
-            provider,
-            model,
-            setupMode: 'interactive',
-            defaultMode,
-        });
-
-        showSetupComplete(provider, model, defaultMode, false);
-        return;
+        // Local providers skip apiKey step
+        return { ...state, step: 'mode', model };
     }
 
     if (provider === 'ollama') {
         const ollamaResult = await setupOllamaModels();
         if (ollamaResult.cancelled) {
-            p.cancel('Setup cancelled');
-            process.exit(0);
+            return { ...state, step: 'provider', model: undefined };
+        }
+        if (ollamaResult.back) {
+            return { ...state, step: 'provider', model: undefined };
         }
         const model = getLocalModelForPreferences(ollamaResult, 'ollama');
-        const defaultMode = await selectDefaultMode();
-
-        const preferences = createInitialPreferences({
-            provider,
-            model,
-            defaultMode,
-            setupCompleted: true,
-        });
-
-        await saveGlobalPreferences(preferences);
-
-        capture('dexto_setup', {
-            provider,
-            model,
-            setupMode: 'interactive',
-            defaultMode,
-        });
-
-        showSetupComplete(provider, model, defaultMode, false);
-        return;
+        // Ollama skips apiKey step
+        return { ...state, step: 'mode', model };
     }
 
     // Handle baseURL for providers that need it
@@ -321,39 +426,197 @@ async function handleInteractiveSetup(_options: CLISetupOptions): Promise<void> 
         baseURL = await promptForBaseURL(provider);
     }
 
-    // Get model
-    const model = await selectModel(provider);
+    // Cloud provider model selection with back option
+    const model = await selectModelWithBack(provider);
 
-    // API key setup - skip for providers that don't require API keys (Ollama, vLLM, etc.)
-    const apiKeyVar = getProviderEnvVar(provider);
+    if (model === '_back') {
+        return { ...state, step: 'provider', model: undefined, baseURL: undefined };
+    }
+
+    return { ...state, step: 'apiKey', model, baseURL };
+}
+
+/**
+ * Wizard Step: API Key Configuration
+ */
+async function wizardStepApiKey(state: SetupWizardState): Promise<SetupWizardState> {
+    const provider = state.provider!;
+    const model = state.model!;
+    showStepProgress('apiKey', provider);
+
     const hasKey = hasApiKeyConfigured(provider);
     const needsApiKey = requiresApiKey(provider);
-    let apiKeySkipped = false;
 
     if (needsApiKey && !hasKey) {
         const result = await interactiveApiKeySetup(provider, {
-            exitOnCancel: false, // Don't exit - allow skipping
+            exitOnCancel: false,
             model,
         });
 
         if (result.cancelled) {
-            p.cancel('Setup cancelled');
-            process.exit(0);
+            // Go back to model selection
+            return { ...state, step: 'model', apiKeySkipped: undefined };
         }
 
-        if (result.skipped || !result.success) {
-            apiKeySkipped = true;
-        }
+        const apiKeySkipped = result.skipped || !result.success;
+        return { ...state, step: 'mode', apiKeySkipped };
     } else if (needsApiKey && hasKey) {
         p.log.success(`API key for ${getProviderDisplayName(provider)} already configured`);
     } else if (!needsApiKey) {
         p.log.info(`${getProviderDisplayName(provider)} does not require an API key`);
     }
 
-    // Ask about default mode
-    const defaultMode = await selectDefaultMode();
+    return { ...state, step: 'mode', apiKeySkipped: false };
+}
 
-    // Save preferences
+/**
+ * Wizard Step: Default Mode Selection
+ */
+async function wizardStepMode(state: SetupWizardState): Promise<SetupWizardState> {
+    const provider = state.provider!;
+    const isLocalProvider = provider === 'local' || provider === 'ollama';
+    showStepProgress('mode', provider);
+
+    const mode = await selectDefaultModeWithBack();
+
+    if (mode === '_back') {
+        // Go back to previous step (apiKey for cloud, model for local)
+        if (isLocalProvider) {
+            return { ...state, step: 'model', defaultMode: undefined };
+        }
+        return { ...state, step: 'apiKey', defaultMode: undefined };
+    }
+
+    return { ...state, step: 'complete', defaultMode: mode };
+}
+
+/**
+ * Select provider with back option
+ */
+async function selectProviderWithBack(): Promise<LLMProvider | '_back'> {
+    const providerOptions = LLM_PROVIDERS.map((providerId) => {
+        return {
+            value: providerId,
+            label: getProviderDisplayName(providerId),
+        };
+    });
+
+    const result = await p.select({
+        message: 'Select your AI provider',
+        options: [
+            ...providerOptions,
+            { value: '_back' as const, label: chalk.dim('← Back'), hint: 'Return to setup type' },
+        ],
+    });
+
+    if (p.isCancel(result)) {
+        p.cancel('Setup cancelled');
+        process.exit(0);
+    }
+
+    return result as LLMProvider | '_back';
+}
+
+/**
+ * Select model with back option
+ */
+async function selectModelWithBack(provider: LLMProvider): Promise<string | '_back'> {
+    const providerInfo = LLM_REGISTRY[provider];
+
+    if (providerInfo?.models && providerInfo.models.length > 0) {
+        const modelOptions = providerInfo.models.map((m) => ({
+            value: m.name,
+            label: m.displayName || m.name,
+        }));
+
+        const result = await p.select({
+            message: `Select a model for ${getProviderDisplayName(provider)}`,
+            options: [
+                ...modelOptions,
+                { value: '_back' as const, label: chalk.dim('← Back'), hint: 'Change provider' },
+            ],
+        });
+
+        if (p.isCancel(result)) {
+            p.cancel('Setup cancelled');
+            process.exit(0);
+        }
+
+        return result as string | '_back';
+    }
+
+    // For providers that accept any model, show text input with back hint
+    p.log.info(chalk.dim('Press Ctrl+C to go back'));
+    const defaultModel = providerInfo?.models?.find((m) => m.default)?.name;
+    const model = await p.text({
+        message: `Enter model name for ${getProviderDisplayName(provider)}`,
+        placeholder: defaultModel || 'e.g., gpt-4-turbo',
+        validate: (value) => {
+            if (!value.trim()) return 'Model name is required';
+            return undefined;
+        },
+    });
+
+    if (p.isCancel(model)) {
+        return '_back';
+    }
+
+    return model as string;
+}
+
+/**
+ * Select default mode with back option
+ */
+async function selectDefaultModeWithBack(): Promise<
+    'cli' | 'web' | 'server' | 'discord' | 'telegram' | 'mcp' | '_back'
+> {
+    const result = await p.select({
+        message: 'How do you want to use Dexto by default?',
+        options: [
+            {
+                value: 'web' as const,
+                label: `${chalk.blue('●')} Web UI`,
+                hint: 'Opens in browser at localhost:3000 (recommended)',
+            },
+            {
+                value: 'cli' as const,
+                label: `${chalk.green('●')} Terminal CLI`,
+                hint: 'Interactive command-line interface',
+            },
+            {
+                value: 'server' as const,
+                label: `${chalk.yellow('●')} API Server`,
+                hint: 'REST API for programmatic access',
+            },
+            { value: '_back' as const, label: chalk.dim('← Back'), hint: 'Go to previous step' },
+        ],
+    });
+
+    if (p.isCancel(result)) {
+        return '_back';
+    }
+
+    return result as 'cli' | 'web' | 'server' | 'discord' | 'telegram' | 'mcp' | '_back';
+}
+
+/**
+ * Save wizard state to preferences
+ */
+async function saveWizardPreferences(state: SetupWizardState): Promise<void> {
+    const provider = state.provider!;
+    const model = state.model!;
+    const defaultMode = state.defaultMode!;
+    const apiKeySkipped = state.apiKeySkipped || false;
+
+    const needsApiKey = requiresApiKey(provider);
+    const apiKeyVar = getProviderEnvVar(provider);
+
+    // For local provider, sync the active model in state.json
+    if (provider === 'local') {
+        await setActiveModel(model);
+    }
+
+    // Build preferences options
     const preferencesOptions: CreatePreferencesOptions = {
         provider,
         model,
@@ -361,24 +624,25 @@ async function handleInteractiveSetup(_options: CLISetupOptions): Promise<void> 
         setupCompleted: true,
         apiKeyPending: apiKeySkipped,
     };
-    // Only include apiKeyVar if not skipped and provider needs it
+
     if (needsApiKey && !apiKeySkipped) {
         preferencesOptions.apiKeyVar = apiKeyVar;
     }
-    if (baseURL) {
-        preferencesOptions.baseURL = baseURL;
+    if (state.baseURL) {
+        preferencesOptions.baseURL = state.baseURL;
     }
-    const preferences = createInitialPreferences(preferencesOptions);
 
+    const preferences = createInitialPreferences(preferencesOptions);
     await saveGlobalPreferences(preferences);
 
+    // Analytics
     capture('dexto_setup', {
         provider,
         model,
         setupMode: 'interactive',
         setupVariant: 'custom',
         defaultMode,
-        hasBaseURL: Boolean(baseURL),
+        hasBaseURL: Boolean(state.baseURL),
         apiKeySkipped,
     });
 
@@ -427,98 +691,112 @@ async function handleNonInteractiveSetup(options: CLISetupOptions): Promise<void
 }
 
 /**
- * Settings menu for users who already have setup complete
+ * Settings menu for users who already have setup complete.
+ * Loops back to menu after each action until user exits.
  */
 async function showSettingsMenu(): Promise<void> {
     p.intro(chalk.cyan('⚙️  Dexto Settings'));
 
-    // Load current preferences
-    let currentPrefs;
-    try {
-        currentPrefs = await loadGlobalPreferences();
-    } catch {
-        currentPrefs = null;
-    }
+    // Settings menu loop - returns to menu after each action
+    while (true) {
+        // Load current preferences (refresh each iteration)
+        let currentPrefs;
+        try {
+            currentPrefs = await loadGlobalPreferences();
+        } catch {
+            currentPrefs = null;
+        }
 
-    // Show current configuration
-    if (currentPrefs) {
-        const currentConfig = [
-            `Provider: ${chalk.cyan(getProviderDisplayName(currentPrefs.llm.provider))}`,
-            `Model: ${chalk.cyan(currentPrefs.llm.model)}`,
-            `Default Mode: ${chalk.cyan(currentPrefs.defaults.defaultMode)}`,
-            ...(currentPrefs.llm.baseURL
-                ? [`Base URL: ${chalk.cyan(currentPrefs.llm.baseURL)}`]
-                : []),
-        ].join('\n');
+        // Show current configuration
+        if (currentPrefs) {
+            const currentConfig = [
+                `Provider: ${chalk.cyan(getProviderDisplayName(currentPrefs.llm.provider))}`,
+                `Model: ${chalk.cyan(currentPrefs.llm.model)}`,
+                `Default Mode: ${chalk.cyan(currentPrefs.defaults.defaultMode)}`,
+                ...(currentPrefs.llm.baseURL
+                    ? [`Base URL: ${chalk.cyan(currentPrefs.llm.baseURL)}`]
+                    : []),
+            ].join('\n');
 
-        p.note(currentConfig, 'Current Configuration');
-    }
+            p.note(currentConfig, 'Current Configuration');
+        }
 
-    const action = await p.select({
-        message: 'What would you like to do?',
-        options: [
-            {
-                value: 'provider',
-                label: 'Change AI provider',
-                hint: 'Switch to a different AI provider',
-            },
-            {
-                value: 'model',
-                label: 'Change model',
-                hint: `Currently: ${currentPrefs?.llm.model || 'not set'}`,
-            },
-            {
-                value: 'mode',
-                label: 'Change default mode',
-                hint: `Currently: ${currentPrefs?.defaults.defaultMode || 'web'}`,
-            },
-            {
-                value: 'apikey',
-                label: 'Update API key',
-                hint: 'Re-enter your API key',
-            },
-            {
-                value: 'reset',
-                label: 'Reset to defaults',
-                hint: 'Start fresh with a new configuration',
-            },
-            {
-                value: 'file',
-                label: 'View preferences file',
-                hint: 'See where your settings are stored',
-            },
-            {
-                value: 'exit',
-                label: 'Exit',
-                hint: 'Done making changes',
-            },
-        ],
-    });
+        const action = await p.select({
+            message: 'What would you like to do?',
+            options: [
+                {
+                    value: 'provider',
+                    label: 'Change AI provider',
+                    hint: 'Switch to a different AI provider',
+                },
+                {
+                    value: 'model',
+                    label: 'Change model',
+                    hint: `Currently: ${currentPrefs?.llm.model || 'not set'}`,
+                },
+                {
+                    value: 'mode',
+                    label: 'Change default mode',
+                    hint: `Currently: ${currentPrefs?.defaults.defaultMode || 'web'}`,
+                },
+                {
+                    value: 'apikey',
+                    label: 'Update API key',
+                    hint: 'Re-enter your API key',
+                },
+                {
+                    value: 'reset',
+                    label: 'Reset to defaults',
+                    hint: 'Start fresh with a new configuration',
+                },
+                {
+                    value: 'file',
+                    label: 'View preferences file',
+                    hint: 'See where your settings are stored',
+                },
+                {
+                    value: 'exit',
+                    label: 'Exit',
+                    hint: 'Done making changes',
+                },
+            ],
+        });
 
-    if (p.isCancel(action) || action === 'exit') {
-        p.outro('Settings unchanged');
-        return;
-    }
+        // Exit conditions
+        if (p.isCancel(action) || action === 'exit') {
+            p.outro(chalk.dim('Settings closed'));
+            return;
+        }
 
-    switch (action) {
-        case 'provider':
-            await changeProvider();
-            break;
-        case 'model':
-            await changeModel(currentPrefs?.llm.provider);
-            break;
-        case 'mode':
-            await changeDefaultMode();
-            break;
-        case 'apikey':
-            await updateApiKey(currentPrefs?.llm.provider);
-            break;
-        case 'reset':
-            await resetSetup();
-            break;
-        case 'file':
-            showPreferencesFilePath();
-            break;
+        // Execute action and loop back (except for reset which exits)
+        switch (action) {
+            case 'provider':
+                await changeProvider();
+                break;
+            case 'model':
+                await changeModel(currentPrefs?.llm.provider);
+                break;
+            case 'mode':
+                await changeDefaultMode();
+                break;
+            case 'apikey':
+                await updateApiKey(currentPrefs?.llm.provider);
+                break;
+            case 'reset': {
+                // Reset exits the menu after completion, but returns to menu if cancelled
+                const resetCompleted = await resetSetup();
+                if (resetCompleted) {
+                    return;
+                }
+                break;
+            }
+            case 'file':
+                showPreferencesFilePath();
+                break;
+        }
+
+        // Add separator before next iteration
+        console.log('');
     }
 }
 
@@ -528,11 +806,17 @@ async function showSettingsMenu(): Promise<void> {
 async function changeProvider(): Promise<void> {
     const provider = await selectProvider();
 
+    // Handle cancellation
+    if (provider === null) {
+        p.log.warn('Provider change cancelled');
+        return;
+    }
+
     // Handle local providers with special setup flow
     if (provider === 'local') {
         const localResult = await setupLocalModels();
         if (localResult.cancelled) {
-            p.outro('Provider change cancelled');
+            p.log.warn('Provider change cancelled');
             return;
         }
         const model = getLocalModelForPreferences(localResult, 'local');
@@ -541,14 +825,14 @@ async function changeProvider(): Promise<void> {
             llm: { provider, model },
         });
 
-        p.outro(chalk.green(`✓ Switched to Local Models with model ${model}`));
+        p.log.success(`Switched to Local Models with model ${model}`);
         return;
     }
 
     if (provider === 'ollama') {
         const ollamaResult = await setupOllamaModels();
         if (ollamaResult.cancelled) {
-            p.outro('Provider change cancelled');
+            p.log.warn('Provider change cancelled');
             return;
         }
         const model = getLocalModelForPreferences(ollamaResult, 'ollama');
@@ -557,11 +841,18 @@ async function changeProvider(): Promise<void> {
             llm: { provider, model },
         });
 
-        p.outro(chalk.green(`✓ Switched to Ollama with model ${model}`));
+        p.log.success(`Switched to Ollama with model ${model}`);
         return;
     }
 
     const model = await selectModel(provider);
+
+    // Handle cancellation
+    if (model === null) {
+        p.log.warn('Provider change cancelled');
+        return;
+    }
+
     const apiKeyVar = getProviderEnvVar(provider);
 
     // Check if API key is needed and exists
@@ -575,7 +866,7 @@ async function changeProvider(): Promise<void> {
             model,
         });
         if (result.cancelled) {
-            p.outro('Provider change cancelled');
+            p.log.warn('Provider change cancelled');
             return;
         }
         apiKeyConfigured = result.success && !result.skipped;
@@ -604,13 +895,9 @@ async function changeProvider(): Promise<void> {
     await updateGlobalPreferences({ llm: llmUpdate });
 
     if (needsApiKey && !apiKeyConfigured) {
-        p.outro(
-            chalk.yellow(`✓ Switched to ${getProviderDisplayName(provider)} (API key pending)`)
-        );
+        p.log.warn(`Switched to ${getProviderDisplayName(provider)} (API key pending)`);
     } else {
-        p.outro(
-            chalk.green(`✓ Switched to ${getProviderDisplayName(provider)} with model ${model}`)
-        );
+        p.log.success(`Switched to ${getProviderDisplayName(provider)} with model ${model}`);
     }
 }
 
@@ -620,37 +907,50 @@ async function changeProvider(): Promise<void> {
 async function changeModel(currentProvider?: LLMProvider): Promise<void> {
     const provider = currentProvider || (await selectProvider());
 
+    // Handle cancellation from selectProvider
+    if (provider === null) {
+        p.log.warn('Model change cancelled');
+        return;
+    }
+
     // Special handling for local providers - use dedicated setup flows
     if (provider === 'local') {
         const localResult = await setupLocalModels();
         if (localResult.cancelled) {
-            p.outro('Model change cancelled');
+            p.log.warn('Model change cancelled');
             return;
         }
         const model = getLocalModelForPreferences(localResult, 'local');
         await updateGlobalPreferences({
             llm: { provider, model },
         });
-        p.outro(chalk.green(`✓ Model changed to ${model}`));
+        p.log.success(`Model changed to ${model}`);
         return;
     }
 
     if (provider === 'ollama') {
         const ollamaResult = await setupOllamaModels();
         if (ollamaResult.cancelled) {
-            p.outro('Model change cancelled');
+            p.log.warn('Model change cancelled');
             return;
         }
         const model = getLocalModelForPreferences(ollamaResult, 'ollama');
         await updateGlobalPreferences({
             llm: { provider, model },
         });
-        p.outro(chalk.green(`✓ Model changed to ${model}`));
+        p.log.success(`Model changed to ${model}`);
         return;
     }
 
     // Standard flow for cloud providers
     const model = await selectModel(provider);
+
+    // Handle cancellation from selectModel
+    if (model === null) {
+        p.log.warn('Model change cancelled');
+        return;
+    }
+
     const apiKeyVar = getProviderEnvVar(provider);
     const needsApiKey = requiresApiKey(provider);
 
@@ -665,7 +965,7 @@ async function changeModel(currentProvider?: LLMProvider): Promise<void> {
 
     await updateGlobalPreferences({ llm: llmUpdate });
 
-    p.outro(chalk.green(`✓ Model changed to ${model}`));
+    p.log.success(`Model changed to ${model}`);
 }
 
 /**
@@ -678,7 +978,7 @@ async function changeDefaultMode(): Promise<void> {
         defaults: { defaultMode: mode },
     });
 
-    p.outro(chalk.green(`✓ Default mode changed to ${mode}`));
+    p.log.success(`Default mode changed to ${mode}`);
 }
 
 /**
@@ -686,6 +986,12 @@ async function changeDefaultMode(): Promise<void> {
  */
 async function updateApiKey(currentProvider?: LLMProvider): Promise<void> {
     const provider = currentProvider || (await selectProvider());
+
+    // Handle cancellation from selectProvider
+    if (provider === null) {
+        p.log.warn('API key update cancelled');
+        return;
+    }
 
     // Handle providers that use non-API-key authentication
     if (provider === 'vertex') {
@@ -697,7 +1003,6 @@ async function updateApiKey(currentProvider?: LLMProvider): Promise<void> {
                 `  3. Set GOOGLE_VERTEX_PROJECT environment variable`,
             'Google Cloud Authentication'
         );
-        p.outro('');
         return;
     }
 
@@ -711,7 +1016,6 @@ async function updateApiKey(currentProvider?: LLMProvider): Promise<void> {
                 `  • AWS_SESSION_TOKEN (optional, for temporary credentials)`,
             'AWS Authentication'
         );
-        p.outro('');
         return;
     }
 
@@ -724,7 +1028,7 @@ async function updateApiKey(currentProvider?: LLMProvider): Promise<void> {
         });
 
         if (p.isCancel(wantsKey) || !wantsKey) {
-            p.outro('Skipped API key setup');
+            p.log.info('Skipped API key setup');
             return;
         }
     }
@@ -735,33 +1039,35 @@ async function updateApiKey(currentProvider?: LLMProvider): Promise<void> {
     });
 
     if (result.success) {
-        p.outro(chalk.green(`✓ API key updated for ${getProviderDisplayName(provider)}`));
+        p.log.success(`API key updated for ${getProviderDisplayName(provider)}`);
     } else {
-        p.outro(chalk.yellow('API key update cancelled'));
+        p.log.warn('API key update cancelled');
     }
 }
 
 /**
  * Reset setup to start fresh
  */
-async function resetSetup(): Promise<void> {
+async function resetSetup(): Promise<boolean> {
     const confirm = await p.confirm({
         message: 'This will erase your current configuration. Continue?',
         initialValue: false,
     });
 
     if (p.isCancel(confirm) || !confirm) {
-        p.outro('Reset cancelled');
-        return;
+        p.log.info('Reset cancelled');
+        return false; // Indicate reset was cancelled
     }
 
-    // Run full setup
+    // Run full setup - this will complete a fresh setup
     await handleInteractiveSetup({
         interactive: true,
         force: true,
         defaultAgent: 'default-agent',
         quickStart: false,
     });
+
+    return true; // Indicate reset completed
 }
 
 /**
@@ -786,8 +1092,6 @@ function showPreferencesFilePath(): void {
         ].join('\n'),
         'Preferences File Location'
     );
-
-    p.outro('');
 }
 
 /**
@@ -826,8 +1130,9 @@ async function selectDefaultMode(): Promise<
 
 /**
  * Select model interactively
+ * Returns null if user cancels
  */
-async function selectModel(provider: LLMProvider): Promise<string> {
+async function selectModel(provider: LLMProvider): Promise<string | null> {
     const providerInfo = LLM_REGISTRY[provider];
 
     // For providers with a fixed model list
@@ -850,8 +1155,7 @@ async function selectModel(provider: LLMProvider): Promise<string> {
         });
 
         if (p.isCancel(selected)) {
-            p.cancel('Setup cancelled');
-            process.exit(0);
+            return null;
         }
 
         return selected as string;
@@ -871,8 +1175,7 @@ async function selectModel(provider: LLMProvider): Promise<string> {
     });
 
     if (p.isCancel(modelInput)) {
-        p.cancel('Setup cancelled');
-        process.exit(0);
+        return null;
     }
 
     return modelInput.trim();

@@ -48,6 +48,9 @@ export interface LocalModelSetupResult {
     /** Whether user cancelled */
     cancelled?: boolean;
 
+    /** Whether user wants to go back to provider selection */
+    back?: boolean;
+
     /** Whether user skipped model selection */
     skipped?: boolean;
 }
@@ -235,6 +238,13 @@ export async function setupLocalModels(): Promise<LocalModelSetupResult> {
         hint: 'Configure later with: dexto models',
     });
 
+    // Add back option
+    modelOptions.push({
+        value: '_back',
+        label: chalk.dim('← Back'),
+        hint: 'Choose a different provider',
+    });
+
     p.note(
         'Local models run completely on your machine - free, private, and offline.\n' +
             'Select a model to download (or use an existing one).',
@@ -253,6 +263,10 @@ export async function setupLocalModels(): Promise<LocalModelSetupResult> {
     if (selected === '_skip') {
         p.log.info(chalk.gray('Skipped model selection. Use `dexto models` to configure later.'));
         return { success: true, skipped: true };
+    }
+
+    if (selected === '_back') {
+        return { success: false, back: true };
     }
 
     if (selected === '_all_models') {
@@ -372,6 +386,13 @@ export async function setupOllamaModels(): Promise<LocalModelSetupResult> {
         hint: 'For models not yet pulled',
     });
 
+    // Add back option
+    modelOptions.push({
+        value: '_back',
+        label: chalk.dim('← Back'),
+        hint: 'Choose a different provider',
+    });
+
     const selected = await p.select({
         message: 'Select an Ollama model',
         options: modelOptions,
@@ -379,6 +400,10 @@ export async function setupOllamaModels(): Promise<LocalModelSetupResult> {
 
     if (p.isCancel(selected)) {
         return { success: false, cancelled: true };
+    }
+
+    if (selected === '_back') {
+        return { success: false, back: true };
     }
 
     if (selected === '_custom') {
