@@ -165,7 +165,7 @@ export async function getModelsDiskUsage(): Promise<number> {
  * @param bytes Number of bytes
  * @returns Formatted string (e.g., "4.5 GB")
  */
-export function formatBytes(bytes: number): string {
+export function formatSize(bytes: number): string {
     if (bytes === 0) return '0 B';
 
     const units = ['B', 'KB', 'MB', 'GB', 'TB'];
@@ -174,3 +174,8 @@ export function formatBytes(bytes: number): string {
 
     return `${(bytes / Math.pow(k, i)).toFixed(1)} ${units[i]}`;
 }
+
+/**
+ * @deprecated Use formatSize instead
+ */
+export const formatBytes = formatSize;

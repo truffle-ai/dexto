@@ -19,6 +19,7 @@ import {
     loadGlobalPreferences,
     getGlobalPreferencesPath,
     updateGlobalPreferences,
+    setActiveModel,
     type CreatePreferencesOptions,
 } from '@dexto/agent-management';
 import { interactiveApiKeySetup, hasApiKeyConfigured } from '../utils/api-key-setup.js';
@@ -410,6 +411,11 @@ async function handleNonInteractiveSetup(options: CLISetupOptions): Promise<void
 
     await saveGlobalPreferences(preferences);
 
+    // For local provider, sync the active model in state.json
+    if (provider === 'local') {
+        await setActiveModel(model);
+    }
+
     capture('dexto_setup', {
         provider,
         model,
@@ -613,6 +619,37 @@ async function changeProvider(): Promise<void> {
  */
 async function changeModel(currentProvider?: LLMProvider): Promise<void> {
     const provider = currentProvider || (await selectProvider());
+
+    // Special handling for local providers - use dedicated setup flows
+    if (provider === 'local') {
+        const localResult = await setupLocalModels();
+        if (localResult.cancelled) {
+            p.outro('Model change cancelled');
+            return;
+        }
+        const model = getLocalModelForPreferences(localResult, 'local');
+        await updateGlobalPreferences({
+            llm: { provider, model },
+        });
+        p.outro(chalk.green(`✓ Model changed to ${model}`));
+        return;
+    }
+
+    if (provider === 'ollama') {
+        const ollamaResult = await setupOllamaModels();
+        if (ollamaResult.cancelled) {
+            p.outro('Model change cancelled');
+            return;
+        }
+        const model = getLocalModelForPreferences(ollamaResult, 'ollama');
+        await updateGlobalPreferences({
+            llm: { provider, model },
+        });
+        p.outro(chalk.green(`✓ Model changed to ${model}`));
+        return;
+    }
+
+    // Standard flow for cloud providers
     const model = await selectModel(provider);
     const apiKeyVar = getProviderEnvVar(provider);
     const needsApiKey = requiresApiKey(provider);
@@ -886,6 +923,7 @@ function showSetupComplete(
     apiKeySkipped: boolean = false
 ): void {
     const modeCommand = defaultMode === 'web' ? 'dexto' : `dexto --mode ${defaultMode}`;
+    const isLocalProvider = provider === 'local' || provider === 'ollama';
 
     if (apiKeySkipped) {
         console.log(chalk.yellow('\n⚠️  Setup complete (API key pending)\n'));
@@ -911,6 +949,12 @@ function showSetupComplete(
         `${chalk.bold('Next steps:')}`,
         `  Run ${chalk.cyan(modeCommand)} to start`,
         `  Run ${chalk.cyan('dexto setup')} to change settings`,
+        ...(isLocalProvider
+            ? [
+                  `  Run ${chalk.cyan('dexto models')} to manage local models`,
+                  `  Run ${chalk.cyan('dexto models list')} to see available models`,
+              ]
+            : []),
         `  Run ${chalk.cyan('dexto --help')} for more options`,
     ].join('\n');
 

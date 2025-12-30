@@ -21,7 +21,8 @@ export {
     deleteModelDirectory,
     listModelDirectories,
     getModelsDiskUsage,
-    formatBytes,
+    formatSize,
+    formatBytes, // @deprecated - use formatSize
 } from './path-resolver.js';
 
 // State manager

@@ -129,7 +129,8 @@ export {
     deleteModelDirectory,
     listModelDirectories,
     getModelsDiskUsage,
-    formatBytes,
+    formatSize,
+    formatBytes, // @deprecated - use formatSize
     // State manager
     type ModelSource,
     type InstalledModel,
