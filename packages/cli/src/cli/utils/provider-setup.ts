@@ -14,7 +14,7 @@ import { getPrimaryApiKeyEnvVar } from '@dexto/agent-management';
 /**
  * Provider category for organizing the selection menu
  */
-type ProviderCategory = 'recommended' | 'cloud' | 'gateway' | 'enterprise';
+type ProviderCategory = 'recommended' | 'local' | 'cloud' | 'gateway' | 'enterprise';
 
 /**
  * Extended provider information for setup
@@ -57,6 +57,23 @@ export const PROVIDER_REGISTRY: Partial<Record<LLMProvider, ProviderOption>> = {
         apiKeyPrefix: 'gsk_',
         apiKeyMinLength: 40,
         envVar: 'GROQ_API_KEY',
+        free: true,
+    },
+    // Local providers - run AI completely on your machine
+    local: {
+        value: 'local',
+        label: 'Local Models',
+        hint: 'Run Llama, Qwen, Mistral locally - Free, private, offline',
+        category: 'local',
+        envVar: '', // No API key required
+        free: true,
+    },
+    ollama: {
+        value: 'ollama',
+        label: 'Ollama',
+        hint: 'Use Ollama server for local inference',
+        category: 'local',
+        envVar: '', // No API key required (optional OLLAMA_API_KEY for remote)
         free: true,
     },
     openai: {
@@ -153,6 +170,7 @@ export const PROVIDER_REGISTRY: Partial<Record<LLMProvider, ProviderOption>> = {
 function getProvidersByCategory(): Record<ProviderCategory, ProviderOption[]> {
     const categories: Record<ProviderCategory, ProviderOption[]> = {
         recommended: [],
+        local: [],
         cloud: [],
         gateway: [],
         enterprise: [],
@@ -182,6 +200,17 @@ function buildProviderOptions(): Array<{ value: LLMProvider; label: string; hint
                 value: p.value,
                 label: `${chalk.green('●')} ${p.label}`,
                 hint: `${p.hint} ${chalk.green('(free)')}`,
+            });
+        }
+    }
+
+    // Local providers - run AI on your machine
+    if (categories.local.length > 0) {
+        for (const p of categories.local) {
+            options.push({
+                value: p.value,
+                label: `${chalk.cyan('●')} ${p.label}`,
+                hint: `${p.hint} ${chalk.cyan('(local)')}`,
             });
         }
     }

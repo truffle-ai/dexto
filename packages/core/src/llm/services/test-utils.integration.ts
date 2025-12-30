@@ -163,6 +163,8 @@ export const TestConfigs = {
             glama: 'openai/gpt-4o', // Glama model format: provider/model
             vertex: 'gemini-2.5-pro', // Vertex AI uses ADC auth, not API keys
             bedrock: 'anthropic.claude-3-5-haiku-20241022-v1:0', // Bedrock uses AWS credentials, not API keys
+            local: 'llama-3.2-3b-q4', // Native node-llama-cpp GGUF models
+            ollama: 'llama3.2', // Ollama server models
         };
 
         return {

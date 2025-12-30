@@ -30,6 +30,11 @@ import {
     providerRequiresBaseURL,
     getDefaultModel,
 } from '../utils/provider-setup.js';
+import {
+    setupLocalModels,
+    setupOllamaModels,
+    getLocalModelForPreferences,
+} from '../utils/local-model-setup.js';
 import { requiresSetup } from '../utils/setup-utils.js';
 import * as p from '@clack/prompts';
 import { logger } from '@dexto/core';
@@ -250,6 +255,65 @@ async function handleInteractiveSetup(_options: CLISetupOptions): Promise<void> 
     const provider = await selectProvider();
     const _providerInfo = getProviderInfo(provider); // Keep for future use (e.g., displaying API key URL)
 
+    // Handle local providers with special setup flow
+    if (provider === 'local') {
+        const localResult = await setupLocalModels();
+        if (localResult.cancelled) {
+            p.cancel('Setup cancelled');
+            process.exit(0);
+        }
+        const model = getLocalModelForPreferences(localResult, 'local');
+        const defaultMode = await selectDefaultMode();
+
+        const preferences = createInitialPreferences({
+            provider,
+            model,
+            defaultMode,
+            setupCompleted: true,
+        });
+
+        await saveGlobalPreferences(preferences);
+
+        capture('dexto_setup', {
+            provider,
+            model,
+            setupMode: 'interactive',
+            defaultMode,
+        });
+
+        showSetupComplete(provider, model, defaultMode, false);
+        return;
+    }
+
+    if (provider === 'ollama') {
+        const ollamaResult = await setupOllamaModels();
+        if (ollamaResult.cancelled) {
+            p.cancel('Setup cancelled');
+            process.exit(0);
+        }
+        const model = getLocalModelForPreferences(ollamaResult, 'ollama');
+        const defaultMode = await selectDefaultMode();
+
+        const preferences = createInitialPreferences({
+            provider,
+            model,
+            defaultMode,
+            setupCompleted: true,
+        });
+
+        await saveGlobalPreferences(preferences);
+
+        capture('dexto_setup', {
+            provider,
+            model,
+            setupMode: 'interactive',
+            defaultMode,
+        });
+
+        showSetupComplete(provider, model, defaultMode, false);
+        return;
+    }
+
     // Handle baseURL for providers that need it
     let baseURL: string | undefined;
     if (providerRequiresBaseURL(provider)) {
@@ -457,6 +521,40 @@ async function showSettingsMenu(): Promise<void> {
  */
 async function changeProvider(): Promise<void> {
     const provider = await selectProvider();
+
+    // Handle local providers with special setup flow
+    if (provider === 'local') {
+        const localResult = await setupLocalModels();
+        if (localResult.cancelled) {
+            p.outro('Provider change cancelled');
+            return;
+        }
+        const model = getLocalModelForPreferences(localResult, 'local');
+
+        await updateGlobalPreferences({
+            llm: { provider, model },
+        });
+
+        p.outro(chalk.green(`✓ Switched to Local Models with model ${model}`));
+        return;
+    }
+
+    if (provider === 'ollama') {
+        const ollamaResult = await setupOllamaModels();
+        if (ollamaResult.cancelled) {
+            p.outro('Provider change cancelled');
+            return;
+        }
+        const model = getLocalModelForPreferences(ollamaResult, 'ollama');
+
+        await updateGlobalPreferences({
+            llm: { provider, model },
+        });
+
+        p.outro(chalk.green(`✓ Switched to Ollama with model ${model}`));
+        return;
+    }
+
     const model = await selectModel(provider);
     const apiKeyVar = getProviderEnvVar(provider);
 

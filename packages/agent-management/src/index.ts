@@ -113,3 +113,43 @@ export {
     type CustomModel,
     type CustomModelProvider,
 } from './models/custom-models.js';
+
+// Local model management
+export {
+    // Path resolver
+    getModelsDirectory,
+    getModelFilePath,
+    getModelDirectory,
+    getModelStatePath,
+    getModelTempDirectory,
+    ensureModelsDirectory,
+    ensureModelDirectory,
+    modelFileExists,
+    getModelFileSize,
+    deleteModelDirectory,
+    listModelDirectories,
+    getModelsDiskUsage,
+    formatBytes,
+    // State manager
+    type ModelSource,
+    type InstalledModel,
+    type ModelState,
+    loadModelState,
+    saveModelState,
+    addInstalledModel,
+    removeInstalledModel,
+    getInstalledModel,
+    getAllInstalledModels,
+    isModelInstalled,
+    updateModelLastUsed,
+    setActiveModel,
+    getActiveModelId,
+    getActiveModel,
+    addToDownloadQueue,
+    removeFromDownloadQueue,
+    getDownloadQueue,
+    syncStateWithFilesystem,
+    getTotalInstalledSize,
+    getInstalledModelCount,
+    registerManualModel,
+} from './models/index.js';

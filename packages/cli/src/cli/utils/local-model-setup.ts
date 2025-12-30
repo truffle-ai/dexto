@@ -1,0 +1,655 @@
+// packages/cli/src/cli/utils/local-model-setup.ts
+
+/**
+ * Interactive setup flow for local AI models.
+ *
+ * This module provides the setup experience when a user selects
+ * 'local' or 'ollama' as their provider during `dexto setup`.
+ */
+
+import chalk from 'chalk';
+import * as p from '@clack/prompts';
+import * as fs from 'fs';
+import * as path from 'path';
+import {
+    getRecommendedLocalModels,
+    getAllLocalModels,
+    getLocalModelById,
+    detectGPU,
+    formatGPUInfo,
+    downloadModel,
+    checkOllamaStatus,
+    listOllamaModels,
+    isNodeLlamaCppInstalled,
+    type ModelDownloadProgress,
+} from '@dexto/core';
+import { spawn } from 'child_process';
+import {
+    getAllInstalledModels,
+    setActiveModel,
+    addInstalledModel,
+    getModelsDirectory,
+    modelFileExists,
+    getModelFileSize,
+    type InstalledModel,
+} from '@dexto/agent-management';
+
+/**
+ * Format file size in human-readable format.
+ */
+function formatSize(bytes: number): string {
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    let unitIndex = 0;
+    let size = bytes;
+
+    while (size >= 1024 && unitIndex < units.length - 1) {
+        size /= 1024;
+        unitIndex++;
+    }
+
+    return `${size.toFixed(1)} ${units[unitIndex]}`;
+}
+
+/**
+ * Result of local model setup
+ */
+export interface LocalModelSetupResult {
+    /** Whether setup completed successfully */
+    success: boolean;
+
+    /** Selected model ID */
+    modelId?: string;
+
+    /** Whether user cancelled */
+    cancelled?: boolean;
+
+    /** Whether user skipped model selection */
+    skipped?: boolean;
+}
+
+/**
+ * Find the best location to install node-llama-cpp and detect package manager.
+ * Prefers: project root > cwd
+ */
+function findInstallContext(): { dir: string; pm: 'pnpm' | 'npm' } {
+    const cwd = process.cwd();
+
+    // Walk up to find nearest package.json
+    let dir = cwd;
+    while (dir !== path.dirname(dir)) {
+        if (fs.existsSync(path.join(dir, 'package.json'))) {
+            // Detect package manager
+            const hasPnpmLock = fs.existsSync(path.join(dir, 'pnpm-lock.yaml'));
+            return { dir, pm: hasPnpmLock ? 'pnpm' : 'npm' };
+        }
+        dir = path.dirname(dir);
+    }
+
+    // Fallback to cwd with npm
+    return { dir: cwd, pm: 'npm' };
+}
+
+/**
+ * Install node-llama-cpp as a local dependency.
+ * This compiles native bindings for the user's system.
+ */
+async function installNodeLlamaCpp(): Promise<boolean> {
+    const { dir, pm } = findInstallContext();
+
+    // pnpm requires -w flag for workspace root installs
+    const args =
+        pm === 'pnpm' ? ['install', '-w', 'node-llama-cpp'] : ['install', 'node-llama-cpp'];
+
+    return new Promise((resolve) => {
+        // Install locally in the project/cwd so it's resolvable
+        const child = spawn(pm, args, {
+            stdio: ['ignore', 'pipe', 'pipe'],
+            cwd: dir,
+        });
+
+        let stderr = '';
+        child.stderr?.on('data', (data) => {
+            stderr += data.toString();
+        });
+
+        child.on('close', (code) => {
+            if (code === 0) {
+                resolve(true);
+            } else {
+                console.error(chalk.dim(stderr));
+                resolve(false);
+            }
+        });
+
+        child.on('error', () => {
+            resolve(false);
+        });
+    });
+}
+
+/**
+ * Check and install node-llama-cpp if needed.
+ * Returns true if ready to use, false if installation failed/cancelled.
+ */
+async function ensureNodeLlamaCpp(): Promise<boolean> {
+    const isInstalled = await isNodeLlamaCppInstalled();
+    if (isInstalled) {
+        return true;
+    }
+
+    p.note(
+        'Local model execution requires node-llama-cpp.\n' +
+            'This will compile native bindings for your system.\n\n' +
+            chalk.dim('Installation may take 1-2 minutes.'),
+        'Dependency Required'
+    );
+
+    const shouldInstall = await p.confirm({
+        message: 'Install node-llama-cpp now?',
+        initialValue: true,
+    });
+
+    if (p.isCancel(shouldInstall) || !shouldInstall) {
+        return false;
+    }
+
+    const spinner = p.spinner();
+    spinner.start('Installing node-llama-cpp (compiling native bindings)...');
+
+    const success = await installNodeLlamaCpp();
+
+    if (success) {
+        spinner.stop(chalk.green('✓ node-llama-cpp installed successfully'));
+        return true;
+    } else {
+        spinner.stop(chalk.red('✗ Installation failed'));
+        p.log.error(
+            'Failed to install node-llama-cpp. You can try manually:\n' +
+                chalk.dim('  npm install -g node-llama-cpp')
+        );
+        return false;
+    }
+}
+
+/**
+ * Interactive local model setup for 'local' provider.
+ *
+ * Shows available models, offers to download, and sets up the active model.
+ * Uses node-llama-cpp for native GGUF model execution.
+ */
+export async function setupLocalModels(): Promise<LocalModelSetupResult> {
+    console.log(chalk.cyan('\n🤖 Local Model Setup\n'));
+
+    // Ensure node-llama-cpp is installed first
+    const dependencyReady = await ensureNodeLlamaCpp();
+    if (!dependencyReady) {
+        p.log.warn('Setup cancelled - node-llama-cpp is required for local models.');
+        return { success: false, cancelled: true };
+    }
+
+    // Get installed models first - if already installed, we can skip other checks
+    const installed = await getAllInstalledModels();
+    const installedIds = new Set(installed.map((m) => m.id));
+
+    // Check if any models are already installed - offer quick path
+    if (installed.length > 0) {
+        const useExisting = await p.confirm({
+            message: `You have ${installed.length} model(s) installed. Use an existing model?`,
+            initialValue: true,
+        });
+
+        if (p.isCancel(useExisting)) {
+            return { success: false, cancelled: true };
+        }
+
+        if (useExisting) {
+            // Let user select from installed models - no additional setup needed
+            const selected = await selectInstalledModel(installed);
+            if (selected.cancelled) {
+                return { success: false, cancelled: true };
+            }
+            if (selected.modelId) {
+                await setActiveModel(selected.modelId);
+                p.log.success(`Using ${selected.modelId} as active model`);
+                return { success: true, modelId: selected.modelId };
+            }
+        }
+    }
+
+    // Only detect GPU if we're going to show model recommendations
+    const gpuInfo = await detectGPU();
+    console.log(chalk.dim(`GPU detected: ${formatGPUInfo(gpuInfo)}\n`));
+
+    // Get recommended models
+    const recommendedModels = getRecommendedLocalModels();
+
+    // Build options with install status
+    const modelOptions = recommendedModels.map((model) => {
+        const isInstalled = installedIds.has(model.id);
+        const statusIcon = isInstalled ? chalk.green('✓') : chalk.gray('○');
+        const vramHint = model.minVRAM ? `${model.minVRAM}GB+ VRAM` : 'CPU OK';
+
+        return {
+            value: model.id,
+            label: `${statusIcon} ${model.name}`,
+            hint: `${formatSize(model.sizeBytes)} | ${vramHint}${isInstalled ? ' (installed)' : ''}`,
+        };
+    });
+
+    // Add option to see all models
+    modelOptions.push({
+        value: '_all_models',
+        label: `${chalk.blue('...')} Show all available models`,
+        hint: `${getAllLocalModels().length} models available`,
+    });
+
+    // Add option to skip
+    modelOptions.push({
+        value: '_skip',
+        label: `${chalk.yellow('→')} Skip for now`,
+        hint: 'Configure later with: dexto models',
+    });
+
+    p.note(
+        'Local models run completely on your machine - free, private, and offline.\n' +
+            'Select a model to download (or use an existing one).',
+        'Local AI'
+    );
+
+    const selected = await p.select({
+        message: 'Choose a model to use',
+        options: modelOptions,
+    });
+
+    if (p.isCancel(selected)) {
+        return { success: false, cancelled: true };
+    }
+
+    if (selected === '_skip') {
+        p.log.info(chalk.gray('Skipped model selection. Use `dexto models` to configure later.'));
+        return { success: true, skipped: true };
+    }
+
+    if (selected === '_all_models') {
+        // Show all models
+        return await showAllModelsSelection(installedIds);
+    }
+
+    const modelId = selected as string;
+
+    // Check if already installed
+    if (installedIds.has(modelId)) {
+        await setActiveModel(modelId);
+        p.log.success(`Using ${modelId} as active model`);
+        return { success: true, modelId };
+    }
+
+    // Download the model
+    const downloadResult = await downloadModelInteractive(modelId);
+    if (!downloadResult.success) {
+        if (downloadResult.cancelled) {
+            return { success: false, cancelled: true };
+        }
+        return { success: false };
+    }
+
+    // Set as active
+    await setActiveModel(modelId);
+    return { success: true, modelId };
+}
+
+/**
+ * Interactive Ollama model setup for 'ollama' provider.
+ */
+export async function setupOllamaModels(): Promise<LocalModelSetupResult> {
+    console.log(chalk.cyan('\n🦙 Ollama Setup\n'));
+
+    // Check if Ollama is running
+    const status = await checkOllamaStatus();
+
+    if (!status.running) {
+        p.note(
+            chalk.yellow('Ollama server is not running.\n\n') +
+                'To use Ollama:\n' +
+                '  1. Install Ollama: https://ollama.com/download\n' +
+                '  2. Start the server: ollama serve\n' +
+                '  3. Pull a model: ollama pull llama3.2',
+            'Ollama Required'
+        );
+
+        const proceed = await p.confirm({
+            message: 'Continue setup anyway? (You can configure Ollama later)',
+            initialValue: true,
+        });
+
+        if (p.isCancel(proceed)) {
+            return { success: false, cancelled: true };
+        }
+        if (!proceed) {
+            return { success: false };
+        }
+
+        // Let them specify a model name even without Ollama running
+        const modelName = await p.text({
+            message: 'Enter the Ollama model name to use',
+            placeholder: 'llama3.2',
+            initialValue: 'llama3.2',
+        });
+
+        if (p.isCancel(modelName)) {
+            return { success: false, cancelled: true };
+        }
+
+        return { success: true, modelId: modelName.trim() };
+    }
+
+    // Ollama is running - show available models
+    console.log(chalk.green(`✓ Ollama ${status.version || ''} running at ${status.url}\n`));
+
+    const ollamaModels = await listOllamaModels();
+
+    if (ollamaModels.length === 0) {
+        p.note(
+            'No models found in Ollama.\n\n' +
+                'To pull a model:\n' +
+                '  ollama pull llama3.2\n\n' +
+                'Popular models:\n' +
+                '  • llama3.2 (3B/8B general)\n' +
+                '  • qwen2.5-coder (coding)\n' +
+                '  • mistral (7B general)',
+            'No Models'
+        );
+
+        const modelName = await p.text({
+            message: 'Enter the model name to use (will be pulled on first run)',
+            placeholder: 'llama3.2',
+            initialValue: 'llama3.2',
+        });
+
+        if (p.isCancel(modelName)) {
+            return { success: false, cancelled: true };
+        }
+
+        return { success: true, modelId: modelName.trim() };
+    }
+
+    // Show available Ollama models
+    const modelOptions = ollamaModels.map((model) => ({
+        value: model.name,
+        label: model.name,
+        hint: formatSize(model.size),
+    }));
+
+    // Add option to enter custom name
+    modelOptions.push({
+        value: '_custom',
+        label: `${chalk.blue('...')} Enter custom model name`,
+        hint: 'For models not yet pulled',
+    });
+
+    const selected = await p.select({
+        message: 'Select an Ollama model',
+        options: modelOptions,
+    });
+
+    if (p.isCancel(selected)) {
+        return { success: false, cancelled: true };
+    }
+
+    if (selected === '_custom') {
+        const modelName = await p.text({
+            message: 'Enter the Ollama model name',
+            placeholder: 'llama3.2:70b',
+        });
+
+        if (p.isCancel(modelName)) {
+            return { success: false, cancelled: true };
+        }
+
+        return { success: true, modelId: modelName.trim() };
+    }
+
+    return { success: true, modelId: selected as string };
+}
+
+/**
+ * Select from installed models
+ */
+async function selectInstalledModel(
+    installed: InstalledModel[]
+): Promise<{ modelId?: string; cancelled?: boolean }> {
+    const options = installed.map((model) => ({
+        value: model.id,
+        label: model.id,
+        hint: formatSize(model.sizeBytes),
+    }));
+
+    options.push({
+        value: '_download_new',
+        label: `${chalk.blue('+')} Download a new model`,
+        hint: 'Browse available models',
+    });
+
+    const selected = await p.select({
+        message: 'Select a model',
+        options,
+    });
+
+    if (p.isCancel(selected)) {
+        return { cancelled: true };
+    }
+
+    if (selected === '_download_new') {
+        return {}; // Continue to download flow
+    }
+
+    return { modelId: selected as string };
+}
+
+/**
+ * Show all available models for selection
+ */
+async function showAllModelsSelection(installedIds: Set<string>): Promise<LocalModelSetupResult> {
+    const allModels = getAllLocalModels();
+
+    const modelOptions = allModels.map((model) => {
+        const isInstalled = installedIds.has(model.id);
+        const statusIcon = isInstalled ? chalk.green('✓') : chalk.gray('○');
+        const category = model.categories?.[0] || 'general';
+        const vramHint = model.minVRAM ? `${model.minVRAM}GB+` : 'CPU';
+
+        return {
+            value: model.id,
+            label: `${statusIcon} ${model.name}`,
+            hint: `${category} | ${formatSize(model.sizeBytes)} | ${vramHint}${isInstalled ? ' (installed)' : ''}`,
+        };
+    });
+
+    modelOptions.push({
+        value: '_back',
+        label: `${chalk.yellow('←')} Back`,
+        hint: 'Return to recommended models',
+    });
+
+    const selected = await p.select({
+        message: 'Select a model',
+        options: modelOptions,
+    });
+
+    if (p.isCancel(selected)) {
+        return { success: false, cancelled: true };
+    }
+
+    if (selected === '_back') {
+        // Recurse back to main setup
+        return setupLocalModels();
+    }
+
+    const modelId = selected as string;
+
+    // Check if already installed
+    if (installedIds.has(modelId)) {
+        await setActiveModel(modelId);
+        p.log.success(`Using ${modelId} as active model`);
+        return { success: true, modelId };
+    }
+
+    // Download the model
+    const downloadResult = await downloadModelInteractive(modelId);
+    if (!downloadResult.success) {
+        if (downloadResult.cancelled) {
+            return { success: false, cancelled: true };
+        }
+        return { success: false };
+    }
+
+    await setActiveModel(modelId);
+    return { success: true, modelId };
+}
+
+/**
+ * Download a model with interactive progress
+ */
+async function downloadModelInteractive(
+    modelId: string
+): Promise<{ success: boolean; cancelled?: boolean }> {
+    const modelInfo = getLocalModelById(modelId);
+    if (!modelInfo) {
+        p.log.error(`Model '${modelId}' not found in registry`);
+        return { success: false };
+    }
+
+    // Check if model file already exists on disk (but not registered)
+    // First check the expected subdirectory, then fallback to root models dir
+    const fileExistsInSubdir = await modelFileExists(modelId, modelInfo.filename);
+    const rootFilePath = `${getModelsDirectory()}/${modelInfo.filename}`;
+    let actualFilePath: string | null = null;
+    let fileSize: number | null = null;
+
+    if (fileExistsInSubdir) {
+        actualFilePath = `${getModelsDirectory()}/${modelId}/${modelInfo.filename}`;
+        fileSize = await getModelFileSize(modelId, modelInfo.filename);
+    } else {
+        // Check root models directory (legacy or manual placement)
+        try {
+            const fs = await import('fs/promises');
+            const stats = await fs.stat(rootFilePath);
+            if (stats.isFile()) {
+                actualFilePath = rootFilePath;
+                fileSize = stats.size;
+            }
+        } catch {
+            // File doesn't exist in root either
+        }
+    }
+
+    if (actualFilePath) {
+        p.log.info(chalk.green(`✓ Model file already exists on disk`));
+
+        // Register the existing model
+        const installedModel: InstalledModel = {
+            id: modelId,
+            filePath: actualFilePath,
+            sizeBytes: fileSize ?? modelInfo.sizeBytes,
+            downloadedAt: new Date().toISOString(),
+            source: 'huggingface',
+            filename: modelInfo.filename,
+        };
+
+        await addInstalledModel(installedModel);
+        p.log.success(`Model '${modelId}' registered successfully`);
+        return { success: true };
+    }
+
+    // Show model info and confirm
+    p.note(
+        `${modelInfo.name}\n` +
+            `${modelInfo.description}\n\n` +
+            `Size: ${formatSize(modelInfo.sizeBytes)}\n` +
+            `Context: ${modelInfo.contextLength.toLocaleString()} tokens\n` +
+            `Quantization: ${modelInfo.quantization}`,
+        'Model Details'
+    );
+
+    const confirmed = await p.confirm({
+        message: `Download ${modelInfo.name} (${formatSize(modelInfo.sizeBytes)})?`,
+    });
+
+    if (p.isCancel(confirmed) || !confirmed) {
+        return { success: false, cancelled: true };
+    }
+
+    // Start download with spinner
+    const spinner = p.spinner();
+    spinner.start('Starting download...');
+
+    try {
+        const result = await downloadModel(modelId, {
+            targetDir: getModelsDirectory(),
+            events: {
+                onProgress: (progress: ModelDownloadProgress) => {
+                    const pct = progress.percentage.toFixed(1);
+                    const downloaded = formatSize(progress.bytesDownloaded);
+                    const total = formatSize(progress.totalBytes);
+                    const speedStr = progress.speed ? `${formatSize(progress.speed)}/s` : '';
+                    const etaStr = progress.eta ? `ETA: ${Math.round(progress.eta)}s` : '';
+
+                    spinner.message(`${pct}% (${downloaded}/${total}) ${speedStr} ${etaStr}`);
+                },
+                onComplete: () => {
+                    spinner.stop(chalk.green(`✓ Downloaded ${modelInfo.name}`));
+                },
+                onError: (_modelId: string, error: Error) => {
+                    spinner.stop(chalk.red(`✗ Download failed: ${error.message}`));
+                },
+            },
+        });
+
+        // Register the installed model
+        const installedModel: InstalledModel = {
+            id: modelId,
+            filePath: result.filePath,
+            sizeBytes: result.sizeBytes,
+            downloadedAt: new Date().toISOString(),
+            source: 'huggingface',
+            filename: modelInfo.filename,
+        };
+
+        if (result.sha256) {
+            installedModel.sha256 = result.sha256;
+        }
+
+        await addInstalledModel(installedModel);
+
+        p.log.success(`Model '${modelId}' installed successfully`);
+        return { success: true };
+    } catch (error) {
+        spinner.stop(chalk.red('Download failed'));
+        p.log.error(
+            `Failed to download: ${error instanceof Error ? error.message : String(error)}`
+        );
+        return { success: false };
+    }
+}
+
+/**
+ * Get the model name for preferences based on provider.
+ *
+ * For 'local' provider: Uses the local model ID (e.g., 'llama-3.3-8b-q4')
+ * For 'ollama' provider: Uses the Ollama model name (e.g., 'llama3.2')
+ */
+export function getLocalModelForPreferences(
+    result: LocalModelSetupResult,
+    provider: 'local' | 'ollama'
+): string {
+    if (result.modelId) {
+        return result.modelId;
+    }
+
+    // Defaults if no model selected
+    if (provider === 'ollama') {
+        return 'llama3.2';
+    }
+
+    return 'llama-3.3-8b-q4';
+}

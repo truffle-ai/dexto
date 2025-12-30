@@ -13,6 +13,7 @@ import { VercelLLMService } from './vercel.js';
 import { LanguageModel } from 'ai';
 import { SessionEventBus } from '../../events/index.js';
 import { createCohere } from '@ai-sdk/cohere';
+import { createLocalLanguageModel } from '../providers/local/ai-sdk-adapter.js';
 import type { IConversationHistoryProvider } from '../../session/history/types.js';
 import type { SystemPromptManager } from '../../systemPrompt/manager.js';
 import type { IDextoLogger } from '../../logger/v2/types.js';
@@ -149,6 +150,21 @@ function _createVercelModel(llmConfig: ValidatedLLMConfig): LanguageModel {
             return createXai({ apiKey: apiKey ?? '' })(model);
         case 'cohere':
             return createCohere({ apiKey: apiKey ?? '' })(model);
+        case 'ollama': {
+            // Ollama - local model server with OpenAI-compatible API
+            // Uses the /v1 endpoint for AI SDK compatibility
+            // Default URL: http://localhost:11434
+            const baseURL = llmConfig.baseURL || 'http://localhost:11434/v1';
+            // Ollama doesn't require an API key, but the SDK needs a non-empty string
+            return createOpenAI({ apiKey: 'ollama', baseURL }).chat(model);
+        }
+        case 'local': {
+            // Native node-llama-cpp execution via AI SDK adapter.
+            // Model is loaded lazily on first use.
+            return createLocalLanguageModel({
+                modelId: model,
+            });
+        }
         default:
             throw LLMError.unsupportedProvider(provider);
     }

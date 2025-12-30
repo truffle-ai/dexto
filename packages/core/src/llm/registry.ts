@@ -1261,6 +1261,24 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
         baseURLSupport: 'none', // Auto-constructed from region
         supportedFileTypes: ['pdf', 'image'],
     },
+    // Native local model execution via node-llama-cpp
+    // Runs GGUF models directly on the machine using Metal/CUDA/Vulkan acceleration
+    // Models are downloaded from HuggingFace and stored in ~/.dexto/models/
+    local: {
+        models: [], // Populated dynamically from local model registry
+        baseURLSupport: 'none', // No external server needed
+        supportedFileTypes: ['image'], // Vision support depends on model capabilities
+        supportsCustomModels: true, // Allow any GGUF model path
+    },
+    // Ollama server integration
+    // Uses Ollama's OpenAI-compatible API for local model inference
+    // Requires Ollama to be installed and running (default: http://localhost:11434)
+    ollama: {
+        models: [], // Populated dynamically from Ollama API
+        baseURLSupport: 'optional', // Default: http://localhost:11434, can be customized
+        supportedFileTypes: ['image'], // Vision support depends on model
+        supportsCustomModels: true, // Accept any Ollama model name
+    },
     // TODO: Add 'dexto' provider (similar to openrouter, uses https://api.dexto.ai/v1)
 };
 
@@ -1420,12 +1438,15 @@ export function supportsCustomModels(provider: LLMProvider): boolean {
 /**
  * Providers that don't require API keys.
  * These include:
- * - Local/self-hosted providers (openai-compatible for Ollama, vLLM, LocalAI)
+ * - Native local providers (local for node-llama-cpp, ollama for Ollama server)
+ * - Local/self-hosted providers (openai-compatible for vLLM, LocalAI)
  * - Proxies that handle auth internally (litellm)
  * - Cloud auth providers (vertex uses ADC, bedrock uses AWS credentials)
  */
 const API_KEY_OPTIONAL_PROVIDERS: Set<LLMProvider> = new Set([
-    'openai-compatible', // Ollama, vLLM, LocalAI - often no auth needed
+    'local', // Native node-llama-cpp execution - no auth needed
+    'ollama', // Ollama server - no auth needed by default
+    'openai-compatible', // vLLM, LocalAI - often no auth needed
     'litellm', // Self-hosted proxy - handles auth internally
     'vertex', // Uses Google Cloud ADC (Application Default Credentials)
     'bedrock', // Uses AWS credentials (access key + secret or IAM role)

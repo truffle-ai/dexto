@@ -193,6 +193,9 @@ function getEnvVarForProvider(provider: LLMProvider): string {
         glama: 'GLAMA_API_KEY',
         vertex: 'GOOGLE_APPLICATION_CREDENTIALS',
         bedrock: 'AWS_ACCESS_KEY_ID',
+        // Local providers don't require API keys (empty string signals no key needed)
+        local: '',
+        ollama: '',
     };
     return envVarMap[provider];
 }
