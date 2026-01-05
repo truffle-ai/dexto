@@ -39,7 +39,11 @@ import type { ValidatedAgentConfig } from '@dexto/core';
 import { startHonoApiServer } from './api/server-hono.js';
 import { validateCliOptions, handleCliOptionsError } from './cli/utils/options.js';
 import { validateAgentConfig } from './cli/utils/config-validation.js';
-import { applyCLIOverrides } from './config/cli-overrides.js';
+import {
+    applyCLIOverrides,
+    applyUserPreferences,
+    checkAgentCompatibility,
+} from './config/cli-overrides.js';
 import { enrichAgentConfig } from '@dexto/agent-management';
 import { getPort } from './utils/port-utils.js';
 import {
@@ -80,6 +84,43 @@ const program = new Command();
 
 // Initialize analytics early (no-op if disabled)
 await initAnalytics({ appVersion: pkg.version });
+
+/**
+ * Recursively removes null values from an object.
+ * This handles YAML files that have explicit `apiKey: null` entries
+ * which would otherwise cause "Expected string, received null" validation errors.
+ */
+function cleanNullValues<T extends Record<string, unknown>>(obj: T): T {
+    if (obj === null || obj === undefined) return obj;
+    if (typeof obj !== 'object') return obj;
+    if (Array.isArray(obj)) {
+        return obj.map((item) =>
+            typeof item === 'object' && item !== null
+                ? cleanNullValues(item as Record<string, unknown>)
+                : item
+        ) as unknown as T;
+    }
+
+    const cleaned: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(obj)) {
+        if (value === null) {
+            // Skip null values - they become undefined (missing)
+            continue;
+        }
+        if (typeof value === 'object' && !Array.isArray(value)) {
+            cleaned[key] = cleanNullValues(value as Record<string, unknown>);
+        } else if (Array.isArray(value)) {
+            cleaned[key] = value.map((item) =>
+                typeof item === 'object' && item !== null
+                    ? cleanNullValues(item as Record<string, unknown>)
+                    : item
+            );
+        } else {
+            cleaned[key] = value;
+        }
+    }
+    return cleaned as T;
+}
 
 // 1) GLOBAL OPTIONS
 program
@@ -319,11 +360,7 @@ program
 // Helper to bootstrap a minimal agent for non-interactive session/search ops
 async function bootstrapAgentFromGlobalOpts() {
     const globalOpts = program.opts();
-    const resolvedPath = await resolveAgentPath(
-        globalOpts.agent,
-        globalOpts.autoInstall !== false,
-        true
-    );
+    const resolvedPath = await resolveAgentPath(globalOpts.agent, globalOpts.autoInstall !== false);
     const rawConfig = await loadAgentConfig(resolvedPath);
     const mergedConfig = applyCLIOverrides(rawConfig, globalOpts);
     const enrichedConfig = enrichAgentConfig(mergedConfig, resolvedPath, {
@@ -345,7 +382,8 @@ async function bootstrapAgentFromGlobalOpts() {
         }),
     };
 
-    const agent = new DextoAgent(enrichedConfig, resolvedPath);
+    // Use relaxed validation for session commands - they don't need LLM calls
+    const agent = new DextoAgent(enrichedConfig, resolvedPath, { strict: false });
     await agent.start();
 
     // Register graceful shutdown
@@ -555,8 +593,7 @@ program
 
                     const configPath = await resolveAgentPath(
                         nameOrPath,
-                        globalOpts.autoInstall !== false,
-                        true
+                        globalOpts.autoInstall !== false
                     );
                     console.log(`📄 Loading Dexto config from: ${configPath}`);
                     const config = await loadAgentConfig(configPath);
@@ -764,13 +801,17 @@ program
                 let validatedConfig: ValidatedAgentConfig;
                 let resolvedPath: string;
 
+                // Determine validation mode early - used throughout config loading and agent creation
+                // Use relaxed validation for interactive modes (web/cli) where users can configure later
+                // Use strict validation for headless modes (server/mcp) that need full config upfront
+                const isInteractiveMode = opts.mode === 'web' || opts.mode === 'cli';
+
                 try {
                     // Case 1: File path - skip all validation and setup
                     if (opts.agent && isPath(opts.agent)) {
                         resolvedPath = await resolveAgentPath(
                             opts.agent,
-                            opts.autoInstall !== false,
-                            true
+                            opts.autoInstall !== false
                         );
                     }
                     // Cases 2 & 3: Default agent or registry agent
@@ -821,34 +862,215 @@ program
                             }
 
                             await handleSetupCommand({ interactive: true });
+
+                            // Reload preferences after setup to get the newly selected default mode
+                            // (setup may have just saved a different mode than the default 'web')
+                            try {
+                                const newPreferences = await loadGlobalPreferences();
+                                if (newPreferences.defaults?.defaultMode) {
+                                    opts.mode = newPreferences.defaults.defaultMode;
+                                    logger.debug(
+                                        `Updated mode from setup preferences: ${opts.mode}`
+                                    );
+                                }
+                            } catch {
+                                // Ignore errors - will use default mode
+                            }
                         }
 
-                        // Now resolve agent (will auto-install with preferences since setup is complete)
+                        // Now resolve agent (will auto-install since setup is complete)
                         resolvedPath = await resolveAgentPath(
                             opts.agent,
-                            opts.autoInstall !== false,
-                            true
+                            opts.autoInstall !== false
                         );
                     }
 
                     // Load raw config and apply CLI overrides
                     const rawConfig = await loadAgentConfig(resolvedPath);
-                    const mergedConfig = applyCLIOverrides(rawConfig, opts as CLIConfigOverrides);
+                    let mergedConfig = applyCLIOverrides(rawConfig, opts as CLIConfigOverrides);
+
+                    // ——— PREFERENCE-AWARE CONFIG HANDLING ———
+                    // For default-agent (no explicit agent specified): Apply user preferences
+                    // For specific agents: Check compatibility and warn if needed
+                    const isDefaultAgent = !opts.agent;
+                    let preferences: Awaited<ReturnType<typeof loadGlobalPreferences>> | null =
+                        null;
+
+                    if (globalPreferencesExist()) {
+                        try {
+                            preferences = await loadGlobalPreferences();
+                        } catch {
+                            // Preferences exist but couldn't load - continue without them
+                            logger.debug('Could not load preferences, continuing without them');
+                        }
+                    }
+
+                    // Check for pending API key setup (user skipped during initial setup)
+                    if (
+                        isDefaultAgent &&
+                        preferences?.setup?.apiKeyPending &&
+                        opts.interactive !== false
+                    ) {
+                        // Check if API key is still missing (user may have set it manually)
+                        const configuredApiKey = resolveApiKeyForProvider(preferences.llm.provider);
+                        if (!configuredApiKey) {
+                            const { promptForPendingApiKey } = await import(
+                                './cli/utils/api-key-setup.js'
+                            );
+                            const { updateGlobalPreferences } = await import(
+                                '@dexto/agent-management'
+                            );
+
+                            const result = await promptForPendingApiKey(
+                                preferences.llm.provider,
+                                preferences.llm.model
+                            );
+
+                            if (result.action === 'cancel') {
+                                safeExit('main', 0, 'pending-api-key-cancelled');
+                            }
+
+                            if (result.action === 'setup' && result.apiKey) {
+                                // API key was configured - update preferences to clear pending flag
+                                await updateGlobalPreferences({
+                                    setup: { apiKeyPending: false },
+                                });
+                                // Update the merged config with the new API key
+                                mergedConfig.llm.apiKey = result.apiKey;
+                                logger.debug('API key configured, pending flag cleared');
+                            }
+                            // If 'skip', continue without API key (user chose to proceed)
+                        } else {
+                            // API key exists (user set it manually) - clear the pending flag
+                            const { updateGlobalPreferences } = await import(
+                                '@dexto/agent-management'
+                            );
+                            await updateGlobalPreferences({
+                                setup: { apiKeyPending: false },
+                            });
+                            logger.debug('API key found in environment, cleared pending flag');
+                        }
+                    }
+
+                    if (isDefaultAgent && preferences) {
+                        // Default-agent: Apply user's LLM preferences at runtime
+                        // This ensures the base agent always uses user's preferred model/provider
+                        mergedConfig = applyUserPreferences(mergedConfig, preferences);
+                        logger.debug('Applied user preferences to default-agent', {
+                            provider: preferences.llm.provider,
+                            model: preferences.llm.model,
+                        });
+                    } else if (!isDefaultAgent && mergedConfig.llm) {
+                        // Specific agent: Check if user has the required provider configured
+                        const agentProvider = mergedConfig.llm.provider;
+                        const resolvedApiKey = resolveApiKeyForProvider(agentProvider);
+                        const compatibility = checkAgentCompatibility(
+                            mergedConfig,
+                            preferences,
+                            resolvedApiKey
+                        );
+
+                        if (!compatibility.compatible && opts.interactive !== false) {
+                            // User is missing API key for the agent's provider
+                            if (
+                                !compatibility.userHasApiKey &&
+                                preferences?.llm?.provider &&
+                                preferences?.llm?.model
+                            ) {
+                                // User has a default LLM configured - offer choice
+                                const { promptForMissingAgentApiKey } = await import(
+                                    './cli/utils/api-key-setup.js'
+                                );
+
+                                const result = await promptForMissingAgentApiKey(
+                                    compatibility.agentProvider,
+                                    compatibility.agentModel,
+                                    preferences.llm.provider,
+                                    preferences.llm.model
+                                );
+
+                                if (result.action === 'cancel') {
+                                    safeExit('main', 0, 'agent-api-key-cancelled');
+                                }
+
+                                if (result.action === 'use-default') {
+                                    // Apply user's default LLM to the agent config
+                                    mergedConfig = applyUserPreferences(mergedConfig, preferences);
+                                    // Also resolve the actual API key from environment
+                                    // (preferences store env var reference like $GOOGLE_API_KEY, not the actual key)
+                                    const userApiKey = resolveApiKeyForProvider(
+                                        preferences.llm.provider
+                                    );
+                                    if (userApiKey) {
+                                        mergedConfig.llm.apiKey = userApiKey;
+                                    }
+                                    logger.debug(
+                                        'Applied user preferences to agent (user chose default)',
+                                        {
+                                            provider: preferences.llm.provider,
+                                            model: preferences.llm.model,
+                                        }
+                                    );
+                                }
+
+                                if (result.action === 'add-key' && result.apiKey) {
+                                    // User added the API key - update the config
+                                    mergedConfig.llm.apiKey = result.apiKey;
+                                    logger.debug('Applied new API key to agent config');
+                                }
+                            } else {
+                                // No default LLM to fall back to - show warnings only
+                                console.log(chalk.yellow('\n⚠️  Agent Compatibility Notice:'));
+                                for (const warning of compatibility.warnings) {
+                                    console.log(chalk.yellow(`   ${warning}`));
+                                }
+                                if (compatibility.instructions.length > 0) {
+                                    console.log(chalk.dim('\n   To fix:'));
+                                    for (const instruction of compatibility.instructions) {
+                                        console.log(chalk.dim(`   ${instruction}`));
+                                    }
+                                }
+                                console.log(''); // Empty line for spacing
+                            }
+                        }
+                    }
+
+                    // Clean up null values from config (can happen from YAML files with explicit nulls)
+                    // This prevents "Expected string, received null" errors for optional fields
+                    const cleanedConfig = cleanNullValues(mergedConfig);
 
                     // Enrich config with per-agent paths BEFORE validation
                     // Enrichment adds filesystem paths to storage (schema has in-memory defaults)
                     // Interactive CLI mode: only log to file (console would interfere with chat UI)
                     const isInteractiveCli = opts.mode === 'cli' && !headlessInput;
-                    const enrichedConfig = enrichAgentConfig(mergedConfig, resolvedPath, {
+                    const enrichedConfig = enrichAgentConfig(cleanedConfig, resolvedPath, {
                         isInteractiveCli,
                         logLevel: 'info', // CLI uses info-level logging for visibility
                     });
 
                     // Validate enriched config with interactive setup if needed (for API key issues)
-                    validatedConfig = await validateAgentConfig(
+                    // isInteractiveMode is defined above the try block
+                    const validationResult = await validateAgentConfig(
                         enrichedConfig,
-                        opts.interactive !== false
+                        opts.interactive !== false,
+                        { strict: !isInteractiveMode }
                     );
+
+                    if (validationResult.success && validationResult.config) {
+                        validatedConfig = validationResult.config;
+                    } else if (validationResult.skipped) {
+                        // User chose to continue despite validation errors
+                        // SAFETY: This cast is intentionally unsafe - it's an escape hatch for users
+                        // when validation is overly strict or incorrect. Runtime errors will surface
+                        // if the config truly doesn't work. Future: explicit `allowUnvalidated` mode.
+                        logger.warn(
+                            'Starting with validation warnings - some features may not work'
+                        );
+                        validatedConfig = enrichedConfig as ValidatedAgentConfig;
+                    } else {
+                        // Validation failed and user didn't skip - show next steps and exit
+                        safeExit('main', 1, 'config-validation-failed');
+                    }
                 } catch (err) {
                     if (err instanceof ExitSignal) throw err;
                     // Config loading failed completely
@@ -919,7 +1141,10 @@ program
 
                     // Config is already enriched and validated - ready for agent creation
                     // DextoAgent will parse/validate again (parse-twice pattern)
-                    agent = new DextoAgent(validatedConfig, resolvedPath);
+                    // isInteractiveMode is already defined above for validateAgentConfig
+                    agent = new DextoAgent(validatedConfig, resolvedPath, {
+                        strict: !isInteractiveMode,
+                    });
 
                     // Start the agent (initialize async services)
                     // - web/server modes: initializeHonoApi will set approval handler and start the agent
@@ -1099,6 +1324,54 @@ program
                         } else {
                             // Interactive mode - session management handled via /resume command
                             // Note: -c and -r flags are validated to require a prompt (headless mode only)
+
+                            // Check if API key is configured before trying to create session
+                            // Session creation triggers LLM service init which requires API key
+                            const llmConfig = agent.getCurrentLLMConfig();
+                            const { requiresApiKey } = await import('@dexto/core');
+                            if (requiresApiKey(llmConfig.provider) && !llmConfig.apiKey?.trim()) {
+                                // Offer interactive API key setup instead of just exiting
+                                const { interactiveApiKeySetup } = await import(
+                                    './cli/utils/api-key-setup.js'
+                                );
+
+                                console.log(
+                                    chalk.yellow(
+                                        `\n⚠️  API key required for provider '${llmConfig.provider}'\n`
+                                    )
+                                );
+
+                                const setupResult = await interactiveApiKeySetup(
+                                    llmConfig.provider,
+                                    {
+                                        exitOnCancel: false,
+                                        model: llmConfig.model,
+                                    }
+                                );
+
+                                if (setupResult.cancelled) {
+                                    await agent.stop().catch(() => {});
+                                    safeExit('main', 0, 'api-key-setup-cancelled');
+                                }
+
+                                if (setupResult.skipped) {
+                                    // User chose to skip - exit with instructions
+                                    await agent.stop().catch(() => {});
+                                    safeExit('main', 0, 'api-key-pending');
+                                }
+
+                                if (setupResult.success && setupResult.apiKey) {
+                                    // API key was entered and saved - reload config and continue
+                                    // Update the agent's LLM config with the new API key
+                                    await agent.switchLLM({
+                                        provider: llmConfig.provider,
+                                        model: llmConfig.model,
+                                        apiKey: setupResult.apiKey,
+                                    });
+                                    logger.info('API key configured successfully, continuing...');
+                                }
+                            }
+
                             // Create session eagerly so slash commands work immediately
                             const session = await agent.createSession();
                             const cliSessionId: string = session.id;
@@ -1154,8 +1427,8 @@ program
 
                             safeExit('main', 0);
                         }
-                        break;
                     }
+                    // falls through - safeExit returns never, but eslint doesn't know that
 
                     case 'web': {
                         // Default to 3000 for web mode

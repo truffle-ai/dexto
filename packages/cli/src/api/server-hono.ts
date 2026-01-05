@@ -63,7 +63,7 @@ async function createAgentFromId(agentId: string): Promise<DextoAgent> {
     try {
         // Use registry to resolve agent path (auto-installs if not present)
         const registry = getAgentRegistry();
-        const agentPath = await registry.resolveAgent(agentId, true, true);
+        const agentPath = await registry.resolveAgent(agentId, true);
 
         // Load and enrich agent config
         const config = await loadAgentConfig(agentPath);

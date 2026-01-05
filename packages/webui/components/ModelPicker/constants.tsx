@@ -17,6 +17,8 @@ export const PROVIDER_LOGOS: Record<LLMProvider, string> = {
     glama: '/logos/glama.svg',
     vertex: '/logos/gemini-color.svg', // Vertex AI uses Gemini logo (primary model family)
     bedrock: '/logos/aws-color.svg',
+    local: '', // Uses Bot icon fallback - local GGUF models via node-llama-cpp
+    ollama: '/logos/ollama.svg', // Ollama server
 };
 
 // Provider pricing URLs (for quick access from Model Picker)

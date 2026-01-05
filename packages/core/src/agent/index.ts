@@ -6,7 +6,12 @@ export {
     type AgentCard,
     type ValidatedAgentCard,
 } from './schemas.js';
-export { type ValidatedAgentConfig, type AgentConfig } from './schemas.js';
+export {
+    type ValidatedAgentConfig,
+    type AgentConfig,
+    type LLMValidationOptions,
+    createAgentConfigSchema,
+} from './schemas.js';
 export { createAgentCard } from './agentCard.js';
 export * from './errors.js';
 export * from './error-codes.js';

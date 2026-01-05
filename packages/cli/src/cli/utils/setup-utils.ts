@@ -1,6 +1,10 @@
 // packages/cli/src/cli/utils/setup-utils.ts
 
-import { globalPreferencesExist, loadGlobalPreferences } from '@dexto/agent-management';
+import {
+    globalPreferencesExist,
+    loadGlobalPreferences,
+    type GlobalPreferences,
+} from '@dexto/agent-management';
 import { getExecutionContext } from '@dexto/core';
 
 /**
@@ -9,6 +13,103 @@ import { getExecutionContext } from '@dexto/core';
  */
 export function isFirstTimeUser(): boolean {
     return !globalPreferencesExist();
+}
+
+/**
+ * Result of checking setup state
+ */
+export interface SetupState {
+    needsSetup: boolean;
+    isFirstTime: boolean;
+    apiKeyPending: boolean;
+    baseURLPending: boolean;
+    preferences: GlobalPreferences | null;
+}
+
+/**
+ * Get detailed setup state including pending items
+ * @returns Setup state with detailed flags
+ */
+export async function getSetupState(): Promise<SetupState> {
+    const context = getExecutionContext();
+
+    // Skip setup checks in dev mode when in source context
+    if (context === 'dexto-source' && process.env.DEXTO_DEV_MODE === 'true') {
+        return {
+            needsSetup: false,
+            isFirstTime: false,
+            apiKeyPending: false,
+            baseURLPending: false,
+            preferences: null,
+        };
+    }
+
+    // Project context: skip (might have project-local config)
+    if (context === 'dexto-project') {
+        return {
+            needsSetup: false,
+            isFirstTime: false,
+            apiKeyPending: false,
+            baseURLPending: false,
+            preferences: null,
+        };
+    }
+
+    // First-time user (no preferences)
+    if (isFirstTimeUser()) {
+        return {
+            needsSetup: true,
+            isFirstTime: true,
+            apiKeyPending: false,
+            baseURLPending: false,
+            preferences: null,
+        };
+    }
+
+    // Has preferences - check state
+    try {
+        const preferences = await loadGlobalPreferences();
+
+        // Check setup completion flag
+        if (!preferences.setup.completed) {
+            return {
+                needsSetup: true,
+                isFirstTime: false,
+                apiKeyPending: false,
+                baseURLPending: false,
+                preferences,
+            };
+        }
+
+        // Check required fields
+        if (!preferences.defaults.defaultAgent) {
+            return {
+                needsSetup: true,
+                isFirstTime: false,
+                apiKeyPending: false,
+                baseURLPending: false,
+                preferences,
+            };
+        }
+
+        // Setup is complete but may have pending items
+        return {
+            needsSetup: false,
+            isFirstTime: false,
+            apiKeyPending: preferences.setup.apiKeyPending ?? false,
+            baseURLPending: preferences.setup.baseURLPending ?? false,
+            preferences,
+        };
+    } catch (_error) {
+        // Corrupted or invalid preferences
+        return {
+            needsSetup: true,
+            isFirstTime: false,
+            apiKeyPending: false,
+            baseURLPending: false,
+            preferences: null,
+        };
+    }
 }
 
 /**
@@ -21,42 +122,8 @@ export function isFirstTimeUser(): boolean {
  * @returns true if setup is required
  */
 export async function requiresSetup(): Promise<boolean> {
-    const context = getExecutionContext();
-
-    // Skip setup in dev mode when in source context (maintainers testing with repo configs)
-    if (context === 'dexto-source' && process.env.DEXTO_DEV_MODE === 'true') {
-        return false;
-    }
-
-    // Project context: skip (might have project-local config)
-    if (context === 'dexto-project') {
-        return false;
-    }
-
-    // First-time user (no preferences) - require setup
-    if (isFirstTimeUser()) {
-        return true;
-    }
-
-    // Has preferences - validate them since we'll use them
-    try {
-        const preferences = await loadGlobalPreferences();
-
-        // Check setup completion flag
-        if (!preferences.setup.completed) {
-            return true;
-        }
-
-        // Check required fields (will throw if missing due to schema)
-        if (!preferences.defaults.defaultAgent) {
-            return true;
-        }
-
-        return false; // Valid preferences - no setup required
-    } catch (_error) {
-        // Corrupted or invalid preferences - requires setup
-        return true;
-    }
+    const state = await getSetupState();
+    return state.needsSetup;
 }
 
 /**

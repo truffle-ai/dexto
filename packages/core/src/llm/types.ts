@@ -12,6 +12,8 @@ export const LLM_PROVIDERS = [
     'glama',
     'vertex',
     'bedrock',
+    'local', // Native node-llama-cpp execution (GGUF models)
+    'ollama', // Ollama server integration
     // TODO: Add 'dexto' provider (similar to openrouter, uses https://api.dexto.ai/v1)
 ] as const;
 export type LLMProvider = (typeof LLM_PROVIDERS)[number];

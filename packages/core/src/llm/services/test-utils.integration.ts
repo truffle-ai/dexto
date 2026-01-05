@@ -1,5 +1,9 @@
 import { DextoAgent } from '../../agent/DextoAgent.js';
-import { resolveApiKeyForProvider, getPrimaryApiKeyEnvVar } from '../../utils/api-key-resolver.js';
+import {
+    resolveApiKeyForProvider,
+    getPrimaryApiKeyEnvVar,
+    PROVIDER_API_KEY_MAP,
+} from '../../utils/api-key-resolver.js';
 import type { LLMProvider } from '../types.js';
 import type { AgentConfig } from '../../agent/schemas.js';
 
@@ -143,7 +147,8 @@ export const TestConfigs = {
      */
     createVercelConfig(provider: LLMProvider = 'openai', model?: string): AgentConfig {
         const apiKey = resolveApiKeyForProvider(provider);
-        if (!apiKey) {
+        // Only enforce API key check for providers that require it (exclude local, ollama, vertex with empty key maps)
+        if (!apiKey && providerRequiresApiKey(provider)) {
             throw new Error(
                 `${getPrimaryApiKeyEnvVar(provider)} environment variable is required for Vercel integration tests with ${provider}`
             );
@@ -163,6 +168,8 @@ export const TestConfigs = {
             glama: 'openai/gpt-4o', // Glama model format: provider/model
             vertex: 'gemini-2.5-pro', // Vertex AI uses ADC auth, not API keys
             bedrock: 'anthropic.claude-3-5-haiku-20241022-v1:0', // Bedrock uses AWS credentials, not API keys
+            local: 'llama-3.2-3b-q4', // Native node-llama-cpp GGUF models
+            ollama: 'llama3.2', // Ollama server models
         };
 
         return {
@@ -202,7 +209,17 @@ export const TestConfigs = {
 } as const;
 
 /**
- * Helper to skip tests if API keys are not available
+ * Helper to check if a provider requires an API key
+ * Providers with empty arrays in PROVIDER_API_KEY_MAP don't require API keys (e.g., local, ollama, vertex)
+ */
+export function providerRequiresApiKey(provider: LLMProvider): boolean {
+    const envVars = PROVIDER_API_KEY_MAP[provider];
+    return envVars && envVars.length > 0;
+}
+
+/**
+ * Helper to check if API key is available for a provider
+ * Used to skip tests when API keys are not configured
  */
 export function requiresApiKey(provider: LLMProvider): boolean {
     return !!resolveApiKeyForProvider(provider);

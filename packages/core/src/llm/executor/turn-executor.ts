@@ -21,7 +21,7 @@ import { DextoLogComponent } from '../../logger/v2/types.js';
 import type { SessionEventBus, LLMFinishReason } from '../../events/index.js';
 import type { ResourceManager } from '../../resources/index.js';
 import { DynamicContributorContext } from '../../systemPrompt/types.js';
-import { LLMContext } from '../types.js';
+import { LLMContext, type LLMProvider } from '../types.js';
 import type { MessageQueueService } from '../../session/message-queue.js';
 import type { StreamProcessorConfig } from './stream-processor.js';
 import type { CoalescedMessage } from '../../session/types.js';
@@ -39,6 +39,11 @@ import { ReactiveOverflowStrategy } from '../../context/compression/reactive-ove
  * Key format: "provider:model:baseURL"
  */
 const toolSupportCache = new Map<string, boolean>();
+
+/**
+ * Local providers that need tool support validation regardless of baseURL
+ */
+const LOCAL_PROVIDERS: readonly LLMProvider[] = ['ollama', 'local'] as const;
 
 /**
  * TurnExecutor orchestrates the agent loop using `stopWhen: stepCountIs(1)`.
@@ -140,6 +145,26 @@ export class TurnExecutor {
 
         // Check tool support once before the loop
         const supportsTools = await this.validateToolSupport();
+
+        // Emit warning if tools are not supported
+        if (!supportsTools) {
+            const modelKey = `${this.llmContext.provider}:${this.llmContext.model}`;
+            this.eventBus.emit('llm:unsupported-input', {
+                errors: [
+                    `Model '${modelKey}' does not support tool calling.`,
+                    'You can still chat, but the model will not be able to use tools or execute commands.',
+                ],
+                provider: this.llmContext.provider,
+                model: this.llmContext.model,
+                details: {
+                    feature: 'tool-calling',
+                    supported: false,
+                },
+            });
+            this.logger.warn(
+                `Model ${modelKey} does not support tools - continuing without tool calling`
+            );
+        }
 
         // Track current abort handler to remove between iterations (prevents listener accumulation)
         let currentAbortHandler: (() => void) | null = null;
@@ -341,8 +366,8 @@ export class TurnExecutor {
      * Validates if the current model supports tools.
      * Uses a static cache to avoid repeated validation calls.
      *
-     * For models using custom baseURL endpoints, makes a test call to verify tool support.
-     * Built-in providers without baseURL are assumed to support tools.
+     * For local providers (Ollama, local) and custom baseURL endpoints, makes a test call to verify tool support.
+     * Known cloud providers without baseURL are assumed to support tools.
      */
     private async validateToolSupport(): Promise<boolean> {
         const modelKey = `${this.llmContext.provider}:${this.llmContext.model}:${this.config.baseURL ?? ''}`;
@@ -352,15 +377,21 @@ export class TurnExecutor {
             return toolSupportCache.get(modelKey)!;
         }
 
-        // Only test tool support for providers using custom baseURL endpoints
-        // Built-in providers without baseURL have known tool support
-        if (!this.config.baseURL) {
-            this.logger.debug(`Skipping tool validation for ${modelKey} - no custom baseURL`);
+        // Local providers need validation regardless of baseURL (models have varying support)
+        const isLocalProvider = LOCAL_PROVIDERS.includes(this.llmContext.provider);
+
+        // Skip validation only for known cloud providers without custom baseURL
+        if (!this.config.baseURL && !isLocalProvider) {
+            this.logger.debug(
+                `Skipping tool validation for ${modelKey} - known cloud provider without custom baseURL`
+            );
             toolSupportCache.set(modelKey, true);
             return true;
         }
 
-        this.logger.debug(`Testing tool support for custom endpoint model: ${modelKey}`);
+        this.logger.debug(
+            `Testing tool support for ${isLocalProvider ? 'local provider' : 'custom endpoint'} model: ${modelKey}`
+        );
 
         // Create a minimal test tool
         const testTool = {
@@ -398,7 +429,9 @@ export class TurnExecutor {
             const errorMessage = error instanceof Error ? error.message : String(error);
             if (errorMessage.includes('does not support tools')) {
                 toolSupportCache.set(modelKey, false);
-                this.logger.debug(`Model ${modelKey} does not support tools`);
+                this.logger.debug(
+                    `Detected that model ${modelKey} does not support tool calling - tool functionality will be disabled`
+                );
                 return false;
             }
             // Other errors (including timeout) - assume tools are supported and let the actual call handle it

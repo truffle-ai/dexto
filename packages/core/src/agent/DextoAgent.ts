@@ -40,8 +40,8 @@ import {
 } from '../llm/registry.js';
 import type { LLMProvider } from '../llm/types.js';
 import { createAgentServices } from '../utils/service-initializer.js';
-import type { AgentConfig, ValidatedAgentConfig } from './schemas.js';
-import { AgentConfigSchema } from './schemas.js';
+import type { AgentConfig, ValidatedAgentConfig, LLMValidationOptions } from './schemas.js';
+import { AgentConfigSchema, createAgentConfigSchema } from './schemas.js';
 import {
     AgentEventBus,
     type AgentEventMap,
@@ -184,13 +184,21 @@ export class DextoAgent {
      *
      * @param config - Agent configuration (validated and enriched)
      * @param configPath - Optional path to config file (for relative path resolution)
+     * @param options - Validation options
+     * @param options.strict - When true (default), enforces API key and baseURL requirements.
+     *                         When false, allows missing credentials for interactive configuration.
      */
     constructor(
         config: AgentConfig,
-        private configPath?: string
+        private configPath?: string,
+        options?: LLMValidationOptions
     ) {
-        // Validate and transform the input config
-        this.config = AgentConfigSchema.parse(config);
+        // Validate and transform the input config using appropriate schema
+        const schema =
+            options?.strict === false
+                ? createAgentConfigSchema({ strict: false })
+                : AgentConfigSchema;
+        this.config = schema.parse(config);
 
         // Create logger instance for this agent
         // agentId is set by CLI enrichment from agentCard.name or filename

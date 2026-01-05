@@ -120,9 +120,23 @@ export class CLISubscriber implements EventSubscriber {
         // Clear any partial response state
         this.streamingContent = '';
 
-        // Show error to stderr for immediate user feedback (with stack for debugging)
+        // Show error to stderr for immediate user feedback
         console.error(`❌ Error: ${error.message}`);
+
+        // Show recovery guidance if available (for DextoRuntimeError)
+        if ('recovery' in error && error.recovery) {
+            const recoveryMessages = Array.isArray(error.recovery)
+                ? error.recovery
+                : [error.recovery];
+            console.error('');
+            recoveryMessages.forEach((msg) => {
+                console.error(`💡 ${msg}`);
+            });
+        }
+
+        // Show stack for debugging if available
         if (error.stack) {
+            console.error('');
             console.error(error.stack);
         }
 
@@ -131,6 +145,7 @@ export class CLISubscriber implements EventSubscriber {
             stack: error.stack,
             name: error.name,
             cause: error.cause,
+            recovery: 'recovery' in error ? error.recovery : undefined,
         });
 
         // Reject completion promise if waiting

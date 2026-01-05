@@ -13,3 +13,6 @@ export {
     type LookupStatus,
     type OpenRouterModelInfo,
 } from './providers/openrouter-model-registry.js';
+
+// Local model providers
+export * from './providers/local/index.js';

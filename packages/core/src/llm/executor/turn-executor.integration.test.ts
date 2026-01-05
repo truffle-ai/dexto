@@ -520,6 +520,79 @@ describe('TurnExecutor Integration Tests', () => {
                 })
             );
         });
+
+        it('should validate tool support for local providers even without custom baseURL', async () => {
+            vi.mocked(generateText).mockRejectedValue(new Error('Model does not support tools'));
+
+            const ollamaLlmContext = {
+                provider: 'ollama' as const,
+                model: 'gemma3n:e2b',
+            };
+
+            const ollamaExecutor = new TurnExecutor(
+                createMockModel(),
+                toolManager,
+                contextManager,
+                sessionEventBus,
+                resourceManager,
+                sessionId,
+                { maxSteps: 10 }, // No baseURL
+                ollamaLlmContext,
+                logger,
+                messageQueue
+            );
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+            await ollamaExecutor.execute({ mcpManager }, true);
+
+            // Should call generateText for validation even without baseURL
+            expect(generateText).toHaveBeenCalledTimes(1);
+
+            // Should use empty tools in actual execution
+            expect(streamText).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    tools: {},
+                })
+            );
+        });
+
+        it('should emit llm:unsupported-input warning when model does not support tools', async () => {
+            vi.mocked(generateText).mockRejectedValue(new Error('Model does not support tools'));
+
+            const warningHandler = vi.fn();
+            sessionEventBus.on('llm:unsupported-input', warningHandler);
+
+            const executorWithBaseURL = new TurnExecutor(
+                createMockModel(),
+                toolManager,
+                contextManager,
+                sessionEventBus,
+                resourceManager,
+                sessionId,
+                { maxSteps: 10, baseURL: 'https://no-tools.api.com' },
+                llmContext,
+                logger,
+                messageQueue
+            );
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+            await executorWithBaseURL.execute({ mcpManager }, true);
+
+            expect(warningHandler).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    errors: expect.arrayContaining([
+                        expect.stringContaining('does not support tool calling'),
+                        expect.stringContaining('You can still chat'),
+                    ]),
+                    provider: llmContext.provider,
+                    model: llmContext.model,
+                    details: expect.objectContaining({
+                        feature: 'tool-calling',
+                        supported: false,
+                    }),
+                })
+            );
+        });
     });
 
     describe('Error Handling', () => {

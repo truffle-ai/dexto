@@ -5,7 +5,7 @@
  * - Custom models support (add/edit/delete via arrow navigation)
  */
 
-import React, {
+import {
     useState,
     useEffect,
     forwardRef,
@@ -17,7 +17,13 @@ import React, {
 import { Box, Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
 import type { DextoAgent, LLMProvider } from '@dexto/core';
-import { loadCustomModels, deleteCustomModel, type CustomModel } from '@dexto/agent-management';
+import { listOllamaModels, DEFAULT_OLLAMA_URL, getLocalModelById } from '@dexto/core';
+import {
+    loadCustomModels,
+    deleteCustomModel,
+    getAllInstalledModels,
+    type CustomModel,
+} from '@dexto/agent-management';
 
 interface ModelSelectorProps {
     isVisible: boolean;
@@ -120,6 +126,24 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
 
                 const modelList: ModelOption[] = [];
 
+                // Fetch dynamic models for local providers
+                let ollamaModels: Array<{ name: string; size?: number }> = [];
+                let localModels: Array<{ id: string; filePath: string; sizeBytes: number }> = [];
+
+                try {
+                    ollamaModels = await listOllamaModels(DEFAULT_OLLAMA_URL);
+                } catch (error) {
+                    // Ollama not available, skip
+                    agent.logger.debug('Ollama not available for model listing');
+                }
+
+                try {
+                    localModels = await getAllInstalledModels();
+                } catch (error) {
+                    // Local models not available, skip
+                    agent.logger.debug('Local models not available for listing');
+                }
+
                 // Add custom models first
                 for (const custom of loadedCustomModels) {
                     // Use provider from custom model, default to openai-compatible for legacy models
@@ -143,14 +167,21 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
 
                 // Add registry models
                 for (const provider of providers) {
-                    // Skip openai-compatible, openrouter, litellm, and glama as those are shown via custom models
+                    // Skip custom-only providers that don't have a static model list
+                    // These are only accessible via the "Add custom model" wizard
                     if (
                         provider === 'openai-compatible' ||
                         provider === 'openrouter' ||
                         provider === 'litellm' ||
-                        provider === 'glama'
+                        provider === 'glama' ||
+                        provider === 'bedrock'
                     )
                         continue;
+
+                    // Skip ollama, local, and vertex - they'll be added dynamically below
+                    if (provider === 'ollama' || provider === 'local' || provider === 'vertex') {
+                        continue;
+                    }
 
                     const providerModels = allModels[provider];
                     for (const model of providerModels) {
@@ -163,6 +194,59 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                             isCurrent:
                                 provider === currentConfig.provider &&
                                 model.name === currentConfig.model,
+                            isCustom: false,
+                        });
+                    }
+                }
+
+                // Add Ollama models dynamically
+                for (const ollamaModel of ollamaModels) {
+                    modelList.push({
+                        provider: 'ollama',
+                        name: ollamaModel.name,
+                        displayName: ollamaModel.name,
+                        maxInputTokens: 128000, // Default, actual varies by model
+                        isDefault: false,
+                        isCurrent:
+                            currentConfig.provider === 'ollama' &&
+                            currentConfig.model === ollamaModel.name,
+                        isCustom: false,
+                    });
+                }
+
+                // Add local models dynamically
+                for (const localModel of localModels) {
+                    // Get display name from registry if available
+                    const modelInfo = getLocalModelById(localModel.id);
+                    const displayName = modelInfo?.name || localModel.id;
+                    const maxInputTokens = modelInfo?.contextLength || 128000;
+
+                    modelList.push({
+                        provider: 'local',
+                        name: localModel.id,
+                        displayName,
+                        maxInputTokens,
+                        isDefault: false,
+                        isCurrent:
+                            currentConfig.provider === 'local' &&
+                            currentConfig.model === localModel.id,
+                        isCustom: false,
+                    });
+                }
+
+                // Add Vertex AI models from registry
+                const vertexModels = allModels['vertex'];
+                if (vertexModels) {
+                    for (const model of vertexModels) {
+                        modelList.push({
+                            provider: 'vertex',
+                            name: model.name,
+                            displayName: model.displayName,
+                            maxInputTokens: model.maxInputTokens,
+                            isDefault: model.isDefault,
+                            isCurrent:
+                                currentConfig.provider === 'vertex' &&
+                                currentConfig.model === model.name,
                             isCustom: false,
                         });
                     }
