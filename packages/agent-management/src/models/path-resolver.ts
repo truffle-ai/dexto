@@ -174,8 +174,3 @@ export function formatSize(bytes: number): string {
 
     return `${(bytes / Math.pow(k, i)).toFixed(1)} ${units[i]}`;
 }
-
-/**
- * @deprecated Use formatSize instead
- */
-export const formatBytes = formatSize;
