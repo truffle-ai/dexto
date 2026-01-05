@@ -13,6 +13,7 @@ import {
     openApiKeyUrl,
     getProviderInfo,
     getProviderEnvVar,
+    PROVIDER_REGISTRY,
 } from './provider-setup.js';
 import { verifyApiKey } from './api-key-verification.js';
 
@@ -337,18 +338,56 @@ function showManualSetupInstructions(provider: LLMProvider): void {
                   `   ${chalk.yellow(`${envVar}=your_api_key_here`)}`,
               ];
 
-    const providerUrls = [
-        `   ${chalk.green('●')} ${chalk.green('Google Gemini (Free)')}: https://aistudio.google.com/apikey`,
-        `   ${chalk.green('●')} ${chalk.green('Groq (Free)')}:          https://console.groq.com/keys`,
-        `   ${chalk.blue('●')} OpenAI:                 https://platform.openai.com/api-keys`,
-        `   ${chalk.blue('●')} Anthropic:              https://console.anthropic.com/settings/keys`,
-    ];
+    // Build provider URLs list dynamically from registry
+    const providerUrls: string[] = [];
 
-    // Highlight the current provider's URL if it has one
+    // Add current provider first if it has an API key URL
     if (providerInfo?.apiKeyUrl) {
-        providerUrls.unshift(
+        providerUrls.push(
             `   ${chalk.cyan('→')} ${chalk.cyan(getProviderDisplayName(provider))}: ${providerInfo.apiKeyUrl}`
         );
+        providerUrls.push(''); // Add spacing
+    }
+
+    // Add recommended/popular providers with API keys
+    const popularProviders: Array<{ provider: LLMProvider; color: typeof chalk.green }> = [
+        { provider: 'google', color: chalk.green }, // Free
+        { provider: 'groq', color: chalk.green }, // Free
+        { provider: 'openai', color: chalk.blue },
+        { provider: 'anthropic', color: chalk.blue },
+        { provider: 'xai', color: chalk.blue },
+        { provider: 'cohere', color: chalk.blue },
+    ];
+
+    for (const { provider: p, color } of popularProviders) {
+        const info = PROVIDER_REGISTRY[p];
+        if (info?.apiKeyUrl && p !== provider) {
+            // Don't duplicate current provider
+            const freeTag = info.free ? ' (Free)' : '';
+            providerUrls.push(`   ${color('●')} ${color(info.label + freeTag)}: ${info.apiKeyUrl}`);
+        }
+    }
+
+    // Add gateway providers
+    const gatewayProviders: LLMProvider[] = ['openrouter', 'glama'];
+    for (const p of gatewayProviders) {
+        const info = PROVIDER_REGISTRY[p];
+        if (info?.apiKeyUrl && p !== provider) {
+            providerUrls.push(
+                `   ${chalk.yellow('●')} ${chalk.yellow(info.label)} (Gateway): ${info.apiKeyUrl}`
+            );
+        }
+    }
+
+    // Add enterprise providers
+    const enterpriseProviders: LLMProvider[] = ['vertex', 'bedrock'];
+    for (const p of enterpriseProviders) {
+        const info = PROVIDER_REGISTRY[p];
+        if (info?.apiKeyUrl && p !== provider) {
+            providerUrls.push(
+                `   ${chalk.magenta('●')} ${chalk.magenta(info.label)} (Enterprise): ${info.apiKeyUrl}`
+            );
+        }
     }
 
     const instructions = [

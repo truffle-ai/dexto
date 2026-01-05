@@ -17,6 +17,9 @@ export const CUSTOM_MODEL_PROVIDERS = [
     'litellm',
     'glama',
     'bedrock',
+    'ollama',
+    'local',
+    'vertex',
 ] as const;
 export type CustomModelProvider = (typeof CUSTOM_MODEL_PROVIDERS)[number];
 
@@ -26,6 +29,10 @@ export type CustomModelProvider = (typeof CUSTOM_MODEL_PROVIDERS)[number];
  * - openrouter: baseURL is auto-injected, maxInputTokens from registry
  * - litellm: requires baseURL, uses LITELLM_API_KEY or per-model override
  * - glama: fixed baseURL, uses GLAMA_API_KEY or per-model override
+ * - bedrock: no baseURL, uses AWS credentials from environment
+ * - ollama: optional baseURL (defaults to http://localhost:11434)
+ * - local: no baseURL, uses local GGUF files via node-llama-cpp
+ * - vertex: no baseURL, uses Google Cloud ADC
  *
  * TODO: For hosted deployments, API keys should be stored in a secure
  * key management service (e.g., AWS Secrets Manager, HashiCorp Vault)
