@@ -24,7 +24,10 @@ export type CustomModelProvider =
     | 'openrouter'
     | 'litellm'
     | 'glama'
-    | 'bedrock';
+    | 'bedrock'
+    | 'vertex'
+    | 'ollama'
+    | 'local';
 
 export interface CustomModelFormData {
     provider: CustomModelProvider;

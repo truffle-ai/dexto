@@ -20,6 +20,8 @@ import {
     downloadModel,
     checkOllamaStatus,
     listOllamaModels,
+    isOllamaModelAvailable,
+    pullOllamaModel,
     isNodeLlamaCppInstalled,
     type ModelDownloadProgress,
 } from '@dexto/core';
@@ -298,6 +300,61 @@ export async function setupLocalModels(): Promise<LocalModelSetupResult> {
 }
 
 /**
+ * Check if Ollama model is available, offer to pull if not.
+ * Returns true if model is ready to use, false if user declined pull or pull failed.
+ */
+async function ensureOllamaModelAvailable(modelName: string): Promise<boolean> {
+    // Check if model is already available
+    const isAvailable = await isOllamaModelAvailable(modelName);
+    if (isAvailable) {
+        return true;
+    }
+
+    // Model not found - offer to pull it
+    console.log(chalk.yellow(`\n⚠️  Model '${modelName}' is not available locally.\n`));
+
+    const shouldPull = await p.confirm({
+        message: `Pull '${modelName}' from Ollama now?`,
+        initialValue: true,
+    });
+
+    if (p.isCancel(shouldPull) || !shouldPull) {
+        p.log.warn('Skipping model pull. You can pull it later with: ollama pull ' + modelName);
+        return false;
+    }
+
+    // Pull the model with progress display
+    const spinner = p.spinner();
+    spinner.start(`Pulling ${modelName} from Ollama...`);
+
+    try {
+        await pullOllamaModel(modelName, undefined, (progress) => {
+            // Update spinner with progress (show percentage if available)
+            if (progress.completed && progress.total) {
+                const percent = Math.round((progress.completed / progress.total) * 100);
+                const sizeDownloaded = formatSize(progress.completed);
+                const sizeTotal = formatSize(progress.total);
+                spinner.message(
+                    `Pulling ${modelName}... ${percent}% (${sizeDownloaded}/${sizeTotal}) - ${progress.status}`
+                );
+            } else {
+                spinner.message(`Pulling ${modelName}... ${progress.status}`);
+            }
+        });
+
+        spinner.stop(chalk.green(`✓ Successfully pulled ${modelName}`));
+        return true;
+    } catch (error) {
+        spinner.stop(chalk.red('✗ Failed to pull model'));
+        console.error(
+            chalk.red(`Error: ${error instanceof Error ? error.message : String(error)}`)
+        );
+        p.log.warn('You can try pulling manually: ollama pull ' + modelName);
+        return false;
+    }
+}
+
+/**
  * Interactive Ollama model setup for 'ollama' provider.
  */
 export async function setupOllamaModels(): Promise<LocalModelSetupResult> {
@@ -360,7 +417,7 @@ export async function setupOllamaModels(): Promise<LocalModelSetupResult> {
         );
 
         const modelName = await p.text({
-            message: 'Enter the model name to use (will be pulled on first run)',
+            message: 'Enter the model name to pull',
             placeholder: 'llama3.2',
             initialValue: 'llama3.2',
         });
@@ -369,7 +426,15 @@ export async function setupOllamaModels(): Promise<LocalModelSetupResult> {
             return { success: false, cancelled: true };
         }
 
-        return { success: true, modelId: modelName.trim() };
+        const trimmedName = modelName.trim();
+        const isReady = await ensureOllamaModelAvailable(trimmedName);
+
+        if (!isReady) {
+            // User declined pull or pull failed
+            return { success: false };
+        }
+
+        return { success: true, modelId: trimmedName };
     }
 
     // Show available Ollama models
@@ -416,7 +481,15 @@ export async function setupOllamaModels(): Promise<LocalModelSetupResult> {
             return { success: false, cancelled: true };
         }
 
-        return { success: true, modelId: modelName.trim() };
+        const trimmedName = modelName.trim();
+        const isReady = await ensureOllamaModelAvailable(trimmedName);
+
+        if (!isReady) {
+            // User declined pull or pull failed
+            return { success: false };
+        }
+
+        return { success: true, modelId: trimmedName };
     }
 
     return { success: true, modelId: selected as string };

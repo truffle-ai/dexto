@@ -323,9 +323,10 @@ export function validateApiKeyFormat(
 
     // Check prefix if specified
     if (info?.apiKeyPrefix && !trimmed.startsWith(info.apiKeyPrefix)) {
+        const prefixLen = info.apiKeyPrefix.length;
         return {
             valid: false,
-            error: `Invalid format: ${getProviderDisplayName(provider)} keys start with "${info.apiKeyPrefix}" (got "${trimmed.slice(0, 10)}...")`,
+            error: `Invalid format: ${getProviderDisplayName(provider)} keys start with "${info.apiKeyPrefix}" (got "${trimmed.slice(0, prefixLen)}...")`,
         };
     }
 

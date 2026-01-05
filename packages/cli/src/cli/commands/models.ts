@@ -357,8 +357,13 @@ export async function handleModelsRemoveCommand(modelId: string): Promise<void> 
         // Remove the file
         await fs.unlink(model.filePath);
 
-        // Remove from state
-        await removeInstalledModel(modelId);
+        // Remove from state - if this fails, sync will clean up on next load
+        try {
+            await removeInstalledModel(modelId);
+        } catch (stateError) {
+            // File already deleted, state will sync on next models command
+            console.log(chalk.dim('State will be synchronized on next run.'));
+        }
 
         console.log(chalk.green(`\n✅ Model '${modelId}' removed.\n`));
     } catch (error) {

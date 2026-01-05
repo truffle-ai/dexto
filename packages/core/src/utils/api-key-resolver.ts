@@ -28,7 +28,7 @@ export const PROVIDER_API_KEY_MAP: Record<LLMProvider, string[]> = {
     bedrock: ['AWS_BEARER_TOKEN_BEDROCK'],
     // Local providers don't require API keys
     local: [], // Native node-llama-cpp execution
-    ollama: [], // Ollama server (may optionally use OLLAMA_API_KEY for remote servers)
+    ollama: [], // Ollama server (no authentication required)
     // TODO: dexto: ['DEXTO_API_KEY'],
     // perplexity: ['PERPLEXITY_API_KEY'],
     // together: ['TOGETHER_API_KEY'],

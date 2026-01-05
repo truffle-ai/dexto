@@ -1,5 +1,9 @@
 import { DextoAgent } from '../../agent/DextoAgent.js';
-import { resolveApiKeyForProvider, getPrimaryApiKeyEnvVar } from '../../utils/api-key-resolver.js';
+import {
+    resolveApiKeyForProvider,
+    getPrimaryApiKeyEnvVar,
+    PROVIDER_API_KEY_MAP,
+} from '../../utils/api-key-resolver.js';
 import type { LLMProvider } from '../types.js';
 import type { AgentConfig } from '../../agent/schemas.js';
 
@@ -143,7 +147,8 @@ export const TestConfigs = {
      */
     createVercelConfig(provider: LLMProvider = 'openai', model?: string): AgentConfig {
         const apiKey = resolveApiKeyForProvider(provider);
-        if (!apiKey) {
+        // Only enforce API key check for providers that require it (exclude local, ollama, vertex with empty key maps)
+        if (!apiKey && requiresApiKey(provider)) {
             throw new Error(
                 `${getPrimaryApiKeyEnvVar(provider)} environment variable is required for Vercel integration tests with ${provider}`
             );
@@ -204,10 +209,12 @@ export const TestConfigs = {
 } as const;
 
 /**
- * Helper to skip tests if API keys are not available
+ * Helper to check if a provider requires an API key
+ * Providers with empty arrays in PROVIDER_API_KEY_MAP don't require API keys (e.g., local, ollama, vertex)
  */
 export function requiresApiKey(provider: LLMProvider): boolean {
-    return !!resolveApiKeyForProvider(provider);
+    const envVars = PROVIDER_API_KEY_MAP[provider];
+    return envVars && envVars.length > 0;
 }
 
 /**

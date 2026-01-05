@@ -88,7 +88,7 @@ export const ModelDownloadProgressSchema = z
         modelId: z.string().min(1),
         status: ModelDownloadStatusSchema,
         bytesDownloaded: z.number().int().nonnegative(),
-        totalBytes: z.number().int().positive(),
+        totalBytes: z.number().int().nonnegative(),
         percentage: z.number().min(0).max(100),
         speed: z.number().nonnegative().optional(),
         eta: z.number().nonnegative().optional(),

@@ -27,7 +27,6 @@ import {
     selectProvider,
     getProviderDisplayName,
     getProviderEnvVar,
-    getProviderInfo,
     providerRequiresBaseURL,
     getDefaultModel,
 } from '../utils/provider-setup.js';

@@ -18,8 +18,8 @@ import { detectGPU } from './gpu-detector.js';
  */
 export async function isNodeLlamaCppInstalled(): Promise<boolean> {
     try {
-        // Try to require the module at runtime
-        await eval('import("node-llama-cpp")');
+        // Try to import the module at runtime
+        await import('node-llama-cpp');
         return true;
     } catch {
         return false;
@@ -33,8 +33,8 @@ export async function isNodeLlamaCppInstalled(): Promise<boolean> {
 // Using Record type for dynamic import result since we can't type node-llama-cpp at compile time
 async function importNodeLlamaCpp(): Promise<Record<string, unknown> | null> {
     try {
-        // Use eval to bypass static analysis
-        return await eval('import("node-llama-cpp")');
+        // Dynamic import for optional dependency
+        return await import('node-llama-cpp');
     } catch {
         return null;
     }

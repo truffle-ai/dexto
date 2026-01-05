@@ -133,6 +133,9 @@ function migrateState(state: ModelState): ModelState {
 
 /**
  * Add an installed model to state.
+ *
+ * Note: These operations are not atomic. Ensure single-threaded access
+ * or implement file locking for concurrent usage scenarios.
  */
 export async function addInstalledModel(model: InstalledModel): Promise<void> {
     const state = await loadModelState();
@@ -142,6 +145,9 @@ export async function addInstalledModel(model: InstalledModel): Promise<void> {
 
 /**
  * Remove an installed model from state.
+ *
+ * Note: These operations are not atomic. Ensure single-threaded access
+ * or implement file locking for concurrent usage scenarios.
  */
 export async function removeInstalledModel(modelId: string): Promise<boolean> {
     const state = await loadModelState();

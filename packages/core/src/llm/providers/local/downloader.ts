@@ -196,47 +196,53 @@ async function downloadFromHuggingFace(
 
         const reader = response.body?.getReader();
         if (!reader) {
+            writeStream.destroy();
             throw LocalModelError.downloadFailed(modelId, 'No response body');
         }
 
-        // Read and write chunks
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
+        try {
+            // Read and write chunks
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
 
-            writeStream.write(value);
-            bytesDownloaded += value.length;
+                writeStream.write(value);
+                bytesDownloaded += value.length;
 
-            // Emit progress every 100ms
-            const now = Date.now();
-            if (now - lastProgressUpdate > 100 || done) {
-                lastProgressUpdate = now;
-                const elapsedSeconds = (now - startTime) / 1000;
-                const speed =
-                    elapsedSeconds > 0 ? (bytesDownloaded - partialSize) / elapsedSeconds : 0;
-                const remainingBytes = totalSize - bytesDownloaded;
-                const eta = speed > 0 ? remainingBytes / speed : 0;
+                // Emit progress every 100ms
+                const now = Date.now();
+                if (now - lastProgressUpdate > 100 || done) {
+                    lastProgressUpdate = now;
+                    const elapsedSeconds = (now - startTime) / 1000;
+                    const speed =
+                        elapsedSeconds > 0 ? (bytesDownloaded - partialSize) / elapsedSeconds : 0;
+                    const remainingBytes = totalSize - bytesDownloaded;
+                    const eta = speed > 0 ? remainingBytes / speed : 0;
 
-                const progress = createProgressEvent(
-                    modelId,
-                    'downloading',
-                    bytesDownloaded,
-                    totalSize || expectedSize,
-                    speed,
-                    eta
-                );
+                    const progress = createProgressEvent(
+                        modelId,
+                        'downloading',
+                        bytesDownloaded,
+                        totalSize || expectedSize,
+                        speed,
+                        eta
+                    );
 
-                events?.onProgress?.(progress);
+                    events?.onProgress?.(progress);
+                }
             }
-        }
 
-        // Close write stream
-        await new Promise<void>((resolve, reject) => {
-            writeStream.end((err: Error | null | undefined) => {
-                if (err) reject(err);
-                else resolve();
+            // Close write stream
+            await new Promise<void>((resolve, reject) => {
+                writeStream.end((err: Error | null | undefined) => {
+                    if (err) reject(err);
+                    else resolve();
+                });
             });
-        });
+        } catch (error) {
+            writeStream.destroy();
+            throw error;
+        }
 
         // Emit verifying status
         events?.onProgress?.(createProgressEvent(modelId, 'verifying', bytesDownloaded, totalSize));

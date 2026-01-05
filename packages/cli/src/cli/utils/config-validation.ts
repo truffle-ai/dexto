@@ -73,13 +73,13 @@ export async function validateAgentConfig(
     // Check for API key errors first
     const apiKeyError = findApiKeyError(parseResult.error, config);
     if (apiKeyError) {
-        return await handleApiKeyError(apiKeyError.provider, config, errors);
+        return await handleApiKeyError(apiKeyError.provider, config, errors, validationOptions);
     }
 
     // Check for baseURL errors next
     const baseURLError = findBaseURLError(parseResult.error, config);
     if (baseURLError) {
-        return await handleBaseURLError(baseURLError.provider, config, errors);
+        return await handleBaseURLError(baseURLError.provider, config, errors, validationOptions);
     }
 
     // Other validation errors - show options
@@ -92,7 +92,8 @@ export async function validateAgentConfig(
 async function handleApiKeyError(
     provider: LLMProvider,
     config: AgentConfig,
-    errors: string[]
+    errors: string[],
+    validationOptions?: LLMValidationOptions
 ): Promise<ValidationResult> {
     console.log(chalk.yellow(`\n🔑 API key issue detected for ${provider} provider\n`));
 
@@ -126,7 +127,7 @@ async function handleApiKeyError(
         const result = await interactiveApiKeySetup(provider, { exitOnCancel: false });
         if (result.success && !result.skipped) {
             // Retry validation after API key setup
-            return validateAgentConfig(config, true);
+            return validateAgentConfig(config, true, validationOptions);
         }
         // Setup was skipped or cancelled - let them continue anyway
         return { success: false, errors, skipped: true };
@@ -148,7 +149,8 @@ async function handleApiKeyError(
 async function handleBaseURLError(
     provider: LLMProvider,
     config: AgentConfig,
-    errors: string[]
+    errors: string[],
+    validationOptions?: LLMValidationOptions
 ): Promise<ValidationResult> {
     console.log(chalk.yellow(`\n🌐 Base URL required for ${provider} provider\n`));
 
@@ -199,7 +201,7 @@ async function handleBaseURLError(
         const result = await interactiveBaseURLSetup(provider, config);
         if (result.success && !result.skipped) {
             // Retry validation after baseURL setup
-            return validateAgentConfig(config, true);
+            return validateAgentConfig(config, true, validationOptions);
         }
         // Setup was skipped or cancelled
         return { success: false, errors, skipped: true };
@@ -248,7 +250,7 @@ async function interactiveBaseURLSetup(
 
     if (p.isCancel(baseURL)) {
         p.log.warn('Skipping base URL setup. You can configure it later with: dexto setup');
-        return { success: true, skipped: true };
+        return { success: false, skipped: true };
     }
 
     const trimmedURL = baseURL.trim();

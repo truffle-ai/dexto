@@ -21,7 +21,7 @@ import { DextoLogComponent } from '../../logger/v2/types.js';
 import type { SessionEventBus, LLMFinishReason } from '../../events/index.js';
 import type { ResourceManager } from '../../resources/index.js';
 import { DynamicContributorContext } from '../../systemPrompt/types.js';
-import { LLMContext } from '../types.js';
+import { LLMContext, type LLMProvider } from '../types.js';
 import type { MessageQueueService } from '../../session/message-queue.js';
 import type { StreamProcessorConfig } from './stream-processor.js';
 import type { CoalescedMessage } from '../../session/types.js';
@@ -39,6 +39,11 @@ import { ReactiveOverflowStrategy } from '../../context/compression/reactive-ove
  * Key format: "provider:model:baseURL"
  */
 const toolSupportCache = new Map<string, boolean>();
+
+/**
+ * Local providers that need tool support validation regardless of baseURL
+ */
+const LOCAL_PROVIDERS: readonly LLMProvider[] = ['ollama', 'local'] as const;
 
 /**
  * TurnExecutor orchestrates the agent loop using `stopWhen: stepCountIs(1)`.
@@ -373,8 +378,7 @@ export class TurnExecutor {
         }
 
         // Local providers need validation regardless of baseURL (models have varying support)
-        const localProviders = ['ollama', 'node-llama'];
-        const isLocalProvider = localProviders.includes(this.llmContext.provider);
+        const isLocalProvider = LOCAL_PROVIDERS.includes(this.llmContext.provider);
 
         // Skip validation only for known cloud providers without custom baseURL
         if (!this.config.baseURL && !isLocalProvider) {

@@ -32,6 +32,22 @@ import { getToolDisplayName, formatToolArgsForDisplay } from '../utils/messageFo
 import { isEditWriteTool } from '../utils/toolUtils.js';
 
 /**
+ * Build error message with recovery guidance if available
+ */
+function buildErrorContent(error: unknown, prefix: string): string {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    let errorContent = `${prefix}${errorMessage}`;
+
+    // Add recovery guidance if available (for DextoRuntimeError)
+    if (error instanceof Error && 'recovery' in error && error.recovery) {
+        const recoveryMessages = Array.isArray(error.recovery) ? error.recovery : [error.recovery];
+        errorContent += '\n\n' + recoveryMessages.map((msg) => `💡 ${msg}`).join('\n');
+    }
+
+    return errorContent;
+}
+
+/**
  * State setters needed by processStream
  */
 export interface ProcessStreamSetters {
@@ -601,17 +617,7 @@ export async function processStream(
                 }
 
                 case 'llm:error': {
-                    // Build error message with recovery guidance if available
-                    let errorContent = `❌ Error: ${event.error.message}`;
-
-                    // Add recovery guidance if available (for DextoRuntimeError)
-                    if ('recovery' in event.error && event.error.recovery) {
-                        const recoveryMessages = Array.isArray(event.error.recovery)
-                            ? event.error.recovery
-                            : [event.error.recovery];
-                        errorContent +=
-                            '\n\n' + recoveryMessages.map((msg) => `💡 ${msg}`).join('\n');
-                    }
+                    const errorContent = buildErrorContent(event.error, '❌ Error: ');
 
                     // Add error message to finalized
                     setMessages((prev) => [
@@ -649,7 +655,7 @@ export async function processStream(
 
                 case 'llm:unsupported-input': {
                     // Show warning for unsupported features (e.g., model doesn't support tool calling)
-                    const warningContent = '⚠️  ' + event.errors.map((err) => err).join('\n⚠️  ');
+                    const warningContent = '⚠️  ' + event.errors.join('\n⚠️  ');
 
                     setMessages((prev) => [
                         ...prev,
@@ -833,16 +839,7 @@ export async function processStream(
             // Unexpected error, show to user
             clearPending();
 
-            // Build error message with recovery guidance if available
-            let errorContent = `❌ Stream error: ${error instanceof Error ? error.message : String(error)}`;
-
-            // Add recovery guidance if available (for DextoRuntimeError)
-            if (error instanceof Error && 'recovery' in error && error.recovery) {
-                const recoveryMessages = Array.isArray(error.recovery)
-                    ? error.recovery
-                    : [error.recovery];
-                errorContent += '\n\n' + recoveryMessages.map((msg) => `💡 ${msg}`).join('\n');
-            }
+            const errorContent = buildErrorContent(error, '❌ Stream error: ');
 
             setMessages((prev) => [
                 ...prev,

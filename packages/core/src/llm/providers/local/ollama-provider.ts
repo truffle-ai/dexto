@@ -308,6 +308,9 @@ export async function deleteOllamaModel(
 
 /**
  * Generate embeddings using Ollama.
+ * Uses the /api/embed endpoint which supports batch processing.
+ *
+ * Note: Reserved for future RAG/vector search functionality.
  */
 export async function generateOllamaEmbeddings(
     modelName: string,
@@ -316,12 +319,13 @@ export async function generateOllamaEmbeddings(
 ): Promise<number[][]> {
     const inputs = Array.isArray(input) ? input : [input];
 
-    const response = await fetch(`${baseURL}/api/embeddings`, {
+    // Use /api/embed endpoint which accepts arrays for batch processing
+    const response = await fetch(`${baseURL}/api/embed`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
             model: modelName,
-            prompt: inputs[0], // Ollama only supports single prompts
+            input: inputs,
         }),
     });
 
@@ -329,6 +333,6 @@ export async function generateOllamaEmbeddings(
         throw LocalModelError.ollamaApiError(`HTTP ${response.status}: ${response.statusText}`);
     }
 
-    const data = (await response.json()) as { embedding: number[] };
-    return [data.embedding];
+    const data = (await response.json()) as { embeddings: number[][] };
+    return data.embeddings;
 }
