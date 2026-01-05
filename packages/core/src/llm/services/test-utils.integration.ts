@@ -148,7 +148,7 @@ export const TestConfigs = {
     createVercelConfig(provider: LLMProvider = 'openai', model?: string): AgentConfig {
         const apiKey = resolveApiKeyForProvider(provider);
         // Only enforce API key check for providers that require it (exclude local, ollama, vertex with empty key maps)
-        if (!apiKey && requiresApiKey(provider)) {
+        if (!apiKey && providerRequiresApiKey(provider)) {
             throw new Error(
                 `${getPrimaryApiKeyEnvVar(provider)} environment variable is required for Vercel integration tests with ${provider}`
             );
@@ -212,9 +212,17 @@ export const TestConfigs = {
  * Helper to check if a provider requires an API key
  * Providers with empty arrays in PROVIDER_API_KEY_MAP don't require API keys (e.g., local, ollama, vertex)
  */
-export function requiresApiKey(provider: LLMProvider): boolean {
+export function providerRequiresApiKey(provider: LLMProvider): boolean {
     const envVars = PROVIDER_API_KEY_MAP[provider];
     return envVars && envVars.length > 0;
+}
+
+/**
+ * Helper to check if API key is available for a provider
+ * Used to skip tests when API keys are not configured
+ */
+export function requiresApiKey(provider: LLMProvider): boolean {
+    return !!resolveApiKeyForProvider(provider);
 }
 
 /**

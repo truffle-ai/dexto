@@ -65,13 +65,6 @@ import {
     handleListAgentsCommand,
     type ListAgentsCommandOptionsInput,
     handleWhichCommand,
-    handleModelsCommand,
-    handleModelsListCommand,
-    handleModelsDownloadCommand,
-    handleModelsRemoveCommand,
-    handleModelsInfoCommand,
-    handleModelsUseCommand,
-    handleModelsClearCommand,
 } from './cli/commands/index.js';
 import {
     handleSessionListCommand,
@@ -360,123 +353,6 @@ program
                 if (err instanceof ExitSignal) throw err;
                 console.error(`❌ dexto which command failed: ${err}`);
                 safeExit('which', 1, 'error');
-            }
-        })
-    );
-
-// 9) `models` SUB-COMMAND - Manage local AI models
-const modelsCommand = program.command('models').description('Manage local AI models');
-
-modelsCommand.action(
-    withAnalytics('models', async () => {
-        try {
-            await handleModelsCommand();
-            safeExit('models', 0);
-        } catch (err) {
-            if (err instanceof ExitSignal) throw err;
-            console.error(`❌ dexto models command failed: ${err}`);
-            safeExit('models', 1, 'error');
-        }
-    })
-);
-
-modelsCommand
-    .command('list')
-    .description('List available models from registry')
-    .option('--recommended', 'Show only recommended models')
-    .option('--ollama', 'List models from Ollama server instead')
-    .action(
-        withAnalytics(
-            'models list',
-            async (options: { recommended?: boolean; ollama?: boolean }) => {
-                try {
-                    await handleModelsListCommand(options);
-                    safeExit('models list', 0);
-                } catch (err) {
-                    if (err instanceof ExitSignal) throw err;
-                    console.error(`❌ dexto models list command failed: ${err}`);
-                    safeExit('models list', 1, 'error');
-                }
-            }
-        )
-    );
-
-modelsCommand
-    .command('download <modelId>')
-    .description('Download a model from the registry')
-    .action(
-        withAnalytics('models download', async (modelId: string) => {
-            try {
-                await handleModelsDownloadCommand(modelId);
-                safeExit('models download', 0);
-            } catch (err) {
-                if (err instanceof ExitSignal) throw err;
-                console.error(`❌ dexto models download command failed: ${err}`);
-                safeExit('models download', 1, 'error');
-            }
-        })
-    );
-
-modelsCommand
-    .command('remove <modelId>')
-    .description('Remove an installed model')
-    .action(
-        withAnalytics('models remove', async (modelId: string) => {
-            try {
-                await handleModelsRemoveCommand(modelId);
-                safeExit('models remove', 0);
-            } catch (err) {
-                if (err instanceof ExitSignal) throw err;
-                console.error(`❌ dexto models remove command failed: ${err}`);
-                safeExit('models remove', 1, 'error');
-            }
-        })
-    );
-
-modelsCommand
-    .command('info <modelId>')
-    .description('Show detailed model information')
-    .action(
-        withAnalytics('models info', async (modelId: string) => {
-            try {
-                await handleModelsInfoCommand(modelId);
-                safeExit('models info', 0);
-            } catch (err) {
-                if (err instanceof ExitSignal) throw err;
-                console.error(`❌ dexto models info command failed: ${err}`);
-                safeExit('models info', 1, 'error');
-            }
-        })
-    );
-
-modelsCommand
-    .command('use <modelId>')
-    .description('Set a model as active for local provider')
-    .action(
-        withAnalytics('models use', async (modelId: string) => {
-            try {
-                await handleModelsUseCommand(modelId);
-                safeExit('models use', 0);
-            } catch (err) {
-                if (err instanceof ExitSignal) throw err;
-                console.error(`❌ dexto models use command failed: ${err}`);
-                safeExit('models use', 1, 'error');
-            }
-        })
-    );
-
-modelsCommand
-    .command('clear')
-    .description('Remove all installed models')
-    .action(
-        withAnalytics('models clear', async () => {
-            try {
-                await handleModelsClearCommand();
-                safeExit('models clear', 0);
-            } catch (err) {
-                if (err instanceof ExitSignal) throw err;
-                console.error(`❌ dexto models clear command failed: ${err}`);
-                safeExit('models clear', 1, 'error');
             }
         })
     );

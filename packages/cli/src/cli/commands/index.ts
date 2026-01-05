@@ -19,12 +19,3 @@ export {
     type ListAgentsCommandOptionsInput,
 } from './list-agents.js';
 export { handleWhichCommand, type WhichCommandOptions } from './which.js';
-export {
-    handleModelsCommand,
-    handleModelsListCommand,
-    handleModelsDownloadCommand,
-    handleModelsRemoveCommand,
-    handleModelsInfoCommand,
-    handleModelsUseCommand,
-    handleModelsClearCommand,
-} from './models.js';
