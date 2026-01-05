@@ -261,10 +261,13 @@ export async function loadModel(config: NodeLlamaConfig): Promise<LoadedModel> {
 
 /**
  * Unload a model and free resources.
+ * Removes all cache entries for the given model path (across different configs).
  */
 export async function unloadModel(modelPath: string): Promise<void> {
     for (const [key, loadPromise] of modelCache.entries()) {
-        if (key.startsWith(modelPath)) {
+        // Cache key format is "modelPath:gpuLayers:contextSize"
+        const keyModelPath = key.split(':')[0];
+        if (keyModelPath === modelPath) {
             try {
                 const loaded = await loadPromise;
                 await loaded.dispose();
@@ -296,7 +299,9 @@ export async function unloadAllModels(): Promise<void> {
  */
 export function isModelLoaded(modelPath: string): boolean {
     for (const key of modelCache.keys()) {
-        if (key.startsWith(modelPath)) {
+        // Cache key format is "modelPath:gpuLayers:contextSize"
+        const keyModelPath = key.split(':')[0];
+        if (keyModelPath === modelPath) {
             return true;
         }
     }

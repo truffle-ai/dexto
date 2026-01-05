@@ -198,7 +198,7 @@ async function handleBaseURLError(
     }
 
     if (action === 'setup') {
-        const result = await interactiveBaseURLSetup(provider, config);
+        const result = await interactiveBaseURLSetup(provider, config.llm?.baseURL);
         if (result.success && !result.skipped && result.baseURL && config.llm) {
             // Update config with the new baseURL for retry validation
             const updatedConfig = {
@@ -227,14 +227,15 @@ async function handleBaseURLError(
  */
 async function interactiveBaseURLSetup(
     provider: LLMProvider,
-    config: AgentConfig
+    existingBaseURL?: string
 ): Promise<{ success: boolean; baseURL?: string; skipped?: boolean }> {
     const providerDefaults: Record<string, string> = {
         'openai-compatible': 'http://localhost:11434/v1',
         litellm: 'http://localhost:4000',
     };
 
-    const defaultURL = providerDefaults[provider] || '';
+    // Use existing baseURL if available, otherwise fall back to provider defaults
+    const defaultURL = existingBaseURL || providerDefaults[provider] || '';
 
     const baseURL = await p.text({
         message: `Enter base URL for ${provider}`,
