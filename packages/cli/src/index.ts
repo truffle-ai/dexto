@@ -1060,7 +1060,9 @@ program
                         validatedConfig = validationResult.config;
                     } else if (validationResult.skipped) {
                         // User chose to continue despite validation errors
-                        // Try to use the enriched config as-is (may fail at runtime)
+                        // SAFETY: This cast is intentionally unsafe - it's an escape hatch for users
+                        // when validation is overly strict or incorrect. Runtime errors will surface
+                        // if the config truly doesn't work. Future: explicit `allowUnvalidated` mode.
                         logger.warn(
                             'Starting with validation warnings - some features may not work'
                         );
