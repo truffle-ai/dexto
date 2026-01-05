@@ -601,13 +601,25 @@ export async function processStream(
                 }
 
                 case 'llm:error': {
+                    // Build error message with recovery guidance if available
+                    let errorContent = `❌ Error: ${event.error.message}`;
+
+                    // Add recovery guidance if available (for DextoRuntimeError)
+                    if ('recovery' in event.error && event.error.recovery) {
+                        const recoveryMessages = Array.isArray(event.error.recovery)
+                            ? event.error.recovery
+                            : [event.error.recovery];
+                        errorContent +=
+                            '\n\n' + recoveryMessages.map((msg) => `💡 ${msg}`).join('\n');
+                    }
+
                     // Add error message to finalized
                     setMessages((prev) => [
                         ...prev,
                         {
                             id: generateMessageId('error'),
                             role: 'system',
-                            content: `❌ Error: ${event.error.message}`,
+                            content: errorContent,
                             timestamp: new Date(),
                         },
                     ]);
@@ -632,6 +644,22 @@ export async function processStream(
                             isThinking: false,
                         }));
                     }
+                    break;
+                }
+
+                case 'llm:unsupported-input': {
+                    // Show warning for unsupported features (e.g., model doesn't support tool calling)
+                    const warningContent = '⚠️  ' + event.errors.map((err) => err).join('\n⚠️  ');
+
+                    setMessages((prev) => [
+                        ...prev,
+                        {
+                            id: generateMessageId('warning'),
+                            role: 'system',
+                            content: warningContent,
+                            timestamp: new Date(),
+                        },
+                    ]);
                     break;
                 }
 
@@ -804,12 +832,24 @@ export async function processStream(
         } else {
             // Unexpected error, show to user
             clearPending();
+
+            // Build error message with recovery guidance if available
+            let errorContent = `❌ Stream error: ${error instanceof Error ? error.message : String(error)}`;
+
+            // Add recovery guidance if available (for DextoRuntimeError)
+            if (error instanceof Error && 'recovery' in error && error.recovery) {
+                const recoveryMessages = Array.isArray(error.recovery)
+                    ? error.recovery
+                    : [error.recovery];
+                errorContent += '\n\n' + recoveryMessages.map((msg) => `💡 ${msg}`).join('\n');
+            }
+
             setMessages((prev) => [
                 ...prev,
                 {
                     id: generateMessageId('error'),
                     role: 'system',
-                    content: `❌ Stream error: ${error instanceof Error ? error.message : String(error)}`,
+                    content: errorContent,
                     timestamp: new Date(),
                 },
             ]);
