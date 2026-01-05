@@ -19,6 +19,7 @@ import { detectGPU } from './gpu-detector.js';
 export async function isNodeLlamaCppInstalled(): Promise<boolean> {
     try {
         // Try to import the module at runtime
+        // @ts-ignore - Optional dependency may not be installed (TS2307 in CI)
         await import('node-llama-cpp');
         return true;
     } catch {
@@ -34,6 +35,7 @@ export async function isNodeLlamaCppInstalled(): Promise<boolean> {
 async function importNodeLlamaCpp(): Promise<Record<string, unknown> | null> {
     try {
         // Dynamic import for optional dependency
+        // @ts-ignore - Optional dependency may not be installed (TS2307 in CI)
         return await import('node-llama-cpp');
     } catch {
         return null;
