@@ -725,14 +725,9 @@ async function showSettingsMenu(): Promise<void> {
             message: 'What would you like to do?',
             options: [
                 {
-                    value: 'provider',
-                    label: 'Change AI provider',
-                    hint: 'Switch to a different AI provider',
-                },
-                {
                     value: 'model',
                     label: 'Change model',
-                    hint: `Currently: ${currentPrefs?.llm.model || 'not set'}`,
+                    hint: `Currently: ${currentPrefs?.llm.provider || 'not set'} / ${currentPrefs?.llm.model || 'not set'}`,
                 },
                 {
                     value: 'mode',
@@ -770,11 +765,8 @@ async function showSettingsMenu(): Promise<void> {
 
         // Execute action and loop back (except for reset which exits)
         switch (action) {
-            case 'provider':
-                await changeProvider();
-                break;
             case 'model':
-                await changeModel(currentPrefs?.llm.provider);
+                await changeModel(); // Always prompt for provider selection
                 break;
             case 'mode':
                 await changeDefaultMode();
@@ -801,108 +793,7 @@ async function showSettingsMenu(): Promise<void> {
 }
 
 /**
- * Change provider setting
- */
-async function changeProvider(): Promise<void> {
-    const provider = await selectProvider();
-
-    // Handle cancellation
-    if (provider === null) {
-        p.log.warn('Provider change cancelled');
-        return;
-    }
-
-    // Handle local providers with special setup flow
-    if (provider === 'local') {
-        const localResult = await setupLocalModels();
-        if (localResult.cancelled) {
-            p.log.warn('Provider change cancelled');
-            return;
-        }
-        const model = getLocalModelForPreferences(localResult, 'local');
-
-        await updateGlobalPreferences({
-            llm: { provider, model },
-        });
-
-        p.log.success(`Switched to Local Models with model ${model}`);
-        return;
-    }
-
-    if (provider === 'ollama') {
-        const ollamaResult = await setupOllamaModels();
-        if (ollamaResult.cancelled) {
-            p.log.warn('Provider change cancelled');
-            return;
-        }
-        const model = getLocalModelForPreferences(ollamaResult, 'ollama');
-
-        await updateGlobalPreferences({
-            llm: { provider, model },
-        });
-
-        p.log.success(`Switched to Ollama with model ${model}`);
-        return;
-    }
-
-    const model = await selectModel(provider);
-
-    // Handle cancellation
-    if (model === null) {
-        p.log.warn('Provider change cancelled');
-        return;
-    }
-
-    const apiKeyVar = getProviderEnvVar(provider);
-
-    // Check if API key is needed and exists
-    const hasKey = hasApiKeyConfigured(provider);
-    const needsApiKey = requiresApiKey(provider);
-    let apiKeyConfigured = hasKey;
-
-    if (needsApiKey && !hasKey) {
-        const result = await interactiveApiKeySetup(provider, {
-            exitOnCancel: false,
-            model,
-        });
-        if (result.cancelled) {
-            p.log.warn('Provider change cancelled');
-            return;
-        }
-        apiKeyConfigured = result.success && !result.skipped;
-    } else if (!needsApiKey) {
-        p.log.info(`${getProviderDisplayName(provider)} does not require an API key`);
-    }
-
-    // Handle baseURL for providers that need it
-    let baseURL: string | undefined;
-    if (providerRequiresBaseURL(provider)) {
-        baseURL = await promptForBaseURL(provider);
-    }
-
-    const llmUpdate: { provider: LLMProvider; model: string; apiKey?: string; baseURL?: string } = {
-        provider,
-        model,
-    };
-    // Only include apiKey if configured (either existing or just set up)
-    if (needsApiKey && apiKeyConfigured) {
-        llmUpdate.apiKey = `$${apiKeyVar}`;
-    }
-    if (baseURL) {
-        llmUpdate.baseURL = baseURL;
-    }
-
-    await updateGlobalPreferences({ llm: llmUpdate });
-
-    if (needsApiKey && !apiKeyConfigured) {
-        p.log.warn(`Switched to ${getProviderDisplayName(provider)} (API key pending)`);
-    } else {
-        p.log.success(`Switched to ${getProviderDisplayName(provider)} with model ${model}`);
-    }
-}
-
-/**
- * Change model setting
+ * Change model setting (includes provider selection)
  */
 async function changeModel(currentProvider?: LLMProvider): Promise<void> {
     const provider = currentProvider || (await selectProvider());
