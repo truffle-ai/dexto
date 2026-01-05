@@ -155,7 +155,7 @@ async function ensureNodeLlamaCpp(): Promise<boolean> {
         spinner.stop(chalk.red('✗ Installation failed'));
         p.log.error(
             'Failed to install node-llama-cpp. You can try manually:\n' +
-                chalk.dim('  npm install -g node-llama-cpp')
+                chalk.dim('  npm install node-llama-cpp')
         );
         return false;
     }

@@ -22,8 +22,6 @@ export const DEFAULT_OLLAMA_URL = 'http://localhost:11434';
 export interface OllamaConfig {
     /** Ollama server base URL (default: http://localhost:11434) */
     baseURL?: string;
-    /** Request timeout in milliseconds */
-    timeout?: number;
 }
 
 /**
@@ -159,18 +157,28 @@ export async function isOllamaModelAvailable(
 /**
  * Pull a model from the Ollama registry.
  * Returns a stream of progress events.
+ *
+ * @param modelName - Name of the model to pull
+ * @param baseURL - Ollama server URL (default: http://localhost:11434)
+ * @param onProgress - Optional callback for progress updates
+ * @param signal - Optional AbortSignal for cancellation
  */
 export async function pullOllamaModel(
     modelName: string,
     baseURL: string = DEFAULT_OLLAMA_URL,
-    onProgress?: (progress: { status: string; completed?: number; total?: number }) => void
+    onProgress?: (progress: { status: string; completed?: number; total?: number }) => void,
+    signal?: AbortSignal
 ): Promise<void> {
     try {
-        const response = await fetch(`${baseURL}/api/pull`, {
+        const fetchOptions: RequestInit = {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ name: modelName }),
-        });
+        };
+        if (signal) {
+            fetchOptions.signal = signal;
+        }
+        const response = await fetch(`${baseURL}/api/pull`, fetchOptions);
 
         if (!response.ok) {
             throw LocalModelError.ollamaPullFailed(

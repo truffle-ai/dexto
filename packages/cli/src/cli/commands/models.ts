@@ -360,7 +360,7 @@ export async function handleModelsRemoveCommand(modelId: string): Promise<void> 
         // Remove from state - if this fails, sync will clean up on next load
         try {
             await removeInstalledModel(modelId);
-        } catch (stateError) {
+        } catch (_stateError) {
             // File already deleted, state will sync on next models command
             console.log(chalk.dim('State will be synchronized on next run.'));
         }

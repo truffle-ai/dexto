@@ -19,15 +19,14 @@ import { useProviderApiKey, type LLMProvider } from '../hooks/useLLM';
 
 const BEDROCK_DOCS_URL = 'https://docs.dexto.ai/guides/supported-llm-providers#amazon-bedrock';
 
+// Note: 'ollama' and 'local' providers use 'openai-compatible' form (see PROVIDER_OPTIONS description).
+// 'vertex' is TODO - see comment in PROVIDER_OPTIONS.
 export type CustomModelProvider =
     | 'openai-compatible'
     | 'openrouter'
     | 'litellm'
     | 'glama'
-    | 'bedrock'
-    | 'vertex'
-    | 'ollama'
-    | 'local';
+    | 'bedrock';
 
 export interface CustomModelFormData {
     provider: CustomModelProvider;

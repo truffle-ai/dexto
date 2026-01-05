@@ -199,9 +199,14 @@ async function handleBaseURLError(
 
     if (action === 'setup') {
         const result = await interactiveBaseURLSetup(provider, config);
-        if (result.success && !result.skipped) {
+        if (result.success && !result.skipped && result.baseURL && config.llm) {
+            // Update config with the new baseURL for retry validation
+            const updatedConfig = {
+                ...config,
+                llm: { ...config.llm, baseURL: result.baseURL },
+            };
             // Retry validation after baseURL setup
-            return validateAgentConfig(config, true, validationOptions);
+            return validateAgentConfig(updatedConfig, true, validationOptions);
         }
         // Setup was skipped or cancelled
         return { success: false, errors, skipped: true };
@@ -274,11 +279,6 @@ async function interactiveBaseURLSetup(
         await saveGlobalPreferences(updatedPreferences);
         spinner.stop(chalk.green('✓ Base URL saved to preferences'));
 
-        // Also update the in-memory config for immediate retry
-        if (config.llm) {
-            config.llm.baseURL = trimmedURL;
-        }
-
         return { success: true, baseURL: trimmedURL };
     } catch (error) {
         spinner.stop(chalk.red('✗ Failed to save base URL'));
@@ -299,9 +299,6 @@ async function interactiveBaseURLSetup(
         );
 
         // Still return success with the URL for in-memory use
-        if (config.llm) {
-            config.llm.baseURL = trimmedURL;
-        }
         return { success: true, baseURL: trimmedURL, skipped: true };
     }
 }

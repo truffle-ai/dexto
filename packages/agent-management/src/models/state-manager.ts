@@ -6,6 +6,12 @@
  * - File paths and sizes
  * - Download timestamps
  * - Usage tracking
+ *
+ * Note: ModelSource and InstalledModel types here intentionally differ from
+ * packages/core/src/llm/providers/local/types.ts. This package extends the core
+ * types with agent-management specific needs:
+ * - ModelSource adds 'manual' for user-placed model files
+ * - InstalledModel adds 'filename' for file system operations (isModelInstalled, syncStateWithFilesystem)
  */
 
 import { promises as fs } from 'fs';

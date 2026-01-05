@@ -366,7 +366,7 @@ export class TurnExecutor {
      * Validates if the current model supports tools.
      * Uses a static cache to avoid repeated validation calls.
      *
-     * For local providers (Ollama, node-llama) and custom baseURL endpoints, makes a test call to verify tool support.
+     * For local providers (Ollama, local) and custom baseURL endpoints, makes a test call to verify tool support.
      * Known cloud providers without baseURL are assumed to support tools.
      */
     private async validateToolSupport(): Promise<boolean> {

@@ -137,6 +137,26 @@ describe('Install Command', () => {
 
             expect(installBundledAgent).toHaveBeenCalledWith('test-agent');
         });
+
+        it('skips already installed agents when force is false', async () => {
+            // Mock agent as already installed
+            vi.mocked(fs.existsSync).mockReturnValue(true);
+
+            await handleInstallCommand(['test-agent'], { force: false });
+
+            expect(installBundledAgent).not.toHaveBeenCalled();
+            expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('already installed'));
+        });
+
+        it('reinstalls already installed agents when force is true', async () => {
+            // Mock agent as already installed
+            vi.mocked(fs.existsSync).mockReturnValue(true);
+
+            await handleInstallCommand(['test-agent'], { force: true });
+
+            // Should still install despite existing
+            expect(installBundledAgent).toHaveBeenCalledWith('test-agent');
+        });
     });
 
     describe('Bulk installation (--all flag)', () => {
