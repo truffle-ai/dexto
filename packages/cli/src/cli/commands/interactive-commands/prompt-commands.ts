@@ -11,11 +11,10 @@
  */
 
 import chalk from 'chalk';
-import { logger, type DextoAgent } from '@dexto/core';
-import type { PromptInfo } from '@dexto/core';
-import type { CommandDefinition } from './command-parser.js';
-import { getCLISessionId } from './command-parser.js';
+import type { DextoAgent, PromptInfo } from '@dexto/core';
+import type { CommandDefinition, CommandContext, CommandHandlerResult } from './command-parser.js';
 import { formatForInkCli } from './utils/format-output.js';
+import { createSendMessageMarker, type StyledOutput } from '../../ink-cli/services/index.js';
 // Avoid depending on core types to keep CLI typecheck independent of build
 
 /**
@@ -27,32 +26,39 @@ export const promptCommands: CommandDefinition[] = [
         description: 'Display the current system prompt',
         usage: '/sysprompt',
         category: 'Prompt Management',
-        handler: async (args: string[], agent: DextoAgent): Promise<boolean | string> => {
+        handler: async (
+            _args: string[],
+            agent: DextoAgent,
+            _ctx: CommandContext
+        ): Promise<CommandHandlerResult> => {
             try {
                 const systemPrompt = await agent.getSystemPrompt();
 
-                const output = `\n📋 Current System Prompt:\n${'─'.repeat(80)}\n${systemPrompt}\n${'─'.repeat(80)}\n`;
+                // Return styled output for ink-cli
+                const styledOutput: StyledOutput = {
+                    styledType: 'sysprompt',
+                    styledData: { content: systemPrompt },
+                    fallbackText: `System Prompt:\n${systemPrompt}`,
+                };
 
-                console.log(chalk.bold.green('\n📋 Current System Prompt:\n'));
-                console.log(chalk.dim('─'.repeat(80)));
-                console.log(systemPrompt);
-                console.log(chalk.dim('─'.repeat(80)));
-                console.log();
-
-                return formatForInkCli(output);
+                return styledOutput;
             } catch (error) {
                 const errorMsg = `Failed to get system prompt: ${error instanceof Error ? error.message : String(error)}`;
-                logger.error(errorMsg);
+                agent.logger.error(errorMsg);
                 return formatForInkCli(`❌ ${errorMsg}`);
             }
         },
     },
     {
         name: 'prompts',
-        description: 'List all available prompts (use /<prompt-name> to execute)',
+        description: 'Browse, add, and delete prompts',
         usage: '/prompts',
         category: 'Prompt Management',
-        handler: async (_args: string[], agent: DextoAgent): Promise<boolean | string> => {
+        handler: async (
+            _args: string[],
+            agent: DextoAgent,
+            _ctx: CommandContext
+        ): Promise<boolean | string> => {
             try {
                 const prompts = await agent.listPrompts();
                 const promptNames = Object.keys(prompts || {});
@@ -86,8 +92,9 @@ export const promptCommands: CommandDefinition[] = [
                     mcpPrompts.forEach((name) => {
                         const info = prompts[name];
                         if (info) {
+                            const displayName = info.displayName || name;
                             const title =
-                                info.title && info.title !== name ? ` (${info.title})` : '';
+                                info.title && info.title !== displayName ? ` (${info.title})` : '';
                             const desc = info.description ? ` - ${info.description}` : '';
                             const args =
                                 info.arguments && info.arguments.length > 0
@@ -95,7 +102,7 @@ export const promptCommands: CommandDefinition[] = [
                                           .map((a) => `${a.name}${a.required ? '*' : ''}`)
                                           .join(', ')}]`
                                     : '';
-                            outputLines.push(`  ${name}${title}${desc}${args}`);
+                            outputLines.push(`  ${displayName}${title}${desc}${args}`);
                         }
                     });
                     outputLines.push('');
@@ -106,10 +113,11 @@ export const promptCommands: CommandDefinition[] = [
                     configPrompts.forEach((name) => {
                         const info = prompts[name];
                         if (info) {
+                            const displayName = info.displayName || name;
                             const title =
-                                info.title && info.title !== name ? ` (${info.title})` : '';
+                                info.title && info.title !== displayName ? ` (${info.title})` : '';
                             const desc = info.description ? ` - ${info.description}` : '';
-                            outputLines.push(`  ${name}${title}${desc}`);
+                            outputLines.push(`  ${displayName}${title}${desc}`);
                         }
                     });
                     outputLines.push('');
@@ -120,10 +128,11 @@ export const promptCommands: CommandDefinition[] = [
                     customPrompts.forEach((name) => {
                         const info = prompts[name];
                         if (info) {
+                            const displayName = info.displayName || name;
                             const title =
-                                info.title && info.title !== name ? ` (${info.title})` : '';
+                                info.title && info.title !== displayName ? ` (${info.title})` : '';
                             const desc = info.description ? ` - ${info.description}` : '';
-                            outputLines.push(`  ${name}${title}${desc}`);
+                            outputLines.push(`  ${displayName}${title}${desc}`);
                         }
                     });
                     outputLines.push('');
@@ -139,8 +148,9 @@ export const promptCommands: CommandDefinition[] = [
                     mcpPrompts.forEach((name) => {
                         const info = prompts[name];
                         if (info) {
+                            const displayName = info.displayName || name;
                             const title =
-                                info.title && info.title !== name ? ` (${info.title})` : '';
+                                info.title && info.title !== displayName ? ` (${info.title})` : '';
                             const desc = info.description ? ` - ${info.description}` : '';
                             const args =
                                 info.arguments && info.arguments.length > 0
@@ -149,7 +159,7 @@ export const promptCommands: CommandDefinition[] = [
                                           .join(', ')}]`
                                     : '';
                             console.log(
-                                `  ${chalk.blue(name)}${chalk.yellow(title)}${chalk.dim(desc)}${chalk.gray(args)}`
+                                `  ${chalk.blue(displayName)}${chalk.yellow(title)}${chalk.dim(desc)}${chalk.gray(args)}`
                             );
                         }
                     });
@@ -160,11 +170,12 @@ export const promptCommands: CommandDefinition[] = [
                     configPrompts.forEach((name) => {
                         const info = prompts[name];
                         if (info) {
+                            const displayName = info.displayName || name;
                             const title =
-                                info.title && info.title !== name ? ` (${info.title})` : '';
+                                info.title && info.title !== displayName ? ` (${info.title})` : '';
                             const desc = info.description ? ` - ${info.description}` : '';
                             console.log(
-                                `  ${chalk.blue(name)}${chalk.yellow(title)}${chalk.dim(desc)}`
+                                `  ${chalk.blue(displayName)}${chalk.yellow(title)}${chalk.dim(desc)}`
                             );
                         }
                     });
@@ -175,11 +186,12 @@ export const promptCommands: CommandDefinition[] = [
                     customPrompts.forEach((name) => {
                         const info = prompts[name];
                         if (info) {
+                            const displayName = info.displayName || name;
                             const title =
-                                info.title && info.title !== name ? ` (${info.title})` : '';
+                                info.title && info.title !== displayName ? ` (${info.title})` : '';
                             const desc = info.description ? ` - ${info.description}` : '';
                             console.log(
-                                `  ${chalk.blue(name)}${chalk.yellow(title)}${chalk.dim(desc)}`
+                                `  ${chalk.blue(displayName)}${chalk.yellow(title)}${chalk.dim(desc)}`
                             );
                         }
                     });
@@ -202,29 +214,41 @@ export const promptCommands: CommandDefinition[] = [
 
 /**
  * Create a dynamic command definition from a prompt
+ * @param promptInfo The prompt metadata
+ * @param hasCollision Whether this prompt's displayName collides with another
  */
-function createPromptCommand(promptInfo: PromptInfo): CommandDefinition {
+function createPromptCommand(promptInfo: PromptInfo, hasCollision: boolean): CommandDefinition {
+    const baseName = promptInfo.displayName || promptInfo.name;
+    // Add source prefix if collision (e.g., "config:review" or "mcp:review")
+    const commandName = hasCollision ? `${promptInfo.source}:${baseName}` : baseName;
+    // Keep internal name for prompt resolution (e.g., "config:review" or "mcp:server1:review")
+    const internalName = promptInfo.name;
+
     return {
-        name: promptInfo.name,
-        description: promptInfo.description || `Execute ${promptInfo.name} prompt`,
-        usage: `/${promptInfo.name} [context]`,
+        name: commandName,
+        description: promptInfo.description || `Execute ${baseName} prompt`,
+        usage: `/${commandName} [context]`,
         category: 'Dynamic Prompts',
-        handler: async (args: string[], agent: DextoAgent): Promise<boolean | string> => {
+        handler: async (
+            args: string[],
+            agent: DextoAgent,
+            _ctx: CommandContext
+        ): Promise<CommandHandlerResult> => {
             try {
                 const { argMap, context: contextString } = splitPromptArguments(args);
 
                 if (Object.keys(argMap).length > 0) {
-                    console.log(chalk.cyan(`🤖 Executing prompt: ${promptInfo.name}`));
+                    console.log(chalk.cyan(`🤖 Executing prompt: ${commandName}`));
                     console.log(chalk.dim(`Explicit arguments: ${JSON.stringify(argMap)}`));
                 } else if (contextString) {
-                    console.log(chalk.cyan(`🤖 Executing prompt: ${promptInfo.name}`));
+                    console.log(chalk.cyan(`🤖 Executing prompt: ${commandName}`));
                     console.log(
                         chalk.dim(
                             `Context: ${contextString} (LLM will extrapolate template variables)`
                         )
                     );
                 } else {
-                    console.log(chalk.cyan(`🤖 Executing prompt: ${promptInfo.name}`));
+                    console.log(chalk.cyan(`🤖 Executing prompt: ${commandName}`));
                     console.log(
                         chalk.dim('No arguments provided - LLM will extrapolate from context')
                     );
@@ -241,7 +265,8 @@ function createPromptCommand(promptInfo: PromptInfo): CommandDefinition {
                 if (contextString) {
                     resolveOptions.context = contextString;
                 }
-                const result = await agent.resolvePrompt(promptInfo.name, resolveOptions);
+                // Use internal name for resolution (includes prefix like "config:")
+                const result = await agent.resolvePrompt(internalName, resolveOptions);
 
                 // Convert resource URIs to @resource mentions so agent.run() can expand them
                 let finalText = result.text;
@@ -252,31 +277,21 @@ function createPromptCommand(promptInfo: PromptInfo): CommandDefinition {
                 }
 
                 if (finalText.trim()) {
-                    // agent.run() will expand @resource mentions automatically
-                    // This will trigger the normal message flow in ink-cli
-                    const sessionId = getCLISessionId(agent);
-                    if (!sessionId) {
-                        const errorMsg =
-                            '❌ No active session. This should not happen in interactive mode.';
-                        console.error(chalk.red(errorMsg));
-                        return formatForInkCli(errorMsg);
-                    }
-                    await agent.run(finalText.trim(), undefined, undefined, sessionId);
-                    // Return empty string to indicate command handled (ink-cli will show the message)
-                    return '';
+                    // Return the resolved text so CLI can send it through normal streaming flow
+                    // This matches WebUI behavior: resolvePrompt() -> handleSend(text)
+                    return createSendMessageMarker(finalText.trim());
                 } else {
-                    const warningMsg = `⚠️  Prompt '${promptInfo.name}' returned no content`;
+                    const warningMsg = `⚠️  Prompt '${commandName}' returned no content`;
                     console.log(chalk.yellow(warningMsg));
                     return formatForInkCli(warningMsg);
                 }
             } catch (error) {
                 const errorMessage = error instanceof Error ? error.message : String(error);
-                logger.error(
-                    `Failed to execute prompt command '${promptInfo.name}': ${errorMessage}`
+                agent.logger.error(
+                    `Failed to execute prompt command '${commandName}': ${errorMessage}`
                 );
 
-                const errorMsg = `❌ Error executing prompt '${promptInfo.name}': ${errorMessage}`;
-                console.log(chalk.red(errorMsg));
+                const errorMsg = `❌ Error executing prompt '${commandName}': ${errorMessage}`;
                 return formatForInkCli(errorMsg);
             }
         },
@@ -284,14 +299,29 @@ function createPromptCommand(promptInfo: PromptInfo): CommandDefinition {
 }
 
 /**
- * Get all dynamic prompt commands based on available prompts
+ * Get all dynamic prompt commands based on available prompts.
+ * Handles displayName collisions by prefixing with source (e.g., config:review).
  */
 export async function getDynamicPromptCommands(agent: DextoAgent): Promise<CommandDefinition[]> {
     try {
         const prompts = await agent.listPrompts();
-        return Object.values(prompts).map(createPromptCommand);
+        const promptEntries = Object.entries(prompts);
+
+        // Build frequency map of displayNames to detect collisions
+        const displayNameCounts = new Map<string, number>();
+        for (const [, info] of promptEntries) {
+            const displayName = info.displayName || info.name;
+            displayNameCounts.set(displayName, (displayNameCounts.get(displayName) || 0) + 1);
+        }
+
+        // Create commands with conditional prefixing
+        return promptEntries.map(([, info]) => {
+            const displayName = info.displayName || info.name;
+            const hasCollision = (displayNameCounts.get(displayName) || 0) > 1;
+            return createPromptCommand(info, hasCollision);
+        });
     } catch (error) {
-        logger.error(
+        agent.logger.error(
             `Failed to get dynamic prompt commands: ${error instanceof Error ? error.message : String(error)}`
         );
         return [];

@@ -4,17 +4,11 @@
  */
 
 import { parseInput } from '../../commands/interactive-commands/command-parser.js';
-import type { CommandResult } from '../../commands/interactive-commands/command-parser.js';
 
 /**
  * Autocomplete type
  */
 export type AutocompleteType = 'none' | 'slash' | 'resource';
-
-/**
- * Interactive selector type
- */
-export type InteractiveSelectorType = 'none' | 'model' | 'session';
 
 /**
  * Detects what type of autocomplete should be shown based on input
@@ -34,42 +28,6 @@ export function detectAutocompleteType(input: string): AutocompleteType {
     const atIndex = findActiveAtIndex(input, input.length);
     if (atIndex >= 0) {
         return 'resource';
-    }
-
-    return 'none';
-}
-
-/**
- * Detects if an interactive selector should be shown based on parsed command
- */
-export function detectInteractiveSelector(parsed: CommandResult): InteractiveSelectorType {
-    if (parsed.type !== 'command' || !parsed.command) {
-        return 'none';
-    }
-
-    const command = parsed.command;
-    const hasArgs = parsed.args && parsed.args.length > 0;
-    const hasSpaceAfterCommand =
-        parsed.rawInput.includes(' ') && parsed.rawInput.trim().length > command.length + 1;
-
-    // Model selector
-    if (command === 'model' && !hasArgs && !hasSpaceAfterCommand) {
-        return 'model';
-    }
-
-    // Session selector
-    if ((command === 'resume' || command === 'switch') && !hasArgs && !hasSpaceAfterCommand) {
-        return 'session';
-    }
-
-    if (
-        command === 'session' &&
-        parsed.args &&
-        parsed.args[0] === 'switch' &&
-        parsed.args.length === 1 &&
-        !hasSpaceAfterCommand
-    ) {
-        return 'session';
     }
 
     return 'none';

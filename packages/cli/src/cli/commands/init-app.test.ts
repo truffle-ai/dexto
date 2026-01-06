@@ -83,7 +83,7 @@ describe('Init Module', () => {
                     "import { DextoAgent, loadAgentConfig } from '@dexto/core'"
                 );
                 expect(content).toContain("console.log('🚀 Starting Dexto Basic Example");
-                expect(content).toContain('./src/dexto/agents/default-agent.yml'); // Correct relative path
+                expect(content).toContain('./src/dexto/agents/coding-agent.yml'); // Correct relative path
                 expect(content).toContain('const agent = new DextoAgent(config)');
             } finally {
                 process.chdir(originalCwd);
@@ -101,7 +101,7 @@ describe('Init Module', () => {
                 const examplePath = await createDextoExampleFile(dextoDir);
                 const content = await fs.readFile(examplePath, 'utf8');
 
-                expect(content).toContain('./custom/dexto/agents/default-agent.yml');
+                expect(content).toContain('./custom/dexto/agents/coding-agent.yml');
             } finally {
                 process.chdir(originalCwd);
             }

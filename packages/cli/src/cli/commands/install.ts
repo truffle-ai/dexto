@@ -13,7 +13,6 @@ const InstallCommandSchema = z
     .object({
         agents: z.array(z.string().min(1, 'Agent name cannot be empty')),
         all: z.boolean().default(false),
-        injectPreferences: z.boolean().default(true),
         force: z.boolean().default(false),
     })
     .strict();
@@ -256,25 +255,17 @@ export async function handleInstallCommand(
                         status: 'skipped',
                         reason: 'already_installed',
                         force: validated.force,
-                        injectPreferences: validated.injectPreferences,
                     });
                     continue;
                 }
 
                 // Install custom agent
-                await installCustomAgent(
-                    metadata.agentName,
-                    resolvedPath,
-                    {
-                        name: metadata.agentName,
-                        description: metadata.description,
-                        author: metadata.author,
-                        tags: metadata.tags,
-                    },
-                    {
-                        injectPreferences: validated.injectPreferences,
-                    }
-                );
+                await installCustomAgent(metadata.agentName, resolvedPath, {
+                    name: metadata.agentName,
+                    description: metadata.description,
+                    author: metadata.author,
+                    tags: metadata.tags,
+                });
 
                 successCount++;
                 console.log(`✅ ${metadata.agentName} installed successfully`);
@@ -286,7 +277,6 @@ export async function handleInstallCommand(
                     agent: metadata.agentName,
                     status: 'installed',
                     force: validated.force,
-                    injectPreferences: validated.injectPreferences,
                 });
             } else {
                 // Bundled agent installation from registry
@@ -303,14 +293,11 @@ export async function handleInstallCommand(
                         status: 'skipped',
                         reason: 'already_installed',
                         force: validated.force,
-                        injectPreferences: validated.injectPreferences,
                     });
                     continue;
                 }
 
-                await installBundledAgent(agentInput, {
-                    injectPreferences: validated.injectPreferences,
-                });
+                await installBundledAgent(agentInput);
                 successCount++;
                 console.log(`✅ ${agentInput} installed successfully`);
                 installed.push(agentInput);
@@ -319,7 +306,6 @@ export async function handleInstallCommand(
                     agent: agentInput,
                     status: 'installed',
                     force: validated.force,
-                    injectPreferences: validated.injectPreferences,
                 });
             }
         } catch (error) {
@@ -336,7 +322,6 @@ export async function handleInstallCommand(
                 status: 'failed',
                 error_message: error instanceof Error ? error.message : String(error),
                 force: validated.force,
-                injectPreferences: validated.injectPreferences,
             });
         }
     }

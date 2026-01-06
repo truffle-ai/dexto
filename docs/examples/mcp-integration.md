@@ -53,8 +53,8 @@ mcpServers:
 # Edit agent config directly
 nano ~/.dexto/agents/your-agent.yml
 
-# Or use the default agent config
-nano ~/.dexto/agents/default-agent.yml
+# Or use the coding agent config
+nano ~/.dexto/agents/coding-agent/coding-agent.yml
 ```
 
 ## Example: Adding Brave Search

@@ -1,9 +1,43 @@
+/**
+ * LLM Model Registry
+ *
+ * TODO: maxOutputTokens - Currently we rely on @ai-sdk/anthropic (and other provider SDKs)
+ * to set appropriate maxOutputTokens defaults per model. As of v2.0.56, @ai-sdk/anthropic
+ * has getModelCapabilities() which sets correct limits (e.g., 64000 for claude-haiku-4-5).
+ *
+ * If we need finer control or want to support models before the SDK does, we could:
+ * 1. Add maxOutputTokens to ModelInfo interface
+ * 2. Create getMaxOutputTokensForModel() / getEffectiveMaxOutputTokens() helpers
+ * 3. Pass explicit maxOutputTokens in TurnExecutor when config doesn't specify one
+ *
+ * For now, keeping SDK dependency is simpler and auto-updates with SDK releases.
+ */
+
 import { LLMConfig } from './schemas.js';
 import { LLMError } from './errors.js';
 import { LLMErrorCode } from './error-codes.js';
 import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
-import { LLM_PROVIDERS, type LLMProvider, type SupportedFileType } from './types.js';
+import {
+    LLM_PROVIDERS,
+    type LLMProvider,
+    type SupportedFileType,
+    type TokenUsage,
+} from './types.js';
 import type { IDextoLogger } from '../logger/v2/types.js';
+import { getOpenRouterModelContextLength } from './providers/openrouter-model-registry.js';
+
+/**
+ * Pricing metadata for a model (USD per 1M tokens).
+ * Optional; when omitted, pricing is unknown.
+ */
+export interface ModelPricing {
+    inputPerM: number;
+    outputPerM: number;
+    cacheReadPerM?: number;
+    cacheWritePerM?: number;
+    currency?: 'USD';
+    unit?: 'per_million_tokens';
+}
 
 export interface ModelInfo {
     name: string;
@@ -12,14 +46,7 @@ export interface ModelInfo {
     supportedFileTypes: SupportedFileType[]; // Required - every model must explicitly specify file support
     displayName?: string;
     // Pricing metadata (USD per 1M tokens). Optional; when omitted, pricing is unknown.
-    pricing?: {
-        inputPerM: number;
-        outputPerM: number;
-        cacheReadPerM?: number;
-        cacheWritePerM?: number;
-        currency?: 'USD';
-        unit?: 'per_million_tokens';
-    };
+    pricing?: ModelPricing;
     // Add other relevant metadata if needed, e.g., supported features, cost tier
 }
 
@@ -56,6 +83,7 @@ export interface ProviderInfo {
     models: ModelInfo[];
     baseURLSupport: 'none' | 'optional' | 'required'; // Cleaner single field
     supportedFileTypes: SupportedFileType[]; // Provider-level default, used when model doesn't specify
+    supportsCustomModels?: boolean; // Allow arbitrary model IDs beyond fixed list
     // Add other provider-specific metadata if needed
 }
 
@@ -280,6 +308,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 pricing: {
                     inputPerM: 2.5,
                     outputPerM: 10.0,
+                    cacheReadPerM: 1.25,
                     currency: 'USD',
                     unit: 'per_million_tokens',
                 },
@@ -344,6 +373,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
         models: [], // Empty - accepts any model name for custom endpoints
         baseURLSupport: 'required',
         supportedFileTypes: ['pdf', 'image', 'audio'], // Allow all types for custom endpoints - user assumes responsibility for model capabilities
+        supportsCustomModels: true,
     },
     anthropic: {
         models: [
@@ -481,6 +511,20 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
     google: {
         models: [
             {
+                name: 'gemini-3-flash-preview',
+                displayName: 'Gemini 3 Flash Preview',
+                maxInputTokens: 1048576,
+                default: true,
+                supportedFileTypes: ['pdf', 'image', 'audio'],
+                pricing: {
+                    inputPerM: 0.5,
+                    outputPerM: 3.0,
+                    cacheReadPerM: 0.05,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
                 name: 'gemini-3-pro-preview',
                 displayName: 'Gemini 3 Pro Preview',
                 maxInputTokens: 1048576,
@@ -488,6 +532,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 pricing: {
                     inputPerM: 2.0,
                     outputPerM: 12.0,
+                    cacheReadPerM: 0.2,
                     currency: 'USD',
                     unit: 'per_million_tokens',
                 },
@@ -500,6 +545,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 pricing: {
                     inputPerM: 2.0,
                     outputPerM: 120.0,
+                    cacheReadPerM: 0.2,
                     currency: 'USD',
                     unit: 'per_million_tokens',
                 },
@@ -508,7 +554,6 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 name: 'gemini-2.5-pro',
                 displayName: 'Gemini 2.5 Pro',
                 maxInputTokens: 1048576,
-                default: true,
                 supportedFileTypes: ['pdf', 'image', 'audio'],
                 pricing: {
                     inputPerM: 1.25,
@@ -526,6 +571,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 pricing: {
                     inputPerM: 0.3,
                     outputPerM: 2.5,
+                    cacheReadPerM: 0.03,
                     currency: 'USD',
                     unit: 'per_million_tokens',
                 },
@@ -565,6 +611,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 pricing: {
                     inputPerM: 0.075,
                     outputPerM: 0.3,
+                    cacheReadPerM: 0.01875,
                     currency: 'USD',
                     unit: 'per_million_tokens',
                 },
@@ -620,6 +667,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 pricing: {
                     inputPerM: 1.0,
                     outputPerM: 3.0,
+                    cacheReadPerM: 0.5,
                     currency: 'USD',
                     unit: 'per_million_tokens',
                 },
@@ -806,7 +854,449 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
         baseURLSupport: 'none',
         supportedFileTypes: [], // Cohere currently doesn't support file uploads
     },
+    // https://openrouter.ai/docs
+    // OpenRouter is a unified API gateway providing access to 100+ models from various providers.
+    // Model validation is handled dynamically via openrouter-model-registry.ts
+    openrouter: {
+        models: [], // Empty - accepts any model name (validated against OpenRouter's catalog)
+        baseURLSupport: 'none', // Fixed endpoint - baseURL auto-injected in resolver, no user override allowed
+        supportedFileTypes: ['pdf', 'image', 'audio'], // Allow all types - user assumes responsibility for model capabilities
+        supportsCustomModels: true,
+    },
+    // https://docs.litellm.ai/
+    // LiteLLM is an OpenAI-compatible proxy that unifies 100+ LLM providers.
+    // User must host their own LiteLLM proxy and provide the baseURL.
+    litellm: {
+        models: [], // Empty - accepts any model name (user's proxy determines available models)
+        baseURLSupport: 'required', // User must provide their LiteLLM proxy URL
+        supportedFileTypes: ['pdf', 'image', 'audio'], // Allow all types - user assumes responsibility for model capabilities
+        supportsCustomModels: true,
+    },
+    // https://glama.ai/
+    // Glama is an OpenAI-compatible gateway providing unified access to multiple LLM providers.
+    // Fixed endpoint: https://glama.ai/api/gateway/openai/v1
+    glama: {
+        models: [], // Empty - accepts any model name (format: provider/model e.g., openai/gpt-4o)
+        baseURLSupport: 'none', // Fixed endpoint - baseURL auto-injected
+        supportedFileTypes: ['pdf', 'image', 'audio'], // Allow all types - user assumes responsibility for model capabilities
+        supportsCustomModels: true,
+    },
+    // https://cloud.google.com/vertex-ai
+    // Google Vertex AI - GCP-hosted gateway for Gemini and Claude models
+    // Supports both Google's Gemini models and Anthropic's Claude via partnership
+    //
+    // Setup instructions:
+    // 1. Create a Google Cloud account and project
+    // 2. Enable the Vertex AI API: gcloud services enable aiplatform.googleapis.com
+    // 3. Enable desired Claude models (requires Anthropic Model Garden)
+    // 4. Install Google Cloud CLI: https://cloud.google.com/sdk/docs/install
+    // 5. Configure ADC: gcloud auth application-default login
+    // 6. Set env vars: GOOGLE_VERTEX_PROJECT (required), GOOGLE_VERTEX_LOCATION (optional)
+    //
+    // TODO: Add dynamic model fetching via publishers.models.list API
+    // - Requires: projectId, region, ADC auth
+    // - Endpoints: GET projects/{project}/locations/{location}/publishers/{google,anthropic}/models
+    // - Note: API doesn't return aliases (e.g., gemini-2.0-flash), only versioned IDs
+    // - Docs: https://cloud.google.com/vertex-ai/docs/reference/rest/v1/projects.locations.models/list
+    // - Models: https://cloud.google.com/vertex-ai/generative-ai/docs/models
+    vertex: {
+        models: [
+            // Gemini 3 models on Vertex AI (Preview)
+            {
+                name: 'gemini-3-flash-preview',
+                displayName: 'Gemini 3 Flash (Vertex)',
+                maxInputTokens: 1048576,
+                default: true,
+                supportedFileTypes: ['pdf', 'image', 'audio'],
+                pricing: {
+                    inputPerM: 0.5,
+                    outputPerM: 3.0,
+                    cacheReadPerM: 0.05,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
+                name: 'gemini-3-pro-preview',
+                displayName: 'Gemini 3 Pro (Vertex)',
+                maxInputTokens: 1048576,
+                supportedFileTypes: ['pdf', 'image', 'audio'],
+                pricing: {
+                    inputPerM: 2.0,
+                    outputPerM: 12.0,
+                    cacheReadPerM: 0.2,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            // Gemini 2.x models on Vertex AI
+            {
+                name: 'gemini-2.5-pro',
+                displayName: 'Gemini 2.5 Pro (Vertex)',
+                maxInputTokens: 1048576,
+                supportedFileTypes: ['pdf', 'image', 'audio'],
+                pricing: {
+                    inputPerM: 1.25,
+                    outputPerM: 10.0,
+                    cacheReadPerM: 0.31,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
+                name: 'gemini-2.5-flash',
+                displayName: 'Gemini 2.5 Flash (Vertex)',
+                maxInputTokens: 1048576,
+                supportedFileTypes: ['pdf', 'image', 'audio'],
+                pricing: {
+                    inputPerM: 0.15,
+                    outputPerM: 0.6,
+                    cacheReadPerM: 0.0375,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
+                name: 'gemini-2.0-flash',
+                displayName: 'Gemini 2.0 Flash (Vertex)',
+                maxInputTokens: 1048576,
+                supportedFileTypes: ['pdf', 'image', 'audio'],
+                pricing: {
+                    inputPerM: 0.1,
+                    outputPerM: 0.4,
+                    cacheReadPerM: 0.025,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            // Claude 4.5 models on Vertex AI (via Anthropic partnership)
+            // Note: Claude model IDs use @ suffix format on Vertex
+            {
+                name: 'claude-opus-4-5@20251101',
+                displayName: 'Claude 4.5 Opus (Vertex)',
+                maxInputTokens: 200000,
+                supportedFileTypes: ['pdf', 'image'],
+                pricing: {
+                    inputPerM: 5.0,
+                    outputPerM: 25.0,
+                    cacheWritePerM: 6.25,
+                    cacheReadPerM: 0.5,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
+                name: 'claude-sonnet-4-5@20250929',
+                displayName: 'Claude 4.5 Sonnet (Vertex)',
+                maxInputTokens: 200000,
+                supportedFileTypes: ['pdf', 'image'],
+                pricing: {
+                    inputPerM: 3.0,
+                    outputPerM: 15.0,
+                    cacheWritePerM: 3.75,
+                    cacheReadPerM: 0.3,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
+                name: 'claude-haiku-4-5@20251001',
+                displayName: 'Claude 4.5 Haiku (Vertex)',
+                maxInputTokens: 200000,
+                supportedFileTypes: ['pdf', 'image'],
+                pricing: {
+                    inputPerM: 1.0,
+                    outputPerM: 5.0,
+                    cacheWritePerM: 1.25,
+                    cacheReadPerM: 0.1,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            // Claude 4.1 and 4.0 models on Vertex AI
+            {
+                name: 'claude-opus-4-1@20250805',
+                displayName: 'Claude 4.1 Opus (Vertex)',
+                maxInputTokens: 200000,
+                supportedFileTypes: ['pdf', 'image'],
+                pricing: {
+                    inputPerM: 15.0,
+                    outputPerM: 75.0,
+                    cacheWritePerM: 18.75,
+                    cacheReadPerM: 1.5,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
+                name: 'claude-opus-4@20250514',
+                displayName: 'Claude 4 Opus (Vertex)',
+                maxInputTokens: 200000,
+                supportedFileTypes: ['pdf', 'image'],
+                pricing: {
+                    inputPerM: 15.0,
+                    outputPerM: 75.0,
+                    cacheWritePerM: 18.75,
+                    cacheReadPerM: 1.5,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
+                name: 'claude-sonnet-4@20250514',
+                displayName: 'Claude 4 Sonnet (Vertex)',
+                maxInputTokens: 200000,
+                supportedFileTypes: ['pdf', 'image'],
+                pricing: {
+                    inputPerM: 3.0,
+                    outputPerM: 15.0,
+                    cacheWritePerM: 3.75,
+                    cacheReadPerM: 0.3,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            // Claude 3.x models on Vertex AI
+            {
+                name: 'claude-3-7-sonnet@20250219',
+                displayName: 'Claude 3.7 Sonnet (Vertex)',
+                maxInputTokens: 200000,
+                supportedFileTypes: ['pdf', 'image'],
+                pricing: {
+                    inputPerM: 3.0,
+                    outputPerM: 15.0,
+                    cacheWritePerM: 3.75,
+                    cacheReadPerM: 0.3,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
+                name: 'claude-3-5-sonnet-v2@20241022',
+                displayName: 'Claude 3.5 Sonnet v2 (Vertex)',
+                maxInputTokens: 200000,
+                supportedFileTypes: ['pdf', 'image'],
+                pricing: {
+                    inputPerM: 3.0,
+                    outputPerM: 15.0,
+                    cacheWritePerM: 3.75,
+                    cacheReadPerM: 0.3,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
+                name: 'claude-3-5-haiku@20241022',
+                displayName: 'Claude 3.5 Haiku (Vertex)',
+                maxInputTokens: 200000,
+                supportedFileTypes: ['pdf', 'image'],
+                pricing: {
+                    inputPerM: 0.8,
+                    outputPerM: 4.0,
+                    cacheWritePerM: 1.0,
+                    cacheReadPerM: 0.08,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+        ],
+        baseURLSupport: 'none', // Auto-constructed from projectId and region
+        supportedFileTypes: ['pdf', 'image', 'audio'],
+    },
+    // Amazon Bedrock - AWS-hosted gateway for Claude, Nova, and more
+    // Auth: AWS credentials (env vars) or Bedrock API key (AWS_BEARER_TOKEN_BEDROCK)
+    //
+    // Cross-region inference: Auto-added for anthropic.* and amazon.* models
+    // supportsCustomModels: true allows users to add custom model IDs beyond the fixed list
+    bedrock: {
+        supportsCustomModels: true,
+        models: [
+            // Claude 4.5 models (latest)
+            {
+                name: 'anthropic.claude-sonnet-4-5-20250929-v1:0',
+                displayName: 'Claude 4.5 Sonnet',
+                maxInputTokens: 200000,
+                default: true,
+                supportedFileTypes: ['pdf', 'image'],
+                pricing: {
+                    inputPerM: 3.0,
+                    outputPerM: 15.0,
+                    cacheWritePerM: 3.75,
+                    cacheReadPerM: 0.3,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
+                name: 'anthropic.claude-haiku-4-5-20251001-v1:0',
+                displayName: 'Claude 4.5 Haiku',
+                maxInputTokens: 200000,
+                supportedFileTypes: ['pdf', 'image'],
+                pricing: {
+                    inputPerM: 1.0,
+                    outputPerM: 5.0,
+                    cacheWritePerM: 1.25,
+                    cacheReadPerM: 0.1,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
+                name: 'anthropic.claude-opus-4-5-20251101-v1:0',
+                displayName: 'Claude 4.5 Opus',
+                maxInputTokens: 200000,
+                supportedFileTypes: ['pdf', 'image'],
+                pricing: {
+                    inputPerM: 5.0,
+                    outputPerM: 25.0,
+                    cacheWritePerM: 6.25,
+                    cacheReadPerM: 0.5,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            // Amazon Nova models
+            {
+                name: 'amazon.nova-premier-v1:0',
+                displayName: 'Nova Premier',
+                maxInputTokens: 1000000,
+                supportedFileTypes: ['image'],
+                pricing: {
+                    inputPerM: 2.5,
+                    outputPerM: 12.5,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
+                name: 'amazon.nova-pro-v1:0',
+                displayName: 'Nova Pro',
+                maxInputTokens: 300000,
+                supportedFileTypes: ['pdf', 'image'],
+                pricing: {
+                    inputPerM: 0.8,
+                    outputPerM: 3.2,
+                    cacheReadPerM: 0.2,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
+                name: 'amazon.nova-lite-v1:0',
+                displayName: 'Nova Lite',
+                maxInputTokens: 300000,
+                supportedFileTypes: ['pdf', 'image'],
+                pricing: {
+                    inputPerM: 0.06,
+                    outputPerM: 0.24,
+                    cacheReadPerM: 0.015,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
+                name: 'amazon.nova-micro-v1:0',
+                displayName: 'Nova Micro',
+                maxInputTokens: 128000,
+                supportedFileTypes: [],
+                pricing: {
+                    inputPerM: 0.035,
+                    outputPerM: 0.14,
+                    cacheReadPerM: 0.00875,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            // OpenAI GPT-OSS
+            {
+                name: 'openai.gpt-oss-120b-1:0',
+                displayName: 'GPT-OSS 120B',
+                maxInputTokens: 128000,
+                supportedFileTypes: [],
+                pricing: {
+                    inputPerM: 0.15,
+                    outputPerM: 0.6,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
+                name: 'openai.gpt-oss-20b-1:0',
+                displayName: 'GPT-OSS 20B',
+                maxInputTokens: 128000,
+                supportedFileTypes: [],
+                pricing: {
+                    inputPerM: 0.07,
+                    outputPerM: 0.3,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            // Qwen
+            {
+                name: 'qwen.qwen3-coder-30b-a3b-v1:0',
+                displayName: 'Qwen3 Coder 30B',
+                maxInputTokens: 262144,
+                supportedFileTypes: [],
+                pricing: {
+                    inputPerM: 0.15,
+                    outputPerM: 0.6,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
+                name: 'qwen.qwen3-coder-480b-a35b-v1:0',
+                displayName: 'Qwen3 Coder 480B',
+                maxInputTokens: 262144,
+                supportedFileTypes: [],
+                pricing: {
+                    inputPerM: 0.22,
+                    outputPerM: 1.8,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+        ],
+        baseURLSupport: 'none', // Auto-constructed from region
+        supportedFileTypes: ['pdf', 'image'],
+    },
+    // Native local model execution via node-llama-cpp
+    // Runs GGUF models directly on the machine using Metal/CUDA/Vulkan acceleration
+    // Models are downloaded from HuggingFace and stored in ~/.dexto/models/
+    local: {
+        models: [], // Populated dynamically from local model registry
+        baseURLSupport: 'none', // No external server needed
+        supportedFileTypes: ['image'], // Vision support depends on model capabilities
+        supportsCustomModels: true, // Allow any GGUF model path
+    },
+    // Ollama server integration
+    // Uses Ollama's OpenAI-compatible API for local model inference
+    // Requires Ollama to be installed and running (default: http://localhost:11434)
+    ollama: {
+        models: [], // Populated dynamically from Ollama API
+        baseURLSupport: 'optional', // Default: http://localhost:11434, can be customized
+        supportedFileTypes: ['image'], // Vision support depends on model
+        supportsCustomModels: true, // Accept any Ollama model name
+    },
+    // TODO: Add 'dexto' provider (similar to openrouter, uses https://api.dexto.ai/v1)
 };
+
+/**
+ * Strips Bedrock cross-region inference profile prefix (eu., us., global.) from model ID.
+ * This allows registry lookups to work regardless of whether the user specified a prefix.
+ * @param model The model ID, potentially with a region prefix
+ * @returns The model ID without the region prefix
+ */
+export function stripBedrockRegionPrefix(model: string): string {
+    if (model.startsWith('eu.') || model.startsWith('us.')) {
+        return model.slice(3);
+    }
+    if (model.startsWith('global.')) {
+        return model.slice(7);
+    }
+    return model;
+}
 
 /**
  * Gets the default model for a given provider from the registry.
@@ -851,7 +1341,8 @@ export function getMaxInputTokensForModel(
 ): number {
     const providerInfo = LLM_REGISTRY[provider];
 
-    const modelInfo = providerInfo.models.find((m) => m.name.toLowerCase() === model.toLowerCase());
+    const normalizedModel = stripBedrockRegionPrefix(model).toLowerCase();
+    const modelInfo = providerInfo.models.find((m) => m.name.toLowerCase() === normalizedModel);
     if (!modelInfo) {
         const supportedModels = getSupportedModels(provider).join(', ');
         logger?.error(
@@ -873,7 +1364,8 @@ export function getMaxInputTokensForModel(
  */
 export function isValidProviderModel(provider: LLMProvider, model: string): boolean {
     const providerInfo = LLM_REGISTRY[provider];
-    return providerInfo.models.some((m) => m.name.toLowerCase() === model.toLowerCase());
+    const normalizedModel = stripBedrockRegionPrefix(model).toLowerCase();
+    return providerInfo.models.some((m) => m.name.toLowerCase() === normalizedModel);
 }
 
 /**
@@ -885,10 +1377,10 @@ export function isValidProviderModel(provider: LLMProvider, model: string): bool
  * @returns The inferred provider name ('openai', 'anthropic', etc.), or 'unknown' if no match is found.
  */
 export function getProviderFromModel(model: string): LLMProvider {
-    const lowerModel = model.toLowerCase();
+    const normalizedModel = stripBedrockRegionPrefix(model).toLowerCase();
     for (const provider of LLM_PROVIDERS) {
         const info = LLM_REGISTRY[provider];
-        if (info.models.some((m) => m.name.toLowerCase() === lowerModel)) {
+        if (info.models.some((m) => m.name.toLowerCase() === normalizedModel)) {
             return provider;
         }
     }
@@ -933,6 +1425,48 @@ export function acceptsAnyModel(provider: LLMProvider): boolean {
 }
 
 /**
+ * Checks if a provider supports custom model IDs beyond its fixed model list.
+ * This is set explicitly on providers that allow users to add arbitrary model IDs.
+ * @param provider The name of the provider.
+ * @returns True if the provider supports custom models, false otherwise.
+ */
+export function supportsCustomModels(provider: LLMProvider): boolean {
+    const providerInfo = LLM_REGISTRY[provider];
+    return providerInfo.supportsCustomModels === true;
+}
+
+/**
+ * Providers that don't require API keys.
+ * These include:
+ * - Native local providers (local for node-llama-cpp, ollama for Ollama server)
+ * - Local/self-hosted providers (openai-compatible for vLLM, LocalAI)
+ * - Proxies that handle auth internally (litellm)
+ * - Cloud auth providers (vertex uses ADC, bedrock uses AWS credentials)
+ */
+const API_KEY_OPTIONAL_PROVIDERS: Set<LLMProvider> = new Set([
+    'local', // Native node-llama-cpp execution - no auth needed
+    'ollama', // Ollama server - no auth needed by default
+    'openai-compatible', // vLLM, LocalAI - often no auth needed
+    'litellm', // Self-hosted proxy - handles auth internally
+    'vertex', // Uses Google Cloud ADC (Application Default Credentials)
+    'bedrock', // Uses AWS credentials (access key + secret or IAM role)
+]);
+
+/**
+ * Checks if a provider requires an API key.
+ * Returns false for:
+ * - Local providers (openai-compatible for Ollama, vLLM, LocalAI)
+ * - Self-hosted proxies (litellm)
+ * - Cloud auth providers (vertex, bedrock)
+ *
+ * @param provider The name of the provider.
+ * @returns True if the provider requires an API key, false otherwise.
+ */
+export function requiresApiKey(provider: LLMProvider): boolean {
+    return !API_KEY_OPTIONAL_PROVIDERS.has(provider);
+}
+
+/**
  * Gets the supported file types for a specific model.
  * @param provider The name of the provider.
  * @param model The name of the model.
@@ -952,8 +1486,9 @@ export function getSupportedFileTypesForModel(
         return providerInfo.supportedFileTypes;
     }
 
-    // Find the specific model
-    const modelInfo = providerInfo.models.find((m) => m.name.toLowerCase() === model.toLowerCase());
+    // Find the specific model (strip Bedrock region prefix for lookup)
+    const normalizedModel = stripBedrockRegionPrefix(model).toLowerCase();
+    const modelInfo = providerInfo.models.find((m) => m.name.toLowerCase() === normalizedModel);
     if (!modelInfo) {
         throw LLMError.unknownModel(provider, model);
     }
@@ -1093,7 +1628,23 @@ export function getEffectiveMaxInputTokens(config: LLMConfig, logger: IDextoLogg
         }
     }
 
-    // Priority 2: baseURL is set but maxInputTokens is missing - default to 128k tokens
+    // Priority 2: OpenRouter - look up context length from cached model registry
+    if (config.provider === 'openrouter') {
+        const contextLength = getOpenRouterModelContextLength(config.model);
+        if (contextLength !== null) {
+            logger.debug(
+                `Using maxInputTokens from OpenRouter registry for ${config.model}: ${contextLength}`
+            );
+            return contextLength;
+        }
+        // Cache miss or stale - fall through to default
+        logger.warn(
+            `OpenRouter model ${config.model} not found in cache, defaulting to ${DEFAULT_MAX_INPUT_TOKENS} tokens`
+        );
+        return DEFAULT_MAX_INPUT_TOKENS;
+    }
+
+    // Priority 3: baseURL is set but maxInputTokens is missing - default to 128k tokens
     if (config.baseURL) {
         logger.warn(
             `baseURL is set but maxInputTokens is missing. Defaulting to ${DEFAULT_MAX_INPUT_TOKENS}. ` +
@@ -1102,7 +1653,7 @@ export function getEffectiveMaxInputTokens(config: LLMConfig, logger: IDextoLogg
         return DEFAULT_MAX_INPUT_TOKENS;
     }
 
-    // Priority 3: Check if provider accepts any model (like openai-compatible)
+    // Priority 4: Check if provider accepts any model (like openai-compatible)
     if (acceptsAnyModel(config.provider)) {
         logger.debug(
             `Provider ${config.provider} accepts any model, defaulting to ${DEFAULT_MAX_INPUT_TOKENS} tokens`
@@ -1110,7 +1661,7 @@ export function getEffectiveMaxInputTokens(config: LLMConfig, logger: IDextoLogg
         return DEFAULT_MAX_INPUT_TOKENS;
     }
 
-    // Priority 4: No override, no baseURL - use registry.
+    // Priority 5: No override, no baseURL - use registry.
     try {
         const registryMaxInputTokens = getMaxInputTokensForModel(
             config.provider,
@@ -1124,6 +1675,13 @@ export function getEffectiveMaxInputTokens(config: LLMConfig, logger: IDextoLogg
     } catch (error: any) {
         // Handle registry lookup failures gracefully (e.g., typo in validated config)
         if (error instanceof DextoRuntimeError && error.code === LLMErrorCode.MODEL_UNKNOWN) {
+            // For providers that support custom models, use default instead of throwing
+            if (supportsCustomModels(config.provider)) {
+                logger.debug(
+                    `Custom model ${config.model} not in ${config.provider} registry, defaulting to ${DEFAULT_MAX_INPUT_TOKENS} tokens`
+                );
+                return DEFAULT_MAX_INPUT_TOKENS;
+            }
             // Log as error and throw a specific fatal error
             logger.error(
                 `Registry lookup failed for ${config.provider}/${config.model}: ${error.message}. ` +
@@ -1136,4 +1694,71 @@ export function getEffectiveMaxInputTokens(config: LLMConfig, logger: IDextoLogg
             throw error;
         }
     }
+}
+
+/**
+ * Gets the pricing information for a specific model.
+ *
+ * TODO: When adding gateway providers (openrouter, vercel-ai, dexto, etc.),
+ * each gateway will be its own provider with its own pricing in the registry.
+ * The gateway's pricing includes any markup, so no separate "gateway multiplier" logic is needed.
+ * Example: provider: 'dexto' would have models with Dexto's pricing (base + markup baked in).
+ *
+ * @param provider The name of the provider.
+ * @param model The name of the model.
+ * @returns The pricing information for the model, or undefined if not available.
+ */
+export function getModelPricing(provider: LLMProvider, model: string): ModelPricing | undefined {
+    const providerInfo = LLM_REGISTRY[provider];
+
+    // Special case: providers that accept any model name (e.g., openai-compatible)
+    if (acceptsAnyModel(provider)) {
+        return undefined; // No pricing for custom endpoints
+    }
+
+    const normalizedModel = stripBedrockRegionPrefix(model).toLowerCase();
+    const modelInfo = providerInfo.models.find((m) => m.name.toLowerCase() === normalizedModel);
+    return modelInfo?.pricing;
+}
+
+/**
+ * Gets the display name for a model, falling back to the model ID if not found.
+ */
+export function getModelDisplayName(model: string, provider?: LLMProvider): string {
+    let resolvedProvider: LLMProvider;
+    try {
+        resolvedProvider = provider ?? getProviderFromModel(model);
+    } catch {
+        // Unknown model - fall back to model ID
+        return model;
+    }
+
+    const providerInfo = LLM_REGISTRY[resolvedProvider];
+
+    if (!providerInfo || acceptsAnyModel(resolvedProvider)) {
+        return model;
+    }
+
+    const normalizedModel = stripBedrockRegionPrefix(model).toLowerCase();
+    const modelInfo = providerInfo.models.find((m) => m.name.toLowerCase() === normalizedModel);
+    return modelInfo?.displayName ?? model;
+}
+
+/**
+ * Calculates the cost for a given token usage based on model pricing.
+ *
+ * @param usage Token usage counts.
+ * @param pricing Model pricing (per million tokens).
+ * @returns Cost in USD.
+ */
+export function calculateCost(usage: TokenUsage, pricing: ModelPricing): number {
+    const inputCost = ((usage.inputTokens ?? 0) * pricing.inputPerM) / 1_000_000;
+    const outputCost = ((usage.outputTokens ?? 0) * pricing.outputPerM) / 1_000_000;
+    const cacheReadCost = ((usage.cacheReadTokens ?? 0) * (pricing.cacheReadPerM ?? 0)) / 1_000_000;
+    const cacheWriteCost =
+        ((usage.cacheWriteTokens ?? 0) * (pricing.cacheWritePerM ?? 0)) / 1_000_000;
+    // Charge reasoning tokens at output rate
+    const reasoningCost = ((usage.reasoningTokens ?? 0) * pricing.outputPerM) / 1_000_000;
+
+    return inputCost + outputCost + cacheReadCost + cacheWriteCost + reasoningCost;
 }

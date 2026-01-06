@@ -58,6 +58,8 @@ describe('Preferences Loader', () => {
             },
             setup: {
                 completed: true,
+                apiKeyPending: false,
+                baseURLPending: false,
             },
         };
     });
@@ -302,6 +304,8 @@ setup:
                 },
                 setup: {
                     completed: true,
+                    apiKeyPending: false,
+                    baseURLPending: false,
                 },
             });
         });
@@ -313,7 +317,7 @@ setup:
                 'ANTHROPIC_API_KEY'
             );
 
-            expect(preferences.defaults.defaultAgent).toBe('default-agent');
+            expect(preferences.defaults.defaultAgent).toBe('coding-agent');
         });
 
         it('should format API key with $ prefix', () => {

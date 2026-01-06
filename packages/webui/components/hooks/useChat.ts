@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useCallback } from 'react';
-import type { InternalMessage, Issue, SanitizedToolResult } from '@dexto/core';
+import type { Issue, SanitizedToolResult, ToolApprovalStatus } from '@dexto/core';
 import type { LLMProvider } from '@dexto/core';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAnalytics } from '@/lib/analytics/index.js';
@@ -49,8 +49,93 @@ export function isToolResultContent(result: unknown): result is ToolResultConten
     );
 }
 
-// Note: Message and ErrorMessage types now imported from chatStore.ts (single source of truth)
-// Import with: import { type Message, type ErrorMessage } from '@/lib/stores/chatStore'
+// =============================================================================
+// WebUI Message Types (Discriminated Union by 'role')
+// =============================================================================
+
+/** Content type for WebUI messages (JSON-serializable, string-only) */
+export type UIContentPart = TextPart | ImagePart | AudioPart | FilePart | UIResourcePart;
+
+/** Base interface for all WebUI message types */
+interface UIMessageBase {
+    id: string;
+    createdAt: number;
+    sessionId?: string;
+    metadata?: Record<string, unknown>;
+}
+
+/** User message in WebUI */
+export interface UIUserMessage extends UIMessageBase {
+    role: 'user';
+    content: string | null | UIContentPart[];
+    imageData?: { image: string; mimeType: string };
+    fileData?: FileData;
+}
+
+/** Assistant message in WebUI */
+export interface UIAssistantMessage extends UIMessageBase {
+    role: 'assistant';
+    content: string | null;
+    reasoning?: string;
+    tokenUsage?: {
+        inputTokens?: number;
+        outputTokens?: number;
+        reasoningTokens?: number;
+        totalTokens?: number;
+    };
+    model?: string;
+    provider?: LLMProvider;
+}
+
+/** Tool message in WebUI */
+export interface UIToolMessage extends UIMessageBase {
+    role: 'tool';
+    content: string | null | UIContentPart[];
+    toolName?: string;
+    toolArgs?: Record<string, unknown>;
+    toolCallId?: string;
+    toolResult?: ToolResult;
+    toolResultMeta?: SanitizedToolResult['meta'];
+    toolResultSuccess?: boolean;
+    requireApproval?: boolean;
+    approvalStatus?: ToolApprovalStatus;
+}
+
+/** Discriminated union of all WebUI message types */
+export type Message = UIUserMessage | UIAssistantMessage | UIToolMessage;
+
+// =============================================================================
+// Message Type Guards
+// =============================================================================
+
+/** Type guard for user messages */
+export function isUserMessage(msg: Message): msg is UIUserMessage {
+    return msg.role === 'user';
+}
+
+/** Type guard for assistant messages */
+export function isAssistantMessage(msg: Message): msg is UIAssistantMessage {
+    return msg.role === 'assistant';
+}
+
+/** Type guard for tool messages */
+export function isToolMessage(msg: Message): msg is UIToolMessage {
+    return msg.role === 'tool';
+}
+
+// Separate error state interface
+export interface ErrorMessage {
+    id: string;
+    message: string;
+    timestamp: number;
+    context?: string;
+    recoverable?: boolean;
+    sessionId?: string;
+    // Message id this error relates to (e.g., last user input)
+    anchorMessageId?: string;
+    // Raw validation issues for hierarchical display
+    detailedIssues?: Issue[];
+}
 
 export type StreamStatus = 'idle' | 'connecting' | 'open' | 'closed';
 
@@ -111,6 +196,8 @@ export function useChat(
     const lastMessageIdRef = useRef<string | null>(null);
     // Map callId to message index for O(1) tool result pairing
     const pendingToolCallsRef = useRef<Map<string, number>>(new Map());
+    // When true, llm:chunk events update UI incrementally. When false, wait for llm:response.
+    const isStreamingRef = useRef<boolean>(true);
 
     // Keep analytics ref updated
     useEffect(() => {
@@ -169,7 +256,137 @@ export function useChat(
 
             // Handle React-specific side effects not in handlers.ts
             switch (event.name) {
+                case 'llm:thinking':
+                    // LLM started thinking - can update UI status
+                    useChatStore.getState().setProcessing(event.sessionId, true);
+                    break;
+
+                case 'llm:chunk': {
+                    // When not streaming, skip chunk updates - llm:response will show full content
+                    if (!isStreamingRef.current) {
+                        break;
+                    }
+
+                    const text = event.content || '';
+                    const chunkType = event.chunkType;
+                    //console.log('llm:chunk', event);
+
+                    // Use streaming message API for incremental updates
+                    const store = useChatStore.getState();
+                    const sessionState = store.getSessionState(event.sessionId);
+
+                    if (chunkType === 'reasoning') {
+                        // For reasoning chunks, append to streaming message or create new one
+                        const lastMsg = sessionState.messages[sessionState.messages.length - 1];
+                        if (
+                            lastMsg &&
+                            lastMsg.role === 'assistant' &&
+                            !sessionState.streamingMessage
+                        ) {
+                            // Update existing message
+                            store.updateMessage(event.sessionId, lastMsg.id, {
+                                reasoning: (lastMsg.reasoning || '') + text,
+                                createdAt: Date.now(),
+                            });
+                        } else {
+                            // Create or append to streaming message
+                            if (!sessionState.streamingMessage) {
+                                const newId = generateUniqueId();
+                                lastMessageIdRef.current = newId;
+                                store.setStreamingMessage(event.sessionId, {
+                                    id: newId,
+                                    role: 'assistant',
+                                    content: '',
+                                    reasoning: text,
+                                    createdAt: Date.now(),
+                                });
+                            } else {
+                                store.appendToStreamingMessage(event.sessionId, text, 'reasoning');
+                            }
+                        }
+                    } else {
+                        // For content chunks, append to streaming message or create new one
+                        const lastMsg = sessionState.messages[sessionState.messages.length - 1];
+                        if (
+                            lastMsg &&
+                            lastMsg.role === 'assistant' &&
+                            !sessionState.streamingMessage
+                        ) {
+                            // Update existing message
+                            const currentContent =
+                                typeof lastMsg.content === 'string' ? lastMsg.content : '';
+                            store.updateMessage(event.sessionId, lastMsg.id, {
+                                content: currentContent + text,
+                                createdAt: Date.now(),
+                            });
+                        } else {
+                            // Create or append to streaming message
+                            if (!sessionState.streamingMessage) {
+                                const newId = generateUniqueId();
+                                lastMessageIdRef.current = newId;
+                                store.setStreamingMessage(event.sessionId, {
+                                    id: newId,
+                                    role: 'assistant',
+                                    content: text,
+                                    createdAt: Date.now(),
+                                });
+                            } else {
+                                store.appendToStreamingMessage(event.sessionId, text, 'text');
+                            }
+                        }
+                    }
+                    break;
+                }
+
                 case 'llm:response': {
+                    // NOTE: Don't set processing=false here - wait for run:complete
+                    // This allows queued messages to continue processing after this response
+                    console.log('llm:response', event);
+                    const text = event.content || '';
+                    const usage = event.tokenUsage;
+                    const model = event.model;
+                    const provider = event.provider;
+                    const finalContent = typeof text === 'string' ? text : '';
+
+                    const store = useChatStore.getState();
+                    const sessionState = store.getSessionState(event.sessionId);
+                    const lastMsg = sessionState.messages[sessionState.messages.length - 1];
+
+                    if (lastMsg && lastMsg.role === 'assistant') {
+                        // Update existing assistant message
+                        store.updateMessage(event.sessionId, lastMsg.id, {
+                            content: finalContent,
+                            tokenUsage: usage,
+                            ...(model && { model }),
+                            ...(provider && { provider }),
+                            createdAt: Date.now(),
+                        });
+                    } else if (finalContent) {
+                        // No assistant message exists - create one if we have content
+                        // This handles multi-step turns where llm:response arrives after tool calls
+                        const newId = generateUniqueId();
+                        lastMessageIdRef.current = newId;
+                        store.addMessage(event.sessionId, {
+                            id: newId,
+                            role: 'assistant',
+                            content: finalContent,
+                            tokenUsage: usage,
+                            ...(model && { model }),
+                            ...(provider && { provider }),
+                            createdAt: Date.now(),
+                        });
+                    }
+
+                    // Finalize any streaming message
+                    if (sessionState.streamingMessage) {
+                        store.finalizeStreamingMessage(event.sessionId, {
+                            content: finalContent,
+                            tokenUsage: usage,
+                            ...(model && { model }),
+                            ...(provider && { provider }),
+                        });
+                    }
+
                     // Update sessions cache (response received)
                     updateSessionActivity(event.sessionId);
                     break;
@@ -216,7 +433,7 @@ export function useChat(
             imageData?: { image: string; mimeType: string },
             fileData?: FileData,
             sessionId?: string,
-            stream = true // Default to true for SSE
+            stream = true // Controls whether chunks are shown incrementally
         ) => {
             if (!sessionId) {
                 console.error('Session ID required for sending message');
@@ -228,13 +445,14 @@ export function useChat(
 
             const abortController = getAbortController(sessionId) || new AbortController();
 
-            // Set processing in chatStore for immediate UI feedback
             useChatStore.getState().setProcessing(sessionId, true);
 
-            // Add user message to chatStore (optimistic UI)
-            const userMessageId = generateMessageId();
+            // Add user message to state
+            const userId = generateUniqueId();
+            lastUserMessageIdRef.current = userId;
+            lastMessageIdRef.current = userId; // Track for error anchoring
             useChatStore.getState().addMessage(sessionId, {
-                id: userMessageId,
+                id: userId,
                 role: 'user',
                 content,
                 createdAt: Date.now(),
@@ -247,61 +465,54 @@ export function useChat(
             updateSessionActivity(sessionId);
 
             try {
-                if (stream) {
-                    // Streaming mode: use /api/message-stream with SSE
-                    const responsePromise = client.api['message-stream'].$post({
-                        json: {
-                            message: content,
-                            sessionId,
-                            imageData,
-                            fileData,
-                        },
-                    });
+                // Build content parts array from text, image, and file data
+                // New API uses unified ContentInput = string | ContentPart[]
+                const contentParts: Array<
+                    | { type: 'text'; text: string }
+                    | { type: 'image'; image: string; mimeType?: string }
+                    | { type: 'file'; data: string; mimeType: string; filename?: string }
+                > = [];
 
-                    const iterator = createMessageStream(responsePromise, {
-                        signal: abortController.signal,
-                    });
-
-                    for await (const event of iterator) {
-                        processEvent(event);
-                    }
-
-                    useChatStore.getState().setProcessing(sessionId, false);
-                } else {
-                    // Non-streaming mode: use /api/message-sync and wait for full response
-                    const response = await client.api['message-sync'].$post({
-                        json: {
-                            message: content,
-                            sessionId,
-                            imageData,
-                            fileData,
-                        },
-                    });
-
-                    if (!response.ok) {
-                        const errorText = await response.text();
-                        throw new Error(
-                            `Failed to send message: ${response.status} ${response.statusText}. ${errorText}`
-                        );
-                    }
-
-                    try {
-                        // Parse JSON to validate response (data used via SSE events, not here)
-                        await response.json();
-                    } catch (parseError) {
-                        const errorMessage =
-                            parseError instanceof Error ? parseError.message : String(parseError);
-                        throw new Error(`Failed to parse response: ${errorMessage}`);
-                    }
-
-                    // Note: Assistant response will be added to chatStore via events
-                    // or handled by the component that calls sendMessage
-
-                    useChatStore.getState().setProcessing(sessionId, false);
-
-                    // Update sessions cache (response received)
-                    updateSessionActivity(sessionId);
+                if (content) {
+                    contentParts.push({ type: 'text', text: content });
                 }
+                if (imageData) {
+                    contentParts.push({
+                        type: 'image',
+                        image: imageData.image,
+                        mimeType: imageData.mimeType,
+                    });
+                }
+                if (fileData) {
+                    contentParts.push({
+                        type: 'file',
+                        data: fileData.data,
+                        mimeType: fileData.mimeType,
+                        filename: fileData.filename,
+                    });
+                }
+
+                // Always use SSE for all events (tool calls, approvals, responses)
+                // The 'stream' flag only controls whether chunks update UI incrementally
+                const responsePromise = client.api['message-stream'].$post({
+                    json: {
+                        content:
+                            contentParts.length === 1 && contentParts[0]?.type === 'text'
+                                ? content // Simple text-only case: send as string
+                                : contentParts, // Multimodal: send as array
+                        sessionId,
+                    },
+                });
+
+                const iterator = createMessageStream(responsePromise, {
+                    signal: abortController.signal,
+                });
+
+                for await (const event of iterator) {
+                    processEvent(event);
+                }
+
+                useChatStore.getState().setProcessing(sessionId, false);
             } catch (error: unknown) {
                 // Handle abort gracefully
                 if (error instanceof Error && error.name === 'AbortError') {

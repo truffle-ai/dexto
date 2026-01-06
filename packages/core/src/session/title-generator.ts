@@ -55,12 +55,9 @@ export async function generateSessionTitle(
             sanitizeUserText(userText, 512),
         ].join('\n');
 
-        const result = await tempService.completeTask(
+        const result = await tempService.stream(
             instruction,
-            controller ? { signal: controller.signal } : {},
-            undefined,
-            undefined,
-            false
+            controller ? { signal: controller.signal } : undefined
         );
 
         const processed = postProcessTitle(result);

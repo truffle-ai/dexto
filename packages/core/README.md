@@ -53,22 +53,66 @@ await agent.start();
 const session = await agent.createSession();
 
 // Use generate() for simple request/response
-const response = await agent.generate('What is TypeScript?', {
-  sessionId: session.id
-});
+const response = await agent.generate('What is TypeScript?', session.id);
 console.log(response.content);
 
 // Conversations maintain context within a session
-await agent.generate('Write a haiku about it', { sessionId: session.id });
-await agent.generate('Make it funnier', { sessionId: session.id });
+await agent.generate('Write a haiku about it', session.id);
+await agent.generate('Make it funnier', session.id);
+
+// Multimodal: send images or files
+await agent.generate([
+  { type: 'text', text: 'Describe this image' },
+  { type: 'image', image: base64Data, mimeType: 'image/png' }
+], session.id);
+
+// Streaming for real-time UIs
+for await (const event of await agent.stream('Write a story', session.id)) {
+  if (event.name === 'llm:chunk') process.stdout.write(event.content);
+}
 
 await agent.stop();
 ```
 
-See the Dexto Agent SDK docs for full examples with MCP tools, sessions, and advanced features:
-https://docs.dexto.ai/api/category/dexto-sdk/
+See the [Dexto Agent SDK docs](https://docs.dexto.ai/docs/guides/dexto-sdk) for multimodal content, streaming, MCP tools, and advanced features.
 
 ---
+
+### Starting a Server
+
+Start a Dexto server programmatically to expose REST and SSE streaming APIs to interact and manage your agent backend.
+
+```typescript
+import { DextoAgent } from '@dexto/core';
+import { startHonoApiServer } from 'dexto';
+
+// Create and configure agent
+const agent = new DextoAgent({
+  llm: {
+    provider: 'openai',
+    model: 'gpt-5-mini',
+    apiKey: process.env.OPENAI_API_KEY
+  },
+  mcpServers: {
+    filesystem: {
+      type: 'stdio',
+      command: 'npx',
+      args: ['-y', '@modelcontextprotocol/server-filesystem', '.']
+    }
+  }
+});
+
+// Start server on port 3001
+const { server } = await startHonoApiServer(agent, 3001);
+
+console.log('Dexto server running at http://localhost:3001');
+// Server provides REST API and SSE streaming endpoints
+// POST /api/message - Send messages
+// GET /api/sessions - List sessions
+// See docs.dexto.ai/api/rest/ for all endpoints
+```
+
+This starts an HTTP server with full REST and SSE APIs, enabling integration with web frontends, webhooks, and other services. See the [REST API Documentation](https://docs.dexto.ai/api/rest/) for available endpoints.
 
 ### Session Management
 
@@ -80,7 +124,7 @@ await agent.start();
 
 // Create and manage sessions
 const session = await agent.createSession('user-123');
-await agent.generate('Hello, how can you help me?', { sessionId: session.id });
+await agent.generate('Hello, how can you help me?', session.id);
 
 // List and manage sessions
 const sessions = await agent.listSessions();
@@ -157,7 +201,7 @@ const session = await agent.createSession();
 await agent.generate(`
   Please delegate this task to the PDF analyzer agent at http://localhost:3001:
   "Extract all tables from the Q4 sales report"
-`, { sessionId: session.id });
+`, session.id);
 
 // Or call the tool directly
 const tools = await agent.getAllTools();

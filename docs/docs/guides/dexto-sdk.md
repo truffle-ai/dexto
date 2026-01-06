@@ -45,7 +45,7 @@ await agent.start();
 const session = await agent.createSession();
 
 // Use generate() for simple request/response
-const response = await agent.generate('Hello, world!', { sessionId: session.id });
+const response = await agent.generate('Hello, world!', session.id);
 console.log(response.content);
 
 await agent.stop();
@@ -97,9 +97,7 @@ await agent.start();
 
 // Create a session and start a conversation
 const session = await agent.createSession();
-const response = await agent.generate('Hello! What can you help me with?', {
-  sessionId: session.id
-});
+const response = await agent.generate('Hello! What can you help me with?', session.id);
 console.log(response.content);
 ```
 
@@ -132,7 +130,7 @@ await agent.start();
 const session = await agent.createSession();
 const response = await agent.generate(
   'List the files in this directory and search for recent AI news',
-  { sessionId: session.id }
+  session.id
 );
 console.log(response.content);
 ```
@@ -154,8 +152,87 @@ const userSession = await agent.createSession('user-123');
 const adminSession = await agent.createSession('admin-456');
 
 // Each session maintains separate conversation history
-await agent.generate('Help me with my account', { sessionId: userSession.id });
-await agent.generate('Show me system metrics', { sessionId: adminSession.id });
+await agent.generate('Help me with my account', userSession.id);
+await agent.generate('Show me system metrics', adminSession.id);
+```
+
+### Multimodal Content
+
+Send text, images, and files using the `ContentPart[]` format:
+
+```typescript
+import { ContentPart } from '@dexto/core';
+
+const session = await agent.createSession();
+
+// Simple text (string shorthand)
+await agent.generate('What is TypeScript?', session.id);
+
+// Image from URL (auto-detected)
+await agent.generate([
+  { type: 'text', text: 'Describe this image' },
+  { type: 'image', image: 'https://example.com/photo.jpg' }
+], session.id);
+
+// Image from base64
+await agent.generate([
+  { type: 'text', text: 'Describe this image' },
+  { type: 'image', image: base64ImageData, mimeType: 'image/png' }
+], session.id);
+
+// File from URL
+await agent.generate([
+  { type: 'text', text: 'Summarize this document' },
+  { type: 'file', data: 'https://example.com/report.pdf', mimeType: 'application/pdf' }
+], session.id);
+
+// File from base64
+await agent.generate([
+  { type: 'text', text: 'Summarize this document' },
+  { type: 'file', data: base64PdfData, mimeType: 'application/pdf', filename: 'report.pdf' }
+], session.id);
+
+// Multiple attachments
+await agent.generate([
+  { type: 'text', text: 'Compare these two images' },
+  { type: 'image', image: 'https://example.com/image1.png' },
+  { type: 'image', image: 'https://example.com/image2.jpg' }
+], session.id);
+```
+
+### Streaming Responses
+
+Use `stream()` for real-time UIs that display text as it arrives:
+
+```typescript
+const session = await agent.createSession();
+
+for await (const event of await agent.stream('Write a short story', session.id)) {
+  switch (event.name) {
+    case 'llm:thinking':
+      console.log('Thinking...');
+      break;
+    case 'llm:chunk':
+      process.stdout.write(event.content); // Stream text in real-time
+      break;
+    case 'llm:tool-call':
+      console.log(`\n[Using tool: ${event.toolName}]`);
+      break;
+    case 'llm:response':
+      console.log(`\n\nTotal tokens: ${event.tokenUsage?.totalTokens}`);
+      break;
+  }
+}
+
+// Streaming with multimodal content
+for await (const event of await agent.stream([
+  { type: 'text', text: 'Describe this image in detail' },
+  { type: 'image', image: base64Image, mimeType: 'image/png' }
+], session.id)) {
+  if (event.name === 'llm:chunk') {
+    process.stdout.write(event.content);
+  }
+}
 ```
 
 ### Event-Driven Architecture
@@ -192,7 +269,7 @@ sequenceDiagram
     User1->>ChatApp: handleUserMessage
     ChatApp->>ChatApp: Get or create session
     ChatApp->>Agent: createSession (if new)
-    ChatApp->>Agent: generate(message, {sessionId})
+    ChatApp->>Agent: generate(message, sessionId)
     Agent->>Agent: Process message
     Agent-->>ChatApp: Response
     ChatApp-->>User1: broadcastToUser
@@ -230,7 +307,7 @@ class ChatApplication {
     }
 
     // Process message using generate()
-    const response = await this.agent.generate(message, { sessionId });
+    const response = await this.agent.generate(message, sessionId);
     return response.content;
   }
 
@@ -253,7 +330,7 @@ class AdaptiveAgent {
 
   async addCapability(name: string, serverConfig: McpServerConfig) {
     try {
-      await this.agent.connectMcpServer(name, serverConfig);
+      await this.agent.addMcpServer(name, serverConfig);
       console.log(`✅ Added ${name} capability`);
     } catch (error) {
       console.error(`❌ Failed to add ${name}:`, error);
@@ -319,7 +396,7 @@ class PersistentChatBot {
   async chat(userId: string, message: string) {
     const sessionId = `user-${userId}`;
     // Always pass session ID explicitly
-    const response = await this.agent.generate(message, { sessionId });
+    const response = await this.agent.generate(message, sessionId);
     return response.content;
   }
 }

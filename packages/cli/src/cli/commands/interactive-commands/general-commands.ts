@@ -11,10 +11,12 @@
  */
 
 import chalk from 'chalk';
-import { logger, type DextoAgent } from '@dexto/core';
-import type { CommandDefinition } from './command-parser.js';
-import { displayAllCommands, formatCommandHelp } from './command-parser.js';
+import type { DextoAgent } from '@dexto/core';
+import type { CommandDefinition, CommandHandlerResult, CommandContext } from './command-parser.js';
 import { formatForInkCli } from './utils/format-output.js';
+import { CommandOutputHelper } from './utils/command-output.js';
+import type { HelpStyledData, ShortcutsStyledData } from '../../ink-cli/state/types.js';
+import { writeToClipboard } from '../../ink-cli/utils/clipboardUtils.js';
 
 /**
  * Creates the help command with access to all commands for display
@@ -23,138 +25,32 @@ export function createHelpCommand(getAllCommands: () => CommandDefinition[]): Co
     return {
         name: 'help',
         description: 'Show help information',
-        usage: '/help [command]',
+        usage: '/help',
         category: 'General',
         aliases: ['h', '?'],
-        handler: async (args: string[], _agent: DextoAgent): Promise<boolean | string> => {
+        handler: async (
+            _args: string[],
+            _agent: DextoAgent,
+            _ctx: CommandContext
+        ): Promise<CommandHandlerResult> => {
             const allCommands = getAllCommands();
 
-            if (args.length === 0) {
-                // Build output string for ink-cli
-                const outputLines: string[] = ['\n📋 Available Commands:\n'];
+            // Build styled data for help
+            const styledData: HelpStyledData = {
+                commands: allCommands.map((cmd) => ({
+                    name: cmd.name,
+                    description: cmd.description,
+                    category: cmd.category || 'General',
+                })),
+            };
 
-                // Define category order for consistent display
-                const categoryOrder = [
-                    'General',
-                    'MCP Management',
-                    'Tool Management',
-                    'Prompt Management',
-                    'System',
-                    'Documentation',
-                ];
-
-                const categories: { [key: string]: CommandDefinition[] } = {};
-
-                // Initialize categories
-                for (const category of categoryOrder) {
-                    categories[category] = [];
-                }
-
-                // Categorize commands using metadata
-                for (const cmd of allCommands) {
-                    const category = cmd.category || 'General';
-                    if (!categories[category]) {
-                        categories[category] = [];
-                    }
-                    categories[category]!.push(cmd);
-                }
-
-                // Build output by category in order
-                for (const category of categoryOrder) {
-                    const cmds = categories[category];
-                    if (cmds && cmds.length > 0) {
-                        outputLines.push(`${category}:`);
-                        for (const cmd of cmds) {
-                            const help = formatCommandHelp(cmd, false);
-                            outputLines.push('  ' + formatForInkCli(help));
-                        }
-                        outputLines.push('');
-                    }
-                }
-
-                // Display any uncategorized commands (fallback)
-                for (const [category, cmds] of Object.entries(categories)) {
-                    if (!categoryOrder.includes(category) && cmds.length > 0) {
-                        outputLines.push(`${category}:`);
-                        for (const cmd of cmds) {
-                            const help = formatCommandHelp(cmd, false);
-                            outputLines.push('  ' + formatForInkCli(help));
-                        }
-                        outputLines.push('');
-                    }
-                }
-
-                outputLines.push('💡 Tips:');
-                outputLines.push('   • Type your message normally (without /) to chat with the AI');
-                outputLines.push('   • Use /<prompt-name> to execute any listed prompt directly');
-                outputLines.push('   • Use /clear to start a new session (preserves old)');
-                outputLines.push('   • Press Ctrl+M to switch models, Ctrl+R to switch sessions');
-                outputLines.push('   • Use /search <query> to search across all sessions\n');
-                const output = outputLines.join('\n');
-
-                // Log for regular CLI (with chalk formatting)
-                displayAllCommands(allCommands);
-
-                return formatForInkCli(output);
+            // Build fallback text
+            const fallbackLines: string[] = ['Available Commands:'];
+            for (const cmd of allCommands) {
+                fallbackLines.push(`  /${cmd.name} - ${cmd.description}`);
             }
 
-            const commandName = args[0];
-            if (!commandName) {
-                const output = '❌ No command specified';
-                console.log(chalk.red(output));
-                return formatForInkCli(output);
-            }
-
-            // Find the specific command to show detailed help
-            const cmd = allCommands.find(
-                (c) => c.name === commandName || (c.aliases && c.aliases.includes(commandName))
-            );
-
-            if (cmd) {
-                const helpText = formatCommandHelp(cmd, true);
-                console.log(helpText);
-                return formatForInkCli(helpText);
-            }
-
-            // Redirect to contextual help for commands that have their own help subcommands
-            let output: string;
-            if (commandName === 'session') {
-                output =
-                    '💡 For detailed session help, use:\n   /session help\n\n   This shows all session subcommands with examples and tips.';
-                console.log(chalk.blue('💡 For detailed session help, use:'));
-                console.log(`   ${chalk.cyan('/session help')}`);
-                console.log(
-                    chalk.dim('\n   This shows all session subcommands with examples and tips.')
-                );
-                return formatForInkCli(output);
-            }
-
-            if (commandName === 'model' || commandName === 'm') {
-                output =
-                    '💡 For detailed model help, use:\n   /model help\n\n   This shows all model subcommands with examples and usage.';
-                console.log(chalk.blue('💡 For detailed model help, use:'));
-                console.log(`   ${chalk.cyan('/model help')}`);
-                console.log(
-                    chalk.dim('\n   This shows all model subcommands with examples and usage.')
-                );
-                return formatForInkCli(output);
-            }
-
-            if (commandName === 'mcp') {
-                output =
-                    '💡 For detailed MCP help, use:\n   /mcp help\n\n   This shows all MCP subcommands with examples and usage.';
-                console.log(chalk.blue('💡 For detailed MCP help, use:'));
-                console.log(`   ${chalk.cyan('/mcp help')}`);
-                console.log(
-                    chalk.dim('\n   This shows all MCP subcommands with examples and usage.')
-                );
-                return formatForInkCli(output);
-            }
-
-            output = `❓ No help available for: ${commandName}\nUse /help to see all available commands`;
-            console.log(chalk.yellow(`❓ No help available for: ${commandName}`));
-            console.log(chalk.dim('Use /help to see all available commands'));
-            return formatForInkCli(output);
+            return CommandOutputHelper.styled('help', styledData, fallbackLines.join('\n'));
         },
     };
 }
@@ -170,35 +66,190 @@ export const generalCommands: CommandDefinition[] = [
         usage: '/exit',
         category: 'General',
         aliases: ['quit', 'q'],
-        handler: async (_args: string[], _agent: DextoAgent): Promise<boolean | string> => {
-            logger.warn('Exiting AI CLI. Goodbye!');
+        handler: async (
+            _args: string[],
+            _agent: DextoAgent,
+            _ctx: CommandContext
+        ): Promise<boolean | string> => {
+            console.log(chalk.yellow('Exiting AI CLI. Goodbye!'));
             process.exit(0);
         },
     },
     {
         name: 'clear',
-        description: 'Start a new session (clears viewable history without deleting)',
+        description: 'Clear context window (history preserved in DB, not sent to LLM)',
         usage: '/clear',
         category: 'General',
         aliases: ['new'],
-        handler: async (_args: string[], agent: DextoAgent): Promise<boolean | string> => {
+        handler: async (
+            _args: string[],
+            agent: DextoAgent,
+            ctx: CommandContext
+        ): Promise<boolean | string> => {
             try {
-                // Clear the viewable conversation without creating a new session yet
-                // Session will be created when user sends their first message (deferred creation)
-                // This prevents empty sessions from cluttering the session list
-                agent.agentEventBus.emit('session:created', {
-                    sessionId: null,
-                    switchTo: true,
-                });
+                const { sessionId } = ctx;
+                if (!sessionId) {
+                    return formatForInkCli('⚠️  No active session to clear');
+                }
 
-                const output = `🔄 Started new conversation\n💡 Previous session preserved. Use /resume to switch back.`;
-                console.log(chalk.green(output));
-                return formatForInkCli(output);
+                // Clear context window - adds a marker so filterCompacted skips prior messages
+                // History stays in DB for review, but LLM won't see it
+                await agent.clearContext(sessionId);
+
+                return formatForInkCli(
+                    '🔄 Context cleared\n💡 Previous messages preserved in history but not sent to LLM.'
+                );
             } catch (error) {
-                const errorMsg = `Failed to start new conversation: ${error instanceof Error ? error.message : String(error)}`;
-                logger.error(errorMsg);
+                const errorMsg = `Failed to clear context: ${error instanceof Error ? error.message : String(error)}`;
+                agent.logger.error(errorMsg);
                 return formatForInkCli(`❌ ${errorMsg}`);
             }
+        },
+    },
+    {
+        name: 'copy',
+        description: 'Copy the last assistant response to clipboard',
+        usage: '/copy',
+        category: 'General',
+        aliases: ['cp'],
+        handler: async (
+            _args: string[],
+            agent: DextoAgent,
+            ctx: CommandContext
+        ): Promise<boolean | string> => {
+            try {
+                const { sessionId } = ctx;
+                if (!sessionId) {
+                    return formatForInkCli('❌ No active session');
+                }
+
+                // Get session history
+                const history = await agent.getSessionHistory(sessionId);
+                if (!history || history.length === 0) {
+                    return formatForInkCli('❌ No messages in current session');
+                }
+
+                // Find the last assistant message
+                const lastAssistantMessage = [...history]
+                    .reverse()
+                    .find((msg) => msg.role === 'assistant');
+
+                if (!lastAssistantMessage) {
+                    return formatForInkCli('❌ No assistant response to copy');
+                }
+
+                // Extract text content from the message
+                let textContent = '';
+                if (typeof lastAssistantMessage.content === 'string') {
+                    textContent = lastAssistantMessage.content;
+                } else if (Array.isArray(lastAssistantMessage.content)) {
+                    // Handle multi-part content
+                    textContent = lastAssistantMessage.content
+                        .filter(
+                            (part): part is { type: 'text'; text: string } => part.type === 'text'
+                        )
+                        .map((part) => part.text)
+                        .join('\n');
+                }
+
+                if (!textContent) {
+                    return formatForInkCli('❌ No text content to copy');
+                }
+
+                // Copy to clipboard
+                const success = await writeToClipboard(textContent);
+                if (success) {
+                    const preview =
+                        textContent.length > 50
+                            ? textContent.substring(0, 50) + '...'
+                            : textContent;
+                    return formatForInkCli(
+                        `📋 Copied to clipboard (${textContent.length} chars)\n${preview.replace(/\n/g, ' ')}`
+                    );
+                } else {
+                    return formatForInkCli('❌ Failed to copy to clipboard');
+                }
+            } catch (error) {
+                const errorMsg = `Failed to copy: ${error instanceof Error ? error.message : String(error)}`;
+                agent.logger.error(errorMsg);
+                return formatForInkCli(`❌ ${errorMsg}`);
+            }
+        },
+    },
+    {
+        name: 'shortcuts',
+        description: 'Show keyboard shortcuts',
+        usage: '/shortcuts',
+        category: 'General',
+        aliases: ['keys', 'hotkeys'],
+        handler: async (
+            _args: string[],
+            _agent: DextoAgent,
+            _ctx: CommandContext
+        ): Promise<CommandHandlerResult> => {
+            const styledData: ShortcutsStyledData = {
+                categories: [
+                    {
+                        name: 'Global',
+                        shortcuts: [
+                            { keys: 'Ctrl+C', description: 'Clear input, then exit (press twice)' },
+                            { keys: 'Escape', description: 'Cancel processing / close overlay' },
+                        ],
+                    },
+                    {
+                        name: 'Input',
+                        shortcuts: [
+                            { keys: 'Enter', description: 'Submit message' },
+                            { keys: 'Shift+Enter', description: 'New line (multi-line input)' },
+                            { keys: 'Up/Down', description: 'Navigate input history' },
+                            { keys: 'Ctrl+R', description: 'Search history (enter search mode)' },
+                            { keys: 'Tab', description: 'Autocomplete command' },
+                            { keys: 'Ctrl+U', description: 'Clear input line' },
+                            { keys: 'Ctrl+W', description: 'Delete word before cursor' },
+                            { keys: 'Ctrl+A', description: 'Move cursor to start' },
+                            { keys: 'Ctrl+E', description: 'Move cursor to end' },
+                        ],
+                    },
+                    {
+                        name: 'History Search (after Ctrl+R)',
+                        shortcuts: [
+                            { keys: 'Ctrl+R', description: 'Next older match' },
+                            { keys: 'Ctrl+E', description: 'Next newer match' },
+                            { keys: 'Enter', description: 'Accept and exit search' },
+                            { keys: 'Escape', description: 'Cancel search' },
+                        ],
+                    },
+                    {
+                        name: 'Autocomplete & Selectors',
+                        shortcuts: [
+                            { keys: 'Up/Down', description: 'Navigate options' },
+                            { keys: 'Enter', description: 'Select / execute' },
+                            { keys: 'Tab', description: 'Load command into input' },
+                            { keys: 'Escape', description: 'Close overlay' },
+                        ],
+                    },
+                    {
+                        name: 'Tool Approval',
+                        shortcuts: [
+                            { keys: 'y', description: 'Allow once' },
+                            { keys: 'a', description: 'Allow for session' },
+                            { keys: 'n', description: 'Deny' },
+                            { keys: 'Escape', description: 'Cancel' },
+                        ],
+                    },
+                ],
+            };
+
+            // Build fallback text
+            const fallbackLines: string[] = ['Keyboard Shortcuts:'];
+            for (const category of styledData.categories) {
+                fallbackLines.push(`\n${category.name}:`);
+                for (const shortcut of category.shortcuts) {
+                    fallbackLines.push(`  ${shortcut.keys.padEnd(14)} ${shortcut.description}`);
+                }
+            }
+
+            return CommandOutputHelper.styled('shortcuts', styledData, fallbackLines.join('\n'));
         },
     },
 ];

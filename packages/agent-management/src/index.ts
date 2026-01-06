@@ -14,6 +14,7 @@ export {
     createInitialPreferences,
     updateGlobalPreferences,
     type GlobalPreferencesUpdates,
+    type CreatePreferencesOptions,
 } from './preferences/loader.js';
 export type { GlobalPreferences } from './preferences/schemas.js';
 export { PreferenceError, PreferenceErrorCode } from './preferences/errors.js';
@@ -71,8 +72,18 @@ export {
     loadAgentConfig,
     enrichAgentConfig,
     deriveAgentId,
+    addPromptToAgentConfig,
+    removePromptFromAgentConfig,
+    deletePromptByMetadata,
+    updateMcpServerField,
+    removeMcpServerFromConfig,
     ConfigError,
     ConfigErrorCode,
+    type FilePromptInput,
+    type InlinePromptInput,
+    type PromptInput,
+    type PromptMetadataForDeletion,
+    type PromptDeletionResult,
 } from './config/index.js';
 
 // API Key utilities
@@ -80,9 +91,65 @@ export {
     saveProviderApiKey,
     getProviderKeyStatus,
     listProviderKeyStatus,
+    determineApiKeyStorage,
+    SHARED_API_KEY_PROVIDERS,
+    type ApiKeyStorageStrategy,
 } from './utils/api-key-store.js';
 export {
     resolveApiKeyForProvider,
     getPrimaryApiKeyEnvVar,
     PROVIDER_API_KEY_MAP,
 } from './utils/api-key-resolver.js';
+
+// Custom models
+export {
+    loadCustomModels,
+    saveCustomModel,
+    deleteCustomModel,
+    getCustomModel,
+    getCustomModelsPath,
+    CustomModelSchema,
+    CUSTOM_MODEL_PROVIDERS,
+    type CustomModel,
+    type CustomModelProvider,
+} from './models/custom-models.js';
+
+// Local model management
+export {
+    // Path resolver
+    getModelsDirectory,
+    getModelFilePath,
+    getModelDirectory,
+    getModelStatePath,
+    getModelTempDirectory,
+    ensureModelsDirectory,
+    ensureModelDirectory,
+    modelFileExists,
+    getModelFileSize,
+    deleteModelDirectory,
+    listModelDirectories,
+    getModelsDiskUsage,
+    formatSize,
+    // State manager
+    type ModelSource,
+    type InstalledModel,
+    type ModelState,
+    loadModelState,
+    saveModelState,
+    addInstalledModel,
+    removeInstalledModel,
+    getInstalledModel,
+    getAllInstalledModels,
+    isModelInstalled,
+    updateModelLastUsed,
+    setActiveModel,
+    getActiveModelId,
+    getActiveModel,
+    addToDownloadQueue,
+    removeFromDownloadQueue,
+    getDownloadQueue,
+    syncStateWithFilesystem,
+    getTotalInstalledSize,
+    getInstalledModelCount,
+    registerManualModel,
+} from './models/index.js';

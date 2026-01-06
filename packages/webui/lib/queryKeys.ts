@@ -12,7 +12,7 @@
  * - queryClient.invalidateQueries({ queryKey: queryKeys.agents.all })
  */
 
-import type { ServerRegistryFilter } from '@/types';
+import type { ServerRegistryFilter } from '@dexto/registry';
 
 export const queryKeys = {
     // Agent-related queries
@@ -31,6 +31,7 @@ export const queryKeys = {
         current: (sessionId: string | null | undefined) =>
             ['llm', 'current', sessionId ?? null] as const,
         catalog: ['llm', 'catalog'] as const,
+        customModels: ['llm', 'customModels'] as const,
     },
 
     // Session-related queries
@@ -79,5 +80,10 @@ export const queryKeys = {
     // Message queue queries
     queue: {
         list: (sessionId: string) => ['queue', sessionId] as const,
+    },
+
+    // Approval queries
+    approvals: {
+        pending: (sessionId: string) => ['approvals', 'pending', sessionId] as const,
     },
 } as const;

@@ -166,6 +166,37 @@ async disconnectAll(): Promise<void>
 await manager.disconnectAll();
 ```
 
+#### `restartServer`
+
+Restart a specific MCP server by disconnecting and reconnecting with its original configuration.
+
+```typescript
+async restartServer(name: string): Promise<void>
+```
+
+**Parameters:**
+- `name`: The name of the server to restart
+
+**Example:**
+```typescript
+// Restart a server after it becomes unresponsive
+await manager.restartServer('filesystem');
+```
+
+#### `refresh`
+
+Refresh all tool, resource, and prompt caches from connected servers.
+
+```typescript
+async refresh(): Promise<void>
+```
+
+**Example:**
+```typescript
+// Force refresh all caches after external changes
+await manager.refresh();
+```
+
 ## Tool Management Methods
 
 #### `getAllTools`
@@ -228,18 +259,28 @@ await manager.executeTool('writeFile', {
 
 #### `listAllResources`
 
-Gets all available resource URIs from connected servers.
+Gets all cached MCP resources from connected servers.
 
 ```typescript
-async listAllResources(): Promise<string[]>
+async listAllResources(): Promise<MCPResolvedResource[]>
 ```
 
-#### `getResourceClient`
-
-Get the client that provides a specific resource.
+**Returns:** Array of resolved resources with metadata:
 
 ```typescript
-getResourceClient(resourceUri: string): IMCPClient | undefined
+interface MCPResolvedResource {
+  key: string;        // Qualified resource key
+  serverName: string; // Server that provides this resource
+  summary: MCPResourceSummary;
+}
+```
+
+#### `getResource`
+
+Get cached resource metadata by qualified key.
+
+```typescript
+getResource(resourceKey: string): MCPResolvedResource | undefined
 ```
 
 #### `readResource`
@@ -289,6 +330,26 @@ const prompt = await manager.getPrompt('code-review', {
   file: 'src/index.ts'
 });
 console.log('Prompt:', prompt.messages);
+```
+
+#### `getPromptMetadata`
+
+Get cached metadata for a specific prompt (no network calls).
+
+```typescript
+getPromptMetadata(promptName: string): PromptDefinition | undefined
+```
+
+#### `getAllPromptMetadata`
+
+Get all cached prompt metadata (no network calls).
+
+```typescript
+getAllPromptMetadata(): Array<{
+  promptName: string;
+  serverName: string;
+  definition: PromptDefinition;
+}>
 ```
 
 ## Status and Monitoring Methods

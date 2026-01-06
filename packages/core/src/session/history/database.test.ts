@@ -3,12 +3,13 @@ import { DatabaseHistoryProvider } from './database.js';
 import type { Database } from '@core/storage/types.js';
 import { SessionErrorCode } from '../error-codes.js';
 import { ErrorScope, ErrorType } from '@core/errors/types.js';
+import { createMockLogger } from '@core/logger/v2/test-utils.js';
 
 describe('DatabaseHistoryProvider error mapping', () => {
     let db: Mocked<Database>;
     let provider: DatabaseHistoryProvider;
     const sessionId = 's-1';
-    let mockLogger: any;
+    const mockLogger = createMockLogger();
 
     beforeEach(() => {
         db = {
@@ -25,17 +26,6 @@ describe('DatabaseHistoryProvider error mapping', () => {
             isConnected: vi.fn().mockReturnValue(true),
             getStoreType: vi.fn().mockReturnValue('memory'),
         } as any;
-
-        mockLogger = {
-            silly: vi.fn(),
-            debug: vi.fn(),
-            info: vi.fn(),
-            warn: vi.fn(),
-            error: vi.fn(),
-            trackException: vi.fn(),
-            createChild: vi.fn().mockReturnThis(),
-            destroy: vi.fn(),
-        };
 
         provider = new DatabaseHistoryProvider(sessionId, db, mockLogger);
     });

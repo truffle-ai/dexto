@@ -647,6 +647,12 @@ export class MCPManager {
 
         // Categorize servers by their connection mode
         for (const [name, config] of Object.entries(serverConfigs)) {
+            // Skip disabled servers
+            if (config.enabled === false) {
+                this.logger.info(`Skipping disabled server '${name}'`);
+                continue;
+            }
+
             const effectiveMode = config.connectionMode || 'lenient';
             if (effectiveMode === 'strict') {
                 strictServers.push(name);

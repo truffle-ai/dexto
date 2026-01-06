@@ -35,6 +35,16 @@ export class LLMError {
         );
     }
 
+    static missingConfig(provider: LLMProvider, configName: string) {
+        return new DextoRuntimeError(
+            LLMErrorCode.CONFIG_MISSING,
+            ErrorScope.LLM,
+            ErrorType.USER,
+            `Provider '${provider}' requires ${configName}`,
+            { provider, configName }
+        );
+    }
+
     static unsupportedProvider(provider: string) {
         const availableProviders = getSupportedProviders();
         return new DextoRuntimeError(
@@ -43,6 +53,22 @@ export class LLMError {
             ErrorType.USER,
             `Provider '${provider}' is not supported. Available providers: ${availableProviders.join(', ')}`,
             { provider, availableProviders }
+        );
+    }
+
+    /**
+     * Runtime error when API key is missing for a provider that requires it.
+     * This occurs when relaxed validation allowed the app to start without an API key,
+     * and the user then tries to use the LLM functionality.
+     */
+    static apiKeyMissing(provider: LLMProvider, envVar: string) {
+        return new DextoRuntimeError(
+            LLMErrorCode.API_KEY_MISSING,
+            ErrorScope.LLM,
+            ErrorType.USER,
+            `API key required for provider '${provider}'`,
+            { provider, envVar },
+            `Set the ${envVar} environment variable or configure it in Settings`
         );
     }
 

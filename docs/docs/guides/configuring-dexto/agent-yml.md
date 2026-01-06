@@ -203,15 +203,21 @@ Language model provider and settings.
 
 ```yaml
 llm:
-  provider: string              # Required: openai | anthropic | google | groq | xai | cohere | openai-compatible
+  provider: string              # Required: see supported providers below
   model: string                 # Required
-  apiKey: string                # Required: API key or $ENV_VAR
+  apiKey: string                # API key or $ENV_VAR (not required for vertex)
   maxIterations: number         # Optional, default: 50
-  baseURL: string               # Optional
+  baseURL: string               # Optional (required for litellm, openai-compatible)
   maxInputTokens: number        # Optional
   maxOutputTokens: number       # Optional
   temperature: number           # Optional: 0.0-1.0
 ```
+
+**Supported providers:**
+- **Built-in:** `openai`, `anthropic`, `google`, `groq`, `xai`, `cohere`
+- **Cloud platforms:** `vertex` (Google Cloud), `bedrock` (AWS)
+- **Gateways:** `openrouter`, `litellm`, `glama`
+- **Custom:** `openai-compatible`
 
 ### Examples
 
@@ -650,7 +656,7 @@ The CLI automatically creates per-agent log files at:
 Where `<agent-id>` is derived from:
 1. `agentCard.name` (sanitized for filesystem)
 2. Config filename (e.g., `my-agent.yml` → `my-agent`)
-3. Fallback: `default-agent`
+3. Fallback: `coding-agent`
 
 ## Plugins
 
@@ -896,7 +902,7 @@ The CLI derives `agentId` in this priority order:
    database-agent.yml      # → agentId: "database-agent"
    ```
 
-3. **Fallback**: `default-agent`
+3. **Fallback**: `coding-agent`
 
 ### Manual Override
 

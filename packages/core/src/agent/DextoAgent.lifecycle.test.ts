@@ -55,7 +55,10 @@ describe('DextoAgent Lifecycle Management', () => {
                 disconnectAll: vi.fn(),
                 initializeFromConfig: vi.fn().mockResolvedValue(undefined),
             } as any,
-            toolManager: {} as any,
+            toolManager: {
+                setAgent: vi.fn(),
+                initialize: vi.fn().mockResolvedValue(undefined),
+            } as any,
             systemPromptManager: {} as any,
             agentEventBus: {
                 on: vi.fn(),
@@ -249,7 +252,7 @@ describe('DextoAgent Lifecycle Management', () => {
             { name: 'resetConversation', args: [] },
             { name: 'getCurrentLLMConfig', args: [] },
             { name: 'switchLLM', args: [{ model: 'gpt-5' }] },
-            { name: 'connectMcpServer', args: ['test', { type: 'stdio', command: 'test' }] },
+            { name: 'addMcpServer', args: ['test', { type: 'stdio', command: 'test' }] },
             { name: 'getAllMcpTools', args: [] },
         ];
 

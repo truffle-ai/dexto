@@ -14,7 +14,7 @@ Some of the cool things you can do with Dexto CLI:
 - Talk to any LLM in your terminal
 - Create long-lived AI agents with tools, knowledge and memories. Example: a productivity agent that integrates with your linear and github.
 - Deploy these agents either locally or on the cloud
-- Talk to these agents on any application - discord, telegram, slack, cursor, claude desktop, etc.
+- Talk to these agents on any application - build custom integrations with discord, telegram, slack, etc.
 - Start building your own AI applications - get started with building your own Cursor! `dexto create-app`
 
 ## Main Command
@@ -37,12 +37,6 @@ dexto --mode server
 
 # Run as MCP server
 dexto --mode mcp
-
-# Start Discord bot
-dexto --mode discord
-
-# Start Telegram bot
-dexto --mode telegram
 ```
 
 :::tip Mode Auto-Detection
@@ -59,7 +53,7 @@ dexto --mode telegram
 | `-m, --model <model>` | Specify LLM model | `dexto -m gpt-5-mini` |
 | `-c, --continue` | Continue most recent conversation | `dexto -c` |
 | `-r, --resume <sessionId>` | Resume a specific session by ID | `dexto --resume my-session` |
-| `--mode <mode>` | Run mode (web/cli/server/discord/telegram/mcp, default: web) | `dexto --mode cli` |
+| `--mode <mode>` | Run mode (web/cli/server/mcp, default: web) | `dexto --mode cli` |
 | `--port <port>` | Server port (default: 3000 for web, 3001 for server mode) | `dexto --port 8080` |
 | `--skip-setup` | Skip initial setup prompts | `dexto --skip-setup` |
 | `-s, --strict` | Require all MCP servers to connect | `dexto --strict` |
@@ -111,7 +105,7 @@ dexto setup --force
 **Options:**
 - `--provider <provider>` - LLM provider (openai, anthropic, google, groq, xai, cohere)
 - `--model <model>` - Model name (uses provider default if not specified)
-- `--default-agent <agent>` - Default agent name (default: default-agent)
+- `--default-agent <agent>` - Default agent name (default: coding-agent)
 - `--force` - Overwrite existing setup without confirmation
 - `--no-interactive` - Skip interactive prompts
 
@@ -162,7 +156,7 @@ dexto uninstall --all
 
 **Options:**
 - `--all` - Uninstall all installed agents
-- `--force` - Force uninstall even if agent is protected (e.g., default-agent)
+- `--force` - Force uninstall even if agent is protected (e.g., coding-agent)
 
 ### `list-agents` - List Available Agents
 
@@ -195,7 +189,7 @@ Display the path to a specific agent's configuration file.
 
 ```bash
 dexto which nano-banana-agent
-dexto which default-agent
+dexto which coding-agent
 ```
 
 ### `session` - Manage Sessions

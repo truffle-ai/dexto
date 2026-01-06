@@ -18,10 +18,10 @@ import { ExecutorResult } from './types.js';
 import { TokenUsage } from '../types.js';
 import type { IDextoLogger } from '../../logger/v2/types.js';
 import { DextoLogComponent } from '../../logger/v2/types.js';
-import type { SessionEventBus } from '../../events/index.js';
+import type { SessionEventBus, LLMFinishReason } from '../../events/index.js';
 import type { ResourceManager } from '../../resources/index.js';
 import { DynamicContributorContext } from '../../systemPrompt/types.js';
-import { LLMContext } from '../types.js';
+import { LLMContext, type LLMProvider } from '../types.js';
 import type { MessageQueueService } from '../../session/message-queue.js';
 import type { StreamProcessorConfig } from './stream-processor.js';
 import type { CoalescedMessage } from '../../session/types.js';
@@ -31,7 +31,8 @@ import { ErrorScope, ErrorType } from '../../errors/types.js';
 import { LLMErrorCode } from '../error-codes.js';
 import { toError } from '../../utils/error-conversion.js';
 import { isOverflow, type ModelLimits } from '../../context/compression/overflow.js';
-import { ReactiveOverflowStrategy } from '../../context/compression/reactive-overflow.js';
+import { ReactiveOverflowStrategy } from '../../context/compression/strategies/reactive-overflow.js';
+import type { ICompressionStrategy } from '../../context/compression/types.js';
 
 /**
  * Static cache for tool support validation.
@@ -39,6 +40,11 @@ import { ReactiveOverflowStrategy } from '../../context/compression/reactive-ove
  * Key format: "provider:model:baseURL"
  */
 const toolSupportCache = new Map<string, boolean>();
+
+/**
+ * Local providers that need tool support validation regardless of baseURL
+ */
+const LOCAL_PROVIDERS: readonly LLMProvider[] = ['ollama', 'local'] as const;
 
 /**
  * TurnExecutor orchestrates the agent loop using `stopWhen: stepCountIs(1)`.
@@ -59,8 +65,7 @@ export class TurnExecutor {
      * This allows soft cancel (abort current step) while still continuing with queued messages.
      */
     private stepAbortController: AbortController;
-    // TODO: improve compression configurability
-    private compressionStrategy: ReactiveOverflowStrategy | null = null;
+    private compressionStrategy: ICompressionStrategy | null = null;
     /**
      * Map to track approval metadata by toolCallId.
      * Used to pass approval info from tool execution to result persistence.
@@ -87,7 +92,8 @@ export class TurnExecutor {
         logger: IDextoLogger,
         private messageQueue: MessageQueueService,
         private modelLimits?: ModelLimits,
-        private externalSignal?: AbortSignal
+        private externalSignal?: AbortSignal,
+        compressionStrategy?: ICompressionStrategy | null
     ) {
         this.logger = logger.createChild(DextoLogComponent.EXECUTOR);
         // Initial controller - will be replaced per-step in execute()
@@ -98,8 +104,12 @@ export class TurnExecutor {
         // - Soft cancel: aborts current step, but queue can continue with fresh controller
         // - Hard cancel (external aborted + clearQueue): checked explicitly in loop
 
-        // Initialize compression strategy if model limits are provided
-        if (modelLimits) {
+        // Use provided compression strategy, or fallback to default behavior
+        if (compressionStrategy !== undefined) {
+            // Explicitly provided (could be null to disable, or a strategy instance)
+            this.compressionStrategy = compressionStrategy;
+        } else if (modelLimits) {
+            // Backward compatibility: create default strategy if model limits are provided
             this.compressionStrategy = new ReactiveOverflowStrategy(model, {}, this.logger);
         }
     }
@@ -128,15 +138,38 @@ export class TurnExecutor {
         // Automatic cleanup when scope exits (normal, throw, or return)
         using _ = defer(() => this.cleanup());
 
+        // Track run duration
+        const startTime = Date.now();
+
         let stepCount = 0;
         let lastStepTokens: TokenUsage | null = null;
-        let lastFinishReason = 'unknown';
+        let lastFinishReason: LLMFinishReason = 'unknown';
         let lastText = '';
 
         this.eventBus.emit('llm:thinking');
 
         // Check tool support once before the loop
         const supportsTools = await this.validateToolSupport();
+
+        // Emit warning if tools are not supported
+        if (!supportsTools) {
+            const modelKey = `${this.llmContext.provider}:${this.llmContext.model}`;
+            this.eventBus.emit('llm:unsupported-input', {
+                errors: [
+                    `Model '${modelKey}' does not support tool calling.`,
+                    'You can still chat, but the model will not be able to use tools or execute commands.',
+                ],
+                provider: this.llmContext.provider,
+                model: this.llmContext.model,
+                details: {
+                    feature: 'tool-calling',
+                    supported: false,
+                },
+            });
+            this.logger.warn(
+                `Model ${modelKey} does not support tools - continuing without tool calling`
+            );
+        }
 
         // Track current abort handler to remove between iterations (prevents listener accumulation)
         let currentAbortHandler: (() => void) | null = null;
@@ -275,6 +308,7 @@ export class TurnExecutor {
             this.eventBus.emit('run:complete', {
                 finishReason: 'error',
                 stepCount,
+                durationMs: Date.now() - startTime,
                 error: mappedError,
             });
 
@@ -291,6 +325,7 @@ export class TurnExecutor {
         this.eventBus.emit('run:complete', {
             finishReason: lastFinishReason,
             stepCount,
+            durationMs: Date.now() - startTime,
         });
 
         return {
@@ -336,8 +371,8 @@ export class TurnExecutor {
      * Validates if the current model supports tools.
      * Uses a static cache to avoid repeated validation calls.
      *
-     * For models using custom baseURL endpoints, makes a test call to verify tool support.
-     * Built-in providers without baseURL are assumed to support tools.
+     * For local providers (Ollama, local) and custom baseURL endpoints, makes a test call to verify tool support.
+     * Known cloud providers without baseURL are assumed to support tools.
      */
     private async validateToolSupport(): Promise<boolean> {
         const modelKey = `${this.llmContext.provider}:${this.llmContext.model}:${this.config.baseURL ?? ''}`;
@@ -347,15 +382,21 @@ export class TurnExecutor {
             return toolSupportCache.get(modelKey)!;
         }
 
-        // Only test tool support for providers using custom baseURL endpoints
-        // Built-in providers without baseURL have known tool support
-        if (!this.config.baseURL) {
-            this.logger.debug(`Skipping tool validation for ${modelKey} - no custom baseURL`);
+        // Local providers need validation regardless of baseURL (models have varying support)
+        const isLocalProvider = LOCAL_PROVIDERS.includes(this.llmContext.provider);
+
+        // Skip validation only for known cloud providers without custom baseURL
+        if (!this.config.baseURL && !isLocalProvider) {
+            this.logger.debug(
+                `Skipping tool validation for ${modelKey} - known cloud provider without custom baseURL`
+            );
             toolSupportCache.set(modelKey, true);
             return true;
         }
 
-        this.logger.debug(`Testing tool support for custom endpoint model: ${modelKey}`);
+        this.logger.debug(
+            `Testing tool support for ${isLocalProvider ? 'local provider' : 'custom endpoint'} model: ${modelKey}`
+        );
 
         // Create a minimal test tool
         const testTool = {
@@ -393,7 +434,9 @@ export class TurnExecutor {
             const errorMessage = error instanceof Error ? error.message : String(error);
             if (errorMessage.includes('does not support tools')) {
                 toolSupportCache.set(modelKey, false);
-                this.logger.debug(`Model ${modelKey} does not support tools`);
+                this.logger.debug(
+                    `Detected that model ${modelKey} does not support tool calling - tool functionality will be disabled`
+                );
                 return false;
             }
             // Other errors (including timeout) - assume tools are supported and let the actual call handle it
@@ -426,36 +469,84 @@ export class TurnExecutor {
                     /**
                      * Execute callback - runs the tool and returns raw result.
                      * Does NOT persist - StreamProcessor handles that on tool-result event.
+                     *
+                     * Uses Promise.race to ensure we return quickly on abort, even if the
+                     * underlying tool (especially MCP tools we don't control) keeps running.
                      */
                     execute: async (
                         args: unknown,
-                        _options: { toolCallId: string }
+                        options: { toolCallId: string }
                     ): Promise<unknown> => {
-                        this.logger.debug(`Executing tool: ${name}`);
-
-                        // Run tool via toolManager - returns result with approval metadata
-                        const executionResult = await this.toolManager.executeTool(
-                            name,
-                            args as Record<string, unknown>,
-                            this.sessionId
+                        this.logger.debug(
+                            `Executing tool: ${name} (toolCallId: ${options.toolCallId})`
                         );
 
-                        // Store approval metadata for later retrieval by StreamProcessor
-                        if (executionResult.requireApproval !== undefined) {
-                            const metadata: {
-                                requireApproval: boolean;
-                                approvalStatus?: 'approved' | 'rejected';
-                            } = {
-                                requireApproval: executionResult.requireApproval,
-                            };
-                            if (executionResult.approvalStatus !== undefined) {
-                                metadata.approvalStatus = executionResult.approvalStatus;
-                            }
-                            this.approvalMetadata.set(_options.toolCallId, metadata);
+                        const abortSignal = this.stepAbortController.signal;
+
+                        // Check if already aborted before starting
+                        if (abortSignal.aborted) {
+                            this.logger.debug(`Tool ${name} cancelled before execution`);
+                            return { error: 'Cancelled by user', cancelled: true };
                         }
 
-                        // Return just the raw result for Vercel SDK
-                        return executionResult.result;
+                        // Create abort handler for cleanup
+                        let abortHandler: (() => void) | null = null;
+
+                        // Create abort promise for Promise.race
+                        // This ensures we return quickly even if tool doesn't respect abort signal
+                        const abortPromise = new Promise<{ error: string; cancelled: true }>(
+                            (resolve) => {
+                                abortHandler = () => {
+                                    this.logger.debug(`Tool ${name} cancelled during execution`);
+                                    resolve({ error: 'Cancelled by user', cancelled: true });
+                                };
+                                abortSignal.addEventListener('abort', abortHandler, { once: true });
+                            }
+                        );
+
+                        // Race: tool execution vs abort signal
+                        try {
+                            const result = await Promise.race([
+                                (async () => {
+                                    // Run tool via toolManager - returns result with approval metadata
+                                    // toolCallId is passed for tracking parallel tool calls in the UI
+                                    // Pass abortSignal so tools can do proper cleanup (e.g., kill processes)
+                                    const executionResult = await this.toolManager.executeTool(
+                                        name,
+                                        args as Record<string, unknown>,
+                                        options.toolCallId,
+                                        this.sessionId,
+                                        abortSignal
+                                    );
+
+                                    // Store approval metadata for later retrieval by StreamProcessor
+                                    if (executionResult.requireApproval !== undefined) {
+                                        const metadata: {
+                                            requireApproval: boolean;
+                                            approvalStatus?: 'approved' | 'rejected';
+                                        } = {
+                                            requireApproval: executionResult.requireApproval,
+                                        };
+                                        if (executionResult.approvalStatus !== undefined) {
+                                            metadata.approvalStatus =
+                                                executionResult.approvalStatus;
+                                        }
+                                        this.approvalMetadata.set(options.toolCallId, metadata);
+                                    }
+
+                                    // Return just the raw result for Vercel SDK
+                                    return executionResult.result;
+                                })(),
+                                abortPromise,
+                            ]);
+
+                            return result;
+                        } finally {
+                            // Clean up abort listener to prevent memory leak
+                            if (abortHandler) {
+                                abortSignal.removeEventListener('abort', abortHandler);
+                            }
+                        }
                     },
 
                     /**

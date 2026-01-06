@@ -9,10 +9,20 @@ import React, {
 } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useChat } from './useChat';
-import { type Message } from '@/lib/stores/chatStore';
+import {
+    useChat,
+    Message,
+    ErrorMessage,
+    StreamStatus,
+    UIUserMessage,
+    UIAssistantMessage,
+    UIToolMessage,
+} from './useChat';
+import { useGreeting } from './useGreeting';
+import { useApproval } from './ApprovalContext';
+import { usePendingApprovals } from './useApprovals';
 import type { FilePart, ImagePart, TextPart, UIResourcePart } from '../../types';
-import type { SanitizedToolResult } from '@dexto/core';
+import type { SanitizedToolResult, ApprovalRequest } from '@dexto/core';
 import { getResourceKind } from '@dexto/core';
 import { useAnalytics } from '@/lib/analytics/index.js';
 import { queryKeys } from '@/lib/queryKeys.js';
@@ -75,18 +85,13 @@ function convertHistoryToMessages(history: HistoryMessage[], sessionId: string):
 
     for (let index = 0; index < history.length; index++) {
         const msg = history[index];
-        const baseMessage: Message = {
-            id: `session-${sessionId}-${index}`,
-            role: msg.role,
-            content: msg.content,
-            createdAt: msg.timestamp ?? Date.now() - (history.length - index) * 1000,
-            sessionId: sessionId,
-            // Preserve token usage, reasoning, model, and provider metadata from storage
-            tokenUsage: msg.tokenUsage,
-            reasoning: msg.reasoning,
-            model: msg.model,
-            provider: msg.provider,
-        };
+        const createdAt = msg.timestamp ?? Date.now() - (history.length - index) * 1000;
+        const baseId = `session-${sessionId}-${index}`;
+
+        // Skip system messages - they're not shown in UI
+        if (msg.role === 'system') {
+            continue;
+        }
 
         const deriveResources = (
             content: Array<TextPart | ImagePart | FilePart | UIResourcePart>
@@ -129,10 +134,35 @@ function convertHistoryToMessages(history: HistoryMessage[], sessionId: string):
         };
 
         if (msg.role === 'assistant') {
+            // Create assistant message
             if (msg.content) {
-                uiMessages.push(baseMessage);
+                // Extract text content from string or ContentPart array
+                let textContent: string | null = null;
+                if (typeof msg.content === 'string') {
+                    textContent = msg.content;
+                } else if (Array.isArray(msg.content)) {
+                    // Extract text from ContentPart array
+                    const textParts = msg.content
+                        .filter((part): part is TextPart => part.type === 'text')
+                        .map((part) => part.text);
+                    textContent = textParts.length > 0 ? textParts.join('\n') : null;
+                }
+
+                const assistantMessage: UIAssistantMessage = {
+                    id: baseId,
+                    role: 'assistant',
+                    content: textContent,
+                    createdAt,
+                    sessionId,
+                    tokenUsage: msg.tokenUsage,
+                    reasoning: msg.reasoning,
+                    model: msg.model,
+                    provider: msg.provider,
+                };
+                uiMessages.push(assistantMessage);
             }
 
+            // Create tool messages for tool calls
             if (msg.toolCalls && msg.toolCalls.length > 0) {
                 msg.toolCalls.forEach((toolCall: ToolCall, toolIndex: number) => {
                     let toolArgs: Record<string, unknown> = {};
@@ -148,19 +178,15 @@ function convertHistoryToMessages(history: HistoryMessage[], sessionId: string):
                     }
                     const toolName = toolCall.function?.name || 'unknown';
 
-                    const toolMessage: Message = {
-                        id: `session-${sessionId}-${index}-tool-${toolIndex}`,
+                    const toolMessage: UIToolMessage = {
+                        id: `${baseId}-tool-${toolIndex}`,
                         role: 'tool',
                         content: null,
-                        createdAt:
-                            (msg.timestamp ?? Date.now() - (history.length - index) * 1000) +
-                            toolIndex,
+                        createdAt: createdAt + toolIndex,
                         sessionId,
                         toolName,
                         toolArgs,
-                        toolResult: undefined,
-                        toolResultMeta: undefined,
-                        toolResultSuccess: undefined,
+                        toolCallId: toolCall.id,
                     };
 
                     if (typeof toolCall.id === 'string' && toolCall.id.length > 0) {
@@ -186,12 +212,16 @@ function convertHistoryToMessages(history: HistoryMessage[], sessionId: string):
                   : [];
 
             const inferredResources = deriveResources(normalizedContent);
+            // Extract success status from stored message (defaults to true for backwards compatibility)
+            const success =
+                'success' in msg && typeof msg.success === 'boolean' ? msg.success : true;
             const sanitizedFromHistory: SanitizedToolResult = {
                 content: normalizedContent,
                 ...(inferredResources ? { resources: inferredResources } : {}),
                 meta: {
                     toolName,
                     toolCallId: toolCallId ?? `tool-${index}`,
+                    success,
                 },
             };
 
@@ -209,33 +239,48 @@ function convertHistoryToMessages(history: HistoryMessage[], sessionId: string):
                     : undefined;
 
             if (toolCallId && pendingToolCalls.has(toolCallId)) {
+                // Update existing tool message with result
                 const messageIndex = pendingToolCalls.get(toolCallId)!;
+                const existingMessage = uiMessages[messageIndex] as UIToolMessage;
                 uiMessages[messageIndex] = {
-                    ...uiMessages[messageIndex],
+                    ...existingMessage,
                     toolResult: sanitizedFromHistory,
                     toolResultMeta: sanitizedFromHistory.meta,
-                    // Preserve approval metadata from history
                     ...(requireApproval !== undefined && { requireApproval }),
                     ...(approvalStatus !== undefined && { approvalStatus }),
                 };
             } else {
-                uiMessages.push({
-                    ...baseMessage,
+                // Create new tool message with result
+                const toolMessage: UIToolMessage = {
+                    id: baseId,
                     role: 'tool',
                     content: null,
+                    createdAt,
+                    sessionId,
                     toolName,
+                    toolCallId,
                     toolResult: sanitizedFromHistory,
                     toolResultMeta: sanitizedFromHistory.meta,
-                    // Preserve approval metadata from history
                     ...(requireApproval !== undefined && { requireApproval }),
                     ...(approvalStatus !== undefined && { approvalStatus }),
-                });
+                };
+                uiMessages.push(toolMessage);
             }
 
             continue;
         }
 
-        uiMessages.push(baseMessage);
+        // User message (only remaining case after system/assistant/tool handled)
+        if (msg.role === 'user') {
+            const userMessage: UIUserMessage = {
+                id: baseId,
+                role: 'user',
+                content: msg.content,
+                createdAt,
+                sessionId,
+            };
+            uiMessages.push(userMessage);
+        }
     }
 
     return uiMessages;
@@ -269,6 +314,47 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         reset: originalReset,
         cancel,
     } = useChat(currentSessionIdRef, sessionAbortControllersRef);
+
+    // Restore pending approvals when session changes (e.g., after page refresh)
+    const { handleApprovalRequest } = useApproval();
+    const { data: pendingApprovalsData } = usePendingApprovals(currentSessionId);
+    const restoredApprovalsRef = useRef<Set<string>>(new Set());
+
+    useEffect(() => {
+        if (!pendingApprovalsData?.approvals || pendingApprovalsData.approvals.length === 0) {
+            return;
+        }
+
+        // Restore any pending approvals that haven't been restored yet
+        for (const approval of pendingApprovalsData.approvals) {
+            // Skip if we've already restored this approval
+            if (restoredApprovalsRef.current.has(approval.approvalId)) {
+                continue;
+            }
+
+            // Mark as restored before calling handler to prevent duplicates
+            restoredApprovalsRef.current.add(approval.approvalId);
+
+            // Convert API response format to ApprovalRequest format
+            // TODO: The API returns a simplified format without full metadata because
+            // ApprovalCoordinator only tracks approval IDs, not the full request data.
+            // To fix properly: store full ApprovalRequest in ApprovalCoordinator when
+            // requests are created, then return that data from GET /api/approvals.
+            handleApprovalRequest({
+                approvalId: approval.approvalId,
+                type: approval.type,
+                sessionId: approval.sessionId,
+                timeout: approval.timeout,
+                timestamp: new Date(approval.timestamp),
+                metadata: approval.metadata,
+            } as ApprovalRequest);
+        }
+    }, [pendingApprovalsData, handleApprovalRequest]);
+
+    // Clear restored approvals tracking when session changes
+    useEffect(() => {
+        restoredApprovalsRef.current.clear();
+    }, [currentSessionId]);
 
     // Messages are now managed in chatStore - hook must be called unconditionally
     // Use stable EMPTY_MESSAGES reference to prevent infinite re-renders

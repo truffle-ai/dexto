@@ -26,7 +26,7 @@ This runs `scripts/quality-checks.sh` for build, tests, lint, and typecheck. Ind
 - APIs should resemble code that users could write with public libraries
 
 ### Service Initialization
-- **Config file is source of truth** - Use `agents/default-agent.yml` for all configuration
+- **Config file is source of truth** - Use `agents/coding-agent/coding-agent.yml` for all configuration
 - **Override pattern for advanced use** - Use `InitializeServicesOptions` only for top-level services
 - **CLI Config Enrichment** - CLI adds per-agent paths (logs, database, blobs) via `enrichAgentConfig()` before agent initialization. See `packages/agent-management/src/config/config-enrichment.ts`
 - ✅ DO: Configure via config file for normal operation

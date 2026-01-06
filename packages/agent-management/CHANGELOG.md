@@ -1,5 +1,28 @@
 # @dexto/agent-management
 
+## 1.4.0
+
+### Minor Changes
+
+- f73a519: Revamp CLI. Breaking change to DextoAgent.generate() and stream() apis and hono message APIs, so new minor version. Other fixes for logs, web UI related to message streaming/generating
+
+### Patch Changes
+
+- 7a64414: Updated agent-management to use AgentManager instead of AgentOrchestrator.
+- 3cdce89: Revamp CLI for coding agent, add new events, improve mcp management, custom models, minor UI changes, prompt management
+- d640e40: Remove LLM services, tokenizers, just stick with vercel, remove 'router' from schema and all types and docs
+- c54760f: Revamp context management layer - add partial stream cancellation, message queueing, context compression with LLM, MCP UI support and gaming agent. New APIs and UI changes for these things
+- Updated dependencies [bd5c097]
+- Updated dependencies [3cdce89]
+- Updated dependencies [d640e40]
+- Updated dependencies [6f5627d]
+- Updated dependencies [6e6a3e7]
+- Updated dependencies [f73a519]
+- Updated dependencies [c54760f]
+- Updated dependencies [ab47df8]
+- Updated dependencies [3b4b919]
+    - @dexto/core@1.4.0
+
 ## 1.3.0
 
 ### Patch Changes

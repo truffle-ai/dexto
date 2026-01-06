@@ -105,4 +105,18 @@ export class AgentError {
             'Check the request parameters and try again'
         );
     }
+
+    /**
+     * Stream failed with unexpected error
+     */
+    static streamFailed(message: string, details?: unknown) {
+        return new DextoRuntimeError(
+            AgentErrorCode.STREAM_FAILED,
+            ErrorScope.AGENT,
+            ErrorType.SYSTEM,
+            message,
+            details,
+            'Check logs for details'
+        );
+    }
 }

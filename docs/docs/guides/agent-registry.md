@@ -343,57 +343,6 @@ dexto --agent workflow-builder-agent "Build a social media scheduler that posts 
 
 ---
 
-#### 📊 Product Analysis Agent
-
-**ID:** `product-analysis-agent`
-**Best For:** Product analytics, user behavior, feature flags, error tracking
-
-AI agent for product analytics using PostHog MCP server.
-
-**Key Features:**
-- User growth and behavior analysis
-- Feature flag management
-- Error tracking and debugging
-- Annotations for events
-- Funnel and retention analysis
-
-**Example Use:**
-```bash
-dexto --agent product-analysis-agent "Show me user growth trends over the past 30 days"
-```
-
-**Recommended LLM:** Anthropic Claude Sonnet 4.5
-
-**Requires:** `POSTHOG_API_KEY`
-
----
-
-### Automation & Integration
-
-#### 🔧 Workflow Builder Agent
-
-**ID:** `workflow-builder-agent`
-**Best For:** n8n workflow automation, integrations, scheduled tasks
-
-AI agent for building and managing n8n automation workflows.
-
-**Key Features:**
-- Create workflows from natural language
-- Execution monitoring and debugging
-- Credential guidance for service integrations
-- Workflow templates (social media scheduler, etc.)
-
-**Example Use:**
-```bash
-dexto --agent workflow-builder-agent "Build a social media scheduler that posts from Google Sheets"
-```
-
-**Recommended LLM:** OpenAI GPT-5 Mini
-
-**Requires:** `N8N_MCP_URL`, `N8N_MCP_TOKEN`
-
----
-
 ### Collaboration & DevOps
 
 #### 🐙 GitHub Agent
@@ -532,11 +481,11 @@ Default Dexto agent with filesystem and Playwright tools for general-purpose tas
 
 **Example Use:**
 ```bash
-dexto  # Uses default-agent by default
+dexto --agent default-agent
 ```
 
 **Recommended LLM:** Any supported provider
-**Comes pre-installed:** Yes
+**Comes pre-installed:** No (available in registry)
 
 ---
 
@@ -599,7 +548,6 @@ defaults:
 | nano-banana-agent | Content | Google Gemini (Required) | GOOGLE_GENERATIVE_AI_API_KEY |
 | sora-video-agent | Content | OpenAI GPT | OPENAI_API_KEY |
 | image-editor-agent | Content | Any | - |
-| coding-agent | Development | Claude/GPT | - |
 | database-agent | Data | Claude/GPT | - |
 | talk2pdf-agent | Data | Claude/Gemini | - |
 | product-analysis-agent | Data | Claude | POSTHOG_API_KEY |
@@ -608,7 +556,8 @@ defaults:
 | product-researcher | Research | Claude/GPT | - |
 | triage-agent | Multi-Agent | Claude/GPT | - |
 | gaming-agent | Entertainment | Claude (Vision) | ROM files |
-| default-agent | General | Any | Pre-installed |
+| coding-agent | Development | Any | Pre-installed |
+| default-agent | General | Any | - |
 
 ## Choosing the Right Agent
 

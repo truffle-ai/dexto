@@ -4,13 +4,20 @@
  * Re-uses existing types from context, llm/services, and events to avoid duplication.
  */
 
-import type { ImageData, FileData } from '../context/types.js';
+import type { ContentPart } from '../context/types.js';
 import type { LLMTokenUsage } from '../llm/services/types.js';
 
 /**
- * Re-export existing types for convenience
+ * Re-export content part types for API consumers
  */
-export type { ImageData as ImageInput, FileData as FileInput } from '../context/types.js';
+export type {
+    ContentPart,
+    TextPart,
+    ImagePart,
+    FilePart,
+    ImageData,
+    FileData,
+} from '../context/types.js';
 export type { LLMTokenUsage as TokenUsage } from '../llm/services/types.js';
 
 /**
@@ -30,13 +37,29 @@ export interface AgentToolCall {
 }
 
 /**
- * Options for generate() method
+ * Content input for generate() and stream() methods.
+ * Can be a simple string (for text-only messages) or an array of ContentPart (for multimodal).
+ *
+ * @example
+ * ```typescript
+ * // Simple text
+ * agent.generate('What is 2+2?', sessionId);
+ *
+ * // Multimodal with image
+ * agent.generate([
+ *     { type: 'text', text: 'Describe this image' },
+ *     { type: 'image', image: base64Data, mimeType: 'image/png' }
+ * ], sessionId);
+ * ```
+ */
+export type ContentInput = string | ContentPart[];
+
+/**
+ * Options for generate() and stream() methods
  */
 export interface GenerateOptions {
-    sessionId: string;
-    imageData?: ImageData | undefined;
-    fileData?: FileData | undefined;
-    signal?: AbortSignal | undefined; // For cancellation
+    /** AbortSignal for cancellation */
+    signal?: AbortSignal;
 }
 
 /**
@@ -56,6 +79,4 @@ export interface GenerateResponse {
  * Note: stream() now returns core StreamingEvent types directly from the event system.
  * See packages/core/src/events/index.ts for event definitions.
  */
-export interface StreamOptions extends GenerateOptions {
-    // Same options, but behavior is streaming
-}
+export type StreamOptions = GenerateOptions;

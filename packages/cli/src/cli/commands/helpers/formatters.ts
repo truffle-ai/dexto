@@ -6,7 +6,8 @@
  */
 
 import chalk from 'chalk';
-import type { SessionMetadata, InternalMessage } from '@dexto/core';
+import type { SessionMetadata, InternalMessage, ToolCall } from '@dexto/core';
+import { isAssistantMessage } from '@dexto/core';
 
 /**
  * Helper to format session information consistently
@@ -95,9 +96,9 @@ export function formatHistoryMessage(message: InternalMessage, index: number): s
 
     // Format tool calls if present
     let toolInfo = '';
-    if (message.toolCalls && message.toolCalls.length > 0) {
+    if (isAssistantMessage(message) && message.toolCalls && message.toolCalls.length > 0) {
         const toolNames = message.toolCalls
-            .map((tc: any) => tc.function?.name || 'unknown')
+            .map((tc: ToolCall) => tc.function?.name || 'unknown')
             .join(', ');
         toolInfo = chalk.dim(` [Tools: ${toolNames}]`);
     }

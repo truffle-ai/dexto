@@ -10,6 +10,7 @@ export enum MCPErrorCode {
 
     // Connection and lifecycle
     CONNECTION_FAILED = 'mcp_connection_failed',
+    DISCONNECTION_FAILED = 'mcp_disconnection_failed',
 
     // Protocol errors
     PROTOCOL_ERROR = 'mcp_protocol_error',

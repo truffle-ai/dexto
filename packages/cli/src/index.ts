@@ -37,21 +37,22 @@ import {
 } from '@dexto/agent-management';
 import type { ValidatedAgentConfig } from '@dexto/core';
 import { startHonoApiServer } from './api/server-hono.js';
-import { startDiscordBot } from './discord/bot.js';
-import { startTelegramBot } from './telegram/bot.js';
 import { validateCliOptions, handleCliOptionsError } from './cli/utils/options.js';
 import { validateAgentConfig } from './cli/utils/config-validation.js';
-import { applyCLIOverrides } from './config/cli-overrides.js';
+import {
+    applyCLIOverrides,
+    applyUserPreferences,
+    checkAgentCompatibility,
+} from './config/cli-overrides.js';
 import { enrichAgentConfig } from '@dexto/agent-management';
 import { getPort } from './utils/port-utils.js';
 import {
     createDextoProject,
-    createTsconfigJson,
-    addDextoScriptsToPackageJson,
-    postCreateDexto,
+    type CreateAppOptions,
+    createImage,
+    getUserInputToInitDextoApp,
     initDexto,
     postInitDexto,
-    getUserInputToInitDextoApp,
 } from './cli/commands/index.js';
 import {
     handleSetupCommand,
@@ -83,6 +84,43 @@ const program = new Command();
 // Initialize analytics early (no-op if disabled)
 await initAnalytics({ appVersion: pkg.version });
 
+/**
+ * Recursively removes null values from an object.
+ * This handles YAML files that have explicit `apiKey: null` entries
+ * which would otherwise cause "Expected string, received null" validation errors.
+ */
+function cleanNullValues<T extends Record<string, unknown>>(obj: T): T {
+    if (obj === null || obj === undefined) return obj;
+    if (typeof obj !== 'object') return obj;
+    if (Array.isArray(obj)) {
+        return obj.map((item) =>
+            typeof item === 'object' && item !== null
+                ? cleanNullValues(item as Record<string, unknown>)
+                : item
+        ) as unknown as T;
+    }
+
+    const cleaned: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(obj)) {
+        if (value === null) {
+            // Skip null values - they become undefined (missing)
+            continue;
+        }
+        if (typeof value === 'object' && !Array.isArray(value)) {
+            cleaned[key] = cleanNullValues(value as Record<string, unknown>);
+        } else if (Array.isArray(value)) {
+            cleaned[key] = value.map((item) =>
+                typeof item === 'object' && item !== null
+                    ? cleanNullValues(item as Record<string, unknown>)
+                    : item
+            );
+        } else {
+            cleaned[key] = value;
+        }
+    }
+    return cleaned as T;
+}
+
 // 1) GLOBAL OPTIONS
 program
     .name('dexto')
@@ -103,50 +141,34 @@ program
     .option('-r, --resume <sessionId>', 'Resume specific session (requires -p/prompt)')
     .option(
         '--mode <mode>',
-        'The application in which dexto should talk to you - web | cli | server | discord | telegram | mcp',
+        'The application in which dexto should talk to you - web | cli | server | mcp',
         'web'
     )
     .option('--port <port>', 'port for the server (default: 3000 for web, 3001 for server mode)')
     .option('--no-auto-install', 'Disable automatic installation of missing agents from registry')
+    .option(
+        '--image <package>',
+        'Image package to load (e.g., @dexto/image-local). Overrides config image field.'
+    )
     .enablePositionalOptions();
 
 // 2) `create-app` SUB-COMMAND
 program
-    .command('create-app')
-    .description('Scaffold a new Dexto Typescript app')
+    .command('create-app [name]')
+    .description('Create a Dexto application (CLI, web, bot, etc.)')
+    .option('--from-image <package>', 'Use existing image (e.g., @dexto/image-local)')
+    .option('--extend-image <package>', 'Extend image with custom providers')
+    .option('--from-core', 'Build from @dexto/core (advanced)')
+    .option('--type <type>', 'App type: script, webapp (default: script)')
     .action(
-        withAnalytics('create-app', async () => {
+        withAnalytics('create-app', async (name?: string, options?: CreateAppOptions) => {
             try {
-                p.intro(chalk.inverse('Dexto Create App'));
-                // first setup the initial files in the project and get the project path
-                const appPath = await createDextoProject();
+                p.intro(chalk.inverse('Create Dexto App'));
 
-                // then get user inputs for directory, llm etc.
-                const userInput = await getUserInputToInitDextoApp();
-                try {
-                    capture('dexto_create', {
-                        provider: userInput.llmProvider,
-                        providedKey: Boolean(userInput.llmApiKey),
-                    });
-                } catch {
-                    // Analytics failures should not block CLI execution.
-                }
+                // Create the app project structure (fully self-contained)
+                await createDextoProject(name, options);
 
-                // move to project directory, then add the dexto scripts to the package.json and create the tsconfig.json
-                process.chdir(appPath);
-                await addDextoScriptsToPackageJson(userInput.directory, appPath);
-                await createTsconfigJson(appPath, userInput.directory);
-
-                // then initialize the other parts of the project
-                await initDexto(
-                    userInput.directory,
-                    userInput.createExampleFile,
-                    userInput.llmProvider,
-                    userInput.llmApiKey
-                );
-                p.outro(chalk.greenBright('Dexto app created and initialized successfully!'));
-                // add notes for users to get started with their newly created Dexto project
-                await postCreateDexto(appPath, userInput.directory);
+                p.outro(chalk.greenBright('Dexto app created successfully!'));
                 safeExit('create-app', 0);
             } catch (err) {
                 if (err instanceof ExitSignal) throw err;
@@ -156,7 +178,29 @@ program
         })
     );
 
-// 3) `init-app` SUB-COMMAND
+// 3) `create-image` SUB-COMMAND
+program
+    .command('create-image [name]')
+    .description('Create a Dexto image - a distributable agent harness package')
+    .action(
+        withAnalytics('create-image', async (name?: string) => {
+            try {
+                p.intro(chalk.inverse('Create Dexto Image'));
+
+                // Create the image project structure
+                const projectPath = await createImage(name);
+
+                p.outro(chalk.greenBright(`Dexto image created successfully at ${projectPath}!`));
+                safeExit('create-image', 0);
+            } catch (err) {
+                if (err instanceof ExitSignal) throw err;
+                console.error(`❌ dexto create-image command failed: ${err}`);
+                safeExit('create-image', 1, 'error');
+            }
+        })
+    );
+
+// 4) `init-app` SUB-COMMAND
 program
     .command('init-app')
     .description('Initialize an existing Typescript app with Dexto')
@@ -202,13 +246,13 @@ program
         })
     );
 
-// 4) `setup` SUB-COMMAND
+// 5) `setup` SUB-COMMAND
 program
     .command('setup')
     .description('Configure global Dexto preferences')
     .option('--provider <provider>', 'LLM provider (openai, anthropic, google, groq)')
     .option('--model <model>', 'Model name (uses provider default if not specified)')
-    .option('--default-agent <agent>', 'Default agent name (default: default-agent)')
+    .option('--default-agent <agent>', 'Default agent name (default: coding-agent)')
     .option('--no-interactive', 'Skip interactive prompts and API key setup')
     .option('--force', 'Overwrite existing setup without confirmation')
     .action(
@@ -226,7 +270,7 @@ program
         })
     );
 
-// 5) `install` SUB-COMMAND
+// 6) `install` SUB-COMMAND
 program
     .command('install [agents...]')
     .description('Install agents from registry or custom YAML files/directories')
@@ -237,7 +281,7 @@ program
         'after',
         `
 Examples:
-  $ dexto install default-agent              Install agent from registry
+  $ dexto install coding-agent               Install agent from registry
   $ dexto install agent1 agent2              Install multiple registry agents
   $ dexto install --all                      Install all available registry agents
   $ dexto install ./my-agent.yml             Install custom agent from YAML file
@@ -259,12 +303,12 @@ Examples:
         )
     );
 
-// 6) `uninstall` SUB-COMMAND
+// 7) `uninstall` SUB-COMMAND
 program
     .command('uninstall [agents...]')
     .description('Uninstall agents from the local installation')
     .option('--all', 'Uninstall all installed agents')
-    .option('--force', 'Force uninstall even if agent is protected (e.g., default-agent)')
+    .option('--force', 'Force uninstall even if agent is protected (e.g., coding-agent)')
     .action(
         withAnalytics(
             'uninstall',
@@ -281,7 +325,7 @@ program
         )
     );
 
-// 7) `list-agents` SUB-COMMAND
+// 8) `list-agents` SUB-COMMAND
 program
     .command('list-agents')
     .description('List available and installed agents')
@@ -301,7 +345,7 @@ program
         })
     );
 
-// 8) `which` SUB-COMMAND
+// 9) `which` SUB-COMMAND
 program
     .command('which <agent>')
     .description('Show the path to an agent')
@@ -321,29 +365,51 @@ program
 // Helper to bootstrap a minimal agent for non-interactive session/search ops
 async function bootstrapAgentFromGlobalOpts() {
     const globalOpts = program.opts();
-    const resolvedPath = await resolveAgentPath(
-        globalOpts.agent,
-        globalOpts.autoInstall !== false,
-        true
-    );
+    const resolvedPath = await resolveAgentPath(globalOpts.agent, globalOpts.autoInstall !== false);
     const rawConfig = await loadAgentConfig(resolvedPath);
     const mergedConfig = applyCLIOverrides(rawConfig, globalOpts);
     const enrichedConfig = enrichAgentConfig(mergedConfig, resolvedPath, {
         logLevel: 'info', // CLI uses info-level logging for visibility
     });
 
+    // Load image dynamically if specified (same priority as main command)
+    // Priority: CLI flag > Agent config > Environment variable > Default
+    // Images are optional, but default to image-local for convenience
+    const imageName =
+        globalOpts.image || // --image flag
+        enrichedConfig.image || // image field in agent config
+        process.env.DEXTO_IMAGE || // DEXTO_IMAGE env var
+        '@dexto/image-local'; // Default for convenience
+
+    try {
+        await import(imageName);
+    } catch (_err) {
+        console.error(`❌ Failed to load image '${imageName}'`);
+        console.error(
+            `💡 Install it with: ${
+                existsSync('package.json') ? 'npm install' : 'npm install -g'
+            } ${imageName}`
+        );
+        safeExit('bootstrap', 1, 'image-load-failed');
+    }
+
     // Override approval config for read-only commands (never run conversations)
     // This avoids needing to set up unused approval handlers
     enrichedConfig.toolConfirmation = {
         mode: 'auto-approve',
-        timeout: enrichedConfig.toolConfirmation?.timeout ?? 120000,
+        ...(enrichedConfig.toolConfirmation?.timeout !== undefined && {
+            timeout: enrichedConfig.toolConfirmation.timeout,
+        }),
     };
     enrichedConfig.elicitation = {
         enabled: false,
-        timeout: enrichedConfig.elicitation?.timeout ?? 120000,
+        ...(enrichedConfig.elicitation?.timeout !== undefined && {
+            timeout: enrichedConfig.elicitation.timeout,
+        }),
     };
 
-    const agent = new DextoAgent(enrichedConfig, resolvedPath);
+    // Use relaxed validation for session commands - they don't need LLM calls
+    const agent = new DextoAgent(enrichedConfig, resolvedPath, { strict: false });
     await agent.start();
 
     // Register graceful shutdown
@@ -393,7 +459,7 @@ async function getMostRecentSessionId(
     return mostRecentId;
 }
 
-// 9) `session` SUB-COMMAND
+// 10) `session` SUB-COMMAND
 const sessionCommand = program.command('session').description('Manage chat sessions');
 
 sessionCommand
@@ -455,7 +521,7 @@ sessionCommand
         })
     );
 
-// 10) `search` SUB-COMMAND
+// 11) `search` SUB-COMMAND
 program
     .command('search')
     .description('Search session history')
@@ -516,7 +582,7 @@ program
         )
     );
 
-// 11) `mcp` SUB-COMMAND
+// 12) `mcp` SUB-COMMAND
 // For now, this mode simply aggregates and re-expose tools from configured MCP servers (no agent)
 // dexto --mode mcp will be moved to this sub-command in the future
 program
@@ -553,8 +619,7 @@ program
 
                     const configPath = await resolveAgentPath(
                         nameOrPath,
-                        globalOpts.autoInstall !== false,
-                        true
+                        globalOpts.autoInstall !== false
                     );
                     console.log(`📄 Loading Dexto config from: ${configPath}`);
                     const config = await loadAgentConfig(configPath);
@@ -607,7 +672,7 @@ program
         )
     );
 
-// 10) Main dexto CLI - Interactive/One shot (CLI/HEADLESS) or run in other modes (--mode web/discord/telegram)
+// 13) Main dexto CLI - Interactive/One shot (CLI/HEADLESS) or run in other modes (--mode web/server/mcp)
 program
     .argument(
         '[prompt...]',
@@ -641,8 +706,6 @@ program
             '  dexto --auto-approve     Auto-approve all tool executions\n\n' +
             'Advanced Modes:\n' +
             '  dexto --mode server      Run as API server\n' +
-            '  dexto --mode discord     Run as Discord bot\n' +
-            '  dexto --mode telegram    Run as Telegram bot\n' +
             '  dexto --mode mcp         Run as MCP server\n\n' +
             'See https://docs.dexto.ai for documentation and examples'
     )
@@ -764,13 +827,17 @@ program
                 let validatedConfig: ValidatedAgentConfig;
                 let resolvedPath: string;
 
+                // Determine validation mode early - used throughout config loading and agent creation
+                // Use relaxed validation for interactive modes (web/cli) where users can configure later
+                // Use strict validation for headless modes (server/mcp) that need full config upfront
+                const isInteractiveMode = opts.mode === 'web' || opts.mode === 'cli';
+
                 try {
                     // Case 1: File path - skip all validation and setup
                     if (opts.agent && isPath(opts.agent)) {
                         resolvedPath = await resolveAgentPath(
                             opts.agent,
-                            opts.autoInstall !== false,
-                            true
+                            opts.autoInstall !== false
                         );
                     }
                     // Cases 2 & 3: Default agent or registry agent
@@ -821,34 +888,256 @@ program
                             }
 
                             await handleSetupCommand({ interactive: true });
+
+                            // Reload preferences after setup to get the newly selected default mode
+                            // (setup may have just saved a different mode than the default 'web')
+                            try {
+                                const newPreferences = await loadGlobalPreferences();
+                                if (newPreferences.defaults?.defaultMode) {
+                                    opts.mode = newPreferences.defaults.defaultMode;
+                                    logger.debug(
+                                        `Updated mode from setup preferences: ${opts.mode}`
+                                    );
+                                }
+                            } catch {
+                                // Ignore errors - will use default mode
+                            }
                         }
 
-                        // Now resolve agent (will auto-install with preferences since setup is complete)
+                        // Now resolve agent (will auto-install since setup is complete)
                         resolvedPath = await resolveAgentPath(
                             opts.agent,
-                            opts.autoInstall !== false,
-                            true
+                            opts.autoInstall !== false
                         );
                     }
 
                     // Load raw config and apply CLI overrides
                     const rawConfig = await loadAgentConfig(resolvedPath);
-                    const mergedConfig = applyCLIOverrides(rawConfig, opts as CLIConfigOverrides);
+                    let mergedConfig = applyCLIOverrides(rawConfig, opts as CLIConfigOverrides);
+
+                    // ——— PREFERENCE-AWARE CONFIG HANDLING ———
+                    // For coding-agent (no explicit agent specified): Apply user preferences
+                    // For specific agents: Check compatibility and warn if needed
+                    const isDefaultAgent = !opts.agent;
+                    let preferences: Awaited<ReturnType<typeof loadGlobalPreferences>> | null =
+                        null;
+
+                    if (globalPreferencesExist()) {
+                        try {
+                            preferences = await loadGlobalPreferences();
+                        } catch {
+                            // Preferences exist but couldn't load - continue without them
+                            logger.debug('Could not load preferences, continuing without them');
+                        }
+                    }
+
+                    // Check for pending API key setup (user skipped during initial setup)
+                    if (
+                        isDefaultAgent &&
+                        preferences?.setup?.apiKeyPending &&
+                        opts.interactive !== false
+                    ) {
+                        // Check if API key is still missing (user may have set it manually)
+                        const configuredApiKey = resolveApiKeyForProvider(preferences.llm.provider);
+                        if (!configuredApiKey) {
+                            const { promptForPendingApiKey } = await import(
+                                './cli/utils/api-key-setup.js'
+                            );
+                            const { updateGlobalPreferences } = await import(
+                                '@dexto/agent-management'
+                            );
+
+                            const result = await promptForPendingApiKey(
+                                preferences.llm.provider,
+                                preferences.llm.model
+                            );
+
+                            if (result.action === 'cancel') {
+                                safeExit('main', 0, 'pending-api-key-cancelled');
+                            }
+
+                            if (result.action === 'setup' && result.apiKey) {
+                                // API key was configured - update preferences to clear pending flag
+                                await updateGlobalPreferences({
+                                    setup: { apiKeyPending: false },
+                                });
+                                // Update the merged config with the new API key
+                                mergedConfig.llm.apiKey = result.apiKey;
+                                logger.debug('API key configured, pending flag cleared');
+                            }
+                            // If 'skip', continue without API key (user chose to proceed)
+                        } else {
+                            // API key exists (user set it manually) - clear the pending flag
+                            const { updateGlobalPreferences } = await import(
+                                '@dexto/agent-management'
+                            );
+                            await updateGlobalPreferences({
+                                setup: { apiKeyPending: false },
+                            });
+                            logger.debug('API key found in environment, cleared pending flag');
+                        }
+                    }
+
+                    if (isDefaultAgent && preferences) {
+                        // Default-agent: Apply user's LLM preferences at runtime
+                        // This ensures the base agent always uses user's preferred model/provider
+                        mergedConfig = applyUserPreferences(mergedConfig, preferences);
+                        logger.debug('Applied user preferences to coding-agent', {
+                            provider: preferences.llm.provider,
+                            model: preferences.llm.model,
+                        });
+                    } else if (!isDefaultAgent && mergedConfig.llm) {
+                        // Specific agent: Check if user has the required provider configured
+                        const agentProvider = mergedConfig.llm.provider;
+                        const resolvedApiKey = resolveApiKeyForProvider(agentProvider);
+                        const compatibility = checkAgentCompatibility(
+                            mergedConfig,
+                            preferences,
+                            resolvedApiKey
+                        );
+
+                        if (!compatibility.compatible && opts.interactive !== false) {
+                            // User is missing API key for the agent's provider
+                            if (
+                                !compatibility.userHasApiKey &&
+                                preferences?.llm?.provider &&
+                                preferences?.llm?.model
+                            ) {
+                                // User has a default LLM configured - offer choice
+                                const { promptForMissingAgentApiKey } = await import(
+                                    './cli/utils/api-key-setup.js'
+                                );
+
+                                const result = await promptForMissingAgentApiKey(
+                                    compatibility.agentProvider,
+                                    compatibility.agentModel,
+                                    preferences.llm.provider,
+                                    preferences.llm.model
+                                );
+
+                                if (result.action === 'cancel') {
+                                    safeExit('main', 0, 'agent-api-key-cancelled');
+                                }
+
+                                if (result.action === 'use-default') {
+                                    // Apply user's default LLM to the agent config
+                                    mergedConfig = applyUserPreferences(mergedConfig, preferences);
+                                    // Also resolve the actual API key from environment
+                                    // (preferences store env var reference like $GOOGLE_API_KEY, not the actual key)
+                                    const userApiKey = resolveApiKeyForProvider(
+                                        preferences.llm.provider
+                                    );
+                                    if (userApiKey) {
+                                        mergedConfig.llm.apiKey = userApiKey;
+                                    }
+                                    logger.debug(
+                                        'Applied user preferences to agent (user chose default)',
+                                        {
+                                            provider: preferences.llm.provider,
+                                            model: preferences.llm.model,
+                                        }
+                                    );
+                                }
+
+                                if (result.action === 'add-key' && result.apiKey) {
+                                    // User added the API key - update the config
+                                    mergedConfig.llm.apiKey = result.apiKey;
+                                    logger.debug('Applied new API key to agent config');
+                                }
+                            } else {
+                                // No default LLM to fall back to - show warnings only
+                                console.log(chalk.yellow('\n⚠️  Agent Compatibility Notice:'));
+                                for (const warning of compatibility.warnings) {
+                                    console.log(chalk.yellow(`   ${warning}`));
+                                }
+                                if (compatibility.instructions.length > 0) {
+                                    console.log(chalk.dim('\n   To fix:'));
+                                    for (const instruction of compatibility.instructions) {
+                                        console.log(chalk.dim(`   ${instruction}`));
+                                    }
+                                }
+                                console.log(''); // Empty line for spacing
+                            }
+                        }
+                    }
+
+                    // Clean up null values from config (can happen from YAML files with explicit nulls)
+                    // This prevents "Expected string, received null" errors for optional fields
+                    const cleanedConfig = cleanNullValues(mergedConfig);
 
                     // Enrich config with per-agent paths BEFORE validation
                     // Enrichment adds filesystem paths to storage (schema has in-memory defaults)
                     // Interactive CLI mode: only log to file (console would interfere with chat UI)
                     const isInteractiveCli = opts.mode === 'cli' && !headlessInput;
-                    const enrichedConfig = enrichAgentConfig(mergedConfig, resolvedPath, {
+                    const enrichedConfig = enrichAgentConfig(cleanedConfig, resolvedPath, {
                         isInteractiveCli,
                         logLevel: 'info', // CLI uses info-level logging for visibility
                     });
 
                     // Validate enriched config with interactive setup if needed (for API key issues)
-                    validatedConfig = await validateAgentConfig(
+                    // isInteractiveMode is defined above the try block
+                    const validationResult = await validateAgentConfig(
                         enrichedConfig,
-                        opts.interactive !== false
+                        opts.interactive !== false,
+                        { strict: !isInteractiveMode }
                     );
+
+                    if (validationResult.success && validationResult.config) {
+                        validatedConfig = validationResult.config;
+                    } else if (validationResult.skipped) {
+                        // User chose to continue despite validation errors
+                        // SAFETY: This cast is intentionally unsafe - it's an escape hatch for users
+                        // when validation is overly strict or incorrect. Runtime errors will surface
+                        // if the config truly doesn't work. Future: explicit `allowUnvalidated` mode.
+                        logger.warn(
+                            'Starting with validation warnings - some features may not work'
+                        );
+                        validatedConfig = enrichedConfig as ValidatedAgentConfig;
+                    } else {
+                        // Validation failed and user didn't skip - show next steps and exit
+                        safeExit('main', 1, 'config-validation-failed');
+                    }
+
+                    // ——— LOAD IMAGE DYNAMICALLY (if specified) ———
+                    // Priority: CLI flag > Agent config > Environment variable > Default
+                    // Images are optional, but default to image-local for convenience
+                    const imageName =
+                        opts.image || // --image flag
+                        validatedConfig.image || // image field in agent config
+                        process.env.DEXTO_IMAGE || // DEXTO_IMAGE env var
+                        '@dexto/image-local'; // Default for convenience
+
+                    try {
+                        await import(imageName);
+                        logger.debug(`Loaded image: ${imageName}`);
+                    } catch (err) {
+                        console.error(`❌ Failed to load image '${imageName}'`);
+                        console.error(
+                            `💡 Install it with: ${
+                                existsSync('package.json') ? 'npm install' : 'npm install -g'
+                            } ${imageName}`
+                        );
+                        if (err instanceof Error) {
+                            logger.debug(`Image load error: ${err.message}`);
+                        }
+                        safeExit('main', 1, 'image-load-failed');
+                    }
+
+                    // Validate that if config specifies an image, it matches what was loaded
+                    // Skip this check if user explicitly provided --image flag (intentional override)
+                    if (
+                        !opts.image &&
+                        validatedConfig.image &&
+                        validatedConfig.image !== imageName
+                    ) {
+                        console.error(
+                            `❌ Config specifies image '${validatedConfig.image}' but '${imageName}' was loaded instead`
+                        );
+                        console.error(
+                            `💡 Either remove 'image' from config or ensure it matches the loaded image`
+                        );
+                        safeExit('main', 1, 'image-mismatch');
+                    }
                 } catch (err) {
                     if (err instanceof ExitSignal) throw err;
                     // Config loading failed completely
@@ -919,7 +1208,10 @@ program
 
                     // Config is already enriched and validated - ready for agent creation
                     // DextoAgent will parse/validate again (parse-twice pattern)
-                    agent = new DextoAgent(validatedConfig, resolvedPath);
+                    // isInteractiveMode is already defined above for validateAgentConfig
+                    agent = new DextoAgent(validatedConfig, resolvedPath, {
+                        strict: !isInteractiveMode,
+                    });
 
                     // Start the agent (initialize async services)
                     // - web/server modes: initializeHonoApi will set approval handler and start the agent
@@ -1099,8 +1391,57 @@ program
                         } else {
                             // Interactive mode - session management handled via /resume command
                             // Note: -c and -r flags are validated to require a prompt (headless mode only)
-                            // Defer session creation until first message is sent to prevent stale empty sessions
-                            const cliSessionId: string | null = null;
+
+                            // Check if API key is configured before trying to create session
+                            // Session creation triggers LLM service init which requires API key
+                            const llmConfig = agent.getCurrentLLMConfig();
+                            const { requiresApiKey } = await import('@dexto/core');
+                            if (requiresApiKey(llmConfig.provider) && !llmConfig.apiKey?.trim()) {
+                                // Offer interactive API key setup instead of just exiting
+                                const { interactiveApiKeySetup } = await import(
+                                    './cli/utils/api-key-setup.js'
+                                );
+
+                                console.log(
+                                    chalk.yellow(
+                                        `\n⚠️  API key required for provider '${llmConfig.provider}'\n`
+                                    )
+                                );
+
+                                const setupResult = await interactiveApiKeySetup(
+                                    llmConfig.provider,
+                                    {
+                                        exitOnCancel: false,
+                                        model: llmConfig.model,
+                                    }
+                                );
+
+                                if (setupResult.cancelled) {
+                                    await agent.stop().catch(() => {});
+                                    safeExit('main', 0, 'api-key-setup-cancelled');
+                                }
+
+                                if (setupResult.skipped) {
+                                    // User chose to skip - exit with instructions
+                                    await agent.stop().catch(() => {});
+                                    safeExit('main', 0, 'api-key-pending');
+                                }
+
+                                if (setupResult.success && setupResult.apiKey) {
+                                    // API key was entered and saved - reload config and continue
+                                    // Update the agent's LLM config with the new API key
+                                    await agent.switchLLM({
+                                        provider: llmConfig.provider,
+                                        model: llmConfig.model,
+                                        apiKey: setupResult.apiKey,
+                                    });
+                                    logger.info('API key configured successfully, continuing...');
+                                }
+                            }
+
+                            // Create session eagerly so slash commands work immediately
+                            const session = await agent.createSession();
+                            const cliSessionId: string = session.id;
 
                             // Interactive mode - use Ink CLI with session support
                             // Suppress console output before starting Ink UI
@@ -1153,8 +1494,8 @@ program
 
                             safeExit('main', 0);
                         }
-                        break;
                     }
+                    // falls through - safeExit returns never, but eslint doesn't know that
 
                     case 'web': {
                         // Default to 3000 for web mode
@@ -1225,26 +1566,6 @@ program
                         break;
                     }
 
-                    case 'discord':
-                        console.log('🤖 Starting Discord bot…');
-                        try {
-                            startDiscordBot(agent);
-                        } catch (err) {
-                            console.error('❌ Discord startup failed:', err);
-                            safeExit('main', 1, 'discord-startup-failed');
-                        }
-                        break;
-
-                    case 'telegram':
-                        console.log('🤖 Starting Telegram bot…');
-                        try {
-                            startTelegramBot(agent);
-                        } catch (err) {
-                            console.error('❌ Telegram startup failed:', err);
-                            safeExit('main', 1, 'telegram-startup-failed');
-                        }
-                        break;
-
                     // TODO: Remove if server mode is stable and supports mcp
                     // Starts dexto as a local mcp server
                     // Use `dexto --mode mcp` to start dexto as a local mcp server
@@ -1278,9 +1599,26 @@ program
                     }
 
                     default:
-                        console.error(
-                            `❌ Unknown mode '${opts.mode}'. Use web, cli, server, discord, telegram, or mcp.`
-                        );
+                        if (opts.mode === 'discord' || opts.mode === 'telegram') {
+                            console.error(
+                                `❌ Error: '${opts.mode}' mode has been moved to examples`
+                            );
+                            console.error('');
+                            console.error(
+                                `The ${opts.mode} bot is now a standalone example that you can customize.`
+                            );
+                            console.error('');
+                            console.error(`📖 See: examples/${opts.mode}-bot/README.md`);
+                            console.error('');
+                            console.error(`To run it:`);
+                            console.error(`  cd examples/${opts.mode}-bot`);
+                            console.error(`  pnpm install`);
+                            console.error(`  pnpm start`);
+                        } else {
+                            console.error(
+                                `❌ Unknown mode '${opts.mode}'. Use web, cli, server, or mcp.`
+                            );
+                        }
                         safeExit('main', 1, 'unknown-mode');
                 }
             },
@@ -1288,5 +1626,5 @@ program
         )
     );
 
-// 11) PARSE & EXECUTE
+// 14) PARSE & EXECUTE
 program.parseAsync(process.argv);

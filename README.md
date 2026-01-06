@@ -271,8 +271,8 @@ dexto --agent ./agents/examples/email_slack.yml
 | **Headless Server** | `dexto --mode server` | REST & SSE streaming APIs for agent interaction |
 | **MCP Server (Agent)** | `dexto --mode mcp` | Exposing your agent as a tool for others via stdio |
 | **MCP Server (Aggregator)** | `dexto mcp --group-servers` | Re-exposing tools from multiple MCP servers via stdio |
-| **Discord Bot** | `dexto --mode discord` | Community servers & channels ([Requires Setup](packages/cli/src/discord/README.md)) |
-| **Telegram Bot** | `dexto --mode telegram` | Mobile chat ([Requires Setup](packages/cli/src/telegram/README.md)) |
+| **Discord Bot** | [See `examples/discord-bot/`](examples/discord-bot/) | Community servers & channels (reference implementation) |
+| **Telegram Bot** | [See `examples/telegram-bot/`](examples/telegram-bot/) | Mobile chat (reference implementation) |
 
 Run `dexto --help` for **all flags, sub-commands, and environment variables**.
 
@@ -309,14 +309,31 @@ systemPrompt: |
 
 Switch between providers instantly—no code changes required.
 
+#### Built-in Providers
+
 | Provider | Models | Setup |
 |----------|--------|-------|
-| **OpenAI** | `gpt-5.1-chat-latest`, `gpt-5.1`, `gpt-5.1-codex`, `gpt-5.1-codex-mini`, `gpt-5`, `gpt-5-mini`, `gpt-5-nano`, `gpt-5-pro`, `gpt-5-codex`, `gpt-4.1`, `gpt-4.1-mini`, `gpt-4.1-nano`, `gpt-4o`, `gpt-4o-mini`, `gpt-4o-audio-preview`, `o4-mini`, `o3`, `o3-mini`, `o1` | `change model in UI and add api key` |
-| **Anthropic** | `claude-haiku-4-5-20251001`, `claude-sonnet-4-5-20250929`, `claude-opus-4-5-20251101`, `claude-opus-4-1-20250805`, `claude-4-opus-20250514`, `claude-4-sonnet-20250514`, `claude-3-7-sonnet-20250219`, `claude-3-5-sonnet-20240620`, `claude-3-5-haiku-20241022` | `change model in UI and add api key` |
-| **Google** | `gemini-3-pro-preview`, `gemini-3-pro-image-preview`, `gemini-2.5-pro`, `gemini-2.5-flash`, `gemini-2.5-flash-lite`, `gemini-2.0-flash`, `gemini-2.0-flash-lite` | `change model in UI and add api key` |
-| **Groq** | `llama-3.3-70b-versatile`, `meta-llama/llama-4-scout-17b-16e-instruct`, `meta-llama/llama-4-maverick-17b-128e-instruct`, `qwen/qwen3-32b`, `gemma-2-9b-it`, `openai/gpt-oss-20b`, `openai/gpt-oss-120b`, `moonshotai/kimi-k2-instruct`, `deepseek-r1-distill-llama-70b` | `change model in UI and add api key` |
-| **xAI** | `grok-4`, `grok-3`, `grok-3-mini`, `grok-code-fast-1` | `change model in UI and add api key` |
-| **Cohere** | `command-a-03-2025`, `command-r-plus`, `command-r`, `command-r7b` | `change model in UI and add api key` |
+| **OpenAI** | `gpt-5.1-chat-latest`, `gpt-5.1`, `gpt-5.1-codex`, `gpt-5-mini`, `gpt-4.1`, `gpt-4o`, `o4-mini`, `o3`, `o1` | API key |
+| **Anthropic** | `claude-sonnet-4-5-20250929`, `claude-opus-4-5-20251101`, `claude-haiku-4-5-20251001`, `claude-3-7-sonnet-20250219` | API key |
+| **Google** | `gemini-3-pro-preview`, `gemini-3-pro-image-preview`, `gemini-3-flash-preview`, `gemini-2.5-pro`, `gemini-2.5-flash`, `gemini-2.0-flash` | API key |
+| **Groq** | `llama-3.3-70b-versatile`, `gemma-2-9b-it`, `openai/gpt-oss-20b`, `openai/gpt-oss-120b`, `moonshotai/kimi-k2-instruct`, `meta-llama/llama-4-scout-17b-16e-instruct`, `meta-llama/llama-4-maverick-17b-128e-instruct`, `deepseek-r1-distill-llama-70b`, `qwen/qwen3-32b` | API key |
+| **xAI** | `grok-4`, `grok-3`, `grok-3-mini`, `grok-code-fast-1` | API key |
+| **Cohere** | `command-a-03-2025`, `command-r-plus`, `command-r`, `command-r7b` | API key |
+
+#### Cloud Platforms
+
+| Provider | Models | Setup |
+|----------|--------|-------|
+| **Vertex AI** | Gemini, Claude | GCP credentials ([docs](https://docs.dexto.ai/docs/guides/supported-llm-providers#google-cloud-vertex-ai)) |
+| **AWS Bedrock** | Claude, Nova, Llama, Mistral | AWS credentials ([docs](https://docs.dexto.ai/docs/guides/supported-llm-providers#amazon-bedrock)) |
+
+#### Gateway Providers
+
+| Provider | Models | Setup |
+|----------|--------|-------|
+| **OpenRouter** | 100+ models via `provider/model` format | API key |
+| **Glama** | Multi-provider access via `provider/model` format | API key |
+| **LiteLLM** | Self-hosted proxy for any provider | API key + baseURL |
 
 ```bash
 # Switch models via CLI
@@ -326,7 +343,9 @@ dexto -m gemini-2.5-pro
 
 You can configure things like LLM, system prompt, MCP servers, storage, sessions, human-in-the loop, telemetry and more!
 
-See our [Configuration Guide](https://docs.dexto.ai/docs/category/agent-configuration-guide) for complete setup instructions.
+You can also switch within the interactive CLI (/model) and in the web UI easily without needing to set up configuration.
+
+See our [Configuration Guide](https://docs.dexto.ai/docs/category/agent-configuration-guide) and [Supported LLM Providers](https://docs.dexto.ai/docs/guides/supported-llm-providers) for complete setup instructions.
 
 
 ## Dexto Agent SDK
@@ -354,23 +373,68 @@ await agent.start();
 const session = await agent.createSession();
 
 // Use generate() for simple request/response
-const response = await agent.generate('What is TypeScript?', {
-  sessionId: session.id
-});
+const response = await agent.generate('What is TypeScript?', session.id);
 console.log(response.content);
 
 // Conversations maintain context within a session
-await agent.generate('Write a haiku about it', { sessionId: session.id });
-await agent.generate('Make it funnier', { sessionId: session.id });
+await agent.generate('Write a haiku about it', session.id);
+await agent.generate('Make it funnier', session.id);
+
+// Multimodal: send images or files
+await agent.generate([
+  { type: 'text', text: 'Describe this image' },
+  { type: 'image', image: base64Data, mimeType: 'image/png' }
+], session.id);
+
+// Streaming for real-time UIs
+for await (const event of await agent.stream('Write a story', session.id)) {
+  if (event.name === 'llm:chunk') process.stdout.write(event.content);
+}
 
 await agent.stop();
 ```
 
-See our [Dexto Agent SDK docs](https://docs.dexto.ai/api/category/dexto-sdk/) for complete examples with MCP tools, sessions, and advanced features.
+See our [Dexto Agent SDK docs](https://docs.dexto.ai/docs/guides/dexto-sdk) for multimodal content, streaming, MCP tools, and advanced features.
 
 ---
 
 ## Advanced Usage
+
+### Starting a Server
+
+Start a Dexto server programmatically to expose REST and SSE streaming APIs to interact and manage your agent backend.
+
+```typescript
+import { DextoAgent } from '@dexto/core';
+import { startHonoApiServer } from 'dexto';
+
+// Create and configure agent
+const agent = new DextoAgent({
+  llm: {
+    provider: 'openai',
+    model: 'gpt-5-mini',
+    apiKey: process.env.OPENAI_API_KEY
+  },
+  mcpServers: {
+    filesystem: {
+      type: 'stdio',
+      command: 'npx',
+      args: ['-y', '@modelcontextprotocol/server-filesystem', '.']
+    }
+  }
+});
+
+// Start server on port 3001
+const { server } = await startHonoApiServer(agent, 3001);
+
+console.log('Dexto server running at http://localhost:3001');
+// Server provides REST API and SSE streaming endpoints
+// POST /api/message - Send messages
+// GET /api/sessions - List sessions
+// See docs.dexto.ai/api/rest/ for all endpoints
+```
+
+This starts an HTTP server with full REST and SSE APIs, enabling integration with web frontends, webhooks, and other services. See the [REST API Documentation](https://docs.dexto.ai/api/rest/) for available endpoints.
 
 ### Session Management
 
@@ -382,7 +446,7 @@ await agent.start();
 
 // Create and manage sessions
 const session = await agent.createSession('user-123');
-await agent.generate('Hello, how can you help me?', { sessionId: session.id });
+await agent.generate('Hello, how can you help me?', session.id);
 
 // List and manage sessions
 const sessions = await agent.listSessions();
@@ -509,9 +573,11 @@ Agent Selection:
 
 Advanced Modes:
   dexto --mode server      Run as API server
-  dexto --mode discord     Run as Discord bot
-  dexto --mode telegram    Run as Telegram bot
   dexto --mode mcp         Run as MCP server
+
+Platform Integrations (Reference Implementations):
+  See examples/discord-bot/     Run as Discord bot
+  See examples/telegram-bot/    Run as Telegram bot
 
 Session Commands: dexto session list|history|delete • search
 Search: dexto search <query> [--session <id>] [--role <role>]
@@ -540,8 +606,8 @@ Options:
   -c, --continue                   Continue most recent conversation
   -r, --resume <sessionId>         Resume session by ID
   --mode <mode>                    The application in which dexto should talk
-                                   to you - web | cli | server | discord |
-                                   telegram | mcp (default: "web")
+                                   to you - web | cli | server | mcp
+                                   (default: "web")
   --port <port>                    port for the server (default: 3000 for web,
                                    3001 for server mode)
   --no-auto-install                Disable automatic installation of missing

@@ -1,0 +1,526 @@
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { ContextManager } from './manager.js';
+import { MemoryHistoryProvider } from '../session/history/memory.js';
+import { createMockLogger } from '../logger/v2/test-utils.js';
+import type { ContentPart, SanitizedToolResult } from './types.js';
+import type { ValidatedLLMConfig } from '../llm/schemas.js';
+import type { VercelMessageFormatter } from '../llm/formatters/vercel.js';
+import type { SystemPromptManager } from '../systemPrompt/manager.js';
+import type { ResourceManager } from '../resources/manager.js';
+import type { BlobStore } from '../storage/blob/types.js';
+
+// Create mock dependencies
+const mockLogger = createMockLogger();
+
+function createMockLLMConfig(): ValidatedLLMConfig {
+    return {
+        provider: 'openai',
+        model: 'gpt-4',
+        apiKey: 'test-key',
+        maxIterations: 10,
+    } as ValidatedLLMConfig;
+}
+
+function createMockFormatter(): VercelMessageFormatter {
+    return {
+        format: vi.fn().mockReturnValue([]),
+        formatSystemPrompt: vi.fn().mockReturnValue(null),
+    } as unknown as VercelMessageFormatter;
+}
+
+function createMockSystemPromptManager(): SystemPromptManager {
+    return {
+        build: vi.fn().mockResolvedValue('You are a helpful assistant.'),
+    } as unknown as SystemPromptManager;
+}
+
+function createMockBlobStore(): BlobStore {
+    return {
+        store: vi.fn(),
+        retrieve: vi.fn(),
+        exists: vi.fn(),
+        delete: vi.fn(),
+        cleanup: vi.fn(),
+        getStats: vi.fn(),
+        listBlobs: vi.fn(),
+        getStoragePath: vi.fn(),
+        connect: vi.fn(),
+        disconnect: vi.fn(),
+        isConnected: vi.fn().mockReturnValue(true),
+        getStoreType: vi.fn().mockReturnValue('mock'),
+    } as unknown as BlobStore;
+}
+
+function createMockResourceManager(): ResourceManager {
+    const mockBlobStore = createMockBlobStore();
+    return {
+        read: vi.fn(),
+        getBlobStore: vi.fn().mockReturnValue(mockBlobStore),
+    } as unknown as ResourceManager;
+}
+
+function createContextManager() {
+    const historyProvider = new MemoryHistoryProvider(mockLogger);
+    const formatter = createMockFormatter();
+    const systemPromptManager = createMockSystemPromptManager();
+    const resourceManager = createMockResourceManager();
+    const llmConfig = createMockLLMConfig();
+
+    return new ContextManager(
+        llmConfig,
+        formatter,
+        systemPromptManager,
+        4096, // maxInputTokens
+        historyProvider,
+        'test-session-id',
+        resourceManager,
+        mockLogger
+    );
+}
+
+describe('ContextManager', () => {
+    let contextManager: ContextManager;
+
+    beforeEach(() => {
+        vi.clearAllMocks();
+        contextManager = createContextManager();
+    });
+
+    describe('addUserMessage', () => {
+        it('should add a user message with text content', async () => {
+            const content: ContentPart[] = [{ type: 'text', text: 'Hello, world!' }];
+
+            await contextManager.addUserMessage(content);
+
+            const history = await contextManager.getHistory();
+            expect(history).toHaveLength(1);
+            expect(history[0]?.role).toBe('user');
+            expect(history[0]?.content).toEqual([{ type: 'text', text: 'Hello, world!' }]);
+        });
+
+        it('should add a user message with multiple text parts', async () => {
+            const content: ContentPart[] = [
+                { type: 'text', text: 'First part' },
+                { type: 'text', text: 'Second part' },
+            ];
+
+            await contextManager.addUserMessage(content);
+
+            const history = await contextManager.getHistory();
+            expect(history).toHaveLength(1);
+            expect(history[0]?.content).toHaveLength(2);
+        });
+
+        it('should add a user message with image content', async () => {
+            const content: ContentPart[] = [
+                { type: 'text', text: 'Check this image' },
+                { type: 'image', image: 'base64data', mimeType: 'image/png' },
+            ];
+
+            await contextManager.addUserMessage(content);
+
+            const history = await contextManager.getHistory();
+            expect(history).toHaveLength(1);
+            expect(history[0]?.content).toHaveLength(2);
+            const imagePart = (history[0]?.content as ContentPart[])?.[1];
+            expect(imagePart?.type).toBe('image');
+        });
+
+        it('should add a user message with file content', async () => {
+            const content: ContentPart[] = [
+                { type: 'text', text: 'Here is a file' },
+                {
+                    type: 'file',
+                    data: 'filedata',
+                    mimeType: 'application/pdf',
+                    filename: 'doc.pdf',
+                },
+            ];
+
+            await contextManager.addUserMessage(content);
+
+            const history = await contextManager.getHistory();
+            expect(history).toHaveLength(1);
+            const filePart = (history[0]?.content as ContentPart[])?.[1];
+            expect(filePart?.type).toBe('file');
+        });
+
+        it('should throw error for empty content array', async () => {
+            await expect(contextManager.addUserMessage([])).rejects.toThrow();
+        });
+
+        it('should throw error for content with only whitespace text', async () => {
+            const content: ContentPart[] = [{ type: 'text', text: '   ' }];
+
+            await expect(contextManager.addUserMessage(content)).rejects.toThrow();
+        });
+
+        it('should allow empty text with image attachment', async () => {
+            const content: ContentPart[] = [
+                { type: 'text', text: '' },
+                { type: 'image', image: 'base64data', mimeType: 'image/png' },
+            ];
+
+            await contextManager.addUserMessage(content);
+
+            const history = await contextManager.getHistory();
+            expect(history).toHaveLength(1);
+            // Empty text parts are filtered out, only image remains
+            expect((history[0]?.content as ContentPart[])?.some((p) => p.type === 'image')).toBe(
+                true
+            );
+        });
+
+        it('should generate message id and timestamp', async () => {
+            const content: ContentPart[] = [{ type: 'text', text: 'Hello' }];
+
+            await contextManager.addUserMessage(content);
+
+            const history = await contextManager.getHistory();
+            expect(history[0]?.id).toBeDefined();
+            expect(history[0]?.timestamp).toBeDefined();
+            expect(typeof history[0]?.id).toBe('string');
+            expect(typeof history[0]?.timestamp).toBe('number');
+        });
+    });
+
+    describe('addAssistantMessage', () => {
+        it('should add an assistant message with string content', async () => {
+            await contextManager.addAssistantMessage('Hello from assistant');
+
+            const history = await contextManager.getHistory();
+            expect(history).toHaveLength(1);
+            expect(history[0]?.role).toBe('assistant');
+            // String content should be wrapped in ContentPart[]
+            expect(history[0]?.content).toEqual([{ type: 'text', text: 'Hello from assistant' }]);
+        });
+
+        it('should add an assistant message with null content and tool calls', async () => {
+            const toolCalls = [
+                {
+                    id: 'call-1',
+                    type: 'function' as const,
+                    function: { name: 'test_tool', arguments: '{}' },
+                },
+            ];
+
+            await contextManager.addAssistantMessage(null, toolCalls);
+
+            const history = await contextManager.getHistory();
+            expect(history).toHaveLength(1);
+            expect(history[0]?.role).toBe('assistant');
+            expect(history[0]?.content).toBeNull();
+            expect((history[0] as any).toolCalls).toHaveLength(1);
+        });
+
+        it('should add an assistant message with content and tool calls', async () => {
+            const toolCalls = [
+                {
+                    id: 'call-1',
+                    type: 'function' as const,
+                    function: { name: 'test_tool', arguments: '{}' },
+                },
+            ];
+
+            await contextManager.addAssistantMessage('Let me help', toolCalls);
+
+            const history = await contextManager.getHistory();
+            expect(history).toHaveLength(1);
+            expect(history[0]?.content).toEqual([{ type: 'text', text: 'Let me help' }]);
+            expect((history[0] as any).toolCalls).toHaveLength(1);
+        });
+
+        it('should throw error when neither content nor tool calls provided', async () => {
+            await expect(contextManager.addAssistantMessage(null, [])).rejects.toThrow();
+            await expect(contextManager.addAssistantMessage(null, undefined)).rejects.toThrow();
+        });
+
+        it('should include token usage metadata', async () => {
+            const tokenUsage = {
+                promptTokens: 100,
+                completionTokens: 50,
+                totalTokens: 150,
+            };
+
+            await contextManager.addAssistantMessage('Response', undefined, { tokenUsage });
+
+            const history = await contextManager.getHistory();
+            expect((history[0] as any).tokenUsage).toEqual(tokenUsage);
+        });
+
+        it('should include reasoning metadata', async () => {
+            await contextManager.addAssistantMessage('Response', undefined, {
+                reasoning: 'I thought about this carefully',
+            });
+
+            const history = await contextManager.getHistory();
+            expect((history[0] as any).reasoning).toBe('I thought about this carefully');
+        });
+
+        it('should enrich with provider and model from config', async () => {
+            await contextManager.addAssistantMessage('Response');
+
+            const history = await contextManager.getHistory();
+            expect((history[0] as any).provider).toBe('openai');
+            expect((history[0] as any).model).toBe('gpt-4');
+        });
+    });
+
+    describe('appendAssistantText', () => {
+        it('should append text to existing assistant message with null content', async () => {
+            // First add an assistant message with tool calls only (null content)
+            const toolCalls = [
+                {
+                    id: 'call-1',
+                    type: 'function' as const,
+                    function: { name: 'test_tool', arguments: '{}' },
+                },
+            ];
+            await contextManager.addAssistantMessage(null, toolCalls);
+
+            const history = await contextManager.getHistory();
+            const messageId = history[0]?.id!;
+
+            // Append text
+            await contextManager.appendAssistantText(messageId, 'New text');
+
+            const updatedHistory = await contextManager.getHistory();
+            expect(updatedHistory[0]?.content).toEqual([{ type: 'text', text: 'New text' }]);
+        });
+
+        it('should append text to existing text part', async () => {
+            await contextManager.addAssistantMessage('Initial');
+
+            const history = await contextManager.getHistory();
+            const messageId = history[0]?.id!;
+
+            await contextManager.appendAssistantText(messageId, ' appended');
+
+            const updatedHistory = await contextManager.getHistory();
+            expect(updatedHistory[0]?.content).toEqual([
+                { type: 'text', text: 'Initial appended' },
+            ]);
+        });
+
+        it('should throw error for non-existent message', async () => {
+            await expect(
+                contextManager.appendAssistantText('non-existent-id', 'text')
+            ).rejects.toThrow();
+        });
+
+        it('should throw error for non-assistant message', async () => {
+            await contextManager.addUserMessage([{ type: 'text', text: 'User message' }]);
+
+            const history = await contextManager.getHistory();
+            const messageId = history[0]?.id!;
+
+            await expect(contextManager.appendAssistantText(messageId, 'text')).rejects.toThrow();
+        });
+    });
+
+    describe('addToolResult', () => {
+        it('should add a tool result message', async () => {
+            const sanitizedResult: SanitizedToolResult = {
+                content: [{ type: 'text', text: 'Tool output' }],
+                meta: {
+                    toolName: 'test_tool',
+                    toolCallId: 'call-123',
+                    success: true,
+                },
+            };
+
+            await contextManager.addToolResult('call-123', 'test_tool', sanitizedResult);
+
+            const history = await contextManager.getHistory();
+            expect(history).toHaveLength(1);
+            expect(history[0]?.role).toBe('tool');
+            expect(history[0]?.content).toEqual([{ type: 'text', text: 'Tool output' }]);
+            expect((history[0] as any).toolCallId).toBe('call-123');
+            expect((history[0] as any).name).toBe('test_tool');
+            expect((history[0] as any).success).toBe(true);
+        });
+
+        it('should add a tool result with image content', async () => {
+            const sanitizedResult: SanitizedToolResult = {
+                content: [
+                    { type: 'text', text: 'Here is the screenshot' },
+                    { type: 'image', image: 'base64screenshot', mimeType: 'image/png' },
+                ],
+                meta: {
+                    toolName: 'screenshot_tool',
+                    toolCallId: 'call-456',
+                    success: true,
+                },
+            };
+
+            await contextManager.addToolResult('call-456', 'screenshot_tool', sanitizedResult);
+
+            const history = await contextManager.getHistory();
+            expect(history[0]?.content).toHaveLength(2);
+        });
+
+        it('should add a failed tool result', async () => {
+            const sanitizedResult: SanitizedToolResult = {
+                content: [{ type: 'text', text: 'Error: Tool failed' }],
+                meta: {
+                    toolName: 'failing_tool',
+                    toolCallId: 'call-789',
+                    success: false,
+                },
+            };
+
+            await contextManager.addToolResult('call-789', 'failing_tool', sanitizedResult);
+
+            const history = await contextManager.getHistory();
+            expect((history[0] as any).success).toBe(false);
+        });
+
+        it('should include approval metadata', async () => {
+            const sanitizedResult: SanitizedToolResult = {
+                content: [{ type: 'text', text: 'Approved result' }],
+                meta: {
+                    toolName: 'dangerous_tool',
+                    toolCallId: 'call-approved',
+                    success: true,
+                },
+            };
+
+            await contextManager.addToolResult('call-approved', 'dangerous_tool', sanitizedResult, {
+                requireApproval: true,
+                approvalStatus: 'approved',
+            });
+
+            const history = await contextManager.getHistory();
+            expect((history[0] as any).requireApproval).toBe(true);
+            expect((history[0] as any).approvalStatus).toBe('approved');
+        });
+
+        it('should throw error when toolCallId is missing', async () => {
+            const sanitizedResult: SanitizedToolResult = {
+                content: [{ type: 'text', text: 'Output' }],
+                meta: {
+                    toolName: 'test_tool',
+                    toolCallId: 'call-123',
+                    success: true,
+                },
+            };
+
+            await expect(
+                contextManager.addToolResult('', 'test_tool', sanitizedResult)
+            ).rejects.toThrow();
+        });
+
+        it('should throw error when name is missing', async () => {
+            const sanitizedResult: SanitizedToolResult = {
+                content: [{ type: 'text', text: 'Output' }],
+                meta: {
+                    toolName: 'test_tool',
+                    toolCallId: 'call-123',
+                    success: true,
+                },
+            };
+
+            await expect(
+                contextManager.addToolResult('call-123', '', sanitizedResult)
+            ).rejects.toThrow();
+        });
+    });
+
+    describe('getHistory', () => {
+        it('should return empty array initially', async () => {
+            const history = await contextManager.getHistory();
+            expect(history).toEqual([]);
+        });
+
+        it('should return all messages in order', async () => {
+            await contextManager.addUserMessage([{ type: 'text', text: 'User 1' }]);
+            await contextManager.addAssistantMessage('Assistant 1');
+            await contextManager.addUserMessage([{ type: 'text', text: 'User 2' }]);
+
+            const history = await contextManager.getHistory();
+            expect(history).toHaveLength(3);
+            expect(history[0]?.role).toBe('user');
+            expect(history[1]?.role).toBe('assistant');
+            expect(history[2]?.role).toBe('user');
+        });
+
+        it('should return defensive copy', async () => {
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+
+            const history1 = await contextManager.getHistory();
+            const history2 = await contextManager.getHistory();
+
+            expect(history1).not.toBe(history2);
+            expect(history1).toEqual(history2);
+        });
+    });
+
+    describe('resetConversation', () => {
+        it('should clear all messages', async () => {
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+            await contextManager.addAssistantMessage('Hi');
+
+            let history = await contextManager.getHistory();
+            expect(history).toHaveLength(2);
+
+            await contextManager.resetConversation();
+
+            history = await contextManager.getHistory();
+            expect(history).toEqual([]);
+        });
+    });
+
+    describe('markMessagesAsCompacted', () => {
+        it('should mark tool messages as compacted', async () => {
+            // Add a tool result
+            const sanitizedResult: SanitizedToolResult = {
+                content: [{ type: 'text', text: 'Tool output' }],
+                meta: { toolName: 'test', toolCallId: 'call-1', success: true },
+            };
+            await contextManager.addToolResult('call-1', 'test', sanitizedResult);
+
+            const history = await contextManager.getHistory();
+            const messageId = history[0]?.id!;
+
+            const count = await contextManager.markMessagesAsCompacted([messageId]);
+
+            expect(count).toBe(1);
+            const updatedHistory = await contextManager.getHistory();
+            expect((updatedHistory[0] as any).compactedAt).toBeDefined();
+        });
+
+        it('should not mark non-tool messages', async () => {
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+
+            const history = await contextManager.getHistory();
+            const messageId = history[0]?.id!;
+
+            const count = await contextManager.markMessagesAsCompacted([messageId]);
+
+            expect(count).toBe(0);
+        });
+
+        it('should skip already compacted messages', async () => {
+            const sanitizedResult: SanitizedToolResult = {
+                content: [{ type: 'text', text: 'Tool output' }],
+                meta: { toolName: 'test', toolCallId: 'call-1', success: true },
+            };
+            await contextManager.addToolResult('call-1', 'test', sanitizedResult);
+
+            const history = await contextManager.getHistory();
+            const messageId = history[0]?.id!;
+
+            // Mark once
+            await contextManager.markMessagesAsCompacted([messageId]);
+            // Mark again
+            const count = await contextManager.markMessagesAsCompacted([messageId]);
+
+            expect(count).toBe(0);
+        });
+
+        it('should return 0 for empty array', async () => {
+            const count = await contextManager.markMessagesAsCompacted([]);
+            expect(count).toBe(0);
+        });
+    });
+});

@@ -61,9 +61,17 @@ export function ToolConfirmationHandler({
                 `[WebUI] Sending approval response for ${approvalId}: ${approved ? 'approved' : 'denied'}`
             );
 
+            // Use approval's sessionId as authoritative source for cache invalidation
+            const sessionId = currentApproval.sessionId || currentSessionId;
+            if (!sessionId) {
+                console.error('[WebUI] Cannot submit approval without sessionId');
+                return;
+            }
+
             try {
                 await submitApproval({
                     approvalId,
+                    sessionId,
                     status: approved ? ApprovalStatus.APPROVED : ApprovalStatus.DENIED,
                     ...(approved && formData ? { formData } : {}),
                     ...(approved && rememberChoice !== undefined ? { rememberChoice } : {}),
@@ -77,7 +85,7 @@ export function ToolConfirmationHandler({
             // Clear current approval (processes queue automatically)
             clearApproval();
         },
-        [currentApproval, submitApproval, clearApproval]
+        [currentApproval, currentSessionId, submitApproval, clearApproval]
     );
 
     const handleApprove = useCallback(

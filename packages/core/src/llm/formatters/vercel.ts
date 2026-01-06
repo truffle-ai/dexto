@@ -1,9 +1,25 @@
 import type { ModelMessage, AssistantContent, ToolContent, ToolResultPart } from 'ai';
 import { LLMContext } from '../types.js';
-import { InternalMessage } from '@core/context/types.js';
+import type { InternalMessage, AssistantMessage, ToolMessage } from '@core/context/types.js';
 import { getImageData, getFileData, filterMessagesByLLMCapabilities } from '@core/context/utils.js';
 import type { IDextoLogger } from '@core/logger/v2/types.js';
 import { DextoLogComponent } from '@core/logger/v2/types.js';
+
+/**
+ * Checks if a string is a URL (http:// or https://).
+ * Returns a URL object if it's a valid URL string, otherwise returns the original value.
+ */
+function toUrlIfString<T>(value: T): T | URL {
+    if (typeof value === 'string' && /^https?:\/\//i.test(value)) {
+        try {
+            return new URL(value);
+        } catch {
+            // Invalid URL, return original string
+            return value;
+        }
+    }
+    return value;
+}
 
 /**
  * Message formatter for Vercel AI SDK.
@@ -80,14 +96,14 @@ export class VercelMessageFormatter {
                                           if (part.type === 'file') {
                                               return {
                                                   type: 'file' as const,
-                                                  data: part.data,
+                                                  data: toUrlIfString(part.data),
                                                   mediaType: part.mimeType, // Convert mimeType -> mediaType
                                                   ...(part.filename && { filename: part.filename }),
                                               };
                                           } else if (part.type === 'image') {
                                               return {
                                                   type: 'image' as const,
-                                                  image: part.image,
+                                                  image: toUrlIfString(part.image),
                                                   ...(part.mimeType && {
                                                       mediaType: part.mimeType,
                                                   }), // Convert mimeType -> mediaType
@@ -181,17 +197,14 @@ export class VercelMessageFormatter {
     }
 
     // Helper to format Assistant messages (with optional tool calls)
-    // TODO: improve typing when InternalMessage type is updated
-    private formatAssistantMessage(msg: InternalMessage): {
+    private formatAssistantMessage(msg: AssistantMessage): {
         content: AssistantContent;
         function_call?: { name: string; arguments: string };
     } {
         if (msg.toolCalls && msg.toolCalls.length > 0) {
             const contentParts: AssistantContent = [];
-            if (typeof msg.content === 'string' && msg.content.length > 0) {
-                contentParts.push({ type: 'text', text: msg.content });
-            } else if (Array.isArray(msg.content)) {
-                // Robustness: if assistant content is accidentally an array, extract text parts
+            if (Array.isArray(msg.content)) {
+                // Extract text parts from content array
                 const combined = msg.content
                     .map((part) => (part.type === 'text' ? part.text : ''))
                     .filter(Boolean)
@@ -216,12 +229,19 @@ export class VercelMessageFormatter {
                     parsed = rawArgs ?? {};
                 }
                 // AI SDK v5 expects 'input' for tool-call arguments (not 'args').
-                contentParts.push({
+                // Include providerOptions if present (e.g., Gemini 3 thought signatures)
+                const toolCallPart: (typeof contentParts)[number] = {
                     type: 'tool-call',
                     toolCallId: toolCall.id,
                     toolName: toolCall.function.name,
                     input: parsed,
-                });
+                };
+                // Pass through providerOptions for round-tripping (thought signatures, etc.)
+                if (toolCall.providerOptions) {
+                    (toolCallPart as { providerOptions?: unknown }).providerOptions =
+                        toolCall.providerOptions;
+                }
+                contentParts.push(toolCallPart);
             }
             const firstToolCall = msg.toolCalls?.[0];
             if (firstToolCall) {
@@ -248,12 +268,14 @@ export class VercelMessageFormatter {
             content:
                 typeof msg.content === 'string'
                     ? [{ type: 'text', text: msg.content }]
-                    : (msg.content as AssistantContent),
+                    : msg.content === null
+                      ? []
+                      : (msg.content as unknown as AssistantContent),
         };
     }
 
     // Helper to format Tool result messages
-    private formatToolMessage(msg: InternalMessage): { content: ToolContent } {
+    private formatToolMessage(msg: ToolMessage): { content: ToolContent } {
         let toolResultPart: ToolResultPart;
         if (Array.isArray(msg.content)) {
             if (msg.content[0]?.type === 'image') {
@@ -261,8 +283,8 @@ export class VercelMessageFormatter {
                 const imageDataBase64 = getImageData(imagePart, this.logger);
                 toolResultPart = {
                     type: 'tool-result',
-                    toolCallId: msg.toolCallId!,
-                    toolName: msg.name!,
+                    toolCallId: msg.toolCallId,
+                    toolName: msg.name,
                     output: {
                         type: 'content',
                         value: [
@@ -279,8 +301,8 @@ export class VercelMessageFormatter {
                 const fileDataBase64 = getFileData(filePart, this.logger);
                 toolResultPart = {
                     type: 'tool-result',
-                    toolCallId: msg.toolCallId!,
-                    toolName: msg.name!,
+                    toolCallId: msg.toolCallId,
+                    toolName: msg.name,
                     output: {
                         type: 'content',
                         value: [
@@ -300,8 +322,8 @@ export class VercelMessageFormatter {
                     : String(msg.content);
                 toolResultPart = {
                     type: 'tool-result',
-                    toolCallId: msg.toolCallId!,
-                    toolName: msg.name!,
+                    toolCallId: msg.toolCallId,
+                    toolName: msg.name,
                     output: {
                         type: 'text',
                         value: textContent,
@@ -311,8 +333,8 @@ export class VercelMessageFormatter {
         } else {
             toolResultPart = {
                 type: 'tool-result',
-                toolCallId: msg.toolCallId!,
-                toolName: msg.name!,
+                toolCallId: msg.toolCallId,
+                toolName: msg.name,
                 output: {
                     type: 'text',
                     value: String(msg.content || ''),

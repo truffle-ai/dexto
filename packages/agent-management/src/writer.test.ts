@@ -53,6 +53,8 @@ describe('Config Writer', () => {
             },
             setup: {
                 completed: true,
+                apiKeyPending: false,
+                baseURLPending: false,
             },
         };
     });

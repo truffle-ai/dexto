@@ -43,36 +43,42 @@ export function createManualApprovalHandler(coordinator: ApprovalCoordinator): A
 
     const handleApproval = (request: ApprovalRequest): Promise<ApprovalResponse> => {
         return new Promise<ApprovalResponse>((resolve) => {
-            // Use per-request timeout (always set by ApprovalManager based on request type)
+            // Use per-request timeout (optional - undefined means no timeout)
             // - Tool confirmations use config.toolConfirmation.timeout
             // - Elicitations use config.elicitation.timeout
             const effectiveTimeout = request.timeout;
 
-            // Set timeout timer
-            const timer = setTimeout(() => {
-                cleanup();
-                pendingApprovals.delete(request.approvalId);
+            // Set timeout timer ONLY if timeout is specified
+            // If undefined, wait indefinitely for user response
+            let timer: NodeJS.Timeout | undefined;
+            if (effectiveTimeout !== undefined) {
+                timer = setTimeout(() => {
+                    cleanup();
+                    pendingApprovals.delete(request.approvalId);
 
-                // Emit timeout response so UI/clients can dismiss the prompt
-                const timeoutResponse: ApprovalResponse = {
-                    approvalId: request.approvalId,
-                    status: ApprovalStatus.CANCELLED,
-                    sessionId: request.sessionId,
-                    reason: DenialReason.TIMEOUT,
-                    message: `Approval request timed out after ${effectiveTimeout}ms`,
-                    timeoutMs: effectiveTimeout,
-                };
-                coordinator.emitResponse(timeoutResponse);
+                    // Emit timeout response so UI/clients can dismiss the prompt
+                    const timeoutResponse: ApprovalResponse = {
+                        approvalId: request.approvalId,
+                        status: ApprovalStatus.CANCELLED,
+                        sessionId: request.sessionId,
+                        reason: DenialReason.TIMEOUT,
+                        message: `Approval request timed out after ${effectiveTimeout}ms`,
+                        timeoutMs: effectiveTimeout,
+                    };
+                    coordinator.emitResponse(timeoutResponse);
 
-                // Resolve with CANCELLED response (not reject) to match auto-approve/deny behavior
-                // Callers can uniformly check response.status instead of handling exceptions
-                resolve(timeoutResponse);
-            }, effectiveTimeout);
+                    // Resolve with CANCELLED response (not reject) to match auto-approve/deny behavior
+                    // Callers can uniformly check response.status instead of handling exceptions
+                    resolve(timeoutResponse);
+                }, effectiveTimeout);
+            }
 
             // Cleanup function to remove listener and clear timeout
             let cleanupListener: (() => void) | null = null;
             const cleanup = () => {
-                clearTimeout(timer);
+                if (timer !== undefined) {
+                    clearTimeout(timer);
+                }
                 if (cleanupListener) {
                     cleanupListener();
                     cleanupListener = null;
@@ -139,6 +145,10 @@ export function createManualApprovalHandler(coordinator: ApprovalCoordinator): A
 
         getPending: (): string[] => {
             return Array.from(pendingApprovals.keys());
+        },
+
+        getPendingRequests: (): ApprovalRequest[] => {
+            return Array.from(pendingApprovals.values()).map((p) => p.request);
         },
     });
 

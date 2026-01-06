@@ -27,8 +27,8 @@ await agent.start();
 
 const session = await agent.createSession();
 
-await agent.generate('My name is Sarah.', { sessionId: session.id });
-const response = await agent.generate('What is my name?', { sessionId: session.id });
+await agent.generate('My name is Sarah.', session.id);
+const response = await agent.generate('What is my name?', session.id);
 
 console.log(response.content);
 // "Your name is Sarah."
@@ -40,7 +40,7 @@ Now create a new session—this has no working memory of the first conversation:
 
 ```typescript
 const newSession = await agent.createSession();
-const response = await agent.generate('What is my name?', { sessionId: newSession.id });
+const response = await agent.generate('What is my name?', newSession.id);
 
 console.log(response.content);
 // "I don't have that information."
@@ -76,17 +76,11 @@ Pass the same `sessionId` on every message:
 ```typescript
 const session = await agent.createSession('demo');
 
-await agent.generate('I want to build a REST API in Node.js.', {
-  sessionId: session.id
-});
+await agent.generate('I want to build a REST API in Node.js.', session.id);
 
-await agent.generate('What framework should I use?', {
-  sessionId: session.id
-});
+await agent.generate('What framework should I use?', session.id);
 
-const response = await agent.generate('Show me a simple example.', {
-  sessionId: session.id
-});
+const response = await agent.generate('Show me a simple example.', session.id);
 
 console.log(response.content);
 // The agent remembers you want a Node.js REST API and suggests Express with example code
@@ -177,7 +171,7 @@ if (!session) {
 }
 
 // Every message from this user uses the same session
-await agent.generate(userMessage, { sessionId });
+await agent.generate(userMessage, sessionId);
 ```
 
 ### Pattern 2: Multiple Sessions Per User
@@ -190,7 +184,7 @@ const sessionId = `user-${userId}-chat-${chatId}`;
 await agent.createSession(sessionId);
 
 // User switches between chats
-await agent.generate(message, { sessionId: currentChatId });
+await agent.generate(message, currentChatId);
 ```
 
 ### Pattern 3: Session Per Task
@@ -203,7 +197,7 @@ const sessionId = `ticket-${ticketId}`;
 await agent.createSession(sessionId);
 
 // All messages related to this ticket use this session
-await agent.generate(message, { sessionId });
+await agent.generate(message, sessionId);
 
 // Ticket resolved? Delete the session
 await agent.deleteSession(sessionId);

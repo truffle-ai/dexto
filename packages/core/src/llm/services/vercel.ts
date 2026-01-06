@@ -6,7 +6,7 @@ import { DextoLogComponent } from '../../logger/v2/types.js';
 import { ToolSet } from '../../tools/types.js';
 import { ContextManager } from '../../context/manager.js';
 import { getEffectiveMaxInputTokens, getMaxInputTokensForModel } from '../registry.js';
-import { ImageData, FileData } from '../../context/types.js';
+import { ContentPart } from '../../context/types.js';
 import type { SessionEventBus } from '../../events/index.js';
 import type { IConversationHistoryProvider } from '../../session/history/types.js';
 import type { SystemPromptManager } from '../../systemPrompt/manager.js';
@@ -19,6 +19,7 @@ import { MessageQueueService } from '../../session/message-queue.js';
 import type { ResourceManager } from '../../resources/index.js';
 import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
 import { LLMErrorCode } from '../error-codes.js';
+import type { ContentInput } from '../../agent/types.js';
 
 /**
  * Vercel AI SDK implementation of LLMService
@@ -48,6 +49,9 @@ export class VercelLLMService {
     private logger: IDextoLogger;
     private resourceManager: ResourceManager;
     private messageQueue: MessageQueueService;
+    private compressionStrategy:
+        | import('../../context/compression/types.js').ICompressionStrategy
+        | null;
 
     /**
      * Helper to extract model ID from LanguageModel union type (string | LanguageModelV2)
@@ -65,7 +69,10 @@ export class VercelLLMService {
         config: ValidatedLLMConfig,
         sessionId: string,
         resourceManager: ResourceManager,
-        logger: IDextoLogger
+        logger: IDextoLogger,
+        compressionStrategy?:
+            | import('../../context/compression/types.js').ICompressionStrategy
+            | null
     ) {
         this.logger = logger.createChild(DextoLogComponent.LLM);
         this.model = model;
@@ -74,6 +81,7 @@ export class VercelLLMService {
         this.sessionEventBus = sessionEventBus;
         this.sessionId = sessionId;
         this.resourceManager = resourceManager;
+        this.compressionStrategy = compressionStrategy ?? null;
 
         // Create session-level message queue for mid-task user messages
         this.messageQueue = new MessageQueueService(this.sessionEventBus, this.logger);
@@ -123,21 +131,20 @@ export class VercelLLMService {
             this.logger,
             this.messageQueue,
             undefined, // modelLimits - TurnExecutor will use defaults
-            externalSignal
+            externalSignal,
+            this.compressionStrategy // Pass compression strategy from service
         );
     }
 
     /**
-     * Complete a task using the agent loop.
-     * Delegates to TurnExecutor for actual execution.
+     * Stream a response for the given content.
+     * Primary method for running conversations with multi-image support.
+     *
+     * @param content - String or ContentPart[] (text, images, files)
+     * @param options - { signal?: AbortSignal }
+     * @returns The assistant's text response
      */
-    async completeTask(
-        textInput: string,
-        options: { signal?: AbortSignal },
-        imageData?: ImageData,
-        fileData?: FileData,
-        stream?: boolean
-    ): Promise<string> {
+    async stream(content: ContentInput, options?: { signal?: AbortSignal }): Promise<string> {
         // Get active span and context for telemetry
         const activeSpan = trace.getActiveSpan();
         const currentContext = context.active();
@@ -173,25 +180,21 @@ export class VercelLLMService {
 
         // Execute rest of method in updated context
         return await context.with(updatedContext, async () => {
-            // Add user message, with optional image and file data
-            await this.contextManager.addUserMessage(textInput, imageData, fileData);
+            // Normalize content to ContentPart[] for addUserMessage
+            const parts: ContentPart[] =
+                typeof content === 'string' ? [{ type: 'text', text: content }] : content;
+
+            // Add user message with all content parts
+            await this.contextManager.addUserMessage(parts);
 
             // Create executor (uses session-level messageQueue, pass external abort signal)
-            const executor = this.createTurnExecutor(options.signal);
+            const executor = this.createTurnExecutor(options?.signal);
 
-            // Execute with streaming flag
+            // Execute with streaming enabled
             const contributorContext = { mcpManager: this.toolManager.getMcpManager() };
-            const result = await executor.execute(contributorContext, stream ?? true);
+            const result = await executor.execute(contributorContext, true);
 
-            // If the run was cancelled, don't emit the "max steps" fallback.
-            if (options?.signal?.aborted) {
-                return result.text ?? '';
-            }
-
-            return (
-                result.text ||
-                `Reached maximum number of steps (${this.config.maxIterations}) without a final response.`
-            );
+            return result.text ?? '';
         });
     }
 

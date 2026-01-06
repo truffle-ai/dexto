@@ -29,19 +29,26 @@ Events are organized into three tiers based on their intended audience:
 #### **Tier 1: Streaming Events** (`STREAMING_EVENTS`)
 Exposed via `DextoAgent.stream()` for real-time chat UIs. These are the most commonly used events for building interactive applications.
 
-**Events:** `llm:thinking`, `llm:chunk`, `llm:response`, `llm:tool-call`, `llm:tool-result`, `llm:error`, `llm:unsupported-input`, `session:title-updated`
+**LLM Events:** `llm:thinking`, `llm:chunk`, `llm:response`, `llm:tool-call`, `llm:tool-result`, `llm:error`, `llm:unsupported-input`
+
+**Tool Events:** `tool:running`
+
+**Context Events:** `context:compressed`, `context:pruned`
+
+**Message Queue Events:** `message:queued`, `message:dequeued`
+
+**Run Lifecycle Events:** `run:complete`
+
+**Session Events:** `session:title-updated`
+
+**Approval Events:** `approval:request`, `approval:response`
 
 **Use cases:**
 - Real-time chat interfaces
 - Progress indicators
 - Streaming responses
-
-:::note Server SSE Extensions
-The server's `/message-stream` SSE endpoint extends core streaming with additional events:
-- `approval:request` and `approval:response` (when manual approval handler is configured)
-
-These events are NOT available via `DextoAgent.stream()` directly. See [User Approval Events](#user-approval-events) for details.
-:::
+- Tool execution tracking
+- User approval flows
 
 #### **Tier 2: Integration Events** (`INTEGRATION_EVENTS`)
 Exposed via webhooks, A2A subscriptions, and monitoring systems. Includes all streaming events plus lifecycle and state management events.
@@ -281,13 +288,11 @@ Fired when agent state is reset to baseline.
 
 ### User Approval Events
 
-:::warning Server/API Mode Only
-These events are only emitted when using server/API mode with the manual approval handler (`createManualApprovalHandler`).
+Dexto's generalized approval system handles various types of user input requests, including tool confirmations and form-based input (elicitation). These events are included in `STREAMING_EVENTS` and are available via `DextoAgent.stream()`.
 
-For direct `DextoAgent` usage, implement a custom approval handler via `agent.setApprovalHandler()` instead of listening to these events.
+:::tip Custom Approval Handlers
+For direct `DextoAgent` usage without SSE streaming, you can implement a custom approval handler via `agent.setApprovalHandler()` to intercept approval requests programmatically.
 :::
-
-Dexto's generalized approval system handles various types of user input requests, including tool confirmations and form-based input (elicitation).
 
 #### `approval:request`
 
@@ -460,6 +465,18 @@ Fired when the LLM service requests a tool execution.
 }
 ```
 
+#### `tool:running`
+
+Fired when a tool actually starts executing (after approval if required). This allows UIs to distinguish between tools pending approval and tools actively running.
+
+```typescript
+{
+  toolName: string;
+  toolCallId: string;
+  sessionId: string;
+}
+```
+
 #### `llm:tool-result`
 
 Fired when a tool execution completes.
@@ -475,6 +492,91 @@ Fired when a tool execution completes.
 }
 ```
 
+### Context Management Events
+
+#### `context:compressed`
+
+Fired when conversation context is compressed to stay within token limits.
+
+```typescript
+{
+  originalTokens: number;      // Actual input tokens that triggered compression
+  compressedTokens: number;    // Estimated tokens after compression
+  originalMessages: number;
+  compressedMessages: number;
+  strategy: string;
+  reason: 'overflow' | 'token_limit' | 'message_limit';
+  sessionId: string;
+}
+```
+
+#### `context:pruned`
+
+Fired when old messages are pruned from context.
+
+```typescript
+{
+  prunedCount: number;
+  savedTokens: number;
+  sessionId: string;
+}
+```
+
+### Message Queue Events
+
+These events track the message queue system, which allows users to queue additional messages while the agent is processing.
+
+#### `message:queued`
+
+Fired when a user message is queued during agent execution.
+
+```typescript
+{
+  position: number;  // Position in the queue
+  id: string;        // Unique message ID
+  sessionId: string;
+}
+```
+
+#### `message:dequeued`
+
+Fired when queued messages are dequeued and injected into context.
+
+```typescript
+{
+  count: number;                 // Number of messages dequeued
+  ids: string[];                 // IDs of dequeued messages
+  coalesced: boolean;            // Whether messages were combined
+  content: ContentPart[];        // Combined content for UI display
+  sessionId: string;
+}
+```
+
+### Run Lifecycle Events
+
+#### `run:complete`
+
+Fired when an agent run completes, providing summary information about the execution.
+
+```typescript
+{
+  finishReason: LLMFinishReason;  // How the run ended
+  stepCount: number;              // Number of steps executed
+  durationMs: number;             // Wall-clock duration in milliseconds
+  error?: Error;                  // Error if finishReason === 'error'
+  sessionId: string;
+}
+```
+
+**Finish Reasons:**
+- `stop` - Normal completion
+- `tool-calls` - Stopped to execute tool calls (more steps coming)
+- `length` - Hit token/length limit
+- `content-filter` - Content filter violation
+- `error` - Error occurred
+- `cancelled` - User cancelled
+- `max-steps` - Hit max steps limit
+
 ---
 
 ## Usage Examples
@@ -488,7 +590,7 @@ const agent = new DextoAgent(config);
 await agent.start();
 
 // Use the stream() API to get streaming events
-for await (const event of await agent.stream('Hello!', { sessionId: 'session-1' })) {
+for await (const event of await agent.stream('Hello!', 'session-1')) {
   switch (event.name) {
     case 'llm:thinking':
       console.log('Agent is thinking...');
@@ -502,6 +604,16 @@ for await (const event of await agent.stream('Hello!', { sessionId: 'session-1' 
       break;
     case 'llm:tool-call':
       console.log(`Calling tool: ${event.toolName}`);
+      break;
+    case 'tool:running':
+      console.log(`Tool ${event.toolName} is now running`);
+      break;
+    case 'run:complete':
+      console.log(`Run completed: ${event.finishReason} (${event.stepCount} steps, ${event.durationMs}ms)`);
+      break;
+    case 'approval:request':
+      console.log(`Approval needed: ${event.type}`);
+      // Handle approval UI...
       break;
   }
 }

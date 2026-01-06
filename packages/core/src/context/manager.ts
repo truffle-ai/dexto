@@ -1,7 +1,8 @@
 import { randomUUID } from 'crypto';
 import { VercelMessageFormatter } from '@core/llm/formatters/vercel.js';
 import { LLMContext } from '../llm/types.js';
-import { InternalMessage, ImageData, FileData } from './types.js';
+import type { InternalMessage, AssistantMessage, ToolCall } from './types.js';
+import { isSystemMessage, isUserMessage, isAssistantMessage, isToolMessage } from './types.js';
 import type { IDextoLogger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
 import { eventBus } from '../events/index.js';
@@ -227,6 +228,31 @@ export class ContextManager<TMessage = unknown> {
     }
 
     /**
+     * Clears the context window without deleting history.
+     *
+     * This adds a "context clear" marker to the conversation history. When the
+     * context is loaded for LLM via getFormattedMessagesWithCompression(),
+     * filterCompacted() excludes all messages before this marker.
+     *
+     * The full history remains in the database for review via /resume or session history.
+     */
+    async clearContext(): Promise<void> {
+        const clearMarker: InternalMessage = {
+            id: `clear-${Date.now()}`,
+            role: 'assistant',
+            content: [{ type: 'text', text: '[Context cleared]' }],
+            timestamp: Date.now(),
+            metadata: {
+                isSummary: true,
+                clearedAt: Date.now(),
+            },
+        };
+
+        await this.addMessage(clearMarker);
+        this.logger.debug(`Context cleared for session: ${this.sessionId}`);
+    }
+
+    /**
      * Appends text to an existing assistant message.
      * Used for streaming responses.
      */
@@ -247,14 +273,17 @@ export class ContextManager<TMessage = unknown> {
             throw ContextError.messageNotAssistant(messageId);
         }
 
-        // Append text
-        if (typeof message.content === 'string') {
-            message.content += text;
-        } else if (message.content === null) {
-            message.content = text;
-        } else {
-            // Should not happen for assistant messages unless we support multimodal assistant output
-            throw ContextError.assistantContentNotString();
+        // Append text to content array
+        if (message.content === null) {
+            message.content = [{ type: 'text', text }];
+        } else if (Array.isArray(message.content)) {
+            // Find last text part and append, or add new text part
+            const lastPart = message.content[message.content.length - 1];
+            if (lastPart && lastPart.type === 'text') {
+                lastPart.text += text;
+            } else {
+                message.content.push({ type: 'text', text });
+            }
         }
 
         await this.historyProvider.updateMessage(message);
@@ -264,10 +293,7 @@ export class ContextManager<TMessage = unknown> {
      * Adds a tool call to an existing assistant message.
      * Used for streaming responses.
      */
-    async addToolCall(
-        messageId: string,
-        toolCall: NonNullable<InternalMessage['toolCalls']>[number]
-    ): Promise<void> {
+    async addToolCall(messageId: string, toolCall: ToolCall): Promise<void> {
         const history = await this.historyProvider.getHistory();
         const messageIndex = history.findIndex((m) => m.id === messageId);
 
@@ -386,14 +412,10 @@ export class ContextManager<TMessage = unknown> {
     async addMessage(message: InternalMessage): Promise<void> {
         switch (message.role) {
             case 'user':
-                if (
-                    // Allow array content for user messages
-                    !(Array.isArray(message.content) && message.content.length > 0) &&
-                    (typeof message.content !== 'string' || message.content.trim() === '')
-                ) {
+                // User messages must have non-empty content array
+                if (!Array.isArray(message.content) || message.content.length === 0) {
                     throw ContextError.userMessageContentInvalid();
                 }
-                // Optional: Add validation for the structure of array parts if needed
                 break;
 
             case 'assistant':
@@ -426,15 +448,21 @@ export class ContextManager<TMessage = unknown> {
                 }
                 break;
 
-            case 'system':
+            case 'system': {
                 // System messages should be handled via SystemPromptManager, not added to history
                 this.logger.warn(
                     'ContextManager: Adding system message directly to history. Use SystemPromptManager instead.'
                 );
-                if (typeof message.content !== 'string' || message.content.trim() === '') {
+                // Extract text from content array for validation
+                const textContent = message.content
+                    ?.filter((p): p is import('./types.js').TextPart => p.type === 'text')
+                    .map((p) => p.text)
+                    .join('');
+                if (!textContent || textContent.trim() === '') {
                     throw ContextError.systemMessageContentInvalid();
                 }
                 break;
+            }
         }
 
         // Generate ID and timestamp if not provided
@@ -460,84 +488,81 @@ export class ContextManager<TMessage = unknown> {
     }
 
     /**
-     * Adds a user message to the conversation
-     * Can include image data for multimodal input
+     * Adds a user message to the conversation.
+     * Supports multiple images and files via ContentPart[].
      *
-     * @param textContent The user message content
-     * @param imageData Optional image data for multimodal input
-     * @param fileData Optional file data for file input
-     * @throws Error if content is empty or not a string
+     * @param content Array of content parts (text, images, files)
+     * @throws Error if content is empty or invalid
      */
-    async addUserMessage(
-        textContent: string,
-        imageData?: ImageData,
-        fileData?: FileData
-    ): Promise<void> {
-        // Allow empty text if we have image or file data
-        if (
-            typeof textContent !== 'string' ||
-            (textContent.trim() === '' && !imageData && !fileData)
-        ) {
+    async addUserMessage(content: import('./types.js').ContentPart[]): Promise<void> {
+        if (!Array.isArray(content) || content.length === 0) {
             throw ContextError.userMessageContentEmpty();
         }
 
-        // If text is empty but we have attachments, use a placeholder
-        const finalTextContent = textContent.trim() || (imageData || fileData ? '' : textContent);
+        // Validate at least one text part or attachment exists
+        const hasText = content.some((p) => p.type === 'text' && p.text.trim() !== '');
+        const hasAttachment = content.some((p) => p.type === 'image' || p.type === 'file');
 
-        // Build message parts array to support multiple attachment types
-        const messageParts: InternalMessage['content'] = [];
-
-        // Add text if present
-        if (finalTextContent) {
-            messageParts.push({ type: 'text' as const, text: finalTextContent });
+        if (!hasText && !hasAttachment) {
+            throw ContextError.userMessageContentEmpty();
         }
 
-        // Add image if present - store as blob if large
-        if (imageData) {
-            const processedImage = await this.processUserInput(imageData.image, {
-                mimeType: imageData.mimeType || 'image/jpeg',
-                source: 'user',
-            });
+        // Process all parts, storing large attachments as blobs
+        const processedParts: InternalMessage['content'] = [];
 
-            messageParts.push({
-                type: 'image' as const,
-                image: processedImage,
-                mimeType: imageData.mimeType || 'image/jpeg',
-            });
-        }
+        for (const part of content) {
+            if (part.type === 'text') {
+                if (part.text.trim()) {
+                    processedParts.push({ type: 'text', text: part.text });
+                }
+            } else if (part.type === 'image') {
+                const processedImage = await this.processUserInput(part.image, {
+                    mimeType: part.mimeType || 'image/jpeg',
+                    source: 'user',
+                });
 
-        // Add file if present - store as blob if large
-        if (fileData) {
-            const metadata: {
-                mimeType: string;
-                originalName?: string;
-                source?: 'user' | 'system';
-            } = {
-                mimeType: fileData.mimeType,
-                source: 'user',
-            };
-            if (fileData.filename) {
-                metadata.originalName = fileData.filename;
+                processedParts.push({
+                    type: 'image',
+                    image: processedImage,
+                    mimeType: part.mimeType || 'image/jpeg',
+                });
+            } else if (part.type === 'file') {
+                const metadata: {
+                    mimeType: string;
+                    originalName?: string;
+                    source?: 'user' | 'system';
+                } = {
+                    mimeType: part.mimeType,
+                    source: 'user',
+                };
+                if (part.filename) {
+                    metadata.originalName = part.filename;
+                }
+
+                const processedData = await this.processUserInput(part.data, metadata);
+
+                processedParts.push({
+                    type: 'file',
+                    data: processedData,
+                    mimeType: part.mimeType,
+                    ...(part.filename && { filename: part.filename }),
+                });
             }
-
-            const processedData = await this.processUserInput(fileData.data, metadata);
-
-            messageParts.push({
-                type: 'file' as const,
-                data: processedData,
-                mimeType: fileData.mimeType,
-                ...(fileData.filename && { filename: fileData.filename }),
-            });
         }
 
-        // Fallback to text-only if no parts were added
-        if (messageParts.length === 0) {
-            messageParts.push({ type: 'text' as const, text: finalTextContent });
-        }
-        this.logger.debug(
-            `ContextManager: Adding user message: ${JSON.stringify(messageParts, null, 2)}`
-        );
-        await this.addMessage({ role: 'user', content: messageParts });
+        // Count parts for logging
+        const textParts = processedParts.filter((p) => p.type === 'text');
+        const imageParts = processedParts.filter((p) => p.type === 'image');
+        const fileParts = processedParts.filter((p) => p.type === 'file');
+
+        this.logger.info('User message received', {
+            textParts: textParts.length,
+            imageParts: imageParts.length,
+            fileParts: fileParts.length,
+            totalParts: processedParts.length,
+        });
+
+        await this.addMessage({ role: 'user', content: processedParts });
     }
 
     /**
@@ -551,9 +576,9 @@ export class ContextManager<TMessage = unknown> {
      */
     async addAssistantMessage(
         content: string | null,
-        toolCalls?: InternalMessage['toolCalls'],
+        toolCalls?: AssistantMessage['toolCalls'],
         metadata?: {
-            tokenUsage?: InternalMessage['tokenUsage'];
+            tokenUsage?: AssistantMessage['tokenUsage'];
             reasoning?: string;
         }
     ): Promise<void> {
@@ -561,11 +586,14 @@ export class ContextManager<TMessage = unknown> {
         if (content === null && (!toolCalls || toolCalls.length === 0)) {
             throw ContextError.assistantMessageContentOrToolsRequired();
         }
+        // Convert string content to content array
+        const contentArray: InternalMessage['content'] =
+            content !== null ? [{ type: 'text', text: content }] : null;
         // Further validation happens within addMessage
         // addMessage will populate llm config metadata also
         await this.addMessage({
             role: 'assistant' as const,
-            content,
+            content: contentArray,
             ...(toolCalls && toolCalls.length > 0 && { toolCalls }),
             ...(metadata?.tokenUsage && { tokenUsage: metadata.tokenUsage }),
             ...(metadata?.reasoning && { reasoning: metadata.reasoning }),
@@ -576,17 +604,22 @@ export class ContextManager<TMessage = unknown> {
      * Adds a tool result message to the conversation.
      * The result must already be sanitized - this method only persists it.
      *
+     * Success status is read from sanitizedResult.meta.success (single source of truth).
+     *
      * @param toolCallId ID of the tool call this result is responding to
      * @param name Name of the tool that executed
-     * @param sanitizedResult The already-sanitized result to store
-     * @param approvalMetadata Optional approval metadata for this tool execution
+     * @param sanitizedResult The already-sanitized result to store (includes success in meta)
+     * @param metadata Optional approval-related metadata
      * @throws Error if required parameters are missing
      */
     async addToolResult(
         toolCallId: string,
         name: string,
         sanitizedResult: SanitizedToolResult,
-        approvalMetadata?: { requireApproval: boolean; approvalStatus?: 'approved' | 'rejected' }
+        metadata?: {
+            requireApproval?: boolean;
+            approvalStatus?: 'approved' | 'rejected';
+        }
     ): Promise<void> {
         if (!toolCallId || !name) {
             throw ContextError.toolCallIdNameRequired();
@@ -610,11 +643,14 @@ export class ContextManager<TMessage = unknown> {
             content: sanitizedResult.content,
             toolCallId,
             name,
-            ...(approvalMetadata?.requireApproval !== undefined && {
-                requireApproval: approvalMetadata.requireApproval,
+            // Success status comes from sanitizedResult.meta (single source of truth)
+            success: sanitizedResult.meta.success,
+            // Persist approval metadata for frontend display after reload
+            ...(metadata?.requireApproval !== undefined && {
+                requireApproval: metadata.requireApproval,
             }),
-            ...(approvalMetadata?.approvalStatus !== undefined && {
-                approvalStatus: approvalMetadata.approvalStatus,
+            ...(metadata?.approvalStatus !== undefined && {
+                approvalStatus: metadata.approvalStatus,
             }),
         });
     }
@@ -673,16 +709,35 @@ export class ContextManager<TMessage = unknown> {
         }
 
         // Resolve blob references using resource manager with filtering
+        // Only user and tool messages can contain blob references (images, files)
+        // System and assistant messages have string-only content - no blob expansion needed
         this.logger.debug('Resolving blob references in message history before formatting');
         messageHistory = await Promise.all(
-            messageHistory.map(async (message) => {
-                const expandedContent = await expandBlobReferences(
-                    message.content,
-                    this.resourceManager,
-                    this.logger,
-                    allowedMediaTypes
-                );
-                return { ...message, content: expandedContent };
+            messageHistory.map(async (message): Promise<InternalMessage> => {
+                if (isSystemMessage(message) || isAssistantMessage(message)) {
+                    // System/assistant messages have string content, no blob refs
+                    return message;
+                }
+                if (isUserMessage(message)) {
+                    const expandedContent = await expandBlobReferences(
+                        message.content,
+                        this.resourceManager,
+                        this.logger,
+                        allowedMediaTypes
+                    );
+                    return { ...message, content: expandedContent };
+                }
+                if (isToolMessage(message)) {
+                    const expandedContent = await expandBlobReferences(
+                        message.content,
+                        this.resourceManager,
+                        this.logger,
+                        allowedMediaTypes
+                    );
+                    return { ...message, content: expandedContent };
+                }
+                // Should never reach here, but TypeScript needs exhaustive check
+                return message;
             })
         );
 
@@ -729,7 +784,12 @@ export class ContextManager<TMessage = unknown> {
         if (compactedCount > 0) {
             history = history.map((msg) => {
                 if (msg.role === 'tool' && msg.compactedAt) {
-                    return { ...msg, content: '[Old tool result content cleared]' };
+                    return {
+                        ...msg,
+                        content: [
+                            { type: 'text' as const, text: '[Old tool result content cleared]' },
+                        ],
+                    };
                 }
                 return msg;
             });

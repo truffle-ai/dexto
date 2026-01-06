@@ -1,17 +1,9 @@
 import { describe, test, expect } from 'vitest';
 import { PromptManager } from './prompt-manager.js';
 import type { PromptDefinition } from './types.js';
+import { createSilentMockLogger } from '../logger/v2/test-utils.js';
 
-const mockLogger = {
-    debug: () => {},
-    info: () => {},
-    warn: () => {},
-    error: () => {},
-    silly: () => {},
-    trackException: () => {},
-    createChild: () => mockLogger,
-    destroy: async () => {},
-} as any;
+const mockLogger = createSilentMockLogger();
 
 function makeFakeMCPManager(capture: { lastArgs?: any }) {
     const def: PromptDefinition = {

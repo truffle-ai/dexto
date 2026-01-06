@@ -47,6 +47,22 @@ export class ToolError {
     }
 
     /**
+     * Directory access denied by user
+     * Used when a file tool tries to access a path outside allowed directories
+     * and the user denies the directory access approval
+     */
+    static directoryAccessDenied(directory: string, sessionId?: string) {
+        return new DextoRuntimeError(
+            ToolErrorCode.DIRECTORY_ACCESS_DENIED,
+            ErrorScope.TOOLS,
+            ErrorType.FORBIDDEN,
+            `Access to directory '${directory}' was denied`,
+            { directory, sessionId },
+            'Request access to the directory or work within the allowed working directory'
+        );
+    }
+
+    /**
      * Tool execution timeout
      */
     static executionTimeout(toolName: string, timeoutMs: number, sessionId?: string) {
@@ -60,6 +76,21 @@ export class ToolError {
             ErrorType.TIMEOUT,
             message,
             { toolName, timeoutMs, sessionId }
+        );
+    }
+
+    /**
+     * Tool validation failed (pre-execution check)
+     * Used when tool inputs are semantically invalid (e.g., file not found, string not in file)
+     * This should fail before approval, not after.
+     */
+    static validationFailed(toolName: string, reason: string, context?: Record<string, unknown>) {
+        return new DextoRuntimeError(
+            ToolErrorCode.VALIDATION_FAILED,
+            ErrorScope.TOOLS,
+            ErrorType.USER,
+            `Tool '${toolName}' validation failed: ${reason}`,
+            { toolName, reason, ...context }
         );
     }
 
@@ -172,6 +203,34 @@ export class ToolError {
                 `Remove '${toolName}' from internalTools in your agent config`,
                 `Or enable required features: ${missingFeatures.map((f) => `${f}.enabled: true`).join(', ')}`,
             ]
+        );
+    }
+
+    /**
+     * Unknown custom tool provider type
+     */
+    static unknownCustomToolProvider(type: string, availableTypes: string[]): DextoRuntimeError {
+        return new DextoRuntimeError(
+            ToolErrorCode.CUSTOM_TOOL_PROVIDER_UNKNOWN,
+            ErrorScope.TOOLS,
+            ErrorType.USER,
+            `Unknown custom tool provider: '${type}'`,
+            { type, availableTypes },
+            `Available types: ${availableTypes.length > 0 ? availableTypes.join(', ') : 'none'}`
+        );
+    }
+
+    /**
+     * Custom tool provider already registered
+     */
+    static customToolProviderAlreadyRegistered(type: string): DextoRuntimeError {
+        return new DextoRuntimeError(
+            ToolErrorCode.CUSTOM_TOOL_PROVIDER_ALREADY_REGISTERED,
+            ErrorScope.TOOLS,
+            ErrorType.USER,
+            `Custom tool provider '${type}' is already registered`,
+            { type },
+            `Use unregister() first if you want to replace it`
         );
     }
 }

@@ -5,7 +5,7 @@
  */
 
 export { FileSystemService } from './filesystem-service.js';
-export { PathValidator } from './path-validator.js';
+export { PathValidator, type DirectoryApprovalChecker } from './path-validator.js';
 export { FileSystemError } from './errors.js';
 export { FileSystemErrorCode } from './error-codes.js';
 export type {

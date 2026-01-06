@@ -1,10 +1,14 @@
 // src/agent/DextoAgent.ts
+import { randomUUID } from 'crypto';
+import { setMaxListeners } from 'events';
 import { MCPManager } from '../mcp/manager.js';
 import { ToolManager } from '../tools/tool-manager.js';
 import { SystemPromptManager } from '../systemPrompt/manager.js';
 import { ResourceManager, expandMessageReferences } from '../resources/index.js';
 import { expandBlobReferences } from '../context/utils.js';
+import type { InternalMessage } from '../context/types.js';
 import { PromptManager } from '../prompts/index.js';
+import type { PromptsConfig } from '../prompts/schemas.js';
 import { AgentStateManager } from './state-manager.js';
 import { SessionManager, ChatSession, SessionError } from '../session/index.js';
 import type { SessionMetadata } from '../session/index.js';
@@ -22,10 +26,11 @@ import { LLMError } from '../llm/errors.js';
 import { AgentError } from './errors.js';
 import { MCPError } from '../mcp/errors.js';
 import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
+import { DextoValidationError } from '../errors/DextoValidationError.js';
 import { ensureOk } from '@core/errors/result-bridge.js';
 import { fail, zodToIssues } from '@core/utils/result.js';
 import { resolveAndValidateMcpServerConfig } from '../mcp/resolver.js';
-import type { McpServerConfig } from '@core/mcp/schemas.js';
+import type { McpServerConfig, McpServerStatus, McpConnectionStatus } from '@core/mcp/schemas.js';
 import {
     getSupportedProviders,
     getDefaultModelForProvider,
@@ -35,8 +40,8 @@ import {
 } from '../llm/registry.js';
 import type { LLMProvider } from '../llm/types.js';
 import { createAgentServices } from '../utils/service-initializer.js';
-import type { AgentConfig, ValidatedAgentConfig } from './schemas.js';
-import { AgentConfigSchema } from './schemas.js';
+import type { AgentConfig, ValidatedAgentConfig, LLMValidationOptions } from './schemas.js';
+import { AgentConfigSchema, createAgentConfigSchema } from './schemas.js';
 import {
     AgentEventBus,
     type AgentEventMap,
@@ -110,7 +115,7 @@ export interface AgentEventSubscriber {
  * const response = await agent.run("Hello", undefined, 'user-123');
  *
  * // Connect MCP servers
- * await agent.connectMcpServer('filesystem', { command: 'mcp-filesystem' });
+ * await agent.addMcpServer('filesystem', { command: 'mcp-filesystem' });
  *
  * // Inspect available tools and system prompt
  * const tools = await agent.getAllMcpTools();
@@ -168,6 +173,9 @@ export class DextoAgent {
     // Set via setApprovalHandler() before start() if needed
     private approvalHandler?: ApprovalHandler | undefined;
 
+    // Active stream controllers per session - allows cancel() to abort iterators
+    private activeStreamControllers: Map<string, AbortController> = new Map();
+
     // Logger instance for this agent (dependency injection)
     public readonly logger: IDextoLogger;
 
@@ -176,13 +184,21 @@ export class DextoAgent {
      *
      * @param config - Agent configuration (validated and enriched)
      * @param configPath - Optional path to config file (for relative path resolution)
+     * @param options - Validation options
+     * @param options.strict - When true (default), enforces API key and baseURL requirements.
+     *                         When false, allows missing credentials for interactive configuration.
      */
     constructor(
         config: AgentConfig,
-        private configPath?: string
+        private configPath?: string,
+        options?: LLMValidationOptions
     ) {
-        // Validate and transform the input config
-        this.config = AgentConfigSchema.parse(config);
+        // Validate and transform the input config using appropriate schema
+        const schema =
+            options?.strict === false
+                ? createAgentConfigSchema({ strict: false })
+                : AgentConfigSchema;
+        this.config = schema.parse(config);
 
         // Create logger instance for this agent
         // agentId is set by CLI enrichment from agentCard.name or filename
@@ -272,6 +288,14 @@ export class DextoAgent {
                 services: services,
             });
 
+            // Set agent reference for custom tools (must be done before tool initialization)
+            // This allows custom tool providers to wire up bidirectional communication
+            services.toolManager.setAgent(this);
+
+            // Initialize toolManager now that agent reference is set
+            // Custom tools need agent access for bidirectional communication
+            await services.toolManager.initialize();
+
             // Initialize search service from services
             this.searchService = services.searchService;
 
@@ -298,12 +322,6 @@ export class DextoAgent {
             // Subscribe all registered event subscribers to the new event bus
             for (const subscriber of this.eventSubscribers) {
                 subscriber.subscribe(this.agentEventBus);
-            }
-
-            // Show log location if file logging is configured
-            const fileTransport = this.config.logger?.transports?.find((t) => t.type === 'file');
-            if (fileTransport && 'path' in fileTransport) {
-                console.log(`📋 Logs available at: ${fileTransport.path}`);
             }
         } catch (error) {
             this.logger.error('Failed to start DextoAgent', {
@@ -464,235 +482,109 @@ export class DextoAgent {
     // ============= CORE AGENT FUNCTIONALITY =============
 
     /**
-     * Main method for processing user input.
-     * Processes user input through the agent's LLM service and returns the response.
+     * Process user input and return the response.
      *
-     * @param textInput - The user's text message or query to process
-     * @param imageDataInput - Optional image data and MIME type for multimodal input
-     * @param fileDataInput - Optional file data and MIME type for file input
+     * @deprecated Use generate() or stream() instead for multi-image support.
+     * This method is kept for backward compatibility and only supports single image/file.
+     *
+     * @param textInput - The user's text message
+     * @param imageDataInput - Optional single image data
+     * @param fileDataInput - Optional single file data
      * @param sessionId - Session ID for the conversation (required)
-     * @param stream - Whether to stream the response (default: false)
-     * @returns Promise that resolves to the AI's response text, or null if no significant response
-     * @throws Error if processing fails
+     * @param _stream - Ignored (streaming is handled internally)
+     * @returns Promise that resolves to the AI's response text
      */
     public async run(
         textInput: string,
         imageDataInput: { image: string; mimeType: string } | undefined,
         fileDataInput: { data: string; mimeType: string; filename?: string } | undefined,
         sessionId: string,
-        stream: boolean = false
+        _stream: boolean = false
     ): Promise<string> {
-        this.ensureStarted();
+        // Convert legacy signature to ContentPart[]
+        const parts: import('./types.js').ContentPart[] = [];
 
-        // Defensive runtime validation (protects against JavaScript callers, any types, @ts-ignore)
-        if (!sessionId || typeof sessionId !== 'string') {
-            throw new Error('sessionId is required and must be a non-empty string');
-        }
-        const targetSessionId: string = sessionId;
-
-        // Propagate sessionId through OpenTelemetry context for distributed tracing
-        // This ensures all child spans will have access to the sessionId
-        const activeContext = context.active();
-        const span = trace.getActiveSpan();
-
-        // Add sessionId to span attributes
-        if (span) {
-            span.setAttribute('sessionId', targetSessionId);
+        if (textInput) {
+            parts.push({ type: 'text', text: textInput });
         }
 
-        // Preserve existing baggage entries and add sessionId
-        const existingBaggage = propagation.getBaggage(activeContext);
-        const baggageEntries: Record<string, BaggageEntry> = {};
-
-        // Copy existing baggage entries to preserve them (including metadata)
-        if (existingBaggage) {
-            existingBaggage.getAllEntries().forEach(([key, entry]) => {
-                baggageEntries[key] = { ...entry };
+        if (imageDataInput) {
+            parts.push({
+                type: 'image',
+                image: imageDataInput.image,
+                mimeType: imageDataInput.mimeType,
             });
         }
 
-        // Add or update sessionId while preserving any existing metadata
-        baggageEntries.sessionId = { ...baggageEntries.sessionId, value: targetSessionId };
+        if (fileDataInput) {
+            parts.push({
+                type: 'file',
+                data: fileDataInput.data,
+                mimeType: fileDataInput.mimeType,
+                ...(fileDataInput.filename && { filename: fileDataInput.filename }),
+            });
+        }
 
-        // Create updated context with merged baggage
-        const updatedContext = propagation.setBaggage(
-            activeContext,
-            propagation.createBaggage(baggageEntries)
-        );
-
-        // Debug logging to verify baggage propagation
-        const verifyBaggage = propagation.getBaggage(updatedContext);
-        this.logger.debug(
-            `Baggage after setting sessionId: ${JSON.stringify(
-                Array.from(verifyBaggage?.getAllEntries() || [])
-            )}`
-        );
-
-        // Execute the rest of the method within the updated context
-        return await context.with(updatedContext, async () => {
-            try {
-                // Get session-specific LLM config for validation
-                const llmConfig = this.stateManager.getLLMConfig(targetSessionId);
-
-                // Validate inputs early using session-specific config
-                const validation = validateInputForLLM(
-                    {
-                        text: textInput,
-                        ...(imageDataInput && { imageData: imageDataInput }),
-                        ...(fileDataInput && { fileData: fileDataInput }),
-                    },
-                    {
-                        provider: llmConfig.provider,
-                        model: llmConfig.model,
-                    },
-                    this.logger
-                );
-
-                // Validate input and throw if invalid
-                ensureOk(validation, this.logger);
-
-                // Resolve the concrete ChatSession for the target session id
-                const session: ChatSession =
-                    (await this.sessionManager.getSession(targetSessionId)) ||
-                    (await this.sessionManager.createSession(targetSessionId));
-
-                this.logger.debug(
-                    `DextoAgent.run: sessionId=${targetSessionId}, textLength=${textInput?.length ?? 0}, hasImage=${Boolean(
-                        imageDataInput
-                    )}, hasFile=${Boolean(fileDataInput)}`
-                );
-                // Expand @resource mentions into content before sending to the model
-                let finalText = textInput;
-                let finalImageData = imageDataInput;
-                if (textInput && textInput.includes('@')) {
-                    try {
-                        const resources = await this.resourceManager.list();
-                        const expansion = await expandMessageReferences(
-                            textInput,
-                            resources,
-                            (uri) => this.resourceManager.read(uri)
-                        );
-
-                        // Warn about unresolved references
-                        if (expansion.unresolvedReferences.length > 0) {
-                            const unresolvedNames = expansion.unresolvedReferences
-                                .map((ref) => ref.originalRef)
-                                .join(', ');
-                            this.logger.warn(
-                                `Could not resolve ${expansion.unresolvedReferences.length} resource reference(s): ${unresolvedNames}`
-                            );
-                        }
-
-                        // Validate expanded message size (5MB limit)
-                        const MAX_EXPANDED_SIZE = 5 * 1024 * 1024; // 5MB
-                        const expandedSize = Buffer.byteLength(expansion.expandedMessage, 'utf-8');
-                        if (expandedSize > MAX_EXPANDED_SIZE) {
-                            this.logger.warn(
-                                `Expanded message size (${(expandedSize / 1024 / 1024).toFixed(2)}MB) exceeds limit (${MAX_EXPANDED_SIZE / 1024 / 1024}MB). Content may be truncated.`
-                            );
-                        }
-
-                        finalText = expansion.expandedMessage;
-
-                        // If we extracted images from resources and don't already have image data, use the first extracted image
-                        if (expansion.extractedImages.length > 0 && !imageDataInput) {
-                            const firstImage = expansion.extractedImages[0];
-                            if (firstImage) {
-                                finalImageData = {
-                                    image: firstImage.image,
-                                    mimeType: firstImage.mimeType,
-                                };
-                                this.logger.debug(
-                                    `Using extracted image: ${firstImage.name} (${firstImage.mimeType})`
-                                );
-                            }
-                        }
-                    } catch (error) {
-                        // Log error but continue with original message to avoid blocking the user
-                        this.logger.error(
-                            `Failed to expand resource references: ${error instanceof Error ? error.message : String(error)}. Continuing with original message.`
-                        );
-                        // Continue with original text instead of throwing
-                    }
-                }
-
-                // Validate that we have either text or media content after expansion
-                if (!finalText.trim() && !finalImageData && !fileDataInput) {
-                    this.logger.warn(
-                        'Resource expansion resulted in empty content. Using original message.'
-                    );
-                    finalText = textInput;
-                }
-
-                // Title generation moved to on-demand API endpoint
-                // Users can call generateSessionTitle() explicitly
-
-                const response = await session.run(
-                    finalText,
-                    finalImageData,
-                    fileDataInput,
-                    stream
-                );
-
-                // Increment message count for this session (counts each)
-                // Fire-and-forget to avoid race conditions during shutdown
-                this.sessionManager
-                    .incrementMessageCount(session.id)
-                    .catch((error) =>
-                        this.logger.warn(
-                            `Failed to increment message count: ${error instanceof Error ? error.message : String(error)}`
-                        )
-                    );
-
-                return response;
-            } catch (error) {
-                this.logger.error(
-                    `Error during DextoAgent.run: ${error instanceof Error ? error.message : JSON.stringify(error)}`
-                );
-                throw error;
-            }
-        });
+        // Call generate() which handles everything
+        const response = await this.generate(parts.length > 0 ? parts : textInput, sessionId);
+        return response.content;
     }
 
     /**
      * Generate a complete response (waits for full completion).
      * This is the recommended method for non-streaming use cases.
      *
-     * @param message The user's message
-     * @param options Configuration options (sessionId is required, imageData, fileData, signal are optional)
+     * @param content String message or array of content parts (text, images, files)
+     * @param sessionId Session ID for the conversation
+     * @param options Optional configuration (signal for cancellation)
      * @returns Promise that resolves to the complete response
      *
      * @example
      * ```typescript
-     * const response = await agent.generate("What is 2+2?", { sessionId: "default" });
+     * // Simple text message
+     * const response = await agent.generate('What is 2+2?', 'session-1');
      * console.log(response.content); // "4"
-     * console.log(response.usage.totalTokens); // 50
+     *
+     * // Multimodal with image
+     * const response = await agent.generate(
+     *     [
+     *         { type: 'text', text: 'Describe this image' },
+     *         { type: 'image', image: base64Data, mimeType: 'image/png' }
+     *     ],
+     *     'session-1'
+     * );
      * ```
      */
     public async generate(
-        message: string,
-        options: import('./types.js').GenerateOptions
+        content: import('./types.js').ContentInput,
+        sessionId: string,
+        options?: import('./types.js').GenerateOptions
     ): Promise<import('./types.js').GenerateResponse> {
         // Collect all events from stream
         const events: StreamingEvent[] = [];
 
-        for await (const event of await this.stream(message, options)) {
+        for await (const event of await this.stream(content, sessionId, options)) {
             events.push(event);
         }
 
-        // Check for error events first - if generation failed, throw the actual error
-        const errorEvent = events.find(
-            (e): e is Extract<StreamingEvent, { name: 'llm:error' }> => e.name === 'llm:error'
+        // Check for non-recoverable error events - only throw on fatal errors
+        // Recoverable errors (like tool failures) are included in the response for the caller to handle
+        const fatalErrorEvent = events.find(
+            (e): e is Extract<StreamingEvent, { name: 'llm:error' }> =>
+                e.name === 'llm:error' && e.recoverable !== true
         );
-        if (errorEvent) {
-            // If it's already a DextoRuntimeError, throw it directly
-            if (errorEvent.error instanceof DextoRuntimeError) {
-                throw errorEvent.error;
+        if (fatalErrorEvent) {
+            // If it's already a Dexto error (Runtime or Validation), throw it directly
+            if (
+                fatalErrorEvent.error instanceof DextoRuntimeError ||
+                fatalErrorEvent.error instanceof DextoValidationError
+            ) {
+                throw fatalErrorEvent.error;
             }
             // Otherwise wrap plain Error in DextoRuntimeError for proper HTTP status handling
-            const llmConfig = this.stateManager.getLLMConfig(options.sessionId);
+            const llmConfig = this.stateManager.getLLMConfig(sessionId);
             throw LLMError.generationFailed(
-                errorEvent.error.message,
+                fatalErrorEvent.error.message,
                 llmConfig.provider,
                 llmConfig.model
             );
@@ -702,7 +594,7 @@ export class DextoAgent {
         const responseEvent = events.find((e) => e.name === 'llm:response');
         if (!responseEvent || responseEvent.name !== 'llm:response') {
             // Get current LLM config for error context
-            const llmConfig = this.stateManager.getLLMConfig(options.sessionId);
+            const llmConfig = this.stateManager.getLLMConfig(sessionId);
             throw LLMError.generationFailed(
                 'Stream did not complete successfully - no response received',
                 llmConfig.provider,
@@ -748,7 +640,7 @@ export class DextoAgent {
             reasoning: responseEvent.reasoning,
             usage: usage as import('./types.js').TokenUsage,
             toolCalls,
-            sessionId: options.sessionId,
+            sessionId,
         };
     }
 
@@ -763,46 +655,56 @@ export class DextoAgent {
      * Events are forwarded directly from the AgentEventBus with no mapping layer,
      * providing a unified event system across all API layers.
      *
-     * @param message The user's message
-     * @param options Configuration options (sessionId is required, imageData, fileData, signal are optional)
+     * @param content String message or array of content parts (text, images, files)
+     * @param sessionId Session ID for the conversation
+     * @param options Optional configuration (signal for cancellation)
      * @returns AsyncIterator that yields StreamingEvent objects (core events with name property)
      *
      * @example
      * ```typescript
-     * for await (const event of await agent.stream("Write a poem", { sessionId: "default" })) {
-     *   if (event.name === 'llm:chunk') {
-     *     process.stdout.write(event.content);
-     *   }
-     *   if (event.name === 'llm:tool-call') {
-     *     console.log(`\n[Using ${event.toolName}]\n`);
-     *   }
+     * // Simple text
+     * for await (const event of await agent.stream('Write a poem', 'session-1')) {
+     *   if (event.name === 'llm:chunk') process.stdout.write(event.content);
      * }
+     *
+     * // Multimodal
+     * for await (const event of await agent.stream(
+     *     [{ type: 'text', text: 'Describe this' }, { type: 'image', image: data, mimeType: 'image/png' }],
+     *     'session-1'
+     * )) { ... }
      * ```
      */
     public async stream(
-        message: string,
-        options: import('./types.js').StreamOptions
+        content: import('./types.js').ContentInput,
+        sessionId: string,
+        options?: import('./types.js').StreamOptions
     ): Promise<AsyncIterableIterator<StreamingEvent>> {
         this.ensureStarted();
 
         // Validate sessionId is provided
-        if (!options.sessionId) {
-            throw new Error('sessionId is required in StreamOptions');
+        if (!sessionId) {
+            throw AgentError.apiValidationError('sessionId is required');
         }
 
-        const sessionId = options.sessionId;
-        const imageData = options.imageData;
-        const fileData = options.fileData;
-        const signal = options.signal;
+        const signal = options?.signal;
+
+        // Normalize content: string -> [{ type: 'text', text: string }]
+        let contentParts: import('./types.js').ContentPart[] =
+            typeof content === 'string' ? [{ type: 'text', text: content }] : [...content];
 
         // Event queue for aggregation - now holds core events directly
         const eventQueue: StreamingEvent[] = [];
         let completed = false;
-        let _streamError: Error | null = null;
 
         // Create AbortController for cleanup
         const controller = new AbortController();
         const cleanupSignal = controller.signal;
+
+        // Store controller so cancel() can abort this stream
+        this.activeStreamControllers.set(sessionId, controller);
+
+        // Increase listener limit - stream() registers 12+ event listeners on this signal
+        setMaxListeners(30, cleanupSignal);
 
         // Track listener references for manual cleanup
         // Using Function type here because listeners have different signatures per event
@@ -811,7 +713,7 @@ export class DextoAgent {
             listener: Function;
         }> = [];
 
-        // Cleanup function to remove all listeners
+        // Cleanup function to remove all listeners and stream controller
         const cleanupListeners = () => {
             if (listeners.length === 0) {
                 return; // Already cleaned up
@@ -823,6 +725,8 @@ export class DextoAgent {
                 );
             }
             listeners.length = 0;
+            // Remove from active controllers map
+            this.activeStreamControllers.delete(sessionId);
         };
 
         // Wire external signal to trigger cleanup
@@ -922,6 +826,16 @@ export class DextoAgent {
         });
         listeners.push({ event: 'approval:response', listener: approvalResponseListener });
 
+        // Tool running event - emitted when tool execution starts (after approval if needed)
+        const toolRunningListener = (data: AgentEventMap['tool:running']) => {
+            if (data.sessionId !== sessionId) return;
+            eventQueue.push({ name: 'tool:running', ...data });
+        };
+        this.agentEventBus.on('tool:running', toolRunningListener, {
+            signal: cleanupSignal,
+        });
+        listeners.push({ event: 'tool:running', listener: toolRunningListener });
+
         // Message queue events (for mid-task user guidance)
         const messageQueuedListener = (data: AgentEventMap['message:queued']) => {
             if (data.sessionId !== sessionId) return;
@@ -953,45 +867,210 @@ export class DextoAgent {
         });
         listeners.push({ event: 'run:complete', listener: runCompleteListener });
 
-        // Start run in background (fire-and-forget)
-        // Cast imageData to expected format (run() expects simpler { image: string, mimeType: string })
-        const imageDataForRun = imageData
-            ? {
-                  image:
-                      typeof imageData.image === 'string'
-                          ? imageData.image
-                          : imageData.image.toString(),
-                  mimeType: imageData.mimeType || 'image/png',
-              }
-            : undefined;
+        // Start streaming in background (fire-and-forget)
+        (async () => {
+            // Propagate sessionId through OpenTelemetry context for distributed tracing
+            const activeContext = context.active();
+            const activeSpan = trace.getActiveSpan();
 
-        // Convert fileData to format expected by run() (data must be string)
-        const fileDataForRun = fileData
-            ? {
-                  data:
-                      typeof fileData.data === 'string' ? fileData.data : fileData.data.toString(),
-                  mimeType: fileData.mimeType,
-                  ...(fileData.filename && { filename: fileData.filename }),
-              }
-            : undefined;
+            // Add sessionId to span attributes
+            if (activeSpan) {
+                activeSpan.setAttribute('sessionId', sessionId);
+            }
 
-        this.run(message, imageDataForRun, fileDataForRun, sessionId, true).catch((err) => {
-            // Ensure error is always an Error instance for proper typing
-            const error = err instanceof Error ? err : new Error(String(err));
-            _streamError = error;
-            completed = true;
-            this.logger.error(`Error in DextoAgent.stream: ${error.message}`);
+            // Preserve existing baggage entries and add sessionId
+            const existingBaggage = propagation.getBaggage(activeContext);
+            const baggageEntries: Record<string, BaggageEntry> = {};
+            if (existingBaggage) {
+                existingBaggage.getAllEntries().forEach(([key, entry]) => {
+                    baggageEntries[key] = { ...entry };
+                });
+            }
+            baggageEntries.sessionId = { ...baggageEntries.sessionId, value: sessionId };
 
-            // Construct properly typed error event
-            const errorEvent: { name: 'llm:error' } & AgentEventMap['llm:error'] = {
-                name: 'llm:error',
-                error,
-                recoverable: false,
-                context: 'run_failed',
-                sessionId,
-            };
-            eventQueue.push(errorEvent);
-        });
+            const updatedContext = propagation.setBaggage(
+                activeContext,
+                propagation.createBaggage(baggageEntries)
+            );
+
+            // Execute within updated OpenTelemetry context
+            await context.with(updatedContext, async () => {
+                try {
+                    // Get session-specific LLM config for validation
+                    const llmConfig = this.stateManager.getLLMConfig(sessionId);
+
+                    // Extract parts for validation
+                    const textParts = contentParts.filter(
+                        (p): p is import('./types.js').TextPart => p.type === 'text'
+                    );
+                    const textContent = textParts.map((p) => p.text).join('\n');
+                    const imageParts = contentParts.filter(
+                        (p): p is import('./types.js').ImagePart => p.type === 'image'
+                    );
+                    const fileParts = contentParts.filter(
+                        (p): p is import('./types.js').FilePart => p.type === 'file'
+                    );
+
+                    this.logger.debug(
+                        `DextoAgent.stream: sessionId=${sessionId}, textLength=${textContent?.length ?? 0}, imageCount=${imageParts.length}, fileCount=${fileParts.length}`
+                    );
+
+                    // Validate ALL inputs early using session-specific config
+                    // Validate text first (once)
+                    const textValidation = validateInputForLLM(
+                        { text: textContent },
+                        { provider: llmConfig.provider, model: llmConfig.model },
+                        this.logger
+                    );
+                    ensureOk(textValidation, this.logger);
+
+                    // Validate each image
+                    for (const imagePart of imageParts) {
+                        const imageValidation = validateInputForLLM(
+                            {
+                                imageData: {
+                                    image:
+                                        typeof imagePart.image === 'string'
+                                            ? imagePart.image
+                                            : imagePart.image.toString(),
+                                    mimeType: imagePart.mimeType || 'image/png',
+                                },
+                            },
+                            { provider: llmConfig.provider, model: llmConfig.model },
+                            this.logger
+                        );
+                        ensureOk(imageValidation, this.logger);
+                    }
+
+                    // Validate each file
+                    for (const filePart of fileParts) {
+                        const fileValidation = validateInputForLLM(
+                            {
+                                fileData: {
+                                    data:
+                                        typeof filePart.data === 'string'
+                                            ? filePart.data
+                                            : filePart.data.toString(),
+                                    mimeType: filePart.mimeType,
+                                },
+                            },
+                            { provider: llmConfig.provider, model: llmConfig.model },
+                            this.logger
+                        );
+                        ensureOk(fileValidation, this.logger);
+                    }
+
+                    // Expand @resource mentions - returns ALL images as ContentPart[]
+                    if (textContent.includes('@')) {
+                        try {
+                            const resources = await this.resourceManager.list();
+                            const expansion = await expandMessageReferences(
+                                textContent,
+                                resources,
+                                (uri) => this.resourceManager.read(uri)
+                            );
+
+                            // Warn about unresolved references
+                            if (expansion.unresolvedReferences.length > 0) {
+                                const unresolvedNames = expansion.unresolvedReferences
+                                    .map((ref) => ref.originalRef)
+                                    .join(', ');
+                                this.logger.warn(
+                                    `Could not resolve ${expansion.unresolvedReferences.length} resource reference(s): ${unresolvedNames}`
+                                );
+                            }
+
+                            // Validate expanded message size (5MB limit)
+                            const MAX_EXPANDED_SIZE = 5 * 1024 * 1024; // 5MB
+                            const expandedSize = Buffer.byteLength(
+                                expansion.expandedMessage,
+                                'utf-8'
+                            );
+                            if (expandedSize > MAX_EXPANDED_SIZE) {
+                                this.logger.warn(
+                                    `Expanded message size (${(expandedSize / 1024 / 1024).toFixed(2)}MB) exceeds limit (${MAX_EXPANDED_SIZE / 1024 / 1024}MB). Content may be truncated.`
+                                );
+                            }
+
+                            // Update text parts with expanded message
+                            contentParts = contentParts.filter((p) => p.type !== 'text');
+                            if (expansion.expandedMessage.trim()) {
+                                contentParts.unshift({
+                                    type: 'text',
+                                    text: expansion.expandedMessage,
+                                });
+                            }
+
+                            // Add ALL extracted images to content parts
+                            for (const img of expansion.extractedImages) {
+                                contentParts.push({
+                                    type: 'image',
+                                    image: img.image,
+                                    mimeType: img.mimeType,
+                                });
+                                this.logger.debug(
+                                    `Added extracted image: ${img.name} (${img.mimeType})`
+                                );
+                            }
+                        } catch (error) {
+                            this.logger.error(
+                                `Failed to expand resource references: ${error instanceof Error ? error.message : String(error)}. Continuing with original message.`
+                            );
+                        }
+                    }
+
+                    // Validate that we have content after expansion - fallback to original if empty
+                    const hasTextContent = contentParts.some(
+                        (p) => p.type === 'text' && p.text.trim()
+                    );
+                    const hasMediaContent = contentParts.some(
+                        (p) => p.type === 'image' || p.type === 'file'
+                    );
+                    if (!hasTextContent && !hasMediaContent) {
+                        this.logger.warn(
+                            'Resource expansion resulted in empty content. Using original message.'
+                        );
+                        contentParts = [{ type: 'text', text: textContent }];
+                    }
+
+                    // Get or create session
+                    const session: ChatSession =
+                        (await this.sessionManager.getSession(sessionId)) ||
+                        (await this.sessionManager.createSession(sessionId));
+
+                    // Call session.stream() directly with ALL content parts
+                    await session.stream(contentParts, signal ? { signal } : undefined);
+
+                    // Increment message count
+                    this.sessionManager
+                        .incrementMessageCount(session.id)
+                        .catch((error) =>
+                            this.logger.warn(
+                                `Failed to increment message count: ${error instanceof Error ? error.message : String(error)}`
+                            )
+                        );
+                } catch (err) {
+                    // Preserve typed errors, wrap unknown values in AgentError.streamFailed
+                    const error =
+                        err instanceof DextoRuntimeError || err instanceof DextoValidationError
+                            ? err
+                            : err instanceof Error
+                              ? err
+                              : AgentError.streamFailed(String(err));
+                    completed = true;
+                    this.logger.error(`Error in DextoAgent.stream: ${error.message}`);
+
+                    const errorEvent: { name: 'llm:error' } & AgentEventMap['llm:error'] = {
+                        name: 'llm:error',
+                        error,
+                        recoverable: false,
+                        context: 'run_failed',
+                        sessionId,
+                    };
+                    eventQueue.push(errorEvent);
+                }
+            });
+        })();
 
         // Return async iterable iterator
         const iterator: AsyncIterableIterator<StreamingEvent> = {
@@ -1000,8 +1079,8 @@ export class DextoAgent {
                 while (!completed && eventQueue.length === 0) {
                     await new Promise((resolve) => setTimeout(resolve, 0));
 
-                    // Check for abort
-                    if (signal?.aborted) {
+                    // Check for abort (external signal OR internal via cancel())
+                    if (signal?.aborted || cleanupSignal.aborted) {
                         cleanupListeners();
                         controller.abort();
                         return { done: true, value: undefined };
@@ -1062,7 +1141,7 @@ export class DextoAgent {
      */
     public async queueMessage(
         sessionId: string,
-        message: import('../session/message-queue.js').UserMessage
+        message: import('../session/message-queue.js').UserMessageInput
     ): Promise<{ queued: true; position: number; id: string }> {
         this.ensureStarted();
         const session = await this.sessionManager.getSession(sessionId, false);
@@ -1128,16 +1207,25 @@ export class DextoAgent {
 
         // Defensive runtime validation (protects against JavaScript callers, any types, @ts-ignore)
         if (!sessionId || typeof sessionId !== 'string') {
-            throw new Error('sessionId is required and must be a non-empty string');
+            throw AgentError.apiValidationError(
+                'sessionId is required and must be a non-empty string'
+            );
         }
 
-        // Attempt to fetch from sessionManager cache (memory only)
+        // Abort the stream iterator first (so consumer's for-await loop exits cleanly)
+        const streamController = this.activeStreamControllers.get(sessionId);
+        if (streamController) {
+            streamController.abort();
+            this.activeStreamControllers.delete(sessionId);
+        }
+
+        // Then cancel the session's LLM/tool execution
         const existing = await this.sessionManager.getSession(sessionId, false);
         if (existing) {
             return existing.cancel();
         }
-        // If not found, nothing to cancel
-        return false;
+        // If no session found but stream was aborted, still return true
+        return !!streamController;
     }
 
     // ============= SESSION MANAGEMENT =============
@@ -1303,7 +1391,7 @@ export class DextoAgent {
      * @returns Promise that resolves to the session's conversation history
      * @throws Error if session doesn't exist
      */
-    public async getSessionHistory(sessionId: string) {
+    public async getSessionHistory(sessionId: string): Promise<InternalMessage[]> {
         this.ensureStarted();
         const session = await this.sessionManager.getSession(sessionId);
         if (!session) {
@@ -1314,7 +1402,7 @@ export class DextoAgent {
             return history;
         }
 
-        return await Promise.all(
+        return (await Promise.all(
             history.map(async (message) => ({
                 ...message,
                 content: await expandBlobReferences(
@@ -1328,7 +1416,7 @@ export class DextoAgent {
                     return message.content; // Return original content on error
                 }),
             }))
-        );
+        )) as InternalMessage[];
     }
 
     /**
@@ -1367,7 +1455,9 @@ export class DextoAgent {
 
         // Defensive runtime validation (protects against JavaScript callers, any types, @ts-ignore)
         if (!sessionId || typeof sessionId !== 'string') {
-            throw new Error('sessionId is required and must be a non-empty string');
+            throw AgentError.apiValidationError(
+                'sessionId is required and must be a non-empty string'
+            );
         }
 
         try {
@@ -1384,6 +1474,42 @@ export class DextoAgent {
             );
             throw error;
         }
+    }
+
+    /**
+     * Clears the context window for a session without deleting history.
+     *
+     * This adds a "context clear" marker to the conversation history. When the
+     * context is loaded for LLM, messages before this marker are filtered out
+     * (via filterCompacted). The full history remains in the database for
+     * review via /resume or session history.
+     *
+     * Use this for /clear command - it preserves history but gives a fresh
+     * context window to the LLM.
+     *
+     * @param sessionId Session ID (required)
+     */
+    public async clearContext(sessionId: string): Promise<void> {
+        this.ensureStarted();
+
+        if (!sessionId || typeof sessionId !== 'string') {
+            throw AgentError.apiValidationError(
+                'sessionId is required and must be a non-empty string'
+            );
+        }
+
+        const session = await this.sessionManager.getSession(sessionId);
+        if (!session) {
+            throw SessionError.notFound(sessionId);
+        }
+
+        const contextManager = session.getContextManager();
+        await contextManager.clearContext();
+
+        this.logger.info(`Context cleared for session: ${sessionId}`);
+        this.agentEventBus.emit('context:cleared', {
+            sessionId,
+        });
     }
 
     // ============= LLM MANAGEMENT =============
@@ -1456,7 +1582,11 @@ export class DextoAgent {
             : this.stateManager.getRuntimeConfig().llm;
 
         // Build and validate the new configuration using Result pattern internally
-        const result = resolveAndValidateLLMConfig(currentLLMConfig, validatedUpdates, this.logger);
+        const result = await resolveAndValidateLLMConfig(
+            currentLLMConfig,
+            validatedUpdates,
+            this.logger
+        );
         const validatedConfig = ensureOk(result, this.logger);
 
         // Perform the actual LLM switch with validated config
@@ -1619,14 +1749,14 @@ export class DextoAgent {
     // ============= MCP SERVER MANAGEMENT =============
 
     /**
-     * Connects a new MCP server and adds it to the runtime configuration.
+     * Adds a new MCP server to the runtime configuration and connects it if enabled.
      * This method handles validation, state management, and establishing the connection.
      *
-     * @param name The name of the server to connect.
+     * @param name The name of the server to add.
      * @param config The configuration object for the server.
      * @throws DextoError if validation fails or connection fails
      */
-    public async connectMcpServer(name: string, config: McpServerConfig): Promise<void> {
+    public async addMcpServer(name: string, config: McpServerConfig): Promise<void> {
         this.ensureStarted();
 
         // Validate the server configuration
@@ -1635,7 +1765,13 @@ export class DextoAgent {
         const validatedConfig = ensureOk(validation, this.logger);
 
         // Add to runtime state (no validation needed - already validated)
-        this.stateManager.addMcpServer(name, validatedConfig);
+        this.stateManager.setMcpServer(name, validatedConfig);
+
+        // Only connect if server is enabled (default is true)
+        if (validatedConfig.enabled === false) {
+            this.logger.info(`MCP server '${name}' added but not connected (disabled)`);
+            return;
+        }
 
         try {
             // Connect the server
@@ -1653,9 +1789,7 @@ export class DextoAgent {
                 source: 'mcp',
             });
 
-            this.logger.info(
-                `DextoAgent: Successfully added and connected to MCP server '${name}'.`
-            );
+            this.logger.info(`MCP server '${name}' added and connected successfully`);
 
             // Log warnings if present
             const warnings = validation.issues.filter((i) => i.severity === 'warning');
@@ -1664,13 +1798,9 @@ export class DextoAgent {
                     `MCP server connected with warnings: ${warnings.map((w) => w.message).join(', ')}`
                 );
             }
-
-            // Connection successful - method completes without returning data
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);
-            this.logger.error(
-                `DextoAgent: Failed to connect to MCP server '${name}': ${errorMessage}`
-            );
+            this.logger.error(`Failed to connect MCP server '${name}': ${errorMessage}`);
 
             // Clean up state if connection failed
             this.stateManager.removeMcpServer(name);
@@ -1686,19 +1816,104 @@ export class DextoAgent {
     }
 
     /**
-     * Removes and disconnects an MCP server.
+     * @deprecated Use `addMcpServer` instead. This method will be removed in a future version.
+     */
+    public async connectMcpServer(name: string, config: McpServerConfig): Promise<void> {
+        return this.addMcpServer(name, config);
+    }
+
+    /**
+     * Enables a disabled MCP server and connects it.
+     * Updates the runtime state to enabled=true and establishes the connection.
+     *
+     * @param name The name of the server to enable.
+     * @throws MCPError if server is not found or connection fails
+     */
+    public async enableMcpServer(name: string): Promise<void> {
+        this.ensureStarted();
+
+        const currentConfig = this.stateManager.getRuntimeConfig().mcpServers[name];
+        if (!currentConfig) {
+            throw MCPError.serverNotFound(name);
+        }
+
+        // Update state with enabled=true
+        const updatedConfig = { ...currentConfig, enabled: true };
+        this.stateManager.setMcpServer(name, updatedConfig);
+
+        try {
+            // Connect the server
+            await this.mcpManager.connectServer(name, updatedConfig);
+            await this.toolManager.refresh();
+
+            this.agentEventBus.emit('mcp:server-connected', { name, success: true });
+            this.logger.info(`MCP server '${name}' enabled and connected`);
+        } catch (error) {
+            // Revert state on failure
+            this.stateManager.setMcpServer(name, currentConfig);
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            this.logger.error(`Failed to enable MCP server '${name}': ${errorMessage}`);
+            throw MCPError.connectionFailed(name, errorMessage);
+        }
+    }
+
+    /**
+     * Disables an MCP server and disconnects it.
+     * Updates the runtime state to enabled=false and closes the connection.
+     *
+     * @param name The name of the server to disable.
+     * @throws MCPError if server is not found or disconnect fails
+     */
+    public async disableMcpServer(name: string): Promise<void> {
+        this.ensureStarted();
+
+        const currentConfig = this.stateManager.getRuntimeConfig().mcpServers[name];
+        if (!currentConfig) {
+            throw MCPError.serverNotFound(name);
+        }
+
+        // Update state with enabled=false
+        const updatedConfig = { ...currentConfig, enabled: false };
+        this.stateManager.setMcpServer(name, updatedConfig);
+
+        try {
+            // Disconnect the server
+            await this.mcpManager.removeClient(name);
+            await this.toolManager.refresh();
+
+            this.logger.info(`MCP server '${name}' disabled and disconnected`);
+        } catch (error) {
+            // Revert state on failure
+            this.stateManager.setMcpServer(name, currentConfig);
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            this.logger.error(`Failed to disable MCP server '${name}': ${errorMessage}`);
+            throw MCPError.disconnectionFailed(name, errorMessage);
+        }
+    }
+
+    /**
+     * Removes and disconnects an MCP server completely.
+     * Use this for deleting a server - removes from both runtime state and disconnects.
      * @param name The name of the server to remove.
+     * @throws MCPError if disconnection fails
      */
     public async removeMcpServer(name: string): Promise<void> {
         this.ensureStarted();
-        // Disconnect the client first
-        await this.mcpManager.removeClient(name);
 
-        // Then remove from runtime state
-        this.stateManager.removeMcpServer(name);
+        try {
+            // Disconnect the client first
+            await this.mcpManager.removeClient(name);
 
-        // Refresh tool cache after server removal so the LLM sees updated set
-        await this.toolManager.refresh();
+            // Then remove from runtime state
+            this.stateManager.removeMcpServer(name);
+
+            // Refresh tool cache after server removal so the LLM sees updated set
+            await this.toolManager.refresh();
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            this.logger.error(`Failed to remove MCP server '${name}': ${errorMessage}`);
+            throw MCPError.disconnectionFailed(name, errorMessage);
+        }
     }
 
     /**
@@ -1744,13 +1959,19 @@ export class DextoAgent {
     /**
      * Executes a tool from any source (MCP servers, custom tools, or internal tools).
      * This is the unified interface for tool execution that can handle all tool types.
+     *
+     * Note: This is for direct/programmatic tool execution outside of LLM flow.
+     * A toolCallId is generated automatically for tracking purposes.
+     *
      * @param toolName The name of the tool to execute
      * @param args The arguments to pass to the tool
      * @returns The result of the tool execution
      */
     public async executeTool(toolName: string, args: any): Promise<any> {
         this.ensureStarted();
-        return await this.toolManager.executeTool(toolName, args);
+        // Generate a toolCallId for direct API calls (not from LLM)
+        const toolCallId = `direct-${randomUUID()}`;
+        return await this.toolManager.executeTool(toolName, args, toolCallId);
     }
 
     /**
@@ -1791,6 +2012,89 @@ export class DextoAgent {
     public getMcpFailedConnections(): Record<string, string> {
         this.ensureStarted();
         return this.mcpManager.getFailedConnections();
+    }
+
+    /**
+     * Gets the connection status of a single MCP server.
+     * @param name The server name
+     * @returns The connection status, or undefined if server not configured
+     *
+     * TODO: Move to MCPManager once it has access to server configs (enabled state).
+     * Currently here because MCPManager only tracks connections, not config.
+     */
+    public getMcpServerStatus(name: string): McpServerStatus | undefined {
+        this.ensureStarted();
+        const config = this.stateManager.getRuntimeConfig();
+        const serverConfig = config.mcpServers[name];
+        if (!serverConfig) return undefined;
+
+        const enabled = serverConfig.enabled !== false;
+        const connectedClients = this.mcpManager.getClients();
+        const failedConnections = this.mcpManager.getFailedConnections();
+
+        let status: McpConnectionStatus;
+        if (!enabled) {
+            status = 'disconnected';
+        } else if (connectedClients.has(name)) {
+            status = 'connected';
+        } else {
+            status = 'error';
+        }
+
+        const result: McpServerStatus = {
+            name,
+            type: serverConfig.type,
+            enabled,
+            status,
+        };
+        if (failedConnections[name]) {
+            result.error = failedConnections[name];
+        }
+        return result;
+    }
+
+    /**
+     * Gets all configured MCP servers with their connection status.
+     * Centralizes the status computation logic used by CLI, server, and webui.
+     * @returns Array of server info with computed status
+     *
+     * TODO: Move to MCPManager once it has access to server configs (enabled state).
+     * Currently here because MCPManager only tracks connections, not config.
+     */
+    public getMcpServersWithStatus(): McpServerStatus[] {
+        this.ensureStarted();
+        const config = this.stateManager.getRuntimeConfig();
+        const mcpServers = config.mcpServers || {};
+        const connectedClients = this.mcpManager.getClients();
+        const failedConnections = this.mcpManager.getFailedConnections();
+
+        const servers: McpServerStatus[] = [];
+
+        for (const [name, serverConfig] of Object.entries(mcpServers)) {
+            const enabled = serverConfig.enabled !== false;
+            let status: McpConnectionStatus;
+
+            if (!enabled) {
+                status = 'disconnected';
+            } else if (connectedClients.has(name)) {
+                status = 'connected';
+            } else {
+                status = 'error';
+            }
+
+            const server: McpServerStatus = {
+                name,
+                type: serverConfig.type,
+                enabled,
+                status,
+            };
+            if (failedConnections[name]) {
+                server.error = failedConnections[name];
+            }
+            servers.push(server);
+        }
+
+        return servers;
     }
 
     // ============= RESOURCE MANAGEMENT =============
@@ -1909,6 +2213,22 @@ export class DextoAgent {
     public async hasPrompt(name: string): Promise<boolean> {
         this.ensureStarted();
         return await this.promptManager.has(name);
+    }
+
+    /**
+     * Refreshes the prompts cache, reloading from all providers.
+     * Call this after adding/deleting prompts to make them immediately available.
+     *
+     * @param newPrompts Optional - if provided, updates the config prompts before refreshing.
+     *                   Use this when you've modified the agent config file and need to
+     *                   update both the runtime config and refresh the cache.
+     */
+    public async refreshPrompts(newPrompts?: PromptsConfig): Promise<void> {
+        this.ensureStarted();
+        if (newPrompts) {
+            this.promptManager.updateConfigPrompts(newPrompts);
+        }
+        await this.promptManager.refresh();
     }
 
     /**

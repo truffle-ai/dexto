@@ -2,5 +2,5 @@
  * Containers module exports
  */
 
-export { InputContainer } from './InputContainer.js';
+export { InputContainer, type InputContainerHandle } from './InputContainer.js';
 export { OverlayContainer } from './OverlayContainer.js';

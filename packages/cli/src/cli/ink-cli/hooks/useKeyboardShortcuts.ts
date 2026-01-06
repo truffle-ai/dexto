@@ -64,32 +64,15 @@ export function useKeyboardShortcuts({ state, dispatch, agent }: UseKeyboardShor
                 return;
             }
 
-            // Ctrl+C: Cancel processing or exit (with double-press safety)
+            // Ctrl+C: Exit only (with double-press safety)
+            // Use Escape to cancel processing
             if (key.ctrl && inputChar === 'c') {
-                if (state.ui.isProcessing) {
-                    // Cancel the current operation
-                    const currentSessionId = sessionIdRef.current;
-                    if (!currentSessionId) {
-                        // No session - force exit as fallback
-                        exit();
-                        return;
-                    }
-                    void agent.cancel(currentSessionId).catch(() => {});
-                    dispatch({ type: 'CANCEL_START' });
-                    dispatch({ type: 'STREAMING_CANCEL' });
-                    // Clear exit warning if it was shown
-                    if (state.ui.exitWarningShown) {
-                        dispatch({ type: 'EXIT_WARNING_CLEAR' });
-                    }
+                if (state.ui.exitWarningShown) {
+                    // Second Ctrl+C within timeout - actually exit
+                    exit();
                 } else {
-                    // Not processing - handle exit with double-press safety
-                    if (state.ui.exitWarningShown) {
-                        // Second Ctrl+C within timeout - actually exit
-                        exit();
-                    } else {
-                        // First Ctrl+C - show warning
-                        dispatch({ type: 'EXIT_WARNING_SHOW' });
-                    }
+                    // First Ctrl+C - show warning
+                    dispatch({ type: 'EXIT_WARNING_SHOW' });
                 }
                 return;
             }
@@ -109,7 +92,6 @@ export function useKeyboardShortcuts({ state, dispatch, agent }: UseKeyboardShor
                     }
                     void agent.cancel(currentSessionId).catch(() => {});
                     dispatch({ type: 'CANCEL_START' });
-                    dispatch({ type: 'STREAMING_CANCEL' });
                 } else if (state.ui.activeOverlay !== 'none') {
                     dispatch({ type: 'CLOSE_OVERLAY' });
                 }

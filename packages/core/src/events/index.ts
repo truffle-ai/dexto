@@ -5,6 +5,24 @@ import type { ApprovalRequest, ApprovalResponse } from '../approval/types.js';
 import type { SanitizedToolResult } from '../context/types.js';
 
 /**
+ * LLM finish reason - why the LLM stopped generating
+ *
+ * Superset of Vercel AI SDK's LanguageModelV3FinishReason with app-specific additions.
+ */
+export type LLMFinishReason =
+    // From Vercel AI SDK (LanguageModelV3FinishReason)
+    | 'stop' // Normal completion
+    | 'tool-calls' // Stopped to execute tool calls (more steps coming)
+    | 'length' // Hit token/length limit
+    | 'content-filter' // Content filter violation stopped the model
+    | 'error' // Error occurred
+    | 'other' // Other reason
+    | 'unknown' // Model has not transmitted a finish reason
+    // App-specific additions
+    | 'cancelled' // User cancelled
+    | 'max-steps'; // Hit max steps limit
+
+/**
  * Agent-level event names - events that occur at the agent/global level
  */
 export const AGENT_EVENT_NAMES = [
@@ -43,6 +61,7 @@ export const SESSION_EVENT_NAMES = [
     'llm:error',
     'llm:switched',
     'llm:unsupported-input',
+    'tool:running',
     'context:compressed',
     'context:pruned',
     'message:queued',
@@ -81,6 +100,9 @@ export const STREAMING_EVENTS = [
     'llm:tool-result',
     'llm:error',
     'llm:unsupported-input',
+
+    // Tool execution events
+    'tool:running',
 
     // Context management events
     'context:compressed',
@@ -299,9 +321,11 @@ export interface AgentEventMap {
             outputTokens?: number;
             reasoningTokens?: number;
             totalTokens?: number;
+            cacheReadTokens?: number;
+            cacheWriteTokens?: number;
         };
         /** Finish reason: 'tool-calls' means more steps coming, others indicate completion */
-        finishReason?: string;
+        finishReason?: LLMFinishReason;
         sessionId: string;
     };
 
@@ -327,6 +351,13 @@ export interface AgentEventMap {
         requireApproval?: boolean;
         /** The approval status (only present if requireApproval is true) */
         approvalStatus?: 'approved' | 'rejected';
+        sessionId: string;
+    };
+
+    /** Tool execution actually started (after approval if needed) */
+    'tool:running': {
+        toolName: string;
+        toolCallId: string;
         sessionId: string;
     };
 
@@ -377,6 +408,11 @@ export interface AgentEventMap {
         sessionId: string;
     };
 
+    /** Context was manually cleared via /clear command */
+    'context:cleared': {
+        sessionId: string;
+    };
+
     /** User message was queued during agent execution */
     'message:queued': {
         position: number;
@@ -390,7 +426,7 @@ export interface AgentEventMap {
         ids: string[];
         coalesced: boolean;
         /** Combined content of all dequeued messages (for UI display) */
-        content: import('../session/types.js').UserMessageContentPart[];
+        content: import('../context/types.js').ContentPart[];
         sessionId: string;
     };
 
@@ -402,10 +438,12 @@ export interface AgentEventMap {
 
     /** Agent run completed (all steps done, no queued messages remaining) */
     'run:complete': {
-        /** How the run ended: 'stop', 'cancelled', 'max-steps', 'error', 'length' */
-        finishReason: string;
+        /** How the run ended */
+        finishReason: LLMFinishReason;
         /** Number of steps executed */
         stepCount: number;
+        /** Total wall-clock duration of the run in milliseconds */
+        durationMs: number;
         /** Error that caused termination (only if finishReason === 'error') */
         error?: Error;
         sessionId: string;
@@ -473,9 +511,11 @@ export interface SessionEventMap {
             outputTokens?: number;
             reasoningTokens?: number;
             totalTokens?: number;
+            cacheReadTokens?: number;
+            cacheWriteTokens?: number;
         };
         /** Finish reason: 'tool-calls' means more steps coming, others indicate completion */
-        finishReason?: string;
+        finishReason?: LLMFinishReason;
     };
 
     /** LLM service requested a tool call */
@@ -499,6 +539,12 @@ export interface SessionEventMap {
         requireApproval?: boolean;
         /** The approval status (only present if requireApproval is true) */
         approvalStatus?: 'approved' | 'rejected';
+    };
+
+    /** Tool execution actually started (after approval if needed) */
+    'tool:running': {
+        toolName: string;
+        toolCallId: string;
     };
 
     /** LLM service error */
@@ -555,7 +601,7 @@ export interface SessionEventMap {
         ids: string[];
         coalesced: boolean;
         /** Combined content of all dequeued messages (for UI display) */
-        content: import('../session/types.js').UserMessageContentPart[];
+        content: import('../context/types.js').ContentPart[];
     };
 
     /** Queued message was removed from queue */
@@ -565,10 +611,12 @@ export interface SessionEventMap {
 
     /** Agent run completed (all steps done, no queued messages remaining) */
     'run:complete': {
-        /** How the run ended: 'stop', 'cancelled', 'max-steps', 'error', 'length' */
-        finishReason: string;
+        /** How the run ended */
+        finishReason: LLMFinishReason;
         /** Number of steps executed */
         stepCount: number;
+        /** Total wall-clock duration of the run in milliseconds */
+        durationMs: number;
         /** Error that caused termination (only if finishReason === 'error') */
         error?: Error;
     };
