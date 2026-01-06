@@ -153,16 +153,6 @@ export async function createDextoProject(
                         label: '@dexto/image-local (recommended)',
                         hint: 'Local dev - SQLite, filesystem',
                     },
-                    {
-                        value: '@dexto/image-cloud',
-                        label: '@dexto/image-cloud',
-                        hint: 'Production - Postgres, S3',
-                    },
-                    {
-                        value: '@dexto/image-edge',
-                        label: '@dexto/image-edge',
-                        hint: 'Serverless - D1, R2',
-                    },
                     { value: 'custom', label: 'Custom npm package...' },
                 ],
             })) as string;
@@ -614,6 +604,7 @@ storage:
         build: 'tsx scripts/discover-providers.ts && tsup',
         start: 'node dist/_entry.js',
         typecheck: 'tsc --noEmit',
+        discover: 'tsx scripts/discover-providers.ts',
         ...packageJson.scripts,
     };
     await fs.writeFile(packageJsonPath, JSON.stringify(packageJson, null, 2));

@@ -5,6 +5,8 @@ import { convertZodSchemaToJsonSchema } from '../../utils/schema.js';
 import { InternalToolsServices, getInternalToolInfo, type AgentFeature } from './registry.js';
 import type { InternalToolsConfig, CustomToolsConfig } from '../schemas.js';
 import { customToolRegistry, type ToolCreationContext } from '../custom-tool-registry.js';
+import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
+import { ToolErrorCode } from '../error-codes.js';
 
 /**
  * Provider for built-in internal tools and custom tool providers
@@ -189,8 +191,8 @@ export class InternalToolsProvider {
                 // Re-throw validation errors (unknown provider, invalid config)
                 // These are user errors that should fail fast
                 if (
-                    error instanceof Error &&
-                    error.message.includes('Unknown custom tool provider')
+                    error instanceof DextoRuntimeError &&
+                    error.code === ToolErrorCode.CUSTOM_TOOL_PROVIDER_UNKNOWN
                 ) {
                     throw error;
                 }
