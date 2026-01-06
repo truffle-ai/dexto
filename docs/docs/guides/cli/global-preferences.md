@@ -29,7 +29,7 @@ llm:
   apiKey: $ANTHROPIC_API_KEY
 
 defaults:
-  defaultAgent: default-agent
+  defaultAgent: coding-agent
   defaultMode: web  # web | cli | server | mcp
 
 setup:
@@ -74,8 +74,8 @@ Default CLI behavior and mode selection:
 
 ```yaml
 defaults:
-  defaultAgent: default-agent  # Agent to use when none specified
-  defaultMode: web             # Run mode when --mode flag not specified
+  defaultAgent: coding-agent  # Agent to use when none specified
+  defaultMode: web            # Run mode when --mode flag not specified
 ```
 
 **Fields:**

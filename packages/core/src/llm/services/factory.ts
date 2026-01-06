@@ -20,7 +20,7 @@ import type { IDextoLogger } from '../../logger/v2/types.js';
 import { requiresApiKey } from '../registry.js';
 import { getPrimaryApiKeyEnvVar } from '../../utils/api-key-resolver.js';
 
-function _createVercelModel(llmConfig: ValidatedLLMConfig): LanguageModel {
+export function createVercelModel(llmConfig: ValidatedLLMConfig): LanguageModel {
     const provider = llmConfig.provider;
     const model = llmConfig.model;
     // apiKey can be undefined for providers that don't require it (openai-compatible, litellm, etc.)
@@ -200,6 +200,7 @@ function getOpenAICompatibleBaseURL(llmConfig: ValidatedLLMConfig): string {
  * @param sessionId Session ID
  * @param resourceManager Resource manager for blob storage and resource access
  * @param logger Logger instance for dependency injection
+ * @param compressionStrategy Optional compression strategy for context management
  * @returns VercelLLMService instance
  */
 export function createLLMService(
@@ -210,9 +211,10 @@ export function createLLMService(
     sessionEventBus: SessionEventBus,
     sessionId: string,
     resourceManager: import('../../resources/index.js').ResourceManager,
-    logger: IDextoLogger
+    logger: IDextoLogger,
+    compressionStrategy?: import('../../context/compression/types.js').ICompressionStrategy | null
 ): VercelLLMService {
-    const model = _createVercelModel(config);
+    const model = createVercelModel(config);
 
     return new VercelLLMService(
         toolManager,
@@ -223,6 +225,7 @@ export function createLLMService(
         config,
         sessionId,
         resourceManager,
-        logger
+        logger,
+        compressionStrategy
     );
 }

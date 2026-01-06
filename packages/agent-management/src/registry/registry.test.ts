@@ -546,32 +546,32 @@ describe('LocalAgentRegistry', () => {
             );
         });
 
-        it('protects default-agent from deletion without force', async () => {
-            const defaultAgentPath = path.join(agentsDir, 'default-agent');
-            fs.mkdirSync(defaultAgentPath);
-            fs.writeFileSync(path.join(defaultAgentPath, 'config.yml'), 'important');
+        it('protects coding-agent from deletion without force', async () => {
+            const codingAgentPath = path.join(agentsDir, 'coding-agent');
+            fs.mkdirSync(codingAgentPath);
+            fs.writeFileSync(path.join(codingAgentPath, 'config.yml'), 'important');
 
-            await expect(registry.uninstallAgent('default-agent')).rejects.toThrow(
+            await expect(registry.uninstallAgent('coding-agent')).rejects.toThrow(
                 expect.objectContaining({
                     code: RegistryErrorCode.AGENT_PROTECTED,
                 })
             );
 
             // Verify it still exists
-            expect(fs.existsSync(defaultAgentPath)).toBe(true);
-            expect(fs.readFileSync(path.join(defaultAgentPath, 'config.yml'), 'utf-8')).toBe(
+            expect(fs.existsSync(codingAgentPath)).toBe(true);
+            expect(fs.readFileSync(path.join(codingAgentPath, 'config.yml'), 'utf-8')).toBe(
                 'important'
             );
         });
 
-        it('allows force uninstall of default-agent', async () => {
-            const defaultAgentPath = path.join(agentsDir, 'default-agent');
-            fs.mkdirSync(defaultAgentPath);
-            fs.writeFileSync(path.join(defaultAgentPath, 'config.yml'), 'config');
+        it('allows force uninstall of coding-agent', async () => {
+            const codingAgentPath = path.join(agentsDir, 'coding-agent');
+            fs.mkdirSync(codingAgentPath);
+            fs.writeFileSync(path.join(codingAgentPath, 'config.yml'), 'config');
 
-            await registry.uninstallAgent('default-agent', true);
+            await registry.uninstallAgent('coding-agent', true);
 
-            expect(fs.existsSync(defaultAgentPath)).toBe(false);
+            expect(fs.existsSync(codingAgentPath)).toBe(false);
         });
 
         it('maintains other agents when removing one', async () => {

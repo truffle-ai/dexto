@@ -4,7 +4,7 @@ Dexto uses a YAML configuration file to define tool servers and AI settings. Thi
 
 ## Configuration File Location
 
-By default, Dexto looks for a configuration file at `agents/default-agent.yml` in the project directory. You can specify a different location using the `--agent` command-line option:
+By default, Dexto looks for a configuration file at `agents/coding-agent/coding-agent.yml` in the project directory. You can specify a different location using the `--agent` command-line option:
 
 ```bash
 npm start -- --agent path/to/your/agent.yml

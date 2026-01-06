@@ -48,12 +48,11 @@ import { enrichAgentConfig } from '@dexto/agent-management';
 import { getPort } from './utils/port-utils.js';
 import {
     createDextoProject,
-    createTsconfigJson,
-    addDextoScriptsToPackageJson,
-    postCreateDexto,
+    type CreateAppOptions,
+    createImage,
+    getUserInputToInitDextoApp,
     initDexto,
     postInitDexto,
-    getUserInputToInitDextoApp,
 } from './cli/commands/index.js';
 import {
     handleSetupCommand,
@@ -147,45 +146,29 @@ program
     )
     .option('--port <port>', 'port for the server (default: 3000 for web, 3001 for server mode)')
     .option('--no-auto-install', 'Disable automatic installation of missing agents from registry')
+    .option(
+        '--image <package>',
+        'Image package to load (e.g., @dexto/image-local). Overrides config image field.'
+    )
     .enablePositionalOptions();
 
 // 2) `create-app` SUB-COMMAND
 program
-    .command('create-app')
-    .description('Scaffold a new Dexto Typescript app')
+    .command('create-app [name]')
+    .description('Create a Dexto application (CLI, web, bot, etc.)')
+    .option('--from-image <package>', 'Use existing image (e.g., @dexto/image-local)')
+    .option('--extend-image <package>', 'Extend image with custom providers')
+    .option('--from-core', 'Build from @dexto/core (advanced)')
+    .option('--type <type>', 'App type: script, webapp (default: script)')
     .action(
-        withAnalytics('create-app', async () => {
+        withAnalytics('create-app', async (name?: string, options?: CreateAppOptions) => {
             try {
-                p.intro(chalk.inverse('Dexto Create App'));
-                // first setup the initial files in the project and get the project path
-                const appPath = await createDextoProject();
+                p.intro(chalk.inverse('Create Dexto App'));
 
-                // then get user inputs for directory, llm etc.
-                const userInput = await getUserInputToInitDextoApp();
-                try {
-                    capture('dexto_create', {
-                        provider: userInput.llmProvider,
-                        providedKey: Boolean(userInput.llmApiKey),
-                    });
-                } catch {
-                    // Analytics failures should not block CLI execution.
-                }
+                // Create the app project structure (fully self-contained)
+                await createDextoProject(name, options);
 
-                // move to project directory, then add the dexto scripts to the package.json and create the tsconfig.json
-                process.chdir(appPath);
-                await addDextoScriptsToPackageJson(userInput.directory, appPath);
-                await createTsconfigJson(appPath, userInput.directory);
-
-                // then initialize the other parts of the project
-                await initDexto(
-                    userInput.directory,
-                    userInput.createExampleFile,
-                    userInput.llmProvider,
-                    userInput.llmApiKey
-                );
-                p.outro(chalk.greenBright('Dexto app created and initialized successfully!'));
-                // add notes for users to get started with their newly created Dexto project
-                await postCreateDexto(appPath, userInput.directory);
+                p.outro(chalk.greenBright('Dexto app created successfully!'));
                 safeExit('create-app', 0);
             } catch (err) {
                 if (err instanceof ExitSignal) throw err;
@@ -195,7 +178,29 @@ program
         })
     );
 
-// 3) `init-app` SUB-COMMAND
+// 3) `create-image` SUB-COMMAND
+program
+    .command('create-image [name]')
+    .description('Create a Dexto image - a distributable agent harness package')
+    .action(
+        withAnalytics('create-image', async (name?: string) => {
+            try {
+                p.intro(chalk.inverse('Create Dexto Image'));
+
+                // Create the image project structure
+                const projectPath = await createImage(name);
+
+                p.outro(chalk.greenBright(`Dexto image created successfully at ${projectPath}!`));
+                safeExit('create-image', 0);
+            } catch (err) {
+                if (err instanceof ExitSignal) throw err;
+                console.error(`❌ dexto create-image command failed: ${err}`);
+                safeExit('create-image', 1, 'error');
+            }
+        })
+    );
+
+// 4) `init-app` SUB-COMMAND
 program
     .command('init-app')
     .description('Initialize an existing Typescript app with Dexto')
@@ -241,13 +246,13 @@ program
         })
     );
 
-// 4) `setup` SUB-COMMAND
+// 5) `setup` SUB-COMMAND
 program
     .command('setup')
     .description('Configure global Dexto preferences')
     .option('--provider <provider>', 'LLM provider (openai, anthropic, google, groq)')
     .option('--model <model>', 'Model name (uses provider default if not specified)')
-    .option('--default-agent <agent>', 'Default agent name (default: default-agent)')
+    .option('--default-agent <agent>', 'Default agent name (default: coding-agent)')
     .option('--no-interactive', 'Skip interactive prompts and API key setup')
     .option('--force', 'Overwrite existing setup without confirmation')
     .action(
@@ -265,7 +270,7 @@ program
         })
     );
 
-// 5) `install` SUB-COMMAND
+// 6) `install` SUB-COMMAND
 program
     .command('install [agents...]')
     .description('Install agents from registry or custom YAML files/directories')
@@ -276,7 +281,7 @@ program
         'after',
         `
 Examples:
-  $ dexto install default-agent              Install agent from registry
+  $ dexto install coding-agent               Install agent from registry
   $ dexto install agent1 agent2              Install multiple registry agents
   $ dexto install --all                      Install all available registry agents
   $ dexto install ./my-agent.yml             Install custom agent from YAML file
@@ -298,12 +303,12 @@ Examples:
         )
     );
 
-// 6) `uninstall` SUB-COMMAND
+// 7) `uninstall` SUB-COMMAND
 program
     .command('uninstall [agents...]')
     .description('Uninstall agents from the local installation')
     .option('--all', 'Uninstall all installed agents')
-    .option('--force', 'Force uninstall even if agent is protected (e.g., default-agent)')
+    .option('--force', 'Force uninstall even if agent is protected (e.g., coding-agent)')
     .action(
         withAnalytics(
             'uninstall',
@@ -320,7 +325,7 @@ program
         )
     );
 
-// 7) `list-agents` SUB-COMMAND
+// 8) `list-agents` SUB-COMMAND
 program
     .command('list-agents')
     .description('List available and installed agents')
@@ -340,7 +345,7 @@ program
         })
     );
 
-// 8) `which` SUB-COMMAND
+// 9) `which` SUB-COMMAND
 program
     .command('which <agent>')
     .description('Show the path to an agent')
@@ -366,6 +371,27 @@ async function bootstrapAgentFromGlobalOpts() {
     const enrichedConfig = enrichAgentConfig(mergedConfig, resolvedPath, {
         logLevel: 'info', // CLI uses info-level logging for visibility
     });
+
+    // Load image dynamically if specified (same priority as main command)
+    // Priority: CLI flag > Agent config > Environment variable > Default
+    // Images are optional, but default to image-local for convenience
+    const imageName =
+        globalOpts.image || // --image flag
+        enrichedConfig.image || // image field in agent config
+        process.env.DEXTO_IMAGE || // DEXTO_IMAGE env var
+        '@dexto/image-local'; // Default for convenience
+
+    try {
+        await import(imageName);
+    } catch (_err) {
+        console.error(`❌ Failed to load image '${imageName}'`);
+        console.error(
+            `💡 Install it with: ${
+                existsSync('package.json') ? 'npm install' : 'npm install -g'
+            } ${imageName}`
+        );
+        safeExit('bootstrap', 1, 'image-load-failed');
+    }
 
     // Override approval config for read-only commands (never run conversations)
     // This avoids needing to set up unused approval handlers
@@ -433,7 +459,7 @@ async function getMostRecentSessionId(
     return mostRecentId;
 }
 
-// 9) `session` SUB-COMMAND
+// 10) `session` SUB-COMMAND
 const sessionCommand = program.command('session').description('Manage chat sessions');
 
 sessionCommand
@@ -495,7 +521,7 @@ sessionCommand
         })
     );
 
-// 10) `search` SUB-COMMAND
+// 11) `search` SUB-COMMAND
 program
     .command('search')
     .description('Search session history')
@@ -556,7 +582,7 @@ program
         )
     );
 
-// 11) `mcp` SUB-COMMAND
+// 12) `mcp` SUB-COMMAND
 // For now, this mode simply aggregates and re-expose tools from configured MCP servers (no agent)
 // dexto --mode mcp will be moved to this sub-command in the future
 program
@@ -646,7 +672,7 @@ program
         )
     );
 
-// 10) Main dexto CLI - Interactive/One shot (CLI/HEADLESS) or run in other modes (--mode web/server/mcp)
+// 13) Main dexto CLI - Interactive/One shot (CLI/HEADLESS) or run in other modes (--mode web/server/mcp)
 program
     .argument(
         '[prompt...]',
@@ -890,7 +916,7 @@ program
                     let mergedConfig = applyCLIOverrides(rawConfig, opts as CLIConfigOverrides);
 
                     // ——— PREFERENCE-AWARE CONFIG HANDLING ———
-                    // For default-agent (no explicit agent specified): Apply user preferences
+                    // For coding-agent (no explicit agent specified): Apply user preferences
                     // For specific agents: Check compatibility and warn if needed
                     const isDefaultAgent = !opts.agent;
                     let preferences: Awaited<ReturnType<typeof loadGlobalPreferences>> | null =
@@ -956,7 +982,7 @@ program
                         // Default-agent: Apply user's LLM preferences at runtime
                         // This ensures the base agent always uses user's preferred model/provider
                         mergedConfig = applyUserPreferences(mergedConfig, preferences);
-                        logger.debug('Applied user preferences to default-agent', {
+                        logger.debug('Applied user preferences to coding-agent', {
                             provider: preferences.llm.provider,
                             model: preferences.llm.model,
                         });
@@ -1070,6 +1096,47 @@ program
                     } else {
                         // Validation failed and user didn't skip - show next steps and exit
                         safeExit('main', 1, 'config-validation-failed');
+                    }
+
+                    // ——— LOAD IMAGE DYNAMICALLY (if specified) ———
+                    // Priority: CLI flag > Agent config > Environment variable > Default
+                    // Images are optional, but default to image-local for convenience
+                    const imageName =
+                        opts.image || // --image flag
+                        validatedConfig.image || // image field in agent config
+                        process.env.DEXTO_IMAGE || // DEXTO_IMAGE env var
+                        '@dexto/image-local'; // Default for convenience
+
+                    try {
+                        await import(imageName);
+                        logger.debug(`Loaded image: ${imageName}`);
+                    } catch (err) {
+                        console.error(`❌ Failed to load image '${imageName}'`);
+                        console.error(
+                            `💡 Install it with: ${
+                                existsSync('package.json') ? 'npm install' : 'npm install -g'
+                            } ${imageName}`
+                        );
+                        if (err instanceof Error) {
+                            logger.debug(`Image load error: ${err.message}`);
+                        }
+                        safeExit('main', 1, 'image-load-failed');
+                    }
+
+                    // Validate that if config specifies an image, it matches what was loaded
+                    // Skip this check if user explicitly provided --image flag (intentional override)
+                    if (
+                        !opts.image &&
+                        validatedConfig.image &&
+                        validatedConfig.image !== imageName
+                    ) {
+                        console.error(
+                            `❌ Config specifies image '${validatedConfig.image}' but '${imageName}' was loaded instead`
+                        );
+                        console.error(
+                            `💡 Either remove 'image' from config or ensure it matches the loaded image`
+                        );
+                        safeExit('main', 1, 'image-mismatch');
                     }
                 } catch (err) {
                     if (err instanceof ExitSignal) throw err;
@@ -1559,5 +1626,5 @@ program
         )
     );
 
-// 11) PARSE & EXECUTE
+// 14) PARSE & EXECUTE
 program.parseAsync(process.argv);

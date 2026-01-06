@@ -105,20 +105,29 @@ export class StreamProcessor {
                         }
                         break;
 
-                    case 'tool-call':
+                    case 'tool-call': {
                         // Create tool call record
                         if (!this.assistantMessageId) {
                             this.assistantMessageId = await this.createAssistantMessage();
                         }
 
-                        await this.contextManager.addToolCall(this.assistantMessageId!, {
+                        // Extract providerMetadata for round-tripping (e.g., Gemini 3 thought signatures)
+                        // These are opaque tokens that must be passed back to maintain model state
+                        const toolCall: Parameters<typeof this.contextManager.addToolCall>[1] = {
                             id: event.toolCallId,
                             type: 'function',
                             function: {
                                 name: event.toolName,
                                 arguments: JSON.stringify(event.input),
                             },
-                        });
+                        };
+                        if (event.providerMetadata) {
+                            toolCall.providerOptions = {
+                                ...event.providerMetadata,
+                            } as Record<string, unknown>;
+                        }
+
+                        await this.contextManager.addToolCall(this.assistantMessageId!, toolCall);
 
                         // Track pending tool call for abort handling
                         this.pendingToolCalls.set(event.toolCallId, {
@@ -129,6 +138,7 @@ export class StreamProcessor {
                         // This ensures correct event ordering - llm:tool-call arrives before approval:request.
                         // See tool-manager.ts for detailed explanation of the timing issue.
                         break;
+                    }
 
                     case 'tool-result': {
                         // PERSISTENCE HAPPENS HERE

@@ -555,9 +555,9 @@ export class LocalAgentRegistry implements AgentRegistry {
             const defaultAgent = preferences.defaults.defaultAgent;
             return agentId !== defaultAgent;
         } catch {
-            // If preferences can't be loaded, protect 'default-agent' as fallback
-            logger.warn('Could not load preferences, using fallback protection for default-agent');
-            return agentId !== 'default-agent';
+            // If preferences can't be loaded, protect 'coding-agent' as fallback
+            logger.warn('Could not load preferences, using fallback protection for coding-agent');
+            return agentId !== 'coding-agent';
         }
     }
 

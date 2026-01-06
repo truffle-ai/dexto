@@ -1,56 +1,88 @@
 import { ToolExecutionContext, ToolSet, InternalTool } from '../types.js';
 import type { IDextoLogger } from '../../logger/v2/types.js';
+import type { DextoAgent } from '../../agent/DextoAgent.js';
 import { ToolError } from '../errors.js';
 import { convertZodSchemaToJsonSchema } from '../../utils/schema.js';
 import { InternalToolsServices, getInternalToolInfo, type AgentFeature } from './registry.js';
-import type { InternalToolsConfig } from '../schemas.js';
+import type { InternalToolsConfig, CustomToolsConfig } from '../schemas.js';
+import { customToolRegistry, type ToolCreationContext } from '../custom-tool-registry.js';
+import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
+import { ToolErrorCode } from '../error-codes.js';
 
 /**
- * Provider for built-in internal tools that are part of the core system
+ * Provider for built-in internal tools and custom tool providers
  *
- * This provider manages internal tools that are shipped with the core system
- * and need access to core services like SearchService, SessionManager, etc.
+ * This provider manages:
+ * 1. Built-in internal tools that are shipped with the core system
+ * 2. Custom tools registered via the customToolRegistry
  *
  * Benefits:
  * - Clean separation: ToolManager doesn't need to know about specific services
  * - Easy to extend: Just add new tools and services as needed
  * - Lightweight: Direct tool management without complex infrastructure
  * - No unnecessary ProcessedInternalTool wrapper - uses InternalTool directly
+ * - Custom tools follow the same provider pattern as blob storage
  */
 export class InternalToolsProvider {
     private services: InternalToolsServices;
-    private tools: Map<string, InternalTool> = new Map(); // ← Store original InternalTool
+    private internalTools: Map<string, InternalTool> = new Map(); // Built-in internal tools
+    private customTools: Map<string, InternalTool> = new Map(); // Custom tool provider tools
     private config: InternalToolsConfig;
+    private customToolConfigs: CustomToolsConfig;
     private logger: IDextoLogger;
+    private agent?: DextoAgent; // Set after construction to avoid circular dependency
 
     constructor(
         services: InternalToolsServices,
         config: InternalToolsConfig = [],
+        customToolConfigs: CustomToolsConfig = [],
         logger: IDextoLogger
     ) {
         this.services = services;
         this.config = config;
+        this.customToolConfigs = customToolConfigs;
         this.logger = logger;
-        this.logger.debug('InternalToolsProvider initialized with config:', { config });
+        this.logger.debug('InternalToolsProvider initialized with config:', {
+            config,
+            customToolConfigs,
+        });
+    }
+
+    /**
+     * Set agent reference after construction (avoids circular dependency)
+     * Must be called before initialize() if custom tools need agent access
+     */
+    setAgent(agent: DextoAgent): void {
+        this.agent = agent;
     }
 
     /**
      * Initialize the internal tools provider by registering all available internal tools
+     * and custom tools from the registry
      */
     async initialize(): Promise<void> {
         this.logger.info('Initializing InternalToolsProvider...');
 
         try {
-            // Check if any internal tools are enabled
-            if (this.config.length === 0) {
+            // Register built-in internal tools
+            if (this.config.length > 0) {
+                this.registerInternalTools();
+            } else {
                 this.logger.info('No internal tools enabled by configuration');
-                return;
             }
 
-            this.registerInternalTools();
+            // Register custom tools from registry
+            if (this.customToolConfigs.length > 0) {
+                this.registerCustomTools();
+            } else {
+                this.logger.debug('No custom tool providers configured');
+            }
 
-            const toolCount = this.tools.size;
-            this.logger.info(`InternalToolsProvider initialized with ${toolCount} internal tools`);
+            const internalCount = this.internalTools.size;
+            const customCount = this.customTools.size;
+            this.logger.info(
+                `InternalToolsProvider initialized with ${internalCount + customCount} tools (${internalCount} internal, ${customCount} custom)`
+            );
         } catch (error) {
             this.logger.error(
                 `Failed to initialize InternalToolsProvider: ${error instanceof Error ? error.message : String(error)}`
@@ -100,7 +132,7 @@ export class InternalToolsProvider {
             try {
                 // Create the tool using its factory and store directly
                 const tool = toolInfo.factory(this.services);
-                this.tools.set(toolName, tool); // ← Store original InternalTool directly
+                this.internalTools.set(toolName, tool); // Store in internal tools map
                 this.logger.debug(`Registered ${toolName} internal tool`);
             } catch (error) {
                 this.logger.error(
@@ -111,10 +143,88 @@ export class InternalToolsProvider {
     }
 
     /**
-     * Check if a tool exists
+     * Register custom tools from the custom tool registry.
+     * Tools are stored by their original ID - prefixing is handled by ToolManager.
+     */
+    private registerCustomTools(): void {
+        if (!this.agent) {
+            throw ToolError.configInvalid(
+                'Agent reference not set. Call setAgent() before initialize() when using custom tools.'
+            );
+        }
+
+        const context: ToolCreationContext = {
+            logger: this.logger,
+            agent: this.agent,
+            services: this.services, // Includes approvalManager for tools that need approval flows
+        };
+
+        for (const toolConfig of this.customToolConfigs) {
+            try {
+                // Validate config against provider schema
+                const validatedConfig = customToolRegistry.validateConfig(toolConfig);
+                const provider = customToolRegistry.get(validatedConfig.type);
+
+                if (!provider) {
+                    const availableTypes = customToolRegistry.getTypes();
+                    throw ToolError.unknownCustomToolProvider(validatedConfig.type, availableTypes);
+                }
+
+                // Create tools from provider
+                const tools = provider.create(validatedConfig, context);
+
+                // Register each tool by its ID (no prefix - ToolManager handles prefixing)
+                for (const tool of tools) {
+                    // Check for conflicts with other custom tools
+                    if (this.customTools.has(tool.id)) {
+                        this.logger.warn(
+                            `Custom tool '${tool.id}' conflicts with existing custom tool. Skipping.`
+                        );
+                        continue;
+                    }
+
+                    this.customTools.set(tool.id, tool);
+                    this.logger.debug(
+                        `Registered custom tool: ${tool.id} from provider '${provider.metadata?.displayName || validatedConfig.type}'`
+                    );
+                }
+            } catch (error) {
+                // Re-throw validation errors (unknown provider, invalid config)
+                // These are user errors that should fail fast
+                if (
+                    error instanceof DextoRuntimeError &&
+                    error.code === ToolErrorCode.CUSTOM_TOOL_PROVIDER_UNKNOWN
+                ) {
+                    throw error;
+                }
+
+                // Log and continue for other errors (e.g., provider initialization failures)
+                this.logger.error(
+                    `Failed to register custom tool provider: ${error instanceof Error ? error.message : String(error)}`
+                );
+            }
+        }
+    }
+
+    /**
+     * Check if a tool exists (checks both internal and custom tools)
      */
     hasTool(toolName: string): boolean {
-        return this.tools.has(toolName);
+        return this.internalTools.has(toolName) || this.customTools.has(toolName);
+    }
+
+    /**
+     * Check if an internal tool exists
+     */
+    hasInternalTool(toolName: string): boolean {
+        return this.internalTools.has(toolName);
+    }
+
+    /**
+     * Check if a custom tool exists
+     */
+    hasCustomTool(toolName: string): boolean {
+        return this.customTools.has(toolName);
     }
 
     /**
@@ -122,7 +232,7 @@ export class InternalToolsProvider {
      * Returns undefined if tool doesn't exist
      */
     getTool(toolName: string): InternalTool | undefined {
-        return this.tools.get(toolName);
+        return this.internalTools.get(toolName) || this.customTools.get(toolName);
     }
 
     /**
@@ -134,11 +244,15 @@ export class InternalToolsProvider {
         sessionId?: string,
         abortSignal?: AbortSignal
     ): Promise<unknown> {
-        const tool = this.tools.get(toolName);
+        // Check internal tools first, then custom tools
+        const tool = this.internalTools.get(toolName) || this.customTools.get(toolName);
         if (!tool) {
-            this.logger.error(`❌ No internal tool found: ${toolName}`);
+            this.logger.error(`❌ No tool found: ${toolName}`);
             this.logger.debug(
-                `Available internal tools: ${Array.from(this.tools.keys()).join(', ')}`
+                `Available internal tools: ${Array.from(this.internalTools.keys()).join(', ')}`
+            );
+            this.logger.debug(
+                `Available custom tools: ${Array.from(this.customTools.keys()).join(', ')}`
             );
             throw ToolError.notFound(toolName);
         }
@@ -171,16 +285,16 @@ export class InternalToolsProvider {
     }
 
     /**
-     * Get all tools in ToolSet format with on-demand JSON Schema conversion
+     * Get internal tools in ToolSet format (excludes custom tools)
      */
-    getAllTools(): ToolSet {
+    getInternalTools(): ToolSet {
         const toolSet: ToolSet = {};
 
-        for (const [name, tool] of this.tools) {
+        for (const [name, tool] of this.internalTools) {
             toolSet[name] = {
                 name: tool.id,
                 description: tool.description,
-                parameters: convertZodSchemaToJsonSchema(tool.inputSchema, this.logger), // ← Convert on-demand
+                parameters: convertZodSchemaToJsonSchema(tool.inputSchema, this.logger),
             };
         }
 
@@ -188,16 +302,61 @@ export class InternalToolsProvider {
     }
 
     /**
-     * Get tool names
+     * Get custom tools in ToolSet format (excludes internal tools)
+     */
+    getCustomTools(): ToolSet {
+        const toolSet: ToolSet = {};
+
+        for (const [name, tool] of this.customTools) {
+            toolSet[name] = {
+                name: tool.id,
+                description: tool.description,
+                parameters: convertZodSchemaToJsonSchema(tool.inputSchema, this.logger),
+            };
+        }
+
+        return toolSet;
+    }
+
+    /**
+     * Get internal tool names
+     */
+    getInternalToolNames(): string[] {
+        return Array.from(this.internalTools.keys());
+    }
+
+    /**
+     * Get custom tool names
+     */
+    getCustomToolNames(): string[] {
+        return Array.from(this.customTools.keys());
+    }
+
+    /**
+     * Get all tool names (internal + custom)
      */
     getToolNames(): string[] {
-        return Array.from(this.tools.keys());
+        return [...this.internalTools.keys(), ...this.customTools.keys()];
     }
 
     /**
      * Get tool count
      */
     getToolCount(): number {
-        return this.tools.size;
+        return this.internalTools.size + this.customTools.size;
+    }
+
+    /**
+     * Get internal tool count
+     */
+    getInternalToolCount(): number {
+        return this.internalTools.size;
+    }
+
+    /**
+     * Get custom tool count
+     */
+    getCustomToolCount(): number {
+        return this.customTools.size;
     }
 }

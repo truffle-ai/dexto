@@ -1,6 +1,6 @@
 import os from 'node:os';
 import type { AgentCard } from '@dexto/core';
-import { createAgentCard, logger, AgentError, DextoAgent } from '@dexto/core';
+import { DextoAgent, createAgentCard, logger, AgentError } from '@dexto/core';
 import {
     loadAgentConfig,
     enrichAgentConfig,
@@ -25,6 +25,24 @@ import {
 import { registerGracefulShutdown } from '../utils/graceful-shutdown.js';
 
 const DEFAULT_AGENT_VERSION = '1.0.0';
+
+/**
+ * Load image dynamically based on config and environment
+ * Priority: Config image field > Environment variable > Default
+ * Images are optional, but default to image-local for convenience
+ */
+async function loadImageForConfig(config: { image?: string | undefined }): Promise<void> {
+    const imageName = config.image || process.env.DEXTO_IMAGE || '@dexto/image-local';
+
+    try {
+        await import(imageName);
+        logger.debug(`Loaded image: ${imageName}`);
+    } catch (err) {
+        const errorMsg = `Failed to load image '${imageName}': ${err instanceof Error ? err.message : String(err)}`;
+        logger.error(errorMsg);
+        throw new Error(errorMsg);
+    }
+}
 
 /**
  * List all agents (installed and available)
@@ -70,6 +88,9 @@ async function createAgentFromId(agentId: string): Promise<DextoAgent> {
         const enrichedConfig = enrichAgentConfig(config, agentPath, {
             logLevel: 'info', // Server uses info-level logging for visibility
         });
+
+        // Load image dynamically based on config
+        await loadImageForConfig(enrichedConfig);
 
         // Create agent instance
         logger.info(`Creating agent: ${agentId} from ${agentPath}`);
@@ -117,7 +138,7 @@ export async function initializeHonoApi(
 ): Promise<HonoInitializationResult> {
     // Declare before registering shutdown hook to avoid TDZ on signals
     let activeAgent: DextoAgent = agent;
-    let activeAgentId: string | undefined = agentId || 'default-agent';
+    let activeAgentId: string | undefined = agentId || 'coding-agent';
     let isSwitchingAgent = false;
     registerGracefulShutdown(() => activeAgent);
 
@@ -317,6 +338,9 @@ export async function initializeHonoApi(
             const enrichedConfig = enrichAgentConfig(config, filePath, {
                 logLevel: 'info', // Server uses info-level logging for visibility
             });
+
+            // 3.5. Load image dynamically based on config
+            await loadImageForConfig(enrichedConfig);
 
             // 4. Create new agent instance directly (will initialize fresh telemetry in createAgentServices)
             newAgent = new DextoAgent(enrichedConfig, filePath);

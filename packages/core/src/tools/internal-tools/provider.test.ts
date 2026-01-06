@@ -76,7 +76,7 @@ describe('InternalToolsProvider', () => {
 
     describe('Initialization', () => {
         it('should initialize with empty config', async () => {
-            const provider = new InternalToolsProvider(mockServices, [], mockLogger);
+            const provider = new InternalToolsProvider(mockServices, [], [], mockLogger);
             await provider.initialize();
 
             expect(provider.getToolCount()).toBe(0);
@@ -84,7 +84,7 @@ describe('InternalToolsProvider', () => {
         });
 
         it('should register tools when services are available', async () => {
-            const provider = new InternalToolsProvider(mockServices, config, mockLogger);
+            const provider = new InternalToolsProvider(mockServices, config, [], mockLogger);
             await provider.initialize();
 
             expect(provider.getToolCount()).toBe(1);
@@ -97,7 +97,12 @@ describe('InternalToolsProvider', () => {
                 approvalManager: mockServices.approvalManager!,
             };
 
-            const provider = new InternalToolsProvider(servicesWithoutSearch, config, mockLogger);
+            const provider = new InternalToolsProvider(
+                servicesWithoutSearch,
+                config,
+                [],
+                mockLogger
+            );
             await provider.initialize();
 
             expect(provider.getToolCount()).toBe(0);
@@ -111,7 +116,7 @@ describe('InternalToolsProvider', () => {
                 approvalManager: mockServices.approvalManager!,
             };
 
-            const provider = new InternalToolsProvider(failingServices, config, mockLogger);
+            const provider = new InternalToolsProvider(failingServices, config, [], mockLogger);
             await provider.initialize();
 
             // Tool should be skipped due to missing service, so count should be 0
@@ -119,12 +124,12 @@ describe('InternalToolsProvider', () => {
         });
 
         it('should log initialization progress', async () => {
-            const provider = new InternalToolsProvider(mockServices, config, mockLogger);
+            const provider = new InternalToolsProvider(mockServices, config, [], mockLogger);
             await provider.initialize();
 
             expect(mockLogger.info).toHaveBeenCalledWith('Initializing InternalToolsProvider...');
             expect(mockLogger.info).toHaveBeenCalledWith(
-                'InternalToolsProvider initialized with 1 internal tools'
+                'InternalToolsProvider initialized with 1 tools (1 internal, 0 custom)'
             );
         });
     });
@@ -133,7 +138,7 @@ describe('InternalToolsProvider', () => {
         let provider: InternalToolsProvider;
 
         beforeEach(async () => {
-            provider = new InternalToolsProvider(mockServices, config, mockLogger);
+            provider = new InternalToolsProvider(mockServices, config, [], mockLogger);
             await provider.initialize();
         });
 
@@ -152,7 +157,7 @@ describe('InternalToolsProvider', () => {
         });
 
         it('should convert tools to ToolSet format', () => {
-            const toolSet = provider.getAllTools();
+            const toolSet = provider.getInternalTools();
 
             expect(toolSet).toHaveProperty('search_history');
             expect(toolSet.search_history).toEqual({
@@ -177,7 +182,7 @@ describe('InternalToolsProvider', () => {
                 throw new Error('Schema conversion failed');
             });
 
-            const toolSet = provider.getAllTools();
+            const toolSet = provider.getInternalTools();
 
             // Should return fallback schema
             expect(toolSet.search_history?.parameters).toEqual({
@@ -191,7 +196,7 @@ describe('InternalToolsProvider', () => {
         let provider: InternalToolsProvider;
 
         beforeEach(async () => {
-            provider = new InternalToolsProvider(mockServices, config, mockLogger);
+            provider = new InternalToolsProvider(mockServices, config, [], mockLogger);
             await provider.initialize();
         });
 
@@ -278,7 +283,7 @@ describe('InternalToolsProvider', () => {
             };
 
             // Manually add the mock tool to the provider
-            (provider as any).tools.set('test_tool', mockTool);
+            (provider as any).internalTools.set('test_tool', mockTool);
 
             // Test with invalid input - missing required field
             const error = (await provider
@@ -305,7 +310,7 @@ describe('InternalToolsProvider', () => {
             };
 
             // Manually add the mock tool to the provider
-            (provider as any).tools.set('test_tool', mockTool);
+            (provider as any).internalTools.set('test_tool', mockTool);
 
             const sessionId = 'test-session-456';
             await provider.executeTool('test_tool', { param: 'value' }, sessionId);
@@ -328,6 +333,7 @@ describe('InternalToolsProvider', () => {
             const provider = new InternalToolsProvider(
                 partialServices,
                 ['search_history'], // This tool requires searchService
+                [],
                 mockLogger
             );
             await provider.initialize();
@@ -343,6 +349,7 @@ describe('InternalToolsProvider', () => {
             const provider = new InternalToolsProvider(
                 emptyServices,
                 ['search_history'], // This tool requires searchService
+                [],
                 mockLogger
             );
             await provider.initialize();
@@ -358,6 +365,7 @@ describe('InternalToolsProvider', () => {
             const provider = new InternalToolsProvider(
                 emptyServices,
                 ['search_history'],
+                [],
                 mockLogger
             );
             await provider.initialize();
@@ -374,6 +382,7 @@ describe('InternalToolsProvider', () => {
             const provider = new InternalToolsProvider(
                 mockServices,
                 ['search_history'], // Add more tools here as they're implemented
+                [],
                 mockLogger
             );
             await provider.initialize();
@@ -386,6 +395,7 @@ describe('InternalToolsProvider', () => {
             const provider = new InternalToolsProvider(
                 mockServices,
                 ['search_history'], // Only use known tools for now
+                [],
                 mockLogger
             );
 
@@ -406,6 +416,7 @@ describe('InternalToolsProvider', () => {
             const provider = new InternalToolsProvider(
                 servicesWithOnlyApproval,
                 config,
+                [],
                 mockLogger
             );
 
@@ -417,7 +428,7 @@ describe('InternalToolsProvider', () => {
         });
 
         it('should handle tool execution context properly', async () => {
-            const provider = new InternalToolsProvider(mockServices, config, mockLogger);
+            const provider = new InternalToolsProvider(mockServices, config, [], mockLogger);
             await provider.initialize();
 
             // Execute without sessionId
@@ -430,6 +441,116 @@ describe('InternalToolsProvider', () => {
             expect(mockServices.searchService?.searchMessages).toHaveBeenCalledWith(
                 'test',
                 expect.any(Object)
+            );
+        });
+    });
+
+    describe('Custom Tool Provider Validation', () => {
+        // Mock agent for custom tool tests
+        const mockAgent = {
+            agentEventBus: { emit: vi.fn() },
+        } as any;
+
+        it('should throw error when custom tool provider is not found', async () => {
+            const customToolsConfig = [
+                {
+                    type: 'nonexistent-provider',
+                    config: {},
+                },
+            ];
+
+            const provider = new InternalToolsProvider(
+                mockServices,
+                [],
+                customToolsConfig,
+                mockLogger
+            );
+            provider.setAgent(mockAgent);
+
+            // Should throw during initialization because provider is missing
+            await expect(provider.initialize()).rejects.toThrow(DextoRuntimeError);
+            await expect(provider.initialize()).rejects.toThrow(
+                "Unknown custom tool provider: 'nonexistent-provider'"
+            );
+        });
+
+        it('should include available types in error message', async () => {
+            const customToolsConfig = [
+                {
+                    type: 'missing-provider',
+                    config: {},
+                },
+            ];
+
+            const provider = new InternalToolsProvider(
+                mockServices,
+                [],
+                customToolsConfig,
+                mockLogger
+            );
+            provider.setAgent(mockAgent);
+
+            const error = (await provider.initialize().catch((e) => e)) as DextoRuntimeError;
+            expect(error).toBeInstanceOf(DextoRuntimeError);
+            expect(error.code).toBe(ToolErrorCode.CUSTOM_TOOL_PROVIDER_UNKNOWN);
+            expect(error.scope).toBe(ErrorScope.TOOLS);
+            expect(error.type).toBe(ErrorType.USER);
+            // Error context should include available types (even if empty)
+            expect(error.context).toHaveProperty('availableTypes');
+        });
+
+        it('should fail fast on first missing provider', async () => {
+            const customToolsConfig = [
+                {
+                    type: 'first-missing-provider',
+                    config: {},
+                },
+                {
+                    type: 'second-missing-provider',
+                    config: {},
+                },
+            ];
+
+            const provider = new InternalToolsProvider(
+                mockServices,
+                [],
+                customToolsConfig,
+                mockLogger
+            );
+            provider.setAgent(mockAgent);
+
+            // Should throw on the first missing provider
+            await expect(provider.initialize()).rejects.toThrow(
+                "Unknown custom tool provider: 'first-missing-provider'"
+            );
+        });
+
+        it('should initialize successfully when no custom tools are configured', async () => {
+            const provider = new InternalToolsProvider(mockServices, [], [], mockLogger);
+
+            await provider.initialize();
+
+            expect(provider.getToolCount()).toBe(0);
+        });
+
+        it('should throw error if agent not set before initialization with custom tools', async () => {
+            const customToolsConfig = [
+                {
+                    type: 'some-provider',
+                    config: {},
+                },
+            ];
+
+            const provider = new InternalToolsProvider(
+                mockServices,
+                [],
+                customToolsConfig,
+                mockLogger
+            );
+            // Don't call setAgent()
+
+            await expect(provider.initialize()).rejects.toThrow(
+                'Agent reference not set. Call setAgent() before initialize() when using custom tools.'
             );
         });
     });
@@ -459,6 +580,7 @@ describe('InternalToolsProvider', () => {
             const provider = new InternalToolsProvider(
                 servicesWithDisabledElicitation,
                 ['ask_user'],
+                [],
                 mockLogger
             );
 
@@ -488,6 +610,7 @@ describe('InternalToolsProvider', () => {
             const provider = new InternalToolsProvider(
                 servicesWithDisabledElicitation,
                 ['ask_user'],
+                [],
                 mockLogger
             );
 
@@ -502,7 +625,7 @@ describe('InternalToolsProvider', () => {
 
         it('should register tool when required feature is enabled', async () => {
             // mockServices already has elicitation enabled (from beforeEach)
-            const provider = new InternalToolsProvider(mockServices, ['ask_user'], mockLogger);
+            const provider = new InternalToolsProvider(mockServices, ['ask_user'], [], mockLogger);
 
             await provider.initialize();
 
@@ -515,6 +638,7 @@ describe('InternalToolsProvider', () => {
             const provider = new InternalToolsProvider(
                 mockServices,
                 ['search_history'],
+                [],
                 mockLogger
             );
             await provider.initialize();
@@ -533,6 +657,7 @@ describe('InternalToolsProvider', () => {
             const provider = new InternalToolsProvider(
                 servicesWithoutApprovalManager,
                 ['ask_user'],
+                [],
                 mockLogger
             );
 

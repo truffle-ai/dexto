@@ -161,7 +161,7 @@ async function resolveDefaultAgentForDextoSource(autoInstall: boolean = true): P
     if (!sourceRoot) {
         throw ConfigError.bundledNotFound('dexto source directory not found');
     }
-    const repoConfigPath = path.join(sourceRoot, 'agents', 'default-agent.yml');
+    const repoConfigPath = path.join(sourceRoot, 'agents', 'coding-agent', 'coding-agent.yml');
 
     // Check if we're in dev mode (maintainers testing the repo config)
     const isDevMode = process.env.DEXTO_DEV_MODE === 'true';
@@ -210,11 +210,11 @@ async function resolveDefaultAgentForDextoProject(autoInstall: boolean = true): 
         throw ConfigError.unknownContext('dexto-project: project root not found');
     }
 
-    // 1. Try project-local default-agent.yml first
+    // 1. Try project-local coding-agent.yml first
     const candidatePaths = [
-        path.join(projectRoot, 'default-agent.yml'),
-        path.join(projectRoot, 'agents', 'default-agent.yml'),
-        path.join(projectRoot, 'src', 'dexto', 'agents', 'default-agent.yml'),
+        path.join(projectRoot, 'coding-agent.yml'),
+        path.join(projectRoot, 'agents', 'coding-agent.yml'),
+        path.join(projectRoot, 'src', 'dexto', 'agents', 'coding-agent.yml'),
     ];
 
     for (const p of candidatePaths) {
@@ -225,7 +225,7 @@ async function resolveDefaultAgentForDextoProject(autoInstall: boolean = true): 
             // continue
         }
     }
-    logger.debug(`No project-local default-agent.yml found in ${projectRoot}`);
+    logger.debug(`No project-local coding-agent.yml found in ${projectRoot}`);
 
     // 2. Use preferences default agent name - REQUIRED if no project default
     if (!globalPreferencesExist()) {

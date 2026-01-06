@@ -133,7 +133,7 @@ console.log(`Installed to: ${configPath}`);
 
 1. Agent files are copied from bundled location to `~/.dexto/agents/{agentId}/`
 2. Agent is added to the user's registry (`~/.dexto/agents/registry.json`)
-3. User preferences are applied at runtime for the default-agent only
+3. User preferences are applied at runtime for the bundled coding-agent only
 
 ---
 

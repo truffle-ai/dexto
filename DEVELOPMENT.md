@@ -201,7 +201,7 @@ export DEXTO_DEV_MODE=true  # Use repo configs and local .dexto directory
 ```
 
 **DEXTO_DEV_MODE Behavior:**
-- **Agent Config**: Uses `agents/default-agent.yml` from repo (instead of `~/.dexto/agents/`)
+- **Agent Config**: Uses `agents/coding-agent/coding-agent.yml` from repo (instead of `~/.dexto/agents/`)
 - **Logs/Database**: Uses `repo/.dexto/` (instead of `~/.dexto/`)
 - **Preferences**: Skips global setup validation
 - **Use Case**: Isolated testing and development on Dexto itself

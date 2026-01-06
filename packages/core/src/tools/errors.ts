@@ -205,4 +205,32 @@ export class ToolError {
             ]
         );
     }
+
+    /**
+     * Unknown custom tool provider type
+     */
+    static unknownCustomToolProvider(type: string, availableTypes: string[]): DextoRuntimeError {
+        return new DextoRuntimeError(
+            ToolErrorCode.CUSTOM_TOOL_PROVIDER_UNKNOWN,
+            ErrorScope.TOOLS,
+            ErrorType.USER,
+            `Unknown custom tool provider: '${type}'`,
+            { type, availableTypes },
+            `Available types: ${availableTypes.length > 0 ? availableTypes.join(', ') : 'none'}`
+        );
+    }
+
+    /**
+     * Custom tool provider already registered
+     */
+    static customToolProviderAlreadyRegistered(type: string): DextoRuntimeError {
+        return new DextoRuntimeError(
+            ToolErrorCode.CUSTOM_TOOL_PROVIDER_ALREADY_REGISTERED,
+            ErrorScope.TOOLS,
+            ErrorType.USER,
+            `Custom tool provider '${type}' is already registered`,
+            { type },
+            `Use unregister() first if you want to replace it`
+        );
+    }
 }

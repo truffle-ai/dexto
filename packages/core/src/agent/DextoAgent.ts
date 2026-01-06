@@ -288,6 +288,14 @@ export class DextoAgent {
                 services: services,
             });
 
+            // Set agent reference for custom tools (must be done before tool initialization)
+            // This allows custom tool providers to wire up bidirectional communication
+            services.toolManager.setAgent(this);
+
+            // Initialize toolManager now that agent reference is set
+            // Custom tools need agent access for bidirectional communication
+            await services.toolManager.initialize();
+
             // Initialize search service from services
             this.searchService = services.searchService;
 

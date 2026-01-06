@@ -4,16 +4,19 @@
  * Internal tool for writing content to files (requires approval)
  */
 
+import * as path from 'node:path';
 import { z } from 'zod';
 import { createPatch } from 'diff';
-import { InternalTool, ToolExecutionContext } from '../../types.js';
-import {
-    FileSystemService,
-    FileSystemErrorCode,
-    BufferEncoding,
-} from '../../../filesystem/index.js';
-import { DextoRuntimeError } from '../../../errors/index.js';
-import type { DiffDisplayData, FileDisplayData } from '../../display-types.js';
+import { InternalTool, ToolExecutionContext, DextoRuntimeError, ApprovalType } from '@dexto/core';
+import type {
+    DiffDisplayData,
+    FileDisplayData,
+    ApprovalRequestDetails,
+    ApprovalResponse,
+} from '@dexto/core';
+import { FileSystemErrorCode } from './error-codes.js';
+import { BufferEncoding } from './types.js';
+import type { FileToolOptions } from './file-tool-types.js';
 
 const WriteFileInputSchema = z
     .object({
@@ -58,14 +61,73 @@ function generateDiffPreview(
 }
 
 /**
- * Create the write_file internal tool
+ * Create the write_file internal tool with directory approval support
  */
-export function createWriteFileTool(fileSystemService: FileSystemService): InternalTool {
+export function createWriteFileTool(options: FileToolOptions): InternalTool {
+    const { fileSystemService, directoryApproval } = options;
+
+    // Store parent directory for use in onApprovalGranted callback
+    let pendingApprovalParentDir: string | undefined;
+
     return {
         id: 'write_file',
         description:
             'Write content to a file. Creates a new file or overwrites existing file. Automatically creates backup of existing files before overwriting. Use create_dirs to create parent directories. Requires approval for all write operations. Returns success status, path, bytes written, and backup path if applicable.',
         inputSchema: WriteFileInputSchema,
+
+        /**
+         * Check if this write operation needs directory access approval.
+         * Returns custom approval request if the file is outside allowed paths.
+         */
+        getApprovalOverride: (args: unknown): ApprovalRequestDetails | null => {
+            const { file_path } = args as WriteFileInput;
+            if (!file_path) return null;
+
+            // Check if path is within config-allowed paths
+            const isAllowed = fileSystemService.isPathWithinConfigAllowed(file_path);
+            if (isAllowed) {
+                return null; // Use normal tool confirmation
+            }
+
+            // Check if directory is already session-approved
+            if (directoryApproval?.isSessionApproved(file_path)) {
+                return null; // Already approved, use normal flow
+            }
+
+            // Need directory access approval
+            const absolutePath = path.resolve(file_path);
+            const parentDir = path.dirname(absolutePath);
+            pendingApprovalParentDir = parentDir;
+
+            return {
+                type: ApprovalType.DIRECTORY_ACCESS,
+                metadata: {
+                    path: absolutePath,
+                    parentDir,
+                    operation: 'write',
+                    toolName: 'write_file',
+                },
+            };
+        },
+
+        /**
+         * Handle approved directory access - remember the directory for session
+         */
+        onApprovalGranted: (response: ApprovalResponse): void => {
+            if (!directoryApproval || !pendingApprovalParentDir) return;
+
+            // Check if user wants to remember the directory
+            // Use type assertion to access rememberDirectory since response.data is a union type
+            const data = response.data as { rememberDirectory?: boolean } | undefined;
+            const rememberDirectory = data?.rememberDirectory ?? false;
+            directoryApproval.addApproved(
+                pendingApprovalParentDir,
+                rememberDirectory ? 'session' : 'once'
+            );
+
+            // Clear pending state
+            pendingApprovalParentDir = undefined;
+        },
 
         /**
          * Generate preview for approval UI - shows diff or file creation info

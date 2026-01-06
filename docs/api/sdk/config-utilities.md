@@ -120,7 +120,7 @@ Each agent gets isolated paths based on its ID:
 The agent ID is derived in priority order:
 1. `agentCard.name` from config (sanitized)
 2. Config filename (without extension)
-3. Fallback: `default-agent`
+3. Fallback: `coding-agent`
 
 ### Example
 

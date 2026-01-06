@@ -38,8 +38,6 @@ import { ApprovalManager } from '../approval/manager.js';
 import { MemoryManager } from '../memory/index.js';
 import { PluginManager } from '../plugins/manager.js';
 import { registerBuiltInPlugins } from '../plugins/registrations/builtins.js';
-import { FileSystemService } from '../filesystem/index.js';
-import { ProcessService } from '../process/index.js';
 
 /**
  * Type for the core agent services returned by createAgentServices
@@ -146,58 +144,21 @@ export async function createAgentServices(
     registerBuiltInPlugins({ pluginManager, config });
     logger.debug('Built-in plugins registered');
 
-    // Initialize plugin manager (loads custom plugins, validates, calls initialize())
-    await pluginManager.initialize(config.plugins.custom);
+    // Initialize plugin manager (loads custom and registry plugins, validates, calls initialize())
+    await pluginManager.initialize(config.plugins.custom, config.plugins.registry);
     logger.info('Plugin manager initialized');
 
-    // TODO: Conditional initialization of FileSystemService and ProcessService
-    // These services are only needed when specific internal tools are enabled:
-    // - FileSystemService: Required by read-file, write-file, edit-file, glob-files, grep-content tools
-    // - ProcessService: Required by bash-exec, bash-output, kill-process tools
-    //
-    // Consider lazy initialization pattern:
-    // 1. Check config.internalTools to see which tools are enabled
-    // 2. Only initialize services if their dependent tools are present
-    // 3. This avoids overhead for agents that don't need file/process operations
-    //
-    // Current behavior: Always initialized for backward compatibility
-    // 7. Initialize FileSystemService and ProcessService for internal tools
-    const fileSystemService = new FileSystemService(
+    // 7. Initialize resource manager (MCP + internal resources)
+    // Moved before tool manager so it can be passed to internal tools
+    const resourceManager = new ResourceManager(
+        mcpManager,
         {
-            allowedPaths: ['.'],
-            blockedPaths: ['.git', 'node_modules/.bin', '.env'],
-            blockedExtensions: ['.exe', '.dll', '.so'],
-            workingDirectory: process.cwd(),
-            // Note: enableBackups and backupPath are not configured here
-            // Backups are disabled by default. To enable per-agent backups,
-            // filesystem config would need to be added to AgentConfig schema
+            internalResourcesConfig: config.internalResources,
+            blobStore: storageManager.getBlobStore(),
         },
         logger
     );
-    await fileSystemService.initialize();
-    logger.debug('FileSystemService initialized');
-
-    // Wire up FileSystemService's PathValidator to consult ApprovalManager for approved directories
-    // This allows PathValidator to check both config-allowed paths AND dynamically approved directories
-    fileSystemService.setDirectoryApprovalChecker((filePath: string) =>
-        approvalManager.isDirectoryApproved(filePath)
-    );
-    logger.debug('PathValidator connected to ApprovalManager for directory approval checks');
-
-    // Initialize ApprovalManager with the working directory as session-approved
-    // This ensures working directory paths don't trigger directory access prompts
-    approvalManager.initializeWorkingDirectory(process.cwd());
-    logger.debug('Working directory initialized as session-approved in ApprovalManager');
-
-    const processService = new ProcessService(
-        {
-            securityLevel: 'moderate',
-            workingDirectory: process.cwd(),
-        },
-        logger
-    );
-    await processService.initialize();
-    logger.debug('ProcessService initialized');
+    await resourceManager.initialize();
 
     // 8. Initialize tool manager with internal tools options
     // 8.1 - Create allowed tools provider based on configuration
@@ -220,14 +181,15 @@ export async function createAgentServices(
         {
             internalToolsServices: {
                 searchService,
-                fileSystemService,
-                processService,
+                resourceManager,
             },
             internalToolsConfig: config.internalTools,
+            customToolsConfig: config.customTools,
         },
         logger
     );
-    await toolManager.initialize();
+    // NOTE: toolManager.initialize() is called in DextoAgent.start() after agent reference is set
+    // This allows custom tools to access the agent for bidirectional communication
 
     const mcpServerCount = Object.keys(config.mcpServers).length;
     if (mcpServerCount === 0) {
@@ -258,18 +220,7 @@ export async function createAgentServices(
     const stateManager = new AgentStateManager(config, agentEventBus, logger);
     logger.debug('Agent state manager initialized');
 
-    // 11. Initialize resource manager (MCP + internal resources)
-    const resourceManager = new ResourceManager(
-        mcpManager,
-        {
-            internalResourcesConfig: config.internalResources,
-            blobStore: storageManager.getBlobStore(),
-        },
-        logger
-    );
-    await resourceManager.initialize();
-
-    // 12. Initialize session manager
+    // 11. Initialize session manager
     const sessionManager = new SessionManager(
         {
             stateManager,

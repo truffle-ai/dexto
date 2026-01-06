@@ -498,6 +498,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 total: 2,
                 mcp: 2,
                 internal: 0,
+                custom: 0,
             });
         });
 
@@ -521,6 +522,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 total: 0,
                 mcp: 0,
                 internal: 0,
+                custom: 0,
             });
         });
 
@@ -544,6 +546,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 total: 0,
                 mcp: 0,
                 internal: 0,
+                custom: 0,
             });
         });
     });

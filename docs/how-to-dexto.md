@@ -31,8 +31,8 @@ export GOOGLE_GENERATIVE_AI_API_KEY="your_key"
 export COHERE_API_KEY="your_key"
 ```
 
-### Agent Configuration (`default-agent.yml`)
-Agent behavior is defined in a YAML file (default: `agents/default-agent.yml`). This file specifies the LLM, tools (via MCP servers), and system prompt.
+### Agent Configuration (`coding-agent.yml`)
+Agent behavior is defined in a YAML file (default: `agents/coding-agent/coding-agent.yml`). This file specifies the LLM, tools (via MCP servers), and system prompt.
 
 **Example `agent.yml`:**
 ```yaml
@@ -192,7 +192,7 @@ import { DextoAgent, loadAgentConfig } from '@dexto/core';
 const config = await loadAgentConfig();
 
 // Or load from a specific file
-// const config = await loadAgentConfig('./agents/default-agent.yml');
+// const config = await loadAgentConfig('./agents/coding-agent/coding-agent.yml');
 
 // Create and start the agent
 const agent = new DextoAgent(config);

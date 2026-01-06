@@ -229,12 +229,19 @@ export class VercelMessageFormatter {
                     parsed = rawArgs ?? {};
                 }
                 // AI SDK v5 expects 'input' for tool-call arguments (not 'args').
-                contentParts.push({
+                // Include providerOptions if present (e.g., Gemini 3 thought signatures)
+                const toolCallPart: (typeof contentParts)[number] = {
                     type: 'tool-call',
                     toolCallId: toolCall.id,
                     toolName: toolCall.function.name,
                     input: parsed,
-                });
+                };
+                // Pass through providerOptions for round-tripping (thought signatures, etc.)
+                if (toolCall.providerOptions) {
+                    (toolCallPart as { providerOptions?: unknown }).providerOptions =
+                        toolCall.providerOptions;
+                }
+                contentParts.push(toolCallPart);
             }
             const firstToolCall = msg.toolCalls?.[0];
             if (firstToolCall) {

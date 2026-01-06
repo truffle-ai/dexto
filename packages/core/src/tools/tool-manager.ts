@@ -1,7 +1,7 @@
 import { MCPManager } from '../mcp/manager.js';
 import { InternalToolsProvider } from './internal-tools/provider.js';
 import { InternalToolsServices } from './internal-tools/registry.js';
-import type { InternalToolsConfig, ToolPolicies } from './schemas.js';
+import type { InternalToolsConfig, CustomToolsConfig, ToolPolicies } from './schemas.js';
 import { ToolSet, ToolExecutionContext } from './types.js';
 import type { ToolDisplayData } from './display-types.js';
 import { ToolError } from './errors.js';
@@ -23,14 +23,13 @@ import {
     generateBashPatternSuggestions,
     isDangerousCommand,
 } from './bash-pattern-utils.js';
-import type { FileSystemService } from '../filesystem/index.js';
-
 /**
  * Options for internal tools configuration in ToolManager
  */
 export interface InternalToolsOptions {
     internalToolsServices?: InternalToolsServices;
     internalToolsConfig?: InternalToolsConfig;
+    customToolsConfig?: CustomToolsConfig;
 }
 
 /**
@@ -76,7 +75,6 @@ export class ToolManager {
     private approvalMode: 'manual' | 'auto-approve' | 'auto-deny';
     private agentEventBus: AgentEventBus;
     private toolPolicies: ToolPolicies | undefined;
-    private fileSystemService: FileSystemService | undefined;
 
     // Plugin support - set after construction to avoid circular dependencies
     private pluginManager?: PluginManager;
@@ -86,16 +84,7 @@ export class ToolManager {
     // Tool source prefixing - ALL tools get prefixed by source
     private static readonly MCP_TOOL_PREFIX = 'mcp--';
     private static readonly INTERNAL_TOOL_PREFIX = 'internal--';
-
-    // File tools that require directory access approval for external paths
-    private static readonly FILE_TOOLS = new Set([
-        'read_file',
-        'write_file',
-        'edit_file',
-        'internal--read_file',
-        'internal--write_file',
-        'internal--edit_file',
-    ]);
+    private static readonly CUSTOM_TOOL_PREFIX = 'custom--';
 
     // Tool caching for performance
     private toolsCache: ToolSet = {};
@@ -120,11 +109,11 @@ export class ToolManager {
         this.toolPolicies = toolPolicies;
         this.logger = logger.createChild(DextoLogComponent.TOOLS);
 
-        // Store fileSystemService for directory access checks
-        this.fileSystemService = options?.internalToolsServices?.fileSystemService;
-
-        // Initialize internal tools if configured
-        if (options?.internalToolsConfig && options.internalToolsConfig.length > 0) {
+        // Initialize internal tools and/or custom tools if configured
+        if (
+            (options?.internalToolsConfig && options.internalToolsConfig.length > 0) ||
+            (options?.customToolsConfig && options.customToolsConfig.length > 0)
+        ) {
             // Include approvalManager in services for internal tools
             const internalToolsServices = {
                 ...options.internalToolsServices,
@@ -132,7 +121,8 @@ export class ToolManager {
             };
             this.internalToolsProvider = new InternalToolsProvider(
                 internalToolsServices,
-                options.internalToolsConfig,
+                options.internalToolsConfig || [],
+                options.customToolsConfig || [],
                 this.logger
             );
         }
@@ -154,16 +144,6 @@ export class ToolManager {
     }
 
     /**
-     * Set the FileSystemService for directory access checks.
-     * This is primarily used for testing purposes.
-     *
-     * @param service The FileSystemService instance
-     */
-    setFileSystemService(service: FileSystemService): void {
-        this.fileSystemService = service;
-    }
-
-    /**
      * Set plugin support services (called after construction to avoid circular dependencies)
      */
     setPluginSupport(
@@ -175,6 +155,17 @@ export class ToolManager {
         this.sessionManager = sessionManager;
         this.stateManager = stateManager;
         this.logger.debug('Plugin support configured for ToolManager');
+    }
+
+    /**
+     * Set agent reference for custom tools (called after construction to avoid circular dependencies)
+     * Must be called before initialize() if custom tools are configured
+     */
+    setAgent(agent: any): void {
+        if (this.internalToolsProvider) {
+            this.internalToolsProvider.setAgent(agent);
+            this.logger.debug('Agent reference configured for custom tools');
+        }
     }
 
     /**
@@ -251,125 +242,6 @@ export class ToolManager {
         };
     }
 
-    // ==================== File Tool / Directory Access Helpers ====================
-
-    /**
-     * Check if a tool is a file operation tool that may require directory approval
-     */
-    private isFileTool(toolName: string): boolean {
-        return ToolManager.FILE_TOOLS.has(toolName);
-    }
-
-    /**
-     * Get the file operation type from tool name
-     */
-    private getFileOperationType(toolName: string): 'read' | 'write' | 'edit' {
-        if (toolName.includes('read')) return 'read';
-        if (toolName.includes('write')) return 'write';
-        return 'edit';
-    }
-
-    /**
-     * Check and handle directory access approval for file tools.
-     * If a file path is outside the allowed directories, request directory approval.
-     *
-     * Similar to bash pattern approval - if directory access is approved,
-     * we skip the normal tool confirmation flow.
-     *
-     * Approval flow:
-     * 1. Working directory (config) → No directory prompt, follow tool config
-     * 2. Session-approved directory → No directory prompt, follow tool config
-     * 3. Once-approved or never approved → Directory prompt
-     *    - User chooses "Yes (session)" → Add as 'session', skip tool confirmation
-     *    - User chooses "Yes (once)" → Add as 'once', skip tool confirmation (prompts again next time)
-     *    - User denies → Throw error
-     *
-     * @returns object with:
-     *   - `handled`: true if this method handled approval (skip tool confirmation)
-     *   - `handled`: false if path is within allowed dirs (continue normal tool approval)
-     *   - throws if directory access is denied
-     */
-    private async checkDirectoryAccess(
-        toolName: string,
-        args: Record<string, unknown>,
-        sessionId?: string
-    ): Promise<{ handled: boolean }> {
-        // Only check file tools
-        if (!this.isFileTool(toolName)) {
-            return { handled: false };
-        }
-
-        // Skip if no fileSystemService (directory checking not available)
-        if (!this.fileSystemService) {
-            this.logger.debug('FileSystemService not available, skipping directory access check');
-            return { handled: false };
-        }
-
-        // Extract file path from args
-        const filePath = args.file_path as string | undefined;
-        if (!filePath) {
-            return { handled: false }; // No file path to check
-        }
-
-        // Check if path is within allowed directories (working dir from config)
-        // If so, continue normal tool approval flow (no directory prompt needed)
-        if (this.fileSystemService.isPathWithinAllowed(filePath)) {
-            this.logger.debug(`Path ${filePath} is within allowed directories`);
-            return { handled: false };
-        }
-
-        // Path is outside config-allowed directories
-        // Check if directory is session-approved (only 'session' type skips prompt)
-        // 'once' type still requires prompting each time
-        if (this.approvalManager.isDirectorySessionApproved(filePath)) {
-            this.logger.debug(
-                `Path ${filePath} is in session-approved directory - no directory prompt needed`
-            );
-            return { handled: false }; // Continue to tool confirmation (follows agent config)
-        }
-
-        // Need to request directory approval (either never approved or only 'once' approved)
-        const parentDir = this.fileSystemService.getParentDirectory(filePath);
-        const operation = this.getFileOperationType(toolName);
-
-        this.logger.info(
-            `Requesting directory access approval for ${parentDir} (tool: ${toolName}, operation: ${operation})`
-        );
-
-        const requestMetadata: Parameters<typeof this.approvalManager.requestDirectoryAccess>[0] = {
-            path: filePath,
-            parentDir,
-            operation,
-            toolName,
-        };
-        if (sessionId !== undefined) {
-            requestMetadata.sessionId = sessionId;
-        }
-        const response = await this.approvalManager.requestDirectoryAccess(requestMetadata);
-
-        if (response.status === ApprovalStatus.APPROVED) {
-            // Check if user wants to remember this directory for the session
-            const rememberDirectory =
-                response.data &&
-                'rememberDirectory' in response.data &&
-                response.data.rememberDirectory === true;
-
-            // Add directory with appropriate type: 'session' or 'once'
-            const approvalType = rememberDirectory ? 'session' : 'once';
-            this.approvalManager.addApprovedDirectory(parentDir, approvalType);
-            this.logger.info(
-                `Directory ${parentDir} added to approved directories (type: ${approvalType})`
-            );
-
-            // Directory approved - skip tool confirmation (like bash pattern approval)
-            return { handled: true };
-        }
-
-        // Directory access denied
-        this.logger.info(`Directory access denied for ${parentDir}`);
-        throw ToolError.directoryAccessDenied(parentDir, sessionId);
-    }
-
     getMcpManager(): MCPManager {
         return this.mcpManager;
     }
@@ -399,9 +271,10 @@ export class ToolManager {
     private async buildAllTools(): Promise<ToolSet> {
         const allTools: ToolSet = {};
 
-        // Get tools from both sources (already in final JSON Schema format)
+        // Get tools from all sources (already in final JSON Schema format)
         let mcpTools: ToolSet = {};
         let internalTools: ToolSet = {};
+        let customTools: ToolSet = {};
 
         try {
             mcpTools = await this.mcpManager.getAllTools();
@@ -413,7 +286,7 @@ export class ToolManager {
         }
 
         try {
-            internalTools = this.internalToolsProvider?.getAllTools() || {};
+            internalTools = this.internalToolsProvider?.getInternalTools() || {};
         } catch (error) {
             this.logger.error(
                 `Failed to get internal tools: ${error instanceof Error ? error.message : String(error)}`
@@ -421,7 +294,16 @@ export class ToolManager {
             internalTools = {};
         }
 
-        // Add ALL internal tools with prefix
+        try {
+            customTools = this.internalToolsProvider?.getCustomTools() || {};
+        } catch (error) {
+            this.logger.error(
+                `Failed to get custom tools: ${error instanceof Error ? error.message : String(error)}`
+            );
+            customTools = {};
+        }
+
+        // Add internal tools with 'internal--' prefix
         for (const [toolName, toolDef] of Object.entries(internalTools)) {
             const qualifiedName = `${ToolManager.INTERNAL_TOOL_PREFIX}${toolName}`;
             allTools[qualifiedName] = {
@@ -431,7 +313,17 @@ export class ToolManager {
             };
         }
 
-        // Add ALL MCP tools with prefix
+        // Add custom tools with 'custom--' prefix
+        for (const [toolName, toolDef] of Object.entries(customTools)) {
+            const qualifiedName = `${ToolManager.CUSTOM_TOOL_PREFIX}${toolName}`;
+            allTools[qualifiedName] = {
+                ...toolDef,
+                name: qualifiedName,
+                description: `${toolDef.description || 'No description provided'} (custom tool)`,
+            };
+        }
+
+        // Add MCP tools with 'mcp--' prefix
         for (const [toolName, toolDef] of Object.entries(mcpTools)) {
             const qualifiedName = `${ToolManager.MCP_TOOL_PREFIX}${toolName}`;
             allTools[qualifiedName] = {
@@ -444,9 +336,10 @@ export class ToolManager {
         const totalTools = Object.keys(allTools).length;
         const mcpCount = Object.keys(mcpTools).length;
         const internalCount = Object.keys(internalTools).length;
+        const customCount = Object.keys(customTools).length;
 
         this.logger.debug(
-            `🔧 Unified tool discovery: ${totalTools} total tools (${mcpCount} MCP → ${ToolManager.MCP_TOOL_PREFIX}*, ${internalCount} internal → ${ToolManager.INTERNAL_TOOL_PREFIX}*)`
+            `🔧 Unified tool discovery: ${totalTools} total tools (${mcpCount} MCP, ${internalCount} internal, ${customCount} custom)`
         );
 
         return allTools;
@@ -585,16 +478,33 @@ export class ToolManager {
                     abortSignal
                 );
             }
+            // Route to custom tools
+            else if (toolName.startsWith(ToolManager.CUSTOM_TOOL_PREFIX)) {
+                this.logger.debug(`🔧 Detected custom tool: '${toolName}'`);
+                const actualToolName = toolName.substring(ToolManager.CUSTOM_TOOL_PREFIX.length);
+                if (actualToolName.length === 0) {
+                    throw ToolError.invalidName(toolName, 'tool name cannot be empty after prefix');
+                }
+                if (!this.internalToolsProvider) {
+                    throw ToolError.internalToolsNotInitialized(toolName);
+                }
+                this.logger.debug(`🎯 Custom routing: '${toolName}' -> '${actualToolName}'`);
+                result = await this.internalToolsProvider.executeTool(
+                    actualToolName,
+                    args,
+                    sessionId,
+                    abortSignal
+                );
+            }
             // Tool doesn't have proper prefix
-            // TODO: will update for custom tools
             else {
                 this.logger.debug(`🔧 Detected tool without proper prefix: '${toolName}'`);
                 const stats = await this.getToolStats();
                 this.logger.error(
-                    `❌ Tool missing source prefix: '${toolName}' (expected '${ToolManager.MCP_TOOL_PREFIX}*' or '${ToolManager.INTERNAL_TOOL_PREFIX}*')`
+                    `❌ Tool missing source prefix: '${toolName}' (expected '${ToolManager.MCP_TOOL_PREFIX}*', '${ToolManager.INTERNAL_TOOL_PREFIX}*', or '${ToolManager.CUSTOM_TOOL_PREFIX}*')`
                 );
                 this.logger.debug(
-                    `Available: ${stats.mcp} MCP tools, ${stats.internal} internal tools`
+                    `Available: ${stats.mcp} MCP, ${stats.internal} internal, ${stats.custom} custom tools`
                 );
                 throw ToolError.notFound(toolName);
             }
@@ -677,7 +587,13 @@ export class ToolManager {
         // Check internal tools
         if (toolName.startsWith(ToolManager.INTERNAL_TOOL_PREFIX)) {
             const actualToolName = toolName.substring(ToolManager.INTERNAL_TOOL_PREFIX.length);
-            return this.internalToolsProvider?.hasTool(actualToolName) ?? false;
+            return this.internalToolsProvider?.hasInternalTool(actualToolName) ?? false;
+        }
+
+        // Check custom tools
+        if (toolName.startsWith(ToolManager.CUSTOM_TOOL_PREFIX)) {
+            const actualToolName = toolName.substring(ToolManager.CUSTOM_TOOL_PREFIX.length);
+            return this.internalToolsProvider?.hasCustomTool(actualToolName) ?? false;
         }
 
         // Tool without proper prefix doesn't exist
@@ -691,9 +607,11 @@ export class ToolManager {
         total: number;
         mcp: number;
         internal: number;
+        custom: number;
     }> {
         let mcpTools: ToolSet = {};
         let internalTools: ToolSet = {};
+        let customTools: ToolSet = {};
 
         try {
             mcpTools = await this.mcpManager.getAllTools();
@@ -705,7 +623,7 @@ export class ToolManager {
         }
 
         try {
-            internalTools = this.internalToolsProvider?.getAllTools() || {};
+            internalTools = this.internalToolsProvider?.getInternalTools() || {};
         } catch (error) {
             this.logger.error(
                 `Failed to get internal tools for stats: ${error instanceof Error ? error.message : String(error)}`
@@ -713,22 +631,33 @@ export class ToolManager {
             internalTools = {};
         }
 
+        try {
+            customTools = this.internalToolsProvider?.getCustomTools() || {};
+        } catch (error) {
+            this.logger.error(
+                `Failed to get custom tools for stats: ${error instanceof Error ? error.message : String(error)}`
+            );
+            customTools = {};
+        }
+
         const mcpCount = Object.keys(mcpTools).length;
         const internalCount = Object.keys(internalTools).length;
+        const customCount = Object.keys(customTools).length;
 
         return {
-            total: mcpCount + internalCount, // No conflicts with universal prefixing
+            total: mcpCount + internalCount + customCount,
             mcp: mcpCount,
             internal: internalCount,
+            custom: customCount,
         };
     }
 
     /**
-     * Get the source of a tool (mcp, internal, or unknown)
+     * Get the source of a tool (mcp, internal, custom, or unknown)
      * @param toolName The name of the tool to check
      * @returns The source of the tool
      */
-    getToolSource(toolName: string): 'mcp' | 'internal' | 'unknown' {
+    getToolSource(toolName: string): 'mcp' | 'internal' | 'custom' | 'unknown' {
         if (
             toolName.startsWith(ToolManager.MCP_TOOL_PREFIX) &&
             toolName.length > ToolManager.MCP_TOOL_PREFIX.length
@@ -740,6 +669,12 @@ export class ToolManager {
             toolName.length > ToolManager.INTERNAL_TOOL_PREFIX.length
         ) {
             return 'internal';
+        }
+        if (
+            toolName.startsWith(ToolManager.CUSTOM_TOOL_PREFIX) &&
+            toolName.length > ToolManager.CUSTOM_TOOL_PREFIX.length
+        ) {
+            return 'custom';
         }
         return 'unknown';
     }
@@ -814,6 +749,88 @@ export class ToolManager {
     }
 
     /**
+     * Check if a tool has a custom approval override and handle it.
+     * Tools can implement getApprovalOverride() to request specialized approval flows
+     * (e.g., directory access approval for file tools) instead of default tool confirmation.
+     *
+     * @param toolName The fully qualified tool name
+     * @param args The tool arguments
+     * @param sessionId Optional session ID
+     * @returns { handled: true } if custom approval was processed, { handled: false } to continue normal flow
+     */
+    private async checkCustomApprovalOverride(
+        toolName: string,
+        args: Record<string, unknown>,
+        sessionId?: string
+    ): Promise<{ handled: boolean }> {
+        // Get the actual tool name without prefix
+        let actualToolName: string | undefined;
+        if (toolName.startsWith(ToolManager.INTERNAL_TOOL_PREFIX)) {
+            actualToolName = toolName.substring(ToolManager.INTERNAL_TOOL_PREFIX.length);
+        } else if (toolName.startsWith(ToolManager.CUSTOM_TOOL_PREFIX)) {
+            actualToolName = toolName.substring(ToolManager.CUSTOM_TOOL_PREFIX.length);
+        }
+
+        if (!actualToolName || !this.internalToolsProvider) {
+            return { handled: false };
+        }
+
+        // Get the tool and check if it has custom approval override
+        const tool = this.internalToolsProvider.getTool(actualToolName);
+        if (!tool?.getApprovalOverride) {
+            return { handled: false };
+        }
+
+        // Get the custom approval request from the tool
+        const approvalRequest = tool.getApprovalOverride(args);
+        if (!approvalRequest) {
+            // Tool decided no custom approval needed, continue normal flow
+            return { handled: false };
+        }
+
+        this.logger.debug(
+            `Tool '${toolName}' requested custom approval: type=${approvalRequest.type}`
+        );
+
+        // Add sessionId to the approval request if not already present
+        if (sessionId && !approvalRequest.sessionId) {
+            approvalRequest.sessionId = sessionId;
+        }
+
+        // Request the custom approval through ApprovalManager
+        const response = await this.approvalManager.requestApproval(approvalRequest);
+
+        if (response.status === ApprovalStatus.APPROVED) {
+            // Let the tool handle the approved response (e.g., remember directory)
+            if (tool.onApprovalGranted) {
+                tool.onApprovalGranted(response);
+            }
+
+            this.logger.info(
+                `Custom approval granted for '${toolName}', type=${approvalRequest.type}, session=${sessionId ?? 'global'}`
+            );
+            return { handled: true };
+        }
+
+        // Handle denial - throw appropriate error based on approval type
+        this.logger.info(
+            `Custom approval denied for '${toolName}', type=${approvalRequest.type}, reason=${response.reason ?? 'unknown'}`
+        );
+
+        // For directory access, throw specific error
+        if (approvalRequest.type === 'directory_access') {
+            const metadata = approvalRequest.metadata as { parentDir?: string } | undefined;
+            throw ToolError.directoryAccessDenied(
+                metadata?.parentDir ?? 'unknown directory',
+                sessionId
+            );
+        }
+
+        // For other custom approval types, throw generic execution denied
+        throw ToolError.executionDenied(toolName, sessionId);
+    }
+
+    /**
      * Handle tool approval/confirmation flow
      * Checks allowed list, manages approval modes (manual, auto-approve, auto-deny),
      * and handles remember choice logic
@@ -838,13 +855,15 @@ export class ToolManager {
             throw ToolError.executionDenied(toolName, sessionId);
         }
 
-        // PRECEDENCE 1.5: Check directory access for file tools (external paths)
-        // Similar to bash patterns - if directory approval handles it, skip tool confirmation
-        const directoryResult = await this.checkDirectoryAccess(toolName, args, sessionId);
-        if (directoryResult.handled) {
-            this.logger.debug(
-                `Directory access approved for ${toolName} - skipping tool confirmation`
-            );
+        // PRECEDENCE 1.5: Check if tool has custom approval override (e.g., directory access for file tools)
+        // This allows tools to request specialized approval flows instead of default tool confirmation
+        const customApprovalResult = await this.checkCustomApprovalOverride(
+            toolName,
+            args,
+            sessionId
+        );
+        if (customApprovalResult.handled) {
+            // Custom approval was handled (approved or threw an error)
             return { requireApproval: true, approvalStatus: 'approved' };
         }
 

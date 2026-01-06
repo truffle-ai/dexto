@@ -123,6 +123,39 @@ describe('redact', () => {
             const text = 'This is a normal sentence.';
             expect(redact(text)).toBe(text);
         });
+
+        test('should redact standalone JWT tokens', () => {
+            const jwt =
+                'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U';
+            expect(redact(jwt)).toBe('[REDACTED]');
+        });
+    });
+
+    // Signed URLs (should NOT be redacted)
+    describe('Signed URLs', () => {
+        test('should NOT redact Supabase signed URLs', () => {
+            const url =
+                'https://xxx.supabase.co/storage/v1/object/sign/bucket/file.dat?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U';
+            expect(redact(url)).toBe(url);
+        });
+
+        test('should NOT redact AWS S3 presigned URLs', () => {
+            const url =
+                'https://bucket.s3.us-east-1.amazonaws.com/file.dat?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=xxx';
+            expect(redact(url)).toBe(url);
+        });
+
+        test('should NOT redact Google Cloud Storage signed URLs', () => {
+            const url =
+                'https://storage.googleapis.com/bucket/file.dat?Expires=123&GoogleAccessId=xxx&Signature=xxx';
+            expect(redact(url)).toBe(url);
+        });
+
+        test('should still redact JWT tokens in non-URL contexts', () => {
+            const text =
+                'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U';
+            expect(redact(text)).toBe('[REDACTED]');
+        });
     });
 
     // Circular References

@@ -5,9 +5,9 @@
  */
 
 import { z } from 'zod';
-import { InternalTool, ToolExecutionContext } from '../../types.js';
-import { FileSystemService } from '../../../filesystem/index.js';
-import type { SearchDisplayData } from '../../display-types.js';
+import { InternalTool, ToolExecutionContext } from '@dexto/core';
+import { FileSystemService } from './filesystem-service.js';
+import type { SearchDisplayData } from '@dexto/core';
 
 const GrepContentInputSchema = z
     .object({

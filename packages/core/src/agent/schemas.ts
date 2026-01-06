@@ -13,7 +13,12 @@ import { SessionConfigSchema } from '@core/session/schemas.js';
 import { StorageSchema } from '@core/storage/schemas.js';
 import { SystemPromptConfigSchema } from '@core/systemPrompt/schemas.js';
 import {
+    CompressionConfigSchema,
+    DEFAULT_COMPRESSION_CONFIG,
+} from '@core/context/compression/schemas.js';
+import {
     InternalToolsSchema,
+    CustomToolsSchema,
     ToolConfirmationConfigSchema,
     ElicitationConfigSchema,
     ToolsConfigSchema,
@@ -361,6 +366,13 @@ export function createAgentConfigSchema(options: LLMValidationOptions = {}) {
                 'Memory configuration for system prompt inclusion (optional feature)'
             ).optional(),
 
+            image: z
+                .string()
+                .describe(
+                    'Image package that provides required providers (e.g., "@dexto/image-local"). Optional - platform can load images via CLI flag, environment variable, or static imports.'
+                )
+                .optional(),
+
             // ========================================
             // FIELDS WITH DEFAULTS (always present after parsing)
             // ========================================
@@ -369,7 +381,7 @@ export function createAgentConfigSchema(options: LLMValidationOptions = {}) {
                 .describe(
                     'Unique identifier for this agent instance - CLI enrichment derives from agentCard.name or filename'
                 )
-                .default('default-agent'),
+                .default('coding-agent'),
 
             mcpServers: McpServersConfigSchema.describe(
                 'Configurations for MCP (Model Context Protocol) servers used by the agent'
@@ -377,6 +389,10 @@ export function createAgentConfigSchema(options: LLMValidationOptions = {}) {
 
             internalTools: InternalToolsSchema.describe(
                 'Internal tools configuration (read-file, write-file, bash-exec, etc.)'
+            ).default([]),
+
+            customTools: CustomToolsSchema.describe(
+                'Custom tool provider configurations. Providers must be registered via customToolRegistry before loading agent config.'
             ).default([]),
 
             tools: ToolsConfigSchema.describe(
@@ -419,6 +435,10 @@ export function createAgentConfigSchema(options: LLMValidationOptions = {}) {
             plugins: PluginsConfigSchema.describe(
                 'Plugin system configuration for built-in and custom plugins'
             ).default({}),
+
+            compression: CompressionConfigSchema.describe(
+                'Context compression configuration - custom providers can be registered via compressionRegistry'
+            ).default(DEFAULT_COMPRESSION_CONFIG),
         })
         .strict()
         .describe('Main configuration for an agent, including its LLM and server connections')

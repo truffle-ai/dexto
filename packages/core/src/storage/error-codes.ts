@@ -45,4 +45,8 @@ export enum StorageErrorCode {
     // Blob storage - Operation errors
     BLOB_CLEANUP_FAILED = 'BLOB_CLEANUP_FAILED',
     BLOB_OPERATION_FAILED = 'BLOB_OPERATION_FAILED',
+
+    // Blob storage - Provider registry errors
+    BLOB_PROVIDER_UNKNOWN = 'BLOB_PROVIDER_UNKNOWN',
+    BLOB_PROVIDER_ALREADY_REGISTERED = 'BLOB_PROVIDER_ALREADY_REGISTERED',
 }

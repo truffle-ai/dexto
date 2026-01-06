@@ -1,12 +1,9 @@
 // packages/cli/src/cli/commands/index.ts
 
 // Project setup commands
-export {
-    createDextoProject,
-    createTsconfigJson,
-    addDextoScriptsToPackageJson,
-    postCreateDexto,
-} from './create-app.js';
+export { createDextoProject, type CreateAppOptions } from './create-app.js';
+
+export { createImage } from './create-image.js';
 
 export { getUserInputToInitDextoApp, initDexto, postInitDexto } from './init-app.js';
 

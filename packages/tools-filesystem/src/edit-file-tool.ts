@@ -4,14 +4,15 @@
  * Internal tool for editing files by replacing text (requires approval)
  */
 
+import * as path from 'node:path';
 import { z } from 'zod';
 import { createPatch } from 'diff';
-import { InternalTool, ToolExecutionContext } from '../../types.js';
-import { FileSystemService } from '../../../filesystem/index.js';
-import type { DiffDisplayData } from '../../display-types.js';
-import { ToolError } from '../../errors.js';
-import { ToolErrorCode } from '../../error-codes.js';
-import { DextoRuntimeError } from '../../../errors/index.js';
+import { InternalTool, ToolExecutionContext, ApprovalType } from '@dexto/core';
+import type { DiffDisplayData, ApprovalRequestDetails, ApprovalResponse } from '@dexto/core';
+import { ToolError } from '@dexto/core';
+import { ToolErrorCode } from '@dexto/core';
+import { DextoRuntimeError } from '@dexto/core';
+import type { FileToolOptions } from './file-tool-types.js';
 
 const EditFileInputSchema = z
     .object({
@@ -54,14 +55,73 @@ function generateDiffPreview(
 }
 
 /**
- * Create the edit_file internal tool
+ * Create the edit_file internal tool with directory approval support
  */
-export function createEditFileTool(fileSystemService: FileSystemService): InternalTool {
+export function createEditFileTool(options: FileToolOptions): InternalTool {
+    const { fileSystemService, directoryApproval } = options;
+
+    // Store parent directory for use in onApprovalGranted callback
+    let pendingApprovalParentDir: string | undefined;
+
     return {
         id: 'edit_file',
         description:
             'Edit a file by replacing text. By default, old_string must be unique in the file (will error if found multiple times). Set replace_all=true to replace all occurrences. Automatically creates backup before editing. Requires approval. Returns success status, path, number of changes made, and backup path.',
         inputSchema: EditFileInputSchema,
+
+        /**
+         * Check if this edit operation needs directory access approval.
+         * Returns custom approval request if the file is outside allowed paths.
+         */
+        getApprovalOverride: (args: unknown): ApprovalRequestDetails | null => {
+            const { file_path } = args as EditFileInput;
+            if (!file_path) return null;
+
+            // Check if path is within config-allowed paths
+            const isAllowed = fileSystemService.isPathWithinConfigAllowed(file_path);
+            if (isAllowed) {
+                return null; // Use normal tool confirmation
+            }
+
+            // Check if directory is already session-approved
+            if (directoryApproval?.isSessionApproved(file_path)) {
+                return null; // Already approved, use normal flow
+            }
+
+            // Need directory access approval
+            const absolutePath = path.resolve(file_path);
+            const parentDir = path.dirname(absolutePath);
+            pendingApprovalParentDir = parentDir;
+
+            return {
+                type: ApprovalType.DIRECTORY_ACCESS,
+                metadata: {
+                    path: absolutePath,
+                    parentDir,
+                    operation: 'edit',
+                    toolName: 'edit_file',
+                },
+            };
+        },
+
+        /**
+         * Handle approved directory access - remember the directory for session
+         */
+        onApprovalGranted: (response: ApprovalResponse): void => {
+            if (!directoryApproval || !pendingApprovalParentDir) return;
+
+            // Check if user wants to remember the directory
+            // Use type assertion to access rememberDirectory since response.data is a union type
+            const data = response.data as { rememberDirectory?: boolean } | undefined;
+            const rememberDirectory = data?.rememberDirectory ?? false;
+            directoryApproval.addApproved(
+                pendingApprovalParentDir,
+                rememberDirectory ? 'session' : 'once'
+            );
+
+            // Clear pending state
+            pendingApprovalParentDir = undefined;
+        },
 
         /**
          * Generate preview for approval UI - shows diff without modifying file

@@ -33,7 +33,7 @@ vi.mock('@dexto/agent-management', async () => {
                 return {
                     llm: llmConfig,
                     defaults: {
-                        defaultAgent: options.defaultAgent || 'default-agent',
+                        defaultAgent: options.defaultAgent || 'coding-agent',
                         defaultMode: options.defaultMode || 'web',
                     },
                     setup: { completed: options.setupCompleted ?? true },
@@ -42,7 +42,7 @@ vi.mock('@dexto/agent-management', async () => {
             // Legacy signature (provider, model, apiKeyVar, defaultAgent)
             return {
                 llm: { provider: options, model: args[1], apiKey: `$${args[2]}` },
-                defaults: { defaultAgent: args[3] || 'default-agent' },
+                defaults: { defaultAgent: args[3] || 'coding-agent' },
                 setup: { completed: true },
             };
         }),
@@ -147,7 +147,7 @@ describe('Setup Command', () => {
                 return {
                     llm: llmConfig,
                     defaults: {
-                        defaultAgent: options.defaultAgent || 'default-agent',
+                        defaultAgent: options.defaultAgent || 'coding-agent',
                         defaultMode: options.defaultMode || 'web',
                     },
                     setup: { completed: options.setupCompleted ?? true },
@@ -155,7 +155,7 @@ describe('Setup Command', () => {
             }
             return {
                 llm: { provider: options, model: args[1], apiKey: `$${args[2]}` },
-                defaults: { defaultAgent: args[3] || 'default-agent' },
+                defaults: { defaultAgent: args[3] || 'coding-agent' },
                 setup: { completed: true },
             };
         });
@@ -221,7 +221,7 @@ describe('Setup Command', () => {
                 provider: 'anthropic',
                 model: 'test-model', // From mocked getDefaultModel
                 apiKeyVar: 'ANTHROPIC_API_KEY',
-                defaultAgent: 'default-agent',
+                defaultAgent: 'coding-agent',
                 setupCompleted: true,
             });
         });
@@ -371,7 +371,7 @@ describe('Setup Command', () => {
 
             await handleSetupCommand(options);
 
-            // Should apply defaults: interactive=true, defaultAgent='default-agent'
+            // Should apply defaults: interactive=true, defaultAgent='coding-agent'
             expect(mockCreateInitialPreferences).toHaveBeenCalledWith(
                 expect.objectContaining({
                     provider: 'google',
@@ -445,7 +445,7 @@ describe('Setup Command', () => {
                     apiKey: `$${options.apiKeyVar}`,
                 },
                 defaults: {
-                    defaultAgent: options.defaultAgent || 'default-agent',
+                    defaultAgent: options.defaultAgent || 'coding-agent',
                     defaultMode: 'web',
                 },
                 setup: { completed: true },
@@ -469,7 +469,7 @@ describe('Setup Command', () => {
                     apiKey: `$${options.apiKeyVar}`,
                 },
                 defaults: {
-                    defaultAgent: options.defaultAgent || 'default-agent',
+                    defaultAgent: options.defaultAgent || 'coding-agent',
                     defaultMode: 'web',
                 },
                 setup: { completed: true },
@@ -527,7 +527,7 @@ describe('Setup Command', () => {
                     provider: testCase.provider,
                     model: 'test-model', // From mocked getDefaultModel
                     apiKeyVar: testCase.expectedKey,
-                    defaultAgent: 'default-agent',
+                    defaultAgent: 'coding-agent',
                     setupCompleted: true,
                 });
             }
@@ -542,7 +542,7 @@ describe('Setup Command', () => {
                     apiKey: `$${options.apiKeyVar}`,
                 },
                 defaults: {
-                    defaultAgent: options.defaultAgent || 'default-agent',
+                    defaultAgent: options.defaultAgent || 'coding-agent',
                     defaultMode: 'web',
                 },
                 setup: { completed: true },
@@ -560,7 +560,7 @@ describe('Setup Command', () => {
                 provider: 'openai',
                 model: 'gpt-5-mini', // User-specified model, not default
                 apiKeyVar: 'OPENAI_API_KEY',
-                defaultAgent: 'default-agent',
+                defaultAgent: 'coding-agent',
                 setupCompleted: true,
             });
         });
@@ -603,7 +603,7 @@ describe('Setup Command', () => {
                     provider: 'openai',
                     model: 'test-model', // From mocked getDefaultModel
                     apiKeyVar: 'OPENAI_API_KEY',
-                    defaultAgent: 'default-agent',
+                    defaultAgent: 'coding-agent',
                     setupCompleted: true,
                 });
                 expect(mockSaveGlobalPreferences).toHaveBeenCalled();

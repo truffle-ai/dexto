@@ -7,10 +7,10 @@
 
 import * as path from 'node:path';
 import { z } from 'zod';
-import { InternalTool, ToolExecutionContext } from '../../types.js';
-import { ProcessService } from '../../../process/index.js';
-import { ProcessError } from '../../../process/errors.js';
-import type { ShellDisplayData } from '../../display-types.js';
+import { InternalTool, ToolExecutionContext } from '@dexto/core';
+import { ProcessService } from './process-service.js';
+import { ProcessError } from './errors.js';
+import type { ShellDisplayData } from '@dexto/core';
 
 const BashExecInputSchema = z
     .object({

@@ -656,7 +656,7 @@ The CLI automatically creates per-agent log files at:
 Where `<agent-id>` is derived from:
 1. `agentCard.name` (sanitized for filesystem)
 2. Config filename (e.g., `my-agent.yml` → `my-agent`)
-3. Fallback: `default-agent`
+3. Fallback: `coding-agent`
 
 ## Plugins
 
@@ -902,7 +902,7 @@ The CLI derives `agentId` in this priority order:
    database-agent.yml      # → agentId: "database-agent"
    ```
 
-3. **Fallback**: `default-agent`
+3. **Fallback**: `coding-agent`
 
 ### Manual Override
 
