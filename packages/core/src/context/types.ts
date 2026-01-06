@@ -159,6 +159,12 @@ export interface ToolCall {
         /** Arguments for the function in JSON string format */
         arguments: string;
     };
+    /**
+     * Provider-specific options (e.g., thought signatures for Gemini 3).
+     * These are opaque tokens passed through to maintain model state across tool calls.
+     * Not intended for display - purely for API round-tripping.
+     */
+    providerOptions?: Record<string, unknown>;
 }
 
 /**

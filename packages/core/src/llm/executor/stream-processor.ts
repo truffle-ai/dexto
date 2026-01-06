@@ -111,14 +111,23 @@ export class StreamProcessor {
                             this.assistantMessageId = await this.createAssistantMessage();
                         }
 
-                        await this.contextManager.addToolCall(this.assistantMessageId!, {
+                        // Extract providerMetadata for round-tripping (e.g., Gemini 3 thought signatures)
+                        // These are opaque tokens that must be passed back to maintain model state
+                        const toolCall: Parameters<typeof this.contextManager.addToolCall>[1] = {
                             id: event.toolCallId,
                             type: 'function',
                             function: {
                                 name: event.toolName,
                                 arguments: JSON.stringify(event.input),
                             },
-                        });
+                        };
+                        if (event.providerMetadata) {
+                            toolCall.providerOptions = {
+                                ...event.providerMetadata,
+                            } as Record<string, unknown>;
+                        }
+
+                        await this.contextManager.addToolCall(this.assistantMessageId!, toolCall);
 
                         // Track pending tool call for abort handling
                         this.pendingToolCalls.set(event.toolCallId, {
