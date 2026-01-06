@@ -227,7 +227,7 @@ export async function postInitDexto(directory: string) {
     const nextSteps = [
         `1. Run the example: ${chalk.cyan(`node --loader ts-node/esm ${path.join(directory, 'dexto', 'dexto-example.ts')}`)}`,
         `2. Add/update your API key(s) in ${chalk.cyan('.env')}`,
-        `3. Check out the agent configuration file ${chalk.cyan(path.join(directory, 'dexto', 'agents', 'coding-agent', 'coding-agent.yml'))}`,
+        `3. Check out the agent configuration file ${chalk.cyan(path.join(directory, 'dexto', 'agents', 'coding-agent.yml'))}`,
         `4. Try out different LLMs and MCP servers in the coding-agent.yml file`,
         `5. Read more about Dexto: ${chalk.cyan('https://github.com/truffle-ai/dexto')}`,
     ].join('\n');

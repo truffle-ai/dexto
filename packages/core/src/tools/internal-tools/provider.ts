@@ -1,5 +1,6 @@
 import { ToolExecutionContext, ToolSet, InternalTool } from '../types.js';
 import type { IDextoLogger } from '../../logger/v2/types.js';
+import type { DextoAgent } from '../../agent/DextoAgent.js';
 import { ToolError } from '../errors.js';
 import { convertZodSchemaToJsonSchema } from '../../utils/schema.js';
 import { InternalToolsServices, getInternalToolInfo, type AgentFeature } from './registry.js';
@@ -29,7 +30,7 @@ export class InternalToolsProvider {
     private config: InternalToolsConfig;
     private customToolConfigs: CustomToolsConfig;
     private logger: IDextoLogger;
-    private agent?: any; // Set after construction to avoid circular dependency
+    private agent?: DextoAgent; // Set after construction to avoid circular dependency
 
     constructor(
         services: InternalToolsServices,
@@ -51,7 +52,7 @@ export class InternalToolsProvider {
      * Set agent reference after construction (avoids circular dependency)
      * Must be called before initialize() if custom tools need agent access
      */
-    setAgent(agent: any): void {
+    setAgent(agent: DextoAgent): void {
         this.agent = agent;
     }
 
