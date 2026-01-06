@@ -44,6 +44,7 @@ import { cn } from '@/lib/utils';
 interface SessionPanelProps {
     isOpen: boolean;
     onClose: () => void;
+    onExpand?: () => void;
     currentSessionId?: string | null;
     onSessionChange: (sessionId: string) => void;
     returnToWelcome: () => void;
@@ -63,6 +64,7 @@ function sortSessions(sessions: Session[]): Session[] {
 export default function SessionPanel({
     isOpen,
     onClose,
+    onExpand,
     currentSessionId,
     onSessionChange,
     returnToWelcome,
@@ -173,49 +175,29 @@ export default function SessionPanel({
 
     const content = (
         <div className="flex flex-col h-full">
-            {/* Header with action buttons */}
-            <div className="p-3 space-y-3 border-b border-border/50">
-                {/* Header row with title and close button */}
+            {/* Header with Dexto branding */}
+            <div className="px-4 py-3">
                 <div className="flex items-center justify-between">
-                    <h2 id="sessionpanel-title" className="text-base font-semibold">
-                        Chat History
-                    </h2>
-                    {variant === 'overlay' && (
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={onClose}
-                            className="h-7 w-7 p-0"
-                            aria-label="Close panel"
-                        >
-                            <X className="h-3.5 w-3.5" />
-                        </Button>
-                    )}
-                </div>
-                {/* Action buttons */}
-                <div className="flex flex-col gap-2">
-                    {onNewChat && (
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={onNewChat}
-                            className="w-full h-9 justify-start gap-2"
-                        >
-                            <Plus className="h-4 w-4" />
-                            <span>New Chat</span>
-                        </Button>
-                    )}
-                    {onSearchOpen && (
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={onSearchOpen}
-                            className="w-full h-9 justify-start gap-2"
-                        >
-                            <Search className="h-4 w-4" />
-                            <span>Search Chats</span>
-                        </Button>
-                    )}
+                    {/* Dexto logo - click to collapse panel */}
+                    <button
+                        id="sessionpanel-title"
+                        onClick={onClose}
+                        className="flex items-center hover:opacity-80 transition-opacity"
+                        aria-label="Close panel"
+                    >
+                        {/* Light mode logo */}
+                        <img
+                            src="/logos/dexto/dexto_logo_light.svg"
+                            alt="Dexto"
+                            className="h-10 w-auto dark:hidden"
+                        />
+                        {/* Dark mode logo */}
+                        <img
+                            src="/logos/dexto/dexto_logo.svg"
+                            alt="Dexto"
+                            className="h-10 w-auto hidden dark:block"
+                        />
+                    </button>
                 </div>
             </div>
 
@@ -230,16 +212,43 @@ export default function SessionPanel({
             )}
 
             {/* Sessions List */}
-            <ScrollArea className="flex-1">
+            <ScrollArea className="flex-1 scrollbar-thin">
+                {/* Action items at top of list */}
+                <div className="px-3 pt-2 pb-1 space-y-0.5">
+                    {onNewChat && (
+                        <button
+                            onClick={onNewChat}
+                            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:bg-muted/40 hover:text-foreground transition-colors"
+                        >
+                            <Plus className="h-4 w-4" />
+                            <span>New Chat</span>
+                        </button>
+                    )}
+                    {onSearchOpen && (
+                        <button
+                            onClick={onSearchOpen}
+                            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:bg-muted/40 hover:text-foreground transition-colors"
+                        >
+                            <Search className="h-4 w-4" />
+                            <span>Search</span>
+                        </button>
+                    )}
+                </div>
+
+                {/* Spacer */}
+                {(onNewChat || onSearchOpen) && <div className="h-2" />}
+
                 {loading ? (
-                    <div className="flex items-center justify-center py-8">
-                        <RefreshCw className="h-6 w-6 animate-spin" />
+                    <div className="flex items-center justify-center py-12">
+                        <RefreshCw className="h-5 w-5 animate-spin text-muted-foreground" />
                     </div>
                 ) : sessions.length === 0 ? (
-                    <div className="text-center py-8 text-muted-foreground px-4">
-                        <History className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                        <p>No chat history</p>
-                        <p className="text-sm">Start a conversation to see it here</p>
+                    <div className="text-center py-12 px-6">
+                        <History className="h-10 w-10 mx-auto mb-3 text-muted-foreground/30" />
+                        <p className="text-sm text-muted-foreground">No conversations yet</p>
+                        <p className="text-xs text-muted-foreground/60 mt-1">
+                            Start chatting to see your history
+                        </p>
                     </div>
                 ) : (
                     <div className="px-3 py-2 space-y-0.5">
@@ -253,10 +262,10 @@ export default function SessionPanel({
                                 <div
                                     key={session.id}
                                     className={cn(
-                                        'group relative px-3 py-2.5 rounded-lg transition-colors cursor-pointer',
+                                        'group relative px-3 py-2.5 rounded-lg transition-all cursor-pointer',
                                         isActive
-                                            ? 'bg-muted/40 hover:bg-muted/60'
-                                            : 'hover:bg-muted/30'
+                                            ? 'bg-primary/5 before:absolute before:left-0 before:top-2 before:bottom-2 before:w-0.5 before:bg-primary before:rounded-full'
+                                            : 'hover:bg-muted/40'
                                     )}
                                     role="button"
                                     tabIndex={0}
@@ -276,13 +285,13 @@ export default function SessionPanel({
                                                 className={cn(
                                                     'text-sm truncate',
                                                     isActive
-                                                        ? 'font-semibold'
-                                                        : 'font-normal text-muted-foreground'
+                                                        ? 'font-medium text-foreground'
+                                                        : 'text-muted-foreground'
                                                 )}
                                             >
                                                 {title}
                                             </h3>
-                                            <span className="text-xs text-muted-foreground">
+                                            <span className="text-[11px] text-muted-foreground/60">
                                                 {formatRelativeTime(session.lastActivity)}
                                             </span>
                                         </div>
@@ -483,8 +492,53 @@ export default function SessionPanel({
         </div>
     );
 
-    // For inline variant, just return the content wrapped
+    // Collapsed sidebar content - thin bar with icon buttons
+    const collapsedContent = (
+        <div className="flex flex-col h-full py-3 px-2 items-center gap-1">
+            {/* Dexto icon - click to expand */}
+            <button
+                onClick={onExpand}
+                className="flex items-center justify-center w-10 h-10 rounded-lg hover:bg-muted/40 transition-colors"
+                aria-label="Expand panel"
+            >
+                <img src="/logos/dexto/dexto_logo_icon.svg" alt="Dexto" className="h-7 w-7" />
+            </button>
+
+            {/* New Chat */}
+            {onNewChat && (
+                <button
+                    onClick={onNewChat}
+                    className="flex items-center justify-center w-10 h-10 rounded-lg text-muted-foreground hover:bg-muted/40 hover:text-foreground transition-colors"
+                    aria-label="New chat"
+                >
+                    <Plus className="h-5 w-5" />
+                </button>
+            )}
+
+            {/* Search */}
+            {onSearchOpen && (
+                <button
+                    onClick={onSearchOpen}
+                    className="flex items-center justify-center w-10 h-10 rounded-lg text-muted-foreground hover:bg-muted/40 hover:text-foreground transition-colors"
+                    aria-label="Search"
+                >
+                    <Search className="h-5 w-5" />
+                </button>
+            )}
+        </div>
+    );
+
+    // For inline variant, show collapsed or expanded
     if (variant === 'inline') {
+        if (!isOpen) {
+            // Collapsed state - thin bar
+            return (
+                <div className="h-full flex flex-col bg-card border-r border-border/30">
+                    {collapsedContent}
+                </div>
+            );
+        }
+        // Expanded state - full panel
         return <div className="h-full w-full flex flex-col bg-card">{content}</div>;
     }
 

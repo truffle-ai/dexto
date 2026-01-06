@@ -55,7 +55,8 @@ export class StreamProcessor {
     }
 
     async process(
-        streamFn: () => StreamTextResult<VercelToolSet, unknown>
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        streamFn: () => StreamTextResult<VercelToolSet, any>
     ): Promise<StreamProcessorResult> {
         const stream = streamFn();
 
@@ -211,10 +212,11 @@ export class StreamProcessor {
                             const cacheWriteTokens = (event.providerMetadata?.['anthropic']?.[
                                 'cacheCreationInputTokens'
                             ] ??
-                                // @ts-expect-error - Bedrock metadata typing not in Vercel SDK
-                                event.providerMetadata?.['bedrock']?.['usage']?.[
-                                    'cacheWriteInputTokens'
-                                ] ??
+                                (
+                                    event.providerMetadata?.['bedrock']?.['usage'] as
+                                        | Record<string, number>
+                                        | undefined
+                                )?.['cacheWriteInputTokens'] ??
                                 0) as number;
 
                             // Accumulate usage across steps

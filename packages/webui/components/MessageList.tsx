@@ -15,14 +15,8 @@ import type { TextPart, AudioPart, UIResourcePart } from '../types';
 import { getFileMediaKind } from '@dexto/core';
 import ErrorBanner from './ErrorBanner';
 import {
-    User,
-    Bot,
     ChevronUp,
     Loader2,
-    CheckCircle,
-    CheckCircle2,
-    ChevronRight,
-    Wrench,
     AlertTriangle,
     Image as ImageIcon,
     Info,
@@ -31,7 +25,6 @@ import {
     ChevronDown,
     Brain,
     X,
-    XCircle,
     ZoomIn,
     Volume2,
     Video as VideoIcon,
@@ -51,7 +44,7 @@ import { useResources } from './hooks/useResources';
 import type { ResourceMetadata } from '@dexto/core';
 import { parseResourceReferences, resolveResourceReferences } from '@dexto/core';
 import { type ApprovalEvent } from './ToolConfirmationHandler';
-import { InlineApprovalCard } from './InlineApprovalCard';
+import { ToolCallTimeline } from './ToolCallTimeline';
 
 interface MessageListProps {
     messages: Message[];
@@ -449,7 +442,8 @@ export default function MessageList({
         return '';
     };
 
-    const getToolResultCopyText = (result: ToolResult | undefined): string => {
+    // Note: getToolResultCopyText was used for old tool box rendering, now handled by ToolCallTimeline
+    const _getToolResultCopyText = (result: ToolResult | undefined): string => {
         if (!result) return '';
         if (isToolResultError(result)) {
             return typeof result.error === 'object'
@@ -484,7 +478,8 @@ export default function MessageList({
                 const isToolResult = isTool && !!(msg.toolName && msg.toolResult);
                 const isToolRelated = isToolCall || isToolResult;
 
-                const isExpanded = (isToolRelated && isLastMessage) || !!manuallyExpanded[msgKey];
+                // Note: isExpanded was used for old tool box rendering, now handled by ToolCallTimeline
+                const _isExpanded = (isToolRelated && isLastMessage) || !!manuallyExpanded[msgKey];
 
                 // Extract media parts from tool results for separate rendering
                 const toolResultImages: Array<{ src: string; alt: string; index: number }> = [];
@@ -552,7 +547,8 @@ export default function MessageList({
                     });
                 }
 
-                const toggleManualExpansion = () => {
+                // Note: toggleManualExpansion was used for old tool box rendering, now handled by ToolCallTimeline
+                const _toggleManualExpansion = () => {
                     if (isToolRelated) {
                         setManuallyExpanded((prev) => ({
                             ...prev,
@@ -561,22 +557,16 @@ export default function MessageList({
                     }
                 };
 
-                const AvatarComponent = isUser ? User : Bot;
+                const messageContainerClass = 'w-full' + (isTool ? ' pl-2' : ''); // Tool messages get slight indent for timeline
 
-                const messageContainerClass = cn(
-                    isUser
-                        ? 'grid w-full grid-cols-[1fr_auto] gap-x-2 items-start'
-                        : 'grid w-full grid-cols-[auto_1fr] gap-x-2 items-start'
-                );
-
-                // Bubble styling: users and AI are speech bubbles; tools match AI width
+                // Bubble styling: users get subtle bubble; AI and tools blend with background
                 const bubbleSpecificClass = cn(
                     isTool
-                        ? 'w-fit max-w-[90%] text-muted-foreground/70 bg-secondary border border-muted/30 rounded-md text-base overflow-hidden'
+                        ? 'w-full max-w-[90%]'
                         : isUser
-                          ? 'p-3 rounded-xl shadow-sm w-fit max-w-[75%] bg-primary text-primary-foreground rounded-br-none text-base break-words overflow-wrap-anywhere overflow-hidden'
+                          ? 'px-4 py-3 rounded-2xl w-fit max-w-[75%] bg-primary/15 text-foreground rounded-br-sm text-base break-words overflow-wrap-anywhere overflow-hidden'
                           : isAi
-                            ? 'p-3 rounded-xl shadow-sm w-fit max-w-[min(90%,calc(100vw-6rem))] bg-card text-card-foreground border border-border rounded-bl-none text-base break-normal hyphens-none'
+                            ? 'px-4 py-3 w-full max-w-[min(90%,calc(100vw-6rem))] text-base break-normal hyphens-none'
                             : ''
                 );
 
@@ -593,19 +583,10 @@ export default function MessageList({
                             id={msg.id ? `message-${msg.id}` : undefined}
                         >
                             <div className={messageContainerClass}>
-                                {isAi && (
-                                    <AvatarComponent className="h-7 w-7 mt-1 text-muted-foreground col-start-1" />
-                                )}
-                                {msg.role === 'tool' && (
-                                    <Wrench className="h-7 w-7 p-1 mt-1 rounded-full border border-border text-muted-foreground col-start-1" />
-                                )}
-
                                 <div
                                     className={cn(
                                         'flex flex-col group w-full min-w-0',
-                                        isUser
-                                            ? 'col-start-1 justify-self-end items-end'
-                                            : 'col-start-2 justify-self-start items-start'
+                                        isUser ? 'items-end' : 'items-start'
                                     )}
                                 >
                                     <div className={cn(bubbleSpecificClass, 'min-w-0')}>
@@ -665,278 +646,33 @@ export default function MessageList({
                                                 )}
 
                                             {isToolMessage(msg) && msg.toolName ? (
-                                                <div
-                                                    className="p-2 rounded border border-border bg-muted/30 hover:bg-muted/60 cursor-pointer"
-                                                    onClick={toggleManualExpansion}
-                                                >
-                                                    <div className="flex items-center justify-between text-xs font-medium">
-                                                        <span className="flex items-center gap-2">
-                                                            {isExpanded ? (
-                                                                <ChevronUp className="h-4 w-4 text-primary" />
-                                                            ) : (
-                                                                <ChevronRight className="h-4 w-4 text-primary" />
-                                                            )}
-                                                            <span>Tool: {msg.toolName}</span>
-                                                            {msg.requireApproval &&
-                                                                msg.approvalStatus && (
-                                                                    <span
-                                                                        className={cn(
-                                                                            'inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs',
-                                                                            msg.approvalStatus ===
-                                                                                'approved'
-                                                                                ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
-                                                                                : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
-                                                                        )}
-                                                                    >
-                                                                        {msg.approvalStatus ===
-                                                                        'approved' ? (
-                                                                            <>
-                                                                                <CheckCircle2 className="h-3 w-3" />
-                                                                                <span>
-                                                                                    Approved
-                                                                                </span>
-                                                                            </>
-                                                                        ) : (
-                                                                            <>
-                                                                                <XCircle className="h-3 w-3" />
-                                                                                <span>
-                                                                                    Rejected
-                                                                                </span>
-                                                                            </>
-                                                                        )}
-                                                                    </span>
-                                                                )}
-                                                        </span>
-                                                        {msg.toolResult ? (
-                                                            isToolResultError(msg.toolResult) ||
-                                                            msg.toolResultSuccess === false ? (
-                                                                <AlertTriangle className="mx-2 h-4 w-4 text-red-500" />
-                                                            ) : (
-                                                                <CheckCircle className="mx-2 h-4 w-4 text-green-500" />
-                                                            )
-                                                        ) : (
-                                                            <Loader2 className="mx-2 h-4 w-4 animate-spin text-muted-foreground" />
-                                                        )}
-                                                    </div>
-                                                    {isExpanded && (
-                                                        <div className="mt-2 space-y-2">
-                                                            <div>
-                                                                <p className="text-xs font-medium">
-                                                                    Arguments:
-                                                                </p>
-                                                                <pre className="whitespace-pre-wrap break-words overflow-auto bg-background/50 p-2 rounded text-xs text-muted-foreground">
-                                                                    {JSON.stringify(
-                                                                        msg.toolArgs,
-                                                                        null,
-                                                                        2
-                                                                    )}
-                                                                </pre>
-                                                            </div>
-                                                            {msg.toolResult && (
-                                                                <div>
-                                                                    <div
-                                                                        className="text-xs font-medium flex items-center justify-between"
-                                                                        onClick={(e) =>
-                                                                            e.stopPropagation()
-                                                                        }
-                                                                    >
-                                                                        <span>Result:</span>
-                                                                        <div className="flex items-center gap-1">
-                                                                            <CopyButton
-                                                                                value={getToolResultCopyText(
-                                                                                    msg.toolResult
-                                                                                )}
-                                                                                tooltip="Copy result"
-                                                                                copiedTooltip="Copied!"
-                                                                                className="opacity-70 hover:opacity-100 transition-opacity"
-                                                                            />
-                                                                            <SpeakButton
-                                                                                value={getToolResultCopyText(
-                                                                                    msg.toolResult
-                                                                                )}
-                                                                                tooltip="Speak result"
-                                                                                stopTooltip="Stop"
-                                                                                className="opacity-70 hover:opacity-100 transition-opacity"
-                                                                            />
-                                                                        </div>
-                                                                    </div>
-                                                                    {isToolResultError(
-                                                                        msg.toolResult
-                                                                    ) ? (
-                                                                        <pre className="whitespace-pre-wrap break-words overflow-auto bg-red-100 text-red-700 p-2 rounded text-xs">
-                                                                            {typeof msg.toolResult
-                                                                                .error === 'object'
-                                                                                ? JSON.stringify(
-                                                                                      msg.toolResult
-                                                                                          .error,
-                                                                                      null,
-                                                                                      2
-                                                                                  )
-                                                                                : String(
-                                                                                      msg.toolResult
-                                                                                          .error
-                                                                                  )}
-                                                                        </pre>
-                                                                    ) : isToolResultContent(
-                                                                          msg.toolResult
-                                                                      ) ? (
-                                                                        msg.toolResult.content.map(
-                                                                            (part, index) => {
-                                                                                const videoInfo =
-                                                                                    getVideoInfo(
-                                                                                        part,
-                                                                                        toolResourceStates
-                                                                                    );
-                                                                                // Skip media parts (image/audio/video/ui-resource) as they render separately
-                                                                                if (
-                                                                                    isUIResourcePart(
-                                                                                        part
-                                                                                    ) ||
-                                                                                    isImagePart(
-                                                                                        part
-                                                                                    ) ||
-                                                                                    isAudioPart(
-                                                                                        part
-                                                                                    ) ||
-                                                                                    (isFilePart(
-                                                                                        part
-                                                                                    ) &&
-                                                                                        (getFileMediaKind(
-                                                                                            part.mimeType
-                                                                                        ) ===
-                                                                                            'audio' ||
-                                                                                            part.mimeType?.startsWith(
-                                                                                                'audio/'
-                                                                                            ))) ||
-                                                                                    videoInfo
-                                                                                ) {
-                                                                                    return null;
-                                                                                }
-                                                                                if (
-                                                                                    isTextPart(part)
-                                                                                ) {
-                                                                                    return (
-                                                                                        <MessageContentWithResources
-                                                                                            key={`${msgKey}-tool-text-${index}`}
-                                                                                            text={
-                                                                                                part.text
-                                                                                            }
-                                                                                            isUser={
-                                                                                                false
-                                                                                            }
-                                                                                            onOpenImage={
-                                                                                                openImageModal
-                                                                                            }
-                                                                                            resourceSet={
-                                                                                                resourceSet
-                                                                                            }
-                                                                                        />
-                                                                                    );
-                                                                                }
-                                                                                if (
-                                                                                    isFilePart(part)
-                                                                                ) {
-                                                                                    const mediaKind =
-                                                                                        getFileMediaKind(
-                                                                                            part.mimeType
-                                                                                        );
-                                                                                    const isAudioFile =
-                                                                                        mediaKind ===
-                                                                                            'audio' ||
-                                                                                        part.mimeType?.startsWith(
-                                                                                            'audio/'
-                                                                                        );
-                                                                                    const isVideoFile =
-                                                                                        mediaKind ===
-                                                                                            'video' ||
-                                                                                        part.mimeType?.startsWith(
-                                                                                            'video/'
-                                                                                        );
-                                                                                    return (
-                                                                                        <div
-                                                                                            key={
-                                                                                                index
-                                                                                            }
-                                                                                            className="my-1 flex items-center gap-2 p-2 rounded border border-border bg-muted/50"
-                                                                                        >
-                                                                                            {isAudioFile ? (
-                                                                                                <FileAudio className="h-4 w-4 text-muted-foreground" />
-                                                                                            ) : isVideoFile ? (
-                                                                                                <FileVideo className="h-4 w-4 text-muted-foreground" />
-                                                                                            ) : (
-                                                                                                <File className="h-4 w-4 text-muted-foreground" />
-                                                                                            )}
-                                                                                            <span className="text-xs text-muted-foreground">
-                                                                                                {part.filename ||
-                                                                                                    'File attachment'}{' '}
-                                                                                                (
-                                                                                                {
-                                                                                                    part.mimeType
-                                                                                                }
-                                                                                                )
-                                                                                            </span>
-                                                                                        </div>
-                                                                                    );
-                                                                                }
-                                                                                return (
-                                                                                    <pre
-                                                                                        key={index}
-                                                                                        className="whitespace-pre-wrap break-words overflow-auto bg-background/50 p-2 rounded text-xs text-muted-foreground my-1"
-                                                                                    >
-                                                                                        {typeof part ===
-                                                                                        'object'
-                                                                                            ? JSON.stringify(
-                                                                                                  part,
-                                                                                                  null,
-                                                                                                  2
-                                                                                              )
-                                                                                            : String(
-                                                                                                  part
-                                                                                              )}
-                                                                                    </pre>
-                                                                                );
-                                                                            }
-                                                                        )
-                                                                    ) : (
-                                                                        <pre className="whitespace-pre-wrap break-words overflow-auto bg-background/50 p-2 rounded text-xs text-muted-foreground">
-                                                                            {typeof msg.toolResult ===
-                                                                                'string' &&
-                                                                            msg.toolResult.startsWith(
-                                                                                'data:image'
-                                                                            ) ? (
-                                                                                isValidDataUri(
-                                                                                    msg.toolResult,
-                                                                                    'image'
-                                                                                ) ? (
-                                                                                    <img
-                                                                                        src={
-                                                                                            msg.toolResult
-                                                                                        }
-                                                                                        alt="Tool result image"
-                                                                                        className="my-1 max-h-48 w-auto rounded border border-border"
-                                                                                    />
-                                                                                ) : (
-                                                                                    'Invalid image data'
-                                                                                )
-                                                                            ) : typeof msg.toolResult ===
-                                                                              'object' ? (
-                                                                                JSON.stringify(
-                                                                                    msg.toolResult,
-                                                                                    null,
-                                                                                    2
-                                                                                )
-                                                                            ) : (
-                                                                                String(
-                                                                                    msg.toolResult
-                                                                                )
-                                                                            )}
-                                                                        </pre>
-                                                                    )}
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    )}
-                                                </div>
+                                                <ToolCallTimeline
+                                                    toolName={msg.toolName}
+                                                    toolArgs={msg.toolArgs}
+                                                    toolResult={msg.toolResult}
+                                                    success={
+                                                        msg.toolResult
+                                                            ? !isToolResultError(msg.toolResult) &&
+                                                              msg.toolResultSuccess !== false
+                                                            : undefined
+                                                    }
+                                                    requireApproval={msg.requireApproval}
+                                                    approvalStatus={msg.approvalStatus}
+                                                    onApprove={
+                                                        msg.requireApproval &&
+                                                        msg.approvalStatus === 'pending' &&
+                                                        onApprovalApprove
+                                                            ? () => onApprovalApprove()
+                                                            : undefined
+                                                    }
+                                                    onReject={
+                                                        msg.requireApproval &&
+                                                        msg.approvalStatus === 'pending' &&
+                                                        onApprovalDeny
+                                                            ? () => onApprovalDeny()
+                                                            : undefined
+                                                    }
+                                                />
                                             ) : (
                                                 <>
                                                     {typeof msg.content === 'string' &&
@@ -1370,10 +1106,6 @@ export default function MessageList({
                                         </div>
                                     )}
                                 </div>
-
-                                {isUser && (
-                                    <AvatarComponent className="h-7 w-7 mt-1 text-muted-foreground col-start-2" />
-                                )}
                             </div>
                             {/* Render tool result images as separate message bubbles */}
                             {toolResultImages.map((image, imageIndex) => (
@@ -1501,21 +1233,18 @@ export default function MessageList({
                                     key={`${msgKey}-ui-resource-${uiIndex}`}
                                     className="w-full mt-2"
                                 >
-                                    <div className="flex items-start w-full justify-start">
-                                        <Bot className="h-7 w-7 mr-2 mt-1 text-muted-foreground flex-shrink-0" />
-                                        <div className="flex flex-col items-start flex-1 min-w-0">
-                                            <div className="w-full max-w-[90%] bg-card text-card-foreground border border-border rounded-xl rounded-bl-none shadow-sm overflow-hidden">
-                                                <UIResourceRendererWrapper
-                                                    resource={uiResource.resource}
-                                                    onAction={(action) => {
-                                                        // Log UI actions for debugging
-                                                        console.log('MCP-UI Action:', action);
-                                                    }}
-                                                />
-                                            </div>
-                                            <div className="text-xs text-muted-foreground mt-1 px-1">
-                                                <span>{timestampStr}</span>
-                                            </div>
+                                    <div className="flex flex-col items-start w-full">
+                                        <div className="w-full max-w-[90%] bg-card text-card-foreground border border-border rounded-xl shadow-sm overflow-hidden">
+                                            <UIResourceRendererWrapper
+                                                resource={uiResource.resource}
+                                                onAction={(action) => {
+                                                    // Log UI actions for debugging
+                                                    console.log('MCP-UI Action:', action);
+                                                }}
+                                            />
+                                        </div>
+                                        <div className="text-xs text-muted-foreground mt-1 px-1">
+                                            <span>{timestampStr}</span>
                                         </div>
                                     </div>
                                 </div>
@@ -1537,23 +1266,7 @@ export default function MessageList({
             {/* Show thinking indicator while processing */}
             {processing && <ThinkingIndicator />}
 
-            {/* Render pending approval as inline message */}
-            {pendingApproval && onApprovalApprove && onApprovalDeny && (
-                <div className="w-full" data-role="approval">
-                    <div className="grid w-full grid-cols-[auto_1fr] gap-x-2 items-start">
-                        <Bot className="h-7 w-7 mt-1 text-muted-foreground col-start-1 flex-shrink-0" />
-                        <div className="flex flex-col group w-full col-start-2 justify-self-start items-start min-w-0">
-                            <div className="p-3 rounded-xl shadow-sm w-full max-w-[90%] bg-card text-card-foreground border border-border rounded-bl-none text-base min-w-0">
-                                <InlineApprovalCard
-                                    approval={pendingApproval}
-                                    onApprove={onApprovalApprove}
-                                    onDeny={onApprovalDeny}
-                                />
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
+            {/* Note: Approvals are now rendered inline within tool messages via ToolCallTimeline */}
 
             <div key="end-anchor" ref={endRef} className="h-px" />
 

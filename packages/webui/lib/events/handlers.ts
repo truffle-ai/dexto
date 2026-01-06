@@ -48,6 +48,25 @@ type EventByName<T extends string> =
 const handlers = new Map<string, EventHandler<any>>();
 
 // =============================================================================
+// Helper Functions
+// =============================================================================
+
+/**
+ * Finalizes any in-progress streaming message for a session.
+ * This ensures proper message ordering when tool calls or approvals arrive
+ * while the assistant is still streaming content.
+ */
+function finalizeStreamingIfNeeded(sessionId: string): void {
+    const chatStore = useChatStore.getState();
+    const sessionState = chatStore.getSessionState(sessionId);
+
+    if (sessionState.streamingMessage) {
+        // Move streaming message to messages array before adding new messages
+        chatStore.finalizeStreamingMessage(sessionId, {});
+    }
+}
+
+// =============================================================================
 // Handler Implementations
 // =============================================================================
 
@@ -131,21 +150,35 @@ function handleLLMResponse(event: EventByName<'llm:response'>): void {
         return;
     }
 
-    // No streaming message - check for existing assistant message
+    // No streaming message - find the most recent assistant message in this turn
+    // This handles cases where streaming was finalized before tool calls
     const messages = sessionState.messages;
-    const lastMsg = messages[messages.length - 1];
 
-    if (lastMsg && lastMsg.role === 'assistant') {
-        // Update existing assistant message (from previous chunks or multi-turn)
-        chatStore.updateMessage(sessionId, lastMsg.id, {
-            content: finalContent,
+    // Look for the most recent assistant message (may have tool messages after it)
+    let recentAssistantMsg = null;
+    for (let i = messages.length - 1; i >= 0; i--) {
+        const msg = messages[i];
+        if (msg.role === 'assistant') {
+            recentAssistantMsg = msg;
+            break;
+        }
+        // Stop searching if we hit a user message (different turn)
+        if (msg.role === 'user') {
+            break;
+        }
+    }
+
+    if (recentAssistantMsg) {
+        // Update existing assistant message with final content and metadata
+        chatStore.updateMessage(sessionId, recentAssistantMsg.id, {
+            content: finalContent || recentAssistantMsg.content,
             tokenUsage,
             ...(model && { model }),
             ...(provider && { provider }),
         });
     } else if (finalContent) {
         // No assistant message exists - create one with the final content
-        // This handles non-streaming mode or responses after tool calls
+        // This handles non-streaming mode or first response
         chatStore.addMessage(sessionId, {
             id: generateMessageId(),
             role: 'assistant',
@@ -162,14 +195,55 @@ function handleLLMResponse(event: EventByName<'llm:response'>): void {
 /**
  * llm:tool-call - LLM requested a tool call
  * Adds a tool message to the chat
+ *
+ * Checks if an approval message already exists for this tool to avoid duplicates.
+ * This handles cases where approval:request arrives before llm:tool-call.
  */
 function handleToolCall(event: EventByName<'llm:tool-call'>): void {
     const { sessionId, toolName, args, callId } = event;
     const chatStore = useChatStore.getState();
 
+    // Finalize any streaming message to maintain proper sequence
+    finalizeStreamingIfNeeded(sessionId);
+
+    // Check if there's already a message for this tool call (from approval:request)
+    // The approval message uses the approvalId which may equal callId
+    const messages = chatStore.getMessages(sessionId);
+    const existingMessage = messages.find(
+        (m) => m.role === 'tool' && m.toolCallId === callId && m.toolResult === undefined
+    );
+
+    if (existingMessage) {
+        // Approval message already exists - skip duplicate creation
+        console.debug('[handlers] Tool call message already exists:', existingMessage.id);
+        return;
+    }
+
+    // Also check for pending approval messages by toolName that don't have a result yet
+    const pendingApprovalMessage = messages.find(
+        (m) =>
+            m.role === 'tool' &&
+            m.toolName === toolName &&
+            m.requireApproval === true &&
+            m.approvalStatus === 'pending' &&
+            m.toolResult === undefined
+    );
+
+    if (pendingApprovalMessage) {
+        // Update existing approval message with the callId
+        chatStore.updateMessage(sessionId, pendingApprovalMessage.id, {
+            toolCallId: callId,
+        });
+        console.debug(
+            '[handlers] Updated existing approval message with callId:',
+            pendingApprovalMessage.id
+        );
+        return;
+    }
+
     // Create tool message
     const toolMessage = {
-        id: generateMessageId(),
+        id: `tool-${callId}`,
         role: 'tool' as const,
         content: null,
         toolName,
@@ -188,13 +262,35 @@ function handleToolCall(event: EventByName<'llm:tool-call'>): void {
 /**
  * llm:tool-result - LLM returned a tool result
  * Updates the tool message with the result
+ *
+ * Finds the tool message by multiple strategies:
+ * 1. Direct match by toolCallId
+ * 2. Message with id `tool-${callId}` or `approval-${callId}`
+ * 3. Most recent pending tool message (fallback)
  */
 function handleToolResult(event: EventByName<'llm:tool-result'>): void {
     const { sessionId, callId, success, sanitized, requireApproval, approvalStatus } = event;
     const chatStore = useChatStore.getState();
 
-    // Find the tool message by callId
-    const message = callId ? chatStore.getMessageByToolCallId(sessionId, callId) : undefined;
+    // Try to find the tool message
+    let message = callId ? chatStore.getMessageByToolCallId(sessionId, callId) : undefined;
+
+    // If not found by toolCallId, try by message ID patterns
+    if (!message && callId) {
+        const messages = chatStore.getMessages(sessionId);
+        message = messages.find((m) => m.id === `tool-${callId}` || m.id === `approval-${callId}`);
+    }
+
+    // If still not found, find the most recent pending tool message
+    if (!message) {
+        const messages = chatStore.getMessages(sessionId);
+        const pendingTools = messages
+            .filter((m) => m.role === 'tool' && m.toolResult === undefined)
+            .sort((a, b) => b.createdAt - a.createdAt);
+
+        // Prioritize approval messages
+        message = pendingTools.find((m) => m.id.startsWith('approval-')) || pendingTools[0];
+    }
 
     if (message) {
         // Update with result
@@ -204,6 +300,8 @@ function handleToolResult(event: EventByName<'llm:tool-result'>): void {
             ...(requireApproval !== undefined && { requireApproval }),
             ...(approvalStatus !== undefined && { approvalStatus }),
         });
+    } else {
+        console.warn('[handlers] Could not find tool message to update for callId:', callId);
     }
 }
 
@@ -234,13 +332,62 @@ function handleLLMError(event: EventByName<'llm:error'>): void {
 
 /**
  * approval:request - User approval requested
- * Adds approval to store and sets agent status to awaiting approval
+ * Adds approval to store, creates/updates tool message, and sets agent status to awaiting approval
+ *
+ * Creates a tool message with approval state so the UI can render approve/reject inline.
  */
 function handleApprovalRequest(event: EventByName<'approval:request'>): void {
     const sessionId = event.sessionId || '';
+    const chatStore = useChatStore.getState();
+
+    // Finalize any streaming message to maintain proper sequence
+    if (sessionId) {
+        finalizeStreamingIfNeeded(sessionId);
+    }
 
     // The event IS the approval request
     useApprovalStore.getState().addApproval(event);
+
+    // Extract tool info from the approval event
+    const approvalId = (event as any).approvalId;
+    const toolName = (event as any).metadata?.toolName || (event as any).toolName || 'unknown';
+    const toolArgs = (event as any).metadata?.args || (event as any).args || {};
+    const approvalType = (event as any).type;
+
+    // Check if there's already a tool message for this approval (by toolName without result)
+    const messages = chatStore.getMessages(sessionId);
+    const existingToolMessage = messages.find(
+        (m) => m.role === 'tool' && m.toolName === toolName && m.toolResult === undefined
+    );
+
+    if (existingToolMessage) {
+        // Update existing tool message with approval info
+        chatStore.updateMessage(sessionId, existingToolMessage.id, {
+            requireApproval: true,
+            approvalStatus: 'pending',
+        });
+        console.debug(
+            '[handlers] Updated existing tool message with approval:',
+            existingToolMessage.id
+        );
+    } else if (sessionId) {
+        // Create a new tool message with approval state
+        const approvalMessage = {
+            id: `approval-${approvalId}`,
+            role: 'tool' as const,
+            content: null,
+            toolName,
+            toolArgs,
+            toolCallId: approvalId, // Use approvalId as callId for correlation
+            createdAt: Date.now(),
+            sessionId,
+            requireApproval: true,
+            approvalStatus: 'pending' as const,
+            // Store approval metadata for rendering (elicitation, command, etc.)
+            ...(approvalType && { approvalType }),
+        };
+        chatStore.addMessage(sessionId, approvalMessage);
+    }
 
     // Update agent status
     if (sessionId) {
@@ -250,13 +397,41 @@ function handleApprovalRequest(event: EventByName<'approval:request'>): void {
 
 /**
  * approval:response - User approval response received
- * Processes response in store and sets agent status back to thinking or idle
+ * Processes response in store, updates tool message status, and sets agent status back to thinking or idle
  */
 function handleApprovalResponse(event: EventByName<'approval:response'>): void {
     const { status } = event;
+    const sessionId = (event as any).sessionId || '';
+    const approvalId = (event as any).approvalId;
 
     // The event IS the approval response
     useApprovalStore.getState().processResponse(event);
+
+    // Update the tool message's approval status for audit trail
+    if (sessionId && approvalId) {
+        const chatStore = useChatStore.getState();
+        const messages = chatStore.getMessages(sessionId);
+
+        // Find the approval message by ID pattern
+        const approvalMessage = messages.find(
+            (m) =>
+                m.id === `approval-${approvalId}` ||
+                (m.toolCallId === approvalId && m.requireApproval)
+        );
+
+        if (approvalMessage) {
+            const approvalStatus =
+                status === ('approved' as ApprovalStatus) ? 'approved' : 'rejected';
+            chatStore.updateMessage(sessionId, approvalMessage.id, {
+                approvalStatus,
+            });
+            console.debug(
+                '[handlers] Updated approval status:',
+                approvalMessage.id,
+                approvalStatus
+            );
+        }
+    }
 
     // Update agent status based on approval
     // ApprovalStatus.APPROVED means approved, others mean rejected/cancelled

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { useHotkeys } from 'react-hotkeys-hook';
 import { useNavigate } from '@tanstack/react-router';
 import { useChatContext } from './hooks/ChatContext';
@@ -33,7 +33,6 @@ import {
     Menu,
     Trash2,
     Settings,
-    PanelLeft,
     ChevronDown,
     FlaskConical,
     Check,
@@ -90,11 +89,24 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
 
     // Get session state from chatStore - use stable EMPTY_MESSAGES reference
     // Access sessions Map directly for more predictable selector behavior
-    const messages = useChatStore((s) => {
+    const baseMessages = useChatStore((s) => {
         if (!currentSessionId) return EMPTY_MESSAGES;
         const session = s.sessions.get(currentSessionId);
         return session?.messages ?? EMPTY_MESSAGES;
     });
+    // Get streaming message separately for stable selector references
+    const streamingMessage = useChatStore((s) => {
+        if (!currentSessionId) return null;
+        const session = s.sessions.get(currentSessionId);
+        return session?.streamingMessage ?? null;
+    });
+    // Combine messages with streaming message using useMemo for stable reference
+    const messages = useMemo(() => {
+        if (streamingMessage) {
+            return [...baseMessages, streamingMessage];
+        }
+        return baseMessages;
+    }, [baseMessages, streamingMessage]);
     const processing = useChatStore((s) => {
         if (!currentSessionId) return false;
         const session = s.sessions.get(currentSessionId);
@@ -771,26 +783,26 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
             }}
         >
             {/* Left Sidebar - Chat History (Desktop only - inline) */}
+            {/* Always visible: collapsed (thin bar) or expanded (full panel) */}
             <div
                 className={cn(
-                    'hidden md:block shrink-0 border-r border-border/50 bg-card/50 backdrop-blur-sm',
+                    'hidden md:block shrink-0 bg-card/50 backdrop-blur-sm',
                     !isFirstRenderRef.current && 'transition-all duration-300 ease-in-out',
-                    isSessionsPanelOpen ? 'w-80' : 'w-0 overflow-hidden'
+                    isSessionsPanelOpen ? 'w-80' : 'w-14'
                 )}
                 suppressHydrationWarning
             >
-                {isSessionsPanelOpen && (
-                    <SessionPanel
-                        isOpen={isSessionsPanelOpen}
-                        onClose={() => setSessionsPanelOpen(false)}
-                        currentSessionId={currentSessionId}
-                        onSessionChange={handleSessionChange}
-                        returnToWelcome={handleReturnToWelcome}
-                        variant="inline"
-                        onSearchOpen={() => setSearchOpen(true)}
-                        onNewChat={handleReturnToWelcome}
-                    />
-                )}
+                <SessionPanel
+                    isOpen={isSessionsPanelOpen}
+                    onClose={() => setSessionsPanelOpen(false)}
+                    onExpand={() => setSessionsPanelOpen(true)}
+                    currentSessionId={currentSessionId}
+                    onSessionChange={handleSessionChange}
+                    returnToWelcome={handleReturnToWelcome}
+                    variant="inline"
+                    onSearchOpen={() => setSearchOpen(true)}
+                    onNewChat={handleReturnToWelcome}
+                />
             </div>
 
             {/* Chat History Panel - Mobile/Narrow (overlay) */}
@@ -824,136 +836,107 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
                     return null;
                 })()}
                 {/* Clean Header */}
-                <header className="shrink-0 border-b border-border/50 bg-background/95 backdrop-blur-xl shadow-sm relative">
-                    <div className="flex items-center justify-between px-4 py-3 gap-3">
+                <header className="shrink-0 bg-background/80 backdrop-blur-sm relative">
+                    <div className="flex items-center justify-between px-4 py-2.5 gap-3">
                         {/* Left Section */}
-                        <div className="flex items-center gap-2.5 shrink-0">
-                            {/* Chat History Toggle */}
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={handleOpenSessionsPanel}
-                                        className={cn(
-                                            'h-8 w-8 p-0 transition-colors',
-                                            isSessionsPanelOpen && 'bg-muted'
-                                        )}
-                                    >
-                                        <PanelLeft className="h-4 w-4" />
-                                    </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>Chat History (⌘H)</TooltipContent>
-                            </Tooltip>
+                        <div className="flex items-center gap-3 shrink-0">
+                            {/* Dexto Icon - Mobile only (desktop has collapsed sidebar) */}
+                            <div className="md:hidden">
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <button
+                                            onClick={handleOpenSessionsPanel}
+                                            className="flex items-center hover:opacity-80 transition-opacity shrink-0"
+                                            aria-label="Open chat history (⌘H)"
+                                        >
+                                            <img
+                                                src="/logos/dexto/dexto_logo_icon.svg"
+                                                alt="Dexto"
+                                                className="h-8 w-8"
+                                            />
+                                            <span className="sr-only">
+                                                Dexto - Open Chat History
+                                            </span>
+                                        </button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Open Chat History (⌘H)</TooltipContent>
+                                </Tooltip>
+                            </div>
 
-                            {/* New Chat Button - visible in header only when sidebar is closed */}
-                            {!isSessionsPanelOpen && (
-                                <div className="hidden md:block">
-                                    <NewChatButton onClick={handleReturnToWelcome} />
-                                </div>
-                            )}
-
-                            {/* Dexto Logo - Icon on mobile/constrained, full logo on desktop */}
-                            <a
-                                href="https://dexto.ai"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center hover:opacity-80 transition-opacity shrink-0"
-                            >
-                                {/* Mobile/Constrained: Icon only */}
-                                <img
-                                    src="/logos/dexto/dexto_logo_icon.svg"
-                                    alt="Dexto"
-                                    className={cn(
-                                        'h-9 w-9',
-                                        isSessionsPanelOpen ? 'lg:hidden' : 'md:hidden'
-                                    )}
-                                />
-                                {/* Desktop: Full logo (light mode) */}
-                                <img
-                                    src="/logos/dexto/dexto_logo_light.svg"
-                                    alt="Dexto"
-                                    className={cn(
-                                        'h-11 w-auto hidden dark:hidden',
-                                        isSessionsPanelOpen ? 'lg:block' : 'md:block'
-                                    )}
-                                />
-                                {/* Desktop: Full logo (dark mode) */}
-                                <img
-                                    src="/logos/dexto/dexto_logo.svg"
-                                    alt="Dexto"
-                                    className={cn(
-                                        'h-11 w-auto hidden',
-                                        isSessionsPanelOpen ? 'dark:lg:block' : 'dark:md:block'
-                                    )}
-                                />
-                                <span className="sr-only">Dexto</span>
-                            </a>
+                            {/* Agent Selector */}
+                            <div className="max-w-[180px] md:max-w-[260px]">
+                                <AgentSelector mode="badge" />
+                            </div>
                         </div>
 
                         {/* Right Section - Desktop buttons (hide when session panel is open on smaller screens) */}
                         <div
                             className={cn(
-                                'hidden items-center gap-2',
+                                'hidden items-center gap-1',
                                 isSessionsPanelOpen ? 'lg:flex' : 'md:flex'
                             )}
                         >
-                            {/* Customize Agent */}
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => setCustomizePanelOpen(!isCustomizePanelOpen)}
-                                        className={cn(
-                                            'h-8 w-8 p-0',
-                                            isCustomizePanelOpen && 'bg-muted'
-                                        )}
-                                        aria-label="Customize agent"
-                                    >
-                                        <FileEditIcon className="h-3.5 w-3.5" />
-                                    </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>Customize Agent (⌘E)</TooltipContent>
-                            </Tooltip>
+                            {/* Primary action group - Tools & Memories */}
+                            <div className="flex items-center gap-0.5 px-1.5 py-1 rounded-lg bg-muted/30">
+                                {/* Tools */}
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={handleOpenServersPanel}
+                                            className={cn(
+                                                'h-7 w-7 p-0 transition-colors',
+                                                isServersPanelOpen && 'bg-background'
+                                            )}
+                                            aria-label="Toggle tools panel"
+                                        >
+                                            <Wrench className="h-3.5 w-3.5" />
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Toggle tools panel (⌘J)</TooltipContent>
+                                </Tooltip>
 
-                            {/* Tools */}
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={handleOpenServersPanel}
-                                        className={cn(
-                                            'h-8 w-8 p-0 transition-colors',
-                                            isServersPanelOpen && 'bg-muted'
-                                        )}
-                                        aria-label="Toggle tools panel"
-                                    >
-                                        <Wrench className="h-3.5 w-3.5" />
-                                    </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>Toggle tools panel (⌘J)</TooltipContent>
-                            </Tooltip>
+                                {/* Memories */}
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => setMemoryPanelOpen(!isMemoryPanelOpen)}
+                                            className={cn(
+                                                'h-7 w-7 p-0 transition-colors',
+                                                isMemoryPanelOpen && 'bg-background'
+                                            )}
+                                            aria-label="Toggle memories panel"
+                                        >
+                                            <Brain className="h-3.5 w-3.5" />
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Toggle memories panel (⌘M)</TooltipContent>
+                                </Tooltip>
 
-                            {/* Memories */}
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => setMemoryPanelOpen(!isMemoryPanelOpen)}
-                                        className={cn(
-                                            'h-8 w-8 p-0 transition-colors',
-                                            isMemoryPanelOpen && 'bg-muted'
-                                        )}
-                                        aria-label="Toggle memories panel"
-                                    >
-                                        <Brain className="h-3.5 w-3.5" />
-                                    </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>Toggle memories panel (⌘M)</TooltipContent>
-                            </Tooltip>
+                                {/* Customize Agent */}
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() =>
+                                                setCustomizePanelOpen(!isCustomizePanelOpen)
+                                            }
+                                            className={cn(
+                                                'h-7 w-7 p-0',
+                                                isCustomizePanelOpen && 'bg-background'
+                                            )}
+                                            aria-label="Customize agent"
+                                        >
+                                            <FileEditIcon className="h-3.5 w-3.5" />
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Customize Agent (⌘E)</TooltipContent>
+                                </Tooltip>
+                            </div>
 
                             {/* Theme */}
                             <ThemeSwitch />
@@ -965,7 +948,7 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
                                         variant="ghost"
                                         size="sm"
                                         onClick={() => setSettingsOpen(true)}
-                                        className="h-8 w-8 p-0"
+                                        className="h-7 w-7 p-0"
                                         aria-label="Open settings"
                                     >
                                         <Settings className="h-3.5 w-3.5" />
@@ -1159,13 +1142,6 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
                                     )}
                                 </DropdownMenuContent>
                             </DropdownMenu>
-                        </div>
-                    </div>
-
-                    {/* Center Section - Agent Selector absolutely centered */}
-                    <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2">
-                        <div className="w-full max-w-[180px] md:max-w-[260px]">
-                            <AgentSelector mode="badge" />
                         </div>
                     </div>
                 </header>
