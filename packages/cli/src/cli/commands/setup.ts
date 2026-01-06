@@ -56,7 +56,7 @@ const SetupCommandSchema = z
         defaultAgent: z
             .string()
             .min(1, 'Default agent name cannot be empty')
-            .default('default-agent')
+            .default('coding-agent')
             .describe('Registry agent id to use when none is specified'),
         interactive: z.boolean().default(true).describe('Enable interactive prompts'),
         force: z
@@ -953,7 +953,7 @@ async function resetSetup(): Promise<boolean> {
     await handleInteractiveSetup({
         interactive: true,
         force: true,
-        defaultAgent: 'default-agent',
+        defaultAgent: 'coding-agent',
         quickStart: false,
     });
 

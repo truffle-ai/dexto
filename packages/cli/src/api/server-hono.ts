@@ -138,7 +138,7 @@ export async function initializeHonoApi(
 ): Promise<HonoInitializationResult> {
     // Declare before registering shutdown hook to avoid TDZ on signals
     let activeAgent: DextoAgent = agent;
-    let activeAgentId: string | undefined = agentId || 'default-agent';
+    let activeAgentId: string | undefined = agentId || 'coding-agent';
     let isSwitchingAgent = false;
     registerGracefulShutdown(() => activeAgent);
 

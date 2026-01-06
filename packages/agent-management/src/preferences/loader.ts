@@ -147,7 +147,7 @@ export function createInitialPreferences(
     providerOrOptions: LLMProvider | CreatePreferencesOptions,
     model?: string,
     apiKeyVar?: string,
-    defaultAgent: string = 'default-agent'
+    defaultAgent: string = 'coding-agent'
 ): GlobalPreferences {
     // Handle options object
     if (typeof providerOrOptions === 'object') {
@@ -170,7 +170,7 @@ export function createInitialPreferences(
         return {
             llm: llmConfig,
             defaults: {
-                defaultAgent: opts.defaultAgent || 'default-agent',
+                defaultAgent: opts.defaultAgent || 'coding-agent',
                 defaultMode: opts.defaultMode || 'web',
             },
             setup: {

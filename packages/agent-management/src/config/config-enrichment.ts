@@ -22,7 +22,7 @@ export { discoverCommandPrompts } from './discover-prompts.js';
 
 /**
  * Derives an agent ID from config or file path for per-agent isolation.
- * Priority: agentCard.name > filename (without extension) > 'default-agent'
+ * Priority: agentCard.name > filename (without extension) > 'coding-agent'
  */
 export function deriveAgentId(config: AgentConfig, configPath?: string): string {
     // 1. Try agentCard.name if available
@@ -48,7 +48,7 @@ export function deriveAgentId(config: AgentConfig, configPath?: string): string 
     }
 
     // 3. Fallback to default
-    return 'default-agent';
+    return 'coding-agent';
 }
 
 /**

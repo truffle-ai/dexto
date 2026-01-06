@@ -252,7 +252,7 @@ program
     .description('Configure global Dexto preferences')
     .option('--provider <provider>', 'LLM provider (openai, anthropic, google, groq)')
     .option('--model <model>', 'Model name (uses provider default if not specified)')
-    .option('--default-agent <agent>', 'Default agent name (default: default-agent)')
+    .option('--default-agent <agent>', 'Default agent name (default: coding-agent)')
     .option('--no-interactive', 'Skip interactive prompts and API key setup')
     .option('--force', 'Overwrite existing setup without confirmation')
     .action(
@@ -281,7 +281,7 @@ program
         'after',
         `
 Examples:
-  $ dexto install default-agent              Install agent from registry
+  $ dexto install coding-agent               Install agent from registry
   $ dexto install agent1 agent2              Install multiple registry agents
   $ dexto install --all                      Install all available registry agents
   $ dexto install ./my-agent.yml             Install custom agent from YAML file
@@ -308,7 +308,7 @@ program
     .command('uninstall [agents...]')
     .description('Uninstall agents from the local installation')
     .option('--all', 'Uninstall all installed agents')
-    .option('--force', 'Force uninstall even if agent is protected (e.g., default-agent)')
+    .option('--force', 'Force uninstall even if agent is protected (e.g., coding-agent)')
     .action(
         withAnalytics(
             'uninstall',
@@ -916,7 +916,7 @@ program
                     let mergedConfig = applyCLIOverrides(rawConfig, opts as CLIConfigOverrides);
 
                     // ——— PREFERENCE-AWARE CONFIG HANDLING ———
-                    // For default-agent (no explicit agent specified): Apply user preferences
+                    // For coding-agent (no explicit agent specified): Apply user preferences
                     // For specific agents: Check compatibility and warn if needed
                     const isDefaultAgent = !opts.agent;
                     let preferences: Awaited<ReturnType<typeof loadGlobalPreferences>> | null =
@@ -982,7 +982,7 @@ program
                         // Default-agent: Apply user's LLM preferences at runtime
                         // This ensures the base agent always uses user's preferred model/provider
                         mergedConfig = applyUserPreferences(mergedConfig, preferences);
-                        logger.debug('Applied user preferences to default-agent', {
+                        logger.debug('Applied user preferences to coding-agent', {
                             provider: preferences.llm.provider,
                             model: preferences.llm.model,
                         });

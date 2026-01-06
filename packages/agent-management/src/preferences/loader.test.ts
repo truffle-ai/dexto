@@ -317,7 +317,7 @@ setup:
                 'ANTHROPIC_API_KEY'
             );
 
-            expect(preferences.defaults.defaultAgent).toBe('default-agent');
+            expect(preferences.defaults.defaultAgent).toBe('coding-agent');
         });
 
         it('should format API key with $ prefix', () => {

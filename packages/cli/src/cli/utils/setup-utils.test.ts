@@ -129,7 +129,7 @@ describe('requiresSetup', () => {
                     apiKey: '$GOOGLE_GENERATIVE_AI_API_KEY',
                 },
                 defaults: {
-                    defaultAgent: 'default-agent',
+                    defaultAgent: 'coding-agent',
                     defaultMode: 'web',
                 },
                 setup: {
@@ -153,7 +153,7 @@ describe('requiresSetup', () => {
                     apiKey: '$GOOGLE_GENERATIVE_AI_API_KEY',
                 },
                 defaults: {
-                    defaultAgent: 'default-agent',
+                    defaultAgent: 'coding-agent',
                     defaultMode: 'web',
                 },
                 setup: {
@@ -177,7 +177,7 @@ describe('requiresSetup', () => {
                     apiKey: '$GOOGLE_GENERATIVE_AI_API_KEY',
                 },
                 defaults: {
-                    defaultAgent: 'default-agent',
+                    defaultAgent: 'coding-agent',
                     defaultMode: 'web',
                 },
                 setup: {

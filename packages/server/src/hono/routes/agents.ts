@@ -707,7 +707,7 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
                 path: agentPath,
                 relativePath,
                 name,
-                isDefault: name === 'default-agent',
+                isDefault: name === 'coding-agent',
             });
         })
         .openapi(getConfigRoute, async (ctx) => {
@@ -773,7 +773,7 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
 
             // Enrich config with defaults/paths to satisfy schema requirements
             // Pass undefined for validation-only (no real file path)
-            // AgentId will be derived from agentCard.name or fall back to 'default-agent'
+            // AgentId will be derived from agentCard.name or fall back to 'coding-agent'
             const enriched = enrichAgentConfig(parsed, undefined);
 
             // Validate against schema

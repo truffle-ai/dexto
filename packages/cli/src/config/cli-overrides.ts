@@ -3,7 +3,7 @@
  * This file handles CLI argument processing and config merging logic
  *
  * TODO: Future preference system enhancement
- * Currently, global preferences are only applied to the default-agent at runtime.
+ * Currently, global preferences are only applied to the coding-agent at runtime.
  * Future improvements could include:
  * - Per-agent preference overrides (~/.dexto/agents/{id}/preferences.yml)
  * - Agent capability requirements (requires: { vision: true, toolUse: true })
@@ -70,7 +70,7 @@ export function applyCLIOverrides(
 
 /**
  * Applies global user preferences to an agent configuration at runtime.
- * This is used for the default-agent to ensure user's LLM preferences are applied.
+ * This is used for the coding-agent to ensure user's LLM preferences are applied.
  *
  * Unlike writeLLMPreferences() which modifies files, this performs an in-memory merge.
  *
