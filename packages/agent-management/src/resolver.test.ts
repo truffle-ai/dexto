@@ -209,8 +209,8 @@ describe('Agent Resolver', () => {
         beforeEach(async () => {
             mockGetExecutionContext.mockReturnValue('dexto-source');
             mockFindDextoSourceRoot.mockReturnValue(tempDir);
-            repoConfigPath = path.join(tempDir, 'agents', 'default-agent.yml');
-            await fs.mkdir(path.join(tempDir, 'agents'), { recursive: true });
+            repoConfigPath = path.join(tempDir, 'agents', 'coding-agent', 'coding-agent.yml');
+            await fs.mkdir(path.join(tempDir, 'agents', 'coding-agent'), { recursive: true });
             await fs.writeFile(
                 repoConfigPath,
                 'llm:\n  provider: anthropic\n  model: claude-4-sonnet-20250514'
