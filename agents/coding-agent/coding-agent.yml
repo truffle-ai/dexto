@@ -47,9 +47,9 @@ greeting: "👨‍💻 Ready to code! What are we building today?"
 
 # LLM configuration - using a powerful model for coding tasks
 llm:
-  provider: openai  
-  model: gpt-5-mini  # More powerful model for complex coding tasks
-  apiKey: $OPENAI_API_KEY
+  provider: anthropic  
+  model: claude-sonnet-4-5-20250929
+  apiKey: $ANTHROPIC_API_KEY
 
 storage:
   cache:

@@ -93,6 +93,3 @@ export * from './providers/index.js';
 export * from './image/index.js';
 
 // Note: Blob types, schemas, and errors are exported from './storage/index.js'
-// Note: FileSystem and Process tool providers have been moved to separate packages:
-// - @dexto/tools-filesystem
-// - @dexto/tools-process

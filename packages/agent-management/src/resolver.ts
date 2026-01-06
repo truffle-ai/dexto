@@ -161,7 +161,7 @@ async function resolveDefaultAgentForDextoSource(autoInstall: boolean = true): P
     if (!sourceRoot) {
         throw ConfigError.bundledNotFound('dexto source directory not found');
     }
-    const repoConfigPath = path.join(sourceRoot, 'agents', 'default-agent.yml');
+    const repoConfigPath = path.join(sourceRoot, 'agents', 'coding-agent', 'coding-agent.yml');
 
     // Check if we're in dev mode (maintainers testing the repo config)
     const isDevMode = process.env.DEXTO_DEV_MODE === 'true';
