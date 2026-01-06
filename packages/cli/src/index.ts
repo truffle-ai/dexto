@@ -188,9 +188,9 @@ program
                 p.intro(chalk.inverse('Create Dexto Image'));
 
                 // Create the image project structure
-                await createImage(name);
+                const projectPath = await createImage(name);
 
-                p.outro(chalk.greenBright('Dexto image created successfully!'));
+                p.outro(chalk.greenBright(`Dexto image created successfully at ${projectPath}!`));
                 safeExit('create-image', 0);
             } catch (err) {
                 if (err instanceof ExitSignal) throw err;

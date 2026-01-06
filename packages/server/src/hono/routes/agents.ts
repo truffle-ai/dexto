@@ -31,7 +31,7 @@ import { AgentRegistryEntrySchema } from '../schemas/responses.js';
  * Why: The real AgentConfigSchema uses z.lazy() for CustomToolConfigSchema,
  * which cannot be serialized to OpenAPI JSON by @hono/zod-openapi.
  *
- * See lines 785 and 859 where AgentConfigSchema.safeParse() is used for actual validation.
+ * See lines 780 and 854 where AgentConfigSchema.safeParse() is used for actual validation.
  */
 const AgentConfigSchemaForOpenAPI = z
     .record(z.any())
