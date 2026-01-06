@@ -64,7 +64,7 @@ Resources are identified by URIs with different schemes:
 
 Based on Dexto's agent registry:
 
-- **@modelcontextprotocol/server-filesystem** - Exposes local files (used in default-agent)
+- **@modelcontextprotocol/server-filesystem** - Exposes local files (used in coding-agent)
 - **@truffle-ai/github-mcp-server** - GitHub repository contents (used in github-agent)
 - **@truffle-ai/talk2pdf-mcp** - PDF document contents (used in talk2pdf-agent)
 

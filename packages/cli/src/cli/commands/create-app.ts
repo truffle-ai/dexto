@@ -118,11 +118,9 @@ export async function createDextoProject(
 
     const spinner = p.spinner();
     let projectPath: string;
+    const originalCwd = process.cwd();
 
     try {
-        // Save original cwd before changing directories (for resolving relative paths)
-        const originalCwd = process.cwd();
-
         // Create project directory
         projectPath = await createProjectDirectory(projectName, spinner);
 
@@ -209,6 +207,15 @@ export async function createDextoProject(
 
         return projectPath;
     } catch (error) {
+        // Restore original directory on error
+        if (originalCwd) {
+            try {
+                process.chdir(originalCwd);
+            } catch {
+                // Ignore if we can't restore - likely a more serious issue
+            }
+        }
+
         if (spinner) {
             spinner.stop(chalk.red('✗ Failed to create app'));
         }
@@ -286,7 +293,7 @@ async function scaffoldFromImage(
     const agentConfig = `# Default Agent Configuration
 
 # Image: Specifies the provider bundle for this agent
-image: '@dexto/image-local'
+image: '${imageName}'
 
 # System prompt
 systemPrompt:

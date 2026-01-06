@@ -105,7 +105,7 @@ dexto setup --force
 **Options:**
 - `--provider <provider>` - LLM provider (openai, anthropic, google, groq, xai, cohere)
 - `--model <model>` - Model name (uses provider default if not specified)
-- `--default-agent <agent>` - Default agent name (default: default-agent)
+- `--default-agent <agent>` - Default agent name (default: coding-agent)
 - `--force` - Overwrite existing setup without confirmation
 - `--no-interactive` - Skip interactive prompts
 
@@ -156,7 +156,7 @@ dexto uninstall --all
 
 **Options:**
 - `--all` - Uninstall all installed agents
-- `--force` - Force uninstall even if agent is protected (e.g., default-agent)
+- `--force` - Force uninstall even if agent is protected (e.g., coding-agent)
 
 ### `list-agents` - List Available Agents
 
@@ -189,7 +189,7 @@ Display the path to a specific agent's configuration file.
 
 ```bash
 dexto which nano-banana-agent
-dexto which default-agent
+dexto which coding-agent
 ```
 
 ### `session` - Manage Sessions

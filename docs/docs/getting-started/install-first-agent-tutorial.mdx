@@ -125,12 +125,12 @@ Open the dexto preferences file:
 vi ~/.dexto/preferences.yml
 ```
 
-Update the `defaultAgent` from `default-agent` to `music-agent`
+Update the `defaultAgent` from `coding-agent` to `music-agent`
 
 Before:
 ```yml
 defaults:
-  defaultAgent: default-agent
+  defaultAgent: coding-agent
 ```
 
 After:
@@ -146,7 +146,7 @@ Now re-start dexto without any arguments
 dexto
 ```
 
-This opens the Web UI with your new default agent. Ask it "Who are you?", and you will see that instead of the `default-agent`, dexto is now using the `music-agent`!
+This opens the Web UI with your new default agent. Ask it "Who are you?", and you will see that instead of the `coding-agent`, dexto is now using the `music-agent`!
 
 Similarly, if you want to change the default to any other agent, just update `defaultAgent` to any valid agent-name!
 

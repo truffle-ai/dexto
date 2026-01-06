@@ -532,11 +532,11 @@ Default Dexto agent with filesystem and Playwright tools for general-purpose tas
 
 **Example Use:**
 ```bash
-dexto  # Uses default-agent by default
+dexto --agent default-agent
 ```
 
 **Recommended LLM:** Any supported provider
-**Comes pre-installed:** Yes
+**Comes pre-installed:** No (available in registry)
 
 ---
 
@@ -608,7 +608,8 @@ defaults:
 | product-researcher | Research | Claude/GPT | - |
 | triage-agent | Multi-Agent | Claude/GPT | - |
 | gaming-agent | Entertainment | Claude (Vision) | ROM files |
-| default-agent | General | Any | Pre-installed |
+| coding-agent | Development | Any | Pre-installed |
+| default-agent | General | Any | - |
 
 ## Choosing the Right Agent
 

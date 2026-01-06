@@ -145,7 +145,7 @@ export class InternalToolsProvider {
      */
     private registerCustomTools(): void {
         if (!this.agent) {
-            throw new Error(
+            throw ToolError.configInvalid(
                 'Agent reference not set. Call setAgent() before initialize() when using custom tools.'
             );
         }
