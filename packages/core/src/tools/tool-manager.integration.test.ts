@@ -9,7 +9,6 @@ import type { InternalToolsConfig } from './schemas.js';
 import type { IMCPClient } from '../mcp/types.js';
 import { AgentEventBus } from '../events/index.js';
 import { ApprovalManager } from '../approval/manager.js';
-import { ApprovalStatus } from '../approval/types.js';
 import type { IAllowedToolsProvider } from './confirmation/allowed-tools-provider/types.js';
 import { createMockLogger } from '../logger/v2/test-utils.js';
 

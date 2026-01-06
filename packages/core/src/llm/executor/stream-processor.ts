@@ -105,7 +105,7 @@ export class StreamProcessor {
                         }
                         break;
 
-                    case 'tool-call':
+                    case 'tool-call': {
                         // Create tool call record
                         if (!this.assistantMessageId) {
                             this.assistantMessageId = await this.createAssistantMessage();
@@ -138,6 +138,7 @@ export class StreamProcessor {
                         // This ensures correct event ordering - llm:tool-call arrives before approval:request.
                         // See tool-manager.ts for detailed explanation of the timing issue.
                         break;
+                    }
 
                     case 'tool-result': {
                         // PERSISTENCE HAPPENS HERE
