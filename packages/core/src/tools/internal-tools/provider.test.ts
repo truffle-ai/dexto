@@ -157,7 +157,7 @@ describe('InternalToolsProvider', () => {
         });
 
         it('should convert tools to ToolSet format', () => {
-            const toolSet = provider.getAllTools();
+            const toolSet = provider.getInternalTools();
 
             expect(toolSet).toHaveProperty('search_history');
             expect(toolSet.search_history).toEqual({
@@ -182,7 +182,7 @@ describe('InternalToolsProvider', () => {
                 throw new Error('Schema conversion failed');
             });
 
-            const toolSet = provider.getAllTools();
+            const toolSet = provider.getInternalTools();
 
             // Should return fallback schema
             expect(toolSet.search_history?.parameters).toEqual({

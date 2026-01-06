@@ -10,7 +10,6 @@ import {
     createGitignore,
     initPackageJson,
     createTsconfigForApp,
-    createTsconfigForImage,
     installDependencies,
     createEnvExample,
     ensureDirectory,
@@ -21,9 +20,7 @@ import {
     generateWebAppHTML,
     generateWebAppJS,
     generateWebAppCSS,
-    generateDextoImageFile,
     generateAppReadme,
-    generateImageReadme,
     generateExampleTool,
     generateDiscoveryScript,
 } from '../utils/template-engine.js';
@@ -250,7 +247,7 @@ async function scaffoldFromImage(
             const pkgJsonPath = path.join(packageDir, 'package.json');
             const pkgJson = JSON.parse(await fs.readFile(pkgJsonPath, 'utf8'));
             packageNameForImport = pkgJson.name;
-        } catch (error) {
+        } catch (_error) {
             logger.warn(`Could not read package.json from ${packageDir}, using path as import`);
         }
     }

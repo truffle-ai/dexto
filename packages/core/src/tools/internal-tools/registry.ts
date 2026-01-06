@@ -37,13 +37,6 @@ export interface InternalToolsServices {
     searchService?: SearchService;
     approvalManager?: ApprovalManager;
     resourceManager?: ResourceManager;
-    // Future services can be added here:
-    // sessionManager?: SessionManager;
-    // eventBus?: AgentEventBus;
-    //
-    // Note: fileSystemService and processService have been moved to separate packages:
-    // - @dexto/tools-filesystem
-    // - @dexto/tools-process
 }
 
 /**

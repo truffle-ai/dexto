@@ -293,7 +293,7 @@ export class DextoAgent {
             services.toolManager.setAgent(this);
 
             // Initialize toolManager now that agent reference is set
-            // Custom tools need agent access for bidirectional communication (e.g., schedulers)
+            // Custom tools need agent access for bidirectional communication
             await services.toolManager.initialize();
 
             // Initialize search service from services

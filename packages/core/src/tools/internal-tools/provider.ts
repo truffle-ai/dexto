@@ -316,17 +316,6 @@ export class InternalToolsProvider {
     }
 
     /**
-     * Get all tools in ToolSet format (internal + custom)
-     * @deprecated Use getInternalTools() and getCustomTools() separately for proper prefixing
-     */
-    getAllTools(): ToolSet {
-        return {
-            ...this.getInternalTools(),
-            ...this.getCustomTools(),
-        };
-    }
-
-    /**
      * Get internal tool names
      */
     getInternalToolNames(): string[] {
