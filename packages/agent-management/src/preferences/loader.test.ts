@@ -58,6 +58,8 @@ describe('Preferences Loader', () => {
             },
             setup: {
                 completed: true,
+                apiKeyPending: false,
+                baseURLPending: false,
             },
         };
     });
@@ -302,6 +304,8 @@ setup:
                 },
                 setup: {
                     completed: true,
+                    apiKeyPending: false,
+                    baseURLPending: false,
                 },
             });
         });

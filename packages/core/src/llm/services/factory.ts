@@ -13,49 +13,63 @@ import { VercelLLMService } from './vercel.js';
 import { LanguageModel } from 'ai';
 import { SessionEventBus } from '../../events/index.js';
 import { createCohere } from '@ai-sdk/cohere';
+import { createLocalLanguageModel } from '../providers/local/ai-sdk-adapter.js';
 import type { IConversationHistoryProvider } from '../../session/history/types.js';
 import type { SystemPromptManager } from '../../systemPrompt/manager.js';
 import type { IDextoLogger } from '../../logger/v2/types.js';
+import { requiresApiKey } from '../registry.js';
+import { getPrimaryApiKeyEnvVar } from '../../utils/api-key-resolver.js';
 
 export function createVercelModel(llmConfig: ValidatedLLMConfig): LanguageModel {
     const provider = llmConfig.provider;
     const model = llmConfig.model;
+    // apiKey can be undefined for providers that don't require it (openai-compatible, litellm, etc.)
     const apiKey = llmConfig.apiKey;
+
+    // Runtime check: if provider requires API key but none is configured, fail with helpful message
+    // This catches cases where relaxed validation allowed app to start without API key
+    if (requiresApiKey(provider) && !apiKey?.trim()) {
+        const envVar = getPrimaryApiKeyEnvVar(provider);
+        throw LLMError.apiKeyMissing(provider, envVar);
+    }
 
     switch (provider.toLowerCase()) {
         case 'openai': {
             // Regular OpenAI - strict compatibility, no baseURL
-            return createOpenAI({ apiKey })(model);
+            // API key is required - use empty string if not provided (SDK will fail with clear error)
+            return createOpenAI({ apiKey: apiKey ?? '' })(model);
         }
         case 'openai-compatible': {
             // OpenAI-compatible - requires baseURL, uses chat completions endpoint
             // Must use .chat() as most compatible endpoints (like Ollama) don't support Responses API
+            // API key is optional - local providers like Ollama don't need one
             const baseURL = getOpenAICompatibleBaseURL(llmConfig);
             if (!baseURL) {
                 throw LLMError.baseUrlMissing('openai-compatible');
             }
-            return createOpenAI({ apiKey, baseURL }).chat(model);
+            return createOpenAI({ apiKey: apiKey ?? '', baseURL }).chat(model);
         }
         case 'openrouter': {
             // OpenRouter - unified API gateway for 100+ models
             // baseURL is auto-injected by resolver, but we validate it here as well
             const baseURL = llmConfig.baseURL || 'https://openrouter.ai/api/v1';
-            return createOpenAI({ apiKey, baseURL }).chat(model);
+            return createOpenAI({ apiKey: apiKey ?? '', baseURL }).chat(model);
         }
         case 'litellm': {
             // LiteLLM - OpenAI-compatible proxy for 100+ LLM providers
             // User must provide their own LiteLLM proxy URL
+            // API key is optional - proxy handles auth internally
             const baseURL = llmConfig.baseURL;
             if (!baseURL) {
                 throw LLMError.baseUrlMissing('litellm');
             }
-            return createOpenAI({ apiKey, baseURL }).chat(model);
+            return createOpenAI({ apiKey: apiKey ?? '', baseURL }).chat(model);
         }
         case 'glama': {
             // Glama - OpenAI-compatible gateway for multiple LLM providers
             // Fixed endpoint, no user configuration needed
             const baseURL = 'https://glama.ai/api/gateway/openai/v1';
-            return createOpenAI({ apiKey, baseURL }).chat(model);
+            return createOpenAI({ apiKey: apiKey ?? '', baseURL }).chat(model);
         }
         case 'vertex': {
             // Google Vertex AI - supports both Gemini and Claude models
@@ -126,15 +140,31 @@ export function createVercelModel(llmConfig: ValidatedLLMConfig): LanguageModel 
         }
         // TODO: Add 'dexto' case (similar to openrouter, uses https://api.dexto.ai/v1)
         case 'anthropic':
-            return createAnthropic({ apiKey })(model);
+            // API key required - SDK will fail with clear error if empty
+            return createAnthropic({ apiKey: apiKey ?? '' })(model);
         case 'google':
-            return createGoogleGenerativeAI({ apiKey })(model);
+            return createGoogleGenerativeAI({ apiKey: apiKey ?? '' })(model);
         case 'groq':
-            return createGroq({ apiKey })(model);
+            return createGroq({ apiKey: apiKey ?? '' })(model);
         case 'xai':
-            return createXai({ apiKey })(model);
+            return createXai({ apiKey: apiKey ?? '' })(model);
         case 'cohere':
-            return createCohere({ apiKey })(model);
+            return createCohere({ apiKey: apiKey ?? '' })(model);
+        case 'ollama': {
+            // Ollama - local model server with OpenAI-compatible API
+            // Uses the /v1 endpoint for AI SDK compatibility
+            // Default URL: http://localhost:11434
+            const baseURL = llmConfig.baseURL || 'http://localhost:11434/v1';
+            // Ollama doesn't require an API key, but the SDK needs a non-empty string
+            return createOpenAI({ apiKey: 'ollama', baseURL }).chat(model);
+        }
+        case 'local': {
+            // Native node-llama-cpp execution via AI SDK adapter.
+            // Model is loaded lazily on first use.
+            return createLocalLanguageModel({
+                modelId: model,
+            });
+        }
         default:
             throw LLMError.unsupportedProvider(provider);
     }

@@ -38,15 +38,13 @@ interface InstalledRegistry {
  * Resolve agent path with automatic installation if needed
  * @param nameOrPath Optional agent name or explicit path
  * @param autoInstall Whether to automatically install missing agents from bundled registry (default: true)
- * @param injectPreferences Whether to inject preferences during auto-installation (default: true)
  * @returns Resolved absolute path to agent config
  * @throws {ConfigError} For path/config issues (file not found, unknown context, setup incomplete)
  * @throws {RegistryError} For agent lookup failures (agent not found, not installed)
  */
 export async function resolveAgentPath(
     nameOrPath?: string,
-    autoInstall: boolean = true,
-    injectPreferences: boolean = true
+    autoInstall: boolean = true
 ): Promise<string> {
     // 1. Handle explicit paths (highest priority)
     if (nameOrPath && isPath(nameOrPath)) {
@@ -65,21 +63,17 @@ export async function resolveAgentPath(
 
     // 2. Handle agent names from installed registry
     if (nameOrPath) {
-        return await resolveAgentByName(nameOrPath, autoInstall, injectPreferences);
+        return await resolveAgentByName(nameOrPath, autoInstall);
     }
 
     // 3. Default agent resolution based on execution context
-    return await resolveDefaultAgentByContext(autoInstall, injectPreferences);
+    return await resolveDefaultAgentByContext(autoInstall);
 }
 
 /**
  * Resolve agent by name from installed or bundled registry
  */
-async function resolveAgentByName(
-    agentId: string,
-    autoInstall: boolean,
-    injectPreferences: boolean
-): Promise<string> {
+async function resolveAgentByName(agentId: string, autoInstall: boolean): Promise<string> {
     const agentsDir = getDextoGlobalPath('agents');
     const installedRegistryPath = path.join(agentsDir, 'registry.json');
 
@@ -100,7 +94,7 @@ async function resolveAgentByName(
     if (autoInstall) {
         try {
             logger.info(`Auto-installing agent '${agentId}' from bundled registry`);
-            const configPath = await installBundledAgent(agentId, { injectPreferences });
+            const configPath = await installBundledAgent(agentId);
             return configPath;
         } catch (error) {
             // installBundledAgent throws RegistryError.agentNotFound if not in bundled registry
@@ -137,21 +131,18 @@ async function getAgentConfigPath(agentId: string): Promise<string> {
 /**
  * Resolve default agent based on execution context
  */
-async function resolveDefaultAgentByContext(
-    autoInstall: boolean = true,
-    injectPreferences: boolean = true
-): Promise<string> {
+async function resolveDefaultAgentByContext(autoInstall: boolean = true): Promise<string> {
     const executionContext = getExecutionContext();
 
     switch (executionContext) {
         case 'dexto-source':
-            return await resolveDefaultAgentForDextoSource(autoInstall, injectPreferences);
+            return await resolveDefaultAgentForDextoSource(autoInstall);
 
         case 'dexto-project':
-            return await resolveDefaultAgentForDextoProject(autoInstall, injectPreferences);
+            return await resolveDefaultAgentForDextoProject(autoInstall);
 
         case 'global-cli':
-            return await resolveDefaultAgentForGlobalCLI(autoInstall, injectPreferences);
+            return await resolveDefaultAgentForGlobalCLI(autoInstall);
 
         default:
             throw ConfigError.unknownContext(executionContext);
@@ -164,10 +155,7 @@ async function resolveDefaultAgentByContext(
  * - User with setup: Use their preferences
  * - Otherwise: Fallback to repo config file
  */
-async function resolveDefaultAgentForDextoSource(
-    autoInstall: boolean = true,
-    injectPreferences: boolean = true
-): Promise<string> {
+async function resolveDefaultAgentForDextoSource(autoInstall: boolean = true): Promise<string> {
     logger.debug('Resolving default agent for dexto source context');
     const sourceRoot = findDextoSourceRoot();
     if (!sourceRoot) {
@@ -195,7 +183,7 @@ async function resolveDefaultAgentForDextoSource(
             if (preferences.setup.completed) {
                 logger.debug('Using user preferences in dexto-source context');
                 const preferredAgentName = preferences.defaults.defaultAgent;
-                return await resolveAgentByName(preferredAgentName, autoInstall, injectPreferences);
+                return await resolveAgentByName(preferredAgentName, autoInstall);
             }
         } catch (error) {
             logger.warn(`Failed to load preferences, falling back to repo config: ${error}`);
@@ -215,10 +203,7 @@ async function resolveDefaultAgentForDextoSource(
 /**
  * Resolution for Dexto project context - project default OR preferences default
  */
-async function resolveDefaultAgentForDextoProject(
-    autoInstall: boolean = true,
-    injectPreferences: boolean = true
-): Promise<string> {
+async function resolveDefaultAgentForDextoProject(autoInstall: boolean = true): Promise<string> {
     logger.debug('Resolving default agent for dexto project context');
     const projectRoot = findDextoProjectRoot();
     if (!projectRoot) {
@@ -254,16 +239,13 @@ async function resolveDefaultAgentForDextoProject(
     }
 
     const preferredAgentName = preferences.defaults.defaultAgent;
-    return await resolveAgentByName(preferredAgentName, autoInstall, injectPreferences);
+    return await resolveAgentByName(preferredAgentName, autoInstall);
 }
 
 /**
  * Resolution for Global CLI context - preferences default REQUIRED
  */
-async function resolveDefaultAgentForGlobalCLI(
-    autoInstall: boolean = true,
-    injectPreferences: boolean = true
-): Promise<string> {
+async function resolveDefaultAgentForGlobalCLI(autoInstall: boolean = true): Promise<string> {
     logger.debug('Resolving default agent for global CLI context');
     if (!globalPreferencesExist()) {
         throw ConfigError.noGlobalPreferences();
@@ -276,7 +258,7 @@ async function resolveDefaultAgentForGlobalCLI(
     }
 
     const preferredAgentName = preferences.defaults.defaultAgent;
-    return await resolveAgentByName(preferredAgentName, autoInstall, injectPreferences);
+    return await resolveAgentByName(preferredAgentName, autoInstall);
 }
 
 /**

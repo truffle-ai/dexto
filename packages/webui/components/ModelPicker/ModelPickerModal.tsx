@@ -10,7 +10,11 @@ import {
     type SwitchLLMPayload,
     type CustomModel,
 } from '../hooks/useLLM';
-import { CustomModelForm, type CustomModelFormData } from './CustomModelForms';
+import {
+    CustomModelForm,
+    type CustomModelFormData,
+    type CustomModelProvider,
+} from './CustomModelForms';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 import { Button } from '../ui/button';
@@ -356,8 +360,23 @@ export default function ModelPickerModal() {
     );
 
     const editCustomModel = useCallback((model: CustomModel) => {
+        // Map provider to form-supported provider (ollama, local, vertex use openai-compatible form)
+        const formSupportedProviders: CustomModelProvider[] = [
+            'openai-compatible',
+            'openrouter',
+            'litellm',
+            'glama',
+            'bedrock',
+        ];
+        const provider = model.provider ?? 'openai-compatible';
+        const formProvider: CustomModelProvider = formSupportedProviders.includes(
+            provider as CustomModelProvider
+        )
+            ? (provider as CustomModelProvider)
+            : 'openai-compatible';
+
         setCustomModelForm({
-            provider: model.provider ?? 'openai-compatible',
+            provider: formProvider,
             name: model.name,
             baseURL: model.baseURL ?? '',
             displayName: model.displayName ?? '',
@@ -582,6 +601,13 @@ export default function ModelPickerModal() {
 
     // Available providers for filter
     // OpenRouter always shown (users add their own models via custom models)
+    // TODO: Add dynamic Ollama/local model discovery. Currently these providers are excluded
+    // because they have empty static model arrays (models are discovered at runtime).
+    // The CLI already has this via listOllamaModels() from @dexto/core - we need:
+    // 1. Server endpoint: /api/llm/ollama/models (or /api/llm/local/discover)
+    // 2. WebUI: Fetch and merge discovered models into the catalog
+    // 3. Handle offline state gracefully (Ollama not running)
+    // See: packages/cli/src/cli/ink-cli/components/overlays/ModelSelectorRefactored.tsx:134
     const availableProviders = useMemo(() => {
         return LLM_PROVIDERS.filter((p) => p === 'openrouter' || providers[p]?.models.length);
     }, [providers]);

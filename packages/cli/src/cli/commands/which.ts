@@ -37,7 +37,7 @@ export async function handleWhichCommand(agentName: string): Promise<void> {
     const availableAgents = getAvailableAgentNames();
 
     try {
-        const resolvedPath = await resolveAgentPath(validated.agentName, false, false); // Don't auto-install, don't inject preferences
+        const resolvedPath = await resolveAgentPath(validated.agentName, false); // Don't auto-install
         console.log(resolvedPath);
     } catch (error) {
         console.error(

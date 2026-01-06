@@ -301,13 +301,13 @@ describe('LocalAgentRegistry - Integration Tests', () => {
 
         it('should not allow uninstalling default agent without force', async () => {
             // Install default-agent first
-            await registry.installAgent('default-agent', false);
+            await registry.installAgent('default-agent');
 
             await expect(registry.uninstallAgent('default-agent')).rejects.toThrow(/protected/);
         });
 
         it('should allow uninstalling default agent with force flag', async () => {
-            await registry.installAgent('default-agent', false);
+            await registry.installAgent('default-agent');
 
             await expect(registry.uninstallAgent('default-agent', true)).resolves.not.toThrow();
         });
@@ -319,7 +319,7 @@ describe('LocalAgentRegistry - Integration Tests', () => {
 
     describe('Agent Resolution', () => {
         it('should resolve installed builtin agent', async () => {
-            await registry.installAgent('default-agent', false);
+            await registry.installAgent('default-agent');
 
             const configPath = await registry.resolveAgent('default-agent', false);
 
