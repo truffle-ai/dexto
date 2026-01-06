@@ -25,7 +25,9 @@ export function useCurrentLLM(sessionId: string | null, enabled: boolean = true)
                 baseURL: cfg.baseURL,
             };
         },
-        enabled: enabled && !!sessionId, // Only fetch when session exists
+        // Always enabled - API returns default config when no sessionId
+        // This ensures the model name shows on welcome screen
+        enabled,
         retry: false, // Don't retry on error - UI can still operate
     });
 }

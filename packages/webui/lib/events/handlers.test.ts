@@ -238,7 +238,7 @@ describe('Event Handler Registry', () => {
                 success: true,
                 sanitized: {
                     content: [{ type: 'text', text: '4' }],
-                    meta: { toolName: 'calculator', toolCallId: 'call-123' },
+                    meta: { toolName: 'calculator', toolCallId: 'call-123', success: true },
                 },
             };
 
@@ -267,7 +267,7 @@ describe('Event Handler Registry', () => {
                 success: true,
                 sanitized: {
                     content: [],
-                    meta: { toolName: 'dangerous-tool', toolCallId: 'call-456' },
+                    meta: { toolName: 'dangerous-tool', toolCallId: 'call-456', success: true },
                 },
                 requireApproval: true,
                 approvalStatus: 'approved',
@@ -315,6 +315,7 @@ describe('Event Handler Registry', () => {
                 type: ApprovalType.TOOL_CONFIRMATION,
                 metadata: {
                     toolName: 'dangerous-tool',
+                    toolCallId: 'call-dangerous-1',
                     args: {},
                 },
                 timeout: 30000,

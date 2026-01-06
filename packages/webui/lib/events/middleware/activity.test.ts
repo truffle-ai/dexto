@@ -206,6 +206,7 @@ describe('activityMiddleware', () => {
                 timestamp: new Date(),
                 metadata: {
                     toolName: 'execute_command',
+                    toolCallId: 'call-exec-123',
                     args: { command: 'rm -rf /' },
                 },
                 sessionId: 'session-1',
@@ -255,6 +256,7 @@ describe('activityMiddleware', () => {
                 name: 'run:complete',
                 finishReason: 'stop',
                 stepCount: 5,
+                durationMs: 2000,
                 sessionId: 'session-1',
             };
 

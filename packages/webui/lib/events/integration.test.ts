@@ -207,7 +207,7 @@ describe('EventBus Integration', () => {
             // Add result
             const sanitizedResult = {
                 content: [{ type: 'text' as const, text: 'File contents' }],
-                meta: { toolName: 'read_file', toolCallId: 'call-123' },
+                meta: { toolName: 'read_file', toolCallId: 'call-123', success: true },
             };
             bus.dispatch({
                 name: 'llm:tool-result',
@@ -237,7 +237,7 @@ describe('EventBus Integration', () => {
             // Add result with approval
             const sanitizedResult = {
                 content: [{ type: 'text' as const, text: 'File written' }],
-                meta: { toolName: 'write_file', toolCallId: 'call-456' },
+                meta: { toolName: 'write_file', toolCallId: 'call-456', success: true },
             };
             bus.dispatch({
                 name: 'llm:tool-result',
@@ -272,6 +272,7 @@ describe('EventBus Integration', () => {
                 timestamp: new Date(),
                 metadata: {
                     toolName: 'write_file',
+                    toolCallId: 'call-write-123',
                     args: { path: '/test.txt' },
                 },
             });
@@ -291,6 +292,7 @@ describe('EventBus Integration', () => {
                 timestamp: new Date(),
                 metadata: {
                     toolName: 'write_file',
+                    toolCallId: 'call-write-123',
                     args: { path: '/test.txt' },
                 },
             });
@@ -317,6 +319,7 @@ describe('EventBus Integration', () => {
                 timestamp: new Date(),
                 metadata: {
                     toolName: 'write_file',
+                    toolCallId: 'call-write-456',
                     args: { path: '/test.txt' },
                 },
             });
@@ -349,6 +352,7 @@ describe('EventBus Integration', () => {
                 sessionId: 'test-session',
                 finishReason: 'stop',
                 stepCount: 3,
+                durationMs: 1500,
             });
 
             // Check states reset

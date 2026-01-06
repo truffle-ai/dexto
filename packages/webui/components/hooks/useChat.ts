@@ -8,12 +8,8 @@ import { queryKeys } from '@/lib/queryKeys.js';
 import { createMessageStream } from '@dexto/client-sdk';
 import type { MessageStreamEvent } from '@dexto/client-sdk';
 import { eventBus } from '@/lib/events/EventBus.js';
-import {
-    useChatStore,
-    generateMessageId,
-    type Message,
-    type ErrorMessage,
-} from '@/lib/stores/chatStore.js';
+import { useChatStore } from '@/lib/stores/chatStore.js';
+import type { Message as ChatStoreMessage } from '@/lib/stores/chatStore.js';
 import type { Session } from './useSessions.js';
 
 // Content part types - import from centralized types.ts
@@ -50,59 +46,20 @@ export function isToolResultContent(result: unknown): result is ToolResultConten
 }
 
 // =============================================================================
-// WebUI Message Types (Discriminated Union by 'role')
+// Re-export Message types from chatStore (single source of truth)
 // =============================================================================
 
-/** Content type for WebUI messages (JSON-serializable, string-only) */
-export type UIContentPart = TextPart | ImagePart | AudioPart | FilePart | UIResourcePart;
+// Import from chatStore
+import type { Message, ErrorMessage } from '@/lib/stores/chatStore.js';
 
-/** Base interface for all WebUI message types */
-interface UIMessageBase {
-    id: string;
-    createdAt: number;
-    sessionId?: string;
-    metadata?: Record<string, unknown>;
-}
+// Re-export for API compatibility - components can import these from either place
+export type { Message, ErrorMessage } from '@/lib/stores/chatStore.js';
 
-/** User message in WebUI */
-export interface UIUserMessage extends UIMessageBase {
-    role: 'user';
-    content: string | null | UIContentPart[];
-    imageData?: { image: string; mimeType: string };
-    fileData?: FileData;
-}
-
-/** Assistant message in WebUI */
-export interface UIAssistantMessage extends UIMessageBase {
-    role: 'assistant';
-    content: string | null;
-    reasoning?: string;
-    tokenUsage?: {
-        inputTokens?: number;
-        outputTokens?: number;
-        reasoningTokens?: number;
-        totalTokens?: number;
-    };
-    model?: string;
-    provider?: LLMProvider;
-}
-
-/** Tool message in WebUI */
-export interface UIToolMessage extends UIMessageBase {
-    role: 'tool';
-    content: string | null | UIContentPart[];
-    toolName?: string;
-    toolArgs?: Record<string, unknown>;
-    toolCallId?: string;
-    toolResult?: ToolResult;
-    toolResultMeta?: SanitizedToolResult['meta'];
-    toolResultSuccess?: boolean;
-    requireApproval?: boolean;
-    approvalStatus?: ToolApprovalStatus;
-}
-
-/** Discriminated union of all WebUI message types */
-export type Message = UIUserMessage | UIAssistantMessage | UIToolMessage;
+// Legacy type aliases for code that uses the discriminated union pattern
+// These are intersection types that narrow the Message type by role
+export type UIUserMessage = Message & { role: 'user' };
+export type UIAssistantMessage = Message & { role: 'assistant' };
+export type UIToolMessage = Message & { role: 'tool' };
 
 // =============================================================================
 // Message Type Guards
@@ -121,20 +78,6 @@ export function isAssistantMessage(msg: Message): msg is UIAssistantMessage {
 /** Type guard for tool messages */
 export function isToolMessage(msg: Message): msg is UIToolMessage {
     return msg.role === 'tool';
-}
-
-// Separate error state interface
-export interface ErrorMessage {
-    id: string;
-    message: string;
-    timestamp: number;
-    context?: string;
-    recoverable?: boolean;
-    sessionId?: string;
-    // Message id this error relates to (e.g., last user input)
-    anchorMessageId?: string;
-    // Raw validation issues for hierarchical display
-    detailedIssues?: Issue[];
 }
 
 export type StreamStatus = 'idle' | 'connecting' | 'open' | 'closed';
@@ -196,8 +139,6 @@ export function useChat(
     const lastMessageIdRef = useRef<string | null>(null);
     // Map callId to message index for O(1) tool result pairing
     const pendingToolCallsRef = useRef<Map<string, number>>(new Map());
-    // When true, llm:chunk events update UI incrementally. When false, wait for llm:response.
-    const isStreamingRef = useRef<boolean>(true);
 
     // Keep analytics ref updated
     useEffect(() => {
@@ -251,142 +192,18 @@ export function useChat(
                 return;
             }
 
-            // Dispatch to EventBus - handlers will update chatStore
+            // Dispatch to EventBus - handlers.ts will update chatStore
+            // NOTE: All store updates (messages, streaming, processing) are handled by handlers.ts
+            // This function only handles React-specific side effects not in handlers.ts:
+            // - TanStack Query cache updates
+            // - Analytics tracking
+            // - Ref updates for error anchoring
             eventBus.dispatch(event);
 
             // Handle React-specific side effects not in handlers.ts
+            // IMPORTANT: Do NOT update chatStore here - that's handled by handlers.ts via EventBus
             switch (event.name) {
-                case 'llm:thinking':
-                    // LLM started thinking - can update UI status
-                    useChatStore.getState().setProcessing(event.sessionId, true);
-                    break;
-
-                case 'llm:chunk': {
-                    // When not streaming, skip chunk updates - llm:response will show full content
-                    if (!isStreamingRef.current) {
-                        break;
-                    }
-
-                    const text = event.content || '';
-                    const chunkType = event.chunkType;
-                    //console.log('llm:chunk', event);
-
-                    // Use streaming message API for incremental updates
-                    const store = useChatStore.getState();
-                    const sessionState = store.getSessionState(event.sessionId);
-
-                    if (chunkType === 'reasoning') {
-                        // For reasoning chunks, append to streaming message or create new one
-                        const lastMsg = sessionState.messages[sessionState.messages.length - 1];
-                        if (
-                            lastMsg &&
-                            lastMsg.role === 'assistant' &&
-                            !sessionState.streamingMessage
-                        ) {
-                            // Update existing message
-                            store.updateMessage(event.sessionId, lastMsg.id, {
-                                reasoning: (lastMsg.reasoning || '') + text,
-                                createdAt: Date.now(),
-                            });
-                        } else {
-                            // Create or append to streaming message
-                            if (!sessionState.streamingMessage) {
-                                const newId = generateUniqueId();
-                                lastMessageIdRef.current = newId;
-                                store.setStreamingMessage(event.sessionId, {
-                                    id: newId,
-                                    role: 'assistant',
-                                    content: '',
-                                    reasoning: text,
-                                    createdAt: Date.now(),
-                                });
-                            } else {
-                                store.appendToStreamingMessage(event.sessionId, text, 'reasoning');
-                            }
-                        }
-                    } else {
-                        // For content chunks, append to streaming message or create new one
-                        const lastMsg = sessionState.messages[sessionState.messages.length - 1];
-                        if (
-                            lastMsg &&
-                            lastMsg.role === 'assistant' &&
-                            !sessionState.streamingMessage
-                        ) {
-                            // Update existing message
-                            const currentContent =
-                                typeof lastMsg.content === 'string' ? lastMsg.content : '';
-                            store.updateMessage(event.sessionId, lastMsg.id, {
-                                content: currentContent + text,
-                                createdAt: Date.now(),
-                            });
-                        } else {
-                            // Create or append to streaming message
-                            if (!sessionState.streamingMessage) {
-                                const newId = generateUniqueId();
-                                lastMessageIdRef.current = newId;
-                                store.setStreamingMessage(event.sessionId, {
-                                    id: newId,
-                                    role: 'assistant',
-                                    content: text,
-                                    createdAt: Date.now(),
-                                });
-                            } else {
-                                store.appendToStreamingMessage(event.sessionId, text, 'text');
-                            }
-                        }
-                    }
-                    break;
-                }
-
                 case 'llm:response': {
-                    // NOTE: Don't set processing=false here - wait for run:complete
-                    // This allows queued messages to continue processing after this response
-                    console.log('llm:response', event);
-                    const text = event.content || '';
-                    const usage = event.tokenUsage;
-                    const model = event.model;
-                    const provider = event.provider;
-                    const finalContent = typeof text === 'string' ? text : '';
-
-                    const store = useChatStore.getState();
-                    const sessionState = store.getSessionState(event.sessionId);
-                    const lastMsg = sessionState.messages[sessionState.messages.length - 1];
-
-                    if (lastMsg && lastMsg.role === 'assistant') {
-                        // Update existing assistant message
-                        store.updateMessage(event.sessionId, lastMsg.id, {
-                            content: finalContent,
-                            tokenUsage: usage,
-                            ...(model && { model }),
-                            ...(provider && { provider }),
-                            createdAt: Date.now(),
-                        });
-                    } else if (finalContent) {
-                        // No assistant message exists - create one if we have content
-                        // This handles multi-step turns where llm:response arrives after tool calls
-                        const newId = generateUniqueId();
-                        lastMessageIdRef.current = newId;
-                        store.addMessage(event.sessionId, {
-                            id: newId,
-                            role: 'assistant',
-                            content: finalContent,
-                            tokenUsage: usage,
-                            ...(model && { model }),
-                            ...(provider && { provider }),
-                            createdAt: Date.now(),
-                        });
-                    }
-
-                    // Finalize any streaming message
-                    if (sessionState.streamingMessage) {
-                        store.finalizeStreamingMessage(event.sessionId, {
-                            content: finalContent,
-                            tokenUsage: usage,
-                            ...(model && { model }),
-                            ...(provider && { provider }),
-                        });
-                    }
-
                     // Update sessions cache (response received)
                     updateSessionActivity(event.sessionId);
                     break;

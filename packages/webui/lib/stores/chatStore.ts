@@ -14,11 +14,28 @@ import type { TextPart, ImagePart, AudioPart, FilePart, FileData, UIResourcePart
 // =============================================================================
 
 /**
+ * UI Message role - excludes 'system' which is filtered out before reaching UI
+ */
+export type UIMessageRole = 'user' | 'assistant' | 'tool';
+
+/**
+ * Tool result type for UI messages
+ * Broader than SanitizedToolResult to handle legacy formats and edge cases
+ */
+export type ToolResult =
+    | SanitizedToolResult
+    | { error: string | Record<string, unknown> }
+    | string
+    | Record<string, unknown>;
+
+/**
  * Message in the chat UI
  * Extends core InternalMessage with UI-specific fields
+ * Note: Excludes 'system' role as system messages are not displayed in UI
  */
-export interface Message extends Omit<InternalMessage, 'content'> {
+export interface Message extends Omit<InternalMessage, 'content' | 'role'> {
     id: string;
+    role: UIMessageRole;
     createdAt: number;
     content: string | null | Array<TextPart | ImagePart | AudioPart | FilePart | UIResourcePart>;
 
@@ -30,7 +47,7 @@ export interface Message extends Omit<InternalMessage, 'content'> {
     toolName?: string;
     toolArgs?: Record<string, unknown>;
     toolCallId?: string;
-    toolResult?: SanitizedToolResult;
+    toolResult?: ToolResult;
     toolResultMeta?: SanitizedToolResult['meta'];
     toolResultSuccess?: boolean;
 

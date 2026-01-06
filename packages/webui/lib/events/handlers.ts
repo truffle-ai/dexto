@@ -16,6 +16,7 @@ import type { StreamingEvent, ApprovalStatus } from '@dexto/core';
 import { useChatStore, generateMessageId } from '../stores/chatStore.js';
 import { useAgentStore } from '../stores/agentStore.js';
 import { useApprovalStore } from '../stores/approvalStore.js';
+import { usePreferenceStore } from '../stores/preferenceStore.js';
 import type { ClientEventBus } from './EventBus.js';
 
 // =============================================================================
@@ -67,8 +68,19 @@ function handleLLMThinking(event: EventByName<'llm:thinking'>): void {
 /**
  * llm:chunk - LLM sent streaming chunk
  * Appends content to streaming message (text or reasoning)
+ *
+ * When streaming is disabled (user preference), chunks are skipped
+ * and the full content comes via llm:response instead.
  */
 function handleLLMChunk(event: EventByName<'llm:chunk'>): void {
+    // Check user streaming preference
+    const isStreaming = usePreferenceStore.getState().isStreaming;
+    if (!isStreaming) {
+        // Skip chunk updates when streaming is disabled
+        // llm:response will provide the full content
+        return;
+    }
+
     const { sessionId, content, chunkType = 'text' } = event;
     const chatStore = useChatStore.getState();
 
@@ -94,18 +106,57 @@ function handleLLMChunk(event: EventByName<'llm:chunk'>): void {
 
 /**
  * llm:response - LLM sent final response
- * Finalizes streaming message with metadata (tokens, model, provider)
+ * Finalizes streaming message OR creates assistant message if needed
+ *
+ * Handles three scenarios:
+ * 1. Streaming mode: streaming message exists → finalize with content and metadata
+ * 2. Non-streaming mode: no streaming message → create new assistant message
+ * 3. Multi-turn: assistant message already in messages array → update it
  */
 function handleLLMResponse(event: EventByName<'llm:response'>): void {
-    const { sessionId, tokenUsage, model, provider } = event;
+    const { sessionId, content, tokenUsage, model, provider } = event;
     const chatStore = useChatStore.getState();
+    const sessionState = chatStore.getSessionState(sessionId);
+    const finalContent = typeof content === 'string' ? content : '';
 
-    // Finalize streaming message with metadata
-    chatStore.finalizeStreamingMessage(sessionId, {
-        tokenUsage,
-        ...(model && { model }),
-        ...(provider && { provider }),
-    });
+    // Check if there's a streaming message to finalize
+    if (sessionState.streamingMessage) {
+        // Finalize streaming message with content and metadata
+        chatStore.finalizeStreamingMessage(sessionId, {
+            content: finalContent,
+            tokenUsage,
+            ...(model && { model }),
+            ...(provider && { provider }),
+        });
+        return;
+    }
+
+    // No streaming message - check for existing assistant message
+    const messages = sessionState.messages;
+    const lastMsg = messages[messages.length - 1];
+
+    if (lastMsg && lastMsg.role === 'assistant') {
+        // Update existing assistant message (from previous chunks or multi-turn)
+        chatStore.updateMessage(sessionId, lastMsg.id, {
+            content: finalContent,
+            tokenUsage,
+            ...(model && { model }),
+            ...(provider && { provider }),
+        });
+    } else if (finalContent) {
+        // No assistant message exists - create one with the final content
+        // This handles non-streaming mode or responses after tool calls
+        chatStore.addMessage(sessionId, {
+            id: generateMessageId(),
+            role: 'assistant',
+            content: finalContent,
+            tokenUsage,
+            ...(model && { model }),
+            ...(provider && { provider }),
+            createdAt: Date.now(),
+            sessionId,
+        });
+    }
 }
 
 /**
