@@ -246,6 +246,7 @@ function convertHistoryToMessages(history: HistoryMessage[], sessionId: string):
                     ...existingMessage,
                     toolResult: sanitizedFromHistory,
                     toolResultMeta: sanitizedFromHistory.meta,
+                    toolResultSuccess: sanitizedFromHistory.meta?.success,
                     ...(requireApproval !== undefined && { requireApproval }),
                     ...(approvalStatus !== undefined && { approvalStatus }),
                 };
@@ -261,6 +262,7 @@ function convertHistoryToMessages(history: HistoryMessage[], sessionId: string):
                     toolCallId,
                     toolResult: sanitizedFromHistory,
                     toolResultMeta: sanitizedFromHistory.meta,
+                    toolResultSuccess: sanitizedFromHistory.meta?.success,
                     ...(requireApproval !== undefined && { requireApproval }),
                     ...(approvalStatus !== undefined && { approvalStatus }),
                 };

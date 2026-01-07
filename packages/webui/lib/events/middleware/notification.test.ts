@@ -92,36 +92,20 @@ describe('notificationMiddleware', () => {
     });
 
     describe('llm:error events', () => {
-        it('should always create toast for errors', () => {
-            const event: ClientEvent = {
-                name: 'llm:error',
-                error: new Error('Test error message'),
-                sessionId: 'test-session',
-            };
-
-            notificationMiddleware(event, next);
-
-            const { toasts } = useNotificationStore.getState();
-            expect(toasts).toHaveLength(1);
-            expect(toasts[0].title).toBe('Error');
-            expect(toasts[0].description).toBe('Test error message');
-            expect(toasts[0].intent).toBe('danger');
-            expect(toasts[0].sessionId).toBe('test-session');
-        });
-
-        it('should create toast for errors in current session', () => {
+        it('should NOT create toast for errors in current session (shown inline)', () => {
             useSessionStore.setState({ currentSessionId: 'current-session' });
 
             const event: ClientEvent = {
                 name: 'llm:error',
-                error: new Error('Test error'),
+                error: new Error('Test error message'),
                 sessionId: 'current-session',
             };
 
             notificationMiddleware(event, next);
 
+            // Errors in current session are shown inline via ErrorBanner, not as toasts
             const { toasts } = useNotificationStore.getState();
-            expect(toasts).toHaveLength(1);
+            expect(toasts).toHaveLength(0);
         });
 
         it('should create toast for errors in background session', () => {
@@ -137,13 +121,19 @@ describe('notificationMiddleware', () => {
 
             const { toasts } = useNotificationStore.getState();
             expect(toasts).toHaveLength(1);
+            expect(toasts[0].title).toBe('Error in background session');
+            expect(toasts[0].description).toBe('Test error');
+            expect(toasts[0].intent).toBe('danger');
+            expect(toasts[0].sessionId).toBe('background-session');
         });
 
-        it('should handle error without message', () => {
+        it('should handle error without message in background session', () => {
+            useSessionStore.setState({ currentSessionId: 'current-session' });
+
             const event: ClientEvent = {
                 name: 'llm:error',
                 error: new Error(),
-                sessionId: 'test-session',
+                sessionId: 'background-session',
             };
 
             notificationMiddleware(event, next);

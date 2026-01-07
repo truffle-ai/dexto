@@ -18,11 +18,15 @@ function eventToToast(
     isCurrentSession: boolean
 ): Omit<Toast, 'id' | 'timestamp'> | null {
     switch (event.name) {
-        // Always notify for errors (user should know)
+        // Errors are now shown inline via ErrorBanner, not as toasts
+        // Only show toast for errors in background sessions
         case 'llm:error': {
+            if (isCurrentSession) {
+                return null; // Don't toast - shown inline via ErrorBanner
+            }
             const sessionId = 'sessionId' in event ? event.sessionId : undefined;
             return {
-                title: 'Error',
+                title: 'Error in background session',
                 description: event.error?.message || 'An error occurred',
                 intent: 'danger',
                 sessionId,

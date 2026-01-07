@@ -442,6 +442,62 @@ export default function MessageList({
         return '';
     };
 
+    // Helper: Find the start index of the run ending at endIdx
+    const getRunStartIdx = (endIdx: number): number => {
+        for (let i = endIdx - 1; i >= 0; i--) {
+            const msg = messages[i];
+            if (msg && isUserMessage(msg)) {
+                return i + 1;
+            }
+        }
+        return 0;
+    };
+
+    // Helper: Get all assistant text from a run ending at idx (for copy/speak aggregation)
+    const getRunAssistantText = (endIdx: number): string => {
+        const texts: string[] = [];
+        const startIdx = getRunStartIdx(endIdx);
+        // Collect all assistant message text from startIdx to endIdx
+        for (let i = startIdx; i <= endIdx; i++) {
+            const msg = messages[i];
+            if (msg && isAssistantMessage(msg)) {
+                const text = getPlainTextFromMessage(msg);
+                if (text.trim()) {
+                    texts.push(text);
+                }
+            }
+        }
+        return texts.join('\n\n');
+    };
+
+    // Helper: Get cumulative token usage for a run ending at idx
+    const getRunTokenUsage = (
+        endIdx: number
+    ): {
+        inputTokens: number;
+        outputTokens: number;
+        reasoningTokens: number;
+        totalTokens: number;
+    } => {
+        const startIdx = getRunStartIdx(endIdx);
+        let inputTokens = 0;
+        let outputTokens = 0;
+        let reasoningTokens = 0;
+        let totalTokens = 0;
+
+        for (let i = startIdx; i <= endIdx; i++) {
+            const msg = messages[i];
+            if (msg && isAssistantMessage(msg) && msg.tokenUsage) {
+                inputTokens += msg.tokenUsage.inputTokens ?? 0;
+                outputTokens += msg.tokenUsage.outputTokens ?? 0;
+                reasoningTokens += msg.tokenUsage.reasoningTokens ?? 0;
+                totalTokens += msg.tokenUsage.totalTokens ?? 0;
+            }
+        }
+
+        return { inputTokens, outputTokens, reasoningTokens, totalTokens };
+    };
+
     // Note: getToolResultCopyText was used for old tool box rendering, now handled by ToolCallTimeline
     const _getToolResultCopyText = (result: ToolResult | undefined): string => {
         if (!result) return '';
@@ -461,6 +517,26 @@ export default function MessageList({
         return typeof result === 'object' ? JSON.stringify(result, null, 2) : String(result);
     };
 
+    // Helper: Check if this assistant message is the last one before a user message (end of a "run")
+    const isLastAssistantInRun = (idx: number): boolean => {
+        const msg = messages[idx];
+        if (!msg || !isAssistantMessage(msg)) return false;
+
+        // Look ahead to find the next non-tool message
+        for (let i = idx + 1; i < messages.length; i++) {
+            const nextMsg = messages[i];
+            if (!nextMsg) continue;
+            // Skip tool messages - they're part of the same run
+            if (isToolMessage(nextMsg)) continue;
+            // If next non-tool message is a user message, this is the last assistant in the run
+            if (isUserMessage(nextMsg)) return true;
+            // If next non-tool message is another assistant message, this is not the last
+            if (isAssistantMessage(nextMsg)) return false;
+        }
+        // If we reach here, no user message follows - show metadata only if not processing
+        return !processing;
+    };
+
     return (
         <div
             id="message-list-container"
@@ -477,6 +553,9 @@ export default function MessageList({
                 const isToolCall = isTool && !!(msg.toolName && msg.toolArgs);
                 const isToolResult = isTool && !!(msg.toolName && msg.toolResult);
                 const isToolRelated = isToolCall || isToolResult;
+
+                // Only show metadata (tokens, model) on the last assistant message of a run
+                const showAssistantMetadata = isAi && isLastAssistantInRun(idx);
 
                 // Note: isExpanded was used for old tool box rendering, now handled by ToolCallTimeline
                 const _isExpanded = (isToolRelated && isLastMessage) || !!manuallyExpanded[msgKey];
@@ -650,11 +729,19 @@ export default function MessageList({
                                                     toolName={msg.toolName}
                                                     toolArgs={msg.toolArgs}
                                                     toolResult={msg.toolResult}
+                                                    displayData={msg.toolResultMeta?.display}
                                                     success={
-                                                        msg.toolResult
-                                                            ? !isToolResultError(msg.toolResult) &&
-                                                              msg.toolResultSuccess !== false
-                                                            : undefined
+                                                        // Rejected approvals are failures
+                                                        msg.approvalStatus === 'rejected'
+                                                            ? false
+                                                            : // Explicit failure status
+                                                              msg.toolResultSuccess === false
+                                                              ? false
+                                                              : // Check tool result for success
+                                                                msg.toolResult
+                                                                ? !isToolResultError(msg.toolResult)
+                                                                : // Still processing (no result yet)
+                                                                  undefined
                                                     }
                                                     requireApproval={msg.requireApproval}
                                                     approvalStatus={msg.approvalStatus}
@@ -662,7 +749,11 @@ export default function MessageList({
                                                         msg.requireApproval &&
                                                         msg.approvalStatus === 'pending' &&
                                                         onApprovalApprove
-                                                            ? () => onApprovalApprove()
+                                                            ? (formData, rememberChoice) =>
+                                                                  onApprovalApprove(
+                                                                      formData,
+                                                                      rememberChoice
+                                                                  )
                                                             : undefined
                                                     }
                                                     onReject={
@@ -1004,62 +1095,56 @@ export default function MessageList({
                                                 )}
                                         </div>
                                     </div>
-                                    {!isToolRelated && (
+                                    {/* Metadata bar: show for user messages always, for AI only on last message of run */}
+                                    {!isToolRelated && (isUser || showAssistantMetadata) && (
                                         <div className="text-xs text-muted-foreground mt-1 px-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
                                             <div className="flex flex-wrap items-center gap-2">
                                                 <span>{timestampStr}</span>
-                                                {isAssistantMessage(msg) &&
-                                                    msg.tokenUsage?.totalTokens !== undefined && (
+                                                {(() => {
+                                                    if (!showAssistantMetadata) return null;
+                                                    const runTokens = getRunTokenUsage(idx);
+                                                    if (runTokens.totalTokens === 0) return null;
+                                                    return (
                                                         <Tooltip>
                                                             <TooltipTrigger asChild>
                                                                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-muted/50 text-xs cursor-default">
                                                                     <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
-                                                                    {msg.tokenUsage.totalTokens}{' '}
-                                                                    tokens
+                                                                    {runTokens.totalTokens} tokens
                                                                 </span>
                                                             </TooltipTrigger>
                                                             <TooltipContent side="bottom">
                                                                 <div className="flex flex-col gap-0.5">
-                                                                    {msg.tokenUsage.inputTokens !==
-                                                                        undefined && (
+                                                                    {runTokens.inputTokens > 0 && (
                                                                         <div>
                                                                             Input:{' '}
-                                                                            {
-                                                                                msg.tokenUsage
-                                                                                    .inputTokens
-                                                                            }
+                                                                            {runTokens.inputTokens}
                                                                         </div>
                                                                     )}
-                                                                    {msg.tokenUsage.outputTokens !==
-                                                                        undefined && (
+                                                                    {runTokens.outputTokens > 0 && (
                                                                         <div>
                                                                             Output:{' '}
-                                                                            {
-                                                                                msg.tokenUsage
-                                                                                    .outputTokens
-                                                                            }
+                                                                            {runTokens.outputTokens}
                                                                         </div>
                                                                     )}
-                                                                    {msg.tokenUsage
-                                                                        .reasoningTokens !==
-                                                                        undefined && (
+                                                                    {runTokens.reasoningTokens >
+                                                                        0 && (
                                                                         <div>
                                                                             Reasoning:{' '}
                                                                             {
-                                                                                msg.tokenUsage
-                                                                                    .reasoningTokens
+                                                                                runTokens.reasoningTokens
                                                                             }
                                                                         </div>
                                                                     )}
                                                                     <div className="font-medium mt-0.5">
                                                                         Total:{' '}
-                                                                        {msg.tokenUsage.totalTokens}
+                                                                        {runTokens.totalTokens}
                                                                     </div>
                                                                 </div>
                                                             </TooltipContent>
                                                         </Tooltip>
-                                                    )}
-                                                {isAssistantMessage(msg) && msg.model && (
+                                                    );
+                                                })()}
+                                                {showAssistantMetadata && msg.model && (
                                                     <Tooltip>
                                                         <TooltipTrigger>
                                                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-muted/30 text-xs cursor-default">
@@ -1080,29 +1165,32 @@ export default function MessageList({
                                                         </TooltipContent>
                                                     </Tooltip>
                                                 )}
-                                                {/* {msg.sessionId && (
-                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-mono bg-muted/20">
-                      {msg.sessionId.slice(0, 8)}
-                    </span>
-                  )} */}
                                             </div>
-                                            {/* Speak + Copy controls for user and AI messages */}
-                                            {(isAi || isUser) && (
-                                                <div className="flex items-center gap-1 shrink-0">
-                                                    <CopyButton
-                                                        value={getPlainTextFromMessage(msg)}
-                                                        tooltip="Copy message"
-                                                        copiedTooltip="Copied!"
-                                                        className="opacity-70 hover:opacity-100 transition-opacity"
-                                                    />
-                                                    <SpeakButton
-                                                        value={getPlainTextFromMessage(msg)}
-                                                        tooltip="Speak"
-                                                        stopTooltip="Stop"
-                                                        className="opacity-70 hover:opacity-100 transition-opacity"
-                                                    />
-                                                </div>
-                                            )}
+                                            {/* Speak + Copy controls */}
+                                            <div className="flex items-center gap-1 shrink-0">
+                                                <CopyButton
+                                                    value={
+                                                        isUser
+                                                            ? getPlainTextFromMessage(msg)
+                                                            : getRunAssistantText(idx)
+                                                    }
+                                                    tooltip={
+                                                        isUser ? 'Copy message' : 'Copy response'
+                                                    }
+                                                    copiedTooltip="Copied!"
+                                                    className="opacity-70 hover:opacity-100 transition-opacity"
+                                                />
+                                                <SpeakButton
+                                                    value={
+                                                        isUser
+                                                            ? getPlainTextFromMessage(msg)
+                                                            : getRunAssistantText(idx)
+                                                    }
+                                                    tooltip="Speak"
+                                                    stopTooltip="Stop"
+                                                    className="opacity-70 hover:opacity-100 transition-opacity"
+                                                />
+                                            </div>
                                         </div>
                                     )}
                                 </div>

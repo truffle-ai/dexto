@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
-import { ChevronRight, CheckCircle2, XCircle, Loader2, AlertCircle } from 'lucide-react';
+import { ChevronRight, CheckCircle2, XCircle, Loader2, AlertCircle, Shield } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from './ui/button';
+import { ToolResultRenderer } from './tool-renderers';
+import type { ToolDisplayData } from '@dexto/core';
 
 export interface ToolCallTimelineProps {
     toolName: string;
@@ -10,10 +12,54 @@ export interface ToolCallTimelineProps {
     success?: boolean;
     requireApproval?: boolean;
     approvalStatus?: 'pending' | 'approved' | 'rejected';
-    /** Callback when user approves (for pending approvals) */
-    onApprove?: () => void;
+    /** Display data for rich tool result rendering */
+    displayData?: ToolDisplayData;
+    /** Callback when user approves (for pending approvals). rememberChoice=true to approve for entire session. */
+    onApprove?: (formData?: Record<string, unknown>, rememberChoice?: boolean) => void;
     /** Callback when user rejects (for pending approvals) */
     onReject?: () => void;
+}
+
+/**
+ * Strips tool name prefixes and returns clean display name
+ * Formats: internal--toolName, custom--toolName, mcp--serverName--toolName
+ */
+function stripToolPrefix(toolName: string): {
+    displayName: string;
+    source: string;
+    serverName?: string;
+} {
+    // Handle internal-- prefix
+    if (toolName.startsWith('internal--')) {
+        return { displayName: toolName.replace('internal--', ''), source: '' };
+    }
+    // Handle custom-- prefix
+    if (toolName.startsWith('custom--')) {
+        return { displayName: toolName.replace('custom--', ''), source: '' };
+    }
+    // Handle mcp--serverName--toolName format
+    if (toolName.startsWith('mcp--')) {
+        const parts = toolName.split('--');
+        if (parts.length >= 3) {
+            const serverName = parts[1];
+            const cleanToolName = parts.slice(2).join('--');
+            return { displayName: cleanToolName, source: serverName ?? '', serverName };
+        }
+        return { displayName: toolName.replace('mcp--', ''), source: 'mcp' };
+    }
+    // Legacy format with __ delimiter
+    if (toolName.startsWith('mcp__')) {
+        const parts = toolName.substring(5).split('__');
+        if (parts.length >= 2) {
+            return { displayName: parts.slice(1).join('__'), source: parts[0] ?? '' };
+        }
+        return { displayName: toolName.substring(5), source: 'mcp' };
+    }
+    if (toolName.startsWith('internal__')) {
+        return { displayName: toolName.substring(10), source: '' };
+    }
+    // No prefix
+    return { displayName: toolName, source: '' };
 }
 
 /**
@@ -23,23 +69,7 @@ function getDisplayInfo(
     toolName: string,
     toolArgs?: Record<string, unknown>
 ): { summary: string; displayName: string; source: string } {
-    let displayName = toolName;
-    let source = '';
-
-    // Extract MCP or internal prefix
-    if (toolName.startsWith('mcp__')) {
-        const parts = toolName.substring(5).split('__');
-        if (parts.length >= 2) {
-            source = parts[0];
-            displayName = parts.slice(1).join('__');
-        } else {
-            displayName = toolName.substring(5);
-            source = 'mcp';
-        }
-    } else if (toolName.startsWith('internal__')) {
-        displayName = toolName.substring(10);
-        source = 'internal';
-    }
+    const { displayName, source } = stripToolPrefix(toolName);
 
     // Generate smart summary based on tool type
     let summary = '';
@@ -125,6 +155,7 @@ export function ToolCallTimeline({
     success,
     requireApproval = false,
     approvalStatus,
+    displayData,
     onApprove,
     onReject,
 }: ToolCallTimelineProps) {
@@ -165,25 +196,13 @@ export function ToolCallTimeline({
         return <XCircle className="h-3.5 w-3.5 text-destructive" />;
     };
 
-    const getLineColor = () => {
-        if (isPendingApproval) return 'bg-amber-500/30';
-        if (isProcessing) return 'bg-blue-500/20';
-        if (success !== false) return 'bg-green-500/20';
-        return 'bg-destructive/20';
-    };
-
     return (
-        <div className="flex gap-2.5 animate-slide-up my-1.5">
-            {/* Timeline column */}
-            <div className="flex flex-col items-center pt-0.5">
-                {/* Status indicator */}
-                <div className="flex-shrink-0">{getStatusIndicator()}</div>
-                {/* Vertical line */}
-                <div className={cn('w-px flex-1 min-h-[8px]', getLineColor())} />
-            </div>
+        <div className="flex gap-2 animate-slide-up my-0.5">
+            {/* Status indicator */}
+            <div className="flex-shrink-0 pt-0.5">{getStatusIndicator()}</div>
 
             {/* Content */}
-            <div className="flex-1 min-w-0 pb-1">
+            <div className="flex-1 min-w-0">
                 {/* Summary line - clickable to expand */}
                 <button
                     onClick={() => (hasResult || isPendingApproval) && setExpanded(!expanded)}
@@ -205,7 +224,11 @@ export function ToolCallTimeline({
                                     : 'text-destructive'
                         )}
                     >
-                        {isPendingApproval ? 'Requires approval' : summary}
+                        {isPendingApproval
+                            ? 'Requires approval'
+                            : success === false
+                              ? `Failed: ${summary}`
+                              : summary}
                     </span>
 
                     {/* Approval status badges (for resolved approvals) */}
@@ -246,16 +269,29 @@ export function ToolCallTimeline({
 
                 {/* Inline approval buttons (compact view, when not expanded) */}
                 {isPendingApproval && !expanded && onApprove && onReject && (
-                    <div className="flex gap-1.5 mt-1.5">
+                    <div className="flex gap-1.5 mt-1.5 flex-wrap">
                         <Button
                             onClick={(e) => {
                                 e.stopPropagation();
-                                onApprove();
+                                onApprove(undefined, false);
                             }}
                             size="sm"
                             className="bg-green-600 hover:bg-green-700 text-white h-6 text-[11px] px-2.5"
                         >
                             Approve
+                        </Button>
+                        <Button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onApprove(undefined, true);
+                            }}
+                            size="sm"
+                            variant="outline"
+                            className="h-6 text-[11px] px-2.5 text-green-600 border-green-300 hover:bg-green-50 dark:border-green-700 dark:hover:bg-green-950/20"
+                            title="Approve this tool for the rest of the session"
+                        >
+                            <Shield className="h-3 w-3 mr-1" />
+                            Always
                         </Button>
                         <Button
                             onClick={(e) => {
@@ -297,44 +333,59 @@ export function ToolCallTimeline({
 
                         {/* Inline approval buttons (expanded view) */}
                         {isPendingApproval && onApprove && onReject && (
-                            <div className="flex gap-1.5">
+                            <div className="space-y-1.5">
+                                <div className="flex gap-1.5">
+                                    <Button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            onApprove(undefined, false);
+                                        }}
+                                        size="sm"
+                                        className="flex-1 bg-green-600 hover:bg-green-700 text-white h-7 text-xs"
+                                    >
+                                        <CheckCircle2 className="h-3 w-3 mr-1" />
+                                        Approve
+                                    </Button>
+                                    <Button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            onReject();
+                                        }}
+                                        size="sm"
+                                        variant="outline"
+                                        className="flex-1 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 h-7 text-xs"
+                                    >
+                                        <XCircle className="h-3 w-3 mr-1" />
+                                        Reject
+                                    </Button>
+                                </div>
                                 <Button
                                     onClick={(e) => {
                                         e.stopPropagation();
-                                        onApprove();
-                                    }}
-                                    size="sm"
-                                    className="flex-1 bg-green-600 hover:bg-green-700 text-white h-7 text-xs"
-                                >
-                                    <CheckCircle2 className="h-3 w-3 mr-1" />
-                                    Approve
-                                </Button>
-                                <Button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        onReject();
+                                        onApprove(undefined, true);
                                     }}
                                     size="sm"
                                     variant="outline"
-                                    className="flex-1 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 h-7 text-xs"
+                                    className="w-full h-6 text-[11px] text-green-600 border-green-300 hover:bg-green-50 dark:border-green-700 dark:hover:bg-green-950/20"
                                 >
-                                    <XCircle className="h-3 w-3 mr-1" />
-                                    Reject
+                                    <Shield className="h-3 w-3 mr-1" />
+                                    Approve for entire session
                                 </Button>
                             </div>
                         )}
 
-                        {/* Tool result (only if we have result) */}
+                        {/* Tool result - use rich renderer if display data available */}
                         {hasResult && (
                             <div>
                                 <h4 className="text-[9px] font-semibold text-muted-foreground/60 uppercase mb-1">
                                     Output
                                 </h4>
-                                <div className="bg-muted/30 rounded-md p-1.5">
-                                    <pre className="text-[10px] font-mono text-foreground/70 whitespace-pre-wrap break-all max-h-48 overflow-y-auto scrollbar-thin">
-                                        {formatResult(toolResult)}
-                                    </pre>
-                                </div>
+                                <ToolResultRenderer
+                                    display={displayData}
+                                    content={toolResult}
+                                    success={success}
+                                    defaultExpanded={success === false}
+                                />
                             </div>
                         )}
                     </div>
@@ -354,11 +405,4 @@ function formatValue(value: unknown): string {
         return str.length > 200 ? `${str.substring(0, 200)}...` : str;
     }
     return String(value);
-}
-
-function formatResult(result: unknown): string {
-    if (typeof result === 'string') {
-        return result;
-    }
-    return JSON.stringify(result, null, 2);
 }
