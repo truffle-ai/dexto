@@ -77,6 +77,11 @@ export const queryKeys = {
         tools: (serverId: string) => ['servers', 'tools', serverId] as const,
     },
 
+    // Tools queries (all tools from all sources)
+    tools: {
+        all: ['tools'] as const,
+    },
+
     // Message queue queries
     queue: {
         list: (sessionId: string) => ['queue', sessionId] as const,

@@ -451,6 +451,15 @@ export class MCPManager {
     }
 
     /**
+     * Get all MCP tools with their server metadata.
+     * This returns the internal tool cache entries which include server names.
+     * @returns Map of tool names to their cache entries (includes serverName, client, and definition)
+     */
+    getAllToolsWithServerInfo(): Map<string, ToolCacheEntry> {
+        return new Map(this.toolCache);
+    }
+
+    /**
      * Parse a qualified tool name to extract server name and actual tool name.
      * Uses distinctive delimiter to avoid ambiguity and splits on last occurrence.
      */

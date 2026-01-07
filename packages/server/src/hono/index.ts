@@ -19,6 +19,7 @@ import { createApprovalsRouter } from './routes/approvals.js';
 import { createQueueRouter } from './routes/queue.js';
 import { createOpenRouterRouter } from './routes/openrouter.js';
 import { createKeyRouter } from './routes/key.js';
+import { createToolsRouter } from './routes/tools.js';
 import {
     createStaticRouter,
     createSpaFallbackHandler,
@@ -121,7 +122,8 @@ export function createDextoApp(options: CreateDextoAppOptions) {
         .route('/api', createAgentsRouter(getAgent, agentsContext || dummyAgentsContext))
         .route('/api', createQueueRouter(getAgent))
         .route('/api', createOpenRouterRouter())
-        .route('/api', createKeyRouter());
+        .route('/api', createKeyRouter())
+        .route('/api', createToolsRouter(getAgent));
 
     // Expose OpenAPI document
     // Current approach uses @hono/zod-openapi's .doc() method for OpenAPI spec generation
