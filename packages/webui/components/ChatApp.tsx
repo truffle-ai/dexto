@@ -786,7 +786,7 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
             {/* Always visible: collapsed (thin bar) or expanded (full panel) */}
             <div
                 className={cn(
-                    'hidden md:block shrink-0 bg-card/50 backdrop-blur-sm',
+                    'hidden md:block h-full shrink-0 bg-card/50 backdrop-blur-sm',
                     !isFirstRenderRef.current && 'transition-all duration-300 ease-in-out',
                     isSessionsPanelOpen ? 'w-80' : 'w-14'
                 )}
@@ -802,6 +802,10 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
                     variant="inline"
                     onSearchOpen={() => setSearchOpen(true)}
                     onNewChat={handleReturnToWelcome}
+                    onSettingsOpen={() => setSettingsOpen(true)}
+                    onPlaygroundOpen={() => window.open('/playground', '_blank')}
+                    onThemeToggle={() => toggleTheme(theme === 'light')}
+                    theme={theme}
                 />
             </div>
 
@@ -816,11 +820,15 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
                     variant="overlay"
                     onSearchOpen={() => setSearchOpen(true)}
                     onNewChat={handleReturnToWelcome}
+                    onSettingsOpen={() => setSettingsOpen(true)}
+                    onPlaygroundOpen={() => window.open('/playground', '_blank')}
+                    onThemeToggle={() => toggleTheme(theme === 'light')}
+                    theme={theme}
                 />
             </div>
 
             <main
-                className="flex-1 flex flex-col relative min-w-0"
+                className="flex-1 h-full flex flex-col relative min-w-0"
                 style={
                     { '--thread-max-width': '54rem' } as React.CSSProperties & {
                         '--thread-max-width': string;
@@ -938,25 +946,6 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
                                 </Tooltip>
                             </div>
 
-                            {/* Theme */}
-                            <ThemeSwitch />
-
-                            {/* Settings */}
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => setSettingsOpen(true)}
-                                        className="h-7 w-7 p-0"
-                                        aria-label="Open settings"
-                                    >
-                                        <Settings className="h-3.5 w-3.5" />
-                                    </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>Settings</TooltipContent>
-                            </Tooltip>
-
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                     <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
@@ -968,12 +957,6 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
                                     <DropdownMenuItem onClick={() => setServerRegistryOpen(true)}>
                                         <Server className="h-4 w-4 mr-2" />
                                         Connect MCPs
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem
-                                        onClick={() => window.open('/playground', '_blank')}
-                                    >
-                                        <FlaskConical className="h-4 w-4 mr-2" />
-                                        MCP Playground
                                     </DropdownMenuItem>
                                     <DropdownMenuItem onClick={() => setExportOpen(true)}>
                                         <Download className="h-4 w-4 mr-2" />
@@ -1167,26 +1150,20 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
                         {isWelcomeState ? (
                             /* Modern Welcome Screen with Central Search */
                             <div className="flex-1 flex flex-col justify-end sm:justify-center p-6 sm:-mt-20">
-                                <div className="w-full max-w-full sm:max-w-[var(--thread-max-width)] mx-auto space-y-6 pb-safe">
-                                    <div className="text-center space-y-3">
-                                        <div className="flex items-center justify-center gap-3">
-                                            <img
-                                                src="/logos/dexto/dexto_logo_icon.svg"
-                                                alt="Dexto"
-                                                className="h-12 w-auto"
-                                            />
-                                            <h2 className="text-2xl font-bold font-mono tracking-tight bg-gradient-to-r from-primary to-primary/70 bg-clip-text">
-                                                {greeting || 'Welcome to Dexto'}
-                                            </h2>
-                                        </div>
+                                <div className="w-full max-w-full mx-auto pb-safe">
+                                    {/* Greeting/Header Section - Narrowest */}
+                                    <div className="text-center space-y-3 mb-8 max-w-full sm:max-w-3xl mx-auto">
+                                        <h2 className="text-2xl font-bold font-mono tracking-tight bg-gradient-to-r from-primary to-primary/70 bg-clip-text">
+                                            {greeting || 'Welcome to Dexto'}
+                                        </h2>
                                         <p className="text-base text-muted-foreground max-w-xl mx-auto leading-relaxed">
                                             Your AI assistant with powerful tools. Ask anything or
                                             connect new capabilities.
                                         </p>
                                     </div>
 
-                                    {/* Quick Actions Grid - Compact */}
-                                    <div className="flex flex-wrap justify-center gap-2 max-w-full sm:max-w-[var(--thread-max-width)] mx-auto">
+                                    {/* Quick Actions Grid - Medium width */}
+                                    <div className="flex flex-wrap justify-center gap-2 mb-6 max-w-full sm:max-w-3xl lg:max-w-4xl mx-auto">
                                         {dynamicQuickActions.map((action, index) => {
                                             const button = (
                                                 <button
@@ -1217,8 +1194,8 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
                                         })}
                                     </div>
 
-                                    {/* Central Search Bar with Full Features */}
-                                    <div className="max-w-full sm:max-w-[var(--thread-max-width)] mx-auto">
+                                    {/* Central Input Bar - Narrowest, most focused */}
+                                    <div className="max-w-full sm:max-w-3xl mx-auto mb-6">
                                         <InputArea
                                             onSend={handleSend}
                                             isSending={isSendingMessage}
@@ -1228,7 +1205,7 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
                                     </div>
 
                                     {/* Quick Tips */}
-                                    <div className="text-xs text-muted-foreground space-y-1 text-center">
+                                    <div className="text-xs text-muted-foreground space-y-1 text-center max-w-full sm:max-w-3xl mx-auto">
                                         <p>
                                             💡 Try
                                             <kbd className="px-1 py-0.5 bg-muted rounded text-xs ml-1">
@@ -1314,34 +1291,6 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
                                     {/* Scroll hint now rendered inside sticky dock */}
                                 </div>
                             </div>
-                        )}
-                    </div>
-
-                    {/* Servers Panel - Responsive: inline on desktop, overlay on narrow */}
-                    {/* Desktop: inline panel */}
-                    <div
-                        className={cn(
-                            'hidden md:block shrink-0 transition-all duration-300 ease-in-out border-l border-border/50 bg-card/50 backdrop-blur-sm',
-                            isServersPanelOpen ? 'w-80' : 'w-0 overflow-hidden'
-                        )}
-                    >
-                        {isServersPanelOpen && (
-                            <ServersPanel
-                                isOpen={isServersPanelOpen}
-                                onClose={() => setServersPanelOpen(false)}
-                                onOpenConnectModal={() => setModalOpen(true)}
-                                onOpenConnectWithPrefill={(opts) => {
-                                    setConnectPrefill(opts);
-                                    setModalOpen(true);
-                                }}
-                                onServerConnected={(name) => {
-                                    setServersRefreshTrigger((prev) => prev + 1);
-                                    setSuccessMessage(`Added ${name}`);
-                                    setTimeout(() => setSuccessMessage(null), 4000);
-                                }}
-                                variant="inline"
-                                refreshTrigger={serversRefreshTrigger}
-                            />
                         )}
                     </div>
 
@@ -1580,6 +1529,33 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
                     </DialogContent>
                 </Dialog>
             </main>
+
+            {/* Servers Panel - Desktop: inline panel (sibling to main for full height) */}
+            <div
+                className={cn(
+                    'hidden md:block h-full shrink-0 transition-all duration-300 ease-in-out border-l border-border/50 bg-card/50 backdrop-blur-sm',
+                    isServersPanelOpen ? 'w-80' : 'w-0 overflow-hidden'
+                )}
+            >
+                {isServersPanelOpen && (
+                    <ServersPanel
+                        isOpen={isServersPanelOpen}
+                        onClose={() => setServersPanelOpen(false)}
+                        onOpenConnectModal={() => setModalOpen(true)}
+                        onOpenConnectWithPrefill={(opts) => {
+                            setConnectPrefill(opts);
+                            setModalOpen(true);
+                        }}
+                        onServerConnected={(name) => {
+                            setServersRefreshTrigger((prev) => prev + 1);
+                            setSuccessMessage(`Added ${name}`);
+                            setTimeout(() => setSuccessMessage(null), 4000);
+                        }}
+                        variant="inline"
+                        refreshTrigger={serversRefreshTrigger}
+                    />
+                )}
+            </div>
 
             {/* Global Search Modal */}
             <GlobalSearchModal

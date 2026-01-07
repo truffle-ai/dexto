@@ -24,13 +24,16 @@ import {
     RefreshCw,
     History,
     Search,
-    X,
     Plus,
     MoreHorizontal,
     Pencil,
     Copy,
     Check,
     ChevronLeft,
+    Settings,
+    FlaskConical,
+    Moon,
+    Sun,
 } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
 import {
@@ -52,6 +55,11 @@ interface SessionPanelProps {
     variant?: 'inline' | 'overlay';
     onSearchOpen?: () => void;
     onNewChat?: () => void;
+    // App-level actions
+    onSettingsOpen?: () => void;
+    onPlaygroundOpen?: () => void;
+    onThemeToggle?: () => void;
+    theme?: 'light' | 'dark';
 }
 
 function sortSessions(sessions: Session[]): Session[] {
@@ -72,6 +80,10 @@ export default function SessionPanel({
     variant = 'overlay',
     onSearchOpen,
     onNewChat,
+    onSettingsOpen,
+    onPlaygroundOpen,
+    onThemeToggle,
+    theme,
 }: SessionPanelProps) {
     const [isNewSessionOpen, setNewSessionOpen] = useState(false);
     const [newSessionId, setNewSessionId] = useState('');
@@ -375,6 +387,50 @@ export default function SessionPanel({
                     </div>
                 )}
             </ScrollArea>
+
+            {/* Footer with app-level actions */}
+            <div className="border-t border-border/30 p-3 space-y-1">
+                {/* Settings & Preferences */}
+                {onSettingsOpen && (
+                    <button
+                        onClick={onSettingsOpen}
+                        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:bg-muted/40 hover:text-foreground transition-colors"
+                    >
+                        <Settings className="h-4 w-4" />
+                        <span>Settings</span>
+                    </button>
+                )}
+
+                {onThemeToggle && (
+                    <button
+                        onClick={onThemeToggle}
+                        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:bg-muted/40 hover:text-foreground transition-colors"
+                    >
+                        {theme === 'dark' ? (
+                            <Sun className="h-4 w-4 transition-transform duration-200 hover:rotate-180" />
+                        ) : (
+                            <Moon className="h-4 w-4 transition-transform duration-200 hover:rotate-12" />
+                        )}
+                        <span>{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
+                    </button>
+                )}
+
+                {/* Separator */}
+                {(onSettingsOpen || onThemeToggle) && onPlaygroundOpen && (
+                    <div className="h-px bg-border/30 my-1" />
+                )}
+
+                {/* Developer Tools */}
+                {onPlaygroundOpen && (
+                    <button
+                        onClick={onPlaygroundOpen}
+                        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:bg-muted/40 hover:text-foreground transition-colors"
+                    >
+                        <FlaskConical className="h-4 w-4" />
+                        <span>MCP Playground</span>
+                    </button>
+                )}
+            </div>
 
             {/* New Chat Dialog */}
             <Dialog open={isNewSessionOpen} onOpenChange={setNewSessionOpen}>
