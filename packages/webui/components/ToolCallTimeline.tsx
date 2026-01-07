@@ -126,17 +126,30 @@ export function ToolCallTimeline({
             (toolArgs?.command && hasResult)
     );
 
-    // Smart default: expand only for pending approvals
-    // Failed, rejected, and no-output should be collapsed
-    const [expanded, setExpanded] = useState(isPendingApproval);
+    // Determine if this tool has rich UI that should be shown by default
+    // Rich UI includes: displayData, file content previews, and diff views
+    // Exclude bash commands as they're more variable in visual value
+    const hasRichUI = Boolean(
+        displayData || toolArgs?.content || (toolArgs?.old_string && toolArgs?.new_string)
+    );
+
+    // Smart default: expand for pending approvals and successful tools with rich UI
+    // Failed, rejected, and no-output should always be collapsed
+    const [expanded, setExpanded] = useState(
+        isPendingApproval || (hasRichUI && !isFailed && !isRejected)
+    );
     const [detailsExpanded, setDetailsExpanded] = useState(false);
     const [copied, setCopied] = useState(false);
 
+    // Auto-collapse after approval is resolved, but keep open if tool has rich UI and succeeded
     useEffect(() => {
         if (requireApproval && approvalStatus && approvalStatus !== 'pending') {
-            setExpanded(false);
+            // Collapse if rejected or if no rich UI to show
+            if (isRejected || !hasRichUI) {
+                setExpanded(false);
+            }
         }
-    }, [requireApproval, approvalStatus]);
+    }, [requireApproval, approvalStatus, hasRichUI, isRejected]);
 
     const { displayName, source } = stripToolPrefix(toolName);
     const summary = getSummary(displayName, toolArgs);
@@ -401,27 +414,40 @@ export function ToolCallTimeline({
     }
 
     function renderResultContent() {
-        // If we have display metadata from tool, use it
-        if (displayData) {
-            switch (displayData.type) {
-                case 'diff':
-                    return renderDiff(displayData);
-                case 'shell':
-                    return renderShell(displayData);
-                case 'search':
-                    return renderSearch(displayData);
-                case 'file':
-                    return renderFile(displayData);
-            }
-        }
-
-        // Otherwise generate preview from toolArgs
+        // Extract toolArgs for checking rich content availability
         const command = toolArgs?.command as string | undefined;
         const filePath = (toolArgs?.file_path || toolArgs?.path) as string | undefined;
         const content = toolArgs?.content as string | undefined;
         const oldString = toolArgs?.old_string as string | undefined;
         const newString = toolArgs?.new_string as string | undefined;
 
+        // Check if we have rich content that should override simple displayData
+        const hasRichContent = !!(
+            content ||
+            (oldString !== undefined && newString !== undefined) ||
+            (command && hasResult)
+        );
+
+        // If we have display metadata from tool, use it (unless we have richer content)
+        if (displayData) {
+            // Skip simple file metadata display if we have rich content to show
+            if (displayData.type === 'file' && hasRichContent) {
+                // Fall through to render rich content below
+            } else {
+                switch (displayData.type) {
+                    case 'diff':
+                        return renderDiff(displayData);
+                    case 'shell':
+                        return renderShell(displayData);
+                    case 'search':
+                        return renderSearch(displayData);
+                    case 'file':
+                        return renderFile(displayData);
+                }
+            }
+        }
+
+        // Render rich content from toolArgs
         // Bash command with result
         if (command && hasResult) {
             return renderBashResult(command);
@@ -541,8 +567,8 @@ export function ToolCallTimeline({
                     </button>
                 </div>
                 {output && (
-                    <div className="bg-zinc-900 rounded overflow-hidden">
-                        <pre className="p-1.5 text-[11px] text-zinc-300 font-mono whitespace-pre-wrap max-h-48 overflow-y-auto">
+                    <div className="bg-zinc-100 dark:bg-zinc-900 rounded overflow-hidden border border-zinc-200 dark:border-zinc-800">
+                        <pre className="p-1.5 text-[11px] text-zinc-800 dark:text-zinc-300 font-mono whitespace-pre-wrap max-h-48 overflow-y-auto">
                             {displayLines.join('\n')}
                         </pre>
                         {lines.length > 5 && (
@@ -551,7 +577,7 @@ export function ToolCallTimeline({
                                     e.stopPropagation();
                                     setDetailsExpanded(!detailsExpanded);
                                 }}
-                                className="w-full py-0.5 text-[10px] text-blue-400 bg-zinc-800 border-t border-zinc-700"
+                                className="w-full py-0.5 text-[10px] text-blue-600 dark:text-blue-400 bg-zinc-200 dark:bg-zinc-800 border-t border-zinc-300 dark:border-zinc-700"
                             >
                                 {detailsExpanded ? 'less' : `+${lines.length - 5} more...`}
                             </button>
@@ -701,8 +727,8 @@ export function ToolCallTimeline({
 
                 {/* Output */}
                 {output && (
-                    <div className="bg-zinc-900 rounded overflow-hidden">
-                        <pre className="p-1.5 text-[11px] text-zinc-300 font-mono whitespace-pre-wrap max-h-48 overflow-y-auto">
+                    <div className="bg-zinc-100 dark:bg-zinc-900 rounded overflow-hidden border border-zinc-200 dark:border-zinc-800">
+                        <pre className="p-1.5 text-[11px] text-zinc-800 dark:text-zinc-300 font-mono whitespace-pre-wrap max-h-48 overflow-y-auto">
                             {displayLines.join('\n')}
                         </pre>
                         {lines.length > 5 && (
@@ -711,7 +737,7 @@ export function ToolCallTimeline({
                                     e.stopPropagation();
                                     setDetailsExpanded(!detailsExpanded);
                                 }}
-                                className="w-full py-0.5 text-[10px] text-blue-400 bg-zinc-800 border-t border-zinc-700"
+                                className="w-full py-0.5 text-[10px] text-blue-600 dark:text-blue-400 bg-zinc-200 dark:bg-zinc-800 border-t border-zinc-300 dark:border-zinc-700"
                             >
                                 {detailsExpanded ? 'less' : `+${lines.length - 5} more...`}
                             </button>
@@ -721,11 +747,11 @@ export function ToolCallTimeline({
 
                 {/* Stderr if present and different from stdout */}
                 {stderr && stderr !== stdout && (
-                    <div className="bg-red-950/30 rounded overflow-hidden border border-red-900/30">
-                        <div className="px-2 py-0.5 text-[10px] text-red-400 bg-red-900/20 border-b border-red-900/30">
+                    <div className="bg-red-50 dark:bg-red-950/30 rounded overflow-hidden border border-red-200 dark:border-red-900/30">
+                        <div className="px-2 py-0.5 text-[10px] text-red-700 dark:text-red-400 bg-red-100 dark:bg-red-900/20 border-b border-red-200 dark:border-red-900/30">
                             stderr
                         </div>
-                        <pre className="p-1.5 text-[11px] text-red-300 font-mono whitespace-pre-wrap max-h-24 overflow-y-auto">
+                        <pre className="p-1.5 text-[11px] text-red-800 dark:text-red-300 font-mono whitespace-pre-wrap max-h-24 overflow-y-auto">
                             {stderr}
                         </pre>
                     </div>

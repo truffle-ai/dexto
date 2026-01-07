@@ -8,6 +8,7 @@
 import { useState, useCallback, lazy, Suspense } from 'react';
 import { Copy, Check, Maximize2, X, FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useTheme } from './hooks/useTheme';
 import hljs from 'highlight.js/lib/core';
 
 // Register common languages
@@ -140,6 +141,7 @@ export function CodePreview({
     const [showAll, setShowAll] = useState(false);
     const [showFullScreen, setShowFullScreen] = useState(false);
     const [copied, setCopied] = useState(false);
+    const { theme } = useTheme();
 
     const language = overrideLanguage || (filePath ? getLanguageFromPath(filePath) : 'plaintext');
     const lines = content.split('\n');
@@ -201,7 +203,7 @@ export function CodePreview({
 
                 {/* Code preview */}
                 <div
-                    className="bg-zinc-900 dark:bg-zinc-950 rounded overflow-hidden border border-border/30"
+                    className="bg-zinc-100 dark:bg-zinc-950 rounded overflow-hidden border border-zinc-200 dark:border-zinc-800"
                     style={{ maxHeight: showAll ? undefined : maxHeight }}
                 >
                     <div
@@ -215,11 +217,11 @@ export function CodePreview({
                                         .split('\n')
                                         .map((line, i) => (
                                             <div key={i} className="flex">
-                                                <span className="w-8 pr-2 text-right text-zinc-600 select-none flex-shrink-0">
+                                                <span className="w-8 pr-2 text-right text-zinc-400 dark:text-zinc-600 select-none flex-shrink-0">
                                                     {i + 1}
                                                 </span>
                                                 <span
-                                                    className="text-zinc-200 whitespace-pre-wrap break-all flex-1"
+                                                    className="text-zinc-800 dark:text-zinc-200 whitespace-pre-wrap break-all flex-1"
                                                     dangerouslySetInnerHTML={{
                                                         __html: (() => {
                                                             try {
@@ -244,7 +246,7 @@ export function CodePreview({
                                 </code>
                             ) : (
                                 <code
-                                    className="text-zinc-200 whitespace-pre-wrap break-all"
+                                    className="text-zinc-800 dark:text-zinc-200 whitespace-pre-wrap break-all"
                                     dangerouslySetInnerHTML={{ __html: highlightedContent }}
                                 />
                             )}
@@ -255,7 +257,7 @@ export function CodePreview({
                     {shouldTruncate && (
                         <button
                             onClick={() => setShowAll(true)}
-                            className="w-full py-1 text-[10px] text-blue-400 bg-zinc-800 border-t border-zinc-700 hover:bg-zinc-700 transition-colors"
+                            className="w-full py-1 text-[10px] text-blue-600 dark:text-blue-400 bg-zinc-200 dark:bg-zinc-800 border-t border-zinc-300 dark:border-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-700 transition-colors"
                         >
                             Show {lines.length - maxLines} more lines...
                         </button>
@@ -263,7 +265,7 @@ export function CodePreview({
                     {showAll && lines.length > maxLines && (
                         <button
                             onClick={() => setShowAll(false)}
-                            className="w-full py-1 text-[10px] text-blue-400 bg-zinc-800 border-t border-zinc-700 hover:bg-zinc-700 transition-colors"
+                            className="w-full py-1 text-[10px] text-blue-600 dark:text-blue-400 bg-zinc-200 dark:bg-zinc-800 border-t border-zinc-300 dark:border-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-700 transition-colors"
                         >
                             Show less
                         </button>
@@ -273,19 +275,21 @@ export function CodePreview({
 
             {/* Full screen modal with Monaco */}
             {showFullScreen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
-                    <div className="relative w-[90vw] h-[85vh] bg-zinc-900 rounded-lg shadow-2xl flex flex-col overflow-hidden">
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 dark:bg-black/80 backdrop-blur-sm">
+                    <div className="relative w-[90vw] h-[85vh] bg-white dark:bg-zinc-900 rounded-lg shadow-2xl flex flex-col overflow-hidden border border-zinc-200 dark:border-zinc-700">
                         {/* Modal header */}
-                        <div className="flex items-center justify-between px-4 py-2 bg-zinc-800 border-b border-zinc-700">
-                            <div className="flex items-center gap-2 text-sm text-zinc-300">
+                        <div className="flex items-center justify-between px-4 py-2 bg-zinc-100 dark:bg-zinc-800 border-b border-zinc-200 dark:border-zinc-700">
+                            <div className="flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300">
                                 <FileText className="h-4 w-4" />
                                 <span className="font-mono">{filePath || 'Code'}</span>
-                                <span className="text-zinc-500">({lines.length} lines)</span>
+                                <span className="text-zinc-500 dark:text-zinc-500">
+                                    ({lines.length} lines)
+                                </span>
                             </div>
                             <div className="flex items-center gap-2">
                                 <button
                                     onClick={handleCopy}
-                                    className="flex items-center gap-1.5 px-2 py-1 text-xs text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700 rounded transition-colors"
+                                    className="flex items-center gap-1.5 px-2 py-1 text-xs text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded transition-colors"
                                 >
                                     {copied ? (
                                         <>
@@ -301,7 +305,7 @@ export function CodePreview({
                                 </button>
                                 <button
                                     onClick={() => setShowFullScreen(false)}
-                                    className="p-1 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700 rounded transition-colors"
+                                    className="p-1 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded transition-colors"
                                 >
                                     <X className="h-5 w-5" />
                                 </button>
@@ -321,7 +325,7 @@ export function CodePreview({
                                     height="100%"
                                     language={language === 'plaintext' ? undefined : language}
                                     value={content}
-                                    theme="vs-dark"
+                                    theme={theme === 'dark' ? 'vs-dark' : 'light'}
                                     options={{
                                         readOnly: true,
                                         minimap: { enabled: true },

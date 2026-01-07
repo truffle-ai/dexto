@@ -577,7 +577,7 @@ export default function SessionPanel({
             </button>
 
             {/* Action items with subtle spacing */}
-            <div className="flex flex-col gap-1">
+            <div className="flex flex-col gap-1 flex-1">
                 {/* New Chat */}
                 {onNewChat && (
                     <button
@@ -597,6 +597,46 @@ export default function SessionPanel({
                         aria-label="Search"
                     >
                         <Search className="h-5 w-5" />
+                    </button>
+                )}
+            </div>
+
+            {/* Footer actions - settings, theme, playground */}
+            <div className="flex flex-col gap-1 pt-2 border-t border-border/30">
+                {/* Settings */}
+                {onSettingsOpen && (
+                    <button
+                        onClick={onSettingsOpen}
+                        className="flex items-center justify-center w-10 h-10 rounded-lg text-muted-foreground hover:bg-muted/40 hover:text-foreground transition-colors"
+                        aria-label="Settings"
+                    >
+                        <Settings className="h-5 w-5" />
+                    </button>
+                )}
+
+                {/* Theme Toggle */}
+                {onThemeToggle && (
+                    <button
+                        onClick={onThemeToggle}
+                        className="flex items-center justify-center w-10 h-10 rounded-lg text-muted-foreground hover:bg-muted/40 hover:text-foreground transition-colors"
+                        aria-label={theme === 'dark' ? 'Light mode' : 'Dark mode'}
+                    >
+                        {theme === 'dark' ? (
+                            <Sun className="h-5 w-5" />
+                        ) : (
+                            <Moon className="h-5 w-5" />
+                        )}
+                    </button>
+                )}
+
+                {/* Playground */}
+                {onPlaygroundOpen && (
+                    <button
+                        onClick={onPlaygroundOpen}
+                        className="flex items-center justify-center w-10 h-10 rounded-lg text-muted-foreground hover:bg-muted/40 hover:text-foreground transition-colors"
+                        aria-label="MCP Playground"
+                    >
+                        <FlaskConical className="h-5 w-5" />
                     </button>
                 )}
             </div>

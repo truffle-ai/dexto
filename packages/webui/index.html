@@ -14,13 +14,7 @@
         <!-- Theme flash prevention - must run before body renders -->
         <script>
             (function () {
-                var stored = localStorage.getItem('theme-storage');
-                var theme = 'dark';
-                if (stored) {
-                    try {
-                        theme = JSON.parse(stored).state?.theme || 'dark';
-                    } catch (e) {}
-                }
+                var theme = localStorage.getItem('theme') || 'dark';
                 if (theme === 'dark') document.documentElement.classList.add('dark');
             })();
         </script>
