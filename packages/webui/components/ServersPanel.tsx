@@ -849,12 +849,13 @@ export default function ServersPanel({
                             const isCollapsed = collapsedSections.has(section.title);
                             return (
                                 <div key={section.title} className="mb-4 last:mb-0">
-                                    {/* Section Header - Clickable to collapse/expand */}
-                                    <button
-                                        onClick={() => toggleSection(section.title)}
-                                        className="w-full flex items-center justify-between gap-2 mb-3 px-1 group transition-all duration-150"
-                                    >
-                                        <div className="flex items-center gap-2.5 flex-1 min-w-0 pb-2 border-b border-border/40">
+                                    {/* Section Header */}
+                                    <div className="w-full flex items-center justify-between gap-2 mb-3 px-1 group transition-all duration-150">
+                                        {/* Clickable collapse/expand area */}
+                                        <button
+                                            onClick={() => toggleSection(section.title)}
+                                            className="flex items-center gap-2.5 flex-1 min-w-0 pb-2 border-b border-border/40 text-left"
+                                        >
                                             <ChevronDown
                                                 className={cn(
                                                     'h-4 w-4 text-muted-foreground/50 shrink-0 transition-transform duration-200',
@@ -897,14 +898,11 @@ export default function ServersPanel({
                                             <span className="text-xs text-muted-foreground/50 font-medium">
                                                 {section.tools.length}
                                             </span>
-                                        </div>
+                                        </button>
 
-                                        {/* MCP Server Controls */}
+                                        {/* MCP Server Controls - outside the collapse button */}
                                         {section.type === 'mcp' && section.server && (
-                                            <div
-                                                className="flex items-center gap-0.5"
-                                                onClick={(e) => e.stopPropagation()}
-                                            >
+                                            <div className="flex items-center gap-0.5">
                                                 {/* Restart button */}
                                                 {restartServerMutation.isPending &&
                                                 restartServerMutation.variables ===
@@ -918,12 +916,11 @@ export default function ServersPanel({
                                                             <Button
                                                                 variant="ghost"
                                                                 size="sm"
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
+                                                                onClick={() =>
                                                                     handleRestartServer(
                                                                         section.server!.id
-                                                                    );
-                                                                }}
+                                                                    )
+                                                                }
                                                                 className="h-6 w-6 p-0 text-muted-foreground/60 hover:text-primary hover:bg-muted/50"
                                                                 disabled={
                                                                     deleteServerMutation.isPending &&
@@ -953,12 +950,11 @@ export default function ServersPanel({
                                                             <Button
                                                                 variant="ghost"
                                                                 size="sm"
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
+                                                                onClick={() =>
                                                                     handleDeleteServer(
                                                                         section.server!.id
-                                                                    );
-                                                                }}
+                                                                    )
+                                                                }
                                                                 className="h-6 w-6 p-0 text-muted-foreground/60 hover:text-destructive hover:bg-muted/50"
                                                                 disabled={
                                                                     restartServerMutation.isPending &&
@@ -976,7 +972,7 @@ export default function ServersPanel({
                                                 )}
                                             </div>
                                         )}
-                                    </button>
+                                    </div>
 
                                     {/* Tool Items - Only show if not collapsed */}
                                     {!isCollapsed && (
