@@ -331,7 +331,7 @@ describe('Event Handler Registry', () => {
     });
 
     describe('handleApprovalResponse', () => {
-        it('should set agent to idle when approved', () => {
+        it('should set agent to thinking when approved', () => {
             const event: Extract<StreamingEvent, { name: 'approval:response' }> = {
                 name: 'approval:response',
                 sessionId: TEST_SESSION_ID,
@@ -342,7 +342,8 @@ describe('Event Handler Registry', () => {
             handleApprovalResponse(event);
 
             const agentState = useAgentStore.getState();
-            expect(agentState.status).toBe('idle');
+            // Agent resumes execution after approval - set to thinking (not idle)
+            expect(agentState.status).toBe('thinking');
         });
 
         it('should set agent to idle when rejected', () => {

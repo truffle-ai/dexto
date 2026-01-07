@@ -305,7 +305,8 @@ describe('EventBus Integration', () => {
                 status: ApprovalStatus.APPROVED,
             });
 
-            expect(useAgentStore.getState().status).toBe('idle');
+            // Status transitions to 'thinking' - agent is resuming execution after approval
+            expect(useAgentStore.getState().status).toBe('thinking');
         });
 
         it('should process approval:response with rejected status', () => {
