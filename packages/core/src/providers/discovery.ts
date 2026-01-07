@@ -1,6 +1,8 @@
 import { blobStoreRegistry } from '../storage/blob/index.js';
 import { compressionRegistry } from '../context/compression/index.js';
 import { customToolRegistry } from '../tools/custom-tool-registry.js';
+import { INTERNAL_TOOL_NAMES } from '../tools/internal-tools/constants.js';
+import { INTERNAL_TOOL_REGISTRY } from '../tools/internal-tools/registry.js';
 
 /**
  * Information about a registered provider.
@@ -23,6 +25,17 @@ export interface DiscoveredProvider {
 }
 
 /**
+ * Information about an internal tool for discovery.
+ */
+export interface InternalToolDiscovery {
+    /** Tool name identifier (e.g., 'search_history', 'ask_user') */
+    name: string;
+
+    /** Human-readable description of what the tool does */
+    description: string;
+}
+
+/**
  * Discovery result with providers grouped by category.
  */
 export interface ProviderDiscovery {
@@ -34,6 +47,9 @@ export interface ProviderDiscovery {
 
     /** Custom tool providers */
     customTools: DiscoveredProvider[];
+
+    /** Internal tools available for configuration */
+    internalTools: InternalToolDiscovery[];
 }
 
 /**
@@ -96,10 +112,17 @@ export function listAllProviders(): ProviderDiscovery {
         return info;
     });
 
+    // Get internal tools
+    const internalTools: InternalToolDiscovery[] = INTERNAL_TOOL_NAMES.map((name) => ({
+        name,
+        description: INTERNAL_TOOL_REGISTRY[name].description,
+    }));
+
     return {
         blob: blobProviders,
         compression: compressionProviders,
         customTools: customToolProviders,
+        internalTools,
     };
 }
 

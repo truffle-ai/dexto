@@ -91,4 +91,9 @@ export const queryKeys = {
     approvals: {
         pending: (sessionId: string) => ['approvals', 'pending', sessionId] as const,
     },
+
+    // Discovery queries (available providers and capabilities)
+    discovery: {
+        all: ['discovery'] as const,
+    },
 } as const;

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useHotkeys } from 'react-hotkeys-hook';
 import { useNavigate } from '@tanstack/react-router';
 import { useChatContext } from './hooks/ChatContext';
@@ -8,10 +8,16 @@ import { useDeleteSession } from './hooks/useSessions';
 import { client } from '@/lib/client';
 import { useAddServer } from './hooks/useServers';
 import { useResolvePrompt } from './hooks/usePrompts';
-import { useChatStore, type Message } from '@/lib/stores/chatStore';
-import { useSessionStore } from '@/lib/stores/sessionStore';
-import { usePreferenceStore } from '@/lib/stores/preferenceStore';
-import { useAgentStore } from '@/lib/stores/agentStore';
+import {
+    useChatStore,
+    usePreferenceStore,
+    useCurrentSessionId,
+    useIsWelcomeState,
+    useAllMessages,
+    useSessionProcessing,
+    useSessionError,
+    useCurrentToolName,
+} from '@/lib/stores';
 import { useGreeting } from './hooks/useGreeting';
 import MessageList from './MessageList';
 import InputArea from './InputArea';
@@ -78,47 +84,16 @@ interface ChatAppProps {
     sessionId?: string;
 }
 
-// Stable empty array reference to prevent infinite re-renders in Zustand selectors
-const EMPTY_MESSAGES: Message[] = [];
-
 export default function ChatApp({ sessionId }: ChatAppProps = {}) {
     const navigate = useNavigate();
 
-    // Get state from Zustand stores
-    const currentSessionId = useSessionStore((s) => s.currentSessionId);
-    const isWelcomeState = useSessionStore((s) => s.isWelcomeState);
-
-    // Get session state from chatStore - use stable EMPTY_MESSAGES reference
-    // Access sessions Map directly for more predictable selector behavior
-    const baseMessages = useChatStore((s) => {
-        if (!currentSessionId) return EMPTY_MESSAGES;
-        const session = s.sessions.get(currentSessionId);
-        return session?.messages ?? EMPTY_MESSAGES;
-    });
-    // Get streaming message separately for stable selector references
-    const streamingMessage = useChatStore((s) => {
-        if (!currentSessionId) return null;
-        const session = s.sessions.get(currentSessionId);
-        return session?.streamingMessage ?? null;
-    });
-    // Combine messages with streaming message using useMemo for stable reference
-    const messages = useMemo(() => {
-        if (streamingMessage) {
-            return [...baseMessages, streamingMessage];
-        }
-        return baseMessages;
-    }, [baseMessages, streamingMessage]);
-    const processing = useChatStore((s) => {
-        if (!currentSessionId) return false;
-        const session = s.sessions.get(currentSessionId);
-        return session?.processing ?? false;
-    });
-    const currentToolName = useAgentStore((s) => s.currentToolName);
-    const activeError = useChatStore((s) => {
-        if (!currentSessionId) return null;
-        const session = s.sessions.get(currentSessionId);
-        return session?.error ?? null;
-    });
+    // Get state from Zustand stores using centralized selectors
+    const currentSessionId = useCurrentSessionId();
+    const isWelcomeState = useIsWelcomeState();
+    const messages = useAllMessages(currentSessionId);
+    const processing = useSessionProcessing(currentSessionId);
+    const activeError = useSessionError(currentSessionId);
+    const currentToolName = useCurrentToolName();
 
     // Get actions from ChatContext
     const { sendMessage, switchSession, returnToWelcome, cancel } = useChatContext();

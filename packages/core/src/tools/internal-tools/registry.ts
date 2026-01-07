@@ -51,6 +51,8 @@ export interface InternalToolRegistryEntry {
     factory: InternalToolFactory;
     requiredServices: readonly (keyof InternalToolsServices)[];
     requiredFeatures?: readonly AgentFeature[];
+    /** Short description for discovery/UI purposes */
+    description: string;
 }
 
 /**
@@ -61,25 +63,30 @@ export const INTERNAL_TOOL_REGISTRY: Record<KnownInternalTool, InternalToolRegis
         factory: (services: InternalToolsServices) =>
             createSearchHistoryTool(services.searchService!),
         requiredServices: ['searchService'] as const,
+        description: 'Search through conversation history across sessions',
     },
     ask_user: {
         factory: (services: InternalToolsServices) => createAskUserTool(services.approvalManager!),
         requiredServices: ['approvalManager'] as const,
         requiredFeatures: ['elicitation'] as const,
+        description: 'Collect structured input from the user through a form interface',
     },
     delegate_to_url: {
         factory: (_services: InternalToolsServices) => createDelegateToUrlTool(),
         requiredServices: [] as const,
+        description: 'Delegate tasks to another A2A-compliant agent via URL',
     },
     list_resources: {
         factory: (services: InternalToolsServices) =>
             createListResourcesTool(services.resourceManager!),
         requiredServices: ['resourceManager'] as const,
+        description: 'List available resources (images, files, etc.)',
     },
     get_resource: {
         factory: (services: InternalToolsServices) =>
             createGetResourceTool(services.resourceManager!),
         requiredServices: ['resourceManager'] as const,
+        description: 'Access a stored resource to get URLs or metadata',
     },
 };
 

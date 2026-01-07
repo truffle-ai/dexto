@@ -28,13 +28,15 @@ import { useAnalytics } from '@/lib/analytics/index.js';
 import { queryKeys } from '@/lib/queryKeys.js';
 import { client } from '@/lib/client.js';
 import { useMutation } from '@tanstack/react-query';
-import { useAgentStore } from '@/lib/stores/agentStore.js';
-import { useSessionStore } from '@/lib/stores/sessionStore.js';
-import { useChatStore } from '@/lib/stores/chatStore.js';
-import { usePreferenceStore } from '@/lib/stores/preferenceStore.js';
-
-// Stable empty array reference to prevent infinite re-renders in Zustand selectors
-const EMPTY_MESSAGES: Message[] = [];
+import {
+    useAgentStore,
+    useSessionStore,
+    useChatStore,
+    usePreferenceStore,
+    useCurrentSessionId,
+    useIsWelcomeState,
+    useSessionMessages,
+} from '@/lib/stores/index.js';
 
 // Helper to get history endpoint type (workaround for string literal path)
 type HistoryEndpoint = (typeof client.api.sessions)[':sessionId']['history'];
@@ -308,9 +310,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     const analytics = useAnalytics();
     const queryClient = useQueryClient();
 
-    // Get state from stores (single source of truth)
-    const currentSessionId = useSessionStore((s) => s.currentSessionId);
-    const isWelcomeState = useSessionStore((s) => s.isWelcomeState);
+    // Get state from stores using centralized selectors
+    const currentSessionId = useCurrentSessionId();
+    const isWelcomeState = useIsWelcomeState();
     const isStreaming = usePreferenceStore((s) => s.isStreaming);
 
     // Local state for UI flow control only (not shared/persisted state)
@@ -371,14 +373,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         restoredApprovalsRef.current.clear();
     }, [currentSessionId]);
 
-    // Messages are now managed in chatStore - hook must be called unconditionally
-    // Use stable EMPTY_MESSAGES reference to prevent infinite re-renders
-    // Access sessions Map directly for more predictable selector behavior
-    const messages = useChatStore((state) => {
-        if (!currentSessionId) return EMPTY_MESSAGES;
-        const session = state.sessions.get(currentSessionId);
-        return session?.messages ?? EMPTY_MESSAGES;
-    });
+    // Messages from centralized selector (stable reference, handles null session)
+    const messages = useSessionMessages(currentSessionId);
 
     // Mutation for generating session title
     const { mutate: generateTitle } = useMutation({

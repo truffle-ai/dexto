@@ -32,3 +32,31 @@ export type { PendingApproval } from './approvalStore.js';
 // Preference store - user preferences with localStorage persistence
 export { usePreferenceStore } from './preferenceStore.js';
 export type { PreferenceState } from './preferenceStore.js';
+
+// Selectors - shared selector hooks for common patterns
+export {
+    // Constants
+    EMPTY_MESSAGES,
+    // Session selectors
+    useCurrentSessionId,
+    useIsWelcomeState,
+    useIsSessionOperationPending,
+    useIsReplayingHistory,
+    // Chat selectors
+    useSessionMessages,
+    useStreamingMessage,
+    useAllMessages,
+    useSessionProcessing,
+    useSessionError,
+    useSessionLoadingHistory,
+    // Agent selectors
+    useCurrentToolName,
+    useAgentStatus,
+    useConnectionStatus,
+    useIsAgentBusy,
+    useIsAgentConnected,
+    useAgentActiveSession,
+    // Combined selectors
+    useSessionChatState,
+    useAgentState,
+} from './selectors.js';
