@@ -486,12 +486,17 @@ function handleApprovalResponse(event: EventByName<'approval:response'>): void {
     const approved = status === ('approved' as ApprovalStatus);
 
     if (approved) {
-        // Will resume thinking
-        // Note: sessionId will come from next llm:thinking event
-        useAgentStore.getState().setIdle();
+        // Agent will resume execution - next event (llm:thinking, llm:tool-call, etc.)
+        // will set the appropriate status. Don't set to idle here as it causes
+        // a race condition where UI briefly shows "idle" before the next event arrives.
+        // Keep the current status (awaiting_approval) until the next event.
     } else {
-        // Rejected/cancelled - go idle
+        // Rejected/cancelled - go idle and stop processing
         useAgentStore.getState().setIdle();
+        // Also stop processing since the run may be terminated
+        if (sessionId) {
+            useChatStore.getState().setProcessing(sessionId, false);
+        }
     }
 }
 

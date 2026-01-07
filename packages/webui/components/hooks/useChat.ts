@@ -328,8 +328,6 @@ export function useChat(
                 for await (const event of iterator) {
                     processEvent(event);
                 }
-
-                useChatStore.getState().setProcessing(sessionId, false);
             } catch (error: unknown) {
                 // Handle abort gracefully
                 if (error instanceof Error && error.name === 'AbortError') {

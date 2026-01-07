@@ -49,6 +49,8 @@ import { ToolCallTimeline } from './ToolCallTimeline';
 interface MessageListProps {
     messages: Message[];
     processing?: boolean;
+    /** Name of tool currently executing (for status indicator) */
+    currentToolName?: string | null;
     activeError?: ErrorMessage | null;
     onDismissError?: () => void;
     pendingApproval?: ApprovalEvent | null;
@@ -281,25 +283,32 @@ function getVideoInfo(
     return src && isSafeMediaUrl(src, 'video') ? { src, filename, mimeType } : null;
 }
 
-function ThinkingIndicator() {
+function ThinkingIndicator({ toolName }: { toolName?: string | null }) {
     return (
         <div
-            className="flex items-center justify-center gap-2 py-1 text-xs text-muted-foreground"
+            className="flex items-center gap-2 py-1 pl-1 text-sm text-muted-foreground"
             role="status"
             aria-live="polite"
         >
-            <span className="flex items-center gap-1 uppercase tracking-wide text-muted-foreground/80">
-                <span>Thinking</span>
-                <span className="flex items-center gap-0.5">
-                    {[0, 1, 2].map((dot) => (
-                        <span
-                            key={dot}
-                            className="inline-flex h-1.5 w-1.5 rounded-full bg-primary/60 animate-[pulse_1.2s_ease-in-out_infinite]"
-                            style={{ animationDelay: `${dot * 0.18}s` }}
-                        />
-                    ))}
+            {/* Animated spinner */}
+            <div className="relative h-3.5 w-3.5">
+                <div className="absolute inset-0 rounded-full border-[1.5px] border-muted-foreground/20" />
+                <div className="absolute inset-0 rounded-full border-[1.5px] border-transparent border-t-muted-foreground/60 animate-spin" />
+            </div>
+
+            {/* Label */}
+            {toolName ? (
+                <span>
+                    <span className="text-muted-foreground/70">Running</span>{' '}
+                    <span className="font-mono text-blue-600 dark:text-blue-400">
+                        {toolName
+                            .replace(/^(internal--|custom--|mcp--[^-]+--|mcp__[^_]+__)/, '')
+                            .replace(/^(internal__|custom__)/, '')}
+                    </span>
                 </span>
-            </span>
+            ) : (
+                <span className="text-muted-foreground/70">Thinking</span>
+            )}
         </div>
     );
 }
@@ -307,6 +316,7 @@ function ThinkingIndicator() {
 export default function MessageList({
     messages,
     processing = false,
+    currentToolName,
     activeError,
     onDismissError,
     outerRef,
@@ -1352,7 +1362,7 @@ export default function MessageList({
             })}
 
             {/* Show thinking indicator while processing */}
-            {processing && <ThinkingIndicator />}
+            {processing && <ThinkingIndicator toolName={currentToolName} />}
 
             {/* Note: Approvals are now rendered inline within tool messages via ToolCallTimeline */}
 

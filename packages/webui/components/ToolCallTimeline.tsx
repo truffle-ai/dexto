@@ -112,9 +112,11 @@ export function ToolCallTimeline({
 }: ToolCallTimelineProps) {
     const hasResult = toolResult !== undefined;
     const isPendingApproval = requireApproval && approvalStatus === 'pending';
-    const isProcessing = !hasResult && !isPendingApproval;
     const isFailed = success === false;
     const isRejected = approvalStatus === 'rejected';
+    // Tool is processing only if: no result yet, not pending approval, and not marked as failed
+    // The `success === false` check handles incomplete tool calls from history (never got a result)
+    const isProcessing = !hasResult && !isPendingApproval && !isFailed;
 
     // Determine if there's meaningful content to show
     const hasExpandableContent = Boolean(
@@ -632,12 +634,16 @@ export function ToolCallTimeline({
     // =========================================================================
 
     function renderBashResult(_command: string) {
-        // Extract output from tool result
-        let output = '';
+        // Extract and parse bash result from tool result
+        let stdout = '';
+        let stderr = '';
+        let exitCode: number | undefined;
+        let duration: number | undefined;
+
         if (toolResult && typeof toolResult === 'object') {
             const result = toolResult as Record<string, unknown>;
             if (result.content && Array.isArray(result.content)) {
-                output = result.content
+                const textContent = result.content
                     .filter(
                         (p: unknown) =>
                             typeof p === 'object' &&
@@ -646,29 +652,83 @@ export function ToolCallTimeline({
                     )
                     .map((p: unknown) => (p as { text?: string }).text || '')
                     .join('\n');
+
+                // Try to parse as JSON bash result
+                try {
+                    const parsed = JSON.parse(textContent);
+                    if (typeof parsed === 'object' && parsed !== null) {
+                        stdout = parsed.stdout || '';
+                        stderr = parsed.stderr || '';
+                        exitCode =
+                            typeof parsed.exit_code === 'number' ? parsed.exit_code : undefined;
+                        duration =
+                            typeof parsed.duration === 'number' ? parsed.duration : undefined;
+                    }
+                } catch {
+                    // Not JSON, treat as plain output
+                    stdout = textContent;
+                }
             }
         }
 
-        if (!output) return null;
+        const output = stdout || stderr;
+        if (!output && exitCode === undefined) return null;
 
-        const lines = output.split('\n');
+        const lines = output.split('\n').filter((l) => l.trim());
         const displayLines = lines.slice(0, detailsExpanded ? 25 : 5);
+        const isError = exitCode !== undefined && exitCode !== 0;
 
         return (
-            <div className="ml-5 bg-zinc-900 rounded overflow-hidden">
-                <pre className="p-1.5 text-[11px] text-zinc-300 font-mono whitespace-pre-wrap max-h-48 overflow-y-auto">
-                    {displayLines.join('\n')}
-                </pre>
-                {lines.length > 5 && (
-                    <button
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            setDetailsExpanded(!detailsExpanded);
-                        }}
-                        className="w-full py-0.5 text-[10px] text-blue-400 bg-zinc-800 border-t border-zinc-700"
-                    >
-                        {detailsExpanded ? 'less' : `+${lines.length - 5} more...`}
-                    </button>
+            <div className="ml-5 space-y-1">
+                {/* Status bar */}
+                <div className="flex items-center gap-2 text-[10px]">
+                    {exitCode !== undefined && (
+                        <span
+                            className={cn(
+                                'px-1.5 py-0.5 rounded font-medium',
+                                isError
+                                    ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'
+                                    : 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400'
+                            )}
+                        >
+                            {isError ? `exit ${exitCode}` : 'success'}
+                        </span>
+                    )}
+                    {duration !== undefined && (
+                        <span className="text-muted-foreground">{duration}ms</span>
+                    )}
+                </div>
+
+                {/* Output */}
+                {output && (
+                    <div className="bg-zinc-900 rounded overflow-hidden">
+                        <pre className="p-1.5 text-[11px] text-zinc-300 font-mono whitespace-pre-wrap max-h-48 overflow-y-auto">
+                            {displayLines.join('\n')}
+                        </pre>
+                        {lines.length > 5 && (
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setDetailsExpanded(!detailsExpanded);
+                                }}
+                                className="w-full py-0.5 text-[10px] text-blue-400 bg-zinc-800 border-t border-zinc-700"
+                            >
+                                {detailsExpanded ? 'less' : `+${lines.length - 5} more...`}
+                            </button>
+                        )}
+                    </div>
+                )}
+
+                {/* Stderr if present and different from stdout */}
+                {stderr && stderr !== stdout && (
+                    <div className="bg-red-950/30 rounded overflow-hidden border border-red-900/30">
+                        <div className="px-2 py-0.5 text-[10px] text-red-400 bg-red-900/20 border-b border-red-900/30">
+                            stderr
+                        </div>
+                        <pre className="p-1.5 text-[11px] text-red-300 font-mono whitespace-pre-wrap max-h-24 overflow-y-auto">
+                            {stderr}
+                        </pre>
+                    </div>
                 )}
             </div>
         );

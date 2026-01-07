@@ -28,6 +28,7 @@ import { useAnalytics } from '@/lib/analytics/index.js';
 import { queryKeys } from '@/lib/queryKeys.js';
 import { client } from '@/lib/client.js';
 import { useMutation } from '@tanstack/react-query';
+import { useAgentStore } from '@/lib/stores/agentStore.js';
 import { useSessionStore } from '@/lib/stores/sessionStore.js';
 import { useChatStore } from '@/lib/stores/chatStore.js';
 import { usePreferenceStore } from '@/lib/stores/preferenceStore.js';
@@ -285,6 +286,18 @@ function convertHistoryToMessages(history: HistoryMessage[], sessionId: string):
         }
     }
 
+    // Mark any tool calls that never received results as failed (incomplete)
+    // This happens when a run was interrupted or crashed before tool completion
+    for (const [_callId, messageIndex] of pendingToolCalls) {
+        const msg = uiMessages[messageIndex];
+        if (msg && msg.role === 'tool' && msg.toolResult === undefined) {
+            uiMessages[messageIndex] = {
+                ...msg,
+                toolResultSuccess: false, // Mark as failed so UI doesn't show "running"
+            };
+        }
+    }
+
     return uiMessages;
 }
 
@@ -536,6 +549,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             }
             // Cancel any active run on page refresh (we can't reconnect to the stream)
             if (sessionHistoryData.isBusy) {
+                // Reset agent state since we're cancelling - we won't receive run:complete event
+                useAgentStore.getState().setIdle();
                 client.api.sessions[':sessionId'].cancel
                     .$post({
                         param: { sessionId: currentSessionId },
@@ -575,6 +590,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                 // - Add GET /sessions/{sessionId}/events SSE endpoint for listen-only mode
                 // - Connect to event stream when isBusy=true to resume receiving updates
                 if (result.isBusy) {
+                    // Reset agent state since we're cancelling - we won't receive run:complete event
+                    useAgentStore.getState().setIdle();
                     try {
                         await client.api.sessions[':sessionId'].cancel.$post({
                             param: { sessionId },

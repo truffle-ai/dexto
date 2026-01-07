@@ -11,6 +11,7 @@ import { useResolvePrompt } from './hooks/usePrompts';
 import { useChatStore, type Message } from '@/lib/stores/chatStore';
 import { useSessionStore } from '@/lib/stores/sessionStore';
 import { usePreferenceStore } from '@/lib/stores/preferenceStore';
+import { useAgentStore } from '@/lib/stores/agentStore';
 import { useGreeting } from './hooks/useGreeting';
 import MessageList from './MessageList';
 import InputArea from './InputArea';
@@ -112,6 +113,7 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
         const session = s.sessions.get(currentSessionId);
         return session?.processing ?? false;
     });
+    const currentToolName = useAgentStore((s) => s.currentToolName);
     const activeError = useChatStore((s) => {
         if (!currentSessionId) return null;
         const session = s.sessions.get(currentSessionId);
@@ -1245,6 +1247,7 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
                                             <MessageList
                                                 messages={messages}
                                                 processing={processing}
+                                                currentToolName={currentToolName}
                                                 activeError={activeError}
                                                 onDismissError={clearError}
                                                 outerRef={listContentRef}
