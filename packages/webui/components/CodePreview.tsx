@@ -160,11 +160,13 @@ export function CodePreview({
     const shouldTruncate = lines.length > maxLines && !showAll;
     const displayContent = shouldTruncate ? lines.slice(0, maxLines).join('\n') : content;
 
-    // Syntax highlight, with HTML escaping for safety
+    // Apply HTML escaping before syntax highlighting to prevent XSS
     let highlightedContent: string;
     try {
         if (language !== 'plaintext') {
-            const result = hljs.highlight(displayContent, { language, ignoreIllegals: true });
+            // Escape HTML entities first, then highlight the escaped content
+            const escaped = escapeHtml(displayContent);
+            const result = hljs.highlight(escaped, { language, ignoreIllegals: true });
             highlightedContent = result.value;
         } else {
             // Plaintext - escape HTML entities
@@ -257,20 +259,19 @@ export function CodePreview({
                                                     dangerouslySetInnerHTML={{
                                                         __html: (() => {
                                                             const lineContent = line || ' ';
+                                                            // Always escape first to prevent XSS
+                                                            const escaped = escapeHtml(lineContent);
                                                             try {
                                                                 if (language !== 'plaintext') {
-                                                                    return hljs.highlight(
-                                                                        lineContent,
-                                                                        {
-                                                                            language,
-                                                                            ignoreIllegals: true,
-                                                                        }
-                                                                    ).value;
+                                                                    return hljs.highlight(escaped, {
+                                                                        language,
+                                                                        ignoreIllegals: true,
+                                                                    }).value;
                                                                 }
                                                             } catch {
-                                                                // fallback - escape HTML for safety
+                                                                // fallback - already escaped above
                                                             }
-                                                            return escapeHtml(lineContent);
+                                                            return escaped;
                                                         })(),
                                                     }}
                                                 />

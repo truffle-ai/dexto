@@ -776,249 +776,281 @@ export default function ServersPanel({
                 </div>
 
                 {/* Content Area - Tools List */}
-                <div className="flex-1 overflow-y-auto px-4 py-3">
-                    {/* Loading State */}
-                    {isLoadingAllTools && (
-                        <div className="flex items-center justify-center py-12">
-                            <div className="flex flex-col items-center space-y-2">
-                                <RefreshCw className="h-5 w-5 animate-spin text-muted-foreground/50" />
-                                <span className="text-xs text-muted-foreground/70">
-                                    Loading tools...
-                                </span>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* No Tools Available */}
-                    {!isLoadingAllTools && totalToolCount === 0 && (
-                        <div className="text-center py-12">
-                            <ListChecks className="h-8 w-8 text-muted-foreground/40 mx-auto mb-2" />
-                            <p className="text-xs text-muted-foreground/70">No tools available</p>
-                            <p className="text-xs text-muted-foreground/50 mt-1">
-                                Connect an MCP server to get started
-                            </p>
-                        </div>
-                    )}
-
-                    {/* No Search Results */}
-                    {!isLoadingAllTools && totalToolCount > 0 && filteredSections.length === 0 && (
-                        <div className="text-center py-12">
-                            <Search className="h-8 w-8 text-muted-foreground/40 mx-auto mb-2" />
-                            <p className="text-xs text-muted-foreground/70">
-                                No tools match your search
-                            </p>
-                            <button
-                                onClick={() => setSearchQuery('')}
-                                className="mt-2 text-xs text-primary hover:text-primary/80 transition-colors"
-                            >
-                                Clear search
-                            </button>
-                        </div>
-                    )}
-
-                    {/* Tools Grouped by Source/Server */}
-                    {filteredSections.map((section) => {
-                        const isCollapsed = collapsedSections.has(section.title);
-                        return (
-                            <div key={section.title} className="mb-4 last:mb-0">
-                                {/* Section Header - Clickable to collapse/expand */}
+                <div className="flex-1 overflow-y-auto flex flex-col">
+                    {/* Search Bar */}
+                    <div className="px-4 pt-3 pb-2 border-b border-border/20">
+                        <div className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50 pointer-events-none" />
+                            <input
+                                type="text"
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                placeholder="Search tools..."
+                                className="w-full pl-9 pr-3 py-2 text-sm bg-background/50 border border-border/40 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all placeholder:text-muted-foreground/40"
+                            />
+                            {searchQuery && (
                                 <button
-                                    onClick={() => toggleSection(section.title)}
-                                    className="w-full flex items-center justify-between gap-2 mb-3 px-1 group transition-all duration-150"
+                                    onClick={() => setSearchQuery('')}
+                                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-muted/50 rounded transition-colors"
                                 >
-                                    <div className="flex items-center gap-2.5 flex-1 min-w-0 pb-2 border-b border-border/40">
-                                        <ChevronDown
-                                            className={cn(
-                                                'h-4 w-4 text-muted-foreground/50 shrink-0 transition-transform duration-200',
-                                                isCollapsed && '-rotate-90'
-                                            )}
-                                        />
-                                        <h4 className="text-base font-semibold text-foreground tracking-tight flex items-center gap-2.5">
-                                            <span className="tracking-normal">{section.title}</span>
-                                            {section.type === 'mcp' && (
-                                                <>
-                                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-primary/10 text-primary text-[10px] font-semibold uppercase tracking-wider">
-                                                        MCP
-                                                    </span>
-                                                    {section.server && (
-                                                        <span
-                                                            className={cn(
-                                                                'inline-flex items-center justify-center w-5 h-5 rounded-full',
-                                                                section.server.status ===
-                                                                    'connected'
-                                                                    ? 'bg-green-500/10'
-                                                                    : 'bg-red-500/10'
-                                                            )}
-                                                        >
+                                    <X className="h-3.5 w-3.5 text-muted-foreground" />
+                                </button>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Tools List Container */}
+                    <div className="flex-1 overflow-y-auto px-4 py-3">
+                        {/* Loading State */}
+                        {isLoadingAllTools && (
+                            <div className="flex items-center justify-center py-12">
+                                <div className="flex flex-col items-center space-y-2">
+                                    <RefreshCw className="h-5 w-5 animate-spin text-muted-foreground/50" />
+                                    <span className="text-xs text-muted-foreground/70">
+                                        Loading tools...
+                                    </span>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* No Tools Available */}
+                        {!isLoadingAllTools && totalToolCount === 0 && (
+                            <div className="text-center py-12">
+                                <ListChecks className="h-8 w-8 text-muted-foreground/40 mx-auto mb-2" />
+                                <p className="text-xs text-muted-foreground/70">
+                                    No tools available
+                                </p>
+                                <p className="text-xs text-muted-foreground/50 mt-1">
+                                    Connect an MCP server to get started
+                                </p>
+                            </div>
+                        )}
+
+                        {/* No Search Results */}
+                        {!isLoadingAllTools &&
+                            totalToolCount > 0 &&
+                            filteredSections.length === 0 && (
+                                <div className="text-center py-12">
+                                    <Search className="h-8 w-8 text-muted-foreground/40 mx-auto mb-2" />
+                                    <p className="text-xs text-muted-foreground/70">
+                                        No tools match your search
+                                    </p>
+                                    <button
+                                        onClick={() => setSearchQuery('')}
+                                        className="mt-2 text-xs text-primary hover:text-primary/80 transition-colors"
+                                    >
+                                        Clear search
+                                    </button>
+                                </div>
+                            )}
+
+                        {/* Tools Grouped by Source/Server */}
+                        {filteredSections.map((section) => {
+                            const isCollapsed = collapsedSections.has(section.title);
+                            return (
+                                <div key={section.title} className="mb-4 last:mb-0">
+                                    {/* Section Header - Clickable to collapse/expand */}
+                                    <button
+                                        onClick={() => toggleSection(section.title)}
+                                        className="w-full flex items-center justify-between gap-2 mb-3 px-1 group transition-all duration-150"
+                                    >
+                                        <div className="flex items-center gap-2.5 flex-1 min-w-0 pb-2 border-b border-border/40">
+                                            <ChevronDown
+                                                className={cn(
+                                                    'h-4 w-4 text-muted-foreground/50 shrink-0 transition-transform duration-200',
+                                                    isCollapsed && '-rotate-90'
+                                                )}
+                                            />
+                                            <h4 className="text-base font-semibold text-foreground tracking-tight flex items-center gap-2.5">
+                                                <span className="tracking-normal">
+                                                    {section.title}
+                                                </span>
+                                                {section.type === 'mcp' && (
+                                                    <>
+                                                        <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-primary/10 text-primary text-[10px] font-semibold uppercase tracking-wider">
+                                                            MCP
+                                                        </span>
+                                                        {section.server && (
                                                             <span
                                                                 className={cn(
-                                                                    'w-2 h-2 rounded-full',
+                                                                    'inline-flex items-center justify-center w-5 h-5 rounded-full',
                                                                     section.server.status ===
                                                                         'connected'
-                                                                        ? 'bg-green-600 dark:bg-green-400'
-                                                                        : 'bg-red-600 dark:bg-red-400'
+                                                                        ? 'bg-green-500/10'
+                                                                        : 'bg-red-500/10'
+                                                                )}
+                                                            >
+                                                                <span
+                                                                    className={cn(
+                                                                        'w-2 h-2 rounded-full',
+                                                                        section.server.status ===
+                                                                            'connected'
+                                                                            ? 'bg-green-600 dark:bg-green-400'
+                                                                            : 'bg-red-600 dark:bg-red-400'
+                                                                    )}
+                                                                />
+                                                            </span>
+                                                        )}
+                                                    </>
+                                                )}
+                                            </h4>
+                                            <span className="text-xs text-muted-foreground/50 font-medium">
+                                                {section.tools.length}
+                                            </span>
+                                        </div>
+
+                                        {/* MCP Server Controls */}
+                                        {section.type === 'mcp' && section.server && (
+                                            <div
+                                                className="flex items-center gap-0.5"
+                                                onClick={(e) => e.stopPropagation()}
+                                            >
+                                                {/* Restart button */}
+                                                {restartServerMutation.isPending &&
+                                                restartServerMutation.variables ===
+                                                    section.server.id ? (
+                                                    <div className="h-6 w-6 flex items-center justify-center">
+                                                        <RefreshCw className="h-3 w-3 animate-spin text-muted-foreground" />
+                                                    </div>
+                                                ) : (
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    handleRestartServer(
+                                                                        section.server!.id
+                                                                    );
+                                                                }}
+                                                                className="h-6 w-6 p-0 text-muted-foreground/60 hover:text-primary hover:bg-muted/50"
+                                                                disabled={
+                                                                    deleteServerMutation.isPending &&
+                                                                    deleteServerMutation.variables ===
+                                                                        section.server.id
+                                                                }
+                                                            >
+                                                                <RotateCw className="h-3 w-3" />
+                                                            </Button>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent side="left">
+                                                            Restart
+                                                        </TooltipContent>
+                                                    </Tooltip>
+                                                )}
+
+                                                {/* Delete button */}
+                                                {deleteServerMutation.isPending &&
+                                                deleteServerMutation.variables ===
+                                                    section.server.id ? (
+                                                    <div className="h-6 w-6 flex items-center justify-center">
+                                                        <RefreshCw className="h-3 w-3 animate-spin text-muted-foreground" />
+                                                    </div>
+                                                ) : (
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    handleDeleteServer(
+                                                                        section.server!.id
+                                                                    );
+                                                                }}
+                                                                className="h-6 w-6 p-0 text-muted-foreground/60 hover:text-destructive hover:bg-muted/50"
+                                                                disabled={
+                                                                    restartServerMutation.isPending &&
+                                                                    restartServerMutation.variables ===
+                                                                        section.server.id
+                                                                }
+                                                            >
+                                                                <Trash2 className="h-3 w-3" />
+                                                            </Button>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent side="left">
+                                                            Remove
+                                                        </TooltipContent>
+                                                    </Tooltip>
+                                                )}
+                                            </div>
+                                        )}
+                                    </button>
+
+                                    {/* Tool Items - Only show if not collapsed */}
+                                    {!isCollapsed && (
+                                        <div className="space-y-0.5 ml-2">
+                                            {section.tools.map((tool) => {
+                                                const toolId = tool.id;
+                                                const isExpanded = expandedToolId === toolId;
+
+                                                return (
+                                                    <div key={toolId}>
+                                                        <button
+                                                            onClick={() =>
+                                                                setExpandedToolId(
+                                                                    isExpanded ? null : toolId
+                                                                )
+                                                            }
+                                                            className="w-full px-3 py-2 rounded-md text-left hover:bg-muted/30 transition-all duration-150 group flex items-center justify-between gap-2"
+                                                        >
+                                                            <span className="text-sm text-foreground/90 truncate font-medium">
+                                                                {stripToolPrefix(
+                                                                    tool.name,
+                                                                    section.type
+                                                                )}
+                                                            </span>
+                                                            <ChevronDown
+                                                                className={cn(
+                                                                    'h-3.5 w-3.5 text-muted-foreground/40 shrink-0 transition-transform duration-200',
+                                                                    isExpanded && 'rotate-180'
                                                                 )}
                                                             />
-                                                        </span>
-                                                    )}
-                                                </>
-                                            )}
-                                        </h4>
-                                        <span className="text-xs text-muted-foreground/50 font-medium">
-                                            {section.tools.length}
-                                        </span>
-                                    </div>
+                                                        </button>
 
-                                    {/* MCP Server Controls */}
-                                    {section.type === 'mcp' && section.server && (
-                                        <div
-                                            className="flex items-center gap-0.5"
-                                            onClick={(e) => e.stopPropagation()}
-                                        >
-                                            {/* Restart button */}
-                                            {restartServerMutation.isPending &&
-                                            restartServerMutation.variables ===
-                                                section.server.id ? (
-                                                <div className="h-6 w-6 flex items-center justify-center">
-                                                    <RefreshCw className="h-3 w-3 animate-spin text-muted-foreground" />
-                                                </div>
-                                            ) : (
-                                                <Tooltip>
-                                                    <TooltipTrigger asChild>
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="sm"
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                handleRestartServer(
-                                                                    section.server!.id
-                                                                );
-                                                            }}
-                                                            className="h-6 w-6 p-0 text-muted-foreground/60 hover:text-primary hover:bg-muted/50"
-                                                            disabled={
-                                                                deleteServerMutation.isPending &&
-                                                                deleteServerMutation.variables ===
-                                                                    section.server.id
-                                                            }
-                                                        >
-                                                            <RotateCw className="h-3 w-3" />
-                                                        </Button>
-                                                    </TooltipTrigger>
-                                                    <TooltipContent side="left">
-                                                        Restart
-                                                    </TooltipContent>
-                                                </Tooltip>
-                                            )}
-
-                                            {/* Delete button */}
-                                            {deleteServerMutation.isPending &&
-                                            deleteServerMutation.variables === section.server.id ? (
-                                                <div className="h-6 w-6 flex items-center justify-center">
-                                                    <RefreshCw className="h-3 w-3 animate-spin text-muted-foreground" />
-                                                </div>
-                                            ) : (
-                                                <Tooltip>
-                                                    <TooltipTrigger asChild>
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="sm"
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                handleDeleteServer(
-                                                                    section.server!.id
-                                                                );
-                                                            }}
-                                                            className="h-6 w-6 p-0 text-muted-foreground/60 hover:text-destructive hover:bg-muted/50"
-                                                            disabled={
-                                                                restartServerMutation.isPending &&
-                                                                restartServerMutation.variables ===
-                                                                    section.server.id
-                                                            }
-                                                        >
-                                                            <Trash2 className="h-3 w-3" />
-                                                        </Button>
-                                                    </TooltipTrigger>
-                                                    <TooltipContent side="left">
-                                                        Remove
-                                                    </TooltipContent>
-                                                </Tooltip>
-                                            )}
+                                                        {/* Expanded Details */}
+                                                        {isExpanded && (
+                                                            <div className="px-3 py-2.5 mb-1 bg-muted/15 rounded-md ml-2">
+                                                                {tool.description && (
+                                                                    <p className="text-xs text-muted-foreground/70 mb-2.5 leading-relaxed">
+                                                                        {tool.description}
+                                                                    </p>
+                                                                )}
+                                                                {tool.inputSchema?.properties &&
+                                                                    Object.keys(
+                                                                        tool.inputSchema.properties
+                                                                    ).length > 0 && (
+                                                                        <div className="space-y-1.5">
+                                                                            <p className="text-[10px] text-muted-foreground/50 uppercase tracking-wider font-semibold">
+                                                                                Parameters
+                                                                            </p>
+                                                                            <div className="flex flex-wrap gap-1.5">
+                                                                                {Object.keys(
+                                                                                    tool.inputSchema
+                                                                                        .properties
+                                                                                ).map((param) => (
+                                                                                    <span
+                                                                                        key={param}
+                                                                                        className="inline-flex items-center px-2 py-0.5 rounded bg-muted/50 text-[10px] font-mono text-foreground/60 border border-border/20"
+                                                                                    >
+                                                                                        {param}
+                                                                                    </span>
+                                                                                ))}
+                                                                            </div>
+                                                                        </div>
+                                                                    )}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
                                         </div>
                                     )}
-                                </button>
-
-                                {/* Tool Items - Only show if not collapsed */}
-                                {!isCollapsed && (
-                                    <div className="space-y-0.5 ml-2">
-                                        {section.tools.map((tool) => {
-                                            const toolId = tool.id;
-                                            const isExpanded = expandedToolId === toolId;
-
-                                            return (
-                                                <div key={toolId}>
-                                                    <button
-                                                        onClick={() =>
-                                                            setExpandedToolId(
-                                                                isExpanded ? null : toolId
-                                                            )
-                                                        }
-                                                        className="w-full px-3 py-2 rounded-md text-left hover:bg-muted/30 transition-all duration-150 group flex items-center justify-between gap-2"
-                                                    >
-                                                        <span className="text-sm text-foreground/90 truncate font-medium">
-                                                            {stripToolPrefix(
-                                                                tool.name,
-                                                                section.type
-                                                            )}
-                                                        </span>
-                                                        <ChevronDown
-                                                            className={cn(
-                                                                'h-3.5 w-3.5 text-muted-foreground/40 shrink-0 transition-transform duration-200',
-                                                                isExpanded && 'rotate-180'
-                                                            )}
-                                                        />
-                                                    </button>
-
-                                                    {/* Expanded Details */}
-                                                    {isExpanded && (
-                                                        <div className="px-3 py-2.5 mb-1 bg-muted/15 rounded-md ml-2">
-                                                            {tool.description && (
-                                                                <p className="text-xs text-muted-foreground/70 mb-2.5 leading-relaxed">
-                                                                    {tool.description}
-                                                                </p>
-                                                            )}
-                                                            {tool.inputSchema?.properties &&
-                                                                Object.keys(
-                                                                    tool.inputSchema.properties
-                                                                ).length > 0 && (
-                                                                    <div className="space-y-1.5">
-                                                                        <p className="text-[10px] text-muted-foreground/50 uppercase tracking-wider font-semibold">
-                                                                            Parameters
-                                                                        </p>
-                                                                        <div className="flex flex-wrap gap-1.5">
-                                                                            {Object.keys(
-                                                                                tool.inputSchema
-                                                                                    .properties
-                                                                            ).map((param) => (
-                                                                                <span
-                                                                                    key={param}
-                                                                                    className="inline-flex items-center px-2 py-0.5 rounded bg-muted/50 text-[10px] font-mono text-foreground/60 border border-border/20"
-                                                                                >
-                                                                                    {param}
-                                                                                </span>
-                                                                            ))}
-                                                                        </div>
-                                                                    </div>
-                                                                )}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                )}
-                            </div>
-                        );
-                    })}
+                                </div>
+                            );
+                        })}
+                    </div>
                 </div>
 
                 {/* Server Registry Modal */}
