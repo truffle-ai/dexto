@@ -329,6 +329,15 @@ export interface AgentEventMap {
         sessionId: string;
     };
 
+    /** LLM service started streaming a tool call (args will follow as deltas) */
+    'llm:tool-call-streaming': {
+        toolName: string;
+        callId: string;
+        /** Partial args accumulated so far (JSON string, may be incomplete) */
+        argsText: string;
+        sessionId: string;
+    };
+
     /** LLM service requested a tool call */
     'llm:tool-call': {
         toolName: string;

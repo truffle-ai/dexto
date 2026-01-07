@@ -1,8 +1,23 @@
 import { useState, useEffect } from 'react';
-import { ChevronRight, CheckCircle2, XCircle, Loader2, AlertCircle, Shield } from 'lucide-react';
+import {
+    ChevronRight,
+    CheckCircle2,
+    XCircle,
+    Loader2,
+    AlertCircle,
+    Shield,
+    FileText,
+    FileEdit,
+    FilePlus,
+    Trash2,
+    Terminal,
+    Search,
+    Copy,
+    Check,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from './ui/button';
-import { ToolResultRenderer } from './tool-renderers';
+import { CodePreview } from './CodePreview';
 import type { ToolDisplayData } from '@dexto/core';
 
 export interface ToolCallTimelineProps {
@@ -12,42 +27,29 @@ export interface ToolCallTimelineProps {
     success?: boolean;
     requireApproval?: boolean;
     approvalStatus?: 'pending' | 'approved' | 'rejected';
-    /** Display data for rich tool result rendering */
     displayData?: ToolDisplayData;
-    /** Callback when user approves (for pending approvals). rememberChoice=true to approve for entire session. */
     onApprove?: (formData?: Record<string, unknown>, rememberChoice?: boolean) => void;
-    /** Callback when user rejects (for pending approvals) */
     onReject?: () => void;
 }
 
-/**
- * Strips tool name prefixes and returns clean display name
- * Formats: internal--toolName, custom--toolName, mcp--serverName--toolName
- */
-function stripToolPrefix(toolName: string): {
-    displayName: string;
-    source: string;
-    serverName?: string;
-} {
-    // Handle internal-- prefix
+// =============================================================================
+// Helpers
+// =============================================================================
+
+function stripToolPrefix(toolName: string): { displayName: string; source: string } {
     if (toolName.startsWith('internal--')) {
         return { displayName: toolName.replace('internal--', ''), source: '' };
     }
-    // Handle custom-- prefix
     if (toolName.startsWith('custom--')) {
         return { displayName: toolName.replace('custom--', ''), source: '' };
     }
-    // Handle mcp--serverName--toolName format
     if (toolName.startsWith('mcp--')) {
         const parts = toolName.split('--');
         if (parts.length >= 3) {
-            const serverName = parts[1];
-            const cleanToolName = parts.slice(2).join('--');
-            return { displayName: cleanToolName, source: serverName ?? '', serverName };
+            return { displayName: parts.slice(2).join('--'), source: parts[1] ?? '' };
         }
         return { displayName: toolName.replace('mcp--', ''), source: 'mcp' };
     }
-    // Legacy format with __ delimiter
     if (toolName.startsWith('mcp__')) {
         const parts = toolName.substring(5).split('__');
         if (parts.length >= 2) {
@@ -58,95 +60,44 @@ function stripToolPrefix(toolName: string): {
     if (toolName.startsWith('internal__')) {
         return { displayName: toolName.substring(10), source: '' };
     }
-    // No prefix
     return { displayName: toolName, source: '' };
 }
 
-/**
- * Generates a user-friendly summary and extracts display info from tool name
- */
-function getDisplayInfo(
-    toolName: string,
-    toolArgs?: Record<string, unknown>
-): { summary: string; displayName: string; source: string } {
-    const { displayName, source } = stripToolPrefix(toolName);
-
-    // Generate smart summary based on tool type
-    let summary = '';
-    const args = toolArgs || {};
-
-    if (
-        displayName.includes('search') ||
-        displayName.includes('query') ||
-        displayName.includes('grep')
-    ) {
-        const query = args.query || args.q || args.search || args.pattern;
-        summary = query
-            ? `Searched for "${String(query).substring(0, 40)}${String(query).length > 40 ? '...' : ''}"`
-            : 'Searched';
-    } else if (
-        displayName.includes('read') ||
-        displayName.includes('Read') ||
-        displayName.includes('fetch')
-    ) {
-        const path = args.path || args.file || args.url || args.file_path;
-        summary = path ? `Read ${getShortPath(String(path))}` : 'Read file';
-    } else if (
-        displayName.includes('write') ||
-        displayName.includes('Write') ||
-        displayName.includes('create')
-    ) {
-        const path = args.path || args.file || args.file_path;
-        summary = path ? `Created ${getShortPath(String(path))}` : 'Created file';
-    } else if (
-        displayName.includes('edit') ||
-        displayName.includes('Edit') ||
-        displayName.includes('update')
-    ) {
-        const path = args.path || args.file || args.file_path;
-        summary = path ? `Updated ${getShortPath(String(path))}` : 'Updated file';
-    } else if (displayName.includes('delete') || displayName.includes('remove')) {
-        const path = args.path || args.file;
-        summary = path ? `Deleted ${getShortPath(String(path))}` : 'Deleted';
-    } else if (
-        displayName.includes('list') ||
-        displayName.includes('glob') ||
-        displayName.includes('Glob')
-    ) {
-        const pattern = args.pattern || args.type || args.resource;
-        summary = pattern ? `Listed ${String(pattern).substring(0, 30)}` : 'Listed items';
-    } else if (
-        displayName === 'Bash' ||
-        displayName.includes('bash') ||
-        displayName.includes('shell')
-    ) {
-        const cmd = args.command;
-        summary = cmd
-            ? `Ran ${String(cmd).substring(0, 40)}${String(cmd).length > 40 ? '...' : ''}`
-            : 'Ran command';
-    } else if (displayName === 'ask_user' || displayName.includes('AskUser')) {
-        summary = 'Asked user for input';
-    } else {
-        // Fallback: humanize tool name
-        const humanized = displayName
-            .replace(/([A-Z])/g, ' $1')
-            .replace(/_/g, ' ')
-            .toLowerCase()
-            .trim();
-        summary = `Used ${humanized}`;
-    }
-
-    return { summary, displayName, source };
-}
-
-/**
- * Extracts just the filename or last 2 path segments
- */
 function getShortPath(path: string): string {
     const parts = path.split('/').filter(Boolean);
     if (parts.length <= 2) return path;
     return `.../${parts.slice(-2).join('/')}`;
 }
+
+function truncate(text: string, maxLength: number): string {
+    if (text.length <= maxLength) return text;
+    return text.substring(0, maxLength) + '...';
+}
+
+function getSummary(
+    displayName: string,
+    toolArgs?: Record<string, unknown>
+): { name: string; detail?: string } {
+    const args = toolArgs || {};
+    const filePath = (args.file_path || args.path || args.file) as string | undefined;
+    const command = args.command as string | undefined;
+    const pattern = (args.pattern || args.query) as string | undefined;
+
+    if (command) {
+        return { name: displayName, detail: truncate(command, 40) };
+    }
+    if (filePath) {
+        return { name: displayName, detail: getShortPath(filePath) };
+    }
+    if (pattern) {
+        return { name: displayName, detail: `"${truncate(pattern, 25)}"` };
+    }
+    return { name: displayName };
+}
+
+// =============================================================================
+// Main Component
+// =============================================================================
 
 export function ToolCallTimeline({
     toolName,
@@ -159,250 +110,699 @@ export function ToolCallTimeline({
     onApprove,
     onReject,
 }: ToolCallTimelineProps) {
-    // Explicitly check if we have a result
     const hasResult = toolResult !== undefined;
     const isPendingApproval = requireApproval && approvalStatus === 'pending';
+    const isProcessing = !hasResult && !isPendingApproval;
+    const isFailed = success === false;
+    const isRejected = approvalStatus === 'rejected';
 
-    // Expand by default for pending approvals so users can see what they're approving
+    // Determine if there's meaningful content to show
+    const hasExpandableContent = Boolean(
+        displayData ||
+            toolArgs?.content ||
+            (toolArgs?.old_string && toolArgs?.new_string) ||
+            (toolArgs?.command && hasResult)
+    );
+
+    // Smart default: expand only for pending approvals
+    // Failed, rejected, and no-output should be collapsed
     const [expanded, setExpanded] = useState(isPendingApproval);
+    const [detailsExpanded, setDetailsExpanded] = useState(false);
+    const [copied, setCopied] = useState(false);
 
-    // Collapse after approval is resolved
     useEffect(() => {
         if (requireApproval && approvalStatus && approvalStatus !== 'pending') {
             setExpanded(false);
         }
     }, [requireApproval, approvalStatus]);
 
-    const isProcessing = !hasResult && !isPendingApproval;
+    const { displayName, source } = stripToolPrefix(toolName);
+    const summary = getSummary(displayName, toolArgs);
 
-    const { summary, displayName, source } = getDisplayInfo(toolName, toolArgs);
+    // Status icon
+    const StatusIcon = isPendingApproval ? (
+        <div className="relative">
+            <AlertCircle className="h-3.5 w-3.5 text-amber-500" />
+            <span className="absolute inset-0 rounded-full bg-amber-500/30 animate-ping" />
+        </div>
+    ) : isProcessing ? (
+        <Loader2 className="h-3.5 w-3.5 text-blue-500 animate-spin" />
+    ) : isFailed || isRejected ? (
+        <XCircle className="h-3.5 w-3.5 text-red-500" />
+    ) : (
+        <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
+    );
 
-    // Determine status icon and color based on state
-    const getStatusIndicator = () => {
-        if (isPendingApproval) {
+    // Header click handler
+    const toggleExpanded = () => {
+        if (hasResult || isPendingApproval || hasExpandableContent) {
+            setExpanded(!expanded);
+        }
+    };
+
+    const canExpand = hasResult || isPendingApproval || hasExpandableContent;
+
+    return (
+        <div
+            className={cn(
+                'my-0.5 rounded-md transition-colors inline-block max-w-full',
+                isPendingApproval &&
+                    'bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200/50 dark:border-amber-800/30'
+            )}
+        >
+            {/* Collapsed Header - Always Visible */}
+            <button
+                onClick={toggleExpanded}
+                disabled={!canExpand}
+                className={cn(
+                    'inline-flex items-center gap-2 p-1.5 text-left rounded-md',
+                    canExpand && 'hover:bg-muted/40 cursor-pointer',
+                    !canExpand && 'cursor-default'
+                )}
+            >
+                {/* Status icon */}
+                <div className="flex-shrink-0">{StatusIcon}</div>
+
+                {/* Summary text */}
+                <span
+                    className={cn(
+                        'text-xs flex-1 truncate',
+                        isPendingApproval && 'text-amber-700 dark:text-amber-300 font-medium',
+                        isProcessing && 'text-blue-600 dark:text-blue-400',
+                        isFailed && 'text-red-600 dark:text-red-400',
+                        isRejected && 'text-red-600 dark:text-red-400',
+                        !isPendingApproval &&
+                            !isProcessing &&
+                            !isFailed &&
+                            !isRejected &&
+                            'text-foreground/70'
+                    )}
+                >
+                    {isPendingApproval ? 'Approval required: ' : ''}
+                    {isFailed ? 'Failed: ' : ''}
+                    {isRejected ? 'Rejected: ' : ''}
+                    <span className="font-mono">
+                        <span className="text-blue-600 dark:text-blue-400">
+                            {summary.name.toLowerCase()}
+                        </span>
+                        <span className="text-muted-foreground/50">(</span>
+                        {summary.detail && (
+                            <span className="text-foreground/80">{summary.detail}</span>
+                        )}
+                        <span className="text-muted-foreground/50">)</span>
+                    </span>
+                </span>
+
+                {/* Badges */}
+                {source && (
+                    <span className="text-[10px] text-muted-foreground/60 flex-shrink-0">
+                        [{source}]
+                    </span>
+                )}
+                {requireApproval && approvalStatus === 'approved' && (
+                    <span className="text-[10px] text-green-600 dark:text-green-500 flex-shrink-0">
+                        approved
+                    </span>
+                )}
+                {isProcessing && (
+                    <span className="text-[10px] text-muted-foreground/50 flex-shrink-0">
+                        running...
+                    </span>
+                )}
+
+                {/* Expand chevron */}
+                {canExpand && (
+                    <ChevronRight
+                        className={cn(
+                            'h-3 w-3 text-muted-foreground/40 flex-shrink-0 transition-transform',
+                            expanded && 'rotate-90'
+                        )}
+                    />
+                )}
+            </button>
+
+            {/* Expanded Content */}
+            {expanded && (
+                <div className="px-1.5 pb-2 pt-1 space-y-2 animate-fade-in">
+                    {/* Pending Approval Content */}
+                    {isPendingApproval && (
+                        <>
+                            {renderApprovalPreview()}
+                            <div className="flex gap-1.5 flex-wrap pt-1">
+                                <Button
+                                    onClick={() => onApprove?.(undefined, false)}
+                                    size="sm"
+                                    className="bg-green-600 hover:bg-green-700 text-white h-6 text-[11px] px-2.5"
+                                >
+                                    Approve
+                                </Button>
+                                <Button
+                                    onClick={() => onApprove?.(undefined, true)}
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-6 text-[11px] px-2 text-green-600 border-green-300 hover:bg-green-50 dark:border-green-700 dark:hover:bg-green-950/20"
+                                >
+                                    <Shield className="h-3 w-3 mr-1" />
+                                    Always
+                                </Button>
+                                <Button
+                                    onClick={() => onReject?.()}
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-6 text-[11px] px-2.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20"
+                                >
+                                    Reject
+                                </Button>
+                            </div>
+                        </>
+                    )}
+
+                    {/* Error Content */}
+                    {isFailed && hasResult && renderErrorContent()}
+
+                    {/* Result Content */}
+                    {hasResult && !isFailed && !isPendingApproval && renderResultContent()}
+                </div>
+            )}
+        </div>
+    );
+
+    // =========================================================================
+    // Render Functions
+    // =========================================================================
+
+    function renderApprovalPreview() {
+        const command = toolArgs?.command as string | undefined;
+        const filePath = (toolArgs?.file_path || toolArgs?.path) as string | undefined;
+        const content = toolArgs?.content as string | undefined;
+        const oldString = toolArgs?.old_string as string | undefined;
+        const newString = toolArgs?.new_string as string | undefined;
+
+        // Bash command
+        if (command) {
             return (
-                <div className="relative">
-                    <AlertCircle className="h-3.5 w-3.5 text-amber-500" />
-                    <span className="absolute inset-0 h-3.5 w-3.5 rounded-full bg-amber-500/30 animate-ping" />
+                <div className="ml-5 bg-zinc-900 rounded overflow-hidden">
+                    <pre className="px-2 py-1.5 text-[11px] text-zinc-300 font-mono whitespace-pre-wrap">
+                        <span className="text-zinc-500">$ </span>
+                        {command}
+                    </pre>
                 </div>
             );
         }
-        if (isProcessing) {
-            return <Loader2 className="h-3.5 w-3.5 text-blue-500 animate-spin" />;
-        }
-        if (success !== false) {
-            return <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />;
-        }
-        return <XCircle className="h-3.5 w-3.5 text-destructive" />;
-    };
 
-    return (
-        <div className="flex gap-2 animate-slide-up my-0.5">
-            {/* Status indicator */}
-            <div className="flex-shrink-0 pt-0.5">{getStatusIndicator()}</div>
-
-            {/* Content */}
-            <div className="flex-1 min-w-0">
-                {/* Summary line - clickable to expand */}
-                <button
-                    onClick={() => (hasResult || isPendingApproval) && setExpanded(!expanded)}
-                    disabled={!hasResult && !isPendingApproval}
-                    className={cn(
-                        'w-full flex items-center gap-1.5 text-left group',
-                        (hasResult || isPendingApproval) && 'cursor-pointer'
+        // Edit operation - diff view without header (file path is in summary)
+        if (oldString !== undefined && newString !== undefined) {
+            return (
+                <div className="ml-5 bg-muted/30 rounded overflow-hidden border border-border/50 text-[11px] font-mono">
+                    {oldString
+                        .split('\n')
+                        .slice(0, detailsExpanded ? 15 : 3)
+                        .map((line, i) => (
+                            <div
+                                key={`o${i}`}
+                                className="px-2 py-0.5 bg-red-100/50 dark:bg-red-900/20 text-red-800 dark:text-red-300"
+                            >
+                                <span className="text-red-500/50 mr-1">-</span>
+                                {line || ' '}
+                            </div>
+                        ))}
+                    {newString
+                        .split('\n')
+                        .slice(0, detailsExpanded ? 15 : 3)
+                        .map((line, i) => (
+                            <div
+                                key={`n${i}`}
+                                className="px-2 py-0.5 bg-green-100/50 dark:bg-green-900/20 text-green-800 dark:text-green-300"
+                            >
+                                <span className="text-green-500/50 mr-1">+</span>
+                                {line || ' '}
+                            </div>
+                        ))}
+                    {(oldString.split('\n').length > 3 || newString.split('\n').length > 3) && (
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setDetailsExpanded(!detailsExpanded);
+                            }}
+                            className="w-full py-0.5 text-[10px] text-blue-500 bg-muted/50 border-t border-border/30"
+                        >
+                            {detailsExpanded ? 'less' : 'more...'}
+                        </button>
                     )}
-                >
+                </div>
+            );
+        }
+
+        // Write/Create file
+        if (content && filePath) {
+            return (
+                <div className="ml-5">
+                    <CodePreview
+                        content={content}
+                        filePath={filePath}
+                        maxLines={8}
+                        maxHeight={180}
+                        showHeader={false}
+                    />
+                </div>
+            );
+        }
+
+        return null;
+    }
+
+    function renderErrorContent() {
+        let errorMessage = 'Unknown error';
+        if (toolResult && typeof toolResult === 'object') {
+            const result = toolResult as Record<string, unknown>;
+            if (result.content && Array.isArray(result.content)) {
+                const textPart = result.content.find(
+                    (p: unknown) =>
+                        typeof p === 'object' &&
+                        p !== null &&
+                        (p as Record<string, unknown>).type === 'text'
+                ) as { text?: string } | undefined;
+                if (textPart?.text) errorMessage = textPart.text;
+            } else if (result.error) {
+                errorMessage =
+                    typeof result.error === 'string' ? result.error : JSON.stringify(result.error);
+            }
+        }
+
+        return (
+            <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800/50 rounded px-2 py-1.5">
+                <pre className="text-[11px] text-red-700 dark:text-red-300 font-mono whitespace-pre-wrap break-all">
+                    {truncate(errorMessage, 500)}
+                </pre>
+            </div>
+        );
+    }
+
+    function renderResultContent() {
+        // If we have display metadata from tool, use it
+        if (displayData) {
+            switch (displayData.type) {
+                case 'diff':
+                    return renderDiff(displayData);
+                case 'shell':
+                    return renderShell(displayData);
+                case 'search':
+                    return renderSearch(displayData);
+                case 'file':
+                    return renderFile(displayData);
+            }
+        }
+
+        // Otherwise generate preview from toolArgs
+        const command = toolArgs?.command as string | undefined;
+        const filePath = (toolArgs?.file_path || toolArgs?.path) as string | undefined;
+        const content = toolArgs?.content as string | undefined;
+        const oldString = toolArgs?.old_string as string | undefined;
+        const newString = toolArgs?.new_string as string | undefined;
+
+        // Bash command with result
+        if (command && hasResult) {
+            return renderBashResult(command);
+        }
+
+        // Edit operation (old_string -> new_string)
+        if (oldString !== undefined && newString !== undefined && filePath) {
+            return renderEditResult(filePath, oldString, newString);
+        }
+
+        // Write/create file
+        if (content && filePath) {
+            return renderWriteResult(filePath, content);
+        }
+
+        // Read file - show content from result
+        if (displayName.toLowerCase().includes('read') && filePath) {
+            return renderReadResult(filePath);
+        }
+
+        // Fallback to generic
+        return renderGenericResult();
+    }
+
+    function renderDiff(data: Extract<ToolDisplayData, { type: 'diff' }>) {
+        const lines = data.unified
+            .split('\n')
+            .filter((l) => !l.startsWith('@@') && !l.startsWith('---') && !l.startsWith('+++'));
+        const displayLines = lines.slice(0, detailsExpanded ? 40 : 8);
+
+        return (
+            <div className="space-y-1">
+                <div className="flex items-center gap-2 text-[11px]">
+                    <FileEdit className="h-3 w-3 text-muted-foreground" />
+                    <span className="font-mono text-foreground/70">
+                        {getShortPath(data.filename)}
+                    </span>
+                    <span className="text-green-600">+{data.additions}</span>
+                    <span className="text-red-600">-{data.deletions}</span>
+                </div>
+                <div className="bg-muted/30 rounded overflow-hidden border border-border/50">
+                    {displayLines.map((line, i) => {
+                        const isAdd = line.startsWith('+');
+                        const isDel = line.startsWith('-');
+                        return (
+                            <div
+                                key={i}
+                                className={cn(
+                                    'px-2 py-0.5 text-[11px] font-mono',
+                                    isAdd &&
+                                        'bg-green-100/50 dark:bg-green-900/20 text-green-800 dark:text-green-300',
+                                    isDel &&
+                                        'bg-red-100/50 dark:bg-red-900/20 text-red-800 dark:text-red-300',
+                                    !isAdd && !isDel && 'text-foreground/50'
+                                )}
+                            >
+                                <span className="mr-1 opacity-50">
+                                    {isAdd ? '+' : isDel ? '-' : ' '}
+                                </span>
+                                {line.slice(1) || ' '}
+                            </div>
+                        );
+                    })}
+                    {lines.length > 8 && (
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setDetailsExpanded(!detailsExpanded);
+                            }}
+                            className="w-full py-0.5 text-[10px] text-blue-500 bg-muted/50 border-t border-border/30"
+                        >
+                            {detailsExpanded ? 'less' : `+${lines.length - 8} more...`}
+                        </button>
+                    )}
+                </div>
+            </div>
+        );
+    }
+
+    function renderShell(data: Extract<ToolDisplayData, { type: 'shell' }>) {
+        const output = data.stdout || data.stderr || '';
+        const lines = output.split('\n');
+        const displayLines = lines.slice(0, detailsExpanded ? 25 : 5);
+        const isError = data.exitCode !== 0;
+
+        return (
+            <div className="space-y-1">
+                <div className="flex items-center gap-2 text-[11px]">
+                    <Terminal className="h-3 w-3 text-muted-foreground" />
+                    <code className="font-mono text-foreground/70 truncate flex-1">
+                        {truncate(data.command, 50)}
+                    </code>
                     <span
                         className={cn(
-                            'text-xs font-medium',
-                            isPendingApproval
-                                ? 'text-amber-600 dark:text-amber-400'
-                                : isProcessing
-                                  ? 'text-blue-600 dark:text-blue-400'
-                                  : success !== false
-                                    ? 'text-foreground/70'
-                                    : 'text-destructive'
+                            'text-[10px] px-1 py-0.5 rounded',
+                            isError
+                                ? 'bg-red-100 dark:bg-red-900/30 text-red-600'
+                                : 'bg-green-100 dark:bg-green-900/30 text-green-600'
                         )}
                     >
-                        {isPendingApproval
-                            ? 'Requires approval'
-                            : success === false
-                              ? `Failed: ${summary}`
-                              : summary}
+                        {isError ? `exit ${data.exitCode}` : 'ok'}
                     </span>
-
-                    {/* Approval status badges (for resolved approvals) */}
-                    {requireApproval && approvalStatus === 'approved' && (
-                        <span className="text-[10px] text-green-600 dark:text-green-500">
-                            approved
-                        </span>
-                    )}
-                    {requireApproval && approvalStatus === 'rejected' && (
-                        <span className="text-[10px] text-destructive">rejected</span>
-                    )}
-
-                    {/* Source badge */}
-                    {source && (
-                        <span className="text-[10px] text-muted-foreground/60">[{source}]</span>
-                    )}
-
-                    {/* Expand chevron */}
-                    {(hasResult || isPendingApproval) && (
-                        <ChevronRight
-                            className={cn(
-                                'h-2.5 w-2.5 text-muted-foreground/40 transition-transform flex-shrink-0',
-                                expanded && 'rotate-90'
-                            )}
-                        />
-                    )}
-
-                    {/* Processing text */}
-                    {isProcessing && (
-                        <span className="text-[10px] text-muted-foreground/50">processing...</span>
-                    )}
-                </button>
-
-                {/* Tool name */}
-                <div className="text-[11px] text-muted-foreground/70 mt-0.5 font-medium">
-                    {displayName}
+                    <button
+                        onClick={async (e) => {
+                            e.stopPropagation();
+                            await navigator.clipboard.writeText(data.command);
+                            setCopied(true);
+                            setTimeout(() => setCopied(false), 1500);
+                        }}
+                        className="text-muted-foreground hover:text-foreground"
+                    >
+                        {copied ? (
+                            <Check className="h-3 w-3 text-green-500" />
+                        ) : (
+                            <Copy className="h-3 w-3" />
+                        )}
+                    </button>
                 </div>
-
-                {/* Inline approval buttons (compact view, when not expanded) */}
-                {isPendingApproval && !expanded && onApprove && onReject && (
-                    <div className="flex gap-1.5 mt-1.5 flex-wrap">
-                        <Button
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                onApprove(undefined, false);
-                            }}
-                            size="sm"
-                            className="bg-green-600 hover:bg-green-700 text-white h-6 text-[11px] px-2.5"
-                        >
-                            Approve
-                        </Button>
-                        <Button
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                onApprove(undefined, true);
-                            }}
-                            size="sm"
-                            variant="outline"
-                            className="h-6 text-[11px] px-2.5 text-green-600 border-green-300 hover:bg-green-50 dark:border-green-700 dark:hover:bg-green-950/20"
-                            title="Approve this tool for the rest of the session"
-                        >
-                            <Shield className="h-3 w-3 mr-1" />
-                            Always
-                        </Button>
-                        <Button
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                onReject();
-                            }}
-                            variant="outline"
-                            size="sm"
-                            className="h-6 text-[11px] px-2.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20"
-                        >
-                            Reject
-                        </Button>
-                    </div>
-                )}
-
-                {/* Expanded details */}
-                {expanded && (hasResult || isPendingApproval) && (
-                    <div className="mt-2 space-y-2 animate-fade-in">
-                        {/* Tool arguments */}
-                        {toolArgs && Object.keys(toolArgs).length > 0 && (
-                            <div>
-                                <h4 className="text-[9px] font-semibold text-muted-foreground/60 uppercase mb-1">
-                                    Input
-                                </h4>
-                                <div className="bg-muted/30 rounded-md p-1.5 space-y-0.5 text-[10px]">
-                                    {Object.entries(toolArgs).map(([key, value]) => (
-                                        <div key={key} className="flex gap-1.5">
-                                            <span className="text-muted-foreground font-medium shrink-0">
-                                                {key}:
-                                            </span>
-                                            <span className="text-foreground/70 font-mono break-all">
-                                                {formatValue(value)}
-                                            </span>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Inline approval buttons (expanded view) */}
-                        {isPendingApproval && onApprove && onReject && (
-                            <div className="space-y-1.5">
-                                <div className="flex gap-1.5">
-                                    <Button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            onApprove(undefined, false);
-                                        }}
-                                        size="sm"
-                                        className="flex-1 bg-green-600 hover:bg-green-700 text-white h-7 text-xs"
-                                    >
-                                        <CheckCircle2 className="h-3 w-3 mr-1" />
-                                        Approve
-                                    </Button>
-                                    <Button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            onReject();
-                                        }}
-                                        size="sm"
-                                        variant="outline"
-                                        className="flex-1 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 h-7 text-xs"
-                                    >
-                                        <XCircle className="h-3 w-3 mr-1" />
-                                        Reject
-                                    </Button>
-                                </div>
-                                <Button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        onApprove(undefined, true);
-                                    }}
-                                    size="sm"
-                                    variant="outline"
-                                    className="w-full h-6 text-[11px] text-green-600 border-green-300 hover:bg-green-50 dark:border-green-700 dark:hover:bg-green-950/20"
-                                >
-                                    <Shield className="h-3 w-3 mr-1" />
-                                    Approve for entire session
-                                </Button>
-                            </div>
-                        )}
-
-                        {/* Tool result - use rich renderer if display data available */}
-                        {hasResult && (
-                            <div>
-                                <h4 className="text-[9px] font-semibold text-muted-foreground/60 uppercase mb-1">
-                                    Output
-                                </h4>
-                                <ToolResultRenderer
-                                    display={displayData}
-                                    content={toolResult}
-                                    success={success}
-                                    defaultExpanded={success === false}
-                                />
-                            </div>
+                {output && (
+                    <div className="bg-zinc-900 rounded overflow-hidden">
+                        <pre className="p-1.5 text-[11px] text-zinc-300 font-mono whitespace-pre-wrap max-h-48 overflow-y-auto">
+                            {displayLines.join('\n')}
+                        </pre>
+                        {lines.length > 5 && (
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setDetailsExpanded(!detailsExpanded);
+                                }}
+                                className="w-full py-0.5 text-[10px] text-blue-400 bg-zinc-800 border-t border-zinc-700"
+                            >
+                                {detailsExpanded ? 'less' : `+${lines.length - 5} more...`}
+                            </button>
                         )}
                     </div>
                 )}
             </div>
-        </div>
-    );
-}
+        );
+    }
 
-function formatValue(value: unknown): string {
-    if (typeof value === 'string') {
-        // Truncate long strings
-        return value.length > 200 ? `${value.substring(0, 200)}...` : value;
+    function renderSearch(data: Extract<ToolDisplayData, { type: 'search' }>) {
+        const matches = data.matches.slice(0, detailsExpanded ? 15 : 5);
+
+        return (
+            <div className="space-y-1">
+                <div className="flex items-center gap-2 text-[11px]">
+                    <Search className="h-3 w-3 text-muted-foreground" />
+                    <code className="font-mono text-foreground/70">{data.pattern}</code>
+                    <span className="text-muted-foreground">
+                        {data.totalMatches} matches{data.truncated && '+'}
+                    </span>
+                </div>
+                <div className="bg-muted/30 rounded overflow-hidden border border-border/50 divide-y divide-border/30">
+                    {matches.map((m, i) => (
+                        <div key={i} className="px-2 py-1 text-[11px]">
+                            <span className="text-blue-600 dark:text-blue-400 font-mono">
+                                {getShortPath(m.file)}
+                            </span>
+                            {m.line > 0 && <span className="text-muted-foreground">:{m.line}</span>}
+                            {m.content && (
+                                <div className="text-foreground/60 font-mono truncate">
+                                    {m.content}
+                                </div>
+                            )}
+                        </div>
+                    ))}
+                    {data.matches.length > 5 && (
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setDetailsExpanded(!detailsExpanded);
+                            }}
+                            className="w-full py-0.5 text-[10px] text-blue-500 bg-muted/50"
+                        >
+                            {detailsExpanded ? 'less' : `+${data.matches.length - 5} more...`}
+                        </button>
+                    )}
+                </div>
+            </div>
+        );
     }
-    if (typeof value === 'object') {
-        const str = JSON.stringify(value);
-        return str.length > 200 ? `${str.substring(0, 200)}...` : str;
+
+    function renderFile(data: Extract<ToolDisplayData, { type: 'file' }>) {
+        const OpIcon = { read: FileText, write: FileEdit, create: FilePlus, delete: Trash2 }[
+            data.operation
+        ];
+        const opColors = {
+            read: 'bg-blue-100 dark:bg-blue-900/30 text-blue-600',
+            write: 'bg-amber-100 dark:bg-amber-900/30 text-amber-600',
+            create: 'bg-green-100 dark:bg-green-900/30 text-green-600',
+            delete: 'bg-red-100 dark:bg-red-900/30 text-red-600',
+        }[data.operation];
+
+        return (
+            <div className="flex items-center gap-2 text-[11px]">
+                <OpIcon className="h-3 w-3 text-muted-foreground" />
+                <span className={cn('px-1 py-0.5 rounded text-[10px]', opColors)}>
+                    {data.operation}
+                </span>
+                <span className="font-mono text-foreground/70">{getShortPath(data.path)}</span>
+                {data.lineCount !== undefined && (
+                    <span className="text-muted-foreground">{data.lineCount} lines</span>
+                )}
+            </div>
+        );
     }
-    return String(value);
+
+    // =========================================================================
+    // Render functions for generating preview from toolArgs (no displayData)
+    // =========================================================================
+
+    function renderBashResult(_command: string) {
+        // Extract output from tool result
+        let output = '';
+        if (toolResult && typeof toolResult === 'object') {
+            const result = toolResult as Record<string, unknown>;
+            if (result.content && Array.isArray(result.content)) {
+                output = result.content
+                    .filter(
+                        (p: unknown) =>
+                            typeof p === 'object' &&
+                            p !== null &&
+                            (p as Record<string, unknown>).type === 'text'
+                    )
+                    .map((p: unknown) => (p as { text?: string }).text || '')
+                    .join('\n');
+            }
+        }
+
+        if (!output) return null;
+
+        const lines = output.split('\n');
+        const displayLines = lines.slice(0, detailsExpanded ? 25 : 5);
+
+        return (
+            <div className="ml-5 bg-zinc-900 rounded overflow-hidden">
+                <pre className="p-1.5 text-[11px] text-zinc-300 font-mono whitespace-pre-wrap max-h-48 overflow-y-auto">
+                    {displayLines.join('\n')}
+                </pre>
+                {lines.length > 5 && (
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setDetailsExpanded(!detailsExpanded);
+                        }}
+                        className="w-full py-0.5 text-[10px] text-blue-400 bg-zinc-800 border-t border-zinc-700"
+                    >
+                        {detailsExpanded ? 'less' : `+${lines.length - 5} more...`}
+                    </button>
+                )}
+            </div>
+        );
+    }
+
+    function renderEditResult(_filePath: string, oldString: string, newString: string) {
+        return (
+            <div className="ml-5 bg-muted/30 rounded overflow-hidden border border-border/50 text-[11px] font-mono">
+                {oldString
+                    .split('\n')
+                    .slice(0, detailsExpanded ? 15 : 3)
+                    .map((line, i) => (
+                        <div
+                            key={`o${i}`}
+                            className="px-2 py-0.5 bg-red-100/50 dark:bg-red-900/20 text-red-800 dark:text-red-300"
+                        >
+                            <span className="text-red-500/50 mr-1">-</span>
+                            {line || ' '}
+                        </div>
+                    ))}
+                {newString
+                    .split('\n')
+                    .slice(0, detailsExpanded ? 15 : 3)
+                    .map((line, i) => (
+                        <div
+                            key={`n${i}`}
+                            className="px-2 py-0.5 bg-green-100/50 dark:bg-green-900/20 text-green-800 dark:text-green-300"
+                        >
+                            <span className="text-green-500/50 mr-1">+</span>
+                            {line || ' '}
+                        </div>
+                    ))}
+                {(oldString.split('\n').length > 3 || newString.split('\n').length > 3) && (
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setDetailsExpanded(!detailsExpanded);
+                        }}
+                        className="w-full py-0.5 text-[10px] text-blue-500 bg-muted/50 border-t border-border/30"
+                    >
+                        {detailsExpanded ? 'less' : 'more...'}
+                    </button>
+                )}
+            </div>
+        );
+    }
+
+    function renderWriteResult(filePath: string, content: string) {
+        return (
+            <div className="ml-5">
+                <CodePreview
+                    content={content}
+                    filePath={filePath}
+                    maxLines={8}
+                    maxHeight={180}
+                    showHeader={false}
+                />
+            </div>
+        );
+    }
+
+    function renderReadResult(filePath: string) {
+        // Extract content from tool result
+        let content = '';
+        if (toolResult && typeof toolResult === 'object') {
+            const result = toolResult as Record<string, unknown>;
+            if (result.content && Array.isArray(result.content)) {
+                content = result.content
+                    .filter(
+                        (p: unknown) =>
+                            typeof p === 'object' &&
+                            p !== null &&
+                            (p as Record<string, unknown>).type === 'text'
+                    )
+                    .map((p: unknown) => (p as { text?: string }).text || '')
+                    .join('\n');
+            }
+        }
+
+        if (!content) return null;
+
+        return (
+            <div className="ml-5">
+                <CodePreview
+                    content={content}
+                    filePath={filePath}
+                    maxLines={8}
+                    maxHeight={180}
+                    showHeader={false}
+                />
+            </div>
+        );
+    }
+
+    function renderGenericResult() {
+        // Extract text from result
+        let resultText = '';
+        if (toolResult && typeof toolResult === 'object') {
+            const result = toolResult as Record<string, unknown>;
+            if (result.content && Array.isArray(result.content)) {
+                resultText = result.content
+                    .filter(
+                        (p: unknown) =>
+                            typeof p === 'object' &&
+                            p !== null &&
+                            (p as Record<string, unknown>).type === 'text'
+                    )
+                    .map((p: unknown) => (p as { text?: string }).text || '')
+                    .join('\n');
+            }
+        }
+
+        if (!resultText) return null;
+
+        const lines = resultText.split('\n');
+        const displayLines = lines.slice(0, detailsExpanded ? 20 : 5);
+
+        return (
+            <div className="bg-muted/30 rounded overflow-hidden border border-border/50">
+                <pre className="p-1.5 text-[11px] text-foreground/70 font-mono whitespace-pre-wrap max-h-40 overflow-y-auto">
+                    {displayLines.join('\n')}
+                </pre>
+                {lines.length > 5 && (
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setDetailsExpanded(!detailsExpanded);
+                        }}
+                        className="w-full py-0.5 text-[10px] text-blue-500 bg-muted/50 border-t border-border/30"
+                    >
+                        {detailsExpanded ? 'less' : `+${lines.length - 5} more...`}
+                    </button>
+                )}
+            </div>
+        );
+    }
 }

@@ -1,89 +1,129 @@
 /**
  * CodePreview Component
  *
- * Displays code with syntax highlighting using highlight.js.
- * Supports expandable view and full-screen Monaco editor modal.
+ * Displays code with syntax highlighting, scrollable preview,
+ * and option to expand to full-screen Monaco editor.
  */
 
-import { useState, useEffect, useMemo } from 'react';
-import { FileText, Maximize2, Copy, Check, ChevronDown, ChevronRight, X } from 'lucide-react';
+import { useState, useCallback, lazy, Suspense } from 'react';
+import { Copy, Check, Maximize2, X, FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import hljs from 'highlight.js/lib/core';
+
+// Register common languages
 import javascript from 'highlight.js/lib/languages/javascript';
 import typescript from 'highlight.js/lib/languages/typescript';
-import python from 'highlight.js/lib/languages/python';
 import json from 'highlight.js/lib/languages/json';
-import yaml from 'highlight.js/lib/languages/yaml';
+import python from 'highlight.js/lib/languages/python';
 import bash from 'highlight.js/lib/languages/bash';
-import markdown from 'highlight.js/lib/languages/markdown';
-import css from 'highlight.js/lib/languages/css';
 import xml from 'highlight.js/lib/languages/xml';
+import css from 'highlight.js/lib/languages/css';
+import yaml from 'highlight.js/lib/languages/yaml';
+import markdown from 'highlight.js/lib/languages/markdown';
+import sql from 'highlight.js/lib/languages/sql';
 import go from 'highlight.js/lib/languages/go';
 import rust from 'highlight.js/lib/languages/rust';
-import sql from 'highlight.js/lib/languages/sql';
-import 'highlight.js/styles/github-dark.css';
 
-// Register languages
 hljs.registerLanguage('javascript', javascript);
+hljs.registerLanguage('js', javascript);
 hljs.registerLanguage('typescript', typescript);
-hljs.registerLanguage('python', python);
+hljs.registerLanguage('ts', typescript);
+hljs.registerLanguage('tsx', typescript);
+hljs.registerLanguage('jsx', javascript);
 hljs.registerLanguage('json', json);
-hljs.registerLanguage('yaml', yaml);
+hljs.registerLanguage('python', python);
+hljs.registerLanguage('py', python);
 hljs.registerLanguage('bash', bash);
-hljs.registerLanguage('markdown', markdown);
-hljs.registerLanguage('css', css);
-hljs.registerLanguage('xml', xml);
+hljs.registerLanguage('sh', bash);
+hljs.registerLanguage('shell', bash);
 hljs.registerLanguage('html', xml);
+hljs.registerLanguage('xml', xml);
+hljs.registerLanguage('css', css);
+hljs.registerLanguage('yaml', yaml);
+hljs.registerLanguage('yml', yaml);
+hljs.registerLanguage('markdown', markdown);
+hljs.registerLanguage('md', markdown);
+hljs.registerLanguage('sql', sql);
 hljs.registerLanguage('go', go);
 hljs.registerLanguage('rust', rust);
-hljs.registerLanguage('sql', sql);
+hljs.registerLanguage('rs', rust);
 
-// Language detection from file extension
-function getLanguageFromPath(filePath: string): string {
-    const ext = filePath.split('.').pop()?.toLowerCase() || '';
-    const langMap: Record<string, string> = {
-        js: 'javascript',
-        jsx: 'javascript',
-        ts: 'typescript',
-        tsx: 'typescript',
-        py: 'python',
-        json: 'json',
-        yml: 'yaml',
-        yaml: 'yaml',
-        sh: 'bash',
-        bash: 'bash',
-        zsh: 'bash',
-        md: 'markdown',
-        css: 'css',
-        scss: 'css',
-        html: 'html',
-        xml: 'xml',
-        go: 'go',
-        rs: 'rust',
-        sql: 'sql',
-    };
-    return langMap[ext] || 'plaintext';
+// Lazy load Monaco for full editor view
+const Editor = lazy(() => import('@monaco-editor/react'));
+
+interface CodePreviewProps {
+    /** Code content to display */
+    content: string;
+    /** File path for language detection and display */
+    filePath?: string;
+    /** Override detected language */
+    language?: string;
+    /** Maximum lines before showing "show more" (default: 10) */
+    maxLines?: number;
+    /** Whether to show line numbers (default: true) */
+    showLineNumbers?: boolean;
+    /** Maximum height in pixels for the preview (default: 200) */
+    maxHeight?: number;
+    /** Optional title/label */
+    title?: string;
+    /** Show icon before title */
+    showIcon?: boolean;
+    /** Show header with title/actions (default: true) */
+    showHeader?: boolean;
 }
 
-export interface CodePreviewProps {
-    /** The code content to display */
-    content: string;
-    /** File path (used for language detection and display) */
-    filePath?: string;
-    /** Override language for syntax highlighting */
-    language?: string;
-    /** Maximum lines to show before truncation (default: 10) */
-    maxLines?: number;
-    /** Show line numbers (default: true) */
-    showLineNumbers?: boolean;
-    /** Maximum height in pixels (default: 200) */
-    maxHeight?: number;
-    /** Custom title (overrides file path) */
-    title?: string;
-    /** Show file icon (default: true) */
-    showIcon?: boolean;
-    /** Show the header with file path (default: true) */
-    showHeader?: boolean;
+// Map file extensions to hljs/monaco languages
+const EXT_TO_LANG: Record<string, string> = {
+    js: 'javascript',
+    mjs: 'javascript',
+    cjs: 'javascript',
+    jsx: 'javascript',
+    ts: 'typescript',
+    tsx: 'typescript',
+    mts: 'typescript',
+    cts: 'typescript',
+    json: 'json',
+    py: 'python',
+    sh: 'bash',
+    bash: 'bash',
+    zsh: 'bash',
+    html: 'html',
+    htm: 'html',
+    xml: 'xml',
+    svg: 'xml',
+    css: 'css',
+    scss: 'css',
+    less: 'css',
+    yaml: 'yaml',
+    yml: 'yaml',
+    md: 'markdown',
+    mdx: 'markdown',
+    sql: 'sql',
+    go: 'go',
+    rs: 'rust',
+    toml: 'yaml',
+    ini: 'yaml',
+    env: 'bash',
+    dockerfile: 'bash',
+    makefile: 'bash',
+};
+
+function getLanguageFromPath(filePath: string): string {
+    const ext = filePath.split('.').pop()?.toLowerCase() || '';
+    const filename = filePath.split('/').pop()?.toLowerCase() || '';
+
+    // Check special filenames
+    if (filename === 'dockerfile') return 'bash';
+    if (filename === 'makefile') return 'bash';
+    if (filename.startsWith('.env')) return 'bash';
+
+    return EXT_TO_LANG[ext] || 'plaintext';
+}
+
+function getShortPath(path: string): string {
+    const parts = path.split('/').filter(Boolean);
+    if (parts.length <= 2) return path;
+    return `.../${parts.slice(-2).join('/')}`;
 }
 
 export function CodePreview({
@@ -97,54 +137,50 @@ export function CodePreview({
     showIcon = true,
     showHeader = true,
 }: CodePreviewProps) {
-    const [expanded, setExpanded] = useState(false);
+    const [showAll, setShowAll] = useState(false);
     const [showFullScreen, setShowFullScreen] = useState(false);
     const [copied, setCopied] = useState(false);
 
     const language = overrideLanguage || (filePath ? getLanguageFromPath(filePath) : 'plaintext');
     const lines = content.split('\n');
-    const totalLines = lines.length;
-    const needsTruncation = totalLines > maxLines;
-    const displayLines = expanded ? lines : lines.slice(0, maxLines);
+    const shouldTruncate = lines.length > maxLines && !showAll;
+    const displayContent = shouldTruncate ? lines.slice(0, maxLines).join('\n') : content;
 
-    // Highlight the code
-    const highlightedCode = useMemo(() => {
-        try {
-            if (language !== 'plaintext' && hljs.getLanguage(language)) {
-                return hljs.highlight(displayLines.join('\n'), { language }).value;
-            }
-        } catch {
-            // Fall through to plain text
+    // Syntax highlight
+    let highlightedContent = displayContent;
+    try {
+        if (language !== 'plaintext') {
+            const result = hljs.highlight(displayContent, { language, ignoreIllegals: true });
+            highlightedContent = result.value;
         }
-        return displayLines
-            .map((line) => line.replace(/</g, '&lt;').replace(/>/g, '&gt;'))
-            .join('\n');
-    }, [displayLines, language]);
+    } catch {
+        // Fall back to plain text
+    }
 
-    const handleCopy = async () => {
+    const handleCopy = useCallback(async () => {
         await navigator.clipboard.writeText(content);
         setCopied(true);
         setTimeout(() => setCopied(false), 1500);
-    };
+    }, [content]);
 
-    const displayTitle = title || (filePath ? (filePath.split('/').pop() ?? 'Code') : 'Code');
+    const displayTitle = title || (filePath ? getShortPath(filePath) : undefined);
 
     return (
         <>
-            <div className="bg-zinc-900 rounded-md overflow-hidden border border-zinc-800">
+            <div className="space-y-1">
                 {/* Header */}
-                {showHeader && (
-                    <div className="flex items-center justify-between px-2 py-1 bg-zinc-800/50 border-b border-zinc-700/50">
-                        <div className="flex items-center gap-1.5 text-[11px] text-zinc-400 truncate">
-                            {showIcon && <FileText className="h-3 w-3 flex-shrink-0" />}
-                            <span className="truncate font-mono">{displayTitle}</span>
-                            <span className="text-zinc-500">({totalLines} lines)</span>
+                {showHeader && (displayTitle || filePath) && (
+                    <div className="flex items-center justify-between text-[11px]">
+                        <div className="flex items-center gap-1.5 text-muted-foreground">
+                            {showIcon && <FileText className="h-3 w-3" />}
+                            <span className="font-mono">{displayTitle}</span>
+                            <span className="text-[10px]">{lines.length} lines</span>
                         </div>
                         <div className="flex items-center gap-1">
                             <button
                                 onClick={handleCopy}
-                                className="p-1 hover:bg-zinc-700 rounded text-zinc-400 hover:text-zinc-200"
-                                title="Copy code"
+                                className="p-0.5 text-muted-foreground hover:text-foreground transition-colors"
+                                title="Copy to clipboard"
                             >
                                 {copied ? (
                                     <Check className="h-3 w-3 text-green-500" />
@@ -154,8 +190,8 @@ export function CodePreview({
                             </button>
                             <button
                                 onClick={() => setShowFullScreen(true)}
-                                className="p-1 hover:bg-zinc-700 rounded text-zinc-400 hover:text-zinc-200"
-                                title="Open in full screen"
+                                className="p-0.5 text-muted-foreground hover:text-foreground transition-colors"
+                                title="Open full view"
                             >
                                 <Maximize2 className="h-3 w-3" />
                             </button>
@@ -163,157 +199,152 @@ export function CodePreview({
                     </div>
                 )}
 
-                {/* Code content */}
+                {/* Code preview */}
                 <div
-                    className="overflow-auto"
-                    style={{ maxHeight: expanded ? undefined : maxHeight }}
+                    className="bg-zinc-900 dark:bg-zinc-950 rounded overflow-hidden border border-border/30"
+                    style={{ maxHeight: showAll ? undefined : maxHeight }}
                 >
-                    <pre className="p-2 text-[11px] leading-relaxed">
-                        <code
-                            className={cn('hljs', showLineNumbers && 'flex')}
-                            dangerouslySetInnerHTML={{
-                                __html: showLineNumbers
-                                    ? displayLines
-                                          .map(
-                                              (_, i) =>
-                                                  `<span class="select-none text-zinc-600 pr-3 text-right inline-block w-8">${i + 1}</span>`
-                                          )
-                                          .join('\n') +
-                                      '</code><code class="hljs flex-1">' +
-                                      highlightedCode
-                                    : highlightedCode,
-                            }}
-                        />
-                    </pre>
-                </div>
-
-                {/* Expand/collapse button */}
-                {needsTruncation && (
-                    <button
-                        onClick={() => setExpanded(!expanded)}
-                        className="w-full py-1 text-[10px] text-blue-400 bg-zinc-800/50 border-t border-zinc-700/50 hover:bg-zinc-800 flex items-center justify-center gap-1"
+                    <div
+                        className={cn('overflow-auto', showAll ? 'max-h-[400px]' : '')}
+                        style={{ maxHeight: showAll ? 400 : maxHeight - 2 }}
                     >
-                        {expanded ? (
-                            <>
-                                <ChevronDown className="h-3 w-3" />
-                                Show less
-                            </>
-                        ) : (
-                            <>
-                                <ChevronRight className="h-3 w-3" />
-                                Show {totalLines - maxLines} more lines
-                            </>
-                        )}
-                    </button>
-                )}
+                        <pre className="p-2 text-[11px] font-mono leading-relaxed">
+                            {showLineNumbers ? (
+                                <code>
+                                    {(showAll ? content : displayContent)
+                                        .split('\n')
+                                        .map((line, i) => (
+                                            <div key={i} className="flex">
+                                                <span className="w-8 pr-2 text-right text-zinc-600 select-none flex-shrink-0">
+                                                    {i + 1}
+                                                </span>
+                                                <span
+                                                    className="text-zinc-200 whitespace-pre-wrap break-all flex-1"
+                                                    dangerouslySetInnerHTML={{
+                                                        __html: (() => {
+                                                            try {
+                                                                if (language !== 'plaintext') {
+                                                                    return hljs.highlight(
+                                                                        line || ' ',
+                                                                        {
+                                                                            language,
+                                                                            ignoreIllegals: true,
+                                                                        }
+                                                                    ).value;
+                                                                }
+                                                            } catch {
+                                                                // fallback
+                                                            }
+                                                            return line || ' ';
+                                                        })(),
+                                                    }}
+                                                />
+                                            </div>
+                                        ))}
+                                </code>
+                            ) : (
+                                <code
+                                    className="text-zinc-200 whitespace-pre-wrap break-all"
+                                    dangerouslySetInnerHTML={{ __html: highlightedContent }}
+                                />
+                            )}
+                        </pre>
+                    </div>
+
+                    {/* Show more button */}
+                    {shouldTruncate && (
+                        <button
+                            onClick={() => setShowAll(true)}
+                            className="w-full py-1 text-[10px] text-blue-400 bg-zinc-800 border-t border-zinc-700 hover:bg-zinc-700 transition-colors"
+                        >
+                            Show {lines.length - maxLines} more lines...
+                        </button>
+                    )}
+                    {showAll && lines.length > maxLines && (
+                        <button
+                            onClick={() => setShowAll(false)}
+                            className="w-full py-1 text-[10px] text-blue-400 bg-zinc-800 border-t border-zinc-700 hover:bg-zinc-700 transition-colors"
+                        >
+                            Show less
+                        </button>
+                    )}
+                </div>
             </div>
 
             {/* Full screen modal with Monaco */}
             {showFullScreen && (
-                <FullScreenCodeModal
-                    content={content}
-                    language={language}
-                    title={displayTitle}
-                    onClose={() => setShowFullScreen(false)}
-                />
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
+                    <div className="relative w-[90vw] h-[85vh] bg-zinc-900 rounded-lg shadow-2xl flex flex-col overflow-hidden">
+                        {/* Modal header */}
+                        <div className="flex items-center justify-between px-4 py-2 bg-zinc-800 border-b border-zinc-700">
+                            <div className="flex items-center gap-2 text-sm text-zinc-300">
+                                <FileText className="h-4 w-4" />
+                                <span className="font-mono">{filePath || 'Code'}</span>
+                                <span className="text-zinc-500">({lines.length} lines)</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={handleCopy}
+                                    className="flex items-center gap-1.5 px-2 py-1 text-xs text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700 rounded transition-colors"
+                                >
+                                    {copied ? (
+                                        <>
+                                            <Check className="h-3.5 w-3.5 text-green-500" />
+                                            Copied
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Copy className="h-3.5 w-3.5" />
+                                            Copy
+                                        </>
+                                    )}
+                                </button>
+                                <button
+                                    onClick={() => setShowFullScreen(false)}
+                                    className="p-1 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700 rounded transition-colors"
+                                >
+                                    <X className="h-5 w-5" />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Monaco editor */}
+                        <div className="flex-1">
+                            <Suspense
+                                fallback={
+                                    <div className="flex items-center justify-center h-full text-zinc-500">
+                                        Loading editor...
+                                    </div>
+                                }
+                            >
+                                <Editor
+                                    height="100%"
+                                    language={language === 'plaintext' ? undefined : language}
+                                    value={content}
+                                    theme="vs-dark"
+                                    options={{
+                                        readOnly: true,
+                                        minimap: { enabled: true },
+                                        scrollBeyondLastLine: false,
+                                        fontSize: 13,
+                                        lineNumbers: 'on',
+                                        renderLineHighlight: 'all',
+                                        folding: true,
+                                        automaticLayout: true,
+                                        wordWrap: 'on',
+                                    }}
+                                />
+                            </Suspense>
+                        </div>
+                    </div>
+
+                    {/* Click outside to close */}
+                    <div
+                        className="absolute inset-0 -z-10"
+                        onClick={() => setShowFullScreen(false)}
+                    />
+                </div>
             )}
         </>
-    );
-}
-
-interface FullScreenCodeModalProps {
-    content: string;
-    language: string;
-    title: string;
-    onClose: () => void;
-}
-
-function FullScreenCodeModal({ content, language, title, onClose }: FullScreenCodeModalProps) {
-    const [Editor, setEditor] = useState<typeof import('@monaco-editor/react').default | null>(
-        null
-    );
-
-    useEffect(() => {
-        // Dynamic import Monaco editor
-        import('@monaco-editor/react').then((mod) => {
-            setEditor(() => mod.default);
-        });
-    }, []);
-
-    useEffect(() => {
-        const handleEscape = (e: KeyboardEvent) => {
-            if (e.key === 'Escape') onClose();
-        };
-        window.addEventListener('keydown', handleEscape);
-        return () => window.removeEventListener('keydown', handleEscape);
-    }, [onClose]);
-
-    // Map our language names to Monaco language IDs
-    const monacoLanguage =
-        {
-            javascript: 'javascript',
-            typescript: 'typescript',
-            python: 'python',
-            json: 'json',
-            yaml: 'yaml',
-            bash: 'shell',
-            markdown: 'markdown',
-            css: 'css',
-            html: 'html',
-            xml: 'xml',
-            go: 'go',
-            rust: 'rust',
-            sql: 'sql',
-        }[language] || 'plaintext';
-
-    return (
-        <div
-            className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
-            onClick={onClose}
-        >
-            <div
-                className="bg-zinc-900 rounded-lg w-full max-w-5xl h-[80vh] flex flex-col overflow-hidden border border-zinc-700"
-                onClick={(e) => e.stopPropagation()}
-            >
-                {/* Header */}
-                <div className="flex items-center justify-between px-4 py-2 bg-zinc-800 border-b border-zinc-700">
-                    <div className="flex items-center gap-2 text-sm text-zinc-300">
-                        <FileText className="h-4 w-4" />
-                        <span className="font-mono">{title}</span>
-                    </div>
-                    <button
-                        onClick={onClose}
-                        className="p-1 hover:bg-zinc-700 rounded text-zinc-400 hover:text-zinc-200"
-                    >
-                        <X className="h-4 w-4" />
-                    </button>
-                </div>
-
-                {/* Editor */}
-                <div className="flex-1">
-                    {Editor ? (
-                        <Editor
-                            height="100%"
-                            language={monacoLanguage}
-                            value={content}
-                            theme="vs-dark"
-                            options={{
-                                readOnly: true,
-                                minimap: { enabled: false },
-                                fontSize: 13,
-                                lineNumbers: 'on',
-                                scrollBeyondLastLine: false,
-                                wordWrap: 'on',
-                                automaticLayout: true,
-                            }}
-                        />
-                    ) : (
-                        <div className="flex items-center justify-center h-full text-zinc-500">
-                            Loading editor...
-                        </div>
-                    )}
-                </div>
-            </div>
-        </div>
     );
 }

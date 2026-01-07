@@ -206,33 +206,47 @@ function handleToolCall(event: EventByName<'llm:tool-call'>): void {
     // Finalize any streaming message to maintain proper sequence
     finalizeStreamingIfNeeded(sessionId);
 
+    const messages = chatStore.getMessages(sessionId);
+
     // Check if there's already a message for this tool call (from approval:request)
     // The approval message uses the approvalId which may equal callId
-    const messages = chatStore.getMessages(sessionId);
     const existingMessage = messages.find(
         (m) => m.role === 'tool' && m.toolCallId === callId && m.toolResult === undefined
     );
 
     if (existingMessage) {
-        // Approval message already exists - skip duplicate creation
+        // Approval message already exists - update with args if needed
+        chatStore.updateMessage(sessionId, existingMessage.id, {
+            toolArgs: args,
+        });
         console.debug('[handlers] Tool call message already exists:', existingMessage.id);
         return;
     }
 
-    // Also check for pending approval messages by toolName that don't have a result yet
-    const pendingApprovalMessage = messages.find(
-        (m) =>
-            m.role === 'tool' &&
-            m.toolName === toolName &&
-            m.requireApproval === true &&
-            m.approvalStatus === 'pending' &&
-            m.toolResult === undefined
-    );
+    // Check for pending approval messages that don't have a result yet
+    // Match by: 1) exact toolName, 2) toolName without prefix, 3) any pending approval
+    const stripPrefix = (name: string) =>
+        name
+            .replace(/^(internal--|custom--|mcp--[^-]+--|mcp__[^_]+__)/, '')
+            .replace(/^(internal__|custom__)/, '');
+    const cleanToolName = stripPrefix(toolName);
+
+    const pendingApprovalMessage = messages.find((m) => {
+        if (m.role !== 'tool' || m.toolResult !== undefined) return false;
+        if (m.requireApproval !== true || m.approvalStatus !== 'pending') return false;
+
+        // Match by toolName (exact or stripped)
+        if (m.toolName === toolName) return true;
+        if (m.toolName && stripPrefix(m.toolName) === cleanToolName) return true;
+
+        return false;
+    });
 
     if (pendingApprovalMessage) {
-        // Update existing approval message with the callId
+        // Update existing approval message with the callId and args
         chatStore.updateMessage(sessionId, pendingApprovalMessage.id, {
             toolCallId: callId,
+            toolArgs: args,
         });
         console.debug(
             '[handlers] Updated existing approval message with callId:',
@@ -293,9 +307,10 @@ function handleToolResult(event: EventByName<'llm:tool-result'>): void {
     }
 
     if (message) {
-        // Update with result
+        // Update with result - include toolResultMeta for display data
         chatStore.updateMessage(sessionId, message.id, {
             toolResult: sanitized,
+            toolResultMeta: sanitized?.meta,
             toolResultSuccess: success,
             ...(requireApproval !== undefined && { requireApproval }),
             ...(approvalStatus !== undefined && { approvalStatus }),
@@ -354,11 +369,24 @@ function handleApprovalRequest(event: EventByName<'approval:request'>): void {
     const toolArgs = (event as any).metadata?.args || (event as any).args || {};
     const approvalType = (event as any).type;
 
-    // Check if there's already a tool message for this approval (by toolName without result)
+    // Helper to strip prefixes for matching
+    const stripPrefix = (name: string) =>
+        name
+            .replace(/^(internal--|custom--|mcp--[^-]+--|mcp__[^_]+__)/, '')
+            .replace(/^(internal__|custom__)/, '');
+    const cleanToolName = stripPrefix(toolName);
+
+    // Check if there's already a tool message for this approval
     const messages = chatStore.getMessages(sessionId);
-    const existingToolMessage = messages.find(
-        (m) => m.role === 'tool' && m.toolName === toolName && m.toolResult === undefined
-    );
+    const existingToolMessage = messages.find((m) => {
+        if (m.role !== 'tool' || m.toolResult !== undefined) return false;
+        // Already has approval - skip
+        if (m.requireApproval === true) return false;
+        // Match by toolName (exact or stripped)
+        if (m.toolName === toolName) return true;
+        if (m.toolName && stripPrefix(m.toolName) === cleanToolName) return true;
+        return false;
+    });
 
     if (existingToolMessage) {
         // Update existing tool message with approval info
@@ -371,22 +399,40 @@ function handleApprovalRequest(event: EventByName<'approval:request'>): void {
             existingToolMessage.id
         );
     } else if (sessionId) {
-        // Create a new tool message with approval state
-        const approvalMessage = {
-            id: `approval-${approvalId}`,
-            role: 'tool' as const,
-            content: null,
-            toolName,
-            toolArgs,
-            toolCallId: approvalId, // Use approvalId as callId for correlation
-            createdAt: Date.now(),
-            sessionId,
-            requireApproval: true,
-            approvalStatus: 'pending' as const,
-            // Store approval metadata for rendering (elicitation, command, etc.)
-            ...(approvalType && { approvalType }),
-        };
-        chatStore.addMessage(sessionId, approvalMessage);
+        // Check if there's already a pending approval message to avoid duplicates
+        const existingApprovalMessage = messages.find(
+            (m) =>
+                m.role === 'tool' &&
+                m.requireApproval === true &&
+                m.approvalStatus === 'pending' &&
+                m.toolResult === undefined &&
+                (m.toolName === toolName ||
+                    (m.toolName && stripPrefix(m.toolName) === cleanToolName))
+        );
+
+        if (existingApprovalMessage) {
+            console.debug(
+                '[handlers] Approval message already exists:',
+                existingApprovalMessage.id
+            );
+        } else {
+            // Create a new tool message with approval state
+            const approvalMessage = {
+                id: `approval-${approvalId}`,
+                role: 'tool' as const,
+                content: null,
+                toolName,
+                toolArgs,
+                toolCallId: approvalId, // Use approvalId as callId for correlation
+                createdAt: Date.now(),
+                sessionId,
+                requireApproval: true,
+                approvalStatus: 'pending' as const,
+                // Store approval metadata for rendering (elicitation, command, etc.)
+                ...(approvalType && { approvalType }),
+            };
+            chatStore.addMessage(sessionId, approvalMessage);
+        }
     }
 
     // Update agent status
@@ -424,6 +470,8 @@ function handleApprovalResponse(event: EventByName<'approval:response'>): void {
                 status === ('approved' as ApprovalStatus) ? 'approved' : 'rejected';
             chatStore.updateMessage(sessionId, approvalMessage.id, {
                 approvalStatus,
+                // Mark rejected approvals as failed so UI shows error state
+                ...(approvalStatus === 'rejected' && { toolResultSuccess: false }),
             });
             console.debug(
                 '[handlers] Updated approval status:',

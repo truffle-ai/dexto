@@ -29,6 +29,11 @@ export class StreamProcessor {
     private pendingToolCalls: Map<string, { toolName: string }> = new Map();
 
     /**
+     * Track streaming tool calls - accumulates args text as it streams
+     */
+    private streamingToolCalls: Map<string, { toolName: string; argsText: string }> = new Map();
+
+    /**
      * @param contextManager Context manager for message persistence
      * @param eventBus Event bus for emitting events
      * @param resourceManager Resource manager for blob storage
