@@ -71,28 +71,6 @@ describe('sessionStore', () => {
         });
     });
 
-    describe('session switch flow', () => {
-        it('should handle beginSessionSwitch', () => {
-            useSessionStore.getState().beginSessionSwitch('new-session');
-            expect(useSessionStore.getState().isSwitchingSession).toBe(true);
-            expect(useSessionStore.getState().isLoadingHistory).toBe(true);
-        });
-
-        it('should handle completeSessionSwitch', () => {
-            useSessionStore.setState({
-                isSwitchingSession: true,
-                isLoadingHistory: true,
-                isWelcomeState: true,
-            });
-
-            useSessionStore.getState().completeSessionSwitch();
-
-            expect(useSessionStore.getState().isSwitchingSession).toBe(false);
-            expect(useSessionStore.getState().isLoadingHistory).toBe(false);
-            expect(useSessionStore.getState().isWelcomeState).toBe(false);
-        });
-    });
-
     describe('session creation flow', () => {
         it('should handle beginSessionCreation', () => {
             useSessionStore.getState().beginSessionCreation();

@@ -14,7 +14,6 @@ import { Textarea } from '../ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { AlertCircle, Loader2, Eye, EyeOff, Info } from 'lucide-react';
 import { LLM_PROVIDERS } from '@dexto/core';
-import { cn } from '@/lib/utils';
 
 interface CreateAgentModalProps {
     open: boolean;
@@ -271,6 +270,7 @@ export default function CreateAgentModal({
                                     type="button"
                                     onClick={() => setShowApiKey(!showApiKey)}
                                     className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-muted/50 transition-colors"
+                                    aria-label={showApiKey ? 'Hide API key' : 'Show API key'}
                                 >
                                     {showApiKey ? (
                                         <EyeOff className="h-4 w-4 text-muted-foreground" />

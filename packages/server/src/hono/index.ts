@@ -223,6 +223,11 @@ export function createDextoApp(options: CreateDextoAppOptions) {
                 name: 'discovery',
                 description: 'Discover available providers and capabilities',
             },
+            {
+                name: 'tools',
+                description:
+                    'List and inspect available tools from internal, custom, and MCP sources',
+            },
         ],
     });
 

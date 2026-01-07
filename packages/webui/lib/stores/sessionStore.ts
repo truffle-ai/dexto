@@ -96,17 +96,6 @@ interface SessionStore extends SessionState {
     returnToWelcome: () => void;
 
     /**
-     * Start a session switch operation
-     * @param targetSessionId - Session to switch to
-     */
-    beginSessionSwitch: (targetSessionId: string) => void;
-
-    /**
-     * Complete a session switch operation
-     */
-    completeSessionSwitch: () => void;
-
-    /**
      * Start creating a new session
      */
     beginSessionCreation: () => void;
@@ -205,23 +194,6 @@ export const useSessionStore = create<SessionStore>()((set, get) => ({
             isSwitchingSession: false,
             isReplayingHistory: false,
             isLoadingHistory: false,
-        });
-    },
-
-    beginSessionSwitch: (_targetSessionId) => {
-        set({
-            isSwitchingSession: true,
-            isLoadingHistory: true,
-        });
-        // Note: The actual session ID change happens in completeSessionSwitch
-        // after history is loaded
-    },
-
-    completeSessionSwitch: () => {
-        set({
-            isSwitchingSession: false,
-            isLoadingHistory: false,
-            isWelcomeState: false,
         });
     },
 

@@ -47,9 +47,14 @@ export function ShellRenderer({ data, maxLines = 10, defaultExpanded }: ShellRen
     const isSuccess = exitCode === 0;
 
     const handleCopy = async () => {
-        await navigator.clipboard.writeText(output);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
+        try {
+            await navigator.clipboard.writeText(output);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        } catch {
+            // Clipboard API failed - non-secure context or permission denied
+            console.warn('Failed to copy to clipboard');
+        }
     };
 
     return (

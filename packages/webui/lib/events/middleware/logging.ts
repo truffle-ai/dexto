@@ -59,13 +59,14 @@ function getEventSummary(event: ClientEvent): string {
             return `${event.toolName}: ${event.success ? 'success' : 'failed'}`;
         case 'llm:error':
             return event.error?.message ?? 'Unknown error';
-        case 'approval:request':
+        case 'approval:request': {
             // toolName is in metadata for tool_confirmation type
             const toolName =
                 'metadata' in event && event.metadata && 'toolName' in event.metadata
                     ? event.metadata.toolName
                     : 'unknown';
             return `${event.type}: ${toolName}`;
+        }
         case 'approval:response':
             return `${event.approvalId}: ${event.status}`;
         case 'session:title-updated':

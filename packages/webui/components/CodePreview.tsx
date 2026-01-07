@@ -5,7 +5,7 @@
  * and option to expand to full-screen Monaco editor.
  */
 
-import { useState, useCallback, lazy, Suspense } from 'react';
+import { useState, useCallback, useEffect, lazy, Suspense } from 'react';
 import { Copy, Check, Maximize2, X, FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTheme } from './hooks/useTheme';
@@ -127,6 +127,18 @@ function getShortPath(path: string): string {
     return `.../${parts.slice(-2).join('/')}`;
 }
 
+/**
+ * Escape HTML entities to prevent XSS when using dangerouslySetInnerHTML
+ */
+function escapeHtml(text: string): string {
+    return text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
 export function CodePreview({
     content,
     filePath,
@@ -148,15 +160,19 @@ export function CodePreview({
     const shouldTruncate = lines.length > maxLines && !showAll;
     const displayContent = shouldTruncate ? lines.slice(0, maxLines).join('\n') : content;
 
-    // Syntax highlight
-    let highlightedContent = displayContent;
+    // Syntax highlight, with HTML escaping for safety
+    let highlightedContent: string;
     try {
         if (language !== 'plaintext') {
             const result = hljs.highlight(displayContent, { language, ignoreIllegals: true });
             highlightedContent = result.value;
+        } else {
+            // Plaintext - escape HTML entities
+            highlightedContent = escapeHtml(displayContent);
         }
     } catch {
-        // Fall back to plain text
+        // Highlight failed - escape HTML entities for safety
+        highlightedContent = escapeHtml(displayContent);
     }
 
     const handleCopy = useCallback(async () => {
@@ -164,6 +180,20 @@ export function CodePreview({
         setCopied(true);
         setTimeout(() => setCopied(false), 1500);
     }, [content]);
+
+    // Handle escape key to close full screen modal
+    useEffect(() => {
+        if (!showFullScreen) return;
+
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                setShowFullScreen(false);
+            }
+        };
+
+        document.addEventListener('keydown', handleKeyDown);
+        return () => document.removeEventListener('keydown', handleKeyDown);
+    }, [showFullScreen]);
 
     const displayTitle = title || (filePath ? getShortPath(filePath) : undefined);
 
@@ -183,6 +213,7 @@ export function CodePreview({
                                 onClick={handleCopy}
                                 className="p-0.5 text-muted-foreground hover:text-foreground transition-colors"
                                 title="Copy to clipboard"
+                                aria-label="Copy code to clipboard"
                             >
                                 {copied ? (
                                     <Check className="h-3 w-3 text-green-500" />
@@ -194,6 +225,7 @@ export function CodePreview({
                                 onClick={() => setShowFullScreen(true)}
                                 className="p-0.5 text-muted-foreground hover:text-foreground transition-colors"
                                 title="Open full view"
+                                aria-label="Open code in full screen"
                             >
                                 <Maximize2 className="h-3 w-3" />
                             </button>
@@ -224,10 +256,11 @@ export function CodePreview({
                                                     className="text-zinc-800 dark:text-zinc-200 whitespace-pre-wrap break-all flex-1"
                                                     dangerouslySetInnerHTML={{
                                                         __html: (() => {
+                                                            const lineContent = line || ' ';
                                                             try {
                                                                 if (language !== 'plaintext') {
                                                                     return hljs.highlight(
-                                                                        line || ' ',
+                                                                        lineContent,
                                                                         {
                                                                             language,
                                                                             ignoreIllegals: true,
@@ -235,9 +268,9 @@ export function CodePreview({
                                                                     ).value;
                                                                 }
                                                             } catch {
-                                                                // fallback
+                                                                // fallback - escape HTML for safety
                                                             }
-                                                            return line || ' ';
+                                                            return escapeHtml(lineContent);
                                                         })(),
                                                     }}
                                                 />
@@ -275,7 +308,12 @@ export function CodePreview({
 
             {/* Full screen modal with Monaco */}
             {showFullScreen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 dark:bg-black/80 backdrop-blur-sm">
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 dark:bg-black/80 backdrop-blur-sm"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-label="Code preview"
+                >
                     <div className="relative w-[90vw] h-[85vh] bg-white dark:bg-zinc-900 rounded-lg shadow-2xl flex flex-col overflow-hidden border border-zinc-200 dark:border-zinc-700">
                         {/* Modal header */}
                         <div className="flex items-center justify-between px-4 py-2 bg-zinc-100 dark:bg-zinc-800 border-b border-zinc-200 dark:border-zinc-700">
@@ -290,6 +328,7 @@ export function CodePreview({
                                 <button
                                     onClick={handleCopy}
                                     className="flex items-center gap-1.5 px-2 py-1 text-xs text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded transition-colors"
+                                    aria-label={copied ? 'Code copied' : 'Copy code to clipboard'}
                                 >
                                     {copied ? (
                                         <>
@@ -306,6 +345,7 @@ export function CodePreview({
                                 <button
                                     onClick={() => setShowFullScreen(false)}
                                     className="p-1 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded transition-colors"
+                                    aria-label="Close full screen view"
                                 >
                                     <X className="h-5 w-5" />
                                 </button>

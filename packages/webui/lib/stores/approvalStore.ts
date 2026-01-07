@@ -11,6 +11,7 @@
  */
 
 import { create } from 'zustand';
+import { ApprovalStatus } from '@dexto/core';
 import type { ApprovalRequest, ApprovalResponse } from '@dexto/core';
 
 export interface PendingApproval {
@@ -40,8 +41,12 @@ interface ApprovalStore {
 /**
  * Check if approval response status is terminal (ends the approval)
  */
-function isTerminalStatus(status: string): boolean {
-    return status === 'approved' || status === 'denied' || status === 'cancelled';
+function isTerminalStatus(status: ApprovalStatus): boolean {
+    return (
+        status === ApprovalStatus.APPROVED ||
+        status === ApprovalStatus.DENIED ||
+        status === ApprovalStatus.CANCELLED
+    );
 }
 
 export const useApprovalStore = create<ApprovalStore>((set, get) => ({

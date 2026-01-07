@@ -24,6 +24,18 @@ interface GenericRendererProps {
 }
 
 /**
+ * Escape HTML entities to prevent XSS when using dangerouslySetInnerHTML
+ */
+function escapeHtml(text: string): string {
+    return text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+/**
  * Renders generic tool result content with syntax highlighting.
  */
 export function GenericRenderer({
@@ -43,15 +55,19 @@ export function GenericRenderer({
     const shouldTruncate = lines.length > maxLines && !showAll;
     const displayContent = shouldTruncate ? lines.slice(0, maxLines).join('\n') : formattedContent;
 
-    // Syntax highlight if it looks like JSON
-    let highlightedContent = displayContent;
+    // Syntax highlight if it looks like JSON, otherwise escape HTML for safety
+    let highlightedContent: string;
     try {
         if (typeof content === 'object' || formattedContent.startsWith('{')) {
             const result = hljs.highlight(displayContent, { language: 'json' });
             highlightedContent = result.value;
+        } else {
+            // Not JSON - escape HTML entities for plain text
+            highlightedContent = escapeHtml(displayContent);
         }
     } catch {
-        // Fall back to plain text
+        // Highlight failed - escape HTML entities for safety
+        highlightedContent = escapeHtml(displayContent);
     }
 
     const handleCopy = async () => {

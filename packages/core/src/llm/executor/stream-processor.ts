@@ -377,7 +377,7 @@ export class StreamProcessor {
                             event.error instanceof Error
                                 ? event.error
                                 : new Error(String(event.error));
-                        this.logger.error(`LLM error: ${err.toString()}}`);
+                        this.logger.error(`LLM error: ${err.toString()}`);
                         this.eventBus.emit('llm:error', {
                             error: err,
                         });
