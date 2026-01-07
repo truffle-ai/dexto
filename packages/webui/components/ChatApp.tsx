@@ -790,7 +790,7 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
                 className={cn(
                     'hidden md:block h-full shrink-0 bg-card/50 backdrop-blur-sm',
                     !isFirstRenderRef.current && 'transition-all duration-300 ease-in-out',
-                    isSessionsPanelOpen ? 'w-80' : 'w-14'
+                    isSessionsPanelOpen ? 'w-72' : 'w-14'
                 )}
                 suppressHydrationWarning
             >

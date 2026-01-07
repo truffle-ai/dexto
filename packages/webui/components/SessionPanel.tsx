@@ -676,7 +676,7 @@ export default function SessionPanel({
                 aria-labelledby="sessionpanel-title"
                 tabIndex={-1}
                 className={cn(
-                    'fixed top-0 left-0 z-40 h-screen w-80 bg-card border-r border-border shadow-xl transition-transform duration-300 ease-in-out flex flex-col',
+                    'fixed top-0 left-0 z-40 h-screen w-72 bg-card border-r border-border shadow-xl transition-transform duration-300 ease-in-out flex flex-col',
                     isOpen ? 'translate-x-0' : '-translate-x-full'
                 )}
             >

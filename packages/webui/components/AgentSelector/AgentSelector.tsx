@@ -336,7 +336,7 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
         switch (mode) {
             case 'badge':
                 // Teal text, transparent bg
-                return `h-9 px-4 text-sm font-semibold rounded-lg bg-transparent text-teal-600 hover:bg-muted/50 hover:text-teal-700 dark:text-teal-400 dark:hover:text-teal-300 transition-colors min-w-[120px] max-w-[180px] md:min-w-[160px] md:max-w-[280px] lg:max-w-[400px] xl:max-w-[500px]`;
+                return `h-9 px-4 text-lg font-medium rounded-lg bg-transparent text-teal-600 hover:bg-muted/50 hover:text-teal-700 dark:text-teal-400 dark:hover:text-teal-300 transition-colors min-w-[120px] max-w-[180px] md:min-w-[160px] md:max-w-[280px] lg:max-w-[400px] xl:max-w-[500px]`;
             case 'title':
                 return `h-11 px-4 text-lg font-bold rounded-lg bg-gradient-to-r from-teal-500/30 to-teal-500/40 text-teal-600 hover:from-teal-500/50 hover:to-teal-500/60 hover:text-teal-700 focus-visible:ring-2 focus-visible:ring-teal-500/50 focus-visible:ring-offset-2 border border-teal-500/40 dark:text-teal-400 dark:hover:text-teal-300 dark:border-teal-400 transition-all duration-200 shadow-lg hover:shadow-xl`;
             default:
@@ -381,7 +381,10 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
                     </TooltipTrigger>
                     <TooltipContent side="bottom">Select agent</TooltipContent>
                 </Tooltip>
-                <DropdownMenuContent align="start" className="w-80 max-h-96 overflow-y-auto">
+                <DropdownMenuContent
+                    align="start"
+                    className="w-80 max-h-96 overflow-y-auto shadow-xl border-border/30"
+                >
                     {loading && (
                         <DropdownMenuItem disabled className="text-center text-muted-foreground">
                             Loading agents...
@@ -396,13 +399,11 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
                                     setOpen(false);
                                 }}
                                 disabled={switching}
-                                className="cursor-pointer py-3 bg-gradient-to-r from-purple-500/10 to-purple-500/5 hover:from-purple-500/20 hover:to-purple-500/10 border-b border-purple-500/20"
+                                className="cursor-pointer py-3 px-3 mx-1 my-1 bg-gradient-to-r from-primary/10 to-primary/5 hover:from-primary/15 hover:to-primary/10 border border-primary/20 hover:border-primary/30 transition-all rounded-md shadow-sm"
                             >
                                 <div className="flex items-center gap-2 w-full">
-                                    <Plus className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                                    <span className="font-semibold text-purple-600 dark:text-purple-400">
-                                        New Agent
-                                    </span>
+                                    <Plus className="w-4 h-4 text-primary" />
+                                    <span className="font-semibold text-primary">New Agent</span>
                                 </div>
                             </DropdownMenuItem>
 
@@ -410,7 +411,7 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
                             {currentAgentPath &&
                                 !installed.some((a) => a.id === currentAgentPath.name) && (
                                     <>
-                                        <div className="px-2 py-1.5 text-xs font-semibold text-teal-600 dark:text-teal-400 uppercase tracking-wider">
+                                        <div className="px-3 py-2 mt-1 text-xs font-bold text-teal-600 dark:text-teal-400 uppercase tracking-wider border-b border-border/20">
                                             Currently Active
                                         </div>
                                         <DropdownMenuItem
@@ -424,7 +425,7 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
                                             disabled={
                                                 switching || currentId === currentAgentPath.name
                                             }
-                                            className="cursor-pointer py-3"
+                                            className="cursor-pointer py-3 px-3 hover:bg-muted/60 transition-colors rounded-md mx-1"
                                         >
                                             <div className="flex items-center justify-between w-full">
                                                 <div className="flex-1 min-w-0">
@@ -449,7 +450,7 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
                             {/* Recent Agents */}
                             {recentAgents.length > 0 && (
                                 <>
-                                    <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                                    <div className="px-3 py-2 mt-1 text-xs font-bold text-foreground/70 uppercase tracking-wider border-b border-border/20">
                                         Recent
                                     </div>
                                     {recentAgents
@@ -465,7 +466,7 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
                                                 key={agent.path}
                                                 onClick={() => handleSwitchToPath(agent)}
                                                 disabled={switching || agent.id === currentId}
-                                                className="cursor-pointer py-3"
+                                                className="cursor-pointer py-3 px-3 hover:bg-muted/60 transition-colors rounded-md mx-1"
                                             >
                                                 <div className="flex items-center justify-between w-full">
                                                     <div className="flex-1 min-w-0">
@@ -494,7 +495,7 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
                             {/* Installed Custom Agents */}
                             {installed.filter((a) => a.type === 'custom').length > 0 && (
                                 <>
-                                    <div className="px-2 py-1.5 text-xs font-semibold text-purple-600 dark:text-purple-400 uppercase tracking-wider flex items-center gap-1">
+                                    <div className="px-3 py-2 mt-1 text-xs font-bold text-primary uppercase tracking-wider flex items-center gap-1 border-b border-border/20">
                                         <BadgeCheck className="w-3 h-3" />
                                         Custom Agents
                                     </div>
@@ -505,7 +506,7 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
                                                 key={agent.id}
                                                 onClick={() => handleSwitch(agent.id)}
                                                 disabled={switching || agent.id === currentId}
-                                                className="cursor-pointer py-3"
+                                                className="cursor-pointer py-3 px-3 hover:bg-muted/60 transition-colors rounded-md mx-1"
                                             >
                                                 <div className="flex items-center justify-between w-full gap-2">
                                                     <div className="flex-1 min-w-0">
@@ -545,7 +546,7 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
                                     {installed.filter((a) => a.type === 'custom').length > 0 && (
                                         <DropdownMenuSeparator />
                                     )}
-                                    <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                                    <div className="px-3 py-2 mt-1 text-xs font-bold text-foreground/70 uppercase tracking-wider border-b border-border/20">
                                         Installed
                                     </div>
                                     {installed
@@ -555,7 +556,7 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
                                                 key={agent.id}
                                                 onClick={() => handleSwitch(agent.id)}
                                                 disabled={switching || agent.id === currentId}
-                                                className="cursor-pointer py-3"
+                                                className="cursor-pointer py-3 px-3 hover:bg-muted/60 transition-colors rounded-md mx-1"
                                             >
                                                 <div className="flex items-center justify-between w-full">
                                                     <div className="flex-1 min-w-0">
@@ -585,7 +586,7 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
                             {available.filter((a) => a.type === 'builtin').length > 0 && (
                                 <>
                                     {installed.length > 0 && <DropdownMenuSeparator />}
-                                    <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                                    <div className="px-3 py-2 mt-1 text-xs font-bold text-foreground/70 uppercase tracking-wider border-b border-border/20">
                                         Available
                                     </div>
                                     {available
@@ -595,7 +596,7 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
                                                 key={agent.id}
                                                 onClick={() => handleInstall(agent.id)}
                                                 disabled={switching}
-                                                className="cursor-pointer py-3"
+                                                className="cursor-pointer py-3 px-3 hover:bg-muted/60 transition-colors rounded-md mx-1"
                                             >
                                                 <div className="flex items-center justify-between w-full">
                                                     <div className="flex-1 min-w-0">
