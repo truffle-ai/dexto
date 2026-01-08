@@ -664,7 +664,7 @@ export function generateDextoConfigFile(context: TemplateContext): string {
 import {
     blobStoreRegistry,
     customToolRegistry,
-    compressionRegistry,
+    compactionRegistry,
     pluginRegistry,
 } from '@dexto/core';
 
@@ -982,7 +982,7 @@ interface ProviderInfo {
 const PROVIDER_CATEGORIES = [
     { folder: 'tools', category: 'customTools' as const, registry: 'customToolRegistry' },
     { folder: 'blob-store', category: 'blobStore' as const, registry: 'blobStoreRegistry' },
-    { folder: 'compression', category: 'compression' as const, registry: 'compressionRegistry' },
+    { folder: 'compaction', category: 'compaction' as const, registry: 'compactionRegistry' },
     { folder: 'plugins', category: 'plugins' as const, registry: 'pluginRegistry' },
 ];
 
