@@ -702,7 +702,7 @@ describe('AgentConfigSchema', () => {
                         {
                             id: 'datetime',
                             type: 'dynamic',
-                            source: 'dateTime',
+                            source: 'date',
                             priority: 10,
                         },
                     ],

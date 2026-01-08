@@ -1,8 +1,6 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
-import type { DextoAgent } from '@dexto/core';
 import { ResourceSchema } from '../schemas/responses.js';
-import type { Context } from 'hono';
-type GetAgentFn = (ctx: Context) => DextoAgent | Promise<DextoAgent>;
+import type { GetAgentFn } from '../index.js';
 
 const ResourceIdParamSchema = z
     .object({

@@ -28,8 +28,10 @@ describe('Image Local - Import Integration', () => {
         // Read the generated file to ensure no old names remain
         const fs = await import('fs/promises');
         const path = await import('path');
+        const { fileURLToPath } = await import('url');
 
-        const distPath = path.resolve(__dirname, '../dist/index.js');
+        const currentDir = path.dirname(fileURLToPath(import.meta.url));
+        const distPath = path.resolve(currentDir, '../dist/index.js');
         const content = await fs.readFile(distPath, 'utf-8');
 
         // Should not contain old name

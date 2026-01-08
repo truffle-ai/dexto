@@ -32,10 +32,10 @@ systemPrompt:
         You can use multiple tools in sequence to solve complex problems.
         After each tool result, determine if you need more information or can provide a final answer.
 
-    - id: dateTime
+    - id: date
       type: dynamic
       priority: 10
-      source: dateTime
+      source: date
       enabled: true
 
 # first start the ollama server

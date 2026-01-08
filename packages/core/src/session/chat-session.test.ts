@@ -185,7 +185,7 @@ describe('ChatSession', () => {
         mockCreateDatabaseHistoryProvider.mockReturnValue(mockHistoryProvider);
         mockCreateLLMService.mockReturnValue(mockLLMService);
         mockCreateVercelModel.mockReturnValue('mock-model' as any);
-        mockCreateCompactionStrategy.mockResolvedValue(null); // No compression for tests
+        mockCreateCompactionStrategy.mockResolvedValue(null); // No compaction for tests
         mockGetEffectiveMaxInputTokens.mockReturnValue(128000);
 
         // Create ChatSession instance
@@ -293,7 +293,7 @@ describe('ChatSession', () => {
                 sessionId,
                 mockServices.resourceManager,
                 mockLogger,
-                null // compression strategy
+                null // compaction strategy
             );
         });
 
@@ -319,7 +319,7 @@ describe('ChatSession', () => {
                 sessionId,
                 mockServices.resourceManager,
                 mockLogger,
-                null // compression strategy
+                null // compaction strategy
             );
         });
 
@@ -436,7 +436,7 @@ describe('ChatSession', () => {
                 sessionId,
                 mockServices.resourceManager, // ResourceManager parameter
                 mockLogger, // Logger parameter
-                null // compression strategy
+                null // compaction strategy
             );
 
             // Verify session-specific history provider creation

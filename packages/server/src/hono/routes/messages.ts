@@ -1,12 +1,10 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { streamSSE } from 'hono/streaming';
-import type { Context } from 'hono';
 import type { DextoAgent, ContentInput } from '@dexto/core';
 import { LLM_PROVIDERS } from '@dexto/core';
 import type { ApprovalCoordinator } from '../../approval/approval-coordinator.js';
 import { TokenUsageSchema } from '../schemas/responses.js';
-
-type GetAgentFn = (ctx: Context) => DextoAgent | Promise<DextoAgent>;
+import type { GetAgentFn } from '../index.js';
 
 // ContentPart schemas matching @dexto/core types
 // TODO: The Zod-inferred types don't exactly match core's ContentInput due to

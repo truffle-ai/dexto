@@ -61,10 +61,10 @@ systemPrompt:
       priority: 0
       content: |
         You are a helpful AI assistant with access to tools.
-    - id: dateTime
+    - id: date
       type: dynamic
       priority: 10
-      source: dateTime
+      source: date
 
 # MCP Servers
 mcpServers:
@@ -281,7 +281,7 @@ systemPrompt:
 - id: timestamp
   type: dynamic
   priority: 10
-  source: dateTime | resources
+  source: date | resources
 
 # File
 - id: docs

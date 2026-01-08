@@ -3,8 +3,7 @@ import type { DextoAgent } from '@dexto/core';
 import { logger, McpServerConfigSchema, MCP_CONNECTION_STATUSES } from '@dexto/core';
 import { updateAgentConfigFile } from '@dexto/agent-management';
 import { ResourceSchema } from '../schemas/responses.js';
-import type { Context } from 'hono';
-type GetAgentFn = (ctx: Context) => DextoAgent | Promise<DextoAgent>;
+import type { GetAgentFn } from '../index.js';
 
 const McpServerRequestSchema = z
     .object({

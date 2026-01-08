@@ -28,7 +28,7 @@ import type { ContentInput } from '../../agent/types.js';
  * - Tool execution with multimodal support
  * - Streaming with llm:chunk events
  * - Message persistence via StreamProcessor
- * - Reactive compression on overflow
+ * - Reactive compaction on overflow
  * - Tool output pruning
  * - Message queue injection
  *

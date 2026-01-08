@@ -50,7 +50,7 @@ systemPrompt:
     - id: current-time
       type: dynamic
       priority: 30
-      source: dateTime
+      source: date
 
 # Optional: Connect to MCP servers for additional tools
 mcpServers:

@@ -1,9 +1,6 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
-import type { Context } from 'hono';
-import type { DextoAgent } from '@dexto/core';
 import { SessionMetadataSchema, InternalMessageSchema } from '../schemas/responses.js';
-
-type GetAgentFn = (ctx: Context) => DextoAgent | Promise<DextoAgent>;
+import type { GetAgentFn } from '../index.js';
 
 const CreateSessionSchema = z
     .object({

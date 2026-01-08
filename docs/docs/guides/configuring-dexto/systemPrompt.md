@@ -57,7 +57,7 @@ systemPrompt:
     - id: current-time
       type: dynamic
       priority: 10
-      source: dateTime
+      source: date
 
     - id: project-docs
       type: file
@@ -91,14 +91,14 @@ Fixed text content for consistent instructions.
 
 ### Dynamic Contributors
 Runtime-generated content:
-- **`dateTime`** - Current date and time context
+- **`date`** - Current date context
 - **`resources`** - MCP server resources (disabled by default)
 
 ```yaml
 - id: timestamp
   type: dynamic
   priority: 10
-  source: dateTime
+  source: date
   enabled: true
 ```
 
@@ -155,7 +155,7 @@ systemPrompt:
     - id: timestamp
       type: dynamic
       priority: 10
-      source: dateTime
+      source: date
 ```
 
 ### Customer Support Agent
