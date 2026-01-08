@@ -85,9 +85,9 @@ describe('SystemPromptManager', () => {
             );
 
             const contributors = manager.getContributors();
-            expect(contributors).toHaveLength(1); // Only dateTime is enabled by default
+            expect(contributors).toHaveLength(1); // Only date is enabled by default
 
-            // Should only have dateTime (resources is disabled by default)
+            // Should only have date (resources is disabled by default)
             expect(contributors[0]?.id).toBe('date'); // priority 10, enabled: true
         });
 
@@ -603,7 +603,7 @@ You can help with:
                 mockLogger
             );
 
-            // Only dateTime should be enabled by default, resources is disabled
+            // Only date should be enabled by default, resources is disabled
             const contributors = manager.getContributors();
             expect(contributors).toHaveLength(1);
             expect(contributors[0]?.id).toBe('date');

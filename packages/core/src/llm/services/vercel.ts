@@ -130,7 +130,7 @@ export class VercelLLMService {
             this.messageQueue,
             undefined, // modelLimits - TurnExecutor will use defaults
             externalSignal,
-            this.compactionStrategy // Pass compaction strategy from service
+            this.compactionStrategy
         );
     }
 
