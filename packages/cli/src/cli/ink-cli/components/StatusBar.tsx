@@ -77,6 +77,7 @@ export function StatusBar({
     if (isThinking) {
         const metaParts: string[] = [];
         if (showTime) metaParts.push(`(${elapsedTime})`);
+        if (tokenCount) metaParts.push(tokenCount);
         metaParts.push('Esc to cancel');
         const metaContent = metaParts.join(' • ');
 
