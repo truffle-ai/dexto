@@ -116,10 +116,10 @@ systemPrompt:
         - Recommend testing in a safe environment first
         - Alert users to potential security implications of their workflow designs
 
-    - id: dateTime
+    - id: date
       type: dynamic
       priority: 10
-      source: dateTime
+      source: date
       enabled: true
 
 storage:

@@ -1,6 +1,8 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { type DextoAgent, DenialReason, ApprovalStatus, ApprovalError } from '@dexto/core';
 import type { ApprovalCoordinator } from '../../approval/approval-coordinator.js';
+import type { Context } from 'hono';
+type GetAgentFn = (ctx: Context) => DextoAgent | Promise<DextoAgent>;
 
 const ApprovalBodySchema = z
     .object({
@@ -47,7 +49,7 @@ const PendingApprovalsResponseSchema = z
     .describe('Response containing pending approval requests');
 
 export function createApprovalsRouter(
-    getAgent: () => DextoAgent,
+    getAgent: GetAgentFn,
     approvalCoordinator?: ApprovalCoordinator
 ) {
     const app = new OpenAPIHono();
@@ -126,7 +128,7 @@ export function createApprovalsRouter(
 
     return app
         .openapi(getPendingApprovalsRoute, async (ctx) => {
-            const agent = getAgent();
+            const agent = await getAgent(ctx);
             const { sessionId } = ctx.req.valid('query');
 
             agent.logger.debug(`Fetching pending approvals for session ${sessionId}`);
@@ -150,7 +152,7 @@ export function createApprovalsRouter(
             });
         })
         .openapi(submitApprovalRoute, async (ctx) => {
-            const agent = getAgent();
+            const agent = await getAgent(ctx);
             const { approvalId } = ctx.req.valid('param');
             const { status, formData, rememberChoice } = ctx.req.valid('json');
 

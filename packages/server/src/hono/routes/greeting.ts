@@ -1,5 +1,5 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
-import type { DextoAgent } from '@dexto/core';
+import type { GetAgentFn } from '../index.js';
 
 const querySchema = z
     .object({
@@ -10,7 +10,7 @@ const querySchema = z
     })
     .describe('Query parameters for greeting endpoint');
 
-export function createGreetingRouter(getAgent: () => DextoAgent) {
+export function createGreetingRouter(getAgent: GetAgentFn) {
     const app = new OpenAPIHono();
 
     const greetingRoute = createRoute({
@@ -39,8 +39,8 @@ export function createGreetingRouter(getAgent: () => DextoAgent) {
         },
     });
 
-    return app.openapi(greetingRoute, (ctx) => {
-        const agent = getAgent();
+    return app.openapi(greetingRoute, async (ctx) => {
+        const agent = await getAgent(ctx);
         const { sessionId } = ctx.req.valid('query');
         const cfg = agent.getEffectiveConfig(sessionId);
         return ctx.json({ greeting: cfg.greeting });

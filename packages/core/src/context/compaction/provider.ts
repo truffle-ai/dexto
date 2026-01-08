@@ -1,18 +1,18 @@
 import { z } from 'zod';
 import type { LanguageModel } from 'ai';
-import type { ICompressionStrategy } from './types.js';
+import type { ICompactionStrategy } from './types.js';
 import type { IDextoLogger } from '../../logger/v2/types.js';
 
 /**
- * Context provided to compression strategy creation
+ * Context provided to compaction strategy creation
  */
-export interface CompressionContext {
+export interface CompactionContext {
     logger: IDextoLogger;
     model?: LanguageModel; // Optional - some strategies may not need LLM
 }
 
 /**
- * Provider interface for compression strategies.
+ * Provider interface for compaction strategies.
  *
  * Follows the same pattern as blob storage and tools providers:
  * - Type discriminator for config validation
@@ -22,9 +22,9 @@ export interface CompressionContext {
  *
  * TConfig should be the output type (z.output) with defaults applied
  */
-export interface CompressionProvider<
+export interface CompactionProvider<
     TType extends string = string,
-    TConfig extends CompressionConfig = CompressionConfig,
+    TConfig extends CompactionConfig = CompactionConfig,
 > {
     /** Unique identifier for this strategy type */
     type: TType;
@@ -41,19 +41,19 @@ export interface CompressionProvider<
     };
 
     /**
-     * Create a compression strategy instance
+     * Create a compaction strategy instance
      * @param config - Validated configuration with defaults applied (output type)
      */
     create(
         config: TConfig,
-        context: CompressionContext
-    ): ICompressionStrategy | Promise<ICompressionStrategy>;
+        context: CompactionContext
+    ): ICompactionStrategy | Promise<ICompactionStrategy>;
 }
 
 /**
- * Base configuration for all compression strategies
+ * Base configuration for all compaction strategies
  */
-export interface CompressionConfig {
+export interface CompactionConfig {
     type: string;
     enabled?: boolean; // Allow disabling without removing config
 }

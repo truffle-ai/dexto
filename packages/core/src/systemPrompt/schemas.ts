@@ -120,10 +120,10 @@ export const SystemPromptContributorsSchema = z
             .min(1)
             .default([
                 {
-                    id: 'dateTime',
+                    id: 'date',
                     type: 'dynamic',
                     priority: 10,
-                    source: 'dateTime',
+                    source: 'date',
                     enabled: true,
                 },
                 {

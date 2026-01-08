@@ -200,7 +200,7 @@ function getOpenAICompatibleBaseURL(llmConfig: ValidatedLLMConfig): string {
  * @param sessionId Session ID
  * @param resourceManager Resource manager for blob storage and resource access
  * @param logger Logger instance for dependency injection
- * @param compressionStrategy Optional compression strategy for context management
+ * @param compactionStrategy Optional compaction strategy for context management
  * @returns VercelLLMService instance
  */
 export function createLLMService(
@@ -212,7 +212,7 @@ export function createLLMService(
     sessionId: string,
     resourceManager: import('../../resources/index.js').ResourceManager,
     logger: IDextoLogger,
-    compressionStrategy?: import('../../context/compression/types.js').ICompressionStrategy | null
+    compactionStrategy?: import('../../context/compaction/types.js').ICompactionStrategy | null
 ): VercelLLMService {
     const model = createVercelModel(config);
 
@@ -226,6 +226,6 @@ export function createLLMService(
         sessionId,
         resourceManager,
         logger,
-        compressionStrategy
+        compactionStrategy
     );
 }

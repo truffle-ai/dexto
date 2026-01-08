@@ -30,9 +30,9 @@ import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
 import { ErrorScope, ErrorType } from '../../errors/types.js';
 import { LLMErrorCode } from '../error-codes.js';
 import { toError } from '../../utils/error-conversion.js';
-import { isOverflow, type ModelLimits } from '../../context/compression/overflow.js';
-import { ReactiveOverflowStrategy } from '../../context/compression/strategies/reactive-overflow.js';
-import type { ICompressionStrategy } from '../../context/compression/types.js';
+import { isOverflow, type ModelLimits } from '../../context/compaction/overflow.js';
+import { ReactiveOverflowStrategy } from '../../context/compaction/strategies/reactive-overflow.js';
+import type { ICompactionStrategy } from '../../context/compaction/types.js';
 
 /**
  * Static cache for tool support validation.
@@ -65,7 +65,7 @@ export class TurnExecutor {
      * This allows soft cancel (abort current step) while still continuing with queued messages.
      */
     private stepAbortController: AbortController;
-    private compressionStrategy: ICompressionStrategy | null = null;
+    private compactionStrategy: ICompactionStrategy | null = null;
     /**
      * Map to track approval metadata by toolCallId.
      * Used to pass approval info from tool execution to result persistence.
@@ -93,7 +93,7 @@ export class TurnExecutor {
         private messageQueue: MessageQueueService,
         private modelLimits?: ModelLimits,
         private externalSignal?: AbortSignal,
-        compressionStrategy?: ICompressionStrategy | null
+        compactionStrategy?: ICompactionStrategy | null
     ) {
         this.logger = logger.createChild(DextoLogComponent.EXECUTOR);
         // Initial controller - will be replaced per-step in execute()
@@ -104,13 +104,13 @@ export class TurnExecutor {
         // - Soft cancel: aborts current step, but queue can continue with fresh controller
         // - Hard cancel (external aborted + clearQueue): checked explicitly in loop
 
-        // Use provided compression strategy, or fallback to default behavior
-        if (compressionStrategy !== undefined) {
+        // Use provided compaction strategy, or fallback to default behavior
+        if (compactionStrategy !== undefined) {
             // Explicitly provided (could be null to disable, or a strategy instance)
-            this.compressionStrategy = compressionStrategy;
+            this.compactionStrategy = compactionStrategy;
         } else if (modelLimits) {
             // Backward compatibility: create default strategy if model limits are provided
-            this.compressionStrategy = new ReactiveOverflowStrategy(model, {}, this.logger);
+            this.compactionStrategy = new ReactiveOverflowStrategy(model, {}, this.logger);
         }
     }
 
@@ -199,7 +199,7 @@ export class TurnExecutor {
                     await this.injectQueuedMessages(coalesced);
                 }
 
-                // 2. Check for compression need (reactive, based on actual tokens)
+                // 2. Check for compaction need (reactive, based on actual tokens)
                 if (lastStepTokens && this.checkAndHandleOverflow(lastStepTokens)) {
                     await this.compress(lastStepTokens.inputTokens ?? 0);
                     // Continue with fresh context after compression
@@ -822,7 +822,7 @@ export class TurnExecutor {
      * Check if context has overflowed based on actual token usage from API.
      */
     private checkAndHandleOverflow(tokens: TokenUsage): boolean {
-        if (!this.modelLimits || !this.compressionStrategy) {
+        if (!this.modelLimits || !this.compactionStrategy) {
             return false;
         }
         return isOverflow(tokens, this.modelLimits);
@@ -838,7 +838,7 @@ export class TurnExecutor {
      * @param originalTokens The actual input token count from API that triggered overflow
      */
     private async compress(originalTokens: number): Promise<void> {
-        if (!this.compressionStrategy) {
+        if (!this.compactionStrategy) {
             return;
         }
 
@@ -849,10 +849,10 @@ export class TurnExecutor {
         const history = await this.contextManager.getHistory();
 
         // Generate summary message(s)
-        const summaryMessages = await this.compressionStrategy.compress(history);
+        const summaryMessages = await this.compactionStrategy.compact(history);
 
         if (summaryMessages.length === 0) {
-            this.logger.debug('Compression returned no summary (history too short)');
+            this.logger.debug('Compaction returned no summary (history too short)');
             return;
         }
 
@@ -866,19 +866,19 @@ export class TurnExecutor {
         const { filterCompacted, estimateMessagesTokens } = await import('../../context/utils.js');
         const updatedHistory = await this.contextManager.getHistory();
         const filteredHistory = filterCompacted(updatedHistory);
-        const compressedTokens = estimateMessagesTokens(filteredHistory);
+        const compactedTokens = estimateMessagesTokens(filteredHistory);
 
-        this.eventBus.emit('context:compressed', {
+        this.eventBus.emit('context:compacted', {
             originalTokens,
-            compressedTokens,
+            compactedTokens,
             originalMessages: history.length,
-            compressedMessages: filteredHistory.length,
-            strategy: this.compressionStrategy.name,
+            compactedMessages: filteredHistory.length,
+            strategy: this.compactionStrategy.name,
             reason: 'overflow',
         });
 
         this.logger.info(
-            `Compression complete: ${originalTokens} → ~${compressedTokens} tokens ` +
+            `Compaction complete: ${originalTokens} → ~${compactedTokens} tokens ` +
                 `(${history.length} → ${filteredHistory.length} messages after filtering)`
         );
     }

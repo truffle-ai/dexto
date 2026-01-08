@@ -17,11 +17,14 @@ import {
     deleteCustomModel,
     CustomModelSchema,
 } from '@dexto/agent-management';
+import type { Context } from 'hono';
 import {
     ProviderCatalogSchema,
     ModelFlatSchema,
     LLMConfigResponseSchema,
 } from '../schemas/responses.js';
+
+type GetAgentFn = (ctx: Context) => DextoAgent | Promise<DextoAgent>;
 
 const CurrentQuerySchema = z
     .object({
@@ -85,7 +88,7 @@ const SwitchLLMBodySchema = LLMUpdatesSchema.and(
     })
 ).describe('LLM switch request body with optional session ID and LLM fields');
 
-export function createLlmRouter(getAgent: () => DextoAgent) {
+export function createLlmRouter(getAgent: GetAgentFn) {
     const app = new OpenAPIHono();
 
     const currentRoute = createRoute({
@@ -282,7 +285,7 @@ export function createLlmRouter(getAgent: () => DextoAgent) {
 
     return app
         .openapi(currentRoute, async (ctx) => {
-            const agent = getAgent();
+            const agent = await getAgent(ctx);
             const { sessionId } = ctx.req.valid('query');
 
             const currentConfig = sessionId
@@ -416,7 +419,7 @@ export function createLlmRouter(getAgent: () => DextoAgent) {
             return ctx.json({ providers: filtered });
         })
         .openapi(switchRoute, async (ctx) => {
-            const agent = getAgent();
+            const agent = await getAgent(ctx);
             const raw = ctx.req.valid('json');
             const { sessionId, ...llmUpdates } = raw;
 

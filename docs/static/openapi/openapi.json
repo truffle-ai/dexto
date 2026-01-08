@@ -12271,7 +12271,7 @@
     "/api/discovery": {
       "get": {
         "summary": "Discover Available Providers and Tools",
-        "description": "Returns all registered providers (blob storage, compression, custom tools) and available internal tools. Useful for building UIs that need to display configurable options.",
+        "description": "Returns all registered providers (blob storage, compaction, custom tools) and available internal tools. Useful for building UIs that need to display configurable options.",
         "tags": [
           "discovery"
         ],
@@ -12296,7 +12296,7 @@
                             "type": "string",
                             "enum": [
                               "blob",
-                              "compression",
+                              "compaction",
                               "customTools"
                             ],
                             "description": "Provider category"
@@ -12324,7 +12324,7 @@
                       },
                       "description": "Blob storage providers"
                     },
-                    "compression": {
+                    "compaction": {
                       "type": "array",
                       "items": {
                         "type": "object",
@@ -12337,7 +12337,7 @@
                             "type": "string",
                             "enum": [
                               "blob",
-                              "compression",
+                              "compaction",
                               "customTools"
                             ],
                             "description": "Provider category"
@@ -12363,7 +12363,7 @@
                         ],
                         "description": "Information about a registered provider"
                       },
-                      "description": "Compression strategy providers"
+                      "description": "Compaction strategy providers"
                     },
                     "customTools": {
                       "type": "array",
@@ -12378,7 +12378,7 @@
                             "type": "string",
                             "enum": [
                               "blob",
-                              "compression",
+                              "compaction",
                               "customTools"
                             ],
                             "description": "Provider category"
@@ -12431,7 +12431,7 @@
                   },
                   "required": [
                     "blob",
-                    "compression",
+                    "compaction",
                     "customTools",
                     "internalTools"
                   ],

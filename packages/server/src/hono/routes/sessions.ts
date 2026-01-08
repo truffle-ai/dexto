@@ -1,6 +1,6 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
-import type { DextoAgent } from '@dexto/core';
 import { SessionMetadataSchema, InternalMessageSchema } from '../schemas/responses.js';
+import type { GetAgentFn } from '../index.js';
 
 const CreateSessionSchema = z
     .object({
@@ -8,7 +8,7 @@ const CreateSessionSchema = z
     })
     .describe('Request body for creating a new session');
 
-export function createSessionsRouter(getAgent: () => DextoAgent) {
+export function createSessionsRouter(getAgent: GetAgentFn) {
     const app = new OpenAPIHono();
 
     const listRoute = createRoute({
@@ -319,7 +319,7 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
 
     return app
         .openapi(listRoute, async (ctx) => {
-            const agent = getAgent();
+            const agent = await getAgent(ctx);
             const sessionIds = await agent.listSessions();
             const sessions = await Promise.all(
                 sessionIds.map(async (id) => {
@@ -347,7 +347,7 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
             return ctx.json({ sessions });
         })
         .openapi(createRouteDef, async (ctx) => {
-            const agent = getAgent();
+            const agent = await getAgent(ctx);
             const { sessionId } = ctx.req.valid('json');
             const session = await agent.createSession(sessionId);
             const metadata = await agent.getSessionMetadata(session.id);
@@ -365,7 +365,7 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
             );
         })
         .openapi(getRoute, async (ctx) => {
-            const agent = getAgent();
+            const agent = await getAgent(ctx);
             const { sessionId } = ctx.req.param();
             const metadata = await agent.getSessionMetadata(sessionId);
             const history = await agent.getSessionHistory(sessionId);
@@ -381,7 +381,7 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
             });
         })
         .openapi(historyRoute, async (ctx) => {
-            const agent = getAgent();
+            const agent = await getAgent(ctx);
             const { sessionId } = ctx.req.param();
             const [history, isBusy] = await Promise.all([
                 agent.getSessionHistory(sessionId),
@@ -396,13 +396,13 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
             });
         })
         .openapi(deleteRoute, async (ctx) => {
-            const agent = getAgent();
+            const agent = await getAgent(ctx);
             const { sessionId } = ctx.req.param();
             await agent.deleteSession(sessionId);
             return ctx.json({ status: 'deleted', sessionId });
         })
         .openapi(cancelRoute, async (ctx) => {
-            const agent = getAgent();
+            const agent = await getAgent(ctx);
             const { sessionId } = ctx.req.valid('param');
 
             // Get clearQueue from body, default to false (soft cancel)
@@ -441,7 +441,7 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
             });
         })
         .openapi(loadRoute, async (ctx) => {
-            const agent = getAgent();
+            const agent = await getAgent(ctx);
             const { sessionId } = ctx.req.valid('param');
 
             // Validate that session exists
@@ -468,7 +468,7 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
             );
         })
         .openapi(patchRoute, async (ctx) => {
-            const agent = getAgent();
+            const agent = await getAgent(ctx);
             const { sessionId } = ctx.req.valid('param');
             const { title } = ctx.req.valid('json');
             await agent.setSessionTitle(sessionId, title);
@@ -484,7 +484,7 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
             });
         })
         .openapi(generateTitleRoute, async (ctx) => {
-            const agent = getAgent();
+            const agent = await getAgent(ctx);
             const { sessionId } = ctx.req.valid('param');
             const title = await agent.generateSessionTitle(sessionId);
             return ctx.json({ title, sessionId });

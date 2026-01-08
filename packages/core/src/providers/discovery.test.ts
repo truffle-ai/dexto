@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { listAllProviders, getProvidersByCategory, hasProvider } from './discovery.js';
 import { blobStoreRegistry } from '../storage/blob/index.js';
-import { compressionRegistry } from '../context/compression/index.js';
+import { compactionRegistry } from '../context/compaction/index.js';
 import { customToolRegistry } from '../tools/custom-tool-registry.js';
 import type { CustomToolProvider } from '../tools/custom-tool-registry.js';
 import { z } from 'zod';
@@ -9,7 +9,7 @@ import { z } from 'zod';
 describe('Provider Discovery API', () => {
     // Store original registry state
     const _originalBlobProviders = blobStoreRegistry.getTypes();
-    const _originalCompressionProviders = compressionRegistry.getTypes();
+    const _originalCompressionProviders = compactionRegistry.getTypes();
     const _originalCustomToolProviders = customToolRegistry.getTypes();
 
     beforeEach(() => {
@@ -27,11 +27,11 @@ describe('Provider Discovery API', () => {
             const providers = listAllProviders();
 
             expect(providers).toHaveProperty('blob');
-            expect(providers).toHaveProperty('compression');
+            expect(providers).toHaveProperty('compaction');
             expect(providers).toHaveProperty('customTools');
 
             expect(Array.isArray(providers.blob)).toBe(true);
-            expect(Array.isArray(providers.compression)).toBe(true);
+            expect(Array.isArray(providers.compaction)).toBe(true);
             expect(Array.isArray(providers.customTools)).toBe(true);
         });
 
@@ -44,11 +44,11 @@ describe('Provider Discovery API', () => {
             expect(types).toContain('in-memory');
         });
 
-        it('should include built-in compression providers', () => {
+        it('should include built-in compaction providers', () => {
             const providers = listAllProviders();
 
-            // Built-in compression providers: 'reactive-overflow' and 'noop'
-            const types = providers.compression.map((p) => p.type);
+            // Built-in compaction providers: 'reactive-overflow' and 'noop'
+            const types = providers.compaction.map((p) => p.type);
             expect(types).toContain('reactive-overflow');
             expect(types).toContain('noop');
         });
@@ -99,13 +99,13 @@ describe('Provider Discovery API', () => {
             });
         });
 
-        it('should return only compression providers when category is compression', () => {
-            const providers = getProvidersByCategory('compression');
+        it('should return only compaction providers when category is compaction', () => {
+            const providers = getProvidersByCategory('compaction');
 
             expect(Array.isArray(providers)).toBe(true);
             expect(providers.length).toBeGreaterThan(0);
             providers.forEach((p) => {
-                expect(p.category).toBe('compression');
+                expect(p.category).toBe('compaction');
             });
         });
 
@@ -130,13 +130,13 @@ describe('Provider Discovery API', () => {
             expect(hasProvider('blob', 'nonexistent')).toBe(false);
         });
 
-        it('should return true for registered compression providers', () => {
-            expect(hasProvider('compression', 'reactive-overflow')).toBe(true);
-            expect(hasProvider('compression', 'noop')).toBe(true);
+        it('should return true for registered compaction providers', () => {
+            expect(hasProvider('compaction', 'reactive-overflow')).toBe(true);
+            expect(hasProvider('compaction', 'noop')).toBe(true);
         });
 
-        it('should return false for unregistered compression providers', () => {
-            expect(hasProvider('compression', 'nonexistent')).toBe(false);
+        it('should return false for unregistered compaction providers', () => {
+            expect(hasProvider('compaction', 'nonexistent')).toBe(false);
         });
 
         it('should work correctly for custom tool providers', () => {
@@ -171,15 +171,15 @@ describe('Provider Discovery API', () => {
             expect(localProvider?.category).toBe('blob');
         });
 
-        it('should have correct structure for compression providers', () => {
-            const providers = getProvidersByCategory('compression');
+        it('should have correct structure for compaction providers', () => {
+            const providers = getProvidersByCategory('compaction');
             const noopProvider = providers.find((p) => p.type === 'noop');
 
             expect(noopProvider).toBeDefined();
             expect(noopProvider).toHaveProperty('type');
             expect(noopProvider).toHaveProperty('category');
             expect(noopProvider?.type).toBe('noop');
-            expect(noopProvider?.category).toBe('compression');
+            expect(noopProvider?.category).toBe('compaction');
         });
     });
 });

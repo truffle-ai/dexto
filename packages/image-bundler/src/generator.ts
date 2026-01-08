@@ -75,7 +75,7 @@ function generateImports(
     // Always import all registries since we re-export them in generateFactory()
     // This ensures the re-exports don't reference unimported identifiers
     imports.push(
-        `import { customToolRegistry, pluginRegistry, compressionRegistry, blobStoreRegistry } from '@dexto/core';`
+        `import { customToolRegistry, pluginRegistry, compactionRegistry, blobStoreRegistry } from '@dexto/core';`
     );
 
     // Import discovered providers
@@ -83,7 +83,7 @@ function generateImports(
         const categories = [
             { key: 'blobStore', label: 'Blob Storage' },
             { key: 'customTools', label: 'Custom Tools' },
-            { key: 'compression', label: 'Compression' },
+            { key: 'compaction', label: 'Compaction' },
             { key: 'plugins', label: 'Plugins' },
         ] as const;
 
@@ -124,7 +124,7 @@ function generateProviderRegistrations(
         const categoryMap = [
             { key: 'blobStore', registry: 'blobStoreRegistry', label: 'Blob Storage' },
             { key: 'customTools', registry: 'customToolRegistry', label: 'Custom Tools' },
-            { key: 'compression', registry: 'compressionRegistry', label: 'Compression' },
+            { key: 'compaction', registry: 'compactionRegistry', label: 'Compaction' },
             { key: 'plugins', registry: 'pluginRegistry', label: 'Plugins' },
         ] as const;
 
@@ -206,7 +206,7 @@ export function createAgent(config, configPath) {
 export {
     customToolRegistry,
     pluginRegistry,
-    compressionRegistry,
+    compactionRegistry,
     blobStoreRegistry,
 } from '@dexto/core';`;
 }
@@ -324,7 +324,7 @@ export declare const imageMetadata: ImageMetadata;
 export {
     customToolRegistry,
     pluginRegistry,
-    compressionRegistry,
+    compactionRegistry,
     blobStoreRegistry,
 } from '@dexto/core';${utilityExports}
 `;

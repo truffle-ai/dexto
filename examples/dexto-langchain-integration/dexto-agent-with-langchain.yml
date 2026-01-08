@@ -44,10 +44,10 @@ systemPrompt:
         
         The LangChain agent handles its own internal reasoning and tool selection, so you can simply send it natural language requests and it will figure out what to do.
         
-    - id: dateTime
+    - id: date
       type: dynamic
       priority: 10
-      source: dateTime
+      source: date
       enabled: true
 
 # MCP Server configurations

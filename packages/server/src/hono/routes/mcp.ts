@@ -3,6 +3,7 @@ import type { DextoAgent } from '@dexto/core';
 import { logger, McpServerConfigSchema, MCP_CONNECTION_STATUSES } from '@dexto/core';
 import { updateAgentConfigFile } from '@dexto/agent-management';
 import { ResourceSchema } from '../schemas/responses.js';
+import type { GetAgentFn } from '../index.js';
 
 const McpServerRequestSchema = z
     .object({
@@ -137,7 +138,7 @@ const ResourceContentResponseSchema = z
     .strict()
     .describe('Resource content response');
 
-export function createMcpRouter(getAgent: () => DextoAgent) {
+export function createMcpRouter(getAgent: GetAgentFn) {
     const app = new OpenAPIHono();
 
     const addServerRoute = createRoute({
@@ -290,7 +291,7 @@ export function createMcpRouter(getAgent: () => DextoAgent) {
 
     return app
         .openapi(addServerRoute, async (ctx) => {
-            const agent = getAgent();
+            const agent = await getAgent(ctx);
             const { name, config, persistToAgent } = ctx.req.valid('json');
 
             // Add the server (connects if enabled, otherwise just registers)
@@ -347,7 +348,7 @@ export function createMcpRouter(getAgent: () => DextoAgent) {
             return ctx.json({ status, name }, 200);
         })
         .openapi(listServersRoute, async (ctx) => {
-            const agent = getAgent();
+            const agent = await getAgent(ctx);
             const clientsMap = agent.getMcpClients();
             const failedConnections = agent.getMcpFailedConnections();
             const servers: z.output<typeof ServerInfoSchema>[] = [];
@@ -360,7 +361,7 @@ export function createMcpRouter(getAgent: () => DextoAgent) {
             return ctx.json({ servers });
         })
         .openapi(toolsRoute, async (ctx) => {
-            const agent = getAgent();
+            const agent = await getAgent(ctx);
             const { serverId } = ctx.req.valid('param');
             const client = agent.getMcpClients().get(serverId);
             if (!client) {
@@ -376,7 +377,7 @@ export function createMcpRouter(getAgent: () => DextoAgent) {
             return ctx.json({ tools });
         })
         .openapi(deleteServerRoute, async (ctx) => {
-            const agent = getAgent();
+            const agent = await getAgent(ctx);
             const { serverId } = ctx.req.valid('param');
             const clientExists =
                 agent.getMcpClients().has(serverId) || agent.getMcpFailedConnections()[serverId];
@@ -388,7 +389,7 @@ export function createMcpRouter(getAgent: () => DextoAgent) {
             return ctx.json({ status: 'disconnected', id: serverId });
         })
         .openapi(restartServerRoute, async (ctx) => {
-            const agent = getAgent();
+            const agent = await getAgent(ctx);
             const { serverId } = ctx.req.valid('param');
             logger.info(`Received request to POST /api/mcp/servers/${serverId}/restart`);
 
@@ -402,7 +403,7 @@ export function createMcpRouter(getAgent: () => DextoAgent) {
             return ctx.json({ status: 'restarted', id: serverId });
         })
         .openapi(execToolRoute, async (ctx) => {
-            const agent = getAgent();
+            const agent = await getAgent(ctx);
             const { serverId, toolName } = ctx.req.valid('param');
             const body = ctx.req.valid('json');
             const client = agent.getMcpClients().get(serverId);
@@ -423,7 +424,7 @@ export function createMcpRouter(getAgent: () => DextoAgent) {
             }
         })
         .openapi(listResourcesRoute, async (ctx) => {
-            const agent = getAgent();
+            const agent = await getAgent(ctx);
             const { serverId } = ctx.req.valid('param');
             const client = agent.getMcpClients().get(serverId);
             if (!client) {
@@ -433,7 +434,7 @@ export function createMcpRouter(getAgent: () => DextoAgent) {
             return ctx.json({ success: true, resources });
         })
         .openapi(getResourceContentRoute, async (ctx) => {
-            const agent = getAgent();
+            const agent = await getAgent(ctx);
             const { serverId, resourceId } = ctx.req.valid('param');
             const client = agent.getMcpClients().get(serverId);
             if (!client) {

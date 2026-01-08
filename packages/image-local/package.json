@@ -13,6 +13,8 @@
   },
   "scripts": {
     "build": "tsx ../image-bundler/dist/cli.js build",
+    "test": "vitest run",
+    "test:integ": "vitest run",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist"
   },

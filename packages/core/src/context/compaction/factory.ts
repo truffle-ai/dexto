@@ -1,11 +1,11 @@
 import { z } from 'zod';
-import type { ICompressionStrategy } from './types.js';
-import type { CompressionContext, CompressionConfig } from './provider.js';
-import { compressionRegistry } from './registry.js';
+import type { ICompactionStrategy } from './types.js';
+import type { CompactionContext, CompactionConfig } from './provider.js';
+import { compactionRegistry } from './registry.js';
 import { ContextError } from '../errors.js';
 
 /**
- * Create a compression strategy from configuration.
+ * Create a compaction strategy from configuration.
  *
  * Follows the same pattern as blob storage and tools:
  * - Validates provider exists
@@ -13,25 +13,25 @@ import { ContextError } from '../errors.js';
  * - Checks LLM requirements
  * - Creates strategy instance
  *
- * @param config - Compression configuration from agent config
+ * @param config - Compaction configuration from agent config
  * @param context - Context with logger and optional LanguageModel
  * @returns Strategy instance or null if disabled
  */
-export async function createCompressionStrategy(
-    config: CompressionConfig,
-    context: CompressionContext
-): Promise<ICompressionStrategy | null> {
+export async function createCompactionStrategy(
+    config: CompactionConfig,
+    context: CompactionContext
+): Promise<ICompactionStrategy | null> {
     // If disabled, return null
     if (config.enabled === false) {
-        context.logger.info(`Compression provider '${config.type}' is disabled`);
+        context.logger.info(`Compaction provider '${config.type}' is disabled`);
         return null;
     }
 
     // Get provider
-    const provider = compressionRegistry.get(config.type);
+    const provider = compactionRegistry.get(config.type);
     if (!provider) {
-        const available = compressionRegistry.getTypes();
-        throw ContextError.compressionInvalidType(config.type, available);
+        const available = compactionRegistry.getTypes();
+        throw ContextError.compactionInvalidType(config.type, available);
     }
 
     // Validate configuration
@@ -40,20 +40,20 @@ export async function createCompressionStrategy(
 
         // Check if LLM is required but not provided
         if (provider.metadata?.requiresLLM && !context.model) {
-            throw ContextError.compressionMissingLLM(config.type);
+            throw ContextError.compactionMissingLLM(config.type);
         }
 
         // Create strategy instance
         const strategy = await provider.create(validatedConfig, context);
 
         context.logger.info(
-            `Created compression strategy: ${provider.metadata?.displayName || config.type}`
+            `Created compaction strategy: ${provider.metadata?.displayName || config.type}`
         );
 
         return strategy;
     } catch (error) {
         if (error instanceof z.ZodError) {
-            throw ContextError.compressionValidation(config.type, error.errors);
+            throw ContextError.compactionValidation(config.type, error.errors);
         }
         throw error;
     }

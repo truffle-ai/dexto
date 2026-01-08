@@ -48,10 +48,10 @@ systemPrompt:
         - Use 3-4x speed for walking/exploring, 1x for battles and menus
         - Save before gym battles, catching legendaries, tough trainers
 
-    - id: dateTime
+    - id: date
       type: dynamic
       priority: 10
-      source: dateTime
+      source: date
       enabled: true
 
 storage:

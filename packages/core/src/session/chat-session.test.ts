@@ -11,9 +11,9 @@ vi.mock('../llm/services/factory.js', () => ({
     createLLMService: vi.fn(),
     createVercelModel: vi.fn(),
 }));
-vi.mock('../context/compression/index.js', () => ({
-    createCompressionStrategy: vi.fn(),
-    compressionRegistry: {
+vi.mock('../context/compaction/index.js', () => ({
+    createCompactionStrategy: vi.fn(),
+    compactionRegistry: {
         register: vi.fn(),
         get: vi.fn(),
         has: vi.fn(),
@@ -41,14 +41,14 @@ vi.mock('../logger/index.js', () => ({
 
 import { createDatabaseHistoryProvider } from './history/factory.js';
 import { createLLMService, createVercelModel } from '../llm/services/factory.js';
-import { createCompressionStrategy } from '../context/compression/index.js';
+import { createCompactionStrategy } from '../context/compaction/index.js';
 import { getEffectiveMaxInputTokens } from '../llm/registry.js';
 import { createMockLogger } from '../logger/v2/test-utils.js';
 
 const mockCreateDatabaseHistoryProvider = vi.mocked(createDatabaseHistoryProvider);
 const mockCreateLLMService = vi.mocked(createLLMService);
 const mockCreateVercelModel = vi.mocked(createVercelModel);
-const mockCreateCompressionStrategy = vi.mocked(createCompressionStrategy);
+const mockCreateCompactionStrategy = vi.mocked(createCompactionStrategy);
 const mockGetEffectiveMaxInputTokens = vi.mocked(getEffectiveMaxInputTokens);
 
 describe('ChatSession', () => {
@@ -185,7 +185,7 @@ describe('ChatSession', () => {
         mockCreateDatabaseHistoryProvider.mockReturnValue(mockHistoryProvider);
         mockCreateLLMService.mockReturnValue(mockLLMService);
         mockCreateVercelModel.mockReturnValue('mock-model' as any);
-        mockCreateCompressionStrategy.mockResolvedValue(null); // No compression for tests
+        mockCreateCompactionStrategy.mockResolvedValue(null); // No compaction for tests
         mockGetEffectiveMaxInputTokens.mockReturnValue(128000);
 
         // Create ChatSession instance
@@ -293,7 +293,7 @@ describe('ChatSession', () => {
                 sessionId,
                 mockServices.resourceManager,
                 mockLogger,
-                null // compression strategy
+                null // compaction strategy
             );
         });
 
@@ -319,7 +319,7 @@ describe('ChatSession', () => {
                 sessionId,
                 mockServices.resourceManager,
                 mockLogger,
-                null // compression strategy
+                null // compaction strategy
             );
         });
 
@@ -436,7 +436,7 @@ describe('ChatSession', () => {
                 sessionId,
                 mockServices.resourceManager, // ResourceManager parameter
                 mockLogger, // Logger parameter
-                null // compression strategy
+                null // compaction strategy
             );
 
             // Verify session-specific history provider creation

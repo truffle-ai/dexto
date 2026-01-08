@@ -88,10 +88,10 @@ systemPrompt:
         ```
 
         BEST PRACTICE: Track sessionIds for each specialist agent you work with so you can maintain context across multiple user questions.
-    - id: dateTime
+    - id: date
       type: dynamic
       priority: 10
-      source: dateTime
+      source: date
       enabled: true
 
 # Session configuration

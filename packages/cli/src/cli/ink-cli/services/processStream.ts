@@ -28,8 +28,13 @@ import type { Message, UIState, ToolStatus } from '../state/types.js';
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
 import { generateMessageId } from '../utils/idGenerator.js';
 import { checkForSplit } from '../utils/streamSplitter.js';
-import { getToolDisplayName, formatToolArgsForDisplay } from '../utils/messageFormatting.js';
+import {
+    getToolDisplayName,
+    formatToolArgsForDisplay,
+    getToolTypeBadge,
+} from '../utils/messageFormatting.js';
 import { isEditWriteTool } from '../utils/toolUtils.js';
+import chalk from 'chalk';
 
 /**
  * Build error message with recovery guidance if available
@@ -529,17 +534,26 @@ export async function processStream(
                         ? `tool-${event.callId}`
                         : generateMessageId('tool');
 
-                    // Get friendly display name and format args
+                    // Get friendly display name, format args, and tool type badge
                     const displayName = getToolDisplayName(event.toolName);
                     const argsFormatted = formatToolArgsForDisplay(
                         event.toolName,
                         event.args || {}
                     );
+                    const badge = getToolTypeBadge(event.toolName);
 
-                    // Format: ToolName(args)
-                    const toolContent = argsFormatted
-                        ? `${displayName}(${argsFormatted})`
-                        : displayName;
+                    // Extract description if present
+                    const description = event.args?.description;
+
+                    // Format: toolName(args) [badge]
+                    // If description exists, add it on a new line with dim styling
+                    let toolContent = argsFormatted
+                        ? `${displayName}(${argsFormatted}) [${badge}]`
+                        : `${displayName}() [${badge}]`;
+
+                    if (description && typeof description === 'string') {
+                        toolContent += `\n${chalk.dim(description)}`;
+                    }
 
                     // Tool calls start in 'pending' state (don't know if approval needed yet)
                     // Status transitions: pending → pending_approval (if approval needed) → running → finished

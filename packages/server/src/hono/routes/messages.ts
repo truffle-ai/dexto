@@ -4,6 +4,7 @@ import type { DextoAgent, ContentInput } from '@dexto/core';
 import { LLM_PROVIDERS } from '@dexto/core';
 import type { ApprovalCoordinator } from '../../approval/approval-coordinator.js';
 import { TokenUsageSchema } from '../schemas/responses.js';
+import type { GetAgentFn } from '../index.js';
 
 // ContentPart schemas matching @dexto/core types
 // TODO: The Zod-inferred types don't exactly match core's ContentInput due to
@@ -62,7 +63,7 @@ const ResetBodySchema = z
     .describe('Request body for resetting a conversation');
 
 export function createMessagesRouter(
-    getAgent: () => DextoAgent,
+    getAgent: GetAgentFn,
     approvalCoordinator?: ApprovalCoordinator
 ) {
     const app = new OpenAPIHono();
@@ -235,7 +236,7 @@ export function createMessagesRouter(
 
     return app
         .openapi(messageRoute, async (ctx) => {
-            const agent = getAgent();
+            const agent = await getAgent(ctx);
             agent.logger.info('Received message via POST /api/message');
             const { content, sessionId } = ctx.req.valid('json');
 
@@ -252,7 +253,7 @@ export function createMessagesRouter(
             return ctx.json({ accepted: true, sessionId }, 202);
         })
         .openapi(messageSyncRoute, async (ctx) => {
-            const agent = getAgent();
+            const agent = await getAgent(ctx);
             agent.logger.info('Received message via POST /api/message-sync');
             const { content, sessionId } = ctx.req.valid('json');
 
@@ -273,14 +274,14 @@ export function createMessagesRouter(
             });
         })
         .openapi(resetRoute, async (ctx) => {
-            const agent = getAgent();
+            const agent = await getAgent(ctx);
             agent.logger.info('Received request via POST /api/reset');
             const { sessionId } = ctx.req.valid('json');
             await agent.resetConversation(sessionId);
             return ctx.json({ status: 'reset initiated', sessionId });
         })
         .openapi(messageStreamRoute, async (ctx) => {
-            const agent = getAgent();
+            const agent = await getAgent(ctx);
             const { content, sessionId } = ctx.req.valid('json');
 
             // Check if session is busy before starting stream

@@ -141,7 +141,7 @@ describe('template-engine', () => {
             expect(result).toContain('import {');
             expect(result).toContain('blobStoreRegistry');
             expect(result).toContain('customToolRegistry');
-            expect(result).toContain('compressionRegistry');
+            expect(result).toContain('compactionRegistry');
             expect(result).toContain('pluginRegistry');
             expect(result).toContain("} from '@dexto/core'");
         });

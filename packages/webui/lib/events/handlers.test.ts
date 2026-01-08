@@ -22,7 +22,7 @@ import {
     handleRunComplete,
     handleSessionTitleUpdated,
     handleMessageDequeued,
-    handleContextCompressed,
+    handleContextCompacted,
 } from './handlers.js';
 import { useChatStore } from '../stores/chatStore.js';
 import { useAgentStore } from '../stores/agentStore.js';
@@ -75,7 +75,7 @@ describe('Event Handler Registry', () => {
             expect(getHandler('run:complete')).toBeDefined();
             expect(getHandler('session:title-updated')).toBeDefined();
             expect(getHandler('message:dequeued')).toBeDefined();
-            expect(getHandler('context:compressed')).toBeDefined();
+            expect(getHandler('context:compacted')).toBeDefined();
         });
 
         it('should return undefined for unregistered handlers', () => {
@@ -476,26 +476,26 @@ describe('Event Handler Registry', () => {
         });
     });
 
-    describe('handleContextCompressed', () => {
+    describe('handleContextCompacted', () => {
         it('should log debug message', () => {
             const consoleSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
 
             const event = {
-                name: 'context:compressed' as const,
+                name: 'context:compacted' as const,
                 sessionId: TEST_SESSION_ID,
                 originalTokens: 10000,
-                compressedTokens: 5000,
+                compactedTokens: 5000,
                 originalMessages: 20,
-                compressedMessages: 10,
+                compactedMessages: 10,
                 strategy: 'llm-based',
                 reason: 'overflow',
             };
 
-            handleContextCompressed(event as any);
+            handleContextCompacted(event as any);
 
             expect(consoleSpy).toHaveBeenCalled();
             const call = consoleSpy.mock.calls[0];
-            expect(call[0]).toContain('Context compressed');
+            expect(call[0]).toContain('Context compacted');
             expect(call[0]).toContain('10,000 → 5,000 tokens');
 
             consoleSpy.mockRestore();

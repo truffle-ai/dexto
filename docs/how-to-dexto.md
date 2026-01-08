@@ -93,7 +93,7 @@ systemPrompt:
     - id: current-time
       type: dynamic
       priority: 20
-      source: dateTime
+      source: date
     
     - id: mcp-resources
       type: dynamic
@@ -113,7 +113,7 @@ systemPrompt:
 **Note:** Files are always read using UTF-8 encoding.
 
 **Dynamic Contributor Sources:**
-- `dateTime`: Automatically adds current date and time
+- `date`: Automatically adds current date
 - `resources`: Includes resources from connected MCP servers (disabled by default for performance)
 
 **Use Cases for File Contributors:**

@@ -112,7 +112,7 @@ export function SystemPromptSection({
                             return {
                                 ...baseFields,
                                 type: 'dynamic',
-                                source: 'dateTime',
+                                source: 'date',
                             } as ContributorConfig;
                         } else if (updates.type === 'file') {
                             return { ...baseFields, type: 'file', files: [] } as ContributorConfig;
@@ -229,7 +229,7 @@ export function SystemPromptSection({
                                                         id: e.target.value,
                                                     })
                                                 }
-                                                placeholder="e.g., primary, dateTime"
+                                                placeholder="e.g., primary, date"
                                             />
                                         </div>
 

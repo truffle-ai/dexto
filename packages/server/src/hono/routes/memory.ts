@@ -2,6 +2,8 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { DextoAgent } from '@dexto/core';
 import { CreateMemoryInputSchema, UpdateMemoryInputSchema } from '@dexto/core';
 import { MemorySchema } from '../schemas/responses.js';
+import type { Context } from 'hono';
+type GetAgentFn = (ctx: Context) => DextoAgent | Promise<DextoAgent>;
 
 const MemoryIdParamSchema = z
     .object({
@@ -60,7 +62,7 @@ const MemoryDeleteResponseSchema = z
     .strict()
     .describe('Memory deletion response');
 
-export function createMemoryRouter(getAgent: () => DextoAgent) {
+export function createMemoryRouter(getAgent: GetAgentFn) {
     const app = new OpenAPIHono();
 
     const createMemoryRoute = createRoute({
@@ -177,7 +179,7 @@ export function createMemoryRouter(getAgent: () => DextoAgent) {
             if (input.metadata !== undefined) {
                 createInput.metadata = input.metadata;
             }
-            const agent = getAgent();
+            const agent = await getAgent(ctx);
             const memory = await agent.memoryManager.create(createInput);
             return ctx.json({ ok: true as const, memory }, 201);
         })
@@ -196,13 +198,13 @@ export function createMemoryRouter(getAgent: () => DextoAgent) {
             if (query.limit !== undefined) options.limit = query.limit;
             if (query.offset !== undefined) options.offset = query.offset;
 
-            const agent = getAgent();
+            const agent = await getAgent(ctx);
             const memories = await agent.memoryManager.list(options);
             return ctx.json({ ok: true as const, memories });
         })
         .openapi(getRoute, async (ctx) => {
             const { id } = ctx.req.valid('param');
-            const agent = getAgent();
+            const agent = await getAgent(ctx);
             const memory = await agent.memoryManager.get(id);
             return ctx.json({ ok: true as const, memory });
         })
@@ -218,13 +220,13 @@ export function createMemoryRouter(getAgent: () => DextoAgent) {
             if (updatesRaw.content !== undefined) updates.content = updatesRaw.content;
             if (updatesRaw.metadata !== undefined) updates.metadata = updatesRaw.metadata;
             if (updatesRaw.tags !== undefined) updates.tags = updatesRaw.tags;
-            const agent = getAgent();
+            const agent = await getAgent(ctx);
             const memory = await agent.memoryManager.update(id, updates);
             return ctx.json({ ok: true as const, memory });
         })
         .openapi(deleteRoute, async (ctx) => {
             const { id } = ctx.req.valid('param');
-            const agent = getAgent();
+            const agent = await getAgent(ctx);
             await agent.memoryManager.delete(id);
             return ctx.json({ ok: true as const, message: 'Memory deleted successfully' });
         });

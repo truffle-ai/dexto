@@ -91,10 +91,10 @@ systemPrompt:
         - Respect data access permissions
         - Be mindful of sensitive business metrics in shared contexts
 
-    - id: dateTime
+    - id: date
       type: dynamic
       priority: 10
-      source: dateTime
+      source: date
       enabled: true
 
 storage:

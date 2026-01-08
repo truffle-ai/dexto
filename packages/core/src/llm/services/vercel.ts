@@ -28,7 +28,7 @@ import type { ContentInput } from '../../agent/types.js';
  * - Tool execution with multimodal support
  * - Streaming with llm:chunk events
  * - Message persistence via StreamProcessor
- * - Reactive compression on overflow
+ * - Reactive compaction on overflow
  * - Tool output pruning
  * - Message queue injection
  *
@@ -49,8 +49,8 @@ export class VercelLLMService {
     private logger: IDextoLogger;
     private resourceManager: ResourceManager;
     private messageQueue: MessageQueueService;
-    private compressionStrategy:
-        | import('../../context/compression/types.js').ICompressionStrategy
+    private compactionStrategy:
+        | import('../../context/compaction/types.js').ICompactionStrategy
         | null;
 
     /**
@@ -70,9 +70,7 @@ export class VercelLLMService {
         sessionId: string,
         resourceManager: ResourceManager,
         logger: IDextoLogger,
-        compressionStrategy?:
-            | import('../../context/compression/types.js').ICompressionStrategy
-            | null
+        compactionStrategy?: import('../../context/compaction/types.js').ICompactionStrategy | null
     ) {
         this.logger = logger.createChild(DextoLogComponent.LLM);
         this.model = model;
@@ -81,7 +79,7 @@ export class VercelLLMService {
         this.sessionEventBus = sessionEventBus;
         this.sessionId = sessionId;
         this.resourceManager = resourceManager;
-        this.compressionStrategy = compressionStrategy ?? null;
+        this.compactionStrategy = compactionStrategy ?? null;
 
         // Create session-level message queue for mid-task user messages
         this.messageQueue = new MessageQueueService(this.sessionEventBus, this.logger);
@@ -132,7 +130,7 @@ export class VercelLLMService {
             this.messageQueue,
             undefined, // modelLimits - TurnExecutor will use defaults
             externalSignal,
-            this.compressionStrategy // Pass compression strategy from service
+            this.compactionStrategy
         );
     }
 

@@ -53,7 +53,7 @@ export async function bundle(options: BundleOptions): Promise<BundleResult> {
 
     // 5.5. Compile provider category folders
     console.log(`🔨 Compiling provider source files...`);
-    const categories = ['blob-store', 'tools', 'compression', 'plugins'];
+    const categories = ['blob-store', 'tools', 'compaction', 'plugins'];
     let compiledCount = 0;
 
     for (const category of categories) {
@@ -282,7 +282,7 @@ function findTypeScriptFiles(dir: string): string[] {
 export interface DiscoveredProviders {
     blobStore: string[];
     customTools: string[];
-    compression: string[];
+    compaction: string[];
     plugins: string[];
     totalCount: number;
 }
@@ -297,7 +297,7 @@ export interface DiscoveredProviders {
  *       helpers.ts   - Optional helper files
  *       types.ts     - Optional type definitions
  *   blob-store/      - BlobStoreProvider folders
- *   compression/     - CompressionProvider folders
+ *   compaction/      - CompactionProvider folders
  *   plugins/         - PluginProvider folders
  *
  * Naming Convention (Node.js standard):
@@ -308,7 +308,7 @@ function discoverProviders(imageDir: string): DiscoveredProviders {
     const result: DiscoveredProviders = {
         blobStore: [],
         customTools: [],
-        compression: [],
+        compaction: [],
         plugins: [],
         totalCount: 0,
     };
@@ -317,7 +317,7 @@ function discoverProviders(imageDir: string): DiscoveredProviders {
     const categories = {
         'blob-store': 'blobStore',
         tools: 'customTools',
-        compression: 'compression',
+        compaction: 'compaction',
         plugins: 'plugins',
     } as const;
 

@@ -209,10 +209,10 @@ systemPrompt:
       type: static
       priority: 0
       content: "You are a helpful AI assistant..."
-    - id: dateTime
+    - id: date
       type: dynamic
       priority: 10
-      source: dateTime
+      source: date
     - id: context
       type: file
       priority: 5

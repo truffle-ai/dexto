@@ -17,6 +17,8 @@ import { A2AMethodHandlers } from '../../a2a/jsonrpc/methods.js';
 import { logger } from '@dexto/core';
 import type { A2ASseEventSubscriber } from '../../events/a2a-sse-subscriber.js';
 import { a2aToInternalMessage } from '../../a2a/adapters/message.js';
+import type { Context } from 'hono';
+type GetAgentFn = (ctx: Context) => DextoAgent | Promise<DextoAgent>;
 
 // Request/Response Schemas for OpenAPI (using A2A-compliant schema)
 
@@ -203,10 +205,7 @@ const TaskListQuerySchema = z
  * @param sseSubscriber SSE event subscriber for streaming
  * @returns OpenAPIHono router with REST task endpoints
  */
-export function createA2ATasksRouter(
-    getAgent: () => DextoAgent,
-    sseSubscriber: A2ASseEventSubscriber
-) {
+export function createA2ATasksRouter(getAgent: GetAgentFn, sseSubscriber: A2ASseEventSubscriber) {
     const app = new OpenAPIHono();
 
     // POST /v1/message:send - Send message to agent
@@ -342,7 +341,7 @@ export function createA2ATasksRouter(
 
             // Create or get session
             const taskId = validatedBody.message.taskId;
-            const agent = getAgent();
+            const agent = await getAgent(ctx);
             const session = await agent.createSession(taskId);
 
             // Create SSE stream
@@ -374,7 +373,7 @@ export function createA2ATasksRouter(
 
     return app
         .openapi(messageSendRoute, async (ctx) => {
-            const handlers = new A2AMethodHandlers(getAgent());
+            const handlers = new A2AMethodHandlers(await getAgent(ctx));
             const body = ctx.req.valid('json');
 
             logger.info('REST: message/send', { hasMessage: !!body.message });
@@ -386,7 +385,7 @@ export function createA2ATasksRouter(
             return ctx.json(result as any);
         })
         .openapi(listTasksRoute, async (ctx) => {
-            const handlers = new A2AMethodHandlers(getAgent());
+            const handlers = new A2AMethodHandlers(await getAgent(ctx));
             const query = ctx.req.valid('query');
 
             // Type cast required: Zod infers readonly modifiers and exactOptionalPropertyTypes differs
@@ -396,7 +395,7 @@ export function createA2ATasksRouter(
             return ctx.json(result);
         })
         .openapi(getTaskRoute, async (ctx) => {
-            const handlers = new A2AMethodHandlers(getAgent());
+            const handlers = new A2AMethodHandlers(await getAgent(ctx));
             const { id } = ctx.req.valid('param');
 
             try {
@@ -408,7 +407,7 @@ export function createA2ATasksRouter(
             }
         })
         .openapi(cancelTaskRoute, async (ctx) => {
-            const handlers = new A2AMethodHandlers(getAgent());
+            const handlers = new A2AMethodHandlers(await getAgent(ctx));
             const { id } = ctx.req.valid('param');
 
             logger.info(`REST: tasks/cancel ${id}`);

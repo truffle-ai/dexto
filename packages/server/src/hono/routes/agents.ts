@@ -21,6 +21,8 @@ import path from 'path';
 import { promises as fs } from 'fs';
 import { DextoValidationError, AgentErrorCode, ErrorScope, ErrorType } from '@dexto/core';
 import { AgentRegistryEntrySchema } from '../schemas/responses.js';
+import type { Context } from 'hono';
+type GetAgentFn = (ctx: Context) => DextoAgent | Promise<DextoAgent>;
 
 /**
  * OpenAPI-safe version of AgentConfigSchema
@@ -234,7 +236,7 @@ export type AgentsRouterContext = {
     getActiveAgentId: () => string | undefined;
 };
 
-export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRouterContext) {
+export function createAgentsRouter(getAgent: GetAgentFn, context: AgentsRouterContext) {
     const app = new OpenAPIHono();
     const { switchAgentById, switchAgentByPath, resolveAgentInfo, getActiveAgentId } = context;
 
@@ -695,8 +697,8 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
                 throw installError;
             }
         })
-        .openapi(getPathRoute, (ctx) => {
-            const agent = getAgent();
+        .openapi(getPathRoute, async (ctx) => {
+            const agent = await getAgent(ctx);
             const agentPath = agent.getAgentFilePath();
 
             const relativePath = path.basename(agentPath);
@@ -711,7 +713,7 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
             });
         })
         .openapi(getConfigRoute, async (ctx) => {
-            const agent = getAgent();
+            const agent = await getAgent(ctx);
 
             // Get the agent file path being used
             const agentPath = agent.getAgentFilePath();
@@ -812,7 +814,7 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
             });
         })
         .openapi(saveConfigRoute, async (ctx) => {
-            const agent = getAgent();
+            const agent = await getAgent(ctx);
             const { yaml } = ctx.req.valid('json');
 
             // Validate YAML syntax first
@@ -916,7 +918,7 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
             }
         })
         .openapi(exportConfigRoute, async (ctx) => {
-            const agent = getAgent();
+            const agent = await getAgent(ctx);
             const { sessionId } = ctx.req.valid('query');
             const config = agent.getEffectiveConfig(sessionId);
 

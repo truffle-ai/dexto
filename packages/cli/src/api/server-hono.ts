@@ -1,4 +1,5 @@
 import os from 'node:os';
+import type { Context } from 'hono';
 import type { AgentCard } from '@dexto/core';
 import { DextoAgent, createAgentCard, logger, AgentError } from '@dexto/core';
 import {
@@ -376,7 +377,8 @@ export async function initializeHonoApi(
 
     // Getter functions for routes (always use current agent)
     // getAgent automatically ensures agent is available before returning it
-    const getAgent = (): DextoAgent => {
+    // Accepts Context parameter for compatibility with GetAgentFn type
+    const getAgent = (_ctx: Context): DextoAgent => {
         // CRITICAL: Check agent availability before every access to prevent race conditions
         // during agent switching, stopping, or startup failures
         ensureAgentAvailable();
@@ -424,7 +426,7 @@ export async function initializeHonoApi(
 
     // Create bridge with app
     bridgeRef = createNodeServer(app, {
-        getAgent,
+        getAgent: () => activeAgent,
         mcpHandlers: mcpTransport ? createMcpHttpHandlers(mcpTransport) : null,
     });
 

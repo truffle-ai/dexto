@@ -6,7 +6,7 @@ const DiscoveredProviderSchema = z
         type: z
             .string()
             .describe('Provider type identifier (e.g., "local", "s3", "reactive-overflow")'),
-        category: z.enum(['blob', 'compression', 'customTools']).describe('Provider category'),
+        category: z.enum(['blob', 'compaction', 'customTools']).describe('Provider category'),
         metadata: z
             .object({
                 displayName: z.string().optional().describe('Human-readable display name'),
@@ -30,7 +30,7 @@ const InternalToolSchema = z
 const DiscoveryResponseSchema = z
     .object({
         blob: z.array(DiscoveredProviderSchema).describe('Blob storage providers'),
-        compression: z.array(DiscoveredProviderSchema).describe('Compression strategy providers'),
+        compaction: z.array(DiscoveredProviderSchema).describe('Compaction strategy providers'),
         customTools: z.array(DiscoveredProviderSchema).describe('Custom tool providers'),
         internalTools: z
             .array(InternalToolSchema)
@@ -46,7 +46,7 @@ export function createDiscoveryRouter() {
         path: '/discovery',
         summary: 'Discover Available Providers and Tools',
         description:
-            'Returns all registered providers (blob storage, compression, custom tools) and available internal tools. Useful for building UIs that need to display configurable options.',
+            'Returns all registered providers (blob storage, compaction, custom tools) and available internal tools. Useful for building UIs that need to display configurable options.',
         tags: ['discovery'],
         responses: {
             200: {
