@@ -11,11 +11,13 @@ import { DynamicContributorContext } from './types.js';
  * - Place all dynamic prompt-generating functions in this file.
  * - Also update the `registry.ts` file to register the new function.
  * - Use XML tags to indicate the start and end of the dynamic prompt - they are known to improve performance
- * - Each function should be named clearly to reflect its purpose (e.g., getCurrentDateTime, getResourceData).
+ * - Each function should be named clearly to reflect its purpose (e.g., getCurrentDate, getResourceData).
  */
 
-export async function getCurrentDateTime(_context: DynamicContributorContext): Promise<string> {
-    return `<dateTime>Current date and time: ${new Date().toISOString()}</dateTime>`;
+export async function getCurrentDate(_context: DynamicContributorContext): Promise<string> {
+    // Only return date (not time) to prevent KV-cache invalidation
+    const date = new Date().toISOString().split('T')[0];
+    return `<date>Current date: ${date}</date>`;
 }
 
 // TODO: This needs to be optimized to only fetch resources when needed. Currently this runs every time the prompt is generated.

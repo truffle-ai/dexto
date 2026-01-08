@@ -13,7 +13,7 @@ export type PromptGeneratorSource = (typeof PROMPT_GENERATOR_SOURCES)[number];
 
 // Registry mapping sources to their generator functions
 export const PROMPT_GENERATOR_REGISTRY: Record<PromptGeneratorSource, DynamicPromptGenerator> = {
-    dateTime: handlers.getCurrentDateTime,
+    dateTime: handlers.getCurrentDate,
     resources: handlers.getResourceData,
 };
 
