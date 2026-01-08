@@ -221,7 +221,7 @@ export function getToolTypeBadge(toolName: string): string {
     if (toolName.startsWith('mcp--')) {
         const parts = toolName.split('--');
         if (parts.length >= 3 && parts[1]) {
-            return parts[1]; // Return server name (e.g., 'github', 'postgres')
+            return `MCP: ${parts[1]}`; // Format: 'MCP: github', 'MCP: postgres'
         }
         return 'MCP';
     }
@@ -229,7 +229,7 @@ export function getToolTypeBadge(toolName: string): string {
     if (toolName.startsWith('mcp__')) {
         const parts = toolName.substring(5).split('__');
         if (parts.length >= 2 && parts[0]) {
-            return parts[0]; // Return server name
+            return `MCP: ${parts[0]}`; // Format: 'MCP: servername'
         }
         return 'MCP';
     }
