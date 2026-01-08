@@ -19,13 +19,13 @@ describe('Provider Discovery API - Integration', () => {
             expect(types).toContain('in-memory');
         });
 
-        it('should have compression providers registered on module import', () => {
+        it('should have compaction providers registered on module import', () => {
             const providers = listAllProviders();
 
-            // Verify built-in compression providers are registered
-            expect(providers.compression.length).toBeGreaterThanOrEqual(2);
+            // Verify built-in compaction providers are registered
+            expect(providers.compaction.length).toBeGreaterThanOrEqual(2);
 
-            const types = providers.compression.map((p) => p.type);
+            const types = providers.compaction.map((p) => p.type);
             expect(types).toContain('reactive-overflow');
             expect(types).toContain('noop');
         });
@@ -45,10 +45,10 @@ describe('Provider Discovery API - Integration', () => {
                 }
             }
 
-            // Check compression providers have metadata
-            for (const provider of providers.compression) {
+            // Check compaction providers have metadata
+            for (const provider of providers.compaction) {
                 expect(provider.type).toBeTruthy();
-                expect(provider.category).toBe('compression');
+                expect(provider.category).toBe('compaction');
                 if (provider.metadata) {
                     const hasDisplayName = provider.metadata.displayName !== undefined;
                     const hasDescription = provider.metadata.description !== undefined;
@@ -67,9 +67,9 @@ describe('Provider Discovery API - Integration', () => {
                 expect(p.category).toBe('blob');
             });
 
-            // All compression providers should have compression category
-            allProviders.compression.forEach((p) => {
-                expect(p.category).toBe('compression');
+            // All compaction providers should have compaction category
+            allProviders.compaction.forEach((p) => {
+                expect(p.category).toBe('compaction');
             });
 
             // All custom tool providers should have customTools category
@@ -85,9 +85,9 @@ describe('Provider Discovery API - Integration', () => {
             const blobViaCategory = getProvidersByCategory('blob');
             expect(blobViaList).toEqual(blobViaCategory);
 
-            const compressionViaList = allProviders.compression;
-            const compressionViaCategory = getProvidersByCategory('compression');
-            expect(compressionViaList).toEqual(compressionViaCategory);
+            const compactionViaList = allProviders.compaction;
+            const compactionViaCategory = getProvidersByCategory('compaction');
+            expect(compactionViaList).toEqual(compactionViaCategory);
 
             const customToolsViaList = allProviders.customTools;
             const customToolsViaCategory = getProvidersByCategory('customTools');
@@ -102,9 +102,9 @@ describe('Provider Discovery API - Integration', () => {
                 expect(hasProvider('blob', provider.type)).toBe(true);
             }
 
-            // For each compression provider, hasProvider should return true
-            for (const provider of allProviders.compression) {
-                expect(hasProvider('compression', provider.type)).toBe(true);
+            // For each compaction provider, hasProvider should return true
+            for (const provider of allProviders.compaction) {
+                expect(hasProvider('compaction', provider.type)).toBe(true);
             }
 
             // For each custom tool provider, hasProvider should return true
@@ -114,7 +114,7 @@ describe('Provider Discovery API - Integration', () => {
 
             // Non-existent providers should return false
             expect(hasProvider('blob', 'nonexistent-provider-xyz')).toBe(false);
-            expect(hasProvider('compression', 'nonexistent-provider-xyz')).toBe(false);
+            expect(hasProvider('compaction', 'nonexistent-provider-xyz')).toBe(false);
             expect(hasProvider('customTools', 'nonexistent-provider-xyz')).toBe(false);
         });
     });
@@ -126,24 +126,24 @@ describe('Provider Discovery API - Integration', () => {
             // Verify we can iterate through all providers for debugging
             const summary = {
                 blobCount: providers.blob.length,
-                compressionCount: providers.compression.length,
+                compactionCount: providers.compaction.length,
                 customToolsCount: providers.customTools.length,
                 total:
                     providers.blob.length +
-                    providers.compression.length +
+                    providers.compaction.length +
                     providers.customTools.length,
             };
 
             expect(summary.blobCount).toBeGreaterThanOrEqual(2);
-            expect(summary.compressionCount).toBeGreaterThanOrEqual(2);
+            expect(summary.compactionCount).toBeGreaterThanOrEqual(2);
             expect(summary.total).toBeGreaterThanOrEqual(4);
         });
 
         it('should support validation scenario: check required providers exist', () => {
-            // Scenario: App requires local blob storage and reactive-overflow compression
+            // Scenario: App requires local blob storage and reactive-overflow compaction
             const requiredProviders = [
                 { category: 'blob' as const, type: 'local' },
-                { category: 'compression' as const, type: 'reactive-overflow' },
+                { category: 'compaction' as const, type: 'reactive-overflow' },
             ];
 
             for (const { category, type } of requiredProviders) {

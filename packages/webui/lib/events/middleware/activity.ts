@@ -160,13 +160,13 @@ const activityMappings: Partial<Record<StreamingEventName | string, ActivityMapp
         },
     },
 
-    'context:compressed': {
+    'context:compacted': {
         category: 'system',
         getDescription: (e) => {
-            if (e.name === 'context:compressed') {
-                return `Context compressed: ${e.originalTokens} → ${e.compressedTokens} tokens`;
+            if (e.name === 'context:compacted') {
+                return `Context compacted: ${e.originalTokens} → ${e.compactedTokens} tokens`;
             }
-            return 'Context compressed';
+            return 'Context compacted';
         },
     },
 

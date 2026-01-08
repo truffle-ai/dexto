@@ -28,7 +28,7 @@ const EVENT_CATEGORIES: Record<string, { color: string; label: string }> = {
     'session:title-updated': { color: '#06b6d4', label: 'Session' },
 
     // Context events
-    'context:compressed': { color: '#64748b', label: 'Context' },
+    'context:compacted': { color: '#64748b', label: 'Context' },
     'context:pruned': { color: '#64748b', label: 'Context' },
 
     // Queue events

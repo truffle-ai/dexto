@@ -582,13 +582,13 @@ function handleMessageDequeued(event: EventByName<'message:dequeued'>): void {
 }
 
 /**
- * context:compressed - Context was compressed
+ * context:compacted - Context was compacted
  * Log for now (future: add to activity store)
  */
-function handleContextCompressed(event: EventByName<'context:compressed'>): void {
+function handleContextCompacted(event: EventByName<'context:compacted'>): void {
     console.debug(
-        `[handlers] Context compressed: ${event.originalTokens.toLocaleString()} → ${event.compressedTokens.toLocaleString()} tokens`,
-        `(${event.originalMessages} → ${event.compressedMessages} messages) via ${event.strategy}`
+        `[handlers] Context compacted: ${event.originalTokens.toLocaleString()} → ${event.compactedTokens.toLocaleString()} tokens`,
+        `(${event.originalMessages} → ${event.compactedMessages} messages) via ${event.strategy}`
     );
 }
 
@@ -616,7 +616,7 @@ export function registerHandlers(): void {
     handlers.set('run:complete', handleRunComplete);
     handlers.set('session:title-updated', handleSessionTitleUpdated);
     handlers.set('message:dequeued', handleMessageDequeued);
-    handlers.set('context:compressed', handleContextCompressed);
+    handlers.set('context:compacted', handleContextCompacted);
 }
 
 /**
@@ -682,5 +682,5 @@ export {
     handleRunComplete,
     handleSessionTitleUpdated,
     handleMessageDequeued,
-    handleContextCompressed,
+    handleContextCompacted,
 };

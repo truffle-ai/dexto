@@ -316,14 +316,14 @@ describe('activityMiddleware', () => {
             expect(events[0].description).toBe('Queued message processed');
         });
 
-        it('should log context:compressed with token counts', () => {
+        it('should log context:compacted with token counts', () => {
             const next = vi.fn();
             const event: ClientEvent = {
-                name: 'context:compressed',
+                name: 'context:compacted',
                 originalTokens: 10000,
-                compressedTokens: 5000,
+                compactedTokens: 5000,
                 originalMessages: 50,
-                compressedMessages: 25,
+                compactedMessages: 25,
                 strategy: 'llm-summary',
                 reason: 'overflow',
                 sessionId: 'session-1',
@@ -333,7 +333,7 @@ describe('activityMiddleware', () => {
 
             const { events } = useEventLogStore.getState();
             expect(events[0].category).toBe('system');
-            expect(events[0].description).toBe('Context compressed: 10000 → 5000 tokens');
+            expect(events[0].description).toBe('Context compacted: 10000 → 5000 tokens');
         });
 
         it('should log context:pruned with counts', () => {

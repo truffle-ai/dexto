@@ -185,8 +185,51 @@ export function getToolDisplayName(toolName: string): string {
     if (toolName.startsWith('internal--')) {
         return toolName.replace('internal--', '');
     }
-    // MCP tools keep their full name (server__tool format) for clarity
+    // MCP tools: strip mcp__ prefix and server name for clean display
+    if (toolName.startsWith('mcp__')) {
+        const parts = toolName.substring(5).split('__');
+        if (parts.length >= 2) {
+            return parts.slice(1).join('__');
+        }
+        return toolName.substring(5);
+    }
     return toolName;
+}
+
+/**
+ * Gets the tool type badge for display.
+ * Returns: 'internal', MCP server name, or 'custom'
+ */
+export function getToolTypeBadge(toolName: string): string {
+    // Internal tools
+    if (toolName.startsWith('internal--') || toolName.startsWith('internal__')) {
+        return 'internal';
+    }
+
+    // MCP tools with server name
+    if (toolName.startsWith('mcp--')) {
+        const parts = toolName.split('--');
+        if (parts.length >= 3 && parts[1]) {
+            return parts[1]; // Return server name (e.g., 'github', 'postgres')
+        }
+        return 'MCP';
+    }
+
+    if (toolName.startsWith('mcp__')) {
+        const parts = toolName.substring(5).split('__');
+        if (parts.length >= 2 && parts[0]) {
+            return parts[0]; // Return server name
+        }
+        return 'MCP';
+    }
+
+    // Custom tools
+    if (toolName.startsWith('custom--')) {
+        return 'custom';
+    }
+
+    // Unknown - likely custom
+    return 'custom';
 }
 
 /**

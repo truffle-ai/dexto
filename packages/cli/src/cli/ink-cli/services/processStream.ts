@@ -28,7 +28,11 @@ import type { Message, UIState, ToolStatus } from '../state/types.js';
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
 import { generateMessageId } from '../utils/idGenerator.js';
 import { checkForSplit } from '../utils/streamSplitter.js';
-import { getToolDisplayName, formatToolArgsForDisplay } from '../utils/messageFormatting.js';
+import {
+    getToolDisplayName,
+    formatToolArgsForDisplay,
+    getToolTypeBadge,
+} from '../utils/messageFormatting.js';
 import { isEditWriteTool } from '../utils/toolUtils.js';
 
 /**
@@ -529,17 +533,18 @@ export async function processStream(
                         ? `tool-${event.callId}`
                         : generateMessageId('tool');
 
-                    // Get friendly display name and format args
+                    // Get friendly display name, format args, and tool type badge
                     const displayName = getToolDisplayName(event.toolName);
                     const argsFormatted = formatToolArgsForDisplay(
                         event.toolName,
                         event.args || {}
                     );
+                    const badge = getToolTypeBadge(event.toolName);
 
-                    // Format: ToolName(args)
+                    // Format: toolName(args) [badge]
                     const toolContent = argsFormatted
-                        ? `${displayName}(${argsFormatted})`
-                        : displayName;
+                        ? `${displayName}(${argsFormatted}) [${badge}]`
+                        : `${displayName}() [${badge}]`;
 
                     // Tool calls start in 'pending' state (don't know if approval needed yet)
                     // Status transitions: pending → pending_approval (if approval needed) → running → finished

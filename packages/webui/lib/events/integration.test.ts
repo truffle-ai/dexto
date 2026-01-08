@@ -497,12 +497,12 @@ describe('EventBus Integration', () => {
             // Some events might not have sessionId
             expect(() => {
                 bus.dispatch({
-                    name: 'context:compressed',
+                    name: 'context:compacted',
                     sessionId: 'test-session',
                     originalTokens: 1000,
-                    compressedTokens: 500,
+                    compactedTokens: 500,
                     originalMessages: 10,
-                    compressedMessages: 5,
+                    compactedMessages: 5,
                     strategy: 'auto',
                     reason: 'overflow',
                 });
