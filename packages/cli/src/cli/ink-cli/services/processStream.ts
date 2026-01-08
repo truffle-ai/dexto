@@ -34,6 +34,7 @@ import {
     getToolTypeBadge,
 } from '../utils/messageFormatting.js';
 import { isEditWriteTool } from '../utils/toolUtils.js';
+import chalk from 'chalk';
 
 /**
  * Build error message with recovery guidance if available
@@ -541,10 +542,18 @@ export async function processStream(
                     );
                     const badge = getToolTypeBadge(event.toolName);
 
+                    // Extract description if present
+                    const description = event.args?.description;
+
                     // Format: toolName(args) [badge]
-                    const toolContent = argsFormatted
+                    // If description exists, add it on a new line with dim styling
+                    let toolContent = argsFormatted
                         ? `${displayName}(${argsFormatted}) [${badge}]`
                         : `${displayName}() [${badge}]`;
+
+                    if (description && typeof description === 'string') {
+                        toolContent += `\n${chalk.dim(description)}`;
+                    }
 
                     // Tool calls start in 'pending' state (don't know if approval needed yet)
                     // Status transitions: pending → pending_approval (if approval needed) → running → finished

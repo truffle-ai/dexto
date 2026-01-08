@@ -185,7 +185,18 @@ export function getToolDisplayName(toolName: string): string {
     if (toolName.startsWith('internal--')) {
         return toolName.replace('internal--', '');
     }
-    // MCP tools: strip mcp__ prefix and server name for clean display
+    // Strip "custom--" prefix for custom tools
+    if (toolName.startsWith('custom--')) {
+        return toolName.replace('custom--', '');
+    }
+    // MCP tools: strip mcp-- or mcp__ prefix and server name for clean display
+    if (toolName.startsWith('mcp--')) {
+        const parts = toolName.split('--');
+        if (parts.length >= 3) {
+            return parts.slice(2).join('--');
+        }
+        return toolName.substring(5);
+    }
     if (toolName.startsWith('mcp__')) {
         const parts = toolName.substring(5).split('__');
         if (parts.length >= 2) {
@@ -311,6 +322,7 @@ export function formatToolArgsForDisplay(toolName: string, args: Record<string, 
         // Use tool-specific config
         for (const argName of config.argsToShow) {
             if (!(argName in args)) continue;
+            if (argName === 'description') continue; // Skip description field
             if (parts.length >= 3) break;
 
             const formattedValue = formatArgValue(argName, args[argName]);
@@ -326,6 +338,7 @@ export function formatToolArgsForDisplay(toolName: string, args: Record<string, 
     } else {
         // Fallback for unknown tools (MCP, etc.)
         for (const [key, value] of entries) {
+            if (key === 'description') continue; // Skip description field
             if (parts.length >= 3) break;
 
             const formattedValue = formatArgValue(key, value);
