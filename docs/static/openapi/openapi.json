@@ -81,6 +81,14 @@
     {
       "name": "openrouter",
       "description": "OpenRouter model validation and cache management"
+    },
+    {
+      "name": "discovery",
+      "description": "Discover available providers and capabilities"
+    },
+    {
+      "name": "tools",
+      "description": "List and inspect available tools from internal, custom, and MCP sources"
     }
   ],
   "components": {
@@ -12096,6 +12104,338 @@
                   ],
                   "additionalProperties": false,
                   "description": "API key save response"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tools": {
+      "get": {
+        "summary": "List All Tools",
+        "description": "Retrieves all available tools from all sources (internal, custom, and MCP servers)",
+        "tags": [
+          "tools"
+        ],
+        "responses": {
+          "200": {
+            "description": "All tools",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "tools": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "description": "Tool identifier"
+                          },
+                          "name": {
+                            "type": "string",
+                            "description": "Tool name"
+                          },
+                          "description": {
+                            "type": "string",
+                            "description": "Tool description"
+                          },
+                          "source": {
+                            "type": "string",
+                            "enum": [
+                              "internal",
+                              "custom",
+                              "mcp"
+                            ],
+                            "description": "Source of the tool (internal, custom, or mcp)"
+                          },
+                          "serverName": {
+                            "type": "string",
+                            "description": "MCP server name (if source is mcp)"
+                          },
+                          "inputSchema": {
+                            "type": "object",
+                            "properties": {
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "object"
+                                ],
+                                "description": "Schema type, always \"object\" when present"
+                              },
+                              "properties": {
+                                "type": "object",
+                                "additionalProperties": {
+                                  "type": "object",
+                                  "properties": {
+                                    "type": {
+                                      "type": "string",
+                                      "enum": [
+                                        "string",
+                                        "number",
+                                        "integer",
+                                        "boolean",
+                                        "object",
+                                        "array"
+                                      ],
+                                      "description": "Property type"
+                                    },
+                                    "description": {
+                                      "type": "string",
+                                      "description": "Property description"
+                                    },
+                                    "enum": {
+                                      "type": "array",
+                                      "items": {
+                                        "anyOf": [
+                                          {
+                                            "type": "string"
+                                          },
+                                          {
+                                            "type": "number"
+                                          },
+                                          {
+                                            "type": "boolean"
+                                          }
+                                        ]
+                                      },
+                                      "description": "Enum values"
+                                    },
+                                    "default": {
+                                      "nullable": true,
+                                      "description": "Default value"
+                                    }
+                                  },
+                                  "description": "JSON Schema property definition"
+                                },
+                                "description": "Property definitions"
+                              },
+                              "required": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                },
+                                "description": "Required property names"
+                              }
+                            },
+                            "description": "JSON Schema for tool input parameters"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "description",
+                          "source"
+                        ],
+                        "additionalProperties": false,
+                        "description": "Tool information"
+                      },
+                      "description": "Array of all available tools"
+                    },
+                    "totalCount": {
+                      "type": "number",
+                      "description": "Total number of tools"
+                    },
+                    "internalCount": {
+                      "type": "number",
+                      "description": "Number of internal tools"
+                    },
+                    "customCount": {
+                      "type": "number",
+                      "description": "Number of custom tools"
+                    },
+                    "mcpCount": {
+                      "type": "number",
+                      "description": "Number of MCP tools"
+                    }
+                  },
+                  "required": [
+                    "tools",
+                    "totalCount",
+                    "internalCount",
+                    "customCount",
+                    "mcpCount"
+                  ],
+                  "additionalProperties": false,
+                  "description": "All available tools from all sources"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/discovery": {
+      "get": {
+        "summary": "Discover Available Providers and Tools",
+        "description": "Returns all registered providers (blob storage, compression, custom tools) and available internal tools. Useful for building UIs that need to display configurable options.",
+        "tags": [
+          "discovery"
+        ],
+        "responses": {
+          "200": {
+            "description": "Available providers grouped by category",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "blob": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "description": "Provider type identifier (e.g., \"local\", \"s3\", \"reactive-overflow\")"
+                          },
+                          "category": {
+                            "type": "string",
+                            "enum": [
+                              "blob",
+                              "compression",
+                              "customTools"
+                            ],
+                            "description": "Provider category"
+                          },
+                          "metadata": {
+                            "type": "object",
+                            "properties": {
+                              "displayName": {
+                                "type": "string",
+                                "description": "Human-readable display name"
+                              },
+                              "description": {
+                                "type": "string",
+                                "description": "Provider description"
+                              }
+                            },
+                            "description": "Optional metadata about the provider"
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "category"
+                        ],
+                        "description": "Information about a registered provider"
+                      },
+                      "description": "Blob storage providers"
+                    },
+                    "compression": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "description": "Provider type identifier (e.g., \"local\", \"s3\", \"reactive-overflow\")"
+                          },
+                          "category": {
+                            "type": "string",
+                            "enum": [
+                              "blob",
+                              "compression",
+                              "customTools"
+                            ],
+                            "description": "Provider category"
+                          },
+                          "metadata": {
+                            "type": "object",
+                            "properties": {
+                              "displayName": {
+                                "type": "string",
+                                "description": "Human-readable display name"
+                              },
+                              "description": {
+                                "type": "string",
+                                "description": "Provider description"
+                              }
+                            },
+                            "description": "Optional metadata about the provider"
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "category"
+                        ],
+                        "description": "Information about a registered provider"
+                      },
+                      "description": "Compression strategy providers"
+                    },
+                    "customTools": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "description": "Provider type identifier (e.g., \"local\", \"s3\", \"reactive-overflow\")"
+                          },
+                          "category": {
+                            "type": "string",
+                            "enum": [
+                              "blob",
+                              "compression",
+                              "customTools"
+                            ],
+                            "description": "Provider category"
+                          },
+                          "metadata": {
+                            "type": "object",
+                            "properties": {
+                              "displayName": {
+                                "type": "string",
+                                "description": "Human-readable display name"
+                              },
+                              "description": {
+                                "type": "string",
+                                "description": "Provider description"
+                              }
+                            },
+                            "description": "Optional metadata about the provider"
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "category"
+                        ],
+                        "description": "Information about a registered provider"
+                      },
+                      "description": "Custom tool providers"
+                    },
+                    "internalTools": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string",
+                            "description": "Internal tool name identifier (e.g., \"search_history\", \"ask_user\")"
+                          },
+                          "description": {
+                            "type": "string",
+                            "description": "Human-readable description of what the tool does"
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "description"
+                        ],
+                        "description": "Information about an internal tool"
+                      },
+                      "description": "Internal tools available for configuration"
+                    }
+                  },
+                  "required": [
+                    "blob",
+                    "compression",
+                    "customTools",
+                    "internalTools"
+                  ],
+                  "description": "Discovery response with providers grouped by category"
                 }
               }
             }

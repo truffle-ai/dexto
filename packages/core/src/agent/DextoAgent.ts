@@ -1985,6 +1985,16 @@ export class DextoAgent {
     }
 
     /**
+     * Gets all MCP tools with their server metadata.
+     * Returns tool cache entries which include server names for proper grouping.
+     * @returns Map of tool names to cache entries with server info
+     */
+    public getAllMcpToolsWithServerInfo() {
+        this.ensureStarted();
+        return this.mcpManager.getAllToolsWithServerInfo();
+    }
+
+    /**
      * Gets all available tools from all sources (MCP servers and custom tools).
      * This is the unified interface for tool discovery that includes both MCP and custom tools.
      * @returns Promise resolving to a map of tool names to tool definitions

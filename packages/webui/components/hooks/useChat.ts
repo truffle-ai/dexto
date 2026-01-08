@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useRef, useEffect, useCallback } from 'react';
 import type { Issue, SanitizedToolResult, ToolApprovalStatus } from '@dexto/core';
 import type { LLMProvider } from '@dexto/core';
 import { useQueryClient } from '@tanstack/react-query';
@@ -7,11 +7,12 @@ import { client } from '@/lib/client.js';
 import { queryKeys } from '@/lib/queryKeys.js';
 import { createMessageStream } from '@dexto/client-sdk';
 import type { MessageStreamEvent } from '@dexto/client-sdk';
-import { useApproval } from './ApprovalContext.js';
+import { eventBus } from '@/lib/events/EventBus.js';
+import { useChatStore } from '@/lib/stores/chatStore.js';
+import type { Message as ChatStoreMessage } from '@/lib/stores/chatStore.js';
 import type { Session } from './useSessions.js';
 
-// Content part types and guards - import from centralized types.ts
-import { isTextPart, isImagePart, isFilePart } from '../../types.js';
+// Content part types - import from centralized types.ts
 import type {
     TextPart,
     ImagePart,
@@ -45,59 +46,20 @@ export function isToolResultContent(result: unknown): result is ToolResultConten
 }
 
 // =============================================================================
-// WebUI Message Types (Discriminated Union by 'role')
+// Re-export Message types from chatStore (single source of truth)
 // =============================================================================
 
-/** Content type for WebUI messages (JSON-serializable, string-only) */
-export type UIContentPart = TextPart | ImagePart | AudioPart | FilePart | UIResourcePart;
+// Import from chatStore
+import type { Message, ErrorMessage } from '@/lib/stores/chatStore.js';
 
-/** Base interface for all WebUI message types */
-interface UIMessageBase {
-    id: string;
-    createdAt: number;
-    sessionId?: string;
-    metadata?: Record<string, unknown>;
-}
+// Re-export for API compatibility - components can import these from either place
+export type { Message, ErrorMessage } from '@/lib/stores/chatStore.js';
 
-/** User message in WebUI */
-export interface UIUserMessage extends UIMessageBase {
-    role: 'user';
-    content: string | null | UIContentPart[];
-    imageData?: { image: string; mimeType: string };
-    fileData?: FileData;
-}
-
-/** Assistant message in WebUI */
-export interface UIAssistantMessage extends UIMessageBase {
-    role: 'assistant';
-    content: string | null;
-    reasoning?: string;
-    tokenUsage?: {
-        inputTokens?: number;
-        outputTokens?: number;
-        reasoningTokens?: number;
-        totalTokens?: number;
-    };
-    model?: string;
-    provider?: LLMProvider;
-}
-
-/** Tool message in WebUI */
-export interface UIToolMessage extends UIMessageBase {
-    role: 'tool';
-    content: string | null | UIContentPart[];
-    toolName?: string;
-    toolArgs?: Record<string, unknown>;
-    toolCallId?: string;
-    toolResult?: ToolResult;
-    toolResultMeta?: SanitizedToolResult['meta'];
-    toolResultSuccess?: boolean;
-    requireApproval?: boolean;
-    approvalStatus?: ToolApprovalStatus;
-}
-
-/** Discriminated union of all WebUI message types */
-export type Message = UIUserMessage | UIAssistantMessage | UIToolMessage;
+// Legacy type aliases for code that uses the discriminated union pattern
+// These are intersection types that narrow the Message type by role
+export type UIUserMessage = Message & { role: 'user' };
+export type UIAssistantMessage = Message & { role: 'assistant' };
+export type UIToolMessage = Message & { role: 'tool' };
 
 // =============================================================================
 // Message Type Guards
@@ -118,43 +80,17 @@ export function isToolMessage(msg: Message): msg is UIToolMessage {
     return msg.role === 'tool';
 }
 
-// Separate error state interface
-export interface ErrorMessage {
-    id: string;
-    message: string;
-    timestamp: number;
-    context?: string;
-    recoverable?: boolean;
-    sessionId?: string;
-    // Message id this error relates to (e.g., last user input)
-    anchorMessageId?: string;
-    // Raw validation issues for hierarchical display
-    detailedIssues?: Issue[];
-}
-
 export type StreamStatus = 'idle' | 'connecting' | 'open' | 'closed';
-
-// Session-scoped state helpers interface
-export interface SessionScopedStateHelpers {
-    setSessionError: (sessionId: string, error: ErrorMessage | null) => void;
-    setSessionProcessing: (sessionId: string, isProcessing: boolean) => void;
-    setSessionStatus: (sessionId: string, status: StreamStatus) => void;
-    getSessionAbortController: (sessionId: string) => AbortController;
-    abortSession: (sessionId: string) => void;
-}
 
 const generateUniqueId = () => `msg-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 
 export function useChat(
     activeSessionIdRef: React.MutableRefObject<string | null>,
-    sessionHelpers: SessionScopedStateHelpers
+    abortControllersRef: React.MutableRefObject<Map<string, AbortController>>
 ) {
     const analytics = useAnalytics();
     const analyticsRef = useRef(analytics);
     const queryClient = useQueryClient();
-    const { handleApprovalRequest, handleApprovalResponse } = useApproval();
-
-    const [messages, setMessages] = useState<Message[]>([]);
 
     // Helper to update sessions cache (replaces DOM events)
     const updateSessionActivity = useCallback(
@@ -199,55 +135,39 @@ export function useChat(
     );
 
     // Track message IDs for error anchoring
-    // lastUserMessageIdRef: tracks the most recent user message (for other purposes)
-    // lastMessageIdRef: tracks the most recent message of ANY type (for error positioning)
     const lastUserMessageIdRef = useRef<string | null>(null);
     const lastMessageIdRef = useRef<string | null>(null);
-    const suppressNextErrorRef = useRef<boolean>(false);
     // Map callId to message index for O(1) tool result pairing
     const pendingToolCallsRef = useRef<Map<string, number>>(new Map());
-    // When true, llm:chunk events update UI incrementally. When false, wait for llm:response.
-    const isStreamingRef = useRef<boolean>(true);
 
     // Keep analytics ref updated
     useEffect(() => {
         analyticsRef.current = analytics;
     }, [analytics]);
 
-    // Helper wrappers for session-scoped state
-    const setError = useCallback(
-        (sessionId: string, error: ErrorMessage | null) => {
-            sessionHelpers.setSessionError(sessionId, error);
-        },
-        [sessionHelpers]
-    );
-
-    const setProcessing = useCallback(
-        (sessionId: string, isProcessing: boolean) => {
-            sessionHelpers.setSessionProcessing(sessionId, isProcessing);
-        },
-        [sessionHelpers]
-    );
-
-    const setStatus = useCallback(
-        (sessionId: string, status: StreamStatus) => {
-            sessionHelpers.setSessionStatus(sessionId, status);
-        },
-        [sessionHelpers]
-    );
-
+    // Abort controller management (moved from ChatContext)
     const getAbortController = useCallback(
-        (sessionId: string) => {
-            return sessionHelpers.getSessionAbortController(sessionId);
+        (sessionId: string): AbortController => {
+            const existing = abortControllersRef.current.get(sessionId);
+            if (existing) {
+                return existing;
+            }
+            const controller = new AbortController();
+            abortControllersRef.current.set(sessionId, controller);
+            return controller;
         },
-        [sessionHelpers]
+        [abortControllersRef]
     );
 
     const abortSession = useCallback(
         (sessionId: string) => {
-            sessionHelpers.abortSession(sessionId);
+            const controller = abortControllersRef.current.get(sessionId);
+            if (controller) {
+                controller.abort();
+                abortControllersRef.current.delete(sessionId);
+            }
         },
-        [sessionHelpers]
+        [abortControllersRef]
     );
 
     const isForActiveSession = useCallback(
@@ -272,168 +192,27 @@ export function useChat(
                 return;
             }
 
+            // Dispatch to EventBus - handlers.ts will update chatStore
+            // NOTE: All store updates (messages, streaming, processing) are handled by handlers.ts
+            // This function only handles React-specific side effects not in handlers.ts:
+            // - TanStack Query cache updates
+            // - Analytics tracking
+            // - Ref updates for error anchoring
+            eventBus.dispatch(event);
+
+            // Handle React-specific side effects not in handlers.ts
+            // IMPORTANT: Do NOT update chatStore here - that's handled by handlers.ts via EventBus
             switch (event.name) {
-                case 'llm:thinking':
-                    // LLM started thinking - can update UI status
-                    setProcessing(event.sessionId, true);
-                    setStatus(event.sessionId, 'open');
-                    break;
-
-                case 'llm:chunk': {
-                    // When not streaming, skip chunk updates - llm:response will show full content
-                    if (!isStreamingRef.current) {
-                        break;
-                    }
-
-                    const text = event.content || '';
-                    const chunkType = event.chunkType;
-                    //console.log('llm:chunk', event);
-
-                    setMessages((ms) => {
-                        if (chunkType === 'reasoning') {
-                            const last = ms[ms.length - 1];
-                            if (last && last.role === 'assistant') {
-                                const updated = {
-                                    ...last,
-                                    reasoning: (last.reasoning || '') + text,
-                                    createdAt: Date.now(),
-                                };
-                                return [...ms.slice(0, -1), updated];
-                            }
-                            // Creating new assistant message - track its ID for error anchoring
-                            const newId = generateUniqueId();
-                            lastMessageIdRef.current = newId;
-                            return [
-                                ...ms,
-                                {
-                                    id: newId,
-                                    role: 'assistant',
-                                    content: '',
-                                    reasoning: text,
-                                    createdAt: Date.now(),
-                                },
-                            ];
-                        } else {
-                            const last = ms[ms.length - 1];
-                            if (last && last.role === 'assistant') {
-                                const currentContent =
-                                    typeof last.content === 'string' ? last.content : '';
-                                const newContent = currentContent + text;
-                                const updated = {
-                                    ...last,
-                                    content: newContent,
-                                    createdAt: Date.now(),
-                                };
-                                return [...ms.slice(0, -1), updated];
-                            }
-                            // Creating new assistant message - track its ID for error anchoring
-                            const newId = generateUniqueId();
-                            lastMessageIdRef.current = newId;
-                            return [
-                                ...ms,
-                                {
-                                    id: newId,
-                                    role: 'assistant',
-                                    content: text,
-                                    createdAt: Date.now(),
-                                },
-                            ];
-                        }
-                    });
-                    break;
-                }
-
                 case 'llm:response': {
-                    // NOTE: Don't set processing=false here - wait for run:complete
-                    // This allows queued messages to continue processing after this response
-                    console.log('llm:response', event);
-                    const text = event.content || '';
-                    const usage = event.tokenUsage;
-                    const model = event.model;
-                    const provider = event.provider;
-
-                    setMessages((ms) => {
-                        const lastMsg = ms[ms.length - 1];
-                        const finalContent = typeof text === 'string' ? text : '';
-
-                        if (lastMsg && lastMsg.role === 'assistant') {
-                            // Update existing assistant message
-                            const updatedMsg: Message = {
-                                ...lastMsg,
-                                content: finalContent,
-                                tokenUsage: usage,
-                                ...(model && { model }),
-                                ...(provider && { provider }),
-                                createdAt: Date.now(),
-                            };
-                            return [...ms.slice(0, -1), updatedMsg];
-                        }
-
-                        // No assistant message exists - create one if we have content
-                        // This handles multi-step turns where llm:response arrives after tool calls
-                        if (finalContent) {
-                            const newId = generateUniqueId();
-                            lastMessageIdRef.current = newId;
-                            return [
-                                ...ms,
-                                {
-                                    id: newId,
-                                    role: 'assistant',
-                                    content: finalContent,
-                                    tokenUsage: usage,
-                                    ...(model && { model }),
-                                    ...(provider && { provider }),
-                                    createdAt: Date.now(),
-                                },
-                            ];
-                        }
-                        return ms;
-                    });
-
                     // Update sessions cache (response received)
                     updateSessionActivity(event.sessionId);
                     break;
                 }
 
-                case 'llm:tool-call': {
-                    const { toolName, args, callId } = event;
-                    // Track tool message ID for error anchoring
-                    const toolMsgId = generateUniqueId();
-                    lastMessageIdRef.current = toolMsgId;
-                    setMessages((ms) => {
-                        const newIndex = ms.length;
-                        const newMessages: Message[] = [
-                            ...ms,
-                            {
-                                id: toolMsgId,
-                                role: 'tool',
-                                content: null,
-                                toolName,
-                                toolArgs: args,
-                                toolCallId: callId,
-                                createdAt: Date.now(),
-                            },
-                        ];
-                        if (callId) {
-                            pendingToolCallsRef.current.set(callId, newIndex);
-                        }
-                        return newMessages;
-                    });
-                    break;
-                }
-
                 case 'llm:tool-result': {
-                    const {
-                        callId,
-                        success,
-                        sanitized,
-                        toolName,
-                        requireApproval,
-                        approvalStatus,
-                    } = event;
-                    const result = sanitized; // Core events use 'sanitized' field
+                    const { toolName, success } = event;
 
-                    // Track tool call completion
+                    // Track tool call completion analytics
                     if (toolName) {
                         analyticsRef.current.trackToolCalled({
                             toolName,
@@ -441,177 +220,28 @@ export function useChat(
                             sessionId: event.sessionId,
                         });
                     }
-
-                    // Normalize result logic (simplified from original useChat)
-                    // Note: The agent usually sanitizes results before emitting
-
-                    setMessages((ms) => {
-                        let idx = -1;
-                        if (callId && pendingToolCallsRef.current.has(callId)) {
-                            idx = pendingToolCallsRef.current.get(callId)!;
-                            pendingToolCallsRef.current.delete(callId);
-                        } else {
-                            idx = ms.findIndex(
-                                (m) =>
-                                    m.role === 'tool' &&
-                                    m.toolResult === undefined &&
-                                    m.toolName === toolName
-                            );
-                        }
-
-                        if (idx !== -1 && idx < ms.length) {
-                            const updatedMsg = {
-                                ...ms[idx],
-                                toolResult: result,
-                                toolResultSuccess: success,
-                                // Preserve approval metadata from event
-                                ...(requireApproval !== undefined && { requireApproval }),
-                                ...(approvalStatus !== undefined && { approvalStatus }),
-                            };
-                            return [...ms.slice(0, idx), updatedMsg, ...ms.slice(idx + 1)];
-                        }
-                        return ms;
-                    });
-                    break;
-                }
-
-                case 'approval:request': {
-                    // Forward SSE event payload to ApprovalContext
-                    // Remove 'name' (SSE discriminant), keep 'type' (approval discriminant)
-                    const { name: _, ...request } = event;
-                    handleApprovalRequest(request);
-                    break;
-                }
-
-                case 'approval:response': {
-                    // Forward SSE event payload to ApprovalContext
-                    const { name: _, ...response } = event;
-                    handleApprovalResponse(response);
-                    break;
-                }
-
-                case 'llm:error': {
-                    if (suppressNextErrorRef.current) {
-                        suppressNextErrorRef.current = false;
-                        break;
-                    }
-
-                    const errorObj = event.error || {};
-                    const message = errorObj.message || 'Unknown error';
-                    console.log('llm:error', event);
-
-                    setError(event.sessionId, {
-                        id: generateUniqueId(),
-                        message,
-                        timestamp: Date.now(),
-                        context: event.context,
-                        recoverable: event.recoverable,
-                        sessionId: event.sessionId,
-                        // Use lastMessageIdRef to anchor error to the most recent message
-                        // (not just user messages), so errors appear in correct position
-                        anchorMessageId: lastMessageIdRef.current || undefined,
-                    });
-                    setProcessing(event.sessionId, false);
-                    setStatus(event.sessionId, 'closed');
                     break;
                 }
 
                 case 'session:title-updated': {
+                    // Update TanStack Query cache
                     updateSessionTitle(event.sessionId, event.title);
                     break;
                 }
 
-                case 'context:compressed': {
-                    // Context was compressed during multi-step tool calling
-                    // Log for debugging, could add UI notification in future
-                    console.log(
-                        `[Context Compressed] ${event.originalTokens.toLocaleString()} → ${event.compressedTokens.toLocaleString()} tokens ` +
-                            `(${event.originalMessages} → ${event.compressedMessages} messages) via ${event.strategy}`
-                    );
-                    break;
-                }
-
                 case 'message:dequeued': {
-                    // Queued message was processed - add as user message to UI
-                    // Extract text content from the combined content array
-                    const textContent = event.content
-                        .filter(isTextPart)
-                        .map((part) => part.text)
-                        .join('\n');
+                    // Update sessions cache
+                    updateSessionActivity(event.sessionId);
 
-                    // Extract image attachment if present
-                    const imagePart = event.content.find(isImagePart);
-
-                    // Extract file attachment if present
-                    const filePart = event.content.find(isFilePart);
-
-                    if (textContent || event.content.length > 0) {
-                        const userId = generateUniqueId();
-                        lastUserMessageIdRef.current = userId;
-                        lastMessageIdRef.current = userId;
-                        setMessages((ms) => [
-                            ...ms,
-                            {
-                                id: userId,
-                                role: 'user',
-                                content: textContent || '[attachment]',
-                                createdAt: Date.now(),
-                                sessionId: event.sessionId,
-                                imageData: imagePart
-                                    ? {
-                                          image: imagePart.image,
-                                          mimeType: imagePart.mimeType ?? 'image/jpeg',
-                                      }
-                                    : undefined,
-                                fileData: filePart
-                                    ? {
-                                          data: filePart.data,
-                                          mimeType: filePart.mimeType,
-                                          filename: filePart.filename,
-                                      }
-                                    : undefined,
-                            },
-                        ]);
-                        // Update sessions cache
-                        updateSessionActivity(event.sessionId);
-                    }
-                    // Immediately invalidate queue cache so UI removes the message
+                    // Invalidate queue cache so UI removes the message
                     queryClient.invalidateQueries({
                         queryKey: queryKeys.queue.list(event.sessionId),
                     });
                     break;
                 }
-
-                case 'run:complete': {
-                    // Agent run fully completed (no more steps, no queued messages)
-                    // NOW set processing to false - not on llm:response
-                    console.log('run:complete', event);
-                    setProcessing(event.sessionId, false);
-                    setStatus(event.sessionId, 'closed');
-
-                    // If there was an error, it's already been handled by llm:error
-                    // Just log it here for debugging
-                    if (event.error) {
-                        console.log(
-                            `Run ended with error (finishReason=${event.finishReason}):`,
-                            event.error
-                        );
-                    }
-                    break;
-                }
             }
         },
-        [
-            isForActiveSession,
-            setProcessing,
-            setStatus,
-            setError,
-            handleApprovalRequest,
-            handleApprovalResponse,
-            updateSessionActivity,
-            updateSessionTitle,
-            queryClient,
-        ]
+        [isForActiveSession, analyticsRef, updateSessionActivity, updateSessionTitle, queryClient]
     );
 
     const sendMessage = useCallback(
@@ -632,28 +262,21 @@ export function useChat(
 
             const abortController = getAbortController(sessionId) || new AbortController();
 
-            // Set streaming mode - controls whether llm:chunk events update UI
-            isStreamingRef.current = stream;
-
-            setProcessing(sessionId, true);
-            setStatus(sessionId, 'connecting');
+            useChatStore.getState().setProcessing(sessionId, true);
 
             // Add user message to state
             const userId = generateUniqueId();
             lastUserMessageIdRef.current = userId;
             lastMessageIdRef.current = userId; // Track for error anchoring
-            setMessages((ms) => [
-                ...ms,
-                {
-                    id: userId,
-                    role: 'user',
-                    content,
-                    createdAt: Date.now(),
-                    sessionId,
-                    imageData,
-                    fileData,
-                },
-            ]);
+            useChatStore.getState().addMessage(sessionId, {
+                id: userId,
+                role: 'user',
+                content,
+                createdAt: Date.now(),
+                sessionId,
+                imageData,
+                fileData,
+            });
 
             // Update sessions cache (user message sent)
             updateSessionActivity(sessionId);
@@ -702,14 +325,9 @@ export function useChat(
                     signal: abortController.signal,
                 });
 
-                setStatus(sessionId, 'open');
-
                 for await (const event of iterator) {
                     processEvent(event);
                 }
-
-                setStatus(sessionId, 'closed');
-                setProcessing(sessionId, false);
             } catch (error: unknown) {
                 // Handle abort gracefully
                 if (error instanceof Error && error.name === 'AbortError') {
@@ -720,55 +338,41 @@ export function useChat(
                 console.error(
                     `Stream error: ${error instanceof Error ? error.message : String(error)}`
                 );
-                setStatus(sessionId, 'closed');
-                setProcessing(sessionId, false);
+                useChatStore.getState().setProcessing(sessionId, false);
 
                 const message = error instanceof Error ? error.message : 'Failed to send message';
-                setError(sessionId, {
+                useChatStore.getState().setError(sessionId, {
                     id: generateUniqueId(),
                     message,
                     timestamp: Date.now(),
                     context: 'stream',
                     recoverable: true,
                     sessionId,
-                    anchorMessageId: userId,
+                    anchorMessageId: lastMessageIdRef.current || undefined,
                 });
             }
         },
-        [
-            processEvent,
-            abortSession,
-            getAbortController,
-            setProcessing,
-            setStatus,
-            setError,
-            updateSessionActivity,
-        ]
+        [processEvent, abortSession, getAbortController, updateSessionActivity]
     );
 
-    const reset = useCallback(
-        async (sessionId?: string) => {
-            if (!sessionId) return;
+    const reset = useCallback(async (sessionId?: string) => {
+        if (!sessionId) return;
 
-            try {
-                await client.api.reset.$post({
-                    json: { sessionId },
-                });
-            } catch (e) {
-                console.error(
-                    `Failed to reset session: ${e instanceof Error ? e.message : String(e)}`
-                );
-            }
+        try {
+            await client.api.reset.$post({
+                json: { sessionId },
+            });
+        } catch (e) {
+            console.error(`Failed to reset session: ${e instanceof Error ? e.message : String(e)}`);
+        }
 
-            setMessages([]);
-            setError(sessionId, null);
-            lastUserMessageIdRef.current = null;
-            lastMessageIdRef.current = null;
-            pendingToolCallsRef.current.clear();
-            setProcessing(sessionId, false);
-        },
-        [setError, setProcessing]
-    );
+        // Note: Messages are now in chatStore, not local state
+        useChatStore.getState().setError(sessionId, null);
+        lastUserMessageIdRef.current = null;
+        lastMessageIdRef.current = null;
+        pendingToolCallsRef.current.clear();
+        useChatStore.getState().setProcessing(sessionId, false);
+    }, []);
 
     const cancel = useCallback(async (sessionId?: string, clearQueue: boolean = false) => {
         if (!sessionId) return;
@@ -791,10 +395,8 @@ export function useChat(
     }, []);
 
     return {
-        messages,
         sendMessage,
         reset,
-        setMessages,
         cancel,
     };
 }

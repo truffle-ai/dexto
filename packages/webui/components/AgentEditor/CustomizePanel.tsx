@@ -457,6 +457,15 @@ export default function CustomizePanel({
     const handleDiscardChanges = () => {
         setShowUnsavedDialog(false);
         setYamlContent(originalYamlContent);
+        // Also reset parsed config for form mode
+        if (originalParsedConfig) {
+            setParsedConfig(originalParsedConfig);
+            // Re-parse document for comment preservation
+            const { document } = parseYamlToConfig(originalYamlContent);
+            if (document) {
+                setYamlDocument(document);
+            }
+        }
         setHasUnsavedChanges(false);
         refetchConfig();
     };
@@ -750,13 +759,24 @@ export default function CustomizePanel({
     }
 
     return (
-        <div
-            className={cn(
-                'fixed inset-y-0 right-0 z-50 w-full sm:w-[600px] md:w-[700px] lg:w-[800px] border-l border-border bg-background shadow-2xl transform transition-transform duration-300',
-                isOpen ? 'translate-x-0' : 'translate-x-full'
-            )}
-        >
-            {panelContent}
-        </div>
+        <>
+            {/* Backdrop */}
+            <div
+                className={cn(
+                    'fixed inset-0 z-40 bg-background/60 backdrop-blur-sm transition-opacity duration-300',
+                    isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
+                )}
+                onClick={handleClose}
+            />
+            {/* Panel */}
+            <div
+                className={cn(
+                    'fixed inset-y-0 right-0 z-50 w-full sm:w-[600px] md:w-[700px] lg:w-[800px] border-l border-border/50 bg-card/95 backdrop-blur-xl shadow-2xl transform transition-transform duration-300',
+                    isOpen ? 'translate-x-0' : 'translate-x-full'
+                )}
+            >
+                {panelContent}
+            </div>
+        </>
     );
 }

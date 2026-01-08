@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import {
     useLLMCatalog,
     useSwitchLLM,
@@ -20,7 +20,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 import { Button } from '../ui/button';
 import { Alert, AlertDescription } from '../ui/alert';
 import { ApiKeyModal } from '../ApiKeyModal';
-import { useChatContext } from '../hooks/ChatContext';
+import { useSessionStore } from '@/lib/stores/sessionStore';
+import { useCurrentLLM } from '../hooks/useCurrentLLM';
 import {
     Bot,
     ChevronDown,
@@ -80,7 +81,8 @@ export default function ModelPickerModal() {
         model: ModelInfo;
     } | null>(null);
 
-    const { currentSessionId, currentLLM, refreshCurrentLLM } = useChatContext();
+    const currentSessionId = useSessionStore((s) => s.currentSessionId);
+    const { data: currentLLM, refetch: refreshCurrentLLM } = useCurrentLLM(currentSessionId);
 
     // Analytics tracking
     const analytics = useAnalytics();

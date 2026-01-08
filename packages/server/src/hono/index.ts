@@ -19,6 +19,8 @@ import { createApprovalsRouter } from './routes/approvals.js';
 import { createQueueRouter } from './routes/queue.js';
 import { createOpenRouterRouter } from './routes/openrouter.js';
 import { createKeyRouter } from './routes/key.js';
+import { createToolsRouter } from './routes/tools.js';
+import { createDiscoveryRouter } from './routes/discovery.js';
 import {
     createStaticRouter,
     createSpaFallbackHandler,
@@ -121,7 +123,9 @@ export function createDextoApp(options: CreateDextoAppOptions) {
         .route('/api', createAgentsRouter(getAgent, agentsContext || dummyAgentsContext))
         .route('/api', createQueueRouter(getAgent))
         .route('/api', createOpenRouterRouter())
-        .route('/api', createKeyRouter());
+        .route('/api', createKeyRouter())
+        .route('/api', createToolsRouter(getAgent))
+        .route('/api', createDiscoveryRouter());
 
     // Expose OpenAPI document
     // Current approach uses @hono/zod-openapi's .doc() method for OpenAPI spec generation
@@ -214,6 +218,15 @@ export function createDextoApp(options: CreateDextoAppOptions) {
             {
                 name: 'openrouter',
                 description: 'OpenRouter model validation and cache management',
+            },
+            {
+                name: 'discovery',
+                description: 'Discover available providers and capabilities',
+            },
+            {
+                name: 'tools',
+                description:
+                    'List and inspect available tools from internal, custom, and MCP sources',
             },
         ],
     });

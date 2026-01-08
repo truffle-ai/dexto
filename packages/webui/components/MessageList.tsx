@@ -15,14 +15,8 @@ import type { TextPart, AudioPart, UIResourcePart } from '../types';
 import { getFileMediaKind } from '@dexto/core';
 import ErrorBanner from './ErrorBanner';
 import {
-    User,
-    Bot,
     ChevronUp,
     Loader2,
-    CheckCircle,
-    CheckCircle2,
-    ChevronRight,
-    Wrench,
     AlertTriangle,
     Image as ImageIcon,
     Info,
@@ -31,7 +25,6 @@ import {
     ChevronDown,
     Brain,
     X,
-    XCircle,
     ZoomIn,
     Volume2,
     Video as VideoIcon,
@@ -51,11 +44,13 @@ import { useResources } from './hooks/useResources';
 import type { ResourceMetadata } from '@dexto/core';
 import { parseResourceReferences, resolveResourceReferences } from '@dexto/core';
 import { type ApprovalEvent } from './ToolConfirmationHandler';
-import { InlineApprovalCard } from './InlineApprovalCard';
+import { ToolCallTimeline } from './ToolCallTimeline';
 
 interface MessageListProps {
     messages: Message[];
     processing?: boolean;
+    /** Name of tool currently executing (for status indicator) */
+    currentToolName?: string | null;
     activeError?: ErrorMessage | null;
     onDismissError?: () => void;
     pendingApproval?: ApprovalEvent | null;
@@ -288,25 +283,32 @@ function getVideoInfo(
     return src && isSafeMediaUrl(src, 'video') ? { src, filename, mimeType } : null;
 }
 
-function ThinkingIndicator() {
+function ThinkingIndicator({ toolName }: { toolName?: string | null }) {
     return (
         <div
-            className="flex items-center justify-center gap-2 py-1 text-xs text-muted-foreground"
+            className="flex items-center gap-2 py-1 pl-1 text-sm text-muted-foreground"
             role="status"
             aria-live="polite"
         >
-            <span className="flex items-center gap-1 uppercase tracking-wide text-muted-foreground/80">
-                <span>Thinking</span>
-                <span className="flex items-center gap-0.5">
-                    {[0, 1, 2].map((dot) => (
-                        <span
-                            key={dot}
-                            className="inline-flex h-1.5 w-1.5 rounded-full bg-primary/60 animate-[pulse_1.2s_ease-in-out_infinite]"
-                            style={{ animationDelay: `${dot * 0.18}s` }}
-                        />
-                    ))}
+            {/* Animated spinner */}
+            <div className="relative h-3.5 w-3.5">
+                <div className="absolute inset-0 rounded-full border-[1.5px] border-muted-foreground/20" />
+                <div className="absolute inset-0 rounded-full border-[1.5px] border-transparent border-t-muted-foreground/60 animate-spin" />
+            </div>
+
+            {/* Label */}
+            {toolName ? (
+                <span>
+                    <span className="text-muted-foreground/70">Running</span>{' '}
+                    <span className="font-mono text-blue-600 dark:text-blue-400">
+                        {toolName
+                            .replace(/^(internal--|custom--|mcp--[^-]+--|mcp__[^_]+__)/, '')
+                            .replace(/^(internal__|custom__)/, '')}
+                    </span>
                 </span>
-            </span>
+            ) : (
+                <span className="text-muted-foreground/70">Thinking</span>
+            )}
         </div>
     );
 }
@@ -314,6 +316,7 @@ function ThinkingIndicator() {
 export default function MessageList({
     messages,
     processing = false,
+    currentToolName,
     activeError,
     onDismissError,
     outerRef,
@@ -449,7 +452,64 @@ export default function MessageList({
         return '';
     };
 
-    const getToolResultCopyText = (result: ToolResult | undefined): string => {
+    // Helper: Find the start index of the run ending at endIdx
+    const getRunStartIdx = (endIdx: number): number => {
+        for (let i = endIdx - 1; i >= 0; i--) {
+            const msg = messages[i];
+            if (msg && isUserMessage(msg)) {
+                return i + 1;
+            }
+        }
+        return 0;
+    };
+
+    // Helper: Get all assistant text from a run ending at idx (for copy/speak aggregation)
+    const getRunAssistantText = (endIdx: number): string => {
+        const texts: string[] = [];
+        const startIdx = getRunStartIdx(endIdx);
+        // Collect all assistant message text from startIdx to endIdx
+        for (let i = startIdx; i <= endIdx; i++) {
+            const msg = messages[i];
+            if (msg && isAssistantMessage(msg)) {
+                const text = getPlainTextFromMessage(msg);
+                if (text.trim()) {
+                    texts.push(text);
+                }
+            }
+        }
+        return texts.join('\n\n');
+    };
+
+    // Helper: Get cumulative token usage for a run ending at idx
+    const getRunTokenUsage = (
+        endIdx: number
+    ): {
+        inputTokens: number;
+        outputTokens: number;
+        reasoningTokens: number;
+        totalTokens: number;
+    } => {
+        const startIdx = getRunStartIdx(endIdx);
+        let inputTokens = 0;
+        let outputTokens = 0;
+        let reasoningTokens = 0;
+        let totalTokens = 0;
+
+        for (let i = startIdx; i <= endIdx; i++) {
+            const msg = messages[i];
+            if (msg && isAssistantMessage(msg) && msg.tokenUsage) {
+                inputTokens += msg.tokenUsage.inputTokens ?? 0;
+                outputTokens += msg.tokenUsage.outputTokens ?? 0;
+                reasoningTokens += msg.tokenUsage.reasoningTokens ?? 0;
+                totalTokens += msg.tokenUsage.totalTokens ?? 0;
+            }
+        }
+
+        return { inputTokens, outputTokens, reasoningTokens, totalTokens };
+    };
+
+    // Note: getToolResultCopyText was used for old tool box rendering, now handled by ToolCallTimeline
+    const _getToolResultCopyText = (result: ToolResult | undefined): string => {
         if (!result) return '';
         if (isToolResultError(result)) {
             return typeof result.error === 'object'
@@ -465,6 +525,26 @@ export default function MessageList({
                 .join('\n');
         }
         return typeof result === 'object' ? JSON.stringify(result, null, 2) : String(result);
+    };
+
+    // Helper: Check if this assistant message is the last one before a user message (end of a "run")
+    const isLastAssistantInRun = (idx: number): boolean => {
+        const msg = messages[idx];
+        if (!msg || !isAssistantMessage(msg)) return false;
+
+        // Look ahead to find the next non-tool message
+        for (let i = idx + 1; i < messages.length; i++) {
+            const nextMsg = messages[i];
+            if (!nextMsg) continue;
+            // Skip tool messages - they're part of the same run
+            if (isToolMessage(nextMsg)) continue;
+            // If next non-tool message is a user message, this is the last assistant in the run
+            if (isUserMessage(nextMsg)) return true;
+            // If next non-tool message is another assistant message, this is not the last
+            if (isAssistantMessage(nextMsg)) return false;
+        }
+        // If we reach here, no user message follows - show metadata only if not processing
+        return !processing;
     };
 
     return (
@@ -484,7 +564,11 @@ export default function MessageList({
                 const isToolResult = isTool && !!(msg.toolName && msg.toolResult);
                 const isToolRelated = isToolCall || isToolResult;
 
-                const isExpanded = (isToolRelated && isLastMessage) || !!manuallyExpanded[msgKey];
+                // Only show metadata (tokens, model) on the last assistant message of a run
+                const showAssistantMetadata = isAi && isLastAssistantInRun(idx);
+
+                // Note: isExpanded was used for old tool box rendering, now handled by ToolCallTimeline
+                const _isExpanded = (isToolRelated && isLastMessage) || !!manuallyExpanded[msgKey];
 
                 // Extract media parts from tool results for separate rendering
                 const toolResultImages: Array<{ src: string; alt: string; index: number }> = [];
@@ -552,7 +636,8 @@ export default function MessageList({
                     });
                 }
 
-                const toggleManualExpansion = () => {
+                // Note: toggleManualExpansion was used for old tool box rendering, now handled by ToolCallTimeline
+                const _toggleManualExpansion = () => {
                     if (isToolRelated) {
                         setManuallyExpanded((prev) => ({
                             ...prev,
@@ -561,22 +646,16 @@ export default function MessageList({
                     }
                 };
 
-                const AvatarComponent = isUser ? User : Bot;
+                const messageContainerClass = 'w-full' + (isTool ? ' pl-2' : ''); // Tool messages get slight indent for timeline
 
-                const messageContainerClass = cn(
-                    isUser
-                        ? 'grid w-full grid-cols-[1fr_auto] gap-x-2 items-start'
-                        : 'grid w-full grid-cols-[auto_1fr] gap-x-2 items-start'
-                );
-
-                // Bubble styling: users and AI are speech bubbles; tools match AI width
+                // Bubble styling: users get subtle bubble; AI and tools blend with background
                 const bubbleSpecificClass = cn(
                     isTool
-                        ? 'w-fit max-w-[90%] text-muted-foreground/70 bg-secondary border border-muted/30 rounded-md text-base overflow-hidden'
+                        ? 'w-full max-w-[90%]'
                         : isUser
-                          ? 'p-3 rounded-xl shadow-sm w-fit max-w-[75%] bg-primary text-primary-foreground rounded-br-none text-base break-words overflow-wrap-anywhere overflow-hidden'
+                          ? 'px-4 py-3 rounded-2xl w-fit max-w-[75%] bg-primary/15 text-foreground rounded-br-sm text-base break-words overflow-wrap-anywhere overflow-hidden'
                           : isAi
-                            ? 'p-3 rounded-xl shadow-sm w-fit max-w-[min(90%,calc(100vw-6rem))] bg-card text-card-foreground border border-border rounded-bl-none text-base break-normal hyphens-none'
+                            ? 'px-4 py-3 w-full max-w-[min(90%,calc(100vw-6rem))] text-base break-normal hyphens-none'
                             : ''
                 );
 
@@ -593,19 +672,10 @@ export default function MessageList({
                             id={msg.id ? `message-${msg.id}` : undefined}
                         >
                             <div className={messageContainerClass}>
-                                {isAi && (
-                                    <AvatarComponent className="h-7 w-7 mt-1 text-muted-foreground col-start-1" />
-                                )}
-                                {msg.role === 'tool' && (
-                                    <Wrench className="h-7 w-7 p-1 mt-1 rounded-full border border-border text-muted-foreground col-start-1" />
-                                )}
-
                                 <div
                                     className={cn(
                                         'flex flex-col group w-full min-w-0',
-                                        isUser
-                                            ? 'col-start-1 justify-self-end items-end'
-                                            : 'col-start-2 justify-self-start items-start'
+                                        isUser ? 'items-end' : 'items-start'
                                     )}
                                 >
                                     <div className={cn(bubbleSpecificClass, 'min-w-0')}>
@@ -665,278 +735,45 @@ export default function MessageList({
                                                 )}
 
                                             {isToolMessage(msg) && msg.toolName ? (
-                                                <div
-                                                    className="p-2 rounded border border-border bg-muted/30 hover:bg-muted/60 cursor-pointer"
-                                                    onClick={toggleManualExpansion}
-                                                >
-                                                    <div className="flex items-center justify-between text-xs font-medium">
-                                                        <span className="flex items-center gap-2">
-                                                            {isExpanded ? (
-                                                                <ChevronUp className="h-4 w-4 text-primary" />
-                                                            ) : (
-                                                                <ChevronRight className="h-4 w-4 text-primary" />
-                                                            )}
-                                                            <span>Tool: {msg.toolName}</span>
-                                                            {msg.requireApproval &&
-                                                                msg.approvalStatus && (
-                                                                    <span
-                                                                        className={cn(
-                                                                            'inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs',
-                                                                            msg.approvalStatus ===
-                                                                                'approved'
-                                                                                ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
-                                                                                : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
-                                                                        )}
-                                                                    >
-                                                                        {msg.approvalStatus ===
-                                                                        'approved' ? (
-                                                                            <>
-                                                                                <CheckCircle2 className="h-3 w-3" />
-                                                                                <span>
-                                                                                    Approved
-                                                                                </span>
-                                                                            </>
-                                                                        ) : (
-                                                                            <>
-                                                                                <XCircle className="h-3 w-3" />
-                                                                                <span>
-                                                                                    Rejected
-                                                                                </span>
-                                                                            </>
-                                                                        )}
-                                                                    </span>
-                                                                )}
-                                                        </span>
-                                                        {msg.toolResult ? (
-                                                            isToolResultError(msg.toolResult) ||
-                                                            msg.toolResultSuccess === false ? (
-                                                                <AlertTriangle className="mx-2 h-4 w-4 text-red-500" />
-                                                            ) : (
-                                                                <CheckCircle className="mx-2 h-4 w-4 text-green-500" />
-                                                            )
-                                                        ) : (
-                                                            <Loader2 className="mx-2 h-4 w-4 animate-spin text-muted-foreground" />
-                                                        )}
-                                                    </div>
-                                                    {isExpanded && (
-                                                        <div className="mt-2 space-y-2">
-                                                            <div>
-                                                                <p className="text-xs font-medium">
-                                                                    Arguments:
-                                                                </p>
-                                                                <pre className="whitespace-pre-wrap break-words overflow-auto bg-background/50 p-2 rounded text-xs text-muted-foreground">
-                                                                    {JSON.stringify(
-                                                                        msg.toolArgs,
-                                                                        null,
-                                                                        2
-                                                                    )}
-                                                                </pre>
-                                                            </div>
-                                                            {msg.toolResult && (
-                                                                <div>
-                                                                    <div
-                                                                        className="text-xs font-medium flex items-center justify-between"
-                                                                        onClick={(e) =>
-                                                                            e.stopPropagation()
-                                                                        }
-                                                                    >
-                                                                        <span>Result:</span>
-                                                                        <div className="flex items-center gap-1">
-                                                                            <CopyButton
-                                                                                value={getToolResultCopyText(
-                                                                                    msg.toolResult
-                                                                                )}
-                                                                                tooltip="Copy result"
-                                                                                copiedTooltip="Copied!"
-                                                                                className="opacity-70 hover:opacity-100 transition-opacity"
-                                                                            />
-                                                                            <SpeakButton
-                                                                                value={getToolResultCopyText(
-                                                                                    msg.toolResult
-                                                                                )}
-                                                                                tooltip="Speak result"
-                                                                                stopTooltip="Stop"
-                                                                                className="opacity-70 hover:opacity-100 transition-opacity"
-                                                                            />
-                                                                        </div>
-                                                                    </div>
-                                                                    {isToolResultError(
-                                                                        msg.toolResult
-                                                                    ) ? (
-                                                                        <pre className="whitespace-pre-wrap break-words overflow-auto bg-red-100 text-red-700 p-2 rounded text-xs">
-                                                                            {typeof msg.toolResult
-                                                                                .error === 'object'
-                                                                                ? JSON.stringify(
-                                                                                      msg.toolResult
-                                                                                          .error,
-                                                                                      null,
-                                                                                      2
-                                                                                  )
-                                                                                : String(
-                                                                                      msg.toolResult
-                                                                                          .error
-                                                                                  )}
-                                                                        </pre>
-                                                                    ) : isToolResultContent(
-                                                                          msg.toolResult
-                                                                      ) ? (
-                                                                        msg.toolResult.content.map(
-                                                                            (part, index) => {
-                                                                                const videoInfo =
-                                                                                    getVideoInfo(
-                                                                                        part,
-                                                                                        toolResourceStates
-                                                                                    );
-                                                                                // Skip media parts (image/audio/video/ui-resource) as they render separately
-                                                                                if (
-                                                                                    isUIResourcePart(
-                                                                                        part
-                                                                                    ) ||
-                                                                                    isImagePart(
-                                                                                        part
-                                                                                    ) ||
-                                                                                    isAudioPart(
-                                                                                        part
-                                                                                    ) ||
-                                                                                    (isFilePart(
-                                                                                        part
-                                                                                    ) &&
-                                                                                        (getFileMediaKind(
-                                                                                            part.mimeType
-                                                                                        ) ===
-                                                                                            'audio' ||
-                                                                                            part.mimeType?.startsWith(
-                                                                                                'audio/'
-                                                                                            ))) ||
-                                                                                    videoInfo
-                                                                                ) {
-                                                                                    return null;
-                                                                                }
-                                                                                if (
-                                                                                    isTextPart(part)
-                                                                                ) {
-                                                                                    return (
-                                                                                        <MessageContentWithResources
-                                                                                            key={`${msgKey}-tool-text-${index}`}
-                                                                                            text={
-                                                                                                part.text
-                                                                                            }
-                                                                                            isUser={
-                                                                                                false
-                                                                                            }
-                                                                                            onOpenImage={
-                                                                                                openImageModal
-                                                                                            }
-                                                                                            resourceSet={
-                                                                                                resourceSet
-                                                                                            }
-                                                                                        />
-                                                                                    );
-                                                                                }
-                                                                                if (
-                                                                                    isFilePart(part)
-                                                                                ) {
-                                                                                    const mediaKind =
-                                                                                        getFileMediaKind(
-                                                                                            part.mimeType
-                                                                                        );
-                                                                                    const isAudioFile =
-                                                                                        mediaKind ===
-                                                                                            'audio' ||
-                                                                                        part.mimeType?.startsWith(
-                                                                                            'audio/'
-                                                                                        );
-                                                                                    const isVideoFile =
-                                                                                        mediaKind ===
-                                                                                            'video' ||
-                                                                                        part.mimeType?.startsWith(
-                                                                                            'video/'
-                                                                                        );
-                                                                                    return (
-                                                                                        <div
-                                                                                            key={
-                                                                                                index
-                                                                                            }
-                                                                                            className="my-1 flex items-center gap-2 p-2 rounded border border-border bg-muted/50"
-                                                                                        >
-                                                                                            {isAudioFile ? (
-                                                                                                <FileAudio className="h-4 w-4 text-muted-foreground" />
-                                                                                            ) : isVideoFile ? (
-                                                                                                <FileVideo className="h-4 w-4 text-muted-foreground" />
-                                                                                            ) : (
-                                                                                                <File className="h-4 w-4 text-muted-foreground" />
-                                                                                            )}
-                                                                                            <span className="text-xs text-muted-foreground">
-                                                                                                {part.filename ||
-                                                                                                    'File attachment'}{' '}
-                                                                                                (
-                                                                                                {
-                                                                                                    part.mimeType
-                                                                                                }
-                                                                                                )
-                                                                                            </span>
-                                                                                        </div>
-                                                                                    );
-                                                                                }
-                                                                                return (
-                                                                                    <pre
-                                                                                        key={index}
-                                                                                        className="whitespace-pre-wrap break-words overflow-auto bg-background/50 p-2 rounded text-xs text-muted-foreground my-1"
-                                                                                    >
-                                                                                        {typeof part ===
-                                                                                        'object'
-                                                                                            ? JSON.stringify(
-                                                                                                  part,
-                                                                                                  null,
-                                                                                                  2
-                                                                                              )
-                                                                                            : String(
-                                                                                                  part
-                                                                                              )}
-                                                                                    </pre>
-                                                                                );
-                                                                            }
-                                                                        )
-                                                                    ) : (
-                                                                        <pre className="whitespace-pre-wrap break-words overflow-auto bg-background/50 p-2 rounded text-xs text-muted-foreground">
-                                                                            {typeof msg.toolResult ===
-                                                                                'string' &&
-                                                                            msg.toolResult.startsWith(
-                                                                                'data:image'
-                                                                            ) ? (
-                                                                                isValidDataUri(
-                                                                                    msg.toolResult,
-                                                                                    'image'
-                                                                                ) ? (
-                                                                                    <img
-                                                                                        src={
-                                                                                            msg.toolResult
-                                                                                        }
-                                                                                        alt="Tool result image"
-                                                                                        className="my-1 max-h-48 w-auto rounded border border-border"
-                                                                                    />
-                                                                                ) : (
-                                                                                    'Invalid image data'
-                                                                                )
-                                                                            ) : typeof msg.toolResult ===
-                                                                              'object' ? (
-                                                                                JSON.stringify(
-                                                                                    msg.toolResult,
-                                                                                    null,
-                                                                                    2
-                                                                                )
-                                                                            ) : (
-                                                                                String(
-                                                                                    msg.toolResult
-                                                                                )
-                                                                            )}
-                                                                        </pre>
-                                                                    )}
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    )}
-                                                </div>
+                                                <ToolCallTimeline
+                                                    toolName={msg.toolName}
+                                                    toolArgs={msg.toolArgs}
+                                                    toolResult={msg.toolResult}
+                                                    displayData={msg.toolResultMeta?.display}
+                                                    success={
+                                                        // Rejected approvals are failures
+                                                        msg.approvalStatus === 'rejected'
+                                                            ? false
+                                                            : // Explicit failure status
+                                                              msg.toolResultSuccess === false
+                                                              ? false
+                                                              : // Check tool result for success
+                                                                msg.toolResult
+                                                                ? !isToolResultError(msg.toolResult)
+                                                                : // Still processing (no result yet)
+                                                                  undefined
+                                                    }
+                                                    requireApproval={msg.requireApproval}
+                                                    approvalStatus={msg.approvalStatus}
+                                                    onApprove={
+                                                        msg.requireApproval &&
+                                                        msg.approvalStatus === 'pending' &&
+                                                        onApprovalApprove
+                                                            ? (formData, rememberChoice) =>
+                                                                  onApprovalApprove(
+                                                                      formData,
+                                                                      rememberChoice
+                                                                  )
+                                                            : undefined
+                                                    }
+                                                    onReject={
+                                                        msg.requireApproval &&
+                                                        msg.approvalStatus === 'pending' &&
+                                                        onApprovalDeny
+                                                            ? () => onApprovalDeny()
+                                                            : undefined
+                                                    }
+                                                />
                                             ) : (
                                                 <>
                                                     {typeof msg.content === 'string' &&
@@ -1268,62 +1105,56 @@ export default function MessageList({
                                                 )}
                                         </div>
                                     </div>
-                                    {!isToolRelated && (
+                                    {/* Metadata bar: show for user messages always, for AI only on last message of run */}
+                                    {!isToolRelated && (isUser || showAssistantMetadata) && (
                                         <div className="text-xs text-muted-foreground mt-1 px-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
                                             <div className="flex flex-wrap items-center gap-2">
                                                 <span>{timestampStr}</span>
-                                                {isAssistantMessage(msg) &&
-                                                    msg.tokenUsage?.totalTokens !== undefined && (
+                                                {(() => {
+                                                    if (!showAssistantMetadata) return null;
+                                                    const runTokens = getRunTokenUsage(idx);
+                                                    if (runTokens.totalTokens === 0) return null;
+                                                    return (
                                                         <Tooltip>
                                                             <TooltipTrigger asChild>
                                                                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-muted/50 text-xs cursor-default">
                                                                     <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
-                                                                    {msg.tokenUsage.totalTokens}{' '}
-                                                                    tokens
+                                                                    {runTokens.totalTokens} tokens
                                                                 </span>
                                                             </TooltipTrigger>
                                                             <TooltipContent side="bottom">
                                                                 <div className="flex flex-col gap-0.5">
-                                                                    {msg.tokenUsage.inputTokens !==
-                                                                        undefined && (
+                                                                    {runTokens.inputTokens > 0 && (
                                                                         <div>
                                                                             Input:{' '}
-                                                                            {
-                                                                                msg.tokenUsage
-                                                                                    .inputTokens
-                                                                            }
+                                                                            {runTokens.inputTokens}
                                                                         </div>
                                                                     )}
-                                                                    {msg.tokenUsage.outputTokens !==
-                                                                        undefined && (
+                                                                    {runTokens.outputTokens > 0 && (
                                                                         <div>
                                                                             Output:{' '}
-                                                                            {
-                                                                                msg.tokenUsage
-                                                                                    .outputTokens
-                                                                            }
+                                                                            {runTokens.outputTokens}
                                                                         </div>
                                                                     )}
-                                                                    {msg.tokenUsage
-                                                                        .reasoningTokens !==
-                                                                        undefined && (
+                                                                    {runTokens.reasoningTokens >
+                                                                        0 && (
                                                                         <div>
                                                                             Reasoning:{' '}
                                                                             {
-                                                                                msg.tokenUsage
-                                                                                    .reasoningTokens
+                                                                                runTokens.reasoningTokens
                                                                             }
                                                                         </div>
                                                                     )}
                                                                     <div className="font-medium mt-0.5">
                                                                         Total:{' '}
-                                                                        {msg.tokenUsage.totalTokens}
+                                                                        {runTokens.totalTokens}
                                                                     </div>
                                                                 </div>
                                                             </TooltipContent>
                                                         </Tooltip>
-                                                    )}
-                                                {isAssistantMessage(msg) && msg.model && (
+                                                    );
+                                                })()}
+                                                {showAssistantMetadata && msg.model && (
                                                     <Tooltip>
                                                         <TooltipTrigger>
                                                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-muted/30 text-xs cursor-default">
@@ -1344,36 +1175,35 @@ export default function MessageList({
                                                         </TooltipContent>
                                                     </Tooltip>
                                                 )}
-                                                {/* {msg.sessionId && (
-                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-mono bg-muted/20">
-                      {msg.sessionId.slice(0, 8)}
-                    </span>
-                  )} */}
                                             </div>
-                                            {/* Speak + Copy controls for user and AI messages */}
-                                            {(isAi || isUser) && (
-                                                <div className="flex items-center gap-1 shrink-0">
-                                                    <CopyButton
-                                                        value={getPlainTextFromMessage(msg)}
-                                                        tooltip="Copy message"
-                                                        copiedTooltip="Copied!"
-                                                        className="opacity-70 hover:opacity-100 transition-opacity"
-                                                    />
-                                                    <SpeakButton
-                                                        value={getPlainTextFromMessage(msg)}
-                                                        tooltip="Speak"
-                                                        stopTooltip="Stop"
-                                                        className="opacity-70 hover:opacity-100 transition-opacity"
-                                                    />
-                                                </div>
-                                            )}
+                                            {/* Speak + Copy controls */}
+                                            <div className="flex items-center gap-1 shrink-0">
+                                                <CopyButton
+                                                    value={
+                                                        isUser
+                                                            ? getPlainTextFromMessage(msg)
+                                                            : getRunAssistantText(idx)
+                                                    }
+                                                    tooltip={
+                                                        isUser ? 'Copy message' : 'Copy response'
+                                                    }
+                                                    copiedTooltip="Copied!"
+                                                    className="opacity-70 hover:opacity-100 transition-opacity"
+                                                />
+                                                <SpeakButton
+                                                    value={
+                                                        isUser
+                                                            ? getPlainTextFromMessage(msg)
+                                                            : getRunAssistantText(idx)
+                                                    }
+                                                    tooltip="Speak"
+                                                    stopTooltip="Stop"
+                                                    className="opacity-70 hover:opacity-100 transition-opacity"
+                                                />
+                                            </div>
                                         </div>
                                     )}
                                 </div>
-
-                                {isUser && (
-                                    <AvatarComponent className="h-7 w-7 mt-1 text-muted-foreground col-start-2" />
-                                )}
                             </div>
                             {/* Render tool result images as separate message bubbles */}
                             {toolResultImages.map((image, imageIndex) => (
@@ -1501,21 +1331,18 @@ export default function MessageList({
                                     key={`${msgKey}-ui-resource-${uiIndex}`}
                                     className="w-full mt-2"
                                 >
-                                    <div className="flex items-start w-full justify-start">
-                                        <Bot className="h-7 w-7 mr-2 mt-1 text-muted-foreground flex-shrink-0" />
-                                        <div className="flex flex-col items-start flex-1 min-w-0">
-                                            <div className="w-full max-w-[90%] bg-card text-card-foreground border border-border rounded-xl rounded-bl-none shadow-sm overflow-hidden">
-                                                <UIResourceRendererWrapper
-                                                    resource={uiResource.resource}
-                                                    onAction={(action) => {
-                                                        // Log UI actions for debugging
-                                                        console.log('MCP-UI Action:', action);
-                                                    }}
-                                                />
-                                            </div>
-                                            <div className="text-xs text-muted-foreground mt-1 px-1">
-                                                <span>{timestampStr}</span>
-                                            </div>
+                                    <div className="flex flex-col items-start w-full">
+                                        <div className="w-full max-w-[90%] bg-card text-card-foreground border border-border rounded-xl shadow-sm overflow-hidden">
+                                            <UIResourceRendererWrapper
+                                                resource={uiResource.resource}
+                                                onAction={(action) => {
+                                                    // Log UI actions for debugging
+                                                    console.log('MCP-UI Action:', action);
+                                                }}
+                                            />
+                                        </div>
+                                        <div className="text-xs text-muted-foreground mt-1 px-1">
+                                            <span>{timestampStr}</span>
                                         </div>
                                     </div>
                                 </div>
@@ -1535,25 +1362,9 @@ export default function MessageList({
             })}
 
             {/* Show thinking indicator while processing */}
-            {processing && <ThinkingIndicator />}
+            {processing && <ThinkingIndicator toolName={currentToolName} />}
 
-            {/* Render pending approval as inline message */}
-            {pendingApproval && onApprovalApprove && onApprovalDeny && (
-                <div className="w-full" data-role="approval">
-                    <div className="grid w-full grid-cols-[auto_1fr] gap-x-2 items-start">
-                        <Bot className="h-7 w-7 mt-1 text-muted-foreground col-start-1 flex-shrink-0" />
-                        <div className="flex flex-col group w-full col-start-2 justify-self-start items-start min-w-0">
-                            <div className="p-3 rounded-xl shadow-sm w-full max-w-[90%] bg-card text-card-foreground border border-border rounded-bl-none text-base min-w-0">
-                                <InlineApprovalCard
-                                    approval={pendingApproval}
-                                    onApprove={onApprovalApprove}
-                                    onDeny={onApprovalDeny}
-                                />
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
+            {/* Note: Approvals are now rendered inline within tool messages via ToolCallTimeline */}
 
             <div key="end-anchor" ref={endRef} className="h-px" />
 

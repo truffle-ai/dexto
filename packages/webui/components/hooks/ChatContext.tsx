@@ -28,6 +28,15 @@ import { useAnalytics } from '@/lib/analytics/index.js';
 import { queryKeys } from '@/lib/queryKeys.js';
 import { client } from '@/lib/client.js';
 import { useMutation } from '@tanstack/react-query';
+import {
+    useAgentStore,
+    useSessionStore,
+    useChatStore,
+    usePreferenceStore,
+    useCurrentSessionId,
+    useIsWelcomeState,
+    useSessionMessages,
+} from '@/lib/stores/index.js';
 
 // Helper to get history endpoint type (workaround for string literal path)
 type HistoryEndpoint = (typeof client.api.sessions)[':sessionId']['history'];
@@ -47,30 +56,11 @@ interface ChatContextType {
         imageData?: { image: string; mimeType: string },
         fileData?: { data: string; mimeType: string; filename?: string }
     ) => void;
-    status: StreamStatus;
     reset: () => void;
-    currentSessionId: string | null;
     switchSession: (sessionId: string) => void;
     loadSessionHistory: (sessionId: string) => Promise<void>;
-    // Active LLM config for the current session (UI source of truth)
-    currentLLM: {
-        provider: string;
-        model: string;
-        displayName?: string;
-        baseURL?: string;
-    } | null;
-    refreshCurrentLLM: () => Promise<void>;
-    isWelcomeState: boolean;
     returnToWelcome: () => void;
-    isStreaming: boolean;
-    setStreaming: (streaming: boolean) => void;
-    processing: boolean;
     cancel: (sessionId?: string) => void;
-    // Error state
-    activeError: ErrorMessage | null;
-    clearError: () => void;
-    // Greeting state
-    greeting: string | null;
 }
 
 // Helper function to fetch and convert session history to UI messages
@@ -259,6 +249,7 @@ function convertHistoryToMessages(history: HistoryMessage[], sessionId: string):
                     ...existingMessage,
                     toolResult: sanitizedFromHistory,
                     toolResultMeta: sanitizedFromHistory.meta,
+                    toolResultSuccess: sanitizedFromHistory.meta?.success,
                     ...(requireApproval !== undefined && { requireApproval }),
                     ...(approvalStatus !== undefined && { approvalStatus }),
                 };
@@ -274,6 +265,7 @@ function convertHistoryToMessages(history: HistoryMessage[], sessionId: string):
                     toolCallId,
                     toolResult: sanitizedFromHistory,
                     toolResultMeta: sanitizedFromHistory.meta,
+                    toolResultSuccess: sanitizedFromHistory.meta?.success,
                     ...(requireApproval !== undefined && { requireApproval }),
                     ...(approvalStatus !== undefined && { approvalStatus }),
                 };
@@ -296,6 +288,18 @@ function convertHistoryToMessages(history: HistoryMessage[], sessionId: string):
         }
     }
 
+    // Mark any tool calls that never received results as failed (incomplete)
+    // This happens when a run was interrupted or crashed before tool completion
+    for (const [_callId, messageIndex] of pendingToolCalls) {
+        const msg = uiMessages[messageIndex];
+        if (msg && msg.role === 'tool' && msg.toolResult === undefined) {
+            uiMessages[messageIndex] = {
+                ...msg,
+                toolResultSuccess: false, // Mark as failed so UI doesn't show "running"
+            };
+        }
+    }
+
     return uiMessages;
 }
 
@@ -306,91 +310,27 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     const analytics = useAnalytics();
     const queryClient = useQueryClient();
 
-    // Start with no session - pure welcome state
-    const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
-    const [isWelcomeState, setIsWelcomeState] = useState(true);
-    const [isStreaming, setIsStreaming] = useState(true); // Default to streaming enabled
+    // Get state from stores using centralized selectors
+    const currentSessionId = useCurrentSessionId();
+    const isWelcomeState = useIsWelcomeState();
+    const isStreaming = usePreferenceStore((s) => s.isStreaming);
+
+    // Local state for UI flow control only (not shared/persisted state)
     const [isSwitchingSession, setIsSwitchingSession] = useState(false); // Guard against rapid session switches
     const [isCreatingSession, setIsCreatingSession] = useState(false); // Guard against double auto-creation
     const lastSwitchedSessionRef = useRef<string | null>(null); // Track last switched session to prevent duplicate switches
     const newSessionWithMessageRef = useRef<string | null>(null); // Track new sessions that already have first message sent
     const currentSessionIdRef = useRef<string | null>(null); // Synchronous session ID (updates before React state to prevent race conditions)
 
-    // Session-scoped state (survives navigation)
-    const [sessionErrors, setSessionErrors] = useState<Map<string, ErrorMessage>>(new Map());
-    const [processingSessions, setProcessingSessions] = useState<Set<string>>(new Set());
-    const [sessionStatuses, setSessionStatuses] = useState<Map<string, StreamStatus>>(new Map());
+    // Session abort controllers for cancellation
     const sessionAbortControllersRef = useRef<Map<string, AbortController>>(new Map());
 
-    // Helper functions for session-scoped state
-    const setSessionError = useCallback((sessionId: string, error: ErrorMessage | null) => {
-        setSessionErrors((prev) => {
-            const next = new Map(prev);
-            if (error) {
-                next.set(sessionId, error);
-            } else {
-                next.delete(sessionId);
-            }
-            return next;
-        });
-    }, []);
-
-    const setSessionProcessing = useCallback((sessionId: string, isProcessing: boolean) => {
-        setProcessingSessions((prev) => {
-            const next = new Set(prev);
-            if (isProcessing) {
-                next.add(sessionId);
-            } else {
-                next.delete(sessionId);
-            }
-            return next;
-        });
-    }, []);
-
-    const setSessionStatus = useCallback((sessionId: string, status: StreamStatus) => {
-        setSessionStatuses((prev) => {
-            const next = new Map(prev);
-            next.set(sessionId, status);
-            return next;
-        });
-    }, []);
-
-    const getSessionAbortController = useCallback((sessionId: string): AbortController => {
-        const existing = sessionAbortControllersRef.current.get(sessionId);
-        if (existing) {
-            return existing;
-        }
-        const controller = new AbortController();
-        sessionAbortControllersRef.current.set(sessionId, controller);
-        return controller;
-    }, []);
-
-    const abortSession = useCallback((sessionId: string) => {
-        const controller = sessionAbortControllersRef.current.get(sessionId);
-        if (controller) {
-            controller.abort();
-            sessionAbortControllersRef.current.delete(sessionId);
-        }
-    }, []);
-
-    // Get current session's state
-    const activeError = currentSessionId ? sessionErrors.get(currentSessionId) || null : null;
-    const processing = currentSessionId ? processingSessions.has(currentSessionId) : false;
-    const status = currentSessionId ? sessionStatuses.get(currentSessionId) || 'idle' : 'idle';
-
+    // useChat hook manages abort controllers internally
     const {
-        messages,
         sendMessage: originalSendMessage,
         reset: originalReset,
-        setMessages,
         cancel,
-    } = useChat(currentSessionIdRef, {
-        setSessionError,
-        setSessionProcessing,
-        setSessionStatus,
-        getSessionAbortController,
-        abortSession,
-    });
+    } = useChat(currentSessionIdRef, sessionAbortControllersRef);
 
     // Restore pending approvals when session changes (e.g., after page refresh)
     const { handleApprovalRequest } = useApproval();
@@ -433,33 +373,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         restoredApprovalsRef.current.clear();
     }, [currentSessionId]);
 
-    // Fetch current LLM config using TanStack Query
-    const { data: currentLLMData, refetch: refetchCurrentLLM } = useQuery({
-        queryKey: queryKeys.llm.current(currentSessionId),
-        queryFn: async () => {
-            const response = await client.api.llm.current.$get({
-                query: currentSessionId ? { sessionId: currentSessionId } : {},
-            });
-            if (!response.ok) {
-                throw new Error('Failed to fetch current LLM config');
-            }
-            const data = await response.json();
-            const cfg = data.config || data;
-            return {
-                provider: cfg.provider,
-                model: cfg.model,
-                displayName: cfg.displayName,
-                baseURL: cfg.baseURL,
-            };
-        },
-        enabled: true, // Always fetch when sessionId changes
-        retry: false, // Don't retry on error - UI can still operate
-    });
-
-    const currentLLM = currentLLMData ?? null;
-
-    // Get greeting from API
-    const { greeting } = useGreeting(currentSessionId);
+    // Messages from centralized selector (stable reference, handles null session)
+    const messages = useSessionMessages(currentSessionId);
 
     // Mutation for generating session title
     const { mutate: generateTitle } = useMutation({
@@ -561,12 +476,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
             // Track message sent
             if (sessionId) {
-                const provider = currentLLM?.provider || 'unknown';
-                const model = currentLLM?.model || 'unknown';
                 analytics.trackMessageSent({
                     sessionId,
-                    provider,
-                    model,
+                    provider: 'unknown', // Provider/model tracking moved to component level
+                    model: 'unknown',
                     hasImage: !!imageData,
                     hasFile: !!fileData,
                     messageLength: content.length,
@@ -584,7 +497,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             isStreaming,
             navigate,
             analytics,
-            currentLLM,
             generateTitle,
         ]
     );
@@ -602,13 +514,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             originalReset(currentSessionId);
         }
     }, [originalReset, currentSessionId, analytics, messages]);
-
-    // Clear error for current session
-    const clearError = useCallback(() => {
-        if (currentSessionId) {
-            setSessionError(currentSessionId, null);
-        }
-    }, [currentSessionId, setSessionError]);
 
     // Load session history when switching sessions
     const { data: sessionHistoryData } = useQuery({
@@ -631,12 +536,17 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     // Sync session history data to messages when it changes
     useEffect(() => {
         if (sessionHistoryData && currentSessionId) {
-            setMessages((prev) => {
-                const hasSessionMsgs = prev.some((m) => m.sessionId === currentSessionId);
-                return hasSessionMsgs ? prev : sessionHistoryData.messages;
-            });
+            const currentMessages = useChatStore.getState().getMessages(currentSessionId);
+            const hasSessionMsgs = currentMessages.some((m) => m.sessionId === currentSessionId);
+            if (!hasSessionMsgs) {
+                useChatStore
+                    .getState()
+                    .setMessages(currentSessionId, sessionHistoryData.messages as any);
+            }
             // Cancel any active run on page refresh (we can't reconnect to the stream)
             if (sessionHistoryData.isBusy) {
+                // Reset agent state since we're cancelling - we won't receive run:complete event
+                useAgentStore.getState().setIdle();
                 client.api.sessions[':sessionId'].cancel
                     .$post({
                         param: { sessionId: currentSessionId },
@@ -645,7 +555,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                     .catch((e) => console.warn('Failed to cancel busy session:', e));
             }
         }
-    }, [sessionHistoryData, currentSessionId, setMessages]);
+    }, [sessionHistoryData, currentSessionId]);
 
     const loadSessionHistory = useCallback(
         async (sessionId: string) => {
@@ -663,10 +573,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                     retry: false,
                 });
 
-                setMessages((prev) => {
-                    const hasSessionMsgs = prev.some((m) => m.sessionId === sessionId);
-                    return hasSessionMsgs ? prev : result.messages;
-                });
+                const currentMessages = useChatStore.getState().getMessages(sessionId);
+                const hasSessionMsgs = currentMessages.some((m) => m.sessionId === sessionId);
+                if (!hasSessionMsgs) {
+                    // Populate chatStore with history (cast to compatible type)
+                    useChatStore.getState().initFromHistory(sessionId, result.messages as any);
+                }
 
                 // Cancel any active run on page refresh (we can't reconnect to the stream)
                 // This ensures clean state - user can see history and send new messages
@@ -674,6 +586,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                 // - Add GET /sessions/{sessionId}/events SSE endpoint for listen-only mode
                 // - Connect to event stream when isBusy=true to resume receiving updates
                 if (result.isBusy) {
+                    // Reset agent state since we're cancelling - we won't receive run:complete event
+                    useAgentStore.getState().setIdle();
                     try {
                         await client.api.sessions[':sessionId'].cancel.$post({
                             param: { sessionId },
@@ -685,10 +599,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                 }
             } catch (error) {
                 console.error('Error loading session history:', error);
-                setMessages([]);
+                useChatStore.getState().clearMessages(sessionId);
             }
         },
-        [setMessages, queryClient]
+        [queryClient]
     );
 
     // Switch to a different session and load it on the backend
@@ -726,10 +640,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                     newSessionWithMessageRef.current = null;
                 }
 
-                // Update ref BEFORE state to prevent race conditions with streaming
+                // Update ref BEFORE store to prevent race conditions with streaming
                 currentSessionIdRef.current = sessionId;
-                setCurrentSessionId(sessionId);
-                setIsWelcomeState(false); // No longer in welcome state
+
+                // Update store (single source of truth)
+                useSessionStore.getState().setCurrentSession(sessionId);
 
                 // Mark this session as being switched to after state update succeeds
                 lastSwitchedSessionRef.current = sessionId;
@@ -752,36 +667,22 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     // Return to welcome state (no active session)
     const returnToWelcome = useCallback(() => {
         currentSessionIdRef.current = null;
-        setCurrentSessionId(null);
-        setIsWelcomeState(true);
-        setMessages([]);
-    }, [setMessages]);
+        lastSwitchedSessionRef.current = null; // Clear to allow switching to same session again
+
+        // Update store (single source of truth)
+        useSessionStore.getState().returnToWelcome();
+    }, []);
 
     return (
         <ChatContext.Provider
             value={{
                 messages,
                 sendMessage,
-                status,
                 reset,
-                currentSessionId,
                 switchSession,
                 loadSessionHistory,
-                isWelcomeState,
                 returnToWelcome,
-                isStreaming,
-                setStreaming: setIsStreaming,
-                currentLLM,
-                refreshCurrentLLM: async () => {
-                    await refetchCurrentLLM();
-                },
-                processing,
                 cancel,
-                // Error state
-                activeError,
-                clearError,
-                // Greeting state
-                greeting,
             }}
         >
             {children}

@@ -55,7 +55,8 @@ export class StreamProcessor {
     }
 
     async process(
-        streamFn: () => StreamTextResult<VercelToolSet, unknown>
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        streamFn: () => StreamTextResult<VercelToolSet, any>
     ): Promise<StreamProcessorResult> {
         const stream = streamFn();
 
@@ -121,7 +122,14 @@ export class StreamProcessor {
                                 arguments: JSON.stringify(event.input),
                             },
                         };
-                        if (event.providerMetadata) {
+                        // IMPORTANT: Only persist providerMetadata for providers that require round-tripping
+                        // (e.g., Gemini thought signatures). OpenAI Responses metadata can cause invalid
+                        // follow-up requests (function_call item references missing required reasoning items).
+                        const shouldPersistProviderMetadata =
+                            this.config.provider === 'google' ||
+                            (this.config.provider as string) === 'vertex';
+
+                        if (shouldPersistProviderMetadata && event.providerMetadata) {
                             toolCall.providerOptions = {
                                 ...event.providerMetadata,
                             } as Record<string, unknown>;

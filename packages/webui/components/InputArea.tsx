@@ -24,6 +24,8 @@ import { Alert, AlertDescription } from './ui/alert';
 import { useChatContext } from './hooks/ChatContext';
 import { useFontsReady } from './hooks/useFontsReady';
 import { cn, filterAndSortResources } from '../lib/utils';
+import { usePreferenceStore, useCurrentSessionId, useSessionProcessing } from '@/lib/stores';
+import { useCurrentLLM } from './hooks/useCurrentLLM';
 import ResourceAutocomplete from './ResourceAutocomplete';
 import type { ResourceMetadata as UIResourceMetadata } from '@dexto/core';
 import { useResources } from './hooks/useResources';
@@ -80,9 +82,17 @@ export default function InputArea({
     const [isRecording, setIsRecording] = useState(false);
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
 
-    // Get current session context to ensure model switch applies to the correct session
-    const { currentSessionId, isStreaming, setStreaming, cancel, processing, currentLLM } =
-        useChatContext();
+    // Get state from centralized selectors
+    const currentSessionId = useCurrentSessionId();
+    const processing = useSessionProcessing(currentSessionId);
+
+    // Get actions from ChatContext
+    const { cancel } = useChatContext();
+
+    // Get state from stores and hooks
+    const isStreaming = usePreferenceStore((s) => s.isStreaming);
+    const setStreaming = usePreferenceStore((s) => s.setStreaming);
+    const { data: currentLLM } = useCurrentLLM(currentSessionId);
 
     // Input history for Up/Down navigation
     const { invalidateHistory, navigateUp, navigateDown, resetCursor, isBrowsing } =
