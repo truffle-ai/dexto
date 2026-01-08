@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 
 import { Button } from './ui/button';
 import {
@@ -20,7 +19,6 @@ import { buildConfigFromRegistryEntry, hasEmptyOrPlaceholderValue } from '@/lib/
 import ServerRegistryModal from './ServerRegistryModal';
 import { Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
 import { useAnalytics } from '@/lib/analytics/index.js';
-import { queryKeys } from '@/lib/queryKeys';
 import { useServers, useAddServer, useDeleteServer, useRestartServer } from './hooks/useServers';
 import { useAllTools, type ToolInfo } from './hooks/useTools';
 import { useAgentPath } from './hooks/useAgents';
@@ -72,7 +70,6 @@ export default function ServersPanel({
 }: ServersPanelProps) {
     const variant: 'overlay' | 'inline' = variantProp ?? 'overlay';
     const analytics = useAnalytics();
-    const queryClient = useQueryClient();
 
     const [isRegistryModalOpen, setIsRegistryModalOpen] = useState(false);
     const [isRegistryBusy, setIsRegistryBusy] = useState(false);
