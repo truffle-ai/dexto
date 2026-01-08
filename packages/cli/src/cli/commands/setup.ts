@@ -157,7 +157,7 @@ function showStepProgress(currentStep: SetupStep, provider?: LLMProvider): void 
         .map((step, i) => {
             if (i < currentIndex) return chalk.green(`✓ ${step.label}`);
             if (i === currentIndex) return chalk.cyan(`● ${step.label}`);
-            return chalk.dim(`○ ${step.label}`);
+            return chalk.gray(`○ ${step.label}`);
         })
         .join('  ');
 
@@ -198,7 +198,7 @@ export async function handleSetupCommand(options: Partial<CLISetupOptionsInput>)
         if (!validated.interactive) {
             console.error(chalk.red('❌ Setup is already complete.'));
             console.error(
-                chalk.dim('   Use --force to overwrite, or run interactively for options.')
+                chalk.gray('   Use --force to overwrite, or run interactively for options.')
             );
             process.exit(1);
         }
@@ -504,7 +504,7 @@ async function selectProviderWithBack(): Promise<LLMProvider | '_back'> {
         message: 'Select your AI provider',
         options: [
             ...providerOptions,
-            { value: '_back' as const, label: chalk.dim('← Back'), hint: 'Return to setup type' },
+            { value: '_back' as const, label: chalk.gray('← Back'), hint: 'Return to setup type' },
         ],
     });
 
@@ -532,7 +532,7 @@ async function selectModelWithBack(provider: LLMProvider): Promise<string | '_ba
             message: `Select a model for ${getProviderDisplayName(provider)}`,
             options: [
                 ...modelOptions,
-                { value: '_back' as const, label: chalk.dim('← Back'), hint: 'Change provider' },
+                { value: '_back' as const, label: chalk.gray('← Back'), hint: 'Change provider' },
             ],
         });
 
@@ -545,7 +545,7 @@ async function selectModelWithBack(provider: LLMProvider): Promise<string | '_ba
     }
 
     // For providers that accept any model, show text input with back hint
-    p.log.info(chalk.dim('Press Ctrl+C to go back'));
+    p.log.info(chalk.gray('Press Ctrl+C to go back'));
     const defaultModel = providerInfo?.models?.find((m) => m.default)?.name;
     const model = await p.text({
         message: `Enter model name for ${getProviderDisplayName(provider)}`,
@@ -584,10 +584,10 @@ async function selectDefaultModeWithBack(): Promise<
             },
             {
                 value: 'server' as const,
-                label: `${chalk.yellow('●')} API Server`,
+                label: `${chalk.rgb(255, 165, 0)('●')} API Server`,
                 hint: 'REST API for programmatic access',
             },
-            { value: '_back' as const, label: chalk.dim('← Back'), hint: 'Go to previous step' },
+            { value: '_back' as const, label: chalk.gray('← Back'), hint: 'Go to previous step' },
         ],
     });
 
@@ -657,7 +657,7 @@ async function handleNonInteractiveSetup(options: CLISetupOptions): Promise<void
 
     if (!model) {
         console.error(chalk.red(`❌ Model is required for provider '${provider}'.`));
-        console.error(chalk.dim(`   Use --model option to specify a model.`));
+        console.error(chalk.gray(`   Use --model option to specify a model.`));
         process.exit(1);
     }
 
@@ -758,7 +758,7 @@ async function showSettingsMenu(): Promise<void> {
 
         // Exit conditions
         if (p.isCancel(action) || action === 'exit') {
-            p.outro(chalk.dim('Settings closed'));
+            p.outro(chalk.gray('Settings closed'));
             return;
         }
 
@@ -975,10 +975,10 @@ function showPreferencesFilePath(): void {
             `You can edit this file directly with any text editor.`,
             `Changes take effect on the next run of dexto.`,
             ``,
-            chalk.dim('Example commands:'),
-            chalk.dim(`  code ${prefsPath}     # Open in VS Code`),
-            chalk.dim(`  nano ${prefsPath}     # Edit in terminal`),
-            chalk.dim(`  cat ${prefsPath}      # View contents`),
+            chalk.gray('Example commands:'),
+            chalk.gray(`  code ${prefsPath}     # Open in VS Code`),
+            chalk.gray(`  nano ${prefsPath}     # Edit in terminal`),
+            chalk.gray(`  cat ${prefsPath}      # View contents`),
         ].join('\n'),
         'Preferences File Location'
     );
@@ -1005,7 +1005,7 @@ async function selectDefaultMode(): Promise<
             },
             {
                 value: 'server' as const,
-                label: `${chalk.yellow('●')} API Server`,
+                label: `${chalk.rgb(255, 165, 0)('●')} API Server`,
                 hint: 'REST API for programmatic access',
             },
         ],
@@ -1119,7 +1119,7 @@ function showSetupComplete(
     const isLocalProvider = provider === 'local' || provider === 'ollama';
 
     if (apiKeySkipped) {
-        console.log(chalk.yellow('\n⚠️  Setup complete (API key pending)\n'));
+        console.log(chalk.rgb(255, 165, 0)('\n⚠️  Setup complete (API key pending)\n'));
     } else {
         console.log(chalk.green('\n✨ Setup complete! Dexto is ready to use.\n'));
     }
@@ -1131,7 +1131,7 @@ function showSetupComplete(
         `  Mode: ${chalk.cyan(defaultMode)}`,
         ...(apiKeySkipped
             ? [
-                  `  API Key: ${chalk.yellow('Not configured')}`,
+                  `  API Key: ${chalk.rgb(255, 165, 0)('Not configured')}`,
                   ``,
                   `${chalk.bold('To complete setup:')}`,
                   `  Run ${chalk.cyan('dexto setup')} to add your API key`,

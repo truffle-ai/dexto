@@ -84,7 +84,7 @@ export function StatsBox({ data }: StatsBoxProps) {
                         <StyledRow
                             label="Cache Write"
                             value={formatTokenCount(data.tokenUsage.cacheWriteTokens)}
-                            valueColor="yellow"
+                            valueColor="orange"
                         />
                     )}
                     <StyledRow

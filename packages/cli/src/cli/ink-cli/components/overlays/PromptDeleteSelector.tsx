@@ -152,16 +152,8 @@ const PromptDeleteSelector = forwardRef<PromptDeleteSelectorHandle, PromptDelete
                     <Text color={isSelected ? 'red' : 'white'} bold={isSelected}>
                         {displayName}
                     </Text>
-                    {item.prompt.title && (
-                        <Text color="gray" dimColor={!isSelected}>
-                            {' '}
-                            - {item.prompt.title}
-                        </Text>
-                    )}
-                    <Text color={sourceColor} dimColor={!isSelected}>
-                        {' '}
-                        ({sourceLabel})
-                    </Text>
+                    {item.prompt.title && <Text color="gray"> - {item.prompt.title}</Text>}
+                    <Text color={sourceColor}> ({sourceLabel})</Text>
                 </Box>
             );
         };
@@ -198,7 +190,7 @@ const PromptDeleteSelector = forwardRef<PromptDeleteSelectorHandle, PromptDelete
                 />
                 {isVisible && !isLoading && items.length > 0 && (
                     <Box marginTop={1}>
-                        <Text dimColor italic>
+                        <Text color="gray" italic>
                             Note: MCP prompts cannot be deleted (they come from servers)
                         </Text>
                     </Box>

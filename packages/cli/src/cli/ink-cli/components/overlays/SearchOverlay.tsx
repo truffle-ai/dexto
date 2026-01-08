@@ -237,7 +237,7 @@ const SearchOverlay = forwardRef<SearchOverlayHandle, SearchOverlayProps>(functi
                     Search Messages
                 </Text>
                 {state.total > 0 && (
-                    <Text dimColor>
+                    <Text color="gray">
                         {' '}
                         ({state.total} result{state.total !== 1 ? 's' : ''})
                     </Text>
@@ -254,7 +254,7 @@ const SearchOverlay = forwardRef<SearchOverlayHandle, SearchOverlayProps>(functi
             {/* Loading indicator */}
             {state.isLoading && (
                 <Box marginTop={1}>
-                    <Text color="yellow">Searching...</Text>
+                    <Text color="yellowBright">Searching...</Text>
                 </Box>
             )}
 
@@ -276,7 +276,7 @@ const SearchOverlay = forwardRef<SearchOverlayHandle, SearchOverlayProps>(functi
                                 ? 'blue'
                                 : result.message.role === 'assistant'
                                   ? 'green'
-                                  : 'yellow';
+                                  : 'yellowBright';
 
                         return (
                             <Box
@@ -297,10 +297,7 @@ const SearchOverlay = forwardRef<SearchOverlayHandle, SearchOverlayProps>(functi
                                     </Text>
                                 </Box>
                                 <Box paddingLeft={isSelected ? 2 : 0}>
-                                    <Text
-                                        color={isSelected ? 'white' : 'gray'}
-                                        dimColor={!isSelected}
-                                    >
+                                    <Text color={isSelected ? 'white' : 'gray'}>
                                         {'  '}
                                         {truncateContext(result.context, 60)}
                                     </Text>
@@ -312,7 +309,7 @@ const SearchOverlay = forwardRef<SearchOverlayHandle, SearchOverlayProps>(functi
                     {/* Scroll indicator */}
                     {state.results.length > MAX_VISIBLE_RESULTS && (
                         <Box marginTop={1}>
-                            <Text dimColor>
+                            <Text color="gray">
                                 Showing {scrollOffset.current + 1}-
                                 {Math.min(
                                     scrollOffset.current + MAX_VISIBLE_RESULTS,
@@ -329,13 +326,13 @@ const SearchOverlay = forwardRef<SearchOverlayHandle, SearchOverlayProps>(functi
             {/* No results message */}
             {!state.isLoading && state.query && state.results.length === 0 && !state.error && (
                 <Box marginTop={1}>
-                    <Text dimColor>No results found for "{state.query}"</Text>
+                    <Text color="gray">No results found for "{state.query}"</Text>
                 </Box>
             )}
 
             {/* Help text */}
             <Box marginTop={1}>
-                <Text dimColor>↑↓ navigate • Enter select • Esc close</Text>
+                <Text color="gray">↑↓ navigate • Enter select • Esc close</Text>
             </Box>
         </Box>
     );

@@ -29,9 +29,9 @@ function getRoleStyle(role: string): { color: string; icon: string } {
         case 'assistant':
             return { color: 'green', icon: '|' };
         case 'system':
-            return { color: 'yellow', icon: '#' };
+            return { color: 'orange', icon: '#' };
         case 'tool':
-            return { color: 'magenta', icon: '*' };
+            return { color: 'green', icon: '*' };
         default:
             return { color: 'white', icon: '-' };
     }
@@ -42,7 +42,7 @@ export function SessionHistoryBox({ data }: SessionHistoryBoxProps) {
         return (
             <StyledBox title={`Session History: ${data.sessionId.slice(0, 8)}`}>
                 <Box marginTop={1}>
-                    <Text dimColor>No messages in this session yet.</Text>
+                    <Text color="gray">No messages in this session yet.</Text>
                 </Box>
             </StyledBox>
         );
@@ -59,7 +59,7 @@ export function SessionHistoryBox({ data }: SessionHistoryBoxProps) {
                                 {style.icon}{' '}
                             </Text>
                             <Text color={style.color}>[{msg.role}]</Text>
-                            <Text dimColor> {msg.timestamp}</Text>
+                            <Text color="gray"> {msg.timestamp}</Text>
                         </Box>
                         <Box marginLeft={2}>
                             <Text>{truncateContent(msg.content)}</Text>
@@ -68,7 +68,7 @@ export function SessionHistoryBox({ data }: SessionHistoryBoxProps) {
                 );
             })}
             <Box marginTop={1}>
-                <Text dimColor>Total: {data.total} messages</Text>
+                <Text color="gray">Total: {data.total} messages</Text>
             </Box>
         </StyledBox>
     );

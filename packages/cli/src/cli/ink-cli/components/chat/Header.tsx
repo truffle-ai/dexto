@@ -44,16 +44,11 @@ export function Header({ modelName, sessionId, hasActiveSession, startupInfo }: 
 
             {/* Model and Session */}
             <Box marginTop={1} flexDirection="row">
-                <Text color="gray" dimColor>
-                    Model:{' '}
-                </Text>
+                <Text color="gray">Model: </Text>
                 <Text color="white">{modelName}</Text>
                 {hasActiveSession && sessionId && (
                     <>
-                        <Text color="gray" dimColor>
-                            {' '}
-                            • Session:{' '}
-                        </Text>
+                        <Text color="gray"> • Session: </Text>
                         <Text color="white">{sessionId.slice(0, 8)}</Text>
                     </>
                 )}
@@ -61,21 +56,16 @@ export function Header({ modelName, sessionId, hasActiveSession, startupInfo }: 
 
             {/* MCP Servers and Tools */}
             <Box flexDirection="row">
-                <Text color="gray" dimColor>
-                    Servers:{' '}
-                </Text>
+                <Text color="gray">Servers: </Text>
                 <Text color="white">{startupInfo.connectedServers.count}</Text>
-                <Text color="gray" dimColor>
-                    {' '}
-                    • Tools:{' '}
-                </Text>
+                <Text color="gray"> • Tools: </Text>
                 <Text color="white">{startupInfo.toolCount}</Text>
             </Box>
 
             {/* Failed connections warning */}
             {startupInfo.failedConnections.length > 0 && (
                 <Box flexDirection="row">
-                    <Text color="yellow">
+                    <Text color="yellowBright">
                         ⚠️ Failed: {startupInfo.failedConnections.join(', ')}
                     </Text>
                 </Box>
@@ -84,9 +74,7 @@ export function Header({ modelName, sessionId, hasActiveSession, startupInfo }: 
             {/* Log file */}
             {startupInfo.logFile && (
                 <Box flexDirection="row">
-                    <Text color="gray" dimColor>
-                        Logs: {startupInfo.logFile}
-                    </Text>
+                    <Text color="gray">Logs: {startupInfo.logFile}</Text>
                 </Box>
             )}
 

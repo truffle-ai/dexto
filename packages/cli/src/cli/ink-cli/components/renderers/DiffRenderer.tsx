@@ -59,7 +59,7 @@ export function DiffRenderer({ data, maxLines = Infinity }: DiffRendererProps) {
         <Box flexDirection="column">
             {/* Header */}
             <Box>
-                <Text dimColor>{'  ⎿ '}</Text>
+                <Text color="gray">{'  ⎿ '}</Text>
                 <Text>{makeRelativePath(filename)}</Text>
                 <Text color="green"> +{additions}</Text>
                 <Text color="red"> -{deletions}</Text>
@@ -140,7 +140,7 @@ export function DiffRenderer({ data, maxLines = Infinity }: DiffRendererProps) {
                     );
                 })}
 
-                {shouldTruncate && <Text dimColor>... +{totalLines - maxLines} lines</Text>}
+                {shouldTruncate && <Text color="gray">... +{totalLines - maxLines} lines</Text>}
             </Box>
         </Box>
     );

@@ -29,10 +29,10 @@ export function formatSessionInfo(
                 ? new Date(metadata.lastActivity).toLocaleString()
                 : 'Never';
 
-        info += chalk.dim(` (${messages} messages, last: ${activity})`);
+        info += chalk.gray(` (${messages} messages, last: ${activity})`);
 
         if (isCurrent) {
-            info += chalk.yellow(' [ACTIVE]');
+            info += chalk.rgb(255, 165, 0)(' [ACTIVE]');
         }
     }
 
@@ -47,7 +47,7 @@ export function formatHistoryMessage(message: InternalMessage, index: number): s
         ? new Date(message.timestamp).toLocaleTimeString()
         : `#${index + 1}`;
 
-    let roleColor = chalk.dim;
+    let roleColor = chalk.gray;
     let displayLabel: string = message.role;
 
     switch (message.role) {
@@ -60,11 +60,11 @@ export function formatHistoryMessage(message: InternalMessage, index: number): s
             displayLabel = 'Assistant';
             break;
         case 'system':
-            roleColor = chalk.yellow;
+            roleColor = chalk.rgb(255, 165, 0);
             displayLabel = 'System';
             break;
         case 'tool':
-            roleColor = chalk.magenta;
+            roleColor = chalk.green;
             displayLabel = 'Tool';
             break;
     }
@@ -100,8 +100,8 @@ export function formatHistoryMessage(message: InternalMessage, index: number): s
         const toolNames = message.toolCalls
             .map((tc: ToolCall) => tc.function?.name || 'unknown')
             .join(', ');
-        toolInfo = chalk.dim(` [Tools: ${toolNames}]`);
+        toolInfo = chalk.gray(` [Tools: ${toolNames}]`);
     }
 
-    return `  ${chalk.dim(timestamp)} ${roleColor.bold(displayLabel)}: ${content}${toolInfo}`;
+    return `  ${chalk.gray(timestamp)} ${roleColor.bold(displayLabel)}: ${content}${toolInfo}`;
 }

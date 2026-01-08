@@ -226,7 +226,7 @@ export function DiffLine({ type, lineNum, lineNumWidth, content, wordDiffParts }
         <Box>
             {/* Column 1: Fixed-width gutter */}
             <Box width={gutterWidth} flexShrink={0}>
-                <Text dimColor>{lineNumStr}</Text>
+                <Text color="gray">{lineNumStr}</Text>
                 <Text color={colors.symbolColor as any}> {colors.symbol} </Text>
             </Box>
             {/* Column 2: Fixed-width content - text wraps within this boundary */}

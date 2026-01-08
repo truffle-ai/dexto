@@ -78,10 +78,7 @@ const McpCustomTypeSelector = forwardRef<McpCustomTypeSelectorHandle, McpCustomT
                 <Text color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>
                     {option.label}
                 </Text>
-                <Text color={isSelected ? 'white' : 'gray'} dimColor={!isSelected}>
-                    {' '}
-                    - {option.description}
-                </Text>
+                <Text color={isSelected ? 'white' : 'gray'}> - {option.description}</Text>
             </>
         );
 
@@ -101,7 +98,7 @@ const McpCustomTypeSelector = forwardRef<McpCustomTypeSelectorHandle, McpCustomT
                 onClose={onClose}
                 formatItem={formatItem}
                 title="Select Server Type"
-                borderColor="yellow"
+                borderColor="yellowBright"
                 emptyMessage="No options available"
             />
         );

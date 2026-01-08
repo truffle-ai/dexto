@@ -93,7 +93,7 @@ export const MessageItem = memo(
                         data.outputTokens > 0 ? `, Used ${data.outputTokens} tokens` : '';
                     return (
                         <Box marginTop={1} marginBottom={1} width="100%">
-                            <Text color="gray" dimColor>
+                            <Text color="gray">
                                 ─ Worked for {durationStr}
                                 {tokensStr} ─
                             </Text>
@@ -112,9 +112,7 @@ export const MessageItem = memo(
             return (
                 <Box flexDirection="column" marginTop={2} marginBottom={1} width="100%">
                     <Box flexDirection="row" paddingX={1} backgroundColor="gray">
-                        <Text color="green" dimColor>
-                            {'> '}
-                        </Text>
+                        <Text color="green">{'> '}</Text>
                         <Text color="white" wrap="wrap">
                             {message.content}
                         </Text>
@@ -148,7 +146,7 @@ export const MessageItem = memo(
         }
 
         // Tool message: Animated icon based on status
-        // - Running: magenta spinner + "Running..."
+        // - Running: green spinner + "Running..."
         // - Finished (success): green dot
         // - Finished (error): red dot
         if (message.role === 'tool') {
@@ -176,13 +174,8 @@ export const MessageItem = memo(
                             <Text wrap="wrap">
                                 <Text bold>{toolName}</Text>
                                 <Text>{toolArgs}</Text>
-                                {isRunning && <Text color="magenta"> Running...</Text>}
-                                {isPending && (
-                                    <Text color="yellow" dimColor>
-                                        {' '}
-                                        Waiting...
-                                    </Text>
-                                )}
+                                {isRunning && <Text color="green"> Running...</Text>}
+                                {isPending && <Text color="yellowBright"> Waiting...</Text>}
                             </Text>
                         </Box>
                     </Box>
@@ -195,7 +188,7 @@ export const MessageItem = memo(
                     ) : (
                         message.toolResult && (
                             <Box flexDirection="column">
-                                <Text dimColor> ⎿ {message.toolResult}</Text>
+                                <Text color="gray"> ⎿ {message.toolResult}</Text>
                             </Box>
                         )
                     )}
@@ -206,9 +199,7 @@ export const MessageItem = memo(
         // System message: Compact gray text
         return (
             <Box flexDirection="column" marginBottom={1} width="100%">
-                <Text color="gray" dimColor>
-                    {message.content}
-                </Text>
+                <Text color="gray">{message.content}</Text>
             </Box>
         );
     },

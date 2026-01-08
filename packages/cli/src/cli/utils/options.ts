@@ -106,7 +106,7 @@ export function handleCliOptionsError(error: unknown): never {
             console.error(chalk.red(`   • Option '${fieldName}': ${err.message}`));
         });
         console.error(
-            chalk.dim(
+            chalk.gray(
                 '\nPlease check your command-line arguments or run with --help for usage details.'
             )
         );

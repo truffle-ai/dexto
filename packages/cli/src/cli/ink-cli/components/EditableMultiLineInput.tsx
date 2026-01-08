@@ -141,7 +141,7 @@ export default function EditableMultiLineInput({
             // No cursor on this line
             return (
                 <Text key={lineIdx}>
-                    <Text color="magenta">{prefix}</Text>
+                    <Text color="cyan">{prefix}</Text>
                     <Text>{line || ' '}</Text>
                 </Text>
             );
@@ -154,7 +154,7 @@ export default function EditableMultiLineInput({
 
         return (
             <Text key={lineIdx}>
-                <Text color="magenta">{prefix}</Text>
+                <Text color="cyan">{prefix}</Text>
                 <Text>{before}</Text>
                 <Text backgroundColor="green" color="black">
                     {atCursor}
@@ -169,13 +169,13 @@ export default function EditableMultiLineInput({
         return (
             <Box flexDirection="column">
                 <Text>
-                    <Text color="magenta">{'» '}</Text>
+                    <Text color="cyan">{'» '}</Text>
                     <Text backgroundColor="green" color="black">
                         {' '}
                     </Text>
-                    <Text dimColor> {placeholder}</Text>
+                    <Text color="gray"> {placeholder}</Text>
                 </Text>
-                <Text dimColor>
+                <Text color="gray">
                     Multi-line mode • Cmd/Ctrl+Enter to submit • Shift+Enter for single-line
                 </Text>
             </Box>
@@ -185,7 +185,7 @@ export default function EditableMultiLineInput({
     return (
         <Box flexDirection="column">
             {lines.map((line, idx) => renderLine(line, idx))}
-            <Text dimColor>
+            <Text color="gray">
                 Multi-line mode • Cmd/Ctrl+Enter to submit • Shift+Enter for single-line
             </Text>
         </Box>

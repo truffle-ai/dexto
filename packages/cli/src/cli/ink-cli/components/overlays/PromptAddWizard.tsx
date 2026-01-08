@@ -215,16 +215,16 @@ const PromptAddWizard = forwardRef<PromptAddWizardHandle, PromptAddWizardProps>(
             <Box
                 flexDirection="column"
                 borderStyle="round"
-                borderColor="yellow"
+                borderColor="yellowBright"
                 paddingX={1}
                 marginTop={1}
             >
                 {/* Header */}
                 <Box marginBottom={1}>
-                    <Text bold color="yellow">
+                    <Text bold color="yellowBright">
                         Add {scopeLabel} Prompt
                     </Text>
-                    <Text dimColor>
+                    <Text color="gray">
                         {' '}
                         (Step {currentStep + 1}/{WIZARD_STEPS.length})
                     </Text>
@@ -233,7 +233,7 @@ const PromptAddWizard = forwardRef<PromptAddWizardHandle, PromptAddWizardProps>(
                 {/* Current step prompt */}
                 <Box flexDirection="column">
                     <Text bold>{currentStepConfig.label}:</Text>
-                    <Text dimColor>{currentStepConfig.placeholder}</Text>
+                    <Text color="gray">{currentStepConfig.placeholder}</Text>
                 </Box>
 
                 {/* Input field */}
@@ -244,7 +244,7 @@ const PromptAddWizard = forwardRef<PromptAddWizardHandle, PromptAddWizardProps>(
                         <Text color="cyan">_</Text>
                     </Box>
                     {currentStepConfig.multiline && (
-                        <Text dimColor italic>
+                        <Text color="gray" italic>
                             (Shift+Enter for newline)
                         </Text>
                     )}
@@ -259,7 +259,7 @@ const PromptAddWizard = forwardRef<PromptAddWizardHandle, PromptAddWizardProps>(
 
                 {/* Help text */}
                 <Box marginTop={1}>
-                    <Text dimColor>
+                    <Text color="gray">
                         Enter to continue • Esc to {currentStep > 0 ? 'go back' : 'cancel'}
                     </Text>
                 </Box>

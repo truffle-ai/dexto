@@ -41,9 +41,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
                         ❌ CLI Error
                     </Text>
                     <Text color="red">{this.state.error?.message || 'Unknown error'}</Text>
-                    <Text color="yellow" dimColor>
-                        Press Ctrl+C to exit
-                    </Text>
+                    <Text color="yellowBright">Press Ctrl+C to exit</Text>
                 </Box>
             );
         }

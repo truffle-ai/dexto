@@ -420,7 +420,9 @@ export const ElicitationForm = forwardRef<ElicitationFormHandle, ElicitationForm
                     })}
 
                     <Box marginTop={1}>
-                        <Text dimColor>Enter to submit • Backspace to edit • Esc to cancel</Text>
+                        <Text color="gray">
+                            Enter to submit • Backspace to edit • Esc to cancel
+                        </Text>
                     </Box>
                 </Box>
             );
@@ -430,7 +432,7 @@ export const ElicitationForm = forwardRef<ElicitationFormHandle, ElicitationForm
             <Box flexDirection="column" paddingX={0} paddingY={0}>
                 {/* Header */}
                 <Box marginBottom={1}>
-                    <Text color="yellow" bold>
+                    <Text color="yellowBright" bold>
                         📝 {prompt}
                     </Text>
                 </Box>
@@ -456,7 +458,7 @@ export const ElicitationForm = forwardRef<ElicitationFormHandle, ElicitationForm
                                 {field.type === 'boolean' && (
                                     <Text color={value === true ? 'green' : 'gray'}>
                                         {value === true ? '[✓] Yes' : '[ ] No'}
-                                        {isActive && <Text dimColor> (Space to toggle)</Text>}
+                                        {isActive && <Text color="gray"> (Space to toggle)</Text>}
                                     </Text>
                                 )}
 
@@ -506,7 +508,7 @@ export const ElicitationForm = forwardRef<ElicitationFormHandle, ElicitationForm
                             {/* Array-enum multi-select */}
                             {isActive && field.type === 'array-enum' && field.enumValues && (
                                 <Box flexDirection="column" marginLeft={2}>
-                                    <Text dimColor> (Space to select, Enter to confirm)</Text>
+                                    <Text color="gray"> (Space to select, Enter to confirm)</Text>
                                     {field.enumValues.map((opt, i) => {
                                         const isSelected = arraySelections.has(i);
                                         return (
@@ -527,7 +529,7 @@ export const ElicitationForm = forwardRef<ElicitationFormHandle, ElicitationForm
                             {/* Field description */}
                             {isActive && field.description && (
                                 <Box marginLeft={2}>
-                                    <Text dimColor>{field.description}</Text>
+                                    <Text color="gray">{field.description}</Text>
                                 </Box>
                             )}
 
@@ -543,7 +545,7 @@ export const ElicitationForm = forwardRef<ElicitationFormHandle, ElicitationForm
 
                 {/* Help text */}
                 <Box marginTop={1}>
-                    <Text dimColor>
+                    <Text color="gray">
                         Tab/↓ next field • Shift+Tab/↑ prev • Enter to confirm • Esc to cancel
                     </Text>
                 </Box>

@@ -78,7 +78,7 @@ interface StyledRowProps {
 export function StyledRow({ label, value, valueColor = 'cyan' }: StyledRowProps) {
     return (
         <Box>
-            <Text dimColor>{label}: </Text>
+            <Text color="gray">{label}: </Text>
             <Text color={valueColor}>{value}</Text>
         </Box>
     );
@@ -102,7 +102,7 @@ export function StyledListItem({ icon, text, isActive, dimmed }: StyledListItemP
         textProps.bold = true;
     }
     if (dimmed) {
-        textProps.dimColor = true;
+        textProps.color = 'gray';
     }
 
     return (

@@ -146,15 +146,15 @@ const ApiKeyInput = forwardRef<ApiKeyInputHandle, ApiKeyInputProps>(function Api
             {/* Instructions */}
             {instructions && (
                 <Box flexDirection="column" marginBottom={1}>
-                    <Text dimColor>{instructions.content}</Text>
+                    <Text color="gray">{instructions.content}</Text>
                 </Box>
             )}
 
             {/* Env var hint */}
             <Box marginBottom={1}>
-                <Text dimColor>This key will be saved to </Text>
-                <Text color="yellow">{envVar}</Text>
-                <Text dimColor> in your .env file</Text>
+                <Text color="gray">This key will be saved to </Text>
+                <Text color="yellowBright">{envVar}</Text>
+                <Text color="gray"> in your .env file</Text>
             </Box>
 
             {/* Input prompt */}
@@ -172,7 +172,7 @@ const ApiKeyInput = forwardRef<ApiKeyInputHandle, ApiKeyInputProps>(function Api
             {/* Saving indicator */}
             {isSaving && (
                 <Box marginTop={1}>
-                    <Text color="yellow">Saving API key...</Text>
+                    <Text color="yellowBright">Saving API key...</Text>
                 </Box>
             )}
 
@@ -185,7 +185,7 @@ const ApiKeyInput = forwardRef<ApiKeyInputHandle, ApiKeyInputProps>(function Api
 
             {/* Help text */}
             <Box marginTop={1}>
-                <Text dimColor>Enter to save • Esc to cancel</Text>
+                <Text color="gray">Enter to save • Esc to cancel</Text>
             </Box>
         </Box>
     );

@@ -17,7 +17,7 @@ const SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', 
 
 /**
  * Animated tool icon that changes based on execution status
- * - Running: Animated spinner (magenta)
+ * - Running: Animated spinner (green/teal)
  * - Finished (success): Green dot
  * - Finished (error): Red dot
  */
@@ -42,10 +42,10 @@ export function ToolIcon({ status, isError }: ToolIconProps) {
         return <Text color="gray">● </Text>;
     }
 
-    // Pending approval: static yellow dot (waiting for user)
+    // Pending approval: static yellowBright dot (waiting for user)
     if (status === 'pending_approval') {
         return (
-            <Text color="yellow" bold>
+            <Text color="yellowBright" bold>
                 ●{' '}
             </Text>
         );
@@ -70,7 +70,7 @@ export function ToolIcon({ status, isError }: ToolIconProps) {
 
     // Running state with spinner
     return (
-        <Text color="magenta" bold>
+        <Text color="green" bold>
             {SPINNER_FRAMES[frame]}{' '}
         </Text>
     );

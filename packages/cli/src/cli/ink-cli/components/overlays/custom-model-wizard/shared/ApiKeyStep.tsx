@@ -25,7 +25,7 @@ export function ApiKeyStep({ provider }: ApiKeyStepProps): React.ReactElement {
         return <Text color="green">✓ {keyStatus.envVar} already set, press Enter to skip</Text>;
     }
 
-    return <Text color="yellow">No {keyStatus.envVar} configured</Text>;
+    return <Text color="yellowBright">No {keyStatus.envVar} configured</Text>;
 }
 
 /**

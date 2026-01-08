@@ -301,7 +301,7 @@ const ToolBrowser = forwardRef<ToolBrowserHandle, ToolBrowserProps>(function Too
     if (isLoading) {
         return (
             <Box paddingX={0} paddingY={0}>
-                <Text dimColor>Loading tools...</Text>
+                <Text color="gray">Loading tools...</Text>
             </Box>
         );
     }
@@ -335,14 +335,14 @@ const ToolBrowser = forwardRef<ToolBrowserHandle, ToolBrowserProps>(function Too
                 <Text color="cyan" bold>
                     Tool Browser
                 </Text>
-                <Text dimColor>
+                <Text color="gray">
                     {' '}
                     ({filteredTools.length} tools: {filteredInternalCount} internal,{' '}
                     {filteredMcpCount} MCP)
                 </Text>
             </Box>
             <Box paddingX={0} paddingY={0}>
-                <Text dimColor>↑↓ navigate, Enter view details, Esc close</Text>
+                <Text color="gray">↑↓ navigate, Enter view details, Esc close</Text>
             </Box>
 
             {/* Search input */}
@@ -356,13 +356,13 @@ const ToolBrowser = forwardRef<ToolBrowserHandle, ToolBrowserProps>(function Too
 
             {/* Separator */}
             <Box paddingX={0} paddingY={0}>
-                <Text dimColor>{'─'.repeat(Math.min(60, columns - 2))}</Text>
+                <Text color="gray">{'─'.repeat(Math.min(60, columns - 2))}</Text>
             </Box>
 
             {/* Tools list */}
             {filteredTools.length === 0 ? (
                 <Box paddingX={0} paddingY={0}>
-                    <Text dimColor>No tools match your search</Text>
+                    <Text color="gray">No tools match your search</Text>
                 </Box>
             ) : (
                 visibleTools.map((tool, visibleIndex) => {
@@ -381,7 +381,7 @@ const ToolBrowser = forwardRef<ToolBrowserHandle, ToolBrowserProps>(function Too
                                 {' '}
                                 [{tool.source === 'internal' ? 'Internal' : 'MCP'}]
                             </Text>
-                            {tool.serverName && <Text dimColor> ({tool.serverName})</Text>}
+                            {tool.serverName && <Text color="gray"> ({tool.serverName})</Text>}
                         </Box>
                     );
                 })
@@ -390,7 +390,7 @@ const ToolBrowser = forwardRef<ToolBrowserHandle, ToolBrowserProps>(function Too
             {/* Scroll indicator */}
             {filteredTools.length > MAX_VISIBLE_ITEMS && (
                 <Box paddingX={0} paddingY={0} marginTop={1}>
-                    <Text dimColor>
+                    <Text color="gray">
                         {scrollOffset > 0 ? '↑ more above' : ''}
                         {scrollOffset > 0 && scrollOffset + MAX_VISIBLE_ITEMS < filteredTools.length
                             ? ' | '
@@ -504,24 +504,24 @@ function renderDetailLine(line: DetailLineType, index: number): React.ReactNode 
     switch (line.type) {
         case 'title':
             return (
-                <Text color="yellow" bold>
+                <Text color="cyan" bold>
                     {line.text}
                 </Text>
             );
         case 'source':
             return (
                 <>
-                    <Text dimColor>Source: </Text>
+                    <Text color="gray">Source: </Text>
                     <Text color={line.source === 'internal' ? 'magenta' : 'blue'}>
                         {line.source === 'internal' ? 'Internal' : 'MCP'}
                     </Text>
-                    {line.serverName && <Text dimColor> (server: {line.serverName})</Text>}
+                    {line.serverName && <Text color="gray"> (server: {line.serverName})</Text>}
                 </>
             );
         case 'empty':
             return <Text> </Text>;
         case 'header':
-            return <Text dimColor>{line.text}</Text>;
+            return <Text color="gray">{line.text}</Text>;
         case 'description':
             return (
                 <>
@@ -533,8 +533,8 @@ function renderDetailLine(line: DetailLineType, index: number): React.ReactNode 
             return (
                 <>
                     <Text> </Text>
-                    <Text color="yellow">{line.name}</Text>
-                    <Text dimColor> ({line.paramType})</Text>
+                    <Text color="cyan">{line.name}</Text>
+                    <Text color="gray"> ({line.paramType})</Text>
                     {line.required && <Text color="red"> *required</Text>}
                 </>
             );
@@ -542,14 +542,14 @@ function renderDetailLine(line: DetailLineType, index: number): React.ReactNode 
             return (
                 <>
                     <Text> </Text>
-                    <Text dimColor>{line.text}</Text>
+                    <Text color="gray">{line.text}</Text>
                 </>
             );
         case 'param-enum':
             return (
                 <>
                     <Text> </Text>
-                    <Text dimColor>Allowed: {line.values.join(' | ')}</Text>
+                    <Text color="gray">Allowed: {line.values.join(' | ')}</Text>
                 </>
             );
     }
@@ -595,7 +595,7 @@ function ToolDetailView({
                 <Text color="cyan" bold>
                     Tool Details
                 </Text>
-                <Text dimColor> - ↑↓ scroll, c copy schema, Esc back</Text>
+                <Text color="gray"> - ↑↓ scroll, c copy schema, Esc back</Text>
                 {copyFeedback && (
                     <Text color="green" bold>
                         {' '}
@@ -606,12 +606,12 @@ function ToolDetailView({
 
             {/* Separator */}
             <Box paddingX={0} paddingY={0}>
-                <Text dimColor>{'─'.repeat(Math.min(60, columns - 2))}</Text>
+                <Text color="gray">{'─'.repeat(Math.min(60, columns - 2))}</Text>
             </Box>
 
             {/* Scroll indicator - above (always present to avoid layout shift) */}
             <Box paddingX={0} paddingY={0}>
-                <Text dimColor>{hasMoreAbove ? `↑ ${clampedOffset} more above` : ' '}</Text>
+                <Text color="gray">{hasMoreAbove ? `↑ ${clampedOffset} more above` : ' '}</Text>
             </Box>
 
             {/* Visible content - render directly from data like TextBufferInput */}
@@ -627,7 +627,7 @@ function ToolDetailView({
 
             {/* Scroll indicator - below (always present to avoid layout shift) */}
             <Box paddingX={0} paddingY={0}>
-                <Text dimColor>
+                <Text color="gray">
                     {hasMoreBelow
                         ? `↓ ${totalLines - clampedOffset - maxVisibleLines} more below`
                         : ' '}

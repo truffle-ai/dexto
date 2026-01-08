@@ -58,7 +58,7 @@ async function displaySessionHistory(sessionId: string, agent: DextoAgent): Prom
     const history = await agent.getSessionHistory(sessionId);
 
     if (history.length === 0) {
-        console.log(chalk.dim('  No messages in this session yet.\n'));
+        console.log(chalk.gray('  No messages in this session yet.\n'));
         return;
     }
 
@@ -67,7 +67,7 @@ async function displaySessionHistory(sessionId: string, agent: DextoAgent): Prom
         console.log(formatHistoryMessage(message, index));
     });
 
-    console.log(chalk.dim(`\n  Total: ${history.length} messages`));
+    console.log(chalk.gray(`\n  Total: ${history.length} messages`));
 }
 
 /**
@@ -82,7 +82,7 @@ export async function handleSessionListCommand(agent: DextoAgent): Promise<void>
 
         if (sessionIds.length === 0) {
             console.log(
-                chalk.dim(
+                chalk.gray(
                     '  No sessions found. Run `dexto` to start a new session, or use `dexto -c`/`dexto -r <id>`.\n'
                 )
             );
@@ -115,8 +115,8 @@ export async function handleSessionListCommand(agent: DextoAgent): Promise<void>
             displayed++;
         }
 
-        console.log(chalk.dim(`\n  Total: ${displayed} of ${sessionIds.length} sessions`));
-        console.log(chalk.dim('  💡 Use `dexto -r <id>` to resume a session\n'));
+        console.log(chalk.gray(`\n  Total: ${displayed} of ${sessionIds.length} sessions`));
+        console.log(chalk.gray('  💡 Use `dexto -r <id>` to resume a session\n'));
     } catch (error) {
         logger.error(
             `Failed to list sessions: ${error instanceof Error ? error.message : String(error)}`,
@@ -141,18 +141,18 @@ export async function handleSessionHistoryCommand(
             const recentSession = await getMostRecentSessionInfo(agent);
             if (!recentSession) {
                 console.log(chalk.red('❌ No sessions found'));
-                console.log(chalk.dim('   Create a session first by running: dexto'));
+                console.log(chalk.gray('   Create a session first by running: dexto'));
                 throw new Error('No sessions found');
             }
             targetSessionId = recentSession.id;
-            console.log(chalk.dim(`Using most recent session: ${targetSessionId}\n`));
+            console.log(chalk.gray(`Using most recent session: ${targetSessionId}\n`));
         }
 
         await displaySessionHistory(targetSessionId, agent);
     } catch (error) {
         if (error instanceof Error && error.message.includes('not found')) {
             console.log(chalk.red(`❌ Session not found: ${sessionId || 'current'}`));
-            console.log(chalk.dim('   Use `dexto session list` to see available sessions'));
+            console.log(chalk.gray('   Use `dexto session list` to see available sessions'));
         } else if (error instanceof Error && error.message !== 'No sessions found') {
             logger.error(`Failed to get session history: ${error.message}`, null, 'red');
         }
@@ -221,18 +221,18 @@ export async function handleSessionSearchCommand(
 
         console.log(chalk.blue(`🔍 Searching for: "${query}"`));
         if (searchOptions.sessionId) {
-            console.log(chalk.dim(`   Session: ${searchOptions.sessionId}`));
+            console.log(chalk.gray(`   Session: ${searchOptions.sessionId}`));
         }
         if (searchOptions.role) {
-            console.log(chalk.dim(`   Role: ${searchOptions.role}`));
+            console.log(chalk.gray(`   Role: ${searchOptions.role}`));
         }
-        console.log(chalk.dim(`   Limit: ${searchOptions.limit}`));
+        console.log(chalk.gray(`   Limit: ${searchOptions.limit}`));
         console.log();
 
         const results = await agent.searchMessages(query, searchOptions);
 
         if (results.results.length === 0) {
-            console.log(chalk.yellow('📭 No messages found matching your search'));
+            console.log(chalk.rgb(255, 165, 0)('📭 No messages found matching your search'));
             return;
         }
 
@@ -240,7 +240,7 @@ export async function handleSessionSearchCommand(
             chalk.green(`✅ Found ${results.total} result${results.total === 1 ? '' : 's'}`)
         );
         if (results.hasMore) {
-            console.log(chalk.dim(`   Showing first ${results.results.length} results`));
+            console.log(chalk.gray(`   Showing first ${results.results.length} results`));
         }
         console.log();
 
@@ -256,10 +256,10 @@ export async function handleSessionSearchCommand(
                     ? chalk.blue
                     : result.message.role === 'assistant'
                       ? chalk.green
-                      : chalk.yellow;
+                      : chalk.rgb(255, 165, 0);
 
             console.log(
-                `${chalk.dim(`${index + 1}.`)} ${chalk.cyan(result.sessionId)} ${roleColor(`[${result.message.role}]`)}`
+                `${chalk.gray(`${index + 1}.`)} ${chalk.cyan(result.sessionId)} ${roleColor(`[${result.message.role}]`)}`
             );
 
             // Safe highlighting - only if we have a valid regex
@@ -272,7 +272,7 @@ export async function handleSessionSearchCommand(
         });
 
         if (results.hasMore) {
-            console.log(chalk.dim('💡 Use --limit to see more results'));
+            console.log(chalk.gray('💡 Use --limit to see more results'));
         }
     } catch (error) {
         logger.error(

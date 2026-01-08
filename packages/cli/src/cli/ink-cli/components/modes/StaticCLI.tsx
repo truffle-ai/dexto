@@ -232,13 +232,10 @@ export function StaticCLI({
                 {/* Exit warning (Ctrl+C pressed once) - shown above footer */}
                 {ui.exitWarningShown && (
                     <Box paddingX={1}>
-                        <Text color="yellow" bold>
+                        <Text color="yellowBright" bold>
                             ⚠ Press Ctrl+C again to exit
                         </Text>
-                        <Text color="gray" dimColor>
-                            {' '}
-                            (or press any key to cancel)
-                        </Text>
+                        <Text color="gray"> (or press any key to cancel)</Text>
                     </Box>
                 )}
 

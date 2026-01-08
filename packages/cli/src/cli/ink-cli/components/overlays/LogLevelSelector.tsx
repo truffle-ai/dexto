@@ -89,10 +89,7 @@ const LogLevelSelector = forwardRef<LogLevelSelectorHandle, LogLevelSelectorProp
                 <Text color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>
                     {option.level}
                 </Text>
-                <Text color={isSelected ? 'white' : 'gray'} dimColor={!isSelected}>
-                    {' '}
-                    - {option.description}
-                </Text>
+                <Text color={isSelected ? 'white' : 'gray'}> - {option.description}</Text>
                 {option.isCurrent && (
                     <Text color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>
                         {' '}
@@ -120,14 +117,12 @@ const LogLevelSelector = forwardRef<LogLevelSelectorHandle, LogLevelSelectorProp
                     onClose={onClose}
                     formatItem={formatItem}
                     title="Select Log Level"
-                    borderColor="yellow"
+                    borderColor="yellowBright"
                     emptyMessage="No log levels available"
                 />
                 {logFilePath && (
                     <Box marginTop={1}>
-                        <Text color="gray" dimColor>
-                            📁 Log file: {logFilePath}
-                        </Text>
+                        <Text color="gray">📁 Log file: {logFilePath}</Text>
                     </Box>
                 )}
             </Box>

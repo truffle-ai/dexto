@@ -103,7 +103,7 @@ const McpAddSelector = forwardRef<McpAddSelectorHandle, McpAddSelectorProps>(
                 <Text color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>
                     {option.label}
                 </Text>
-                <Text color={isSelected ? 'white' : 'gray'} dimColor={!isSelected}>
+                <Text color={isSelected ? 'white' : 'gray'}>
                     {' '}
                     - {option.description.slice(0, 40)}
                     {option.description.length > 40 ? '...' : ''}

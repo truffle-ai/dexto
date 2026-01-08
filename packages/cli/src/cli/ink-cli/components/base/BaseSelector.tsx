@@ -176,7 +176,7 @@ function BaseSelectorInner<T>(
     if (isLoading) {
         return (
             <Box paddingX={0} paddingY={0}>
-                <Text dimColor>{loadingMessage}</Text>
+                <Text color="gray">{loadingMessage}</Text>
             </Box>
         );
     }
@@ -184,7 +184,7 @@ function BaseSelectorInner<T>(
     if (items.length === 0) {
         return (
             <Box paddingX={0} paddingY={0}>
-                <Text dimColor>{emptyMessage}</Text>
+                <Text color="gray">{emptyMessage}</Text>
             </Box>
         );
     }

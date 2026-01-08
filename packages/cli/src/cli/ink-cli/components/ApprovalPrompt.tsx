@@ -230,9 +230,9 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
                     // For shell preview, just show the command (no output yet)
                     return (
                         <Box marginBottom={1} flexDirection="row">
-                            <Text dimColor>$ </Text>
-                            <Text color="yellow">{displayPreview.command}</Text>
-                            {displayPreview.isBackground && <Text dimColor> (background)</Text>}
+                            <Text color="gray">$ </Text>
+                            <Text color="yellowBright">{displayPreview.command}</Text>
+                            {displayPreview.isBackground && <Text color="gray"> (background)</Text>}
                         </Box>
                     );
                 case 'file':
@@ -243,7 +243,7 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
                     // Fallback for other file operations
                     return (
                         <Box marginBottom={1}>
-                            <Text dimColor>
+                            <Text color="gray">
                                 {displayPreview.operation === 'read' &&
                                     `Read ${displayPreview.lineCount ?? 'file'} lines`}
                                 {displayPreview.operation === 'write' &&
@@ -270,14 +270,14 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
                     {isDirectoryAccess ? (
                         <>
                             <Box flexDirection="row">
-                                <Text color="yellow" bold>
+                                <Text color="yellowBright" bold>
                                     🔐 Directory Access:{' '}
                                 </Text>
                                 <Text color="cyan">{parentDir || directoryPath}</Text>
                             </Box>
                             <Box flexDirection="row" marginTop={0}>
                                 <Text color="gray">{'  '}</Text>
-                                <Text dimColor>
+                                <Text color="gray">
                                     {toolName ? `"${toolName}"` : 'Tool'} wants to{' '}
                                     {operation || 'access'} files outside working directory
                                 </Text>
@@ -286,7 +286,7 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
                     ) : (
                         <>
                             <Box flexDirection="row">
-                                <Text color="yellow" bold>
+                                <Text color="yellowBright" bold>
                                     🔐 Approval:{' '}
                                 </Text>
                                 {toolName && <Text color="cyan">{toolName}</Text>}
@@ -330,9 +330,7 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
 
                 {/* Compact instructions */}
                 <Box marginTop={0}>
-                    <Text color="gray" dimColor>
-                        {'  '}↑↓ to select • Enter to confirm • Esc to cancel
-                    </Text>
+                    <Text color="gray">{'  '}↑↓ to select • Enter to confirm • Esc to cancel</Text>
                 </Box>
             </Box>
         );

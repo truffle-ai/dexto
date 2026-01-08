@@ -79,12 +79,9 @@ const PromptAddChoice = forwardRef<PromptAddChoiceHandle, PromptAddChoiceProps>(
                         {item.label}
                     </Text>
                     {item.recommended && (
-                        <Text color="green" dimColor={!isSelected}>
-                            {' '}
-                            (Recommended)
-                        </Text>
+                        <Text color={isSelected ? 'green' : 'gray'}> (Recommended)</Text>
                     )}
-                    <Text dimColor> · {item.description}</Text>
+                    <Text color="gray"> · {item.description}</Text>
                 </Box>
             );
         };
@@ -105,7 +102,7 @@ const PromptAddChoice = forwardRef<PromptAddChoiceHandle, PromptAddChoiceProps>(
                 onClose={onClose}
                 formatItem={formatItem}
                 title="Add Prompt"
-                borderColor="yellow"
+                borderColor="yellowBright"
                 emptyMessage="No options available"
             />
         );

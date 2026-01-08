@@ -161,7 +161,6 @@ const McpServerList = forwardRef<McpServerListHandle, McpServerListProps>(functi
                               ? 'gray'
                               : 'red'
                     }
-                    dimColor={!isSelected}
                 >
                     [{statusText}]
                 </Text>

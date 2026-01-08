@@ -263,16 +263,16 @@ const McpCustomWizard = forwardRef<McpCustomWizardHandle, McpCustomWizardProps>(
             <Box
                 flexDirection="column"
                 borderStyle="round"
-                borderColor="yellow"
+                borderColor="yellowBright"
                 paddingX={1}
                 marginTop={1}
             >
                 {/* Header */}
                 <Box marginBottom={1}>
-                    <Text bold color="yellow">
+                    <Text bold color="yellowBright">
                         Add Custom {serverTypeLabel} Server
                     </Text>
-                    <Text dimColor>
+                    <Text color="gray">
                         {' '}
                         (Step {currentStep + 1}/{steps.length})
                     </Text>
@@ -281,7 +281,7 @@ const McpCustomWizard = forwardRef<McpCustomWizardHandle, McpCustomWizardProps>(
                 {/* Current step prompt */}
                 <Box flexDirection="column">
                     <Text bold>{currentStepConfig.label}:</Text>
-                    <Text dimColor>{currentStepConfig.placeholder}</Text>
+                    <Text color="gray">{currentStepConfig.placeholder}</Text>
                 </Box>
 
                 {/* Input field */}
@@ -300,7 +300,7 @@ const McpCustomWizard = forwardRef<McpCustomWizardHandle, McpCustomWizardProps>(
 
                 {/* Help text */}
                 <Box marginTop={1}>
-                    <Text dimColor>
+                    <Text color="gray">
                         Enter to continue • Esc to {currentStep > 0 ? 'go back' : 'cancel'}
                     </Text>
                 </Box>

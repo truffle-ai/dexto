@@ -45,20 +45,20 @@ export function QueuedMessagesDisplay({ messages }: QueuedMessagesDisplayProps) 
         <Box flexDirection="column" marginBottom={1}>
             {/* Header with count and keyboard hint */}
             <Box>
-                <Text dimColor>
+                <Text color="gray">
                     {messages.length} message{messages.length !== 1 ? 's' : ''} queued
                 </Text>
-                <Text dimColor> • </Text>
-                <Text dimColor>↑ to edit</Text>
+                <Text color="gray"> • </Text>
+                <Text color="gray">↑ to edit</Text>
             </Box>
 
             {/* Messages list */}
             {messages.map((message, index) => (
                 <Box key={message.id} flexDirection="row">
                     {/* Arrow indicator - last message gets special indicator */}
-                    <Text dimColor>{index === messages.length - 1 ? '↳ ' : '│ '}</Text>
+                    <Text color="gray">{index === messages.length - 1 ? '↳ ' : '│ '}</Text>
                     {/* Message preview */}
-                    <Text dimColor italic>
+                    <Text color="gray" italic>
                         {truncateText(getMessageText(message.content))}
                     </Text>
                 </Box>

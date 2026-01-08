@@ -215,7 +215,7 @@ export async function interactiveApiKeySetup(
 async function promptForApiKey(provider: LLMProvider): Promise<string | null> {
     const providerInfo = getProviderInfo(provider);
     const formatHint = providerInfo?.apiKeyPrefix
-        ? chalk.dim(` (starts with ${providerInfo.apiKeyPrefix})`)
+        ? chalk.gray(` (starts with ${providerInfo.apiKeyPrefix})`)
         : '';
 
     const apiKey = await p.password({
@@ -305,16 +305,16 @@ function showManualSaveInstructions(provider: LLMProvider, apiKey: string): void
         getExecutionContext() === 'global-cli'
             ? [
                   `1. Create or edit: ${chalk.cyan('~/.dexto/.env')}`,
-                  `2. Add this line: ${chalk.yellow(`${envVar}=${maskedKey}`)}`,
+                  `2. Add this line: ${chalk.rgb(255, 165, 0)(`${envVar}=${maskedKey}`)}`,
                   `3. Run ${chalk.cyan('dexto')} again`,
               ]
             : [
                   `1. Create or edit: ${chalk.cyan('.env')} in your project`,
-                  `2. Add this line: ${chalk.yellow(`${envVar}=your_api_key`)}`,
+                  `2. Add this line: ${chalk.rgb(255, 165, 0)(`${envVar}=your_api_key`)}`,
                   `3. Run ${chalk.cyan('dexto')} again`,
               ];
 
-    p.note(instructions.join('\n'), chalk.yellow('Manual Setup Required'));
+    p.note(instructions.join('\n'), chalk.rgb(255, 165, 0)('Manual Setup Required'));
 }
 
 /**
@@ -328,14 +328,14 @@ function showManualSetupInstructions(provider: LLMProvider): void {
         getExecutionContext() === 'global-cli'
             ? [
                   `${chalk.bold('2. Save your API key:')}`,
-                  `   ${chalk.dim('Option A:')} Run ${chalk.cyan('dexto setup')} (interactive)`,
-                  `   ${chalk.dim('Option B:')} Create ${chalk.cyan('~/.dexto/.env')} with:`,
-                  `            ${chalk.yellow(`${envVar}=your_api_key_here`)}`,
+                  `   ${chalk.gray('Option A:')} Run ${chalk.cyan('dexto setup')} (interactive)`,
+                  `   ${chalk.gray('Option B:')} Create ${chalk.cyan('~/.dexto/.env')} with:`,
+                  `            ${chalk.rgb(255, 165, 0)(`${envVar}=your_api_key_here`)}`,
               ]
             : [
                   `${chalk.bold('2. Save your API key:')}`,
                   `   Create ${chalk.cyan('.env')} in your project with:`,
-                  `   ${chalk.yellow(`${envVar}=your_api_key_here`)}`,
+                  `   ${chalk.rgb(255, 165, 0)(`${envVar}=your_api_key_here`)}`,
               ];
 
     // Build provider URLs list dynamically from registry
@@ -374,7 +374,7 @@ function showManualSetupInstructions(provider: LLMProvider): void {
         const info = PROVIDER_REGISTRY[p];
         if (info?.apiKeyUrl && p !== provider) {
             providerUrls.push(
-                `   ${chalk.yellow('●')} ${chalk.yellow(info.label)} (Gateway): ${info.apiKeyUrl}`
+                `   ${chalk.rgb(255, 165, 0)('●')} ${chalk.rgb(255, 165, 0)(info.label)} (Gateway): ${info.apiKeyUrl}`
             );
         }
     }
@@ -385,7 +385,7 @@ function showManualSetupInstructions(provider: LLMProvider): void {
         const info = PROVIDER_REGISTRY[p];
         if (info?.apiKeyUrl && p !== provider) {
             providerUrls.push(
-                `   ${chalk.magenta('●')} ${chalk.magenta(info.label)} (Enterprise): ${info.apiKeyUrl}`
+                `   ${chalk.cyan('●')} ${chalk.cyan(info.label)} (Enterprise): ${info.apiKeyUrl}`
             );
         }
     }
@@ -399,7 +399,7 @@ function showManualSetupInstructions(provider: LLMProvider): void {
         `${chalk.bold('3. Run dexto again:')}`,
         `   ${chalk.cyan('dexto')} or ${chalk.cyan('npx dexto')}`,
         ``,
-        `${chalk.dim('💡 Tip: Start with Google Gemini or Groq for a free experience!')}`,
+        `${chalk.gray('💡 Tip: Start with Google Gemini or Groq for a free experience!')}`,
     ].join('\n');
 
     p.note(instructions, chalk.bold('Manual Setup Instructions'));

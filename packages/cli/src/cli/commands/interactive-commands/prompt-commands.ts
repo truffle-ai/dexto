@@ -65,7 +65,7 @@ export const promptCommands: CommandDefinition[] = [
 
                 if (promptNames.length === 0) {
                     const output = '\n⚠️  No prompts available';
-                    console.log(chalk.yellow(output));
+                    console.log(chalk.rgb(255, 165, 0)(output));
                     return formatForInkCli(output);
                 }
 
@@ -159,14 +159,14 @@ export const promptCommands: CommandDefinition[] = [
                                           .join(', ')}]`
                                     : '';
                             console.log(
-                                `  ${chalk.blue(displayName)}${chalk.yellow(title)}${chalk.dim(desc)}${chalk.gray(args)}`
+                                `  ${chalk.blue(displayName)}${chalk.rgb(255, 165, 0)(title)}${chalk.gray(desc)}${chalk.gray(args)}`
                             );
                         }
                     });
                     console.log();
                 }
                 if (configPrompts.length > 0) {
-                    console.log(chalk.magenta('📋 Config Prompts:'));
+                    console.log(chalk.cyan('📋 Config Prompts:'));
                     configPrompts.forEach((name) => {
                         const info = prompts[name];
                         if (info) {
@@ -175,7 +175,7 @@ export const promptCommands: CommandDefinition[] = [
                                 info.title && info.title !== displayName ? ` (${info.title})` : '';
                             const desc = info.description ? ` - ${info.description}` : '';
                             console.log(
-                                `  ${chalk.blue(displayName)}${chalk.yellow(title)}${chalk.dim(desc)}`
+                                `  ${chalk.blue(displayName)}${chalk.rgb(255, 165, 0)(title)}${chalk.gray(desc)}`
                             );
                         }
                     });
@@ -191,14 +191,14 @@ export const promptCommands: CommandDefinition[] = [
                                 info.title && info.title !== displayName ? ` (${info.title})` : '';
                             const desc = info.description ? ` - ${info.description}` : '';
                             console.log(
-                                `  ${chalk.blue(displayName)}${chalk.yellow(title)}${chalk.dim(desc)}`
+                                `  ${chalk.blue(displayName)}${chalk.rgb(255, 165, 0)(title)}${chalk.gray(desc)}`
                             );
                         }
                     });
                     console.log();
                 }
-                console.log(chalk.dim(`Total: ${promptNames.length} prompts`));
-                console.log(chalk.dim('💡 Use /<prompt-name> to execute a prompt directly\n'));
+                console.log(chalk.gray(`Total: ${promptNames.length} prompts`));
+                console.log(chalk.gray('💡 Use /<prompt-name> to execute a prompt directly\n'));
 
                 return formatForInkCli(output);
             } catch (error) {
@@ -239,18 +239,18 @@ function createPromptCommand(promptInfo: PromptInfo, hasCollision: boolean): Com
 
                 if (Object.keys(argMap).length > 0) {
                     console.log(chalk.cyan(`🤖 Executing prompt: ${commandName}`));
-                    console.log(chalk.dim(`Explicit arguments: ${JSON.stringify(argMap)}`));
+                    console.log(chalk.gray(`Explicit arguments: ${JSON.stringify(argMap)}`));
                 } else if (contextString) {
                     console.log(chalk.cyan(`🤖 Executing prompt: ${commandName}`));
                     console.log(
-                        chalk.dim(
+                        chalk.gray(
                             `Context: ${contextString} (LLM will extrapolate template variables)`
                         )
                     );
                 } else {
                     console.log(chalk.cyan(`🤖 Executing prompt: ${commandName}`));
                     console.log(
-                        chalk.dim('No arguments provided - LLM will extrapolate from context')
+                        chalk.gray('No arguments provided - LLM will extrapolate from context')
                     );
                 }
 
@@ -282,7 +282,7 @@ function createPromptCommand(promptInfo: PromptInfo, hasCollision: boolean): Com
                     return createSendMessageMarker(finalText.trim());
                 } else {
                     const warningMsg = `⚠️  Prompt '${commandName}' returned no content`;
-                    console.log(chalk.yellow(warningMsg));
+                    console.log(chalk.rgb(255, 165, 0)(warningMsg));
                     return formatForInkCli(warningMsg);
                 }
             } catch (error) {

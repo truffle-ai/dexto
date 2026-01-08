@@ -194,16 +194,8 @@ const PromptList = forwardRef<PromptListHandle, PromptListProps>(function Prompt
                 <Text color={isSelected ? 'cyan' : 'white'} bold={isSelected}>
                     {displayName}
                 </Text>
-                {prompt.title && (
-                    <Text color="gray" dimColor={!isSelected}>
-                        {' '}
-                        - {prompt.title}
-                    </Text>
-                )}
-                <Text color={sourceInfo.color} dimColor={!isSelected}>
-                    {' '}
-                    ({sourceLabel})
-                </Text>
+                {prompt.title && <Text color="gray"> - {prompt.title}</Text>}
+                <Text color={sourceInfo.color}> ({sourceLabel})</Text>
             </Box>
         );
     };
@@ -241,7 +233,7 @@ const PromptList = forwardRef<PromptListHandle, PromptListProps>(function Prompt
             onTab={handleTab}
             supportsTab={true}
             title="Prompts"
-            borderColor="yellow"
+            borderColor="yellowBright"
             emptyMessage="No prompts configured"
             maxVisibleItems={12}
         />

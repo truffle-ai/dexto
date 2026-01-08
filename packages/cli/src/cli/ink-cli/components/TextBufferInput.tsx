@@ -554,33 +554,27 @@ export function TextBufferInput({
     if (bufferText === '') {
         return (
             <Box flexDirection="column" width={terminalWidth}>
-                <Text color="gray" dimColor>
-                    {separator}
-                </Text>
+                <Text color="gray">{separator}</Text>
                 <Box width={terminalWidth}>
                     <Text color="green" bold>
                         {'> '}
                     </Text>
                     <Text inverse> </Text>
-                    {placeholder && <Text dimColor>{placeholder}</Text>}
+                    {placeholder && <Text color="gray">{placeholder}</Text>}
                     <Text>
                         {' '.repeat(Math.max(0, terminalWidth - 3 - (placeholder?.length || 0)))}
                     </Text>
                 </Box>
-                <Text color="gray" dimColor>
-                    {separator}
-                </Text>
+                <Text color="gray">{separator}</Text>
             </Box>
         );
     }
 
     return (
         <Box flexDirection="column" width={terminalWidth}>
-            <Text color="gray" dimColor>
-                {separator}
-            </Text>
+            <Text color="gray">{separator}</Text>
             {startLine > 0 && (
-                <Text color="gray" dimColor>
+                <Text color="gray">
                     {'  '}↑ {startLine} more line{startLine > 1 ? 's' : ''} above (
                     {KEY_LABELS.altUp} to jump)
                 </Text>
@@ -631,7 +625,7 @@ export function TextBufferInput({
                 );
             })}
             {endLine < totalLines && (
-                <Text color="gray" dimColor>
+                <Text color="gray">
                     {'  '}↓ {totalLines - endLine} more line{totalLines - endLine > 1 ? 's' : ''}{' '}
                     below ({KEY_LABELS.altDown} to jump)
                 </Text>
@@ -644,9 +638,7 @@ export function TextBufferInput({
                     cursorOnCollapsed={findCollapsedBlockAtCursor()}
                 />
             )}
-            <Text color="gray" dimColor>
-                {separator}
-            </Text>
+            <Text color="gray">{separator}</Text>
         </Box>
     );
 }
@@ -666,7 +658,7 @@ function PasteBlockHint({
     // If something is expanded, always show collapse hint
     if (expandedBlock) {
         return (
-            <Text color="cyan" dimColor>
+            <Text color="cyan">
                 {'  '}
                 {KEY_LABELS.ctrlT} to collapse expanded paste
             </Text>
@@ -676,7 +668,7 @@ function PasteBlockHint({
     // If cursor is on a collapsed paste, show expand hint
     if (cursorOnCollapsed) {
         return (
-            <Text color="cyan" dimColor>
+            <Text color="cyan">
                 {'  '}
                 {KEY_LABELS.ctrlT} to expand paste
             </Text>
@@ -686,7 +678,7 @@ function PasteBlockHint({
     // Otherwise show count of collapsed pastes
     if (collapsedCount > 0) {
         return (
-            <Text color="gray" dimColor>
+            <Text color="gray">
                 {'  '}
                 {collapsedCount} collapsed paste{collapsedCount > 1 ? 's' : ''} ({KEY_LABELS.ctrlT}{' '}
                 on placeholder to expand)

@@ -88,10 +88,7 @@ const McpAddChoice = forwardRef<McpAddChoiceHandle, McpAddChoiceProps>(function 
             <Text color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>
                 {item.label}
             </Text>
-            <Text color={isSelected ? 'white' : 'gray'} dimColor={!isSelected}>
-                {' '}
-                - {item.description}
-            </Text>
+            <Text color={isSelected ? 'white' : 'gray'}> - {item.description}</Text>
         </Box>
     );
 

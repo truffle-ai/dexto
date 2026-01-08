@@ -27,8 +27,8 @@ export function SetupInfoBanner({
     return (
         <Box flexDirection="column" marginBottom={1}>
             <Text color="blue">ℹ {title}</Text>
-            <Text dimColor>{description}</Text>
-            {docsUrl && <Text dimColor>Setup guide: {docsUrl}</Text>}
+            <Text color="gray">{description}</Text>
+            {docsUrl && <Text color="gray">Setup guide: {docsUrl}</Text>}
         </Box>
     );
 }

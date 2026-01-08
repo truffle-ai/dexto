@@ -483,7 +483,7 @@ const SlashCommandAutocompleteInner = forwardRef<
     if (isLoading) {
         return (
             <Box width={terminalWidth} paddingX={0} paddingY={0}>
-                <Text dimColor>Loading commands...</Text>
+                <Text color="gray">Loading commands...</Text>
             </Box>
         );
     }
@@ -525,7 +525,7 @@ const SlashCommandAutocompleteInner = forwardRef<
                             <Text color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>
                                 {nameText}
                             </Text>
-                            <Text color={isSelected ? 'white' : 'gray'} dimColor={!isSelected}>
+                            <Text color={isSelected ? 'white' : 'gray'}>
                                 {'    '}
                                 {descText}
                                 {categoryText}
@@ -559,7 +559,7 @@ const SlashCommandAutocompleteInner = forwardRef<
                         <Text color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>
                             {commandText}
                         </Text>
-                        <Text color={isSelected ? 'white' : 'gray'} dimColor={!isSelected}>
+                        <Text color={isSelected ? 'white' : 'gray'}>
                             {'    '}
                             {description}
                             {` (${sourceLabel})`}

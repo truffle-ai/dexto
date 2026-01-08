@@ -106,7 +106,7 @@ async function installNodeLlamaCpp(): Promise<boolean> {
             if (code === 0) {
                 resolve(true);
             } else {
-                console.error(chalk.dim(stderr));
+                console.error(chalk.gray(stderr));
                 resolve(false);
             }
         });
@@ -130,7 +130,7 @@ async function ensureNodeLlamaCpp(): Promise<boolean> {
     p.note(
         'Local model execution requires node-llama-cpp.\n' +
             'This will compile native bindings for your system.\n\n' +
-            chalk.dim('Installation may take 1-2 minutes.'),
+            chalk.gray('Installation may take 1-2 minutes.'),
         'Dependency Required'
     );
 
@@ -155,7 +155,7 @@ async function ensureNodeLlamaCpp(): Promise<boolean> {
         spinner.stop(chalk.red('✗ Installation failed'));
         p.log.error(
             'Failed to install node-llama-cpp. You can try manually:\n' +
-                chalk.dim('  npm install node-llama-cpp')
+                chalk.gray('  npm install node-llama-cpp')
         );
         return false;
     }
@@ -208,7 +208,7 @@ export async function setupLocalModels(): Promise<LocalModelSetupResult> {
 
     // Only detect GPU if we're going to show model recommendations
     const gpuInfo = await detectGPU();
-    console.log(chalk.dim(`GPU detected: ${formatGPUInfo(gpuInfo)}\n`));
+    console.log(chalk.gray(`GPU detected: ${formatGPUInfo(gpuInfo)}\n`));
 
     // Get recommended models
     const recommendedModels = getRecommendedLocalModels();
@@ -236,14 +236,14 @@ export async function setupLocalModels(): Promise<LocalModelSetupResult> {
     // Add option to skip
     modelOptions.push({
         value: '_skip',
-        label: `${chalk.yellow('→')} Skip for now`,
+        label: `${chalk.rgb(255, 165, 0)('→')} Skip for now`,
         hint: 'Configure later with: dexto models',
     });
 
     // Add back option
     modelOptions.push({
         value: '_back',
-        label: chalk.dim('← Back'),
+        label: chalk.gray('← Back'),
         hint: 'Choose a different provider',
     });
 
@@ -311,7 +311,7 @@ async function ensureOllamaModelAvailable(modelName: string): Promise<boolean> {
     }
 
     // Model not found - offer to pull it
-    console.log(chalk.yellow(`\n⚠️  Model '${modelName}' is not available locally.\n`));
+    console.log(chalk.rgb(255, 165, 0)(`\n⚠️  Model '${modelName}' is not available locally.\n`));
 
     const shouldPull = await p.confirm({
         message: `Pull '${modelName}' from Ollama now?`,
@@ -365,7 +365,7 @@ export async function setupOllamaModels(): Promise<LocalModelSetupResult> {
 
     if (!status.running) {
         p.note(
-            chalk.yellow('Ollama server is not running.\n\n') +
+            chalk.rgb(255, 165, 0)('Ollama server is not running.\n\n') +
                 'To use Ollama:\n' +
                 '  1. Install Ollama: https://ollama.com/download\n' +
                 '  2. Start the server: ollama serve\n' +
@@ -454,7 +454,7 @@ export async function setupOllamaModels(): Promise<LocalModelSetupResult> {
     // Add back option
     modelOptions.push({
         value: '_back',
-        label: chalk.dim('← Back'),
+        label: chalk.gray('← Back'),
         hint: 'Choose a different provider',
     });
 
@@ -550,7 +550,7 @@ async function showAllModelsSelection(installedIds: Set<string>): Promise<LocalM
 
     modelOptions.push({
         value: '_back',
-        label: `${chalk.yellow('←')} Back`,
+        label: `${chalk.rgb(255, 165, 0)('←')} Back`,
         hint: 'Return to recommended models',
     });
 
