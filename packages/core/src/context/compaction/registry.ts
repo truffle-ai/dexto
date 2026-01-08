@@ -1,19 +1,19 @@
-import type { CompressionProvider } from './provider.js';
+import type { CompactionProvider } from './provider.js';
 import { ContextError } from '../errors.js';
 import { BaseRegistry, type RegistryErrorFactory } from '../../providers/base-registry.js';
 
 /**
- * Error factory for compression registry errors.
+ * Error factory for compaction registry errors.
  * Uses ContextError for consistent error handling.
  */
-const compressionErrorFactory: RegistryErrorFactory = {
-    alreadyRegistered: (type: string) => ContextError.compressionProviderAlreadyRegistered(type),
+const compactionErrorFactory: RegistryErrorFactory = {
+    alreadyRegistered: (type: string) => ContextError.compactionProviderAlreadyRegistered(type),
     notFound: (type: string, availableTypes: string[]) =>
-        ContextError.compressionInvalidType(type, availableTypes),
+        ContextError.compactionInvalidType(type, availableTypes),
 };
 
 /**
- * Global registry for compression providers.
+ * Global registry for compaction providers.
  *
  * Follows the same pattern as blob storage and tools registries:
  * - Singleton instance exported
@@ -22,11 +22,11 @@ const compressionErrorFactory: RegistryErrorFactory = {
  *
  * Extends BaseRegistry for common registry functionality.
  */
-class CompressionRegistry extends BaseRegistry<CompressionProvider<any, any>> {
+class CompactionRegistry extends BaseRegistry<CompactionProvider<any, any>> {
     constructor() {
-        super(compressionErrorFactory);
+        super(compactionErrorFactory);
     }
 }
 
 /** Global singleton instance */
-export const compressionRegistry = new CompressionRegistry();
+export const compactionRegistry = new CompactionRegistry();

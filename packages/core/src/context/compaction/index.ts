@@ -17,15 +17,15 @@ export * from './providers/noop-provider.js';
 export * from './overflow.js';
 
 // Register built-in providers
-import { compressionRegistry } from './registry.js';
+import { compactionRegistry } from './registry.js';
 import { reactiveOverflowProvider } from './providers/reactive-overflow-provider.js';
 import { noopProvider } from './providers/noop-provider.js';
 
 // Auto-register built-in providers when module is imported
 // Guard against duplicate registration when module is imported multiple times
-if (!compressionRegistry.has('reactive-overflow')) {
-    compressionRegistry.register(reactiveOverflowProvider);
+if (!compactionRegistry.has('reactive-overflow')) {
+    compactionRegistry.register(reactiveOverflowProvider);
 }
-if (!compressionRegistry.has('noop')) {
-    compressionRegistry.register(noopProvider);
+if (!compactionRegistry.has('noop')) {
+    compactionRegistry.register(noopProvider);
 }

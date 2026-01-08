@@ -26,13 +26,13 @@ export enum ContextErrorCode {
     // (removed) Token processing wrappers; domain errors bubble up
     // (removed) Provider/model required; validated at LLM or agent layer
 
-    // Compression strategy configuration errors
+    // Compaction strategy configuration errors
     PRESERVE_VALUES_NEGATIVE = 'context_preserve_values_negative',
     MIN_MESSAGES_NEGATIVE = 'context_min_messages_negative',
-    COMPRESSION_INVALID_TYPE = 'context_compression_invalid_type',
-    COMPRESSION_VALIDATION = 'context_compression_validation',
-    COMPRESSION_MISSING_LLM = 'context_compression_missing_llm',
-    COMPRESSION_PROVIDER_ALREADY_REGISTERED = 'context_compression_provider_already_registered',
+    COMPACTION_INVALID_TYPE = 'context_compaction_invalid_type',
+    COMPACTION_VALIDATION = 'context_compaction_validation',
+    COMPACTION_MISSING_LLM = 'context_compaction_missing_llm',
+    COMPACTION_PROVIDER_ALREADY_REGISTERED = 'context_compaction_provider_already_registered',
 
     // Message lookup errors
     MESSAGE_NOT_FOUND = 'context_message_not_found',

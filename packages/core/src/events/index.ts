@@ -62,7 +62,7 @@ export const SESSION_EVENT_NAMES = [
     'llm:switched',
     'llm:unsupported-input',
     'tool:running',
-    'context:compressed',
+    'context:compacted',
     'context:pruned',
     'message:queued',
     'message:dequeued',
@@ -105,7 +105,7 @@ export const STREAMING_EVENTS = [
     'tool:running',
 
     // Context management events
-    'context:compressed',
+    'context:compacted',
     'context:pruned',
 
     // Message queue events (for mid-task user guidance)
@@ -388,14 +388,14 @@ export interface AgentEventMap {
         sessionId: string;
     };
 
-    /** Context was compressed during multi-step tool calling */
-    'context:compressed': {
-        /** Actual input tokens from API that triggered compression */
+    /** Context was compacted during multi-step tool calling */
+    'context:compacted': {
+        /** Actual input tokens from API that triggered compaction */
         originalTokens: number;
-        /** Estimated tokens after compression (simple length/4 heuristic) */
-        compressedTokens: number;
+        /** Estimated tokens after compaction (simple length/4 heuristic) */
+        compactedTokens: number;
         originalMessages: number;
-        compressedMessages: number;
+        compactedMessages: number;
         strategy: string;
         reason: 'overflow' | 'token_limit' | 'message_limit';
         sessionId: string;
@@ -571,14 +571,14 @@ export interface SessionEventMap {
         details?: any;
     };
 
-    /** Context was compressed during multi-step tool calling */
-    'context:compressed': {
-        /** Actual input tokens from API that triggered compression */
+    /** Context was compacted during multi-step tool calling */
+    'context:compacted': {
+        /** Actual input tokens from API that triggered compaction */
         originalTokens: number;
-        /** Estimated tokens after compression (simple length/4 heuristic) */
-        compressedTokens: number;
+        /** Estimated tokens after compaction (simple length/4 heuristic) */
+        compactedTokens: number;
         originalMessages: number;
-        compressedMessages: number;
+        compactedMessages: number;
         strategy: string;
         reason: 'overflow' | 'token_limit' | 'message_limit';
     };

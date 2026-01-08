@@ -1,5 +1,5 @@
 import { generateText, type LanguageModel } from 'ai';
-import type { ICompressionStrategy } from '../types.js';
+import type { ICompactionStrategy } from '../types.js';
 import type { InternalMessage, ToolCall } from '../../types.js';
 import { isAssistantMessage, isToolMessage } from '../../types.js';
 import type { IDextoLogger } from '../../../logger/v2/types.js';
@@ -44,7 +44,7 @@ Conversation:
 };
 
 /**
- * ReactiveOverflowStrategy implements reactive compression.
+ * ReactiveOverflowStrategy implements reactive compaction.
  *
  * Key behaviors:
  * - Triggers on overflow (after actual tokens exceed context limit)
@@ -62,7 +62,7 @@ Conversation:
  * and filterCompacted() handles excluding old messages at read-time.
  * This preserves full history for audit/recovery purposes.
  */
-export class ReactiveOverflowStrategy implements ICompressionStrategy {
+export class ReactiveOverflowStrategy implements ICompactionStrategy {
     readonly name = 'reactive-overflow';
 
     private readonly model: LanguageModel;
@@ -86,10 +86,10 @@ export class ReactiveOverflowStrategy implements ICompressionStrategy {
      * @param history The full conversation history
      * @returns Array with single summary message to add, or empty if nothing to summarize
      */
-    async compress(history: readonly InternalMessage[]): Promise<InternalMessage[]> {
-        // Don't compress if history is too short
+    async compact(history: readonly InternalMessage[]): Promise<InternalMessage[]> {
+        // Don't compact if history is too short
         if (history.length <= 2) {
-            this.logger.debug('ReactiveOverflowStrategy: History too short, skipping compression');
+            this.logger.debug('ReactiveOverflowStrategy: History too short, skipping compaction');
             return [];
         }
 

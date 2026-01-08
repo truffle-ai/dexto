@@ -133,45 +133,45 @@ export class ContextError {
         );
     }
 
-    static compressionInvalidType(type: string, available: string[]) {
+    static compactionInvalidType(type: string, available: string[]) {
         return new DextoRuntimeError(
-            ContextErrorCode.COMPRESSION_INVALID_TYPE,
+            ContextErrorCode.COMPACTION_INVALID_TYPE,
             ErrorScope.CONTEXT,
             ErrorType.USER,
-            `Unknown compression provider type: '${type}'`,
+            `Unknown compaction provider type: '${type}'`,
             { type, available },
             `Use one of the available types: ${available.join(', ')}`
         );
     }
 
-    static compressionValidation(type: string, errors: unknown) {
+    static compactionValidation(type: string, errors: unknown) {
         return new DextoRuntimeError(
-            ContextErrorCode.COMPRESSION_VALIDATION,
+            ContextErrorCode.COMPACTION_VALIDATION,
             ErrorScope.CONTEXT,
             ErrorType.USER,
-            `Invalid configuration for compression provider '${type}'`,
+            `Invalid configuration for compaction provider '${type}'`,
             { type, errors },
             'Check the configuration schema for this provider'
         );
     }
 
-    static compressionMissingLLM(type: string) {
+    static compactionMissingLLM(type: string) {
         return new DextoRuntimeError(
-            ContextErrorCode.COMPRESSION_MISSING_LLM,
+            ContextErrorCode.COMPACTION_MISSING_LLM,
             ErrorScope.CONTEXT,
             ErrorType.USER,
-            `Compression provider '${type}' requires LLM service but none provided`,
+            `Compaction provider '${type}' requires LLM service but none provided`,
             { type },
-            'Ensure LLM service is initialized before creating this compression provider'
+            'Ensure LLM service is initialized before creating this compaction provider'
         );
     }
 
-    static compressionProviderAlreadyRegistered(type: string) {
+    static compactionProviderAlreadyRegistered(type: string) {
         return new DextoRuntimeError(
-            ContextErrorCode.COMPRESSION_PROVIDER_ALREADY_REGISTERED,
+            ContextErrorCode.COMPACTION_PROVIDER_ALREADY_REGISTERED,
             ErrorScope.CONTEXT,
             ErrorType.USER,
-            `Compression provider '${type}' is already registered`,
+            `Compaction provider '${type}' is already registered`,
             { type },
             'Each provider type can only be registered once'
         );

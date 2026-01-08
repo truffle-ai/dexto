@@ -1,5 +1,5 @@
 import { blobStoreRegistry } from '../storage/blob/index.js';
-import { compressionRegistry } from '../context/compression/index.js';
+import { compactionRegistry } from '../context/compaction/index.js';
 import { customToolRegistry } from '../tools/custom-tool-registry.js';
 import { INTERNAL_TOOL_NAMES } from '../tools/internal-tools/constants.js';
 import { INTERNAL_TOOL_REGISTRY } from '../tools/internal-tools/registry.js';
@@ -12,7 +12,7 @@ export interface DiscoveredProvider {
     type: string;
 
     /** Provider category */
-    category: 'blob' | 'compression' | 'customTools';
+    category: 'blob' | 'compaction' | 'customTools';
 
     /** Optional metadata about the provider */
     metadata?:
@@ -42,8 +42,8 @@ export interface ProviderDiscovery {
     /** Blob storage providers */
     blob: DiscoveredProvider[];
 
-    /** Compression strategy providers */
-    compression: DiscoveredProvider[];
+    /** Compaction strategy providers */
+    compaction: DiscoveredProvider[];
 
     /** Custom tool providers */
     customTools: DiscoveredProvider[];
@@ -55,7 +55,7 @@ export interface ProviderDiscovery {
 /**
  * Provider category type.
  */
-export type ProviderCategory = 'blob' | 'compression' | 'customTools';
+export type ProviderCategory = 'blob' | 'compaction' | 'customTools';
 
 /**
  * List all registered providers across all registries.
@@ -70,7 +70,7 @@ export type ProviderCategory = 'blob' | 'compression' | 'customTools';
  * ```typescript
  * const providers = listAllProviders();
  * console.log('Available blob providers:', providers.blob);
- * console.log('Available compression providers:', providers.compression);
+ * console.log('Available compaction providers:', providers.compaction);
  * console.log('Available custom tool providers:', providers.customTools);
  * ```
  */
@@ -87,11 +87,11 @@ export function listAllProviders(): ProviderDiscovery {
         return info;
     });
 
-    // Get compression providers
-    const compressionProviders = compressionRegistry.getAll().map((provider) => {
+    // Get compaction providers
+    const compactionProviders = compactionRegistry.getAll().map((provider) => {
         const info: DiscoveredProvider = {
             type: provider.type,
-            category: 'compression',
+            category: 'compaction',
         };
         if (provider.metadata) {
             info.metadata = provider.metadata;
@@ -120,7 +120,7 @@ export function listAllProviders(): ProviderDiscovery {
 
     return {
         blob: blobProviders,
-        compression: compressionProviders,
+        compaction: compactionProviders,
         customTools: customToolProviders,
         internalTools,
     };
@@ -158,8 +158,8 @@ export function getProvidersByCategory(category: ProviderCategory): DiscoveredPr
  *   console.log('S3 blob storage is available');
  * }
  *
- * if (hasProvider('compression', 'reactive-overflow')) {
- *   console.log('Reactive overflow compression is available');
+ * if (hasProvider('compaction', 'reactive-overflow')) {
+ *   console.log('Reactive overflow compaction is available');
  * }
  * ```
  */
@@ -167,8 +167,8 @@ export function hasProvider(category: ProviderCategory, type: string): boolean {
     switch (category) {
         case 'blob':
             return blobStoreRegistry.has(type);
-        case 'compression':
-            return compressionRegistry.has(type);
+        case 'compaction':
+            return compactionRegistry.has(type);
         case 'customTools':
             return customToolRegistry.has(type);
         default:

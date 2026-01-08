@@ -1,6 +1,6 @@
 import { createDatabaseHistoryProvider } from './history/factory.js';
 import { createLLMService, createVercelModel } from '../llm/services/factory.js';
-import { createCompressionStrategy } from '../context/compression/index.js';
+import { createCompactionStrategy } from '../context/compaction/index.js';
 import type { ContextManager } from '@core/context/index.js';
 import type { IConversationHistoryProvider } from './history/types.js';
 import type { VercelLLMService } from '../llm/services/vercel.js';
@@ -247,9 +247,9 @@ export class ChatSession {
             this.logger
         );
 
-        // Create model and compression strategy from config
+        // Create model and compaction strategy from config
         const model = createVercelModel(llmConfig);
-        const compressionStrategy = await createCompressionStrategy(runtimeConfig.compression, {
+        const compactionStrategy = await createCompactionStrategy(runtimeConfig.compaction, {
             logger: this.logger,
             model,
         });
@@ -265,7 +265,7 @@ export class ChatSession {
             this.id,
             this.services.resourceManager, // Pass ResourceManager for blob storage
             this.logger, // Pass logger for dependency injection
-            compressionStrategy // Pass compression strategy
+            compactionStrategy // Pass compaction strategy
         );
 
         this.logger.debug(`ChatSession ${this.id}: Services initialized with storage`);
@@ -618,9 +618,9 @@ export class ChatSession {
             // Get compression config for this session
             const runtimeConfig = this.services.stateManager.getRuntimeConfig(this.id);
 
-            // Create model and compression strategy from config
+            // Create model and compaction strategy from config
             const model = createVercelModel(newLLMConfig);
-            const compressionStrategy = await createCompressionStrategy(runtimeConfig.compression, {
+            const compactionStrategy = await createCompactionStrategy(runtimeConfig.compaction, {
                 logger: this.logger,
                 model,
             });
@@ -636,7 +636,7 @@ export class ChatSession {
                 this.id,
                 this.services.resourceManager,
                 this.logger,
-                compressionStrategy // Pass compression strategy
+                compactionStrategy // Pass compaction strategy
             );
 
             // Replace the LLM service

@@ -27,7 +27,7 @@ const DEFAULT_OUTPUT_BUFFER = 16_000;
  *
  * @param tokens The actual token usage from the last LLM API call
  * @param modelLimits The model's context window and output limits
- * @returns true if context has overflowed and compression is needed
+ * @returns true if context has overflowed and compaction is needed
  */
 export function isOverflow(tokens: TokenUsage, modelLimits: ModelLimits): boolean {
     const { contextWindow, maxOutput } = modelLimits;
@@ -44,13 +44,13 @@ export function isOverflow(tokens: TokenUsage, modelLimits: ModelLimits): boolea
 }
 
 /**
- * Calculate the compression target - how many tokens we need to reduce to.
+ * Calculate the compaction target - how many tokens we need to reduce to.
  *
  * @param modelLimits The model's context window and output limits
  * @param targetPercentage What percentage of usable context to target (default 70%)
- * @returns The target token count after compression
+ * @returns The target token count after compaction
  */
-export function getCompressionTarget(
+export function getCompactionTarget(
     modelLimits: ModelLimits,
     targetPercentage: number = 0.7
 ): number {
