@@ -1,4 +1,5 @@
 import type { Server } from 'node:http';
+import type { Context } from 'hono';
 import type { DextoAgent, AgentCard } from '@dexto/core';
 import { createAgentCard, logger } from '@dexto/core';
 import { createDextoApp } from './index.js';
@@ -105,7 +106,7 @@ export async function startDextoServer(
     // Create Hono app
     logger.debug('Creating Hono application...');
     const app = createDextoApp({
-        getAgent: () => agent,
+        getAgent: (_ctx: Context) => agent,
         getAgentCard: () => agentCard,
         approvalCoordinator,
         webhookSubscriber,

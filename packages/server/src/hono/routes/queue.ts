@@ -1,6 +1,8 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { DextoAgent, ContentPart } from '@dexto/core';
 import { ContentPartSchema } from '../schemas/responses.js';
+import type { Context } from 'hono';
+type GetAgentFn = (ctx: Context) => DextoAgent | Promise<DextoAgent>;
 
 // Schema for queued message in responses
 const QueuedMessageSchema = z
@@ -53,7 +55,7 @@ const QueueMessageBodySchema = z
     })
     .describe('Request body for queueing a message');
 
-export function createQueueRouter(getAgent: () => DextoAgent) {
+export function createQueueRouter(getAgent: GetAgentFn) {
     const app = new OpenAPIHono();
 
     // GET /queue/:sessionId - Get all queued messages
@@ -184,7 +186,7 @@ export function createQueueRouter(getAgent: () => DextoAgent) {
 
     return app
         .openapi(getQueueRoute, async (ctx) => {
-            const agent = getAgent();
+            const agent = await getAgent(ctx);
             const { sessionId } = ctx.req.valid('param');
 
             const messages = await agent.getQueuedMessages(sessionId);
@@ -194,7 +196,7 @@ export function createQueueRouter(getAgent: () => DextoAgent) {
             });
         })
         .openapi(queueMessageRoute, async (ctx) => {
-            const agent = getAgent();
+            const agent = await getAgent(ctx);
             const { sessionId } = ctx.req.valid('param');
             const { content: rawContent } = ctx.req.valid('json');
 
@@ -217,7 +219,7 @@ export function createQueueRouter(getAgent: () => DextoAgent) {
             );
         })
         .openapi(removeQueuedMessageRoute, async (ctx) => {
-            const agent = getAgent();
+            const agent = await getAgent(ctx);
             const { sessionId, messageId } = ctx.req.valid('param');
 
             const removed = await agent.removeQueuedMessage(sessionId, messageId);
@@ -227,7 +229,7 @@ export function createQueueRouter(getAgent: () => DextoAgent) {
             return ctx.json({ removed: true, id: messageId });
         })
         .openapi(clearQueueRoute, async (ctx) => {
-            const agent = getAgent();
+            const agent = await getAgent(ctx);
             const { sessionId } = ctx.req.valid('param');
 
             const count = await agent.clearMessageQueue(sessionId);

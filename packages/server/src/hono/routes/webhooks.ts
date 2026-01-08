@@ -2,6 +2,8 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { DextoAgent } from '@dexto/core';
 import { WebhookEventSubscriber } from '../../events/webhook-subscriber.js';
 import type { WebhookConfig } from '../../events/webhook-types.js';
+import type { Context } from 'hono';
+type GetAgentFn = (ctx: Context) => DextoAgent | Promise<DextoAgent>;
 
 // Response schemas
 const WebhookResponseSchema = z
@@ -36,7 +38,7 @@ const WebhookBodySchema = z
     .describe('Request body for registering a webhook');
 
 export function createWebhooksRouter(
-    getAgent: () => DextoAgent,
+    getAgent: GetAgentFn,
     webhookSubscriber: WebhookEventSubscriber
 ) {
     const app = new OpenAPIHono();
@@ -170,7 +172,7 @@ export function createWebhooksRouter(
 
     return app
         .openapi(registerRoute, async (ctx) => {
-            const agent = getAgent();
+            const agent = await getAgent(ctx);
             const { url, secret, description } = ctx.req.valid('json');
 
             const webhookId = `wh_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
@@ -223,8 +225,8 @@ export function createWebhooksRouter(
                 },
             });
         })
-        .openapi(deleteRoute, (ctx) => {
-            const agent = getAgent();
+        .openapi(deleteRoute, async (ctx) => {
+            const agent = await getAgent(ctx);
             const { webhookId } = ctx.req.valid('param');
             const removed = webhookSubscriber.removeWebhook(webhookId);
             if (!removed) {
@@ -234,7 +236,7 @@ export function createWebhooksRouter(
             return ctx.json({ status: 'removed', webhookId });
         })
         .openapi(testRoute, async (ctx) => {
-            const agent = getAgent();
+            const agent = await getAgent(ctx);
             const { webhookId } = ctx.req.valid('param');
             const webhook = webhookSubscriber.getWebhook(webhookId);
 

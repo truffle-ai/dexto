@@ -1,5 +1,7 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { DextoAgent } from '@dexto/core';
+import type { Context } from 'hono';
+type GetAgentFn = (ctx: Context) => DextoAgent | Promise<DextoAgent>;
 
 // JSON Schema definition for tool input parameters
 const JsonSchemaProperty = z
@@ -52,7 +54,7 @@ const AllToolsResponseSchema = z
     .strict()
     .describe('All available tools from all sources');
 
-export function createToolsRouter(getAgent: () => DextoAgent) {
+export function createToolsRouter(getAgent: GetAgentFn) {
     const app = new OpenAPIHono();
 
     const allToolsRoute = createRoute({
@@ -71,7 +73,7 @@ export function createToolsRouter(getAgent: () => DextoAgent) {
     });
 
     return app.openapi(allToolsRoute, async (ctx) => {
-        const agent = getAgent();
+        const agent = await getAgent(ctx);
 
         // Get all tools from all sources
         const allTools = await agent.getAllTools();

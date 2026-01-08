@@ -1,4 +1,5 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
+import type { Context } from 'hono';
 import type { DextoAgent, AgentCard } from '@dexto/core';
 import { createHealthRouter } from './routes/health.js';
 import { createGreetingRouter } from './routes/greeting.js';
@@ -62,9 +63,12 @@ const dummyAgentsContext: AgentsRouterContext = {
     getActiveAgentId: () => undefined,
 };
 
+// Type for async getAgent with context support
+export type GetAgentFn = (ctx: Context) => DextoAgent | Promise<DextoAgent>;
+
 export type CreateDextoAppOptions = {
     apiPrefix?: string;
-    getAgent: () => DextoAgent;
+    getAgent: GetAgentFn;
     getAgentCard: () => AgentCard;
     approvalCoordinator: ApprovalCoordinator;
     webhookSubscriber: WebhookEventSubscriber;
