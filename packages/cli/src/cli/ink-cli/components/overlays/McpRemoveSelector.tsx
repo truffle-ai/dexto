@@ -101,13 +101,12 @@ const McpRemoveSelector = forwardRef<McpRemoveSelectorHandle, McpRemoveSelectorP
                               ? 'gray'
                               : 'red'
                     }
-                    dimColor={!isSelected}
                 >
                     {' '}
                     - {getStatusText(server.status)}
                 </Text>
                 {server.error && (
-                    <Text color="gray" dimColor>
+                    <Text color="gray">
                         {' '}
                         ({server.error.slice(0, 30)}
                         {server.error.length > 30 ? '...' : ''})

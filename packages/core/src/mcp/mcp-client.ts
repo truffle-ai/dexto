@@ -138,7 +138,6 @@ export class MCPClient extends EventEmitter implements IMCPClient {
             },
             {
                 capabilities: {
-                    tools: {},
                     elicitation: {}, // Enable elicitation capability
                 },
             }
@@ -190,7 +189,6 @@ export class MCPClient extends EventEmitter implements IMCPClient {
             },
             {
                 capabilities: {
-                    tools: {},
                     elicitation: {}, // Enable elicitation capability
                 },
             }
@@ -238,7 +236,6 @@ export class MCPClient extends EventEmitter implements IMCPClient {
             { name: 'Dexto-http-mcp-client', version: '1.0.0' },
             {
                 capabilities: {
-                    tools: {},
                     elicitation: {}, // Enable elicitation capability
                 },
             }

@@ -31,13 +31,13 @@ export function ShellRenderer({ data, maxLines = 5 }: ShellRendererProps) {
 
     // No output - show "(No content)"
     if (lines.length === 0) {
-        return <Text dimColor>{'  ⎿ '}(No content)</Text>;
+        return <Text color="gray">{'  ⎿ '}(No content)</Text>;
     }
 
     // Single line output - show inline
     if (lines.length === 1 && lines[0]) {
         return (
-            <Text dimColor>
+            <Text color="gray">
                 {'  ⎿ '}
                 {lines[0]}
             </Text>
@@ -49,13 +49,13 @@ export function ShellRenderer({ data, maxLines = 5 }: ShellRendererProps) {
     return (
         <Box flexDirection="column">
             {displayLines.map((line, i) => (
-                <Text key={i} dimColor wrap="truncate">
+                <Text key={i} color="gray" wrap="truncate">
                     {i === 0 ? '  ⎿ ' : '    '}
                     {line}
                 </Text>
             ))}
             {truncatedCount > 0 && (
-                <Text dimColor>
+                <Text color="gray">
                     {'    '}+{truncatedCount} lines
                 </Text>
             )}

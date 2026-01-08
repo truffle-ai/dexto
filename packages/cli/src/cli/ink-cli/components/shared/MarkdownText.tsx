@@ -121,7 +121,7 @@ function segmentsToAnsi(segments: InlineSegment[], defaultColor: string): string
                 case 'code':
                     return chalk.cyan(segment.content);
                 case 'italic':
-                    return colorFn.dim(segment.content);
+                    return chalk.gray(segment.content);
                 case 'strikethrough':
                     return colorFn.strikethrough(segment.content);
                 case 'link':
@@ -151,11 +151,13 @@ function getChalkColor(color: string): typeof chalk {
         case 'green':
             return chalk.green;
         case 'yellow':
-            return chalk.yellow;
+            return chalk.rgb(255, 165, 0);
+        case 'orange':
+            return chalk.rgb(255, 165, 0);
         case 'red':
             return chalk.red;
         case 'magenta':
-            return chalk.magenta;
+            return chalk.green;
         default:
             return chalk.white;
     }
@@ -272,7 +274,7 @@ const RenderInlineInternal: React.FC<RenderInlineProps> = ({
                         );
                     case 'italic':
                         return (
-                            <Text key={i} bold={baseBold} dimColor color={defaultColor}>
+                            <Text key={i} bold={baseBold} color="gray">
                                 {segment.content}
                             </Text>
                         );
@@ -402,7 +404,7 @@ const MarkdownTextInternal: React.FC<MarkdownTextProps> = ({
         if (hrRegex.test(trimmedLine)) {
             blocks.push(
                 <Box key={key}>
-                    <Text dimColor>{'─'.repeat(40)}</Text>
+                    <Text color="gray">{'─'.repeat(40)}</Text>
                 </Box>
             );
             return;
@@ -584,22 +586,14 @@ const RenderCodeBlockInternal: React.FC<RenderCodeBlockProps> = ({
 }) => {
     return (
         <Box flexDirection="column" marginTop={1} marginBottom={1}>
-            {language && (
-                <Text dimColor color="gray">
-                    {language}
-                </Text>
-            )}
+            {language && <Text color="gray">{language}</Text>}
             <Box flexDirection="column" paddingLeft={1}>
                 {lines.map((line, i) => (
-                    <Text key={i} color="yellow">
+                    <Text key={i} color="cyan">
                         {line}
                     </Text>
                 ))}
-                {isPending && (
-                    <Text dimColor color="gray">
-                        ...
-                    </Text>
-                )}
+                {isPending && <Text color="gray">...</Text>}
             </Box>
         </Box>
     );

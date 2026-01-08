@@ -17,7 +17,7 @@ export function ConfigBox({ data }: ConfigBoxProps) {
             {/* Config file path at the top */}
             {data.configFilePath && (
                 <Box>
-                    <Text dimColor>Agent config: </Text>
+                    <Text color="gray">Agent config: </Text>
                     <Text color="blue">{data.configFilePath}</Text>
                 </Box>
             )}
@@ -50,13 +50,13 @@ export function ConfigBox({ data }: ConfigBoxProps) {
                         </Box>
                     ))
                 ) : (
-                    <Text dimColor>No MCP servers configured</Text>
+                    <Text color="gray">No MCP servers configured</Text>
                 )}
             </StyledSection>
 
             {data.promptsCount > 0 && (
                 <StyledSection title="Prompts">
-                    <Text dimColor>{data.promptsCount} prompt(s) configured</Text>
+                    <Text color="gray">{data.promptsCount} prompt(s) configured</Text>
                 </StyledSection>
             )}
 
@@ -72,7 +72,7 @@ export function ConfigBox({ data }: ConfigBoxProps) {
 
             {/* Footer note about CLI-populated fields */}
             <Box marginTop={1}>
-                <Text dimColor italic>
+                <Text color="gray" italic>
                     Note: Some fields (logs, database paths) are auto-populated by the CLI.
                 </Text>
             </Box>

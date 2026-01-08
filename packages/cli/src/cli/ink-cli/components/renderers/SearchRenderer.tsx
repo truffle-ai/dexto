@@ -28,7 +28,7 @@ export function SearchRenderer({ data, maxMatches = 5 }: SearchRendererProps) {
     return (
         <Box flexDirection="column">
             {/* Summary header */}
-            <Text dimColor>
+            <Text color="gray">
                 {'  ⎿ '}
                 {totalMatches} match{totalMatches !== 1 ? 'es' : ''} for "{pattern}"
                 {truncated && ' (truncated)'}
@@ -36,7 +36,7 @@ export function SearchRenderer({ data, maxMatches = 5 }: SearchRendererProps) {
 
             {/* Match results - file paths only for clean output */}
             {displayMatches.map((match, i) => (
-                <Text key={i} dimColor>
+                <Text key={i} color="gray">
                     {'    '}
                     {match.file}
                     {match.line > 0 && `:${match.line}`}
@@ -44,7 +44,7 @@ export function SearchRenderer({ data, maxMatches = 5 }: SearchRendererProps) {
             ))}
 
             {matches.length > maxMatches && (
-                <Text dimColor>
+                <Text color="gray">
                     {'    '}... {matches.length - maxMatches} more
                 </Text>
             )}

@@ -29,7 +29,7 @@ export function MessageList({ messages, maxVisible = 50 }: MessageListProps) {
         <Box flexDirection="column" flexGrow={1} paddingX={1} paddingY={1}>
             {hasMoreMessages && (
                 <Box marginBottom={1}>
-                    <Text color="gray" dimColor>
+                    <Text color="gray">
                         ... ({messages.length - maxVisible} earlier messages hidden)
                     </Text>
                 </Box>

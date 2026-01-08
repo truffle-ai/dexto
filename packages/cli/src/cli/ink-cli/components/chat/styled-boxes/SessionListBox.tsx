@@ -16,10 +16,10 @@ export function SessionListBox({ data }: SessionListBoxProps) {
         return (
             <StyledBox title="Sessions">
                 <Box marginTop={1}>
-                    <Text dimColor>No sessions found.</Text>
+                    <Text color="gray">No sessions found.</Text>
                 </Box>
                 <Box marginTop={1}>
-                    <Text dimColor>Run `dexto` to start a new session.</Text>
+                    <Text color="gray">Run `dexto` to start a new session.</Text>
                 </Box>
             </StyledBox>
         );
@@ -35,16 +35,16 @@ export function SessionListBox({ data }: SessionListBoxProps) {
                         </Text>
                     </Box>
                     <Box width={14}>
-                        <Text dimColor>{session.messageCount} messages</Text>
+                        <Text color="gray">{session.messageCount} messages</Text>
                     </Box>
-                    <Text dimColor>{session.lastActive}</Text>
+                    <Text color="gray">{session.lastActive}</Text>
                 </Box>
             ))}
             <Box marginTop={1}>
-                <Text dimColor>Total: {data.total} sessions</Text>
+                <Text color="gray">Total: {data.total} sessions</Text>
             </Box>
             <Box>
-                <Text dimColor>Use /resume to switch sessions</Text>
+                <Text color="gray">Use /resume to switch sessions</Text>
             </Box>
         </StyledBox>
     );

@@ -209,7 +209,7 @@ export async function handleListAgentsCommand(
         }
         console.log();
     } else if (showInstalled) {
-        console.log(chalk.yellow('📦 No agents installed yet.'));
+        console.log(chalk.rgb(255, 165, 0)('📦 No agents installed yet.'));
         console.log(
             chalk.gray('   Use `dexto install <agent-name>` to install agents from the registry.\n')
         );
@@ -242,7 +242,7 @@ export async function handleListAgentsCommand(
         }
 
         if (customAgents.length > 0) {
-            console.log(chalk.magenta('🔧 Custom Agents Available:'));
+            console.log(chalk.cyan('🔧 Custom Agents Available:'));
 
             for (const agent of customAgents) {
                 if (validated.verbose) {

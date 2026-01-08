@@ -95,7 +95,7 @@ async function handleApiKeyError(
     errors: string[],
     validationOptions?: LLMValidationOptions
 ): Promise<ValidationResult> {
-    console.log(chalk.yellow(`\n🔑 API key issue detected for ${provider} provider\n`));
+    console.log(chalk.rgb(255, 165, 0)(`\n🔑 API key issue detected for ${provider} provider\n`));
 
     const action = await p.select({
         message: 'How would you like to proceed?',
@@ -152,7 +152,7 @@ async function handleBaseURLError(
     errors: string[],
     validationOptions?: LLMValidationOptions
 ): Promise<ValidationResult> {
-    console.log(chalk.yellow(`\n🌐 Base URL required for ${provider} provider\n`));
+    console.log(chalk.rgb(255, 165, 0)(`\n🌐 Base URL required for ${provider} provider\n`));
 
     const providerExamples: Record<string, string> = {
         'openai-compatible': 'http://localhost:11434/v1 (Ollama)',
@@ -166,7 +166,7 @@ async function handleBaseURLError(
             `The ${provider} provider requires a base URL to connect to your`,
             `local or custom LLM endpoint.`,
             ``,
-            `${chalk.dim('Example:')} ${example}`,
+            `${chalk.gray('Example:')} ${example}`,
         ].join('\n'),
         'Base URL Required'
     );
@@ -296,7 +296,7 @@ async function interactiveBaseURLSetup(
                 ``,
                 `File: ${getGlobalPreferencesPath()}`,
             ].join('\n'),
-            chalk.yellow('Manual Setup Required')
+            chalk.rgb(255, 165, 0)('Manual Setup Required')
         );
 
         // Still return success with the URL for in-memory use
@@ -308,7 +308,7 @@ async function interactiveBaseURLSetup(
  * Handle non-API-key validation errors interactively
  */
 async function handleOtherErrors(errors: string[]): Promise<ValidationResult> {
-    console.log(chalk.yellow('\n⚠️  Configuration issues detected:\n'));
+    console.log(chalk.rgb(255, 165, 0)('\n⚠️  Configuration issues detected:\n'));
     for (const error of errors) {
         console.log(chalk.red(`  • ${error}`));
     }
@@ -359,7 +359,7 @@ async function handleOtherErrors(errors: string[]): Promise<ValidationResult> {
  * Show validation errors in a user-friendly way
  */
 function showValidationErrors(errors: string[]): void {
-    console.log(chalk.yellow('\n⚠️  Configuration issues detected:\n'));
+    console.log(chalk.rgb(255, 165, 0)('\n⚠️  Configuration issues detected:\n'));
     for (const error of errors) {
         console.log(chalk.red(`  • ${error}`));
     }
@@ -392,9 +392,9 @@ function showManualEditInstructions(): void {
             ``,
             `Edit the appropriate file and run dexto again.`,
             ``,
-            chalk.dim('Example commands:'),
-            chalk.dim(`  code ${prefsPath}     # Open in VS Code`),
-            chalk.dim(`  nano ${prefsPath}     # Edit in terminal`),
+            chalk.gray('Example commands:'),
+            chalk.gray(`  code ${prefsPath}     # Open in VS Code`),
+            chalk.gray(`  nano ${prefsPath}     # Edit in terminal`),
         ].join('\n'),
         'Manual Configuration'
     );
@@ -528,7 +528,7 @@ export async function validateAgentConfigOrExit(
     }
 
     // Last resort: exit with helpful message
-    console.log(chalk.yellow('\nUnable to start with current configuration.'));
+    console.log(chalk.rgb(255, 165, 0)('\nUnable to start with current configuration.'));
     showNextSteps();
     process.exit(1);
 }

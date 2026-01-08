@@ -54,7 +54,7 @@ export function StatusBar({
     if (copyModeEnabled) {
         return (
             <Box paddingX={1} marginBottom={0}>
-                <Text color="yellow" bold>
+                <Text color="yellowBright" bold>
                     📋 Copy Mode - Select text with mouse. Press any key to exit.
                 </Text>
             </Box>
@@ -71,12 +71,13 @@ export function StatusBar({
         return null;
     }
 
-    // Show initial processing state (before streaming starts) - magenta color
+    // Show initial processing state (before streaming starts) - green/teal color
     // TODO: Rename this event/state to "reasoning" and associate it with actual reasoning tokens
     // Currently "thinking" event fires before any response, not during reasoning token generation
     if (isThinking) {
         const metaParts: string[] = [];
         if (showTime) metaParts.push(`(${elapsedTime})`);
+        if (tokenCount) metaParts.push(tokenCount);
         metaParts.push('Esc to cancel');
         const metaContent = metaParts.join(' • ');
 
@@ -84,22 +85,20 @@ export function StatusBar({
             <Box paddingX={1} marginTop={1} marginBottom={1} flexDirection="column">
                 {/* Line 1: spinner + phrase */}
                 <Box flexDirection="row" alignItems="center">
-                    <Text color="magenta">
+                    <Text color="green">
                         <Spinner type="dots" />
                     </Text>
-                    <Text color="magenta"> {phrase}</Text>
+                    <Text color="green"> {phrase}</Text>
                 </Box>
                 {/* Line 2: meta info */}
                 <Box marginLeft={2}>
-                    <Text color="gray" dimColor>
-                        {metaContent}
-                    </Text>
+                    <Text color="gray">{metaContent}</Text>
                 </Box>
             </Box>
         );
     }
 
-    // Show active streaming state - cyan color
+    // Show active streaming state - green/teal color
     // Always use 2-line layout: phrase on first line, meta on second
     // This prevents truncation and messy wrapping on any terminal width
     const metaParts: string[] = [];
@@ -112,19 +111,17 @@ export function StatusBar({
         <Box paddingX={1} marginTop={1} marginBottom={1} flexDirection="column">
             {/* Line 1: spinner + phrase + queue count */}
             <Box flexDirection="row" alignItems="center">
-                <Text color="cyan">
+                <Text color="green">
                     <Spinner type="dots" />
                 </Text>
-                <Text color="cyan"> {phrase}</Text>
+                <Text color="green"> {phrase}</Text>
                 {approvalQueueCount > 0 && (
-                    <Text color="yellow"> • {approvalQueueCount} queued</Text>
+                    <Text color="yellowBright"> • {approvalQueueCount} queued</Text>
                 )}
             </Box>
             {/* Line 2: meta info (time, tokens, cancel hint) */}
             <Box marginLeft={2}>
-                <Text color="gray" dimColor>
-                    {metaContent}
-                </Text>
+                <Text color="gray">{metaContent}</Text>
             </Box>
         </Box>
     );

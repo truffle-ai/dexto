@@ -21,20 +21,13 @@ export function HistorySearchBar({ query, hasMatch }: HistorySearchBarProps) {
     return (
         <Box flexDirection="column" paddingX={1}>
             {/* Hints on separate line above */}
-            <Text color="gray" dimColor>
-                Ctrl+R: older, Ctrl+E: newer, Enter: accept, Esc: cancel
-            </Text>
+            <Text color="gray">Ctrl+R: older, Ctrl+E: newer, Enter: accept, Esc: cancel</Text>
             {/* Search query line */}
             <Box>
                 <Text color="green">search history: </Text>
                 <Text color="cyan">{query}</Text>
                 <Text color="gray">_</Text>
-                {query && !hasMatch && (
-                    <Text color="red" dimColor>
-                        {' '}
-                        (no match)
-                    </Text>
-                )}
+                {query && !hasMatch && <Text color="red"> (no match)</Text>}
             </Box>
         </Box>
     );

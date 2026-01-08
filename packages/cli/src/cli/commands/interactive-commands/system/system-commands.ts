@@ -46,7 +46,7 @@ export const systemCommands: CommandDefinition[] = [
                 if (logFilePath) {
                     console.log(`  Log file: ${chalk.cyan(logFilePath)}`);
                 }
-                console.log(chalk.dim('\n  Available levels (from least to most verbose):'));
+                console.log(chalk.gray('\n  Available levels (from least to most verbose):'));
                 validLevels.forEach((lvl) => {
                     const isCurrent = lvl === currentLevel;
                     const marker = isCurrent ? chalk.green('▶') : ' ';
@@ -54,7 +54,7 @@ export const systemCommands: CommandDefinition[] = [
                     console.log(`  ${marker} ${levelText}`);
                 });
                 console.log(
-                    chalk.dim('\n  💡 Use /log <level> to change level (e.g., /log debug)\n')
+                    chalk.gray('\n  💡 Use /log <level> to change level (e.g., /log debug)\n')
                 );
 
                 const output = [
@@ -79,7 +79,7 @@ export const systemCommands: CommandDefinition[] = [
             } else {
                 const errorMsg = `❌ Invalid log level: ${level}\nValid levels: ${validLevels.join(', ')}`;
                 console.log(chalk.red(`❌ Invalid log level: ${chalk.bold(level)}`));
-                console.log(chalk.dim(`Valid levels: ${validLevels.join(', ')}`));
+                console.log(chalk.gray(`Valid levels: ${validLevels.join(', ')}`));
                 return formatForInkCli(errorMsg);
             }
         },

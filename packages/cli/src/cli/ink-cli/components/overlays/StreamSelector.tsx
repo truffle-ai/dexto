@@ -83,10 +83,7 @@ const StreamSelector = forwardRef<StreamSelectorHandle, StreamSelectorProps>(
                 <Text color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>
                     {option.label}
                 </Text>
-                <Text color={isSelected ? 'white' : 'gray'} dimColor={!isSelected}>
-                    {' '}
-                    - {option.description}
-                </Text>
+                <Text color={isSelected ? 'white' : 'gray'}> - {option.description}</Text>
                 {option.isCurrent && (
                     <Text color="green" bold>
                         {' '}

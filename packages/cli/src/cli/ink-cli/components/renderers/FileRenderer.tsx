@@ -27,7 +27,7 @@ export function FileRenderer({ data }: FileRendererProps) {
         // Format: "Read N lines"
         const lineText = lineCount !== undefined ? `${lineCount} lines` : 'file';
         return (
-            <Text dimColor>
+            <Text color="gray">
                 {'  ⎿ '}Read {lineText}
             </Text>
         );
@@ -37,7 +37,7 @@ export function FileRenderer({ data }: FileRendererProps) {
     if (operation === 'write' || operation === 'create') {
         const lineText = lineCount !== undefined ? `${lineCount} lines` : 'content';
         return (
-            <Text dimColor>
+            <Text color="gray">
                 {'  ⎿ '}Wrote {lineText}
             </Text>
         );
@@ -45,12 +45,12 @@ export function FileRenderer({ data }: FileRendererProps) {
 
     // Delete operation
     if (operation === 'delete') {
-        return <Text dimColor>{'  ⎿ '}Deleted file</Text>;
+        return <Text color="gray">{'  ⎿ '}Deleted file</Text>;
     }
 
     // Fallback
     return (
-        <Text dimColor>
+        <Text color="gray">
             {'  ⎿ '}
             {operation}
         </Text>

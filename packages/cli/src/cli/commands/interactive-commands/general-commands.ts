@@ -71,7 +71,7 @@ export const generalCommands: CommandDefinition[] = [
             _agent: DextoAgent,
             _ctx: CommandContext
         ): Promise<boolean | string> => {
-            console.log(chalk.yellow('Exiting AI CLI. Goodbye!'));
+            console.log(chalk.rgb(255, 165, 0)('Exiting AI CLI. Goodbye!'));
             process.exit(0);
         },
     },

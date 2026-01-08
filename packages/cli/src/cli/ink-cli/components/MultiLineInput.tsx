@@ -27,7 +27,7 @@ export default function MultiLineInput({ value, placeholder, prompt = '> ' }: Mu
                 <Text color="green" bold>
                     {prompt}
                 </Text>
-                <Text dimColor>{placeholder}</Text>
+                <Text color="gray">{placeholder}</Text>
             </Box>
         );
     }
@@ -40,9 +40,7 @@ export default function MultiLineInput({ value, placeholder, prompt = '> ' }: Mu
         <Box flexDirection="column">
             {startOffset > 0 && (
                 <Box>
-                    <Text color="gray" dimColor>
-                        ... ({startOffset} more lines above)
-                    </Text>
+                    <Text color="gray">... ({startOffset} more lines above)</Text>
                 </Box>
             )}
             {visibleLines.map((line, index) => {
@@ -54,11 +52,7 @@ export default function MultiLineInput({ value, placeholder, prompt = '> ' }: Mu
                                 {prompt}
                             </Text>
                         )}
-                        {index > 0 && (
-                            <Text color="green" dimColor>
-                                {' '.repeat(prompt.length)}
-                            </Text>
-                        )}
+                        {index > 0 && <Text color="green">{' '.repeat(prompt.length)}</Text>}
                         <Text wrap="wrap">{line || ' '}</Text>
                     </Box>
                 );

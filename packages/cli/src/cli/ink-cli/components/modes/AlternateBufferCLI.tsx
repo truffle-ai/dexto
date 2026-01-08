@@ -284,7 +284,7 @@ export function AlternateBufferCLI({
                 {/* Selection hint when user tries to select without Option key */}
                 {selectionHintVisible && (
                     <Box paddingX={1}>
-                        <Text color="yellow" dimColor>
+                        <Text color="yellowBright">
                             💡 Tip: Hold Option (⌥) and click to select text, or press Ctrl+S to
                             toggle copy mode
                         </Text>
@@ -338,13 +338,10 @@ export function AlternateBufferCLI({
                 {/* Exit warning (Ctrl+C pressed once) - shown above footer */}
                 {ui.exitWarningShown && (
                     <Box paddingX={1}>
-                        <Text color="yellow" bold>
+                        <Text color="yellowBright" bold>
                             ⚠ Press Ctrl+C again to exit
                         </Text>
-                        <Text color="gray" dimColor>
-                            {' '}
-                            (or press any key to cancel)
-                        </Text>
+                        <Text color="gray"> (or press any key to cancel)</Text>
                     </Box>
                 )}
 

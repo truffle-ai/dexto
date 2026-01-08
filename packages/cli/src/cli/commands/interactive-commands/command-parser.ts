@@ -141,14 +141,14 @@ export function formatCommandHelp(cmd: CommandDefinition, detailed: boolean = fa
     let help = chalk.cyan(`/${cmd.name}`) + ' - ' + cmd.description;
 
     if (detailed) {
-        help += '\n' + chalk.dim(`Usage: ${cmd.usage}`);
+        help += '\n' + chalk.gray(`Usage: ${cmd.usage}`);
 
         if (cmd.aliases && cmd.aliases.length > 0) {
-            help += '\n' + chalk.dim(`Aliases: ${cmd.aliases.map((a) => `/${a}`).join(', ')}`);
+            help += '\n' + chalk.gray(`Aliases: ${cmd.aliases.map((a) => `/${a}`).join(', ')}`);
         }
 
         if (cmd.subcommands && cmd.subcommands.length > 0) {
-            help += '\n' + chalk.dim('Subcommands:');
+            help += '\n' + chalk.gray('Subcommands:');
             for (const sub of cmd.subcommands) {
                 help += '\n  ' + chalk.cyan(`/${cmd.name} ${sub.name}`) + ' - ' + sub.description;
             }
@@ -195,7 +195,7 @@ export function displayAllCommands(commands: CommandDefinition[]): void {
     for (const category of categoryOrder) {
         const cmds = categories[category];
         if (cmds && cmds.length > 0) {
-            console.log(chalk.bold.yellow(`${category}:`));
+            console.log(chalk.bold.rgb(255, 165, 0)(`${category}:`));
             for (const cmd of cmds) {
                 console.log('  ' + formatCommandHelp(cmd));
             }
@@ -206,7 +206,7 @@ export function displayAllCommands(commands: CommandDefinition[]): void {
     // Display any uncategorized commands (fallback)
     for (const [category, cmds] of Object.entries(categories)) {
         if (!categoryOrder.includes(category) && cmds.length > 0) {
-            console.log(chalk.bold.yellow(`${category}:`));
+            console.log(chalk.bold.rgb(255, 165, 0)(`${category}:`));
             for (const cmd of cmds) {
                 console.log('  ' + formatCommandHelp(cmd));
             }
@@ -214,6 +214,6 @@ export function displayAllCommands(commands: CommandDefinition[]): void {
         }
     }
 
-    console.log(chalk.dim('💡 Tip: Use /help <command> for detailed help on any command'));
-    console.log(chalk.dim('💡 Tip: Type your message normally (without /) to chat with the AI\n'));
+    console.log(chalk.gray('💡 Tip: Use /help <command> for detailed help on any command'));
+    console.log(chalk.gray('💡 Tip: Type your message normally (without /) to chat with the AI\n'));
 }

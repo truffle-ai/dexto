@@ -20,7 +20,7 @@ export function LogConfigBox({ data }: LogConfigBoxProps) {
             </Box>
 
             <Box marginTop={1} flexDirection="column">
-                <Text dimColor>Available levels (least to most verbose):</Text>
+                <Text color="gray">Available levels (least to most verbose):</Text>
                 {data.availableLevels.map((level) => {
                     const isCurrent = level === data.currentLevel;
                     return (
@@ -35,7 +35,7 @@ export function LogConfigBox({ data }: LogConfigBoxProps) {
             </Box>
 
             <Box marginTop={1}>
-                <Text dimColor>Use /log &lt;level&gt; to change level</Text>
+                <Text color="gray">Use /log &lt;level&gt; to change level</Text>
             </Box>
         </StyledBox>
     );

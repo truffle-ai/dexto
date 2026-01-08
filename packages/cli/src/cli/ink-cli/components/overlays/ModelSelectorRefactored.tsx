@@ -547,7 +547,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
     if (isLoading) {
         return (
             <Box paddingX={0} paddingY={0}>
-                <Text dimColor>Loading models...</Text>
+                <Text color="gray">Loading models...</Text>
             </Box>
         );
     }
@@ -565,8 +565,8 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
             </Box>
             {/* Navigation hints */}
             <Box paddingX={0} paddingY={0}>
-                <Text dimColor>↑↓ navigate, Enter select, Esc close</Text>
-                {hasCustomModels && <Text dimColor>, →← for custom actions</Text>}
+                <Text color="gray">↑↓ navigate, Enter select, Esc close</Text>
+                {hasCustomModels && <Text color="gray">, →← for custom actions</Text>}
             </Box>
 
             {/* Search input */}
@@ -580,7 +580,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
 
             {/* Separator */}
             <Box paddingX={0} paddingY={0}>
-                <Text dimColor>{'─'.repeat(50)}</Text>
+                <Text color="gray">{'─'.repeat(50)}</Text>
             </Box>
 
             {/* Items */}
@@ -603,23 +603,17 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
 
                 return (
                     <Box key={`${item.provider}-${item.name}`} paddingX={0} paddingY={0}>
-                        {item.isCustom && <Text color={isSelected ? 'yellow' : 'gray'}>★ </Text>}
+                        {item.isCustom && <Text color={isSelected ? 'orange' : 'gray'}>★ </Text>}
                         <Text color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>
                             {item.displayName || item.name}
                         </Text>
-                        <Text color={isSelected ? 'white' : 'gray'} dimColor={!isSelected}>
-                            {' '}
-                            ({item.provider})
-                        </Text>
-                        <Text color={isSelected ? 'white' : 'gray'} dimColor={!isSelected}>
+                        <Text color={isSelected ? 'white' : 'gray'}> ({item.provider})</Text>
+                        <Text color={isSelected ? 'white' : 'gray'}>
                             {' '}
                             • {item.maxInputTokens.toLocaleString()} tokens
                         </Text>
                         {item.isDefault && (
-                            <Text color={isSelected ? 'white' : 'gray'} dimColor={!isSelected}>
-                                {' '}
-                                [DEFAULT]
-                            </Text>
+                            <Text color={isSelected ? 'white' : 'gray'}> [DEFAULT]</Text>
                         )}
                         {item.isCurrent && !showActions && (
                             <Text color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>
@@ -657,7 +651,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
             {/* Scroll indicator */}
             {filteredItems.length > MAX_VISIBLE_ITEMS && (
                 <Box paddingX={0} paddingY={0}>
-                    <Text dimColor>
+                    <Text color="gray">
                         {scrollOffset > 0 ? '↑ more above' : ''}
                         {scrollOffset > 0 && scrollOffset + MAX_VISIBLE_ITEMS < filteredItems.length
                             ? ' | '
@@ -672,13 +666,13 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
             {/* Delete confirmation message */}
             {customModelAction === 'delete' && pendingDeleteConfirm && (
                 <Box paddingX={0} paddingY={0} marginTop={1}>
-                    <Text color="yellow">⚠️ Press → or Enter again to confirm delete</Text>
+                    <Text color="yellowBright">⚠️ Press → or Enter again to confirm delete</Text>
                 </Box>
             )}
             {/* Action mode hints */}
             {customModelAction && !pendingDeleteConfirm && (
                 <Box paddingX={0} paddingY={0} marginTop={1}>
-                    <Text dimColor>
+                    <Text color="gray">
                         ← {customModelAction === 'edit' ? 'deselect' : 'edit'} | →{' '}
                         {customModelAction === 'edit' ? 'delete' : 'confirm'} | Enter{' '}
                         {customModelAction}

@@ -303,7 +303,7 @@ const ResourceAutocompleteInner = forwardRef<ResourceAutocompleteHandle, Resourc
         if (isLoading) {
             return (
                 <Box paddingX={0} paddingY={0}>
-                    <Text dimColor>Loading resources...</Text>
+                    <Text color="gray">Loading resources...</Text>
                 </Box>
             );
         }
@@ -311,7 +311,7 @@ const ResourceAutocompleteInner = forwardRef<ResourceAutocompleteHandle, Resourc
         if (filteredResources.length === 0) {
             return (
                 <Box paddingX={0} paddingY={0}>
-                    <Text dimColor>
+                    <Text color="gray">
                         {mentionQuery
                             ? `No resources match "${mentionQuery}"`
                             : 'No resources available. Connect an MCP server or enable internal resources.'}
@@ -325,7 +325,7 @@ const ResourceAutocompleteInner = forwardRef<ResourceAutocompleteHandle, Resourc
         return (
             <Box flexDirection="column">
                 <Box paddingX={0} paddingY={0}>
-                    <Text color="yellow" bold>
+                    <Text color="yellowBright" bold>
                         Resources ({selectedIndex + 1}/{totalItems}) - ↑↓ navigate, Tab load, Enter
                         select, Esc close
                     </Text>
@@ -350,29 +350,20 @@ const ResourceAutocompleteInner = forwardRef<ResourceAutocompleteHandle, Resourc
                                     </Text>
                                     {resource.serverName && (
                                         <Box marginLeft={1}>
-                                            <Text
-                                                color={isSelected ? 'white' : 'gray'}
-                                                dimColor={!isSelected}
-                                            >
+                                            <Text color={isSelected ? 'white' : 'gray'}>
                                                 [{resource.serverName}]
                                             </Text>
                                         </Box>
                                     )}
                                 </Box>
                                 <Box marginLeft={isImage ? 3 : 0}>
-                                    <Text
-                                        color={isSelected ? 'white' : 'gray'}
-                                        dimColor={!isSelected}
-                                    >
+                                    <Text color={isSelected ? 'white' : 'gray'}>
                                         {resource.uri}
                                     </Text>
                                 </Box>
                                 {resource.description && (
                                     <Box marginLeft={isImage ? 3 : 0}>
-                                        <Text
-                                            color={isSelected ? 'white' : 'gray'}
-                                            dimColor={!isSelected}
-                                        >
+                                        <Text color={isSelected ? 'white' : 'gray'}>
                                             {resource.description}
                                         </Text>
                                     </Box>

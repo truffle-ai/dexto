@@ -78,7 +78,7 @@ export default function CustomInput({
                 <Text color="black" backgroundColor="green">
                     {firstChar}
                 </Text>
-                <Text dimColor>{rest}</Text>
+                <Text color="gray">{rest}</Text>
             </Text>
         );
     }

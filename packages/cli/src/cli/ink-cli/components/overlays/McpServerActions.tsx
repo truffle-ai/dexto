@@ -82,7 +82,7 @@ const McpServerActions = forwardRef<McpServerActionsHandle, McpServerActionsProp
                     type: 'disable',
                     label: 'Disable server',
                     icon: '⏸️',
-                    color: 'yellow',
+                    color: 'orange',
                 });
             } else {
                 actions.push({
@@ -120,11 +120,7 @@ const McpServerActions = forwardRef<McpServerActionsHandle, McpServerActionsProp
             return (
                 <Box>
                     <Text>{item.icon} </Text>
-                    <Text
-                        color={isSelected ? item.color : 'gray'}
-                        bold={isSelected}
-                        dimColor={!isSelected}
-                    >
+                    <Text color={isSelected ? item.color : 'gray'} bold={isSelected}>
                         {item.label}
                     </Text>
                 </Box>

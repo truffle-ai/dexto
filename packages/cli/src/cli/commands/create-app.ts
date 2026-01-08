@@ -134,11 +134,11 @@ export async function createDextoProject(
             spinner.stop(chalk.green(`✓ Successfully created app: ${projectName}`));
 
             console.log(`\n${chalk.cyan('Next steps:')}`);
-            console.log(`  ${chalk.dim('$')} cd ${projectName}`);
+            console.log(`  ${chalk.gray('$')} cd ${projectName}`);
             console.log(
-                `  ${chalk.dim('$')} pnpm start ${chalk.gray('(discovers providers, builds, and runs)')}`
+                `  ${chalk.gray('$')} pnpm start ${chalk.gray('(discovers providers, builds, and runs)')}`
             );
-            console.log(`\n${chalk.dim('Learn more:')} https://docs.dexto.ai\n`);
+            console.log(`\n${chalk.gray('Learn more:')} https://docs.dexto.ai\n`);
 
             return projectPath;
         }
@@ -191,9 +191,9 @@ export async function createDextoProject(
         spinner.stop(chalk.green(`✓ Successfully created app: ${projectName}`));
 
         console.log(`\n${chalk.cyan('Next steps:')}`);
-        console.log(`  ${chalk.dim('$')} cd ${projectName}`);
-        console.log(`  ${chalk.dim('$')} pnpm start`);
-        console.log(`\n${chalk.dim('Learn more:')} https://docs.dexto.ai\n`);
+        console.log(`  ${chalk.gray('$')} cd ${projectName}`);
+        console.log(`  ${chalk.gray('$')} pnpm start`);
+        console.log(`\n${chalk.gray('Learn more:')} https://docs.dexto.ai\n`);
 
         return projectPath;
     } catch (error) {

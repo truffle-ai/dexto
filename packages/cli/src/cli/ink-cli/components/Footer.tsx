@@ -45,12 +45,7 @@ export function Footer({ modelName, cwd, branchName, autoApproveEdits }: FooterP
             <Box flexDirection="row" justifyContent="space-between">
                 <Box>
                     <Text color="blue">{displayPath}</Text>
-                    {branchName && (
-                        <Text color="gray" dimColor>
-                            {' '}
-                            ({branchName})
-                        </Text>
-                    )}
+                    {branchName && <Text color="gray"> ({branchName})</Text>}
                 </Box>
                 <Text color="cyan">{displayModelName}</Text>
             </Box>
@@ -58,8 +53,8 @@ export function Footer({ modelName, cwd, branchName, autoApproveEdits }: FooterP
             {/* Line 2: Mode indicators (left) */}
             {autoApproveEdits && (
                 <Box>
-                    <Text color="yellow">accept edits</Text>
-                    <Text dimColor> (shift + tab to toggle)</Text>
+                    <Text color="yellowBright">accept edits</Text>
+                    <Text color="gray"> (shift + tab to toggle)</Text>
                 </Box>
             )}
         </Box>

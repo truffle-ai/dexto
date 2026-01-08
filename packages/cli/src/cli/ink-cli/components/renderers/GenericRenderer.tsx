@@ -40,7 +40,7 @@ export function GenericRenderer({ content, maxLines = 15 }: GenericRendererProps
     if (lines.length === 1 && lines[0]) {
         const line = lines[0];
         return (
-            <Text dimColor>
+            <Text color="gray">
                 {'  ⎿ '}
                 {line.slice(0, 80)}
                 {line.length > 80 ? '...' : ''}
@@ -50,18 +50,18 @@ export function GenericRenderer({ content, maxLines = 15 }: GenericRendererProps
 
     return (
         <Box flexDirection="column">
-            <Text dimColor>
+            <Text color="gray">
                 {'  ⎿ '}
                 {displayLines.length} lines
             </Text>
             {displayLines.map((line, i) => (
-                <Text key={i} dimColor wrap="truncate">
+                <Text key={i} color="gray" wrap="truncate">
                     {'    '}
                     {line}
                 </Text>
             ))}
             {truncated && (
-                <Text dimColor>
+                <Text color="gray">
                     {'    '}... {lines.length - maxLines} more lines
                 </Text>
             )}

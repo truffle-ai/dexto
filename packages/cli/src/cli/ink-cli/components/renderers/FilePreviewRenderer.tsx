@@ -159,7 +159,7 @@ export function CreateFilePreview({ data }: CreateFilePreviewProps) {
                 </Box>
                 <Box flexDirection="column" borderStyle="round" borderColor="gray" paddingX={1}>
                     <Text>{makeRelativePath(path)}</Text>
-                    {lineCount && <Text dimColor>{lineCount} lines</Text>}
+                    {lineCount && <Text color="gray">{lineCount} lines</Text>}
                 </Box>
             </Box>
         );

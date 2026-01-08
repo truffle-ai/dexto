@@ -16,7 +16,7 @@ export function ShortcutsBox({ data }: ShortcutsBoxProps) {
         <StyledBox title="Keyboard Shortcuts">
             {data.categories.map((category, catIndex) => (
                 <Box key={category.name} flexDirection="column" marginTop={catIndex === 0 ? 0 : 1}>
-                    <Text bold color="yellow">
+                    <Text bold color="cyan">
                         {category.name}
                     </Text>
                     {category.shortcuts.map((shortcut) => (
@@ -24,7 +24,7 @@ export function ShortcutsBox({ data }: ShortcutsBoxProps) {
                             <Box width={16}>
                                 <Text color="cyan">{shortcut.keys}</Text>
                             </Box>
-                            <Text dimColor>{shortcut.description}</Text>
+                            <Text color="gray">{shortcut.description}</Text>
                         </Box>
                     ))}
                 </Box>

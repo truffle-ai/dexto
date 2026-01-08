@@ -13,7 +13,7 @@
     "@dexto/image-local": "workspace:*",
     "@dexto/registry": "workspace:*",
     "@dexto/server": "workspace:*",
-    "@modelcontextprotocol/sdk": "^1.18.1",
+    "@modelcontextprotocol/sdk": "^1.25.2",
     "@opentelemetry/auto-instrumentations-node": "^0.52.1",
     "@opentelemetry/core": "^1.28.0",
     "@opentelemetry/exporter-trace-otlp-grpc": "^0.55.0",

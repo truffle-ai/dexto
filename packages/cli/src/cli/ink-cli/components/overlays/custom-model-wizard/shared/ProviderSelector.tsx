@@ -55,7 +55,7 @@ export function ProviderSelector({
             </Box>
 
             <Box marginTop={1}>
-                <Text dimColor>↑↓ navigate • Enter select • Esc cancel</Text>
+                <Text color="gray">↑↓ navigate • Enter select • Esc cancel</Text>
             </Box>
         </Box>
     );

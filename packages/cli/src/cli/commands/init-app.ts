@@ -146,7 +146,7 @@ export async function initDexto(
                 spinner.stop(chalk.red('Error: Cannot install in pnpm workspace root'));
                 p.note(
                     'You are initializing dexto in a pnpm workspace root. Go to a specific workspace package and run "pnpm add @dexto/core" there.',
-                    chalk.yellow('Workspace Error')
+                    chalk.rgb(255, 165, 0)('Workspace Error')
                 );
                 process.exit(1);
             }
@@ -231,7 +231,7 @@ export async function postInitDexto(directory: string) {
         `4. Try out different LLMs and MCP servers in the coding-agent.yml file`,
         `5. Read more about Dexto: ${chalk.cyan('https://github.com/truffle-ai/dexto')}`,
     ].join('\n');
-    p.note(nextSteps, chalk.yellow('Next steps:'));
+    p.note(nextSteps, chalk.rgb(255, 165, 0)('Next steps:'));
 }
 /**
  * Creates the dexto directories (dexto, dexto/agents) in the given directory.

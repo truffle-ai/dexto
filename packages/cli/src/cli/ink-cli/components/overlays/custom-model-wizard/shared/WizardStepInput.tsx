@@ -42,7 +42,7 @@ export function WizardStepInput({
             {/* Current step prompt */}
             <Box flexDirection="column">
                 <Text bold>{step.label}:</Text>
-                <Text dimColor>{step.placeholder}</Text>
+                <Text color="gray">{step.placeholder}</Text>
                 {additionalContent}
             </Box>
 
@@ -63,14 +63,14 @@ export function WizardStepInput({
             {/* Validating indicator */}
             {isValidating && (
                 <Box marginTop={1}>
-                    <Text color="yellow">Validating model...</Text>
+                    <Text color="yellowBright">Validating model...</Text>
                 </Box>
             )}
 
             {/* Saving indicator */}
             {isSaving && (
                 <Box marginTop={1}>
-                    <Text color="yellow">Saving...</Text>
+                    <Text color="yellowBright">Saving...</Text>
                 </Box>
             )}
         </>

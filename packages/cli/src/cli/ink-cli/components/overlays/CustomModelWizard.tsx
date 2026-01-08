@@ -364,7 +364,7 @@ const CustomModelWizard = forwardRef<CustomModelWizardHandle, CustomModelWizardP
                     <Text bold color="green">
                         {isEditing ? 'Edit Custom Model' : 'Add Custom Model'}
                     </Text>
-                    <Text dimColor>
+                    <Text color="gray">
                         {' '}
                         ({providerConfig.displayName}) Step {currentStep + 1}/{wizardSteps.length}
                     </Text>
@@ -395,7 +395,7 @@ const CustomModelWizard = forwardRef<CustomModelWizardHandle, CustomModelWizardP
 
                 {/* Help text */}
                 <Box marginTop={1}>
-                    <Text dimColor>
+                    <Text color="gray">
                         Enter to continue • Esc to{' '}
                         {currentStep > 0 ? 'go back' : 'back to provider'}
                     </Text>

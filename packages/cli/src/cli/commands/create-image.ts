@@ -253,14 +253,16 @@ export async function createImage(name?: string): Promise<string> {
         spinner.stop(chalk.green(`✓ Successfully created image: ${projectName}`));
 
         console.log(`\n${chalk.cyan('Next steps:')}`);
-        console.log(`  ${chalk.dim('$')} cd ${projectName}`);
-        console.log(`  ${chalk.dim('$')} pnpm run build`);
-        console.log(`\n${chalk.dim('Add your custom providers to the convention-based folders:')}`);
-        console.log(`  ${chalk.dim('tools/')}       - Custom tool providers`);
-        console.log(`  ${chalk.dim('blob-store/')}  - Blob storage providers`);
-        console.log(`  ${chalk.dim('compression/')} - Compression strategies`);
-        console.log(`  ${chalk.dim('plugins/')}     - Plugin providers`);
-        console.log(`\n${chalk.dim('Learn more:')} https://docs.dexto.ai/guides/images\n`);
+        console.log(`  ${chalk.gray('$')} cd ${projectName}`);
+        console.log(`  ${chalk.gray('$')} pnpm run build`);
+        console.log(
+            `\n${chalk.gray('Add your custom providers to the convention-based folders:')}`
+        );
+        console.log(`  ${chalk.gray('tools/')}       - Custom tool providers`);
+        console.log(`  ${chalk.gray('blob-store/')}  - Blob storage providers`);
+        console.log(`  ${chalk.gray('compression/')} - Compression strategies`);
+        console.log(`  ${chalk.gray('plugins/')}     - Plugin providers`);
+        console.log(`\n${chalk.gray('Learn more:')} https://docs.dexto.ai/guides/images\n`);
     } catch (error) {
         if (spinner) {
             spinner.stop(chalk.red('✗ Failed to create image'));

@@ -229,10 +229,10 @@ function buildProviderOptions(): Array<{ value: LLMProvider; label: string; hint
     // Gateway providers
     if (categories.gateway.length > 0) {
         for (const p of categories.gateway) {
-            const suffix = p.requiresBaseURL ? chalk.dim(' (requires URL)') : '';
+            const suffix = p.requiresBaseURL ? chalk.gray(' (requires URL)') : '';
             options.push({
                 value: p.value,
-                label: `${chalk.yellow('●')} ${p.label}`,
+                label: `${chalk.rgb(255, 165, 0)('●')} ${p.label}`,
                 hint: `${p.hint}${suffix}`,
             });
         }
@@ -243,7 +243,7 @@ function buildProviderOptions(): Array<{ value: LLMProvider; label: string; hint
         for (const p of categories.enterprise) {
             options.push({
                 value: p.value,
-                label: `${chalk.magenta('●')} ${p.label}`,
+                label: `${chalk.cyan('●')} ${p.label}`,
                 hint: p.hint,
             });
         }
@@ -365,7 +365,7 @@ export function getProviderInstructions(
     }
 
     if (info.apiKeyPrefix) {
-        content += `\n${chalk.dim(`Key format: ${info.apiKeyPrefix}...`)}`;
+        content += `\n${chalk.gray(`Key format: ${info.apiKeyPrefix}...`)}`;
     }
 
     return { title, content, url: info.apiKeyUrl };
