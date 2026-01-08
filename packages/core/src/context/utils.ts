@@ -336,15 +336,15 @@ async function resolveBlobReferenceToParts(
             }
 
             if (typeof (item as { text?: unknown }).text === 'string') {
-                parts.push({ type: 'text', text: item.text as string });
+                parts.push({ type: 'text', text: (item as { text: string }).text });
                 continue;
             }
 
             const base64Data =
-                typeof item.blob === 'string'
+                'blob' in item && typeof item.blob === 'string'
                     ? item.blob
-                    : typeof item.data === 'string'
-                      ? item.data
+                    : 'data' in item && typeof (item as any).data === 'string'
+                      ? (item as any).data
                       : undefined;
             const mimeType = typeof item.mimeType === 'string' ? item.mimeType : undefined;
             if (!base64Data || !mimeType) {
@@ -372,8 +372,12 @@ async function resolveBlobReferenceToParts(
                 data: base64Data,
                 mimeType: resolvedMime,
             };
-            if (typeof item.filename === 'string' && item.filename.length > 0) {
-                filePart.filename = item.filename;
+            const itemWithFilename = item as any;
+            if (
+                typeof itemWithFilename.filename === 'string' &&
+                itemWithFilename.filename.length > 0
+            ) {
+                filePart.filename = itemWithFilename.filename;
             } else if (typeof result._meta?.originalName === 'string') {
                 filePart.filename = result._meta.originalName;
             }
@@ -497,8 +501,14 @@ export async function getImageDataWithBlobSupport(
             const resourceUri = uri.startsWith('blob:') ? uri : `blob:${uri}`;
             const result = await resourceManager.read(resourceUri);
 
-            if (result.contents[0]?.blob && typeof result.contents[0].blob === 'string') {
-                return result.contents[0].blob;
+            const firstContent = result.contents[0];
+            if (
+                firstContent &&
+                'blob' in firstContent &&
+                firstContent.blob &&
+                typeof firstContent.blob === 'string'
+            ) {
+                return firstContent.blob;
             }
             logger.warn(`Blob reference ${image} did not contain blob data`);
         } catch (error) {
@@ -533,8 +543,14 @@ export async function getFileDataWithBlobSupport(
             const resourceUri = uri.startsWith('blob:') ? uri : `blob:${uri}`;
             const result = await resourceManager.read(resourceUri);
 
-            if (result.contents[0]?.blob && typeof result.contents[0].blob === 'string') {
-                return result.contents[0].blob;
+            const firstContent = result.contents[0];
+            if (
+                firstContent &&
+                'blob' in firstContent &&
+                firstContent.blob &&
+                typeof firstContent.blob === 'string'
+            ) {
+                return firstContent.blob;
             }
             logger.warn(`Blob reference ${data} did not contain blob data`);
         } catch (error) {

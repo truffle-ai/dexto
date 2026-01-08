@@ -30,9 +30,14 @@ export async function getResourceData(context: DynamicContributorContext): Promi
                 const response = await context.mcpManager.readResource(resource.key);
                 const first = response?.contents?.[0];
                 let content: string;
-                if (first?.text && typeof first.text === 'string') {
+                if (first && 'text' in first && first.text && typeof first.text === 'string') {
                     content = first.text;
-                } else if (first?.blob && typeof first.blob === 'string') {
+                } else if (
+                    first &&
+                    'blob' in first &&
+                    first.blob &&
+                    typeof first.blob === 'string'
+                ) {
                     content = first.blob;
                 } else {
                     content = JSON.stringify(response, null, 2);
