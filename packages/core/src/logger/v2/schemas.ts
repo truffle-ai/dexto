@@ -8,6 +8,16 @@
 import { z } from 'zod';
 
 /**
+ * Silent transport configuration (no-op, discards all logs)
+ */
+const SilentTransportSchema = z
+    .object({
+        type: z.literal('silent'),
+    })
+    .strict()
+    .describe('Silent transport that discards all logs (useful for sub-agents)');
+
+/**
  * Console transport configuration
  */
 const ConsoleTransportSchema = z
@@ -69,6 +79,7 @@ const UpstashTransportSchema = z
  * Transport configuration (discriminated union)
  */
 export const LoggerTransportSchema = z.discriminatedUnion('type', [
+    SilentTransportSchema,
     ConsoleTransportSchema,
     FileTransportSchema,
     UpstashTransportSchema,

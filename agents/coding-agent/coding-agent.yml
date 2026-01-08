@@ -101,6 +101,10 @@ customTools:
     enableBackups: false
   - type: process-tools
     securityLevel: moderate
+  - type: agent-spawner
+    maxConcurrentAgents: 5
+    defaultTimeout: 300000
+    allowSpawning: true
 
 # Internal resources configuration - expanded for coding projects
 internalResources:
