@@ -476,6 +476,86 @@ describe('StreamProcessor', () => {
             });
         });
 
+        test('does not persist providerMetadata for OpenAI tool calls (avoids OpenAI Responses replay issues)', async () => {
+            const mocks = createMocks();
+            const processor = new StreamProcessor(
+                mocks.contextManager,
+                mocks.eventBus,
+                mocks.resourceManager,
+                mocks.abortController.signal,
+                mocks.config,
+                mocks.logger,
+                true
+            );
+
+            const events = [
+                {
+                    type: 'tool-call',
+                    toolCallId: 'call-1',
+                    toolName: 'test_tool',
+                    input: { arg: 'value' },
+                    providerMetadata: { openai: { some: 'metadata' } },
+                },
+                {
+                    type: 'finish',
+                    finishReason: 'tool-calls',
+                    totalUsage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+                },
+            ];
+
+            await processor.process(() => createMockStream(events) as never);
+
+            expect(mocks.contextManager.addToolCall).toHaveBeenCalledWith('msg-1', {
+                id: 'call-1',
+                type: 'function',
+                function: {
+                    name: 'test_tool',
+                    arguments: JSON.stringify({ arg: 'value' }),
+                },
+            });
+        });
+
+        test('persists providerMetadata for Google tool calls (required for round-tripping thought signatures)', async () => {
+            const mocks = createMocks();
+            const config: StreamProcessorConfig = { ...mocks.config, provider: 'google' };
+            const processor = new StreamProcessor(
+                mocks.contextManager,
+                mocks.eventBus,
+                mocks.resourceManager,
+                mocks.abortController.signal,
+                config,
+                mocks.logger,
+                true
+            );
+
+            const events = [
+                {
+                    type: 'tool-call',
+                    toolCallId: 'call-1',
+                    toolName: 'test_tool',
+                    input: { arg: 'value' },
+                    providerMetadata: { google: { thoughtSignature: 'sig-1' } },
+                },
+                {
+                    type: 'finish',
+                    finishReason: 'tool-calls',
+                    totalUsage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+                },
+            ];
+
+            await processor.process(() => createMockStream(events) as never);
+
+            expect(mocks.contextManager.addToolCall).toHaveBeenCalledWith('msg-1', {
+                id: 'call-1',
+                type: 'function',
+                function: {
+                    name: 'test_tool',
+                    arguments: JSON.stringify({ arg: 'value' }),
+                },
+                providerOptions: { google: { thoughtSignature: 'sig-1' } },
+            });
+        });
+
         test('persists tool call to context (llm:tool-call emitted by ToolManager)', async () => {
             // NOTE: llm:tool-call is now emitted from ToolManager.executeTool() instead of StreamProcessor.
             // This ensures correct event ordering - llm:tool-call arrives before approval:request.

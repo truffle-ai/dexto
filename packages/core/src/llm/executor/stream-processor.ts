@@ -29,11 +29,6 @@ export class StreamProcessor {
     private pendingToolCalls: Map<string, { toolName: string }> = new Map();
 
     /**
-     * Track streaming tool calls - accumulates args text as it streams
-     */
-    private streamingToolCalls: Map<string, { toolName: string; argsText: string }> = new Map();
-
-    /**
      * @param contextManager Context manager for message persistence
      * @param eventBus Event bus for emitting events
      * @param resourceManager Resource manager for blob storage
@@ -127,7 +122,14 @@ export class StreamProcessor {
                                 arguments: JSON.stringify(event.input),
                             },
                         };
-                        if (event.providerMetadata) {
+                        // IMPORTANT: Only persist providerMetadata for providers that require round-tripping
+                        // (e.g., Gemini thought signatures). OpenAI Responses metadata can cause invalid
+                        // follow-up requests (function_call item references missing required reasoning items).
+                        const shouldPersistProviderMetadata =
+                            this.config.provider === 'google' ||
+                            (this.config.provider as string) === 'vertex';
+
+                        if (shouldPersistProviderMetadata && event.providerMetadata) {
                             toolCall.providerOptions = {
                                 ...event.providerMetadata,
                             } as Record<string, unknown>;
@@ -217,11 +219,10 @@ export class StreamProcessor {
                             const cacheWriteTokens = (event.providerMetadata?.['anthropic']?.[
                                 'cacheCreationInputTokens'
                             ] ??
-                                (
-                                    event.providerMetadata?.['bedrock']?.['usage'] as
-                                        | Record<string, number>
-                                        | undefined
-                                )?.['cacheWriteInputTokens'] ??
+                                // @ts-expect-error - Bedrock metadata typing not in Vercel SDK
+                                event.providerMetadata?.['bedrock']?.['usage']?.[
+                                    'cacheWriteInputTokens'
+                                ] ??
                                 0) as number;
 
                             // Accumulate usage across steps
@@ -377,7 +378,7 @@ export class StreamProcessor {
                             event.error instanceof Error
                                 ? event.error
                                 : new Error(String(event.error));
-                        this.logger.error(`LLM error: ${err.toString()}`);
+                        this.logger.error(`LLM error: ${err.toString()}}`);
                         this.eventBus.emit('llm:error', {
                             error: err,
                         });
