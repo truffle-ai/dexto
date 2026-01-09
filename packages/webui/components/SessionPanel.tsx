@@ -390,17 +390,23 @@ export default function SessionPanel({
 
             {/* Footer with app-level actions */}
             <div className="border-t border-border/30 p-3 space-y-1">
-                {/* Settings & Preferences */}
-                {onSettingsOpen && (
+                {/* Developer Tools */}
+                {onPlaygroundOpen && (
                     <button
-                        onClick={onSettingsOpen}
+                        onClick={onPlaygroundOpen}
                         className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:bg-muted/40 hover:text-foreground transition-colors"
                     >
-                        <Settings className="h-4 w-4" />
-                        <span>Settings</span>
+                        <FlaskConical className="h-4 w-4" />
+                        <span>MCP Playground</span>
                     </button>
                 )}
 
+                {/* Separator */}
+                {onPlaygroundOpen && (onThemeToggle || onSettingsOpen) && (
+                    <div className="h-px bg-border/30 my-1" />
+                )}
+
+                {/* Theme Toggle */}
                 {onThemeToggle && (
                     <button
                         onClick={onThemeToggle}
@@ -415,19 +421,14 @@ export default function SessionPanel({
                     </button>
                 )}
 
-                {/* Separator */}
-                {(onSettingsOpen || onThemeToggle) && onPlaygroundOpen && (
-                    <div className="h-px bg-border/30 my-1" />
-                )}
-
-                {/* Developer Tools */}
-                {onPlaygroundOpen && (
+                {/* Settings */}
+                {onSettingsOpen && (
                     <button
-                        onClick={onPlaygroundOpen}
+                        onClick={onSettingsOpen}
                         className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:bg-muted/40 hover:text-foreground transition-colors"
                     >
-                        <FlaskConical className="h-4 w-4" />
-                        <span>MCP Playground</span>
+                        <Settings className="h-4 w-4" />
+                        <span>Settings</span>
                     </button>
                 )}
             </div>
@@ -601,16 +602,16 @@ export default function SessionPanel({
                 )}
             </div>
 
-            {/* Footer actions - settings, theme, playground */}
+            {/* Footer actions - playground, theme, settings */}
             <div className="flex flex-col gap-1 pt-2 border-t border-border/30">
-                {/* Settings */}
-                {onSettingsOpen && (
+                {/* Playground */}
+                {onPlaygroundOpen && (
                     <button
-                        onClick={onSettingsOpen}
+                        onClick={onPlaygroundOpen}
                         className="flex items-center justify-center w-10 h-10 rounded-lg text-muted-foreground hover:bg-muted/40 hover:text-foreground transition-colors"
-                        aria-label="Settings"
+                        aria-label="MCP Playground"
                     >
-                        <Settings className="h-5 w-5" />
+                        <FlaskConical className="h-5 w-5" />
                     </button>
                 )}
 
@@ -629,14 +630,14 @@ export default function SessionPanel({
                     </button>
                 )}
 
-                {/* Playground */}
-                {onPlaygroundOpen && (
+                {/* Settings */}
+                {onSettingsOpen && (
                     <button
-                        onClick={onPlaygroundOpen}
+                        onClick={onSettingsOpen}
                         className="flex items-center justify-center w-10 h-10 rounded-lg text-muted-foreground hover:bg-muted/40 hover:text-foreground transition-colors"
-                        aria-label="MCP Playground"
+                        aria-label="Settings"
                     >
-                        <FlaskConical className="h-5 w-5" />
+                        <Settings className="h-5 w-5" />
                     </button>
                 )}
             </div>

@@ -30,7 +30,9 @@ export function useSwitchLLM() {
             return await response.json();
         },
         onSuccess: () => {
+            // Invalidate catalog and all current LLM queries to refresh all views
             queryClient.invalidateQueries({ queryKey: queryKeys.llm.catalog });
+            queryClient.invalidateQueries({ queryKey: ['llm', 'current'] });
         },
     });
 }
