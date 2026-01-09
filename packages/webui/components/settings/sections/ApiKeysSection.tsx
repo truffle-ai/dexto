@@ -20,12 +20,12 @@ const PROVIDER_INFO: Record<
     openai: {
         displayName: 'OpenAI',
         keyUrl: 'https://platform.openai.com/api-keys',
-        description: 'GPT-4, GPT-3.5',
+        description: 'GPT models',
     },
     anthropic: {
         displayName: 'Anthropic',
         keyUrl: 'https://console.anthropic.com/settings/keys',
-        description: 'Claude 3.5, Claude 3',
+        description: 'Claude models',
     },
     google: {
         displayName: 'Google AI',
