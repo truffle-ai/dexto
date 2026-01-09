@@ -78,6 +78,8 @@ export type CreateDextoAppOptions = {
     webRoot?: string;
     /** Runtime configuration to inject into WebUI (analytics, etc.) */
     webUIConfig?: WebUIRuntimeConfig;
+    /** Disable built-in auth middleware. Use when you have your own auth layer. */
+    disableAuth?: boolean;
 };
 
 export function createDextoApp(options: CreateDextoAppOptions) {
@@ -90,6 +92,7 @@ export function createDextoApp(options: CreateDextoAppOptions) {
         agentsContext,
         webRoot,
         webUIConfig,
+        disableAuth = false,
     } = options;
     const app = new OpenAPIHono({ strict: false });
 
@@ -97,7 +100,10 @@ export function createDextoApp(options: CreateDextoAppOptions) {
     app.use('*', createCorsMiddleware());
 
     // Global authentication middleware (after CORS, before routes)
-    app.use('*', createAuthMiddleware());
+    // Can be disabled when using an external auth layer (e.g., multi-agent server)
+    if (!disableAuth) {
+        app.use('*', createAuthMiddleware());
+    }
 
     // Global error handling for all routes
     app.onError((err, ctx) => handleHonoError(ctx, err));
