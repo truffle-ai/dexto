@@ -68,6 +68,9 @@ const dummyAgentsContext: AgentsRouterContext = {
 export type GetAgentFn = (ctx: Context) => DextoAgent | Promise<DextoAgent>;
 
 export type CreateDextoAppOptions = {
+    /**
+     * Prefix for API routes. Defaults to '/api'.
+     */
     apiPrefix?: string;
     getAgent: GetAgentFn;
     getAgentCard: () => AgentCard;
@@ -85,6 +88,7 @@ export type CreateDextoAppOptions = {
 
 export function createDextoApp(options: CreateDextoAppOptions) {
     const {
+        apiPrefix = '/api',
         getAgent,
         getAgentCard,
         approvalCoordinator,
@@ -118,34 +122,41 @@ export function createDextoApp(options: CreateDextoAppOptions) {
     // Global error handling for all routes
     app.onError((err, ctx) => handleHonoError(ctx, err));
 
-    // Apply middleware to all /api routes
-    app.use('/api/*', prettyJsonMiddleware);
-    app.use('/api/*', redactionMiddleware);
+    // Apply middleware to API routes (use prefix or fallback to /* for empty prefix)
+    const middlewarePattern = apiPrefix ? `${apiPrefix}/*` : '/*';
+    app.use(middlewarePattern, prettyJsonMiddleware);
+    app.use(middlewarePattern, redactionMiddleware);
 
-    // Mount all API routers directly at /api for proper type inference
+    // Determine route prefix (empty string means mount at root)
+    const routePrefix = apiPrefix || '/';
+
+    // Mount all API routers at the configured prefix for proper type inference
     // Each router is mounted individually so Hono can properly track route types
     const fullApp = app
+        // Public health endpoint
         .route('/health', createHealthRouter(getAgent))
+        // Follows A2A discovery protocol
         .route('/', createA2aRouter(getAgentCard))
         .route('/', createA2AJsonRpcRouter(getAgent, sseSubscriber))
         .route('/', createA2ATasksRouter(getAgent, sseSubscriber))
-        .route('/api', createGreetingRouter(getAgent))
-        .route('/api', createMessagesRouter(getAgent, approvalCoordinator))
-        .route('/api', createLlmRouter(getAgent))
-        .route('/api', createSessionsRouter(getAgent))
-        .route('/api', createSearchRouter(getAgent))
-        .route('/api', createMcpRouter(getAgent))
-        .route('/api', createWebhooksRouter(getAgent, webhookSubscriber))
-        .route('/api', createPromptsRouter(getAgent))
-        .route('/api', createResourcesRouter(getAgent))
-        .route('/api', createMemoryRouter(getAgent))
-        .route('/api', createApprovalsRouter(getAgent, approvalCoordinator))
-        .route('/api', createAgentsRouter(getAgent, agentsContext || dummyAgentsContext))
-        .route('/api', createQueueRouter(getAgent))
-        .route('/api', createOpenRouterRouter())
-        .route('/api', createKeyRouter())
-        .route('/api', createToolsRouter(getAgent))
-        .route('/api', createDiscoveryRouter());
+        // Add agent-specific routes
+        .route(routePrefix, createGreetingRouter(getAgent))
+        .route(routePrefix, createMessagesRouter(getAgent, approvalCoordinator))
+        .route(routePrefix, createLlmRouter(getAgent))
+        .route(routePrefix, createSessionsRouter(getAgent))
+        .route(routePrefix, createSearchRouter(getAgent))
+        .route(routePrefix, createMcpRouter(getAgent))
+        .route(routePrefix, createWebhooksRouter(getAgent, webhookSubscriber))
+        .route(routePrefix, createPromptsRouter(getAgent))
+        .route(routePrefix, createResourcesRouter(getAgent))
+        .route(routePrefix, createMemoryRouter(getAgent))
+        .route(routePrefix, createApprovalsRouter(getAgent, approvalCoordinator))
+        .route(routePrefix, createAgentsRouter(getAgent, agentsContext || dummyAgentsContext))
+        .route(routePrefix, createQueueRouter(getAgent))
+        .route(routePrefix, createOpenRouterRouter())
+        .route(routePrefix, createKeyRouter())
+        .route(routePrefix, createToolsRouter(getAgent))
+        .route(routePrefix, createDiscoveryRouter());
 
     // Expose OpenAPI document
     // Current approach uses @hono/zod-openapi's .doc() method for OpenAPI spec generation
