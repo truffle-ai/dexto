@@ -452,10 +452,19 @@ export default function ModelPickerModal() {
             onSuccess: async () => {
                 // If there's an active session, also switch it to the new model
                 if (currentSessionId) {
-                    await switchLLMMutation.mutateAsync({
-                        ...basePayload,
-                        sessionId: currentSessionId,
-                    });
+                    try {
+                        await switchLLMMutation.mutateAsync({
+                            ...basePayload,
+                            sessionId: currentSessionId,
+                        });
+                    } catch (err) {
+                        setError(
+                            err instanceof Error
+                                ? err.message
+                                : 'Failed to switch model for current session'
+                        );
+                        return;
+                    }
                 }
 
                 await refreshCurrentLLM();

@@ -29,7 +29,11 @@ export const sqliteDatabaseProvider: DatabaseProvider<'sqlite', SqliteDatabaseCo
             return new module.SQLiteStore(config, logger);
         } catch (error: unknown) {
             const err = error as NodeJS.ErrnoException;
-            if (err.code === 'ERR_MODULE_NOT_FOUND') {
+            if (
+                err.code === 'ERR_MODULE_NOT_FOUND' &&
+                typeof err.message === 'string' &&
+                err.message.includes('better-sqlite3')
+            ) {
                 throw StorageError.dependencyNotInstalled(
                     'SQLite',
                     'better-sqlite3',

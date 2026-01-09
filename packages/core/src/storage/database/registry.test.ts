@@ -187,7 +187,7 @@ describe('DatabaseRegistry', () => {
     });
 
     describe('Provider Creation', () => {
-        it('can create database instances using validated config', () => {
+        it('can create database instances using validated config', async () => {
             registry.register(mockProviderA);
 
             const config = {
@@ -199,8 +199,11 @@ describe('DatabaseRegistry', () => {
             const provider = registry.get('mock-db-a');
 
             expect(provider).toBeDefined();
-            const store = provider!.create(validated, mockLogger);
+            const store = await provider!.create(validated, mockLogger);
             expect(store).toBeInstanceOf(MockDatabase);
+            if (!(store instanceof MockDatabase)) {
+                throw new Error('Expected MockDatabase instance');
+            }
             expect(store.getStoreType()).toBe('mock-db-a');
         });
     });

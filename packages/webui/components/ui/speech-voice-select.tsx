@@ -8,7 +8,12 @@ import {
 } from '@/components/ui/select';
 import { useSpeechVoices } from '@/components/ui/speech-controller';
 
-export function SpeechVoiceSelect({ active = false }: { active?: boolean }) {
+type SpeechVoiceSelectProps = {
+    active?: boolean;
+    id?: string;
+};
+
+export function SpeechVoiceSelect({ active = false, id }: SpeechVoiceSelectProps) {
     const { voices, selected, setSelected } = useSpeechVoices();
     const [ready, setReady] = useState(false);
 
@@ -17,13 +22,13 @@ export function SpeechVoiceSelect({ active = false }: { active?: boolean }) {
             setReady(false);
             return;
         }
-        const id = (window as any).requestIdleCallback
+        const idleId = (window as any).requestIdleCallback
             ? (window as any).requestIdleCallback(() => setReady(true))
             : setTimeout(() => setReady(true), 0);
         return () => {
-            if ((window as any).cancelIdleCallback && typeof id === 'number')
-                (window as any).cancelIdleCallback(id);
-            else clearTimeout(id as any);
+            if ((window as any).cancelIdleCallback && typeof idleId === 'number')
+                (window as any).cancelIdleCallback(idleId);
+            else clearTimeout(idleId as any);
         };
     }, [active]);
 
@@ -36,7 +41,7 @@ export function SpeechVoiceSelect({ active = false }: { active?: boolean }) {
 
     return (
         <Select value={selected ?? 'auto'} onValueChange={onChange}>
-            <SelectTrigger className="h-8 w-[12rem] text-xs">
+            <SelectTrigger id={id} className="h-8 w-[12rem] text-xs">
                 <SelectValue placeholder="Voice" />
             </SelectTrigger>
             <SelectContent>

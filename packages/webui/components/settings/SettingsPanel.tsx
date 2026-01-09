@@ -41,7 +41,7 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
             <DialogContent
-                className="!max-w-4xl w-[90vw] h-[85vh] !p-0 !gap-0 flex flex-col"
+                className="max-w-4xl! w-[90vw] h-[85vh] p-0! gap-0! flex flex-col"
                 hideCloseButton
             >
                 {/* Visually hidden title for accessibility */}

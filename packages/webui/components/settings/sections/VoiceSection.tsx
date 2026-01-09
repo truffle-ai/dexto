@@ -14,12 +14,12 @@ export function VoiceSection({ active = false }: VoiceSectionProps) {
 
             <div className="space-y-4">
                 <div className="space-y-2">
-                    <Label>Voice Selection</Label>
+                    <Label htmlFor="voice-select">Voice Selection</Label>
                     <p className="text-sm text-muted-foreground mb-3">
                         Choose a preferred text-to-speech voice. "Auto" selects the best available
                         voice on your device.
                     </p>
-                    <SpeechVoiceSelect active={active} />
+                    <SpeechVoiceSelect id="voice-select" active={active} />
                 </div>
             </div>
         </div>

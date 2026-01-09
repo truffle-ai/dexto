@@ -179,7 +179,7 @@ describe('CacheRegistry', () => {
     });
 
     describe('Provider Creation', () => {
-        it('can create cache instances using validated config', () => {
+        it('can create cache instances using validated config', async () => {
             registry.register(mockProviderA);
 
             const config = {
@@ -190,8 +190,11 @@ describe('CacheRegistry', () => {
             const provider = registry.get('mock-cache-a');
 
             expect(provider).toBeDefined();
-            const store = provider!.create(validated, mockLogger);
+            const store = await provider!.create(validated, mockLogger);
             expect(store).toBeInstanceOf(MockCache);
+            if (!(store instanceof MockCache)) {
+                throw new Error('Expected MockCache instance');
+            }
             expect(store.getStoreType()).toBe('mock-cache-a');
         });
     });

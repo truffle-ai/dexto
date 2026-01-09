@@ -62,25 +62,28 @@ export function SettingsNavigation({
                         })}
                     </DropdownMenuContent>
                 </DropdownMenu>
-                <Button variant="ghost" size="icon" onClick={onClose}>
+                <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close settings">
                     <X className="h-4 w-4" />
                 </Button>
             </div>
         );
     }
 
-    // Desktop variant
     return (
         <div className="flex flex-col h-full">
-            {/* Header */}
             <div className="flex items-center justify-between px-4 py-4 border-b border-border">
                 <h2 className="font-semibold">Settings</h2>
-                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onClose}>
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={onClose}
+                    aria-label="Close settings"
+                >
                     <X className="h-4 w-4" />
                 </Button>
             </div>
 
-            {/* Navigation items */}
             <nav className="flex-1 py-2">
                 {sections.map((section) => {
                     const Icon = section.icon;
@@ -88,8 +91,10 @@ export function SettingsNavigation({
 
                     return (
                         <button
+                            type="button"
                             key={section.id}
                             onClick={() => onSectionChange(section.id)}
+                            aria-current={isActive ? 'page' : undefined}
                             className={cn(
                                 'w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors',
                                 'hover:bg-accent hover:text-accent-foreground',
