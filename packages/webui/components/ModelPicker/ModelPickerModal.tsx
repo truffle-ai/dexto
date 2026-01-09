@@ -292,17 +292,37 @@ export default function ModelPickerModal() {
             // Only switch to the model for new models, not edits
             // (user is already using edited model or chose not to switch)
             if (!editingModelName) {
-                const switchPayload: SwitchLLMPayload = {
+                const baseSwitchPayload: SwitchLLMPayload = {
                     provider: provider as LLMProvider,
                     model: name.trim(),
                     ...(provider === 'openai-compatible' &&
                         baseURL.trim() && { baseURL: baseURL.trim() }),
                     ...(provider === 'litellm' && baseURL.trim() && { baseURL: baseURL.trim() }),
                     ...(saveAsPerModel && userEnteredKey && { apiKey: userEnteredKey }),
-                    ...(currentSessionId && { sessionId: currentSessionId }),
                 };
 
-                await switchLLMMutation.mutateAsync(switchPayload);
+                // Always update global default first (no sessionId)
+                await switchLLMMutation.mutateAsync(baseSwitchPayload);
+
+                // Then switch current session if active
+                if (currentSessionId) {
+                    try {
+                        await switchLLMMutation.mutateAsync({
+                            ...baseSwitchPayload,
+                            sessionId: currentSessionId,
+                        });
+                    } catch (sessionErr) {
+                        setError(
+                            sessionErr instanceof Error
+                                ? `Model added and set as global default, but failed to switch current session: ${sessionErr.message}`
+                                : 'Model added and set as global default, but failed to switch current session'
+                        );
+                        await refreshCurrentLLM();
+                        setIsAddingModel(false);
+                        return;
+                    }
+                }
+
                 await refreshCurrentLLM();
 
                 // Track the switch
@@ -431,16 +451,33 @@ export default function ModelPickerModal() {
             return;
         }
 
-        const payload: SwitchLLMPayload = {
+        const basePayload: SwitchLLMPayload = {
             provider: providerId,
             model: model.name,
             ...(supportsBaseURL && effectiveBaseURL && { baseURL: effectiveBaseURL }),
             ...(customApiKey && { apiKey: customApiKey }),
-            ...(currentSessionId && { sessionId: currentSessionId }),
         };
 
-        switchLLMMutation.mutate(payload, {
+        // Always update global default first (no sessionId), then switch current session if active
+        switchLLMMutation.mutate(basePayload, {
             onSuccess: async () => {
+                // If there's an active session, also switch it to the new model
+                if (currentSessionId) {
+                    try {
+                        await switchLLMMutation.mutateAsync({
+                            ...basePayload,
+                            sessionId: currentSessionId,
+                        });
+                    } catch (err) {
+                        setError(
+                            err instanceof Error
+                                ? err.message
+                                : 'Failed to switch model for current session'
+                        );
+                        return;
+                    }
+                }
+
                 await refreshCurrentLLM();
 
                 if (currentLLM) {

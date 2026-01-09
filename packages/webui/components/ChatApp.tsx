@@ -10,7 +10,6 @@ import { useAddServer } from './hooks/useServers';
 import { useResolvePrompt } from './hooks/usePrompts';
 import {
     useChatStore,
-    usePreferenceStore,
     useCurrentSessionId,
     useIsWelcomeState,
     useAllMessages,
@@ -45,7 +44,6 @@ import {
     Check,
     FileEditIcon,
     Brain,
-    Zap,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -62,7 +60,6 @@ import { Input } from './ui/input';
 import { Textarea } from './ui/textarea';
 import { Alert, AlertTitle, AlertDescription } from './ui/alert';
 import { Badge } from './ui/badge';
-import { Switch } from './ui/switch';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -72,7 +69,7 @@ import {
 } from './ui/dropdown-menu';
 import { ThemeSwitch } from './ThemeSwitch';
 import NewChatButton from './NewChatButton';
-import SettingsModal from './SettingsModal';
+import { SettingsPanel } from './settings/SettingsPanel';
 import AgentSelector from './AgentSelector/AgentSelector';
 import { Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
 import { serverRegistry } from '@/lib/serverRegistry';
@@ -97,10 +94,6 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
 
     // Get actions from ChatContext
     const { sendMessage, switchSession, returnToWelcome, cancel } = useChatContext();
-
-    // Get state from stores
-    const isStreaming = usePreferenceStore((s) => s.isStreaming);
-    const setStreaming = usePreferenceStore((s) => s.setStreaming);
 
     // Get greeting from API
     const { greeting } = useGreeting(currentSessionId);
@@ -1027,24 +1020,6 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
                                         Settings
                                     </DropdownMenuItem>
 
-                                    <DropdownMenuItem
-                                        onClick={(e) => {
-                                            e.preventDefault();
-                                            setStreaming(!isStreaming);
-                                        }}
-                                        className="flex items-center justify-between"
-                                    >
-                                        <div className="flex items-center">
-                                            <Zap className="h-4 w-4 mr-2" />
-                                            Streaming
-                                        </div>
-                                        <Switch
-                                            checked={isStreaming}
-                                            onCheckedChange={setStreaming}
-                                            onClick={(e) => e.stopPropagation()}
-                                        />
-                                    </DropdownMenuItem>
-
                                     <DropdownMenuSeparator />
 
                                     {/* Always visible items */}
@@ -1413,8 +1388,8 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
                     </DialogContent>
                 </Dialog>
 
-                {/* Settings Modal */}
-                <SettingsModal isOpen={isSettingsOpen} onClose={() => setSettingsOpen(false)} />
+                {/* Settings Panel */}
+                <SettingsPanel isOpen={isSettingsOpen} onClose={() => setSettingsOpen(false)} />
 
                 {/* Memory Panel */}
                 <MemoryPanel

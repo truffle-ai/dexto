@@ -365,4 +365,64 @@ export class StorageError {
             `Use unregister() first if you need to replace it`
         );
     }
+
+    // ==================== Database Provider Registry Errors ====================
+
+    /**
+     * Unknown database provider type
+     */
+    static unknownDatabaseProvider(type: string, availableTypes: string[]): DextoRuntimeError {
+        return new DextoRuntimeError(
+            StorageErrorCode.DATABASE_PROVIDER_UNKNOWN,
+            ErrorScope.STORAGE,
+            ErrorType.USER,
+            `Unknown database type: '${type}'`,
+            { type, availableTypes },
+            `Available types: ${availableTypes.length > 0 ? availableTypes.join(', ') : 'none'}`
+        );
+    }
+
+    /**
+     * Database provider already registered
+     */
+    static databaseProviderAlreadyRegistered(type: string): DextoRuntimeError {
+        return new DextoRuntimeError(
+            StorageErrorCode.DATABASE_PROVIDER_ALREADY_REGISTERED,
+            ErrorScope.STORAGE,
+            ErrorType.USER,
+            `Database provider '${type}' is already registered`,
+            { type },
+            `Use unregister() first if you need to replace it`
+        );
+    }
+
+    // ==================== Cache Provider Registry Errors ====================
+
+    /**
+     * Unknown cache provider type
+     */
+    static unknownCacheProvider(type: string, availableTypes: string[]): DextoRuntimeError {
+        return new DextoRuntimeError(
+            StorageErrorCode.CACHE_PROVIDER_UNKNOWN,
+            ErrorScope.STORAGE,
+            ErrorType.USER,
+            `Unknown cache type: '${type}'`,
+            { type, availableTypes },
+            `Available types: ${availableTypes.length > 0 ? availableTypes.join(', ') : 'none'}`
+        );
+    }
+
+    /**
+     * Cache provider already registered
+     */
+    static cacheProviderAlreadyRegistered(type: string): DextoRuntimeError {
+        return new DextoRuntimeError(
+            StorageErrorCode.CACHE_PROVIDER_ALREADY_REGISTERED,
+            ErrorScope.STORAGE,
+            ErrorType.USER,
+            `Cache provider '${type}' is already registered`,
+            { type },
+            `Use unregister() first if you need to replace it`
+        );
+    }
 }

@@ -26,7 +26,6 @@ import {
     Brain,
     X,
     ZoomIn,
-    Volume2,
     Video as VideoIcon,
     FileVideo,
 } from 'lucide-react';
@@ -1205,123 +1204,56 @@ export default function MessageList({
                                     )}
                                 </div>
                             </div>
-                            {/* Render tool result images as separate message bubbles */}
+                            {/* Render tool result images inline */}
                             {toolResultImages.map((image, imageIndex) => (
-                                <div key={`${msgKey}-image-${imageIndex}`} className="w-full mt-2">
-                                    <div className="flex items-end w-full justify-start">
-                                        <ImageIcon className="h-7 w-7 mr-2 mb-1 text-muted-foreground self-start flex-shrink-0" />
-                                        <div className="flex flex-col items-start">
-                                            <div className="p-3 rounded-xl shadow-sm max-w-[75%] bg-card text-card-foreground border border-border rounded-bl-none text-sm">
-                                                <div className="flex flex-col gap-2">
-                                                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                                        <ImageIcon className="h-3 w-3" />
-                                                        <span>Tool Result Image</span>
-                                                    </div>
-                                                    <div
-                                                        className="relative group cursor-pointer"
-                                                        onClick={() =>
-                                                            openImageModal(image.src, image.alt)
-                                                        }
-                                                    >
-                                                        <img
-                                                            src={image.src}
-                                                            alt={image.alt}
-                                                            className="max-h-80 w-auto rounded border border-border object-contain transition-transform group-hover:scale-[1.02]"
-                                                        />
-                                                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors rounded border border-border flex items-center justify-center">
-                                                            <ZoomIn className="h-8 w-8 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div className="text-xs text-muted-foreground mt-1 px-1">
-                                                <span>{timestampStr}</span>
-                                            </div>
+                                <div key={`${msgKey}-image-${imageIndex}`} className="mt-3 pl-9">
+                                    <div
+                                        className="relative group cursor-pointer inline-block"
+                                        onClick={() => openImageModal(image.src, image.alt)}
+                                    >
+                                        <img
+                                            src={image.src}
+                                            alt={image.alt}
+                                            className="max-h-80 max-w-full w-auto rounded-lg object-contain transition-transform group-hover:scale-[1.01]"
+                                        />
+                                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors rounded-lg flex items-center justify-center">
+                                            <ZoomIn className="h-6 w-6 text-white opacity-0 group-hover:opacity-80 transition-opacity drop-shadow-lg" />
                                         </div>
                                     </div>
                                 </div>
                             ))}
 
-                            {/* Render tool result videos as separate message bubbles */}
+                            {/* Render tool result videos inline */}
                             {toolResultVideos.map((video, videoIndex) => (
-                                <div key={`${msgKey}-video-${videoIndex}`} className="w-full mt-2">
-                                    <div className="flex items-end w-full justify-start">
-                                        <VideoIcon className="h-7 w-7 mr-2 mb-1 text-muted-foreground self-start flex-shrink-0" />
-                                        <div className="flex flex-col items-start">
-                                            <div className="p-3 rounded-xl shadow-sm max-w-[75%] bg-card text-card-foreground border border-border rounded-bl-none text-sm overflow-hidden">
-                                                <div className="flex flex-col gap-2 min-w-0">
-                                                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                                        <VideoIcon className="h-3 w-3" />
-                                                        <span>Tool Result Video</span>
-                                                    </div>
-                                                    <div className="flex flex-col gap-2 p-2 rounded border border-border bg-muted/30 min-w-0">
-                                                        <video
-                                                            controls
-                                                            src={video.src}
-                                                            className="w-full max-h-[360px] rounded-lg bg-black"
-                                                            preload="metadata"
-                                                        />
-                                                        {(video.filename || video.mimeType) && (
-                                                            <div className="flex flex-col text-xs text-muted-foreground">
-                                                                {video.filename && (
-                                                                    <span className="truncate">
-                                                                        {video.filename}
-                                                                    </span>
-                                                                )}
-                                                                {video.mimeType && (
-                                                                    <span className="opacity-70">
-                                                                        {video.mimeType}
-                                                                    </span>
-                                                                )}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div className="text-xs text-muted-foreground mt-1 px-1">
-                                                <span>{timestampStr}</span>
-                                            </div>
+                                <div key={`${msgKey}-video-${videoIndex}`} className="mt-3 pl-9">
+                                    <video
+                                        controls
+                                        src={video.src}
+                                        className="max-w-full max-h-[360px] rounded-lg bg-black"
+                                        preload="metadata"
+                                    />
+                                    {video.filename && (
+                                        <div className="text-xs text-muted-foreground mt-1 truncate">
+                                            {video.filename}
                                         </div>
-                                    </div>
+                                    )}
                                 </div>
                             ))}
 
-                            {/* Render tool result audio as separate message bubbles */}
+                            {/* Render tool result audio inline */}
                             {toolResultAudios.map((audio, audioIndex) => (
-                                <div key={`${msgKey}-audio-${audioIndex}`} className="w-full mt-2">
-                                    <div className="flex items-end w-full justify-start">
-                                        <Volume2 className="h-7 w-7 mr-2 mb-1 text-muted-foreground self-start flex-shrink-0" />
-                                        <div className="flex flex-col items-start">
-                                            <div className="p-3 rounded-xl shadow-sm max-w-[75%] bg-card text-card-foreground border border-border rounded-bl-none text-sm overflow-hidden">
-                                                <div className="flex flex-col gap-2 min-w-0">
-                                                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                                        <Volume2 className="h-3 w-3" />
-                                                        <span>Tool Result Audio</span>
-                                                    </div>
-                                                    <div className="flex flex-col gap-2 p-2 rounded border border-border bg-muted/30 min-w-0 audio-controls-container">
-                                                        <div className="flex items-center gap-2 min-w-0">
-                                                            <FileAudio className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                                                            <audio
-                                                                controls
-                                                                src={audio.src}
-                                                                className="flex-1 min-w-0"
-                                                            />
-                                                        </div>
-                                                        {audio.filename && (
-                                                            <div className="flex items-center gap-2 min-w-0">
-                                                                <span className="text-xs text-muted-foreground truncate">
-                                                                    {audio.filename}
-                                                                </span>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div className="text-xs text-muted-foreground mt-1 px-1">
-                                                <span>{timestampStr}</span>
-                                            </div>
+                                <div key={`${msgKey}-audio-${audioIndex}`} className="mt-3 pl-9">
+                                    <audio
+                                        controls
+                                        src={audio.src}
+                                        className="max-w-full rounded-lg"
+                                        preload="metadata"
+                                    />
+                                    {audio.filename && (
+                                        <div className="text-xs text-muted-foreground mt-1 truncate">
+                                            {audio.filename}
                                         </div>
-                                    </div>
+                                    )}
                                 </div>
                             ))}
 
@@ -1370,34 +1302,23 @@ export default function MessageList({
 
             {/* Image Modal */}
             {imageModal.isOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
-                    <div className="relative max-w-[90vw] max-h-[90vh] bg-background rounded-lg shadow-2xl border border-border">
-                        {/* Header */}
-                        <div className="flex items-center justify-between p-4 border-b border-border">
-                            <h3 className="text-lg font-semibold">Tool Result Image</h3>
-                            <button
-                                onClick={closeImageModal}
-                                className="p-2 hover:bg-muted rounded-md transition-colors"
-                                aria-label="Close modal"
-                            >
-                                <X className="h-5 w-5" />
-                            </button>
-                        </div>
-
-                        {/* Image Container */}
-                        <div className="p-4 flex items-center justify-center">
-                            <img
-                                src={imageModal.src}
-                                alt={imageModal.alt}
-                                className="max-w-full max-h-[70vh] object-contain rounded"
-                            />
-                        </div>
-
-                        {/* Footer */}
-                        <div className="p-4 border-t border-border text-sm text-muted-foreground">
-                            <p>{imageModal.alt}</p>
-                        </div>
-                    </div>
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 cursor-pointer"
+                    onClick={closeImageModal}
+                >
+                    <button
+                        onClick={closeImageModal}
+                        className="absolute top-4 right-4 p-2 text-white/70 hover:text-white transition-colors"
+                        aria-label="Close modal"
+                    >
+                        <X className="h-6 w-6" />
+                    </button>
+                    <img
+                        src={imageModal.src}
+                        alt={imageModal.alt}
+                        className="max-w-[90vw] max-h-[90vh] object-contain"
+                        onClick={(e) => e.stopPropagation()}
+                    />
                 </div>
             )}
         </div>

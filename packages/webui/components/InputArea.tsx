@@ -2,13 +2,7 @@ import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import ReactDOM from 'react-dom';
 import TextareaAutosize from 'react-textarea-autosize';
 import { Button } from './ui/button';
-import {
-    ChatInputContainer,
-    ButtonFooter,
-    StreamToggle,
-    AttachButton,
-    RecordButton,
-} from './ChatInput';
+import { ChatInputContainer, ButtonFooter, AttachButton, RecordButton } from './ChatInput';
 import ModelPickerModal from './ModelPicker';
 import {
     SendHorizontal,
@@ -24,7 +18,7 @@ import { Alert, AlertDescription } from './ui/alert';
 import { useChatContext } from './hooks/ChatContext';
 import { useFontsReady } from './hooks/useFontsReady';
 import { cn, filterAndSortResources } from '../lib/utils';
-import { usePreferenceStore, useCurrentSessionId, useSessionProcessing } from '@/lib/stores';
+import { useCurrentSessionId, useSessionProcessing } from '@/lib/stores';
 import { useCurrentLLM } from './hooks/useCurrentLLM';
 import ResourceAutocomplete from './ResourceAutocomplete';
 import type { ResourceMetadata as UIResourceMetadata } from '@dexto/core';
@@ -90,8 +84,6 @@ export default function InputArea({
     const { cancel } = useChatContext();
 
     // Get state from stores and hooks
-    const isStreaming = usePreferenceStore((s) => s.isStreaming);
-    const setStreaming = usePreferenceStore((s) => s.setStreaming);
     const { data: currentLLM } = useCurrentLLM(currentSessionId);
 
     // Input history for Up/Down navigation
@@ -1109,18 +1101,6 @@ export default function InputArea({
                             }
                             rightButtons={
                                 <div className="flex items-center gap-2">
-                                    <div
-                                        className={cn(
-                                            'hidden',
-                                            isSessionsPanelOpen ? 'lg:block' : 'md:block'
-                                        )}
-                                    >
-                                        <StreamToggle
-                                            isStreaming={isStreaming}
-                                            onStreamingChange={setStreaming}
-                                        />
-                                    </div>
-
                                     <ModelPickerModal />
 
                                     {/* Stop/Cancel button shown when a run is in progress */}
