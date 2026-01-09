@@ -94,6 +94,7 @@ export function createDextoApp(options: CreateDextoAppOptions) {
         webRoot,
         webUIConfig,
         disableAuth = false,
+        disableAuth = false,
     } = options;
 
     // Security check: Warn when auth is disabled
@@ -109,7 +110,7 @@ export function createDextoApp(options: CreateDextoAppOptions) {
     app.use('*', createCorsMiddleware());
 
     // Global authentication middleware (after CORS, before routes)
-    // Can be disabled when using an external auth layer
+    // Can be disabled when using an external auth layer (e.g., multi-agent server)
     if (!disableAuth) {
         app.use('*', createAuthMiddleware());
     }
