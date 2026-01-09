@@ -1,6 +1,7 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import type { Context } from 'hono';
 import type { DextoAgent, AgentCard } from '@dexto/core';
+import { logger } from '@dexto/core';
 import { createHealthRouter } from './routes/health.js';
 import { createGreetingRouter } from './routes/greeting.js';
 import { createMessagesRouter } from './routes/messages.js';
@@ -94,6 +95,14 @@ export function createDextoApp(options: CreateDextoAppOptions) {
         webUIConfig,
         disableAuth = false,
     } = options;
+
+    // Security check: Warn when auth is disabled
+    if (disableAuth) {
+        logger.warn(
+            `⚠️  Authentication disabled (disableAuth=true). createAuthMiddleware() skipped. Ensure external auth is in place.`
+        );
+    }
+
     const app = new OpenAPIHono({ strict: false });
 
     // Global CORS middleware for cross-origin requests (must be first)
