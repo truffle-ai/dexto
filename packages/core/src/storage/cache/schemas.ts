@@ -24,7 +24,7 @@ const BaseCacheSchema = z.object({
 });
 
 // Memory cache - minimal configuration
-const InMemoryCacheSchema = BaseCacheSchema.extend({
+export const InMemoryCacheSchema = BaseCacheSchema.extend({
     type: z.literal('in-memory'),
     // In-memory cache doesn't need connection options, but inherits pool options for consistency
 }).strict();
@@ -32,7 +32,7 @@ const InMemoryCacheSchema = BaseCacheSchema.extend({
 export type InMemoryCacheConfig = z.output<typeof InMemoryCacheSchema>;
 
 // Redis cache configuration
-const RedisCacheSchema = BaseCacheSchema.extend({
+export const RedisCacheSchema = BaseCacheSchema.extend({
     type: z.literal('redis'),
     url: EnvExpandedString().optional().describe('Redis connection URL (redis://...)'),
     host: z.string().optional().describe('Redis host'),

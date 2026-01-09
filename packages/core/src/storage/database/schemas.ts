@@ -24,7 +24,7 @@ const BaseDatabaseSchema = z.object({
 });
 
 // Memory database - minimal configuration
-const InMemoryDatabaseSchema = BaseDatabaseSchema.extend({
+export const InMemoryDatabaseSchema = BaseDatabaseSchema.extend({
     type: z.literal('in-memory'),
     // In-memory database doesn't need connection options, but inherits pool options for consistency
 }).strict();
@@ -32,7 +32,7 @@ const InMemoryDatabaseSchema = BaseDatabaseSchema.extend({
 export type InMemoryDatabaseConfig = z.output<typeof InMemoryDatabaseSchema>;
 
 // SQLite database configuration
-const SqliteDatabaseSchema = BaseDatabaseSchema.extend({
+export const SqliteDatabaseSchema = BaseDatabaseSchema.extend({
     type: z.literal('sqlite'),
     path: z
         .string()
@@ -44,7 +44,7 @@ const SqliteDatabaseSchema = BaseDatabaseSchema.extend({
 export type SqliteDatabaseConfig = z.output<typeof SqliteDatabaseSchema>;
 
 // PostgreSQL database configuration
-const PostgresDatabaseSchema = BaseDatabaseSchema.extend({
+export const PostgresDatabaseSchema = BaseDatabaseSchema.extend({
     type: z.literal('postgres'),
     url: EnvExpandedString().optional().describe('PostgreSQL connection URL (postgresql://...)'),
     connectionString: EnvExpandedString().optional().describe('PostgreSQL connection string'),

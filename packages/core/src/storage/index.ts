@@ -1,9 +1,13 @@
 /**
  * Dexto Storage Layer
  *
- * A storage system with two storage types:
+ * A storage system with three storage types:
  * - Cache: Fast, ephemeral storage (Redis, Memory) with TTL support
  * - Database: Persistent, reliable storage (PostgreSQL, SQLite, Memory) with list operations
+ * - Blob: Large object storage (Local, Memory) for files and binary data
+ *
+ * All storage types use a provider pattern for extensibility. Custom providers can be
+ * registered at runtime before configuration loading.
  *
  * Usage:
  *
@@ -11,12 +15,14 @@
  * // Create and initialize a storage manager
  * const manager = await createStorageManager({
  *   cache: { type: 'in-memory' },
- *   database: { type: 'in-memory' }
+ *   database: { type: 'in-memory' },
+ *   blob: { type: 'local', storePath: '/tmp/blobs' }
  * });
  *
  * // Access cache and database via getters
  * const cache = manager.getCache();
  * const database = manager.getDatabase();
+ * const blobStore = manager.getBlobStore();
  *
  * // Use cache for temporary data
  * await cache.set('session:123', sessionData, 3600); // 1 hour TTL
@@ -30,23 +36,26 @@
  * // Cleanup when done
  * await manager.disconnect();
  * ```
+ *
+ * ## Registering Custom Providers
+ *
+ * ```typescript
+ * import { databaseRegistry, cacheRegistry, blobStoreRegistry } from '@dexto/core';
+ *
+ * // Register before loading config
+ * databaseRegistry.register(mongoProvider);
+ * cacheRegistry.register(memcachedProvider);
+ * blobStoreRegistry.register(s3Provider);
+ * ```
  */
 
 // Main storage manager and utilities
 export { StorageManager, createStorageManager } from './storage-manager.js';
 
-// Storage interfaces
-export type { Cache } from './cache/types.js';
-export type { Database } from './database/types.js';
-
 // Schema types
 export type { StorageConfig, ValidatedStorageConfig } from './schemas.js';
 
-// Store implementations - always available
-export { MemoryCacheStore } from './cache/memory-cache-store.js';
-export { MemoryDatabaseStore } from './database/memory-database-store.js';
-
-// Schema constants, types, and schemas for UI consumption
+// Schema constants and schemas for UI consumption
 export { CACHE_TYPES, DATABASE_TYPES, BLOB_STORE_TYPES } from './schemas.js';
 export type { CacheType, DatabaseType, BlobStoreType } from './schemas.js';
 export {
@@ -56,13 +65,56 @@ export {
     StorageSchema,
 } from './schemas.js';
 
+// ==================== Database ====================
+
+// Database - factory, registry, and provider pattern
+export { createDatabase, databaseRegistry, DatabaseRegistry } from './database/index.js';
+export type { DatabaseProvider } from './database/index.js';
+
+// Database interface
+export type { Database } from './database/types.js';
+
+// Built-in database providers
+export {
+    inMemoryDatabaseProvider,
+    sqliteDatabaseProvider,
+    postgresDatabaseProvider,
+} from './database/providers/index.js';
+
+// Database config types
+export type {
+    DatabaseConfig,
+    InMemoryDatabaseConfig,
+    SqliteDatabaseConfig,
+    PostgresDatabaseConfig,
+} from './schemas.js';
+
+// Database implementations (for advanced usage)
+export { MemoryDatabaseStore } from './database/memory-database-store.js';
+
+// ==================== Cache ====================
+
+// Cache - factory, registry, and provider pattern
+export { createCache, cacheRegistry, CacheRegistry } from './cache/index.js';
+export type { CacheProvider } from './cache/index.js';
+
+// Cache interface
+export type { Cache } from './cache/types.js';
+
+// Built-in cache providers
+export { inMemoryCacheProvider, redisCacheProvider } from './cache/providers/index.js';
+
+// Cache config types
+export type { CacheConfig, InMemoryCacheConfig, RedisCacheConfig } from './schemas.js';
+
+// Cache implementations (for advanced usage)
+export { MemoryCacheStore } from './cache/memory-cache-store.js';
+
+// ==================== Blob Storage ====================
+
 // Blob storage - factory, registry, and provider pattern
 export { createBlobStore, blobStoreRegistry, BlobStoreRegistry } from './blob/index.js';
 export type { BlobStoreProvider } from './blob/index.js';
-
-// Built-in blob storage providers
-// These can be imported and registered by harnesses as needed
-export { localBlobStoreProvider, inMemoryBlobStoreProvider } from './blob/providers/index.js';
 
 // Blob storage interface and types
 export type { BlobStore } from './blob/types.js';
@@ -75,21 +127,11 @@ export type {
     BlobStats,
 } from './blob/types.js';
 
-// Blob storage config types (built-in providers only)
+// Built-in blob storage providers
+export { localBlobStoreProvider, inMemoryBlobStoreProvider } from './blob/providers/index.js';
+
+// Blob storage config types
 export type { BlobStoreConfig, InMemoryBlobStoreConfig, LocalBlobStoreConfig } from './schemas.js';
 
 // Blob store implementations (for advanced usage and external providers)
 export { LocalBlobStore, InMemoryBlobStore } from './blob/index.js';
-
-// Cache config types
-export type { CacheConfig, InMemoryCacheConfig, RedisCacheConfig } from './schemas.js';
-
-// Database config types
-export type {
-    DatabaseConfig,
-    InMemoryDatabaseConfig,
-    SqliteDatabaseConfig,
-    PostgresDatabaseConfig,
-} from './schemas.js';
-
-// Note: Actual backend classes are lazy-loaded by StorageManager to handle optional dependencies
