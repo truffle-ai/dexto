@@ -110,7 +110,7 @@ export function createDextoApp(options: CreateDextoAppOptions) {
     app.use('*', createCorsMiddleware());
 
     // Global authentication middleware (after CORS, before routes)
-    // Can be disabled when using an external auth layer (e.g., multi-agent server)
+    // Can be disabled when using an external auth layer
     if (!disableAuth) {
         app.use('*', createAuthMiddleware());
     }
