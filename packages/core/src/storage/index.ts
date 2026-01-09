@@ -6,8 +6,7 @@
  * - Database: Persistent, reliable storage (PostgreSQL, SQLite, Memory) with list operations
  * - Blob: Large object storage (Local, Memory) for files and binary data
  *
- * All storage types use a provider pattern for extensibility. Custom providers can be
- * registered at runtime before configuration loading.
+ * All storage types use a provider pattern for extensibility.
  *
  * Usage:
  *
