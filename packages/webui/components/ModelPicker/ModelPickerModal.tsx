@@ -306,10 +306,21 @@ export default function ModelPickerModal() {
 
                 // Then switch current session if active
                 if (currentSessionId) {
-                    await switchLLMMutation.mutateAsync({
-                        ...baseSwitchPayload,
-                        sessionId: currentSessionId,
-                    });
+                    try {
+                        await switchLLMMutation.mutateAsync({
+                            ...baseSwitchPayload,
+                            sessionId: currentSessionId,
+                        });
+                    } catch (sessionErr) {
+                        setError(
+                            sessionErr instanceof Error
+                                ? `Model added and set as global default, but failed to switch current session: ${sessionErr.message}`
+                                : 'Model added and set as global default, but failed to switch current session'
+                        );
+                        await refreshCurrentLLM();
+                        setIsAddingModel(false);
+                        return;
+                    }
                 }
 
                 await refreshCurrentLLM();
