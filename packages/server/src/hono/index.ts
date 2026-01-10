@@ -124,18 +124,16 @@ export function createDextoApp(options: CreateDextoAppOptions) {
     // Global error handling for all routes
     app.onError((err, ctx) => handleHonoError(ctx, err));
 
-    // Resolve effective prefix (defaults to '/api' if not specified)
-    const effectivePrefix = apiPrefix ?? DEFAULT_API_PREFIX;
+    // Normalize prefix: strip trailing slashes, treat '' as '/'
+    const rawPrefix = apiPrefix ?? DEFAULT_API_PREFIX;
+    const normalizedPrefix = rawPrefix === '' ? '/' : rawPrefix.replace(/\/+$/, '') || '/';
+    const middlewarePattern = normalizedPrefix === '/' ? '/*' : `${normalizedPrefix}/*`;
 
-    // Apply middleware to API routes (use prefix or fallback to /* for empty prefix)
-    const middlewarePattern = effectivePrefix ? `${effectivePrefix}/*` : '/*';
     app.use(middlewarePattern, prettyJsonMiddleware);
     app.use(middlewarePattern, redactionMiddleware);
 
-    // For type-safe RPC clients (like webui), we need literal types for route mounting.
-    // The default '/api' prefix provides full type inference for the exported AppType.
-    // Custom prefixes work at runtime but the exported types assume '/api'.
-    const routePrefix = (effectivePrefix || '/') as typeof DEFAULT_API_PREFIX;
+    // Cast to literal type for RPC client type inference (webui uses default '/api')
+    const routePrefix = normalizedPrefix as typeof DEFAULT_API_PREFIX;
 
     // Mount all API routers at the configured prefix for proper type inference
     // Each router is mounted individually so Hono can properly track route types
