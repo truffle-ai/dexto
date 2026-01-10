@@ -86,9 +86,12 @@ export type CreateDextoAppOptions = {
     disableAuth?: boolean;
 };
 
+// Default API prefix as a const literal for type inference
+const DEFAULT_API_PREFIX = '/api' as const;
+
 export function createDextoApp(options: CreateDextoAppOptions) {
     const {
-        apiPrefix = '/api',
+        apiPrefix,
         getAgent,
         getAgentCard,
         approvalCoordinator,
@@ -97,7 +100,6 @@ export function createDextoApp(options: CreateDextoAppOptions) {
         agentsContext,
         webRoot,
         webUIConfig,
-        disableAuth = false,
         disableAuth = false,
     } = options;
 
@@ -122,13 +124,18 @@ export function createDextoApp(options: CreateDextoAppOptions) {
     // Global error handling for all routes
     app.onError((err, ctx) => handleHonoError(ctx, err));
 
+    // Resolve effective prefix (defaults to '/api' if not specified)
+    const effectivePrefix = apiPrefix ?? DEFAULT_API_PREFIX;
+
     // Apply middleware to API routes (use prefix or fallback to /* for empty prefix)
-    const middlewarePattern = apiPrefix ? `${apiPrefix}/*` : '/*';
+    const middlewarePattern = effectivePrefix ? `${effectivePrefix}/*` : '/*';
     app.use(middlewarePattern, prettyJsonMiddleware);
     app.use(middlewarePattern, redactionMiddleware);
 
-    // Determine route prefix (empty string means mount at root)
-    const routePrefix = apiPrefix || '/';
+    // For type-safe RPC clients (like webui), we need literal types for route mounting.
+    // The default '/api' prefix provides full type inference for the exported AppType.
+    // Custom prefixes work at runtime but the exported types assume '/api'.
+    const routePrefix = (effectivePrefix || '/') as typeof DEFAULT_API_PREFIX;
 
     // Mount all API routers at the configured prefix for proper type inference
     // Each router is mounted individually so Hono can properly track route types
