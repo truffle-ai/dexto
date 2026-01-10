@@ -1,5 +1,20 @@
 # @dexto/agent-management
 
+## 1.4.1
+
+### Patch Changes
+
+- ee12727: Added support for node-llama (llama.cpp) for local GGUF models. Added Ollama as first-class provider. Updated onboarding/setup flow.
+- 436a900: Add support for openrouter, bedrock, glama, vertex ai, fix model switching issues and new model experience for each
+- Updated dependencies [ee12727]
+- Updated dependencies [1e7e974]
+- Updated dependencies [5fa79fa]
+- Updated dependencies [ef40e60]
+- Updated dependencies [e714418]
+- Updated dependencies [7d5ab19]
+- Updated dependencies [436a900]
+    - @dexto/core@1.4.1
+
 ## 1.4.0
 
 ### Minor Changes
