@@ -25,22 +25,94 @@ export class PostgresStore implements Database {
     async connect(): Promise<void> {
         if (this.connected) return;
 
+        const connectionString = this.config.connectionString || this.config.url;
+
+        // Validate connection string is not an unexpanded env variable
+        if (connectionString?.startsWith('$')) {
+            throw StorageError.connectionFailed(
+                `PostgreSQL: Connection string contains unexpanded environment variable: ${connectionString}. ` +
+                    `Ensure the environment variable is set in your .env file.`
+            );
+        }
+
+        if (!connectionString) {
+            throw StorageError.connectionFailed(
+                'PostgreSQL: No connection string provided. Set url or connectionString in database config.'
+            );
+        }
+
+        // Extract schema from options (custom option for schema-based isolation)
+        const { schema, ...pgOptions } = (this.config.options || {}) as {
+            schema?: string;
+            [key: string]: unknown;
+        };
+
+        this.logger.info('Connecting to PostgreSQL database...');
+
         this.pool = new Pool({
-            connectionString: this.config.connectionString || this.config.url,
+            connectionString,
             max: this.config.maxConnections || 20,
             idleTimeoutMillis: this.config.idleTimeoutMillis || 30000,
             connectionTimeoutMillis: this.config.connectionTimeoutMillis || 2000,
-            ...this.config.options,
+            ...pgOptions,
         });
 
-        // Test connection
-        const client = await this.pool.connect();
+        // Set search_path for every connection from the pool when using custom schema
+        if (schema) {
+            this.pool.on('connect', async (client) => {
+                try {
+                    await client.query(`SET search_path TO "${schema}", public`);
+                } catch (err) {
+                    this.logger.error(`Failed to set search_path to "${schema}": ${err}`);
+                }
+            });
+            this.logger.info(`Using custom schema: "${schema}"`);
+        }
+
+        // Test connection with better error handling
+        let client;
         try {
+            client = await this.pool.connect();
             await client.query('SELECT NOW()');
+
+            // Create schema if using custom schema
+            if (schema) {
+                await this.createSchema(client, schema);
+            }
+
             await this.createTables(client);
             this.connected = true;
+            this.logger.info('PostgreSQL database connected successfully');
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            this.logger.error(`PostgreSQL connection failed: ${errorMessage}`);
+
+            // Clean up pool on failure
+            if (this.pool) {
+                await this.pool.end().catch(() => {});
+                this.pool = null;
+            }
+
+            throw StorageError.connectionFailed(`PostgreSQL: ${errorMessage}`);
         } finally {
-            client.release();
+            if (client) {
+                client.release();
+            }
+        }
+    }
+
+    /**
+     * Creates a PostgreSQL schema if it doesn't exist.
+     */
+    private async createSchema(client: PoolClient, schemaName: string): Promise<void> {
+        try {
+            await client.query(`CREATE SCHEMA IF NOT EXISTS "${schemaName}"`);
+            this.logger.debug(`Schema "${schemaName}" ready`);
+        } catch (error) {
+            // Schema creation might fail due to permissions - that's OK if schema already exists
+            this.logger.warn(
+                `Could not create schema "${schemaName}": ${error}. Assuming it exists.`
+            );
         }
     }
 

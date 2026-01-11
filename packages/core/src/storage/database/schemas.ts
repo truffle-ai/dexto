@@ -52,6 +52,12 @@ export const PostgresDatabaseSchema = BaseDatabaseSchema.extend({
     port: z.number().int().positive().optional().describe('PostgreSQL port'),
     database: z.string().optional().describe('PostgreSQL database name'),
     password: z.string().optional().describe('PostgreSQL password'),
+    keyPrefix: z
+        .string()
+        .optional()
+        .describe(
+            'Key prefix for multi-tenant isolation (e.g., "tenant:dev123:agent456:user789:")'
+        ),
 }).strict();
 
 export type PostgresDatabaseConfig = z.output<typeof PostgresDatabaseSchema>;
