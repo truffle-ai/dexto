@@ -148,6 +148,21 @@ function handleLLMResponse(event: EventByName<'llm:response'>): void {
             ...(model && { model }),
             ...(provider && { provider }),
         });
+
+        // Track token usage analytics before returning
+        if (tokenUsage && (tokenUsage.inputTokens || tokenUsage.outputTokens)) {
+            captureTokenUsage({
+                sessionId,
+                provider,
+                model,
+                inputTokens: tokenUsage.inputTokens,
+                outputTokens: tokenUsage.outputTokens,
+                reasoningTokens: tokenUsage.reasoningTokens,
+                totalTokens: tokenUsage.totalTokens,
+                cacheReadTokens: tokenUsage.cacheReadTokens,
+                cacheWriteTokens: tokenUsage.cacheWriteTokens,
+            });
+        }
         return;
     }
 

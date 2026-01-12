@@ -94,6 +94,12 @@ export function capture<Name extends AnalyticsEventName>(
     event: Name,
     properties: AnalyticsEventPayload<Name> = {} as AnalyticsEventPayload<Name>
 ): void {
+    // DEBUG: Log analytics events to stderr for testing (remove after verification)
+    if (event === 'dexto_llm_tokens_consumed') {
+        console.error('\n[DEBUG Analytics CLI] Event:', event);
+        console.error('[DEBUG Analytics CLI] Properties:', JSON.stringify(properties, null, 2));
+    }
+
     if (!enabled || !client || !state) return;
     try {
         client.capture({
