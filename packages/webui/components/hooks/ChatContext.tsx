@@ -506,7 +506,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         if (currentSessionId) {
             // Track conversation reset
             const messageCount = messages.filter((m) => m.sessionId === currentSessionId).length;
-            analytics.trackConversationReset({
+            analytics.trackSessionReset({
                 sessionId: currentSessionId,
                 messageCount,
             });

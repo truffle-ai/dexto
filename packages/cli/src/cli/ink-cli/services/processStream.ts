@@ -34,6 +34,7 @@ import {
     getToolTypeBadge,
 } from '../utils/messageFormatting.js';
 import { isEditWriteTool } from '../utils/toolUtils.js';
+import { capture } from '../../../analytics/index.js';
 import chalk from 'chalk';
 
 /**
@@ -430,6 +431,25 @@ export async function processStream(
                     // Accumulate token usage
                     if (event.tokenUsage?.outputTokens) {
                         state.outputTokens += event.tokenUsage.outputTokens;
+                    }
+
+                    // Track token usage analytics
+                    if (
+                        event.tokenUsage &&
+                        (event.tokenUsage.inputTokens || event.tokenUsage.outputTokens)
+                    ) {
+                        capture('dexto_llm_tokens_consumed', {
+                            source: 'cli',
+                            sessionId: event.sessionId,
+                            provider: event.provider,
+                            model: event.model,
+                            inputTokens: event.tokenUsage.inputTokens,
+                            outputTokens: event.tokenUsage.outputTokens,
+                            reasoningTokens: event.tokenUsage.reasoningTokens,
+                            totalTokens: event.tokenUsage.totalTokens,
+                            cacheReadTokens: event.tokenUsage.cacheReadTokens,
+                            cacheWriteTokens: event.tokenUsage.cacheWriteTokens,
+                        });
                     }
 
                     const finalContent = event.content || '';

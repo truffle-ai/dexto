@@ -5,6 +5,7 @@
 // session_id, etc.) is merged automatically in analytics/index.ts.
 
 import type { ExecutionContext } from '@dexto/agent-management';
+import type { LLMTokensConsumedEvent } from '@dexto/analytics';
 
 export interface BaseEventContext {
     app?: 'dexto';
@@ -133,6 +134,8 @@ export interface DextoAnalyticsEventMap {
     dexto_uninstall: UninstallAggregateEvent;
     dexto_create: CreateProjectEvent;
     dexto_init: InitProjectEvent;
+    // Shared events (from @dexto/analytics)
+    dexto_llm_tokens_consumed: LLMTokensConsumedEvent;
 }
 
 export type AnalyticsEventName = keyof DextoAnalyticsEventMap;

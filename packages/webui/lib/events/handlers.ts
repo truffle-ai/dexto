@@ -18,6 +18,7 @@ import { useAgentStore } from '../stores/agentStore.js';
 import { useApprovalStore } from '../stores/approvalStore.js';
 import { usePreferenceStore } from '../stores/preferenceStore.js';
 import type { ClientEventBus } from './EventBus.js';
+import { captureTokenUsage } from '../analytics/capture.js';
 
 // =============================================================================
 // Types
@@ -188,6 +189,21 @@ function handleLLMResponse(event: EventByName<'llm:response'>): void {
             ...(provider && { provider }),
             createdAt: Date.now(),
             sessionId,
+        });
+    }
+
+    // Track token usage analytics (at end, after all processing)
+    if (tokenUsage && (tokenUsage.inputTokens || tokenUsage.outputTokens)) {
+        captureTokenUsage({
+            sessionId,
+            provider,
+            model,
+            inputTokens: tokenUsage.inputTokens,
+            outputTokens: tokenUsage.outputTokens,
+            reasoningTokens: tokenUsage.reasoningTokens,
+            totalTokens: tokenUsage.totalTokens,
+            cacheReadTokens: tokenUsage.cacheReadTokens,
+            cacheWriteTokens: tokenUsage.cacheWriteTokens,
         });
     }
 }

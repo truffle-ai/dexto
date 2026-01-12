@@ -1,6 +1,20 @@
 // packages/webui/lib/analytics/events.ts
 // WebUI-specific analytics event definitions for PostHog.
 // These events track user activation, retention, and feature usage.
+//
+// Shared events are imported from @dexto/analytics - they use single event names
+// with a `source` property to distinguish CLI vs WebUI.
+
+import type {
+    LLMTokensConsumedEvent,
+    MessageSentEvent as SharedMessageSentEvent,
+    FirstMessageEvent as SharedFirstMessageEvent,
+    ToolCalledEvent as SharedToolCalledEvent,
+    ToolResultEvent,
+    SessionCreatedEvent as SharedSessionCreatedEvent,
+    SessionResetEvent,
+    LLMSwitchedEvent as SharedLLMSwitchedEvent,
+} from '@dexto/analytics';
 
 /**
  * Base context automatically included with every WebUI event.
@@ -17,42 +31,11 @@ export interface BaseEventContext {
     session_id?: string;
 }
 
-// Session & Activation Events
-
-export interface FirstMessageEvent {
-    // Critical activation metric - first message ever sent by this user
-    provider: string;
-    model: string;
-    hasImage: boolean;
-    hasFile: boolean;
-    messageLength: number;
-}
-
-// User Interaction Events
-
-export interface MessageSentEvent {
-    sessionId: string;
-    provider: string;
-    model: string;
-    hasImage: boolean;
-    hasFile: boolean;
-    messageLength: number;
-    messageCount?: number; // Running count of messages in session
-}
+// WebUI-specific events (no CLI equivalent)
 
 export interface SessionSwitchedEvent {
     fromSessionId: string | null;
     toSessionId: string;
-}
-
-export interface SessionCreatedEvent {
-    sessionId: string;
-    trigger: 'first_message' | 'manual'; // How was session created?
-}
-
-export interface ConversationResetEvent {
-    sessionId: string;
-    messageCount: number; // How many messages were cleared
 }
 
 export interface AgentSwitchedEvent {
@@ -62,39 +45,20 @@ export interface AgentSwitchedEvent {
     sessionId?: string;
 }
 
-// Feature Usage Events
-
 export interface MCPServerConnectedEvent {
     serverName: string;
     transportType: 'stdio' | 'http' | 'sse';
-    toolCount?: number; // Number of tools provided by server
-}
-
-export interface ToolCalledEvent {
-    toolName: string;
-    success: boolean;
-    sessionId: string;
-    mcpServer?: string; // Which MCP server provided the tool
-    durationMs?: number;
-}
-
-export interface LLMSwitchedEvent {
-    fromProvider: string;
-    fromModel: string;
-    toProvider: string;
-    toModel: string;
-    sessionId?: string; // May be null if switching before first message
-    trigger: 'user_action' | 'config_change'; // How was switch triggered?
+    toolCount?: number;
 }
 
 export interface FileUploadedEvent {
-    fileType: string; // MIME type
+    fileType: string;
     fileSizeBytes?: number;
     sessionId: string;
 }
 
 export interface ImageUploadedEvent {
-    imageType: string; // MIME type (image/png, image/jpeg, etc.)
+    imageType: string;
     imageSizeBytes?: number;
     sessionId: string;
 }
@@ -102,22 +66,26 @@ export interface ImageUploadedEvent {
 /**
  * Map of all WebUI analytics events.
  * Use this for type-safe event tracking.
+ *
+ * BREAKING CHANGE: Shared events now use unified names (dexto_*) instead of
+ * dexto_webui_* prefixes. This enables simpler PostHog dashboards where
+ * all platforms use the same event name with a `source` property.
  */
 export interface WebUIAnalyticsEventMap {
-    // Session & Activation
-    dexto_webui_first_message: FirstMessageEvent;
+    // Shared events (same names as CLI, with source: 'webui')
+    dexto_llm_tokens_consumed: LLMTokensConsumedEvent;
+    dexto_message_sent: SharedMessageSentEvent;
+    dexto_first_message: SharedFirstMessageEvent;
+    dexto_tool_called: SharedToolCalledEvent;
+    dexto_tool_result: ToolResultEvent;
+    dexto_session_created: SharedSessionCreatedEvent;
+    dexto_session_reset: SessionResetEvent;
+    dexto_llm_switched: SharedLLMSwitchedEvent;
 
-    // User Interactions
-    dexto_webui_message_sent: MessageSentEvent;
+    // WebUI-specific events (no CLI equivalent)
     dexto_webui_session_switched: SessionSwitchedEvent;
-    dexto_webui_session_created: SessionCreatedEvent;
-    dexto_webui_conversation_reset: ConversationResetEvent;
     dexto_webui_agent_switched: AgentSwitchedEvent;
-
-    // Feature Usage
     dexto_webui_mcp_server_connected: MCPServerConnectedEvent;
-    dexto_webui_tool_called: ToolCalledEvent;
-    dexto_webui_llm_switched: LLMSwitchedEvent;
     dexto_webui_file_uploaded: FileUploadedEvent;
     dexto_webui_image_uploaded: ImageUploadedEvent;
 }

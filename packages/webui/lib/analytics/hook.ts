@@ -1,17 +1,21 @@
 // packages/webui/lib/analytics/hook.ts
 // Convenience hook for tracking analytics events in WebUI components.
+//
+// Uses shared event names (dexto_*) with source: 'webui' for unified dashboards.
 
 import { useCallback, useRef } from 'react';
 import { useAnalyticsContext } from './provider.js';
 import type {
     MessageSentEvent,
-    FirstMessageEvent,
-    SessionSwitchedEvent,
     SessionCreatedEvent,
-    ConversationResetEvent,
-    AgentSwitchedEvent,
+    SessionResetEvent,
     ToolCalledEvent,
+    ToolResultEvent,
     LLMSwitchedEvent,
+} from '@dexto/analytics';
+import type {
+    SessionSwitchedEvent,
+    AgentSwitchedEvent,
     FileUploadedEvent,
     ImageUploadedEvent,
     MCPServerConnectedEvent,
@@ -49,14 +53,15 @@ export interface UseAnalyticsReturn {
     enabled: boolean;
     isReady: boolean;
 
-    // Convenience tracking methods
-    trackMessageSent: (params: Omit<MessageSentEvent, 'messageCount'>) => void;
-    trackSessionCreated: (params: SessionCreatedEvent) => void;
+    // Convenience tracking methods (source: 'webui' added automatically)
+    trackMessageSent: (params: Omit<MessageSentEvent, 'messageCount' | 'source'>) => void;
+    trackSessionCreated: (params: Omit<SessionCreatedEvent, 'source'>) => void;
     trackSessionSwitched: (params: SessionSwitchedEvent) => void;
-    trackConversationReset: (params: ConversationResetEvent) => void;
+    trackSessionReset: (params: Omit<SessionResetEvent, 'source'>) => void;
     trackAgentSwitched: (params: AgentSwitchedEvent) => void;
-    trackToolCalled: (params: ToolCalledEvent) => void;
-    trackLLMSwitched: (params: LLMSwitchedEvent) => void;
+    trackToolCalled: (params: Omit<ToolCalledEvent, 'source'>) => void;
+    trackToolResult: (params: Omit<ToolResultEvent, 'source'>) => void;
+    trackLLMSwitched: (params: Omit<LLMSwitchedEvent, 'source'>) => void;
     trackFileUploaded: (params: FileUploadedEvent) => void;
     trackImageUploaded: (params: ImageUploadedEvent) => void;
     trackMCPServerConnected: (params: MCPServerConnectedEvent) => void;
@@ -73,7 +78,7 @@ export function useAnalytics(): UseAnalyticsReturn {
     const messageCountRef = useRef<Record<string, number>>({});
 
     const trackMessageSent = useCallback(
-        (params: Omit<MessageSentEvent, 'messageCount'>) => {
+        (params: Omit<MessageSentEvent, 'messageCount' | 'source'>) => {
             if (!enabled) return;
 
             try {
@@ -86,23 +91,23 @@ export function useAnalytics(): UseAnalyticsReturn {
 
                 if (isFirst) {
                     // Track first message event (critical activation metric)
-                    const firstMessageEvent: FirstMessageEvent = {
+                    capture('dexto_first_message', {
+                        source: 'webui',
                         provider: params.provider,
                         model: params.model,
                         hasImage: params.hasImage,
                         hasFile: params.hasFile,
                         messageLength: params.messageLength,
-                    };
-                    capture('dexto_webui_first_message', firstMessageEvent);
+                    });
                     markFirstMessageSent();
                 }
 
                 // Track regular message sent event
-                const messageEvent: MessageSentEvent = {
+                capture('dexto_message_sent', {
+                    source: 'webui',
                     ...params,
                     messageCount: messageCountRef.current[sessionId],
-                };
-                capture('dexto_webui_message_sent', messageEvent);
+                });
             } catch (error) {
                 // Analytics should never break the app - fail silently
                 console.warn('Analytics tracking failed:', error);
@@ -112,10 +117,10 @@ export function useAnalytics(): UseAnalyticsReturn {
     );
 
     const trackSessionCreated = useCallback(
-        (params: SessionCreatedEvent) => {
+        (params: Omit<SessionCreatedEvent, 'source'>) => {
             if (!enabled) return;
             try {
-                capture('dexto_webui_session_created', params);
+                capture('dexto_session_created', { source: 'webui', ...params });
             } catch (error) {
                 console.warn('Analytics tracking failed:', error);
             }
@@ -135,13 +140,13 @@ export function useAnalytics(): UseAnalyticsReturn {
         [capture, enabled]
     );
 
-    const trackConversationReset = useCallback(
-        (params: ConversationResetEvent) => {
+    const trackSessionReset = useCallback(
+        (params: Omit<SessionResetEvent, 'source'>) => {
             if (!enabled) return;
             try {
                 // Reset message count for this session
                 messageCountRef.current[params.sessionId] = 0;
-                capture('dexto_webui_conversation_reset', params);
+                capture('dexto_session_reset', { source: 'webui', ...params });
             } catch (error) {
                 console.warn('Analytics tracking failed:', error);
             }
@@ -162,10 +167,22 @@ export function useAnalytics(): UseAnalyticsReturn {
     );
 
     const trackToolCalled = useCallback(
-        (params: ToolCalledEvent) => {
+        (params: Omit<ToolCalledEvent, 'source'>) => {
             if (!enabled) return;
             try {
-                capture('dexto_webui_tool_called', params);
+                capture('dexto_tool_called', { source: 'webui', ...params });
+            } catch (error) {
+                console.warn('Analytics tracking failed:', error);
+            }
+        },
+        [capture, enabled]
+    );
+
+    const trackToolResult = useCallback(
+        (params: Omit<ToolResultEvent, 'source'>) => {
+            if (!enabled) return;
+            try {
+                capture('dexto_tool_result', { source: 'webui', ...params });
             } catch (error) {
                 console.warn('Analytics tracking failed:', error);
             }
@@ -174,10 +191,10 @@ export function useAnalytics(): UseAnalyticsReturn {
     );
 
     const trackLLMSwitched = useCallback(
-        (params: LLMSwitchedEvent) => {
+        (params: Omit<LLMSwitchedEvent, 'source'>) => {
             if (!enabled) return;
             try {
-                capture('dexto_webui_llm_switched', params);
+                capture('dexto_llm_switched', { source: 'webui', ...params });
             } catch (error) {
                 console.warn('Analytics tracking failed:', error);
             }
@@ -228,9 +245,10 @@ export function useAnalytics(): UseAnalyticsReturn {
         trackMessageSent,
         trackSessionCreated,
         trackSessionSwitched,
-        trackConversationReset,
+        trackSessionReset,
         trackAgentSwitched,
         trackToolCalled,
+        trackToolResult,
         trackLLMSwitched,
         trackFileUploaded,
         trackImageUploaded,

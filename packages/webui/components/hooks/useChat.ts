@@ -212,9 +212,9 @@ export function useChat(
                 case 'llm:tool-result': {
                     const { toolName, success } = event;
 
-                    // Track tool call completion analytics
+                    // Track tool result analytics
                     if (toolName) {
-                        analyticsRef.current.trackToolCalled({
+                        analyticsRef.current.trackToolResult({
                             toolName,
                             success: success !== false,
                             sessionId: event.sessionId,
