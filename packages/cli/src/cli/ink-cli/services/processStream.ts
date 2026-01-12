@@ -591,7 +591,6 @@ export async function processStream(
                         source: 'cli',
                         sessionId: event.sessionId,
                         toolName: event.toolName,
-                        requiresApproval: false, // Updated by approval:request event
                     });
                     break;
                 }

@@ -1,6 +1,3 @@
-// packages/analytics/src/events.ts
-// Shared analytics event types for CLI and WebUI
-
 /**
  * Platform source for analytics events.
  * Used to distinguish which interface generated the event.
@@ -65,7 +62,6 @@ export interface ToolCalledEvent {
     sessionId: string;
     toolName: string;
     mcpServer?: string | undefined;
-    requiresApproval: boolean;
 }
 
 /**
@@ -77,7 +73,6 @@ export interface ToolResultEvent {
     sessionId: string;
     toolName: string;
     success: boolean;
-    durationMs?: number | undefined;
     approvalStatus?: 'approved' | 'rejected' | undefined;
 }
 

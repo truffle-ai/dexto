@@ -1,4 +1,3 @@
-// packages/webui/lib/analytics/hook.ts
 // Convenience hook for tracking analytics events in WebUI components.
 //
 // Uses shared event names (dexto_*) with source: 'webui' for unified dashboards.

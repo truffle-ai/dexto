@@ -1,4 +1,3 @@
-// packages/webui/lib/analytics/index.ts
 // Main exports for WebUI analytics library.
 //
 // All event types should be imported directly from @dexto/analytics.

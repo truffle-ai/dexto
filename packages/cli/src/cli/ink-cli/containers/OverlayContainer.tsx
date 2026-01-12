@@ -1168,10 +1168,16 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                 ]);
 
                 try {
-                    await agent.addMcpServer(
-                        result.entry.id,
-                        result.entry.config as McpServerConfig
-                    );
+                    const mcpConfig = result.entry.config as McpServerConfig;
+                    await agent.addMcpServer(result.entry.id, mcpConfig);
+
+                    // Track MCP server connected analytics
+                    capture('dexto_mcp_server_connected', {
+                        source: 'cli',
+                        serverName: result.entry.name,
+                        transportType: mcpConfig.type,
+                    });
+
                     setMessages((prev) => [
                         ...prev,
                         {
@@ -1255,6 +1261,14 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     }
 
                     await agent.addMcpServer(config.name, serverConfig);
+
+                    // Track MCP server connected analytics
+                    capture('dexto_mcp_server_connected', {
+                        source: 'cli',
+                        serverName: config.name,
+                        transportType: serverConfig.type,
+                    });
+
                     setMessages((prev) => [
                         ...prev,
                         {

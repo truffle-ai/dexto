@@ -217,7 +217,6 @@ export function useChat(
                         analyticsRef.current.trackToolCalled({
                             toolName,
                             sessionId,
-                            requiresApproval: false, // Will be updated by approval:request if needed
                         });
                     }
                     break;

@@ -1,4 +1,3 @@
-// packages/webui/lib/analytics/events.ts
 // WebUI analytics event definitions for PostHog.
 // These events track user activation, retention, and feature usage.
 //

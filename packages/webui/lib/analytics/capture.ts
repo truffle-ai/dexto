@@ -1,4 +1,3 @@
-// packages/webui/lib/analytics/capture.ts
 // Non-React capture helpers for use in event handlers.
 // These functions work outside of React context (e.g., in handlers.ts).
 
