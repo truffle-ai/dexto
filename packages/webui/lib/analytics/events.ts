@@ -1,19 +1,24 @@
 // packages/webui/lib/analytics/events.ts
-// WebUI-specific analytics event definitions for PostHog.
+// WebUI analytics event definitions for PostHog.
 // These events track user activation, retention, and feature usage.
 //
-// Shared events are imported from @dexto/analytics - they use single event names
-// with a `source` property to distinguish CLI vs WebUI.
+// All events use unified names (dexto_*) with a `source` property to
+// distinguish CLI vs WebUI. This enables simpler PostHog dashboards.
 
 import type {
     LLMTokensConsumedEvent,
-    MessageSentEvent as SharedMessageSentEvent,
-    FirstMessageEvent as SharedFirstMessageEvent,
-    ToolCalledEvent as SharedToolCalledEvent,
+    MessageSentEvent,
+    FirstMessageEvent,
+    ToolCalledEvent,
     ToolResultEvent,
-    SessionCreatedEvent as SharedSessionCreatedEvent,
+    SessionCreatedEvent,
     SessionResetEvent,
-    LLMSwitchedEvent as SharedLLMSwitchedEvent,
+    LLMSwitchedEvent,
+    SessionSwitchedEvent,
+    AgentSwitchedEvent,
+    MCPServerConnectedEvent,
+    FileAttachedEvent,
+    ImageAttachedEvent,
 } from '@dexto/analytics';
 
 /**
@@ -31,63 +36,27 @@ export interface BaseEventContext {
     session_id?: string;
 }
 
-// WebUI-specific events (no CLI equivalent)
-
-export interface SessionSwitchedEvent {
-    fromSessionId: string | null;
-    toSessionId: string;
-}
-
-export interface AgentSwitchedEvent {
-    fromAgentId: string | null;
-    toAgentId: string;
-    toAgentName?: string;
-    sessionId?: string;
-}
-
-export interface MCPServerConnectedEvent {
-    serverName: string;
-    transportType: 'stdio' | 'http' | 'sse';
-    toolCount?: number;
-}
-
-export interface FileUploadedEvent {
-    fileType: string;
-    fileSizeBytes?: number;
-    sessionId: string;
-}
-
-export interface ImageUploadedEvent {
-    imageType: string;
-    imageSizeBytes?: number;
-    sessionId: string;
-}
-
 /**
  * Map of all WebUI analytics events.
  * Use this for type-safe event tracking.
  *
- * BREAKING CHANGE: Shared events now use unified names (dexto_*) instead of
- * dexto_webui_* prefixes. This enables simpler PostHog dashboards where
- * all platforms use the same event name with a `source` property.
+ * All events use unified names (dexto_*) with source: 'webui'.
+ * CLI uses the same event names with source: 'cli'.
  */
 export interface WebUIAnalyticsEventMap {
-    // Shared events (same names as CLI, with source: 'webui')
     dexto_llm_tokens_consumed: LLMTokensConsumedEvent;
-    dexto_message_sent: SharedMessageSentEvent;
-    dexto_first_message: SharedFirstMessageEvent;
-    dexto_tool_called: SharedToolCalledEvent;
+    dexto_message_sent: MessageSentEvent;
+    dexto_first_message: FirstMessageEvent;
+    dexto_tool_called: ToolCalledEvent;
     dexto_tool_result: ToolResultEvent;
-    dexto_session_created: SharedSessionCreatedEvent;
+    dexto_session_created: SessionCreatedEvent;
     dexto_session_reset: SessionResetEvent;
-    dexto_llm_switched: SharedLLMSwitchedEvent;
-
-    // WebUI-specific events (no CLI equivalent)
-    dexto_webui_session_switched: SessionSwitchedEvent;
-    dexto_webui_agent_switched: AgentSwitchedEvent;
-    dexto_webui_mcp_server_connected: MCPServerConnectedEvent;
-    dexto_webui_file_uploaded: FileUploadedEvent;
-    dexto_webui_image_uploaded: ImageUploadedEvent;
+    dexto_llm_switched: LLMSwitchedEvent;
+    dexto_session_switched: SessionSwitchedEvent;
+    dexto_agent_switched: AgentSwitchedEvent;
+    dexto_mcp_server_connected: MCPServerConnectedEvent;
+    dexto_file_attached: FileAttachedEvent;
+    dexto_image_attached: ImageAttachedEvent;
 }
 
 export type WebUIAnalyticsEventName = keyof WebUIAnalyticsEventMap;

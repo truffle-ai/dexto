@@ -91,6 +91,7 @@ import { DextoValidationError, LLMErrorCode } from '@dexto/core';
 import { InputService } from '../services/InputService.js';
 import { createUserMessage, convertHistoryToUIMessages } from '../utils/messageFormatting.js';
 import { generateMessageId } from '../utils/idGenerator.js';
+import { capture } from '../../../analytics/index.js';
 
 export interface OverlayContainerHandle {
     handleInput: (input: string, key: Key) => boolean;
@@ -614,6 +615,13 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         ]);
                         return;
                     }
+
+                    // Track session switch analytics
+                    capture('dexto_session_switched', {
+                        source: 'cli',
+                        fromSessionId: session.id || null,
+                        toSessionId: newSessionId,
+                    });
 
                     // Clear messages and session state before switching
                     setMessages([]);

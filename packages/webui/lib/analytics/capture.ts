@@ -34,13 +34,6 @@ function getBaseContext() {
  * @param params - Token usage data (source is automatically set to 'webui')
  */
 export function captureTokenUsage(params: Omit<LLMTokensConsumedEvent, 'source'>): void {
-    // DEBUG: Log analytics events to console for testing (remove after verification)
-    console.log('\n[DEBUG Analytics WebUI] Event: dexto_llm_tokens_consumed');
-    console.log(
-        '[DEBUG Analytics WebUI] Properties:',
-        JSON.stringify({ source: 'webui', ...params }, null, 2)
-    );
-
     if (!isAnalyticsEnabled()) return;
 
     try {

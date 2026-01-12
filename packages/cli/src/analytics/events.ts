@@ -5,7 +5,20 @@
 // session_id, etc.) is merged automatically in analytics/index.ts.
 
 import type { ExecutionContext } from '@dexto/agent-management';
-import type { LLMTokensConsumedEvent } from '@dexto/analytics';
+import type {
+    LLMTokensConsumedEvent,
+    MessageSentEvent,
+    FirstMessageEvent,
+    ToolCalledEvent,
+    ToolResultEvent,
+    SessionCreatedEvent,
+    SessionResetEvent,
+    LLMSwitchedEvent,
+    SessionSwitchedEvent,
+    AgentSwitchedEvent,
+    MCPServerConnectedEvent,
+    ImageAttachedEvent,
+} from '@dexto/analytics';
 
 export interface BaseEventContext {
     app?: 'dexto';
@@ -61,8 +74,6 @@ export interface CliCommandTimeoutEvent extends CliCommandBaseEvent {
 }
 
 export type CliCommandEvent = CliCommandStartEvent | CliCommandEndEvent | CliCommandTimeoutEvent;
-
-export interface SessionStartEvent {}
 
 export interface PromptEvent {
     mode: 'cli' | 'headless';
@@ -124,7 +135,7 @@ export interface InitProjectEvent {
 }
 
 export interface DextoAnalyticsEventMap {
-    dexto_session_start: SessionStartEvent;
+    // CLI-specific events
     dexto_cli_command: CliCommandEvent;
     dexto_prompt: PromptEvent;
     dexto_setup: SetupEvent;
@@ -136,6 +147,17 @@ export interface DextoAnalyticsEventMap {
     dexto_init: InitProjectEvent;
     // Shared events (from @dexto/analytics)
     dexto_llm_tokens_consumed: LLMTokensConsumedEvent;
+    dexto_message_sent: MessageSentEvent;
+    dexto_first_message: FirstMessageEvent;
+    dexto_tool_called: ToolCalledEvent;
+    dexto_tool_result: ToolResultEvent;
+    dexto_session_created: SessionCreatedEvent;
+    dexto_session_reset: SessionResetEvent;
+    dexto_llm_switched: LLMSwitchedEvent;
+    dexto_session_switched: SessionSwitchedEvent;
+    dexto_agent_switched: AgentSwitchedEvent;
+    dexto_mcp_server_connected: MCPServerConnectedEvent;
+    dexto_image_attached: ImageAttachedEvent;
 }
 
 export type AnalyticsEventName = keyof DextoAnalyticsEventMap;

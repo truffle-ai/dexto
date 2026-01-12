@@ -12,14 +12,12 @@ import type {
     ToolCalledEvent,
     ToolResultEvent,
     LLMSwitchedEvent,
-} from '@dexto/analytics';
-import type {
     SessionSwitchedEvent,
     AgentSwitchedEvent,
-    FileUploadedEvent,
-    ImageUploadedEvent,
+    FileAttachedEvent,
+    ImageAttachedEvent,
     MCPServerConnectedEvent,
-} from './events.js';
+} from '@dexto/analytics';
 
 const FIRST_MESSAGE_KEY = 'dexto_first_message_sent';
 
@@ -56,15 +54,15 @@ export interface UseAnalyticsReturn {
     // Convenience tracking methods (source: 'webui' added automatically)
     trackMessageSent: (params: Omit<MessageSentEvent, 'messageCount' | 'source'>) => void;
     trackSessionCreated: (params: Omit<SessionCreatedEvent, 'source'>) => void;
-    trackSessionSwitched: (params: SessionSwitchedEvent) => void;
+    trackSessionSwitched: (params: Omit<SessionSwitchedEvent, 'source'>) => void;
     trackSessionReset: (params: Omit<SessionResetEvent, 'source'>) => void;
-    trackAgentSwitched: (params: AgentSwitchedEvent) => void;
+    trackAgentSwitched: (params: Omit<AgentSwitchedEvent, 'source'>) => void;
     trackToolCalled: (params: Omit<ToolCalledEvent, 'source'>) => void;
     trackToolResult: (params: Omit<ToolResultEvent, 'source'>) => void;
     trackLLMSwitched: (params: Omit<LLMSwitchedEvent, 'source'>) => void;
-    trackFileUploaded: (params: FileUploadedEvent) => void;
-    trackImageUploaded: (params: ImageUploadedEvent) => void;
-    trackMCPServerConnected: (params: MCPServerConnectedEvent) => void;
+    trackFileAttached: (params: Omit<FileAttachedEvent, 'source'>) => void;
+    trackImageAttached: (params: Omit<ImageAttachedEvent, 'source'>) => void;
+    trackMCPServerConnected: (params: Omit<MCPServerConnectedEvent, 'source'>) => void;
 }
 
 /**
@@ -129,10 +127,10 @@ export function useAnalytics(): UseAnalyticsReturn {
     );
 
     const trackSessionSwitched = useCallback(
-        (params: SessionSwitchedEvent) => {
+        (params: Omit<SessionSwitchedEvent, 'source'>) => {
             if (!enabled) return;
             try {
-                capture('dexto_webui_session_switched', params);
+                capture('dexto_session_switched', { source: 'webui', ...params });
             } catch (error) {
                 console.warn('Analytics tracking failed:', error);
             }
@@ -155,10 +153,10 @@ export function useAnalytics(): UseAnalyticsReturn {
     );
 
     const trackAgentSwitched = useCallback(
-        (params: AgentSwitchedEvent) => {
+        (params: Omit<AgentSwitchedEvent, 'source'>) => {
             if (!enabled) return;
             try {
-                capture('dexto_webui_agent_switched', params);
+                capture('dexto_agent_switched', { source: 'webui', ...params });
             } catch (error) {
                 console.warn('Analytics tracking failed:', error);
             }
@@ -202,11 +200,11 @@ export function useAnalytics(): UseAnalyticsReturn {
         [capture, enabled]
     );
 
-    const trackFileUploaded = useCallback(
-        (params: FileUploadedEvent) => {
+    const trackFileAttached = useCallback(
+        (params: Omit<FileAttachedEvent, 'source'>) => {
             if (!enabled) return;
             try {
-                capture('dexto_webui_file_uploaded', params);
+                capture('dexto_file_attached', { source: 'webui', ...params });
             } catch (error) {
                 console.warn('Analytics tracking failed:', error);
             }
@@ -214,11 +212,11 @@ export function useAnalytics(): UseAnalyticsReturn {
         [capture, enabled]
     );
 
-    const trackImageUploaded = useCallback(
-        (params: ImageUploadedEvent) => {
+    const trackImageAttached = useCallback(
+        (params: Omit<ImageAttachedEvent, 'source'>) => {
             if (!enabled) return;
             try {
-                capture('dexto_webui_image_uploaded', params);
+                capture('dexto_image_attached', { source: 'webui', ...params });
             } catch (error) {
                 console.warn('Analytics tracking failed:', error);
             }
@@ -227,10 +225,10 @@ export function useAnalytics(): UseAnalyticsReturn {
     );
 
     const trackMCPServerConnected = useCallback(
-        (params: MCPServerConnectedEvent) => {
+        (params: Omit<MCPServerConnectedEvent, 'source'>) => {
             if (!enabled) return;
             try {
-                capture('dexto_webui_mcp_server_connected', params);
+                capture('dexto_mcp_server_connected', { source: 'webui', ...params });
             } catch (error) {
                 console.warn('Analytics tracking failed:', error);
             }
@@ -250,8 +248,8 @@ export function useAnalytics(): UseAnalyticsReturn {
         trackToolCalled,
         trackToolResult,
         trackLLMSwitched,
-        trackFileUploaded,
-        trackImageUploaded,
+        trackFileAttached,
+        trackImageAttached,
         trackMCPServerConnected,
     };
 }

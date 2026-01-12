@@ -113,6 +113,61 @@ export interface LLMSwitchedEvent {
 }
 
 /**
+ * Session switched event.
+ * Emitted when user switches to a different session.
+ */
+export interface SessionSwitchedEvent {
+    source: AnalyticsSource;
+    fromSessionId: string | null;
+    toSessionId: string;
+}
+
+/**
+ * Agent switched event.
+ * Emitted when user switches to a different agent.
+ */
+export interface AgentSwitchedEvent {
+    source: AnalyticsSource;
+    fromAgentId: string | null;
+    toAgentId: string;
+    toAgentName?: string | undefined;
+    sessionId?: string | undefined;
+}
+
+/**
+ * MCP server connected event.
+ * Emitted when an MCP server connects successfully.
+ */
+export interface MCPServerConnectedEvent {
+    source: AnalyticsSource;
+    serverName: string;
+    transportType: 'stdio' | 'http' | 'sse';
+    toolCount?: number | undefined;
+}
+
+/**
+ * File attached event.
+ * Emitted when user attaches a file to a message.
+ */
+export interface FileAttachedEvent {
+    source: AnalyticsSource;
+    sessionId: string;
+    fileType: string;
+    fileSizeBytes?: number | undefined;
+}
+
+/**
+ * Image attached event.
+ * Emitted when user attaches an image to a message.
+ */
+export interface ImageAttachedEvent {
+    source: AnalyticsSource;
+    sessionId: string;
+    imageType: string;
+    imageSizeBytes?: number | undefined;
+}
+
+/**
  * Shared analytics event map.
  * All platforms use the same event names.
  */
@@ -125,6 +180,11 @@ export interface SharedAnalyticsEventMap {
     dexto_session_created: SessionCreatedEvent;
     dexto_session_reset: SessionResetEvent;
     dexto_llm_switched: LLMSwitchedEvent;
+    dexto_session_switched: SessionSwitchedEvent;
+    dexto_agent_switched: AgentSwitchedEvent;
+    dexto_mcp_server_connected: MCPServerConnectedEvent;
+    dexto_file_attached: FileAttachedEvent;
+    dexto_image_attached: ImageAttachedEvent;
 }
 
 export type SharedAnalyticsEventName = keyof SharedAnalyticsEventMap;

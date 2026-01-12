@@ -209,6 +209,20 @@ export function useChat(
                     break;
                 }
 
+                case 'llm:tool-call': {
+                    const { toolName, sessionId } = event;
+
+                    // Track tool called analytics
+                    if (toolName) {
+                        analyticsRef.current.trackToolCalled({
+                            toolName,
+                            sessionId,
+                            requiresApproval: false, // Will be updated by approval:request if needed
+                        });
+                    }
+                    break;
+                }
+
                 case 'llm:tool-result': {
                     const { toolName, success } = event;
 

@@ -647,7 +647,7 @@ export default function InputArea({
 
                 // Track file upload
                 if (currentSessionId) {
-                    analyticsRef.current.trackFileUploaded({
+                    analyticsRef.current.trackFileAttached({
                         fileType: 'application/pdf',
                         fileSizeBytes: file.size,
                         sessionId: currentSessionId,
@@ -712,7 +712,7 @@ export default function InputArea({
 
                         // Track audio recording upload
                         if (currentSessionId) {
-                            analyticsRef.current.trackFileUploaded({
+                            analyticsRef.current.trackFileAttached({
                                 fileType: mimeType,
                                 fileSizeBytes: blob.size,
                                 sessionId: currentSessionId,
@@ -778,7 +778,7 @@ export default function InputArea({
 
                 // Track image upload
                 if (currentSessionId) {
-                    analyticsRef.current.trackImageUploaded({
+                    analyticsRef.current.trackImageAttached({
                         imageType: mimeType,
                         imageSizeBytes: file.size,
                         sessionId: currentSessionId,
@@ -842,7 +842,7 @@ export default function InputArea({
 
                 // Track file upload
                 if (currentSessionId) {
-                    analyticsRef.current.trackFileUploaded({
+                    analyticsRef.current.trackFileAttached({
                         fileType: file.type,
                         fileSizeBytes: file.size,
                         sessionId: currentSessionId,

@@ -585,6 +585,14 @@ export async function processStream(
                         timestamp: new Date(),
                         toolStatus: 'pending',
                     });
+
+                    // Track tool called analytics
+                    capture('dexto_tool_called', {
+                        source: 'cli',
+                        sessionId: event.sessionId,
+                        toolName: event.toolName,
+                        requiresApproval: false, // Updated by approval:request event
+                    });
                     break;
                 }
 
@@ -647,6 +655,14 @@ export async function processStream(
                             ...(toolContent && { toolContent }),
                         });
                     }
+
+                    // Track tool result analytics
+                    capture('dexto_tool_result', {
+                        source: 'cli',
+                        sessionId: event.sessionId,
+                        toolName: event.toolName || 'unknown',
+                        success: event.success !== false,
+                    });
                     break;
                 }
 

@@ -48,7 +48,7 @@ function baseProps(): BaseEventContext {
  *
  * - Respects DEXTO_ANALYTICS_DISABLED.
  * - Creates/loads the anonymous distinctId and a per-process session_id.
- * - Emits a dexto_session_start event for each process run.
+ * - Emits a dexto_session_created event for each process run.
  */
 export async function initAnalytics(opts: InitOptions): Promise<void> {
     if (enabled || client) return; // idempotent
@@ -83,7 +83,11 @@ export async function initAnalytics(opts: InitOptions): Promise<void> {
         }
     });
 
-    capture('dexto_session_start', {});
+    capture('dexto_session_created', {
+        source: 'cli',
+        sessionId: sessionId || 'unknown',
+        trigger: 'manual',
+    });
 }
 
 /**
@@ -94,12 +98,6 @@ export function capture<Name extends AnalyticsEventName>(
     event: Name,
     properties: AnalyticsEventPayload<Name> = {} as AnalyticsEventPayload<Name>
 ): void {
-    // DEBUG: Log analytics events to stderr for testing (remove after verification)
-    if (event === 'dexto_llm_tokens_consumed') {
-        console.error('\n[DEBUG Analytics CLI] Event:', event);
-        console.error('[DEBUG Analytics CLI] Properties:', JSON.stringify(properties, null, 2));
-    }
-
     if (!enabled || !client || !state) return;
     try {
         client.capture({
@@ -110,6 +108,25 @@ export function capture<Name extends AnalyticsEventName>(
     } catch {
         // swallow
     }
+}
+
+/**
+ * Check if this is the user's first message ever (for activation tracking).
+ * Uses persistent state to track across sessions.
+ */
+export function isFirstMessage(): boolean {
+    if (!state) return false;
+    return !state.firstMessageSent;
+}
+
+/**
+ * Mark that the user has sent their first message.
+ * Should be called after emitting dexto_first_message.
+ */
+export async function markFirstMessageSent(): Promise<void> {
+    if (!state) return;
+    state.firstMessageSent = true;
+    await saveState(state);
 }
 
 /**

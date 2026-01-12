@@ -14,11 +14,13 @@ import { getDextoGlobalPath } from '@dexto/core';
  * - distinctId: Anonymous ID (UUID) for grouping events by machine.
  * - createdAt: ISO timestamp when the state was first created.
  * - commandRunCounts: Local counters per command for coarse diagnostics.
+ * - firstMessageSent: Whether user has sent their first message (activation tracking).
  */
 export interface AnalyticsState {
     distinctId: string;
     createdAt: string; // ISO string
     commandRunCounts?: Record<string, number>;
+    firstMessageSent?: boolean;
 }
 
 const STATE_DIR = getDextoGlobalPath('telemetry');
