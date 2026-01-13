@@ -18,7 +18,7 @@ import { useValidateOpenRouterModel } from '../hooks/useOpenRouter';
 import { useProviderApiKey, type LLMProvider } from '../hooks/useLLM';
 import { useValidateLocalFile } from '../hooks/useModels';
 
-const BEDROCK_DOCS_URL = 'https://docs.dexto.ai/guides/supported-llm-providers#amazon-bedrock';
+const BEDROCK_DOCS_URL = 'https://docs.dexto.ai/docs/guides/supported-llm-providers#amazon-bedrock';
 
 // 'vertex' is TODO - see comment in PROVIDER_OPTIONS.
 export type CustomModelProvider =

@@ -262,7 +262,7 @@ export async function createImage(name?: string): Promise<string> {
         console.log(`  ${chalk.gray('blob-store/')}  - Blob storage providers`);
         console.log(`  ${chalk.gray('compression/')} - Compression strategies`);
         console.log(`  ${chalk.gray('plugins/')}     - Plugin providers`);
-        console.log(`\n${chalk.gray('Learn more:')} https://docs.dexto.ai/guides/images\n`);
+        console.log(`\n${chalk.gray('Learn more:')} https://docs.dexto.ai/docs/guides/images\n`);
     } catch (error) {
         if (spinner) {
             spinner.stop(chalk.red('✗ Failed to create image'));

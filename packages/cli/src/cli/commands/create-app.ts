@@ -754,7 +754,7 @@ That's it! No imports, no registration code needed.
 ## Learn More
 
 - [Dexto Documentation](https://docs.dexto.ai)
-- [Custom Tools Guide](https://docs.dexto.ai/guides/custom-tools)
+- [Custom Tools Guide](https://docs.dexto.ai/docs/guides/custom-tools)
 `;
     await fs.writeFile('README.md', readmeContent);
 
