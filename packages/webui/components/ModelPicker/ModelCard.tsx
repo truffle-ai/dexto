@@ -19,6 +19,8 @@ interface ModelCardProps {
     onEdit?: () => void;
     size?: 'sm' | 'md' | 'lg';
     isCustom?: boolean;
+    /** Installed local model (downloaded via CLI) */
+    isInstalled?: boolean;
 }
 
 // Provider display name mapping
@@ -33,6 +35,8 @@ const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
     'openai-compatible': 'Custom',
     litellm: 'LiteLLM',
     glama: 'Glama',
+    local: 'Local',
+    ollama: 'Ollama',
 };
 
 // Parse display name into provider and model parts
@@ -86,16 +90,24 @@ export function ModelCard({
     onEdit,
     size = 'md',
     isCustom = false,
+    isInstalled = false,
 }: ModelCardProps) {
     const displayName = model.displayName || model.name;
-    const hasApiKey = providerInfo?.hasApiKey ?? false;
+    // Local/installed models don't need API keys
+    const hasApiKey = isInstalled || provider === 'local' || (providerInfo?.hasApiKey ?? false);
     const { providerName, modelName, suffix } = parseModelName(displayName, provider);
 
     // Build description lines for tooltip
     const priceLines = formatPricingLines(model.pricing || undefined);
     const descriptionLines = [
         `Model: ${displayName}`,
-        provider === 'openai-compatible' ? 'Custom Model' : `Provider: ${providerInfo?.name}`,
+        isInstalled
+            ? 'Installed via CLI'
+            : provider === 'local'
+              ? 'Local Model'
+              : provider === 'openai-compatible'
+                ? 'Custom Model'
+                : `Provider: ${providerInfo?.name}`,
         `Max tokens: ${model.maxInputTokens.toLocaleString()}`,
         model.supportedFileTypes.length > 0 && `Supports: ${model.supportedFileTypes.join(', ')}`,
         !hasApiKey && 'API key required (click to add)',
