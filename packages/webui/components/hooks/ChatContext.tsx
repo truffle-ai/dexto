@@ -23,7 +23,6 @@ import {
     useAgentStore,
     useSessionStore,
     useChatStore,
-    usePreferenceStore,
     useCurrentSessionId,
     useIsWelcomeState,
     useSessionMessages,
@@ -304,7 +303,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     // Get state from stores using centralized selectors
     const currentSessionId = useCurrentSessionId();
     const isWelcomeState = useIsWelcomeState();
-    const isStreaming = usePreferenceStore((s) => s.isStreaming);
 
     // Local state for UI flow control only (not shared/persisted state)
     const [isSwitchingSession, setIsSwitchingSession] = useState(false); // Guard against rapid session switches
@@ -440,7 +438,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                     currentSessionIdRef.current = sessionId;
 
                     // Send message BEFORE navigating
-                    originalSendMessage(content, imageData, fileData, sessionId, isStreaming);
+                    originalSendMessage(content, imageData, fileData, sessionId);
 
                     // Navigate - this will trigger switchSession via ChatApp useEffect
                     navigate({ to: `/chat/${sessionId}`, replace: true });
@@ -462,7 +460,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
             // Only send if we're using an existing session (not a newly created one)
             if (sessionId && !isNewSession) {
-                originalSendMessage(content, imageData, fileData, sessionId, isStreaming);
+                originalSendMessage(content, imageData, fileData, sessionId);
             }
 
             // Track message sent
@@ -485,7 +483,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             isWelcomeState,
             isCreatingSession,
             createAutoSession,
-            isStreaming,
             navigate,
             analytics,
             generateTitle,

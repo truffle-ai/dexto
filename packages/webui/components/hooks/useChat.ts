@@ -253,8 +253,7 @@ export function useChat(
             content: string,
             imageData?: { image: string; mimeType: string },
             fileData?: FileData,
-            sessionId?: string,
-            _stream = true // Controls whether chunks are shown incrementally
+            sessionId?: string
         ) => {
             if (!sessionId) {
                 console.error('Session ID required for sending message');
