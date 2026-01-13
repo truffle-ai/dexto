@@ -34,6 +34,7 @@ import {
     modelFileExists,
     getModelFileSize,
     formatSize,
+    saveCustomModel,
     type InstalledModel,
 } from '@dexto/agent-management';
 
@@ -198,6 +199,10 @@ export async function setupLocalModels(): Promise<LocalModelSetupResult> {
             if (selected.cancelled) {
                 return { success: false, cancelled: true };
             }
+            if (selected.customGGUF) {
+                // User wants to use a custom GGUF file
+                return setupCustomGGUF();
+            }
             if (selected.modelId) {
                 await setActiveModel(selected.modelId);
                 p.log.success(`Using ${selected.modelId} as active model`);
@@ -231,6 +236,13 @@ export async function setupLocalModels(): Promise<LocalModelSetupResult> {
         value: '_all_models',
         label: `${chalk.blue('...')} Show all available models`,
         hint: `${getAllLocalModels().length} models available`,
+    });
+
+    // Add option to use custom GGUF file
+    modelOptions.push({
+        value: '_custom_gguf',
+        label: `${chalk.blue('...')} Use custom GGUF file`,
+        hint: 'For GGUF files not in registry',
     });
 
     // Add option to skip
@@ -274,6 +286,11 @@ export async function setupLocalModels(): Promise<LocalModelSetupResult> {
     if (selected === '_all_models') {
         // Show all models
         return await showAllModelsSelection(installedIds);
+    }
+
+    if (selected === '_custom_gguf') {
+        // Use custom GGUF file
+        return setupCustomGGUF();
     }
 
     const modelId = selected as string;
@@ -500,7 +517,7 @@ export async function setupOllamaModels(): Promise<LocalModelSetupResult> {
  */
 async function selectInstalledModel(
     installed: InstalledModel[]
-): Promise<{ modelId?: string; cancelled?: boolean }> {
+): Promise<{ modelId?: string; cancelled?: boolean; customGGUF?: boolean }> {
     const options = installed.map((model) => ({
         value: model.id,
         label: model.id,
@@ -511,6 +528,12 @@ async function selectInstalledModel(
         value: '_download_new',
         label: `${chalk.blue('+')} Download a new model`,
         hint: 'Browse available models',
+    });
+
+    options.push({
+        value: '_custom_gguf',
+        label: `${chalk.blue('...')} Use custom GGUF file`,
+        hint: 'For GGUF files not in registry',
     });
 
     const selected = await p.select({
@@ -524,6 +547,10 @@ async function selectInstalledModel(
 
     if (selected === '_download_new') {
         return {}; // Continue to download flow
+    }
+
+    if (selected === '_custom_gguf') {
+        return { customGGUF: true };
     }
 
     return { modelId: selected as string };
@@ -711,6 +738,113 @@ async function downloadModelInteractive(
         p.log.error(
             `Failed to download: ${error instanceof Error ? error.message : String(error)}`
         );
+        return { success: false };
+    }
+}
+
+/**
+ * Setup a custom GGUF file.
+ * Prompts user for file path, validates it, and saves as a custom model.
+ * Mirrors the Ollama "Enter custom model name" pattern.
+ */
+async function setupCustomGGUF(): Promise<LocalModelSetupResult> {
+    // Prompt for file path
+    const filePath = await p.text({
+        message: 'Enter path to GGUF file',
+        placeholder: '/path/to/model.gguf',
+        validate: (value) => {
+            if (!value.trim()) {
+                return 'File path is required';
+            }
+            if (!value.endsWith('.gguf')) {
+                return 'File must have .gguf extension';
+            }
+            if (!value.startsWith('/')) {
+                return 'Please enter an absolute path (starting with /)';
+            }
+            return undefined;
+        },
+    });
+
+    if (p.isCancel(filePath)) {
+        return { success: false, cancelled: true };
+    }
+
+    const trimmedPath = filePath.trim();
+
+    // Validate file exists
+    try {
+        const stats = fs.statSync(trimmedPath);
+        if (!stats.isFile()) {
+            p.log.error('Path is not a file');
+            return { success: false };
+        }
+
+        const sizeBytes = stats.size;
+        const filename = path.basename(trimmedPath, '.gguf');
+
+        console.log(
+            chalk.green(`\n✓ Found: ${path.basename(trimmedPath)} (${formatSize(sizeBytes)})\n`)
+        );
+
+        // Prompt for display name (optional)
+        const displayName = await p.text({
+            message: 'Display name (optional)',
+            placeholder: filename,
+            initialValue: filename,
+        });
+
+        if (p.isCancel(displayName)) {
+            return { success: false, cancelled: true };
+        }
+
+        // Prompt for context length (optional)
+        const contextLength = await p.text({
+            message: 'Context length (tokens)',
+            placeholder: '4096',
+            initialValue: '4096',
+            validate: (value) => {
+                const num = parseInt(value);
+                if (isNaN(num) || num < 1) {
+                    return 'Please enter a valid positive number';
+                }
+                return undefined;
+            },
+        });
+
+        if (p.isCancel(contextLength)) {
+            return { success: false, cancelled: true };
+        }
+
+        // Generate a model ID from the filename
+        // Convert to lowercase, replace spaces with dashes, remove special chars
+        const modelId = filename
+            .toLowerCase()
+            .replace(/\s+/g, '-')
+            .replace(/[^a-z0-9-]/g, '')
+            .substring(0, 50); // Limit length
+
+        // Save as custom model
+        await saveCustomModel({
+            name: modelId,
+            provider: 'local',
+            filePath: trimmedPath,
+            displayName: displayName?.trim() || filename,
+            maxInputTokens: parseInt(contextLength) || 4096,
+        });
+
+        p.log.success(`Registered as '${modelId}'`);
+
+        return { success: true, modelId };
+    } catch (error) {
+        const nodeError = error as NodeJS.ErrnoException;
+        if (nodeError.code === 'ENOENT') {
+            p.log.error('File not found');
+        } else if (nodeError.code === 'EACCES') {
+            p.log.error('Permission denied - file is not readable');
+        } else {
+            p.log.error(`Error: ${error instanceof Error ? error.message : String(error)}`);
+        }
         return { success: false };
     }
 }

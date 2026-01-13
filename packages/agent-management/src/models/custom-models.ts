@@ -50,6 +50,9 @@ export const CustomModelSchema = z
         // Optional per-model API key. For openai-compatible this is the primary key source.
         // For litellm/glama/openrouter this overrides the provider-level env var key.
         apiKey: z.string().optional(),
+        // File path for local GGUF models. Required when provider is 'local'.
+        // Stores the absolute path to the .gguf file on disk.
+        filePath: z.string().optional(),
     })
     .superRefine((data, ctx) => {
         // baseURL is required for openai-compatible and litellm
@@ -61,6 +64,22 @@ export const CustomModelSchema = z
                 code: z.ZodIssueCode.custom,
                 path: ['baseURL'],
                 message: `Base URL is required for ${data.provider} provider`,
+            });
+        }
+        // filePath is required for local provider
+        if (data.provider === 'local' && !data.filePath) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['filePath'],
+                message: 'File path is required for local provider',
+            });
+        }
+        // filePath must end with .gguf for local provider
+        if (data.provider === 'local' && data.filePath && !data.filePath.endsWith('.gguf')) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['filePath'],
+                message: 'File path must be a .gguf file',
             });
         }
     });

@@ -92,6 +92,52 @@ function getInstalledModelInfo(modelId: string): InstalledModelInfo | null {
 }
 
 /**
+ * Custom model info structure (matches agent-management schema)
+ */
+interface CustomModelInfo {
+    name: string;
+    provider: string;
+    filePath?: string;
+    displayName?: string;
+    maxInputTokens?: number;
+}
+
+/**
+ * Custom models storage structure
+ */
+interface CustomModelsStorage {
+    version: number;
+    models: CustomModelInfo[];
+}
+
+/**
+ * Read custom models from custom-models.json.
+ * This is a standalone implementation that doesn't depend on agent-management.
+ * Used to resolve custom GGUF file paths for local models.
+ */
+function getCustomModelFilePath(modelId: string): string | null {
+    const customModelsFile = path.join(getModelsDirectory(), 'custom-models.json');
+
+    try {
+        if (!fs.existsSync(customModelsFile)) {
+            return null;
+        }
+
+        const content = fs.readFileSync(customModelsFile, 'utf-8');
+        const storage: CustomModelsStorage = JSON.parse(content);
+
+        // Find a custom model with matching name and local provider
+        const customModel = storage.models.find(
+            (m) => m.name === modelId && m.provider === 'local' && m.filePath
+        );
+
+        return customModel?.filePath ?? null;
+    } catch {
+        return null;
+    }
+}
+
+/**
  * Create a Vercel AI SDK compatible LanguageModelV2 from a local GGUF model.
  * This is a synchronous function that returns a LanguageModel with lazy initialization.
  * The actual model loading happens on first use.
@@ -161,17 +207,24 @@ class LocalLanguageModel implements LanguageModelV2 {
             // Use directly provided path
             modelPath = directPath;
         } else {
-            // Look up installed model by ID
+            // Look up installed model by ID (from state.json - downloaded models)
             const installedModel = getInstalledModelInfo(modelId);
-            if (!installedModel) {
-                // Try to get from registry for a better error message
-                const registryModel = getLocalModelById(modelId);
-                if (!registryModel) {
-                    throw LocalModelError.modelNotFound(modelId);
+            if (installedModel) {
+                modelPath = installedModel.filePath;
+            } else {
+                // Check custom models (from custom-models.json - user-provided GGUF paths)
+                const customPath = getCustomModelFilePath(modelId);
+                if (customPath) {
+                    modelPath = customPath;
+                } else {
+                    // Try to get from registry for a better error message
+                    const registryModel = getLocalModelById(modelId);
+                    if (!registryModel) {
+                        throw LocalModelError.modelNotFound(modelId);
+                    }
+                    throw LocalModelError.modelNotDownloaded(modelId);
                 }
-                throw LocalModelError.modelNotDownloaded(modelId);
             }
-            modelPath = installedModel.filePath;
         }
 
         // Build config object, only including threads if defined

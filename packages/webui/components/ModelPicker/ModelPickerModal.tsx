@@ -69,6 +69,7 @@ export default function ModelPickerModal() {
         maxInputTokens: '',
         maxOutputTokens: '',
         apiKey: '',
+        filePath: '',
     });
     // Track original name when editing (to handle renames)
     const [editingModelName, setEditingModelName] = useState<string | null>(null);
@@ -347,6 +348,7 @@ export default function ModelPickerModal() {
                 maxInputTokens: '',
                 maxOutputTokens: '',
                 apiKey: '',
+                filePath: '',
             });
             setEditingModelName(null);
             setShowCustomForm(false);
@@ -382,13 +384,15 @@ export default function ModelPickerModal() {
     );
 
     const editCustomModel = useCallback((model: CustomModel) => {
-        // Map provider to form-supported provider (ollama, local, vertex use openai-compatible form)
+        // Map provider to form-supported provider (vertex uses openai-compatible form)
         const formSupportedProviders: CustomModelProvider[] = [
             'openai-compatible',
             'openrouter',
             'litellm',
             'glama',
             'bedrock',
+            'ollama',
+            'local',
         ];
         const provider = model.provider ?? 'openai-compatible';
         const formProvider: CustomModelProvider = formSupportedProviders.includes(
@@ -405,6 +409,7 @@ export default function ModelPickerModal() {
             maxInputTokens: model.maxInputTokens?.toString() ?? '',
             maxOutputTokens: model.maxOutputTokens?.toString() ?? '',
             apiKey: model.apiKey ?? '',
+            filePath: model.filePath ?? '',
         });
         setEditingModelName(model.name);
         setShowCustomForm(true);

@@ -16,17 +16,19 @@ import { cn } from '../../lib/utils';
 import { validateBaseURL } from './types';
 import { useValidateOpenRouterModel } from '../hooks/useOpenRouter';
 import { useProviderApiKey, type LLMProvider } from '../hooks/useLLM';
+import { useValidateLocalFile } from '../hooks/useModels';
 
 const BEDROCK_DOCS_URL = 'https://docs.dexto.ai/guides/supported-llm-providers#amazon-bedrock';
 
-// Note: 'ollama' and 'local' providers use 'openai-compatible' form (see PROVIDER_OPTIONS description).
 // 'vertex' is TODO - see comment in PROVIDER_OPTIONS.
 export type CustomModelProvider =
     | 'openai-compatible'
     | 'openrouter'
     | 'litellm'
     | 'glama'
-    | 'bedrock';
+    | 'bedrock'
+    | 'ollama'
+    | 'local';
 
 export interface CustomModelFormData {
     provider: CustomModelProvider;
@@ -36,6 +38,7 @@ export interface CustomModelFormData {
     maxInputTokens: string;
     maxOutputTokens: string;
     apiKey: string;
+    filePath: string;
 }
 
 interface CustomModelFormProps {
@@ -73,6 +76,16 @@ const PROVIDER_OPTIONS: { value: CustomModelProvider; label: string; description
         value: 'bedrock',
         label: 'AWS Bedrock',
         description: 'Custom Bedrock model IDs (uses AWS credentials)',
+    },
+    {
+        value: 'ollama',
+        label: 'Ollama',
+        description: 'Local Ollama server models',
+    },
+    {
+        value: 'local',
+        label: 'Local (GGUF)',
+        description: 'Custom GGUF files via node-llama-cpp',
     },
     // TODO: Add 'vertex' provider for custom Vertex AI model IDs (uses ADC auth like Bedrock)
     // Would allow users to add model IDs not yet in registry (e.g., new Gemini previews)
@@ -565,6 +578,249 @@ function LiteLLMFields({
 }
 
 /**
+ * Ollama fields - model name, optional baseURL
+ * No API key required
+ */
+function OllamaFields({ formData, onChange, setLocalError }: ProviderFieldsProps) {
+    return (
+        <>
+            {/* Setup Guide Banner */}
+            <div className="p-3 rounded-md bg-blue-500/10 border border-blue-500/30">
+                <div className="flex items-start gap-2">
+                    <Info className="h-4 w-4 text-blue-500 mt-0.5 flex-shrink-0" />
+                    <div className="space-y-1">
+                        <p className="text-xs text-blue-700 dark:text-blue-300">
+                            Ollama must be installed and running.
+                        </p>
+                        <a
+                            href="https://ollama.ai"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-xs text-primary hover:underline mt-1"
+                        >
+                            Get Ollama
+                            <ExternalLink className="h-3 w-3" />
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            {/* Model Name */}
+            <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">Model Name *</label>
+                <Input
+                    value={formData.name}
+                    onChange={(e) => {
+                        onChange({ name: e.target.value });
+                        setLocalError(null);
+                    }}
+                    placeholder="e.g., llama3.2:latest, mistral:7b"
+                    className="h-9 text-sm"
+                />
+                <p className="text-[10px] text-muted-foreground">
+                    Run{' '}
+                    <code className="px-1 py-0.5 rounded bg-muted text-[10px]">ollama list</code> to
+                    see available models
+                </p>
+            </div>
+
+            {/* Base URL (optional) */}
+            <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">
+                    Ollama URL <span className="text-muted-foreground/60">(optional)</span>
+                </label>
+                <Input
+                    value={formData.baseURL}
+                    onChange={(e) => onChange({ baseURL: e.target.value })}
+                    placeholder="http://localhost:11434 (default)"
+                    className="h-9 text-sm"
+                />
+            </div>
+
+            {/* Display Name */}
+            <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">
+                    Display Name <span className="text-muted-foreground/60">(optional)</span>
+                </label>
+                <Input
+                    value={formData.displayName}
+                    onChange={(e) => onChange({ displayName: e.target.value })}
+                    placeholder="Friendly name for the model"
+                    className="h-9 text-sm"
+                />
+            </div>
+        </>
+    );
+}
+
+/**
+ * Local GGUF fields - model ID, file path with validation
+ * No API key required
+ */
+function LocalFields({ formData, onChange, setLocalError }: ProviderFieldsProps) {
+    const { mutateAsync: validateFile } = useValidateLocalFile();
+    const validationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const [validation, setValidation] = useState<{
+        status: 'idle' | 'validating' | 'valid' | 'invalid';
+        sizeBytes?: number;
+        error?: string;
+    }>({ status: 'idle' });
+
+    // Debounced file validation
+    useEffect(() => {
+        const filePath = formData.filePath?.trim();
+        if (!filePath) {
+            setValidation({ status: 'idle' });
+            return;
+        }
+        if (!filePath.startsWith('/')) {
+            setValidation({ status: 'invalid', error: 'Path must be absolute (start with /)' });
+            return;
+        }
+        if (!filePath.endsWith('.gguf')) {
+            setValidation({ status: 'invalid', error: 'File must have .gguf extension' });
+            return;
+        }
+        if (validationTimerRef.current) clearTimeout(validationTimerRef.current);
+        setValidation({ status: 'validating' });
+        validationTimerRef.current = setTimeout(async () => {
+            try {
+                const result = await validateFile(filePath);
+                setValidation(
+                    result.valid
+                        ? { status: 'valid', sizeBytes: result.sizeBytes }
+                        : { status: 'invalid', error: result.error || 'File not found' }
+                );
+            } catch {
+                setValidation({ status: 'invalid', error: 'Validation failed' });
+            }
+        }, 500);
+        return () => {
+            if (validationTimerRef.current) clearTimeout(validationTimerRef.current);
+        };
+    }, [formData.filePath, validateFile]);
+
+    const isValid = validation.status === 'valid';
+    const isInvalid = validation.status === 'invalid';
+    const isValidating = validation.status === 'validating';
+
+    // Helper to format file size
+    const formatSize = (bytes?: number) => {
+        if (!bytes) return '';
+        const gb = bytes / (1024 * 1024 * 1024);
+        if (gb >= 1) return `${gb.toFixed(1)} GB`;
+        const mb = bytes / (1024 * 1024);
+        return `${mb.toFixed(0)} MB`;
+    };
+
+    return (
+        <>
+            {/* Setup Guide Banner */}
+            <div className="p-3 rounded-md bg-blue-500/10 border border-blue-500/30">
+                <div className="flex items-start gap-2">
+                    <Info className="h-4 w-4 text-blue-500 mt-0.5 flex-shrink-0" />
+                    <div className="space-y-1">
+                        <p className="text-xs text-blue-700 dark:text-blue-300">
+                            Requires node-llama-cpp to be installed.
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                            Run{' '}
+                            <code className="px-1 py-0.5 rounded bg-muted text-[10px]">
+                                dexto setup
+                            </code>{' '}
+                            and select &quot;local&quot; to install dependencies.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            {/* Model ID */}
+            <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">Model ID *</label>
+                <Input
+                    value={formData.name}
+                    onChange={(e) => {
+                        onChange({ name: e.target.value });
+                        setLocalError(null);
+                    }}
+                    placeholder="e.g., my-custom-llama"
+                    className="h-9 text-sm"
+                />
+                <p className="text-[10px] text-muted-foreground">
+                    A unique identifier for this model
+                </p>
+            </div>
+
+            {/* File Path */}
+            <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">
+                    GGUF File Path *
+                </label>
+                <div className="relative">
+                    <Input
+                        value={formData.filePath}
+                        onChange={(e) => {
+                            onChange({ filePath: e.target.value });
+                            setLocalError(null);
+                        }}
+                        placeholder="/path/to/model.gguf"
+                        className={cn(
+                            'h-9 text-sm pr-8',
+                            isValid && 'border-green-500 focus-visible:ring-green-500',
+                            isInvalid && 'border-red-500 focus-visible:ring-red-500'
+                        )}
+                    />
+                    {formData.filePath?.trim() && (
+                        <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                            {isValidating && (
+                                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                            )}
+                            {isValid && <Check className="h-4 w-4 text-green-500" />}
+                            {isInvalid && <X className="h-4 w-4 text-red-500" />}
+                        </div>
+                    )}
+                </div>
+                {isValid && validation.sizeBytes && (
+                    <p className="text-[10px] text-green-600">
+                        Found: {formatSize(validation.sizeBytes)}
+                    </p>
+                )}
+                {isInvalid && validation.error && (
+                    <p className="text-[10px] text-red-500">{validation.error}</p>
+                )}
+            </div>
+
+            {/* Display Name */}
+            <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">
+                    Display Name <span className="text-muted-foreground/60">(optional)</span>
+                </label>
+                <Input
+                    value={formData.displayName}
+                    onChange={(e) => onChange({ displayName: e.target.value })}
+                    placeholder="Friendly name for the model"
+                    className="h-9 text-sm"
+                />
+            </div>
+
+            {/* Max Input Tokens */}
+            <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">
+                    Context Length <span className="text-muted-foreground/60">(optional)</span>
+                </label>
+                <Input
+                    value={formData.maxInputTokens}
+                    onChange={(e) => onChange({ maxInputTokens: e.target.value })}
+                    placeholder="4096 (default)"
+                    type="number"
+                    className="h-9 text-sm"
+                />
+            </div>
+        </>
+    );
+}
+
+/**
  * Reusable API Key field component
  */
 function ApiKeyField({
@@ -706,6 +962,38 @@ export function CustomModelForm({
                     return;
                 }
                 break;
+            case 'ollama':
+                if (!formData.name.trim()) {
+                    setLocalError('Model name is required');
+                    return;
+                }
+                // Optional baseURL validation if provided
+                if (formData.baseURL.trim()) {
+                    const urlValidation = validateBaseURL(formData.baseURL);
+                    if (!urlValidation.isValid) {
+                        setLocalError(urlValidation.error || 'Invalid Ollama URL');
+                        return;
+                    }
+                }
+                break;
+            case 'local':
+                if (!formData.name.trim()) {
+                    setLocalError('Model ID is required');
+                    return;
+                }
+                if (!formData.filePath?.trim()) {
+                    setLocalError('GGUF file path is required');
+                    return;
+                }
+                if (!formData.filePath.startsWith('/')) {
+                    setLocalError('File path must be absolute (start with /)');
+                    return;
+                }
+                if (!formData.filePath.endsWith('.gguf')) {
+                    setLocalError('File must have .gguf extension');
+                    return;
+                }
+                break;
         }
         setLocalError(null);
         onSubmit();
@@ -721,6 +1009,14 @@ export function CustomModelForm({
                 return formData.name.trim() && formData.name.includes('/');
             case 'bedrock':
                 return formData.name.trim().length > 0;
+            case 'ollama':
+                return formData.name.trim().length > 0;
+            case 'local':
+                return (
+                    formData.name.trim().length > 0 &&
+                    formData.filePath?.trim().startsWith('/') &&
+                    formData.filePath?.trim().endsWith('.gguf')
+                );
             default:
                 return false;
         }
@@ -751,6 +1047,10 @@ export function CustomModelForm({
                 return <GlamaFields {...props} />;
             case 'litellm':
                 return <LiteLLMFields {...props} />;
+            case 'ollama':
+                return <OllamaFields {...props} />;
+            case 'local':
+                return <LocalFields {...props} />;
             case 'openai-compatible':
             default:
                 return <OpenAICompatibleFields {...props} />;
@@ -818,6 +1118,7 @@ export function CustomModelForm({
                                                 apiKey: '',
                                                 maxInputTokens: '',
                                                 maxOutputTokens: '',
+                                                filePath: '',
                                             });
                                             setDropdownOpen(false);
                                         }}
