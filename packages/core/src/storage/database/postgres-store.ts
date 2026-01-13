@@ -154,10 +154,11 @@ export class PostgresStore implements Database {
         this.checkConnection();
         const client = await this.pool!.connect();
         try {
-            // pg driver handles JSONB conversion automatically
+            // Explicitly stringify for JSONB - the pg driver doesn't always handle this correctly
+            const jsonValue = JSON.stringify(value);
             await client.query(
-                'INSERT INTO kv (key, value, updated_at) VALUES ($1, $2, $3) ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = $3',
-                [key, value, new Date()]
+                'INSERT INTO kv (key, value, updated_at) VALUES ($1, $2::jsonb, $3) ON CONFLICT (key) DO UPDATE SET value = $2::jsonb, updated_at = $3',
+                [key, jsonValue, new Date()]
             );
         } catch (error) {
             throw StorageError.writeFailed(
@@ -214,12 +215,12 @@ export class PostgresStore implements Database {
         this.checkConnection();
         const client = await this.pool!.connect();
         try {
-            // pg driver handles JSONB conversion automatically
-            await client.query('INSERT INTO lists (key, item, created_at) VALUES ($1, $2, $3)', [
-                key,
-                item,
-                new Date(),
-            ]);
+            // Explicitly stringify for JSONB - the pg driver doesn't always handle this correctly
+            const jsonItem = JSON.stringify(item);
+            await client.query(
+                'INSERT INTO lists (key, item, created_at) VALUES ($1, $2::jsonb, $3)',
+                [key, jsonItem, new Date()]
+            );
         } catch (error) {
             throw StorageError.writeFailed(
                 'append',
