@@ -208,10 +208,14 @@ export async function loadModel(config: NodeLlamaConfig): Promise<LoadedModel> {
             });
 
             // Create context with specified options
+            // contextSize defaults to "auto" in node-llama-cpp, which uses the model's
+            // training context and auto-retries with smaller sizes on failure
             const contextOptions: Record<string, unknown> = {
-                contextSize,
                 batchSize,
             };
+            if (contextSize !== undefined) {
+                contextOptions.contextSize = contextSize;
+            }
             if (threads !== undefined) {
                 contextOptions.threads = threads;
             }

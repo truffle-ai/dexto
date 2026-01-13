@@ -189,7 +189,7 @@ class LocalLanguageModel implements LanguageModelV2 {
         const {
             modelId,
             modelPath: directPath,
-            contextSize = 4096,
+            contextSize, // Let node-llama-cpp default to "auto" if not specified
             gpuLayers = -1,
             threads,
         } = this.config;
@@ -227,18 +227,20 @@ class LocalLanguageModel implements LanguageModelV2 {
             }
         }
 
-        // Build config object, only including threads if defined
+        // Build config object, only including optional fields if defined
         const loadConfig: {
             modelPath: string;
-            contextSize: number;
+            contextSize?: number;
             gpuLayers: number;
             threads?: number;
         } = {
             modelPath,
-            contextSize,
             gpuLayers,
         };
 
+        if (contextSize !== undefined) {
+            loadConfig.contextSize = contextSize;
+        }
         if (threads !== undefined) {
             loadConfig.threads = threads;
         }
