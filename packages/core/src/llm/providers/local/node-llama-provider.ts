@@ -66,9 +66,10 @@ async function importNodeLlamaCpp(): Promise<Record<string, unknown> | null> {
     // Try 2: Global deps location (~/.dexto/deps/node_modules/node-llama-cpp)
     try {
         const globalPath = getGlobalNodeLlamaCppPath();
-        // Use dynamic import with absolute path
+        // Use dynamic import with full path to entry point (ES modules don't support directory imports)
+        const entryPoint = path.join(globalPath, 'dist', 'index.js');
         // @ts-ignore - Dynamic path import
-        return await import(globalPath);
+        return await import(entryPoint);
     } catch {
         return null;
     }
