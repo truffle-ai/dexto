@@ -1143,10 +1143,7 @@ function showSetupComplete(
         `  Run ${chalk.cyan(modeCommand)} to start`,
         `  Run ${chalk.cyan('dexto setup')} to change settings`,
         ...(isLocalProvider
-            ? [
-                  `  Run ${chalk.cyan('dexto models')} to manage local models`,
-                  `  Run ${chalk.cyan('dexto models list')} to see available models`,
-              ]
+            ? [`  Run ${chalk.cyan('dexto setup')} again to manage local models`]
             : []),
         `  Run ${chalk.cyan('dexto --help')} for more options`,
     ].join('\n');

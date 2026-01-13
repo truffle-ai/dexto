@@ -12,15 +12,36 @@
 import type { GPUInfo } from './types.js';
 import { LocalModelError } from './errors.js';
 import { detectGPU } from './gpu-detector.js';
+import { getDextoGlobalPath } from '../../../utils/path.js';
+import { createRequire } from 'module';
+import * as path from 'path';
+
+/**
+ * Get the global deps path where node-llama-cpp may be installed.
+ */
+function getGlobalNodeLlamaCppPath(): string {
+    return path.join(getDextoGlobalPath('deps'), 'node_modules', 'node-llama-cpp');
+}
 
 /**
  * Check if node-llama-cpp is installed.
+ * Checks both standard node resolution (for dev/projects) and global deps (~/.dexto/deps).
  */
 export async function isNodeLlamaCppInstalled(): Promise<boolean> {
+    // Try 1: Standard node resolution (works in dev mode, dexto-project with local install)
     try {
-        // Try to import the module at runtime
         // @ts-ignore - Optional dependency may not be installed (TS2307 in CI)
         await import('node-llama-cpp');
+        return true;
+    } catch {
+        // Continue to fallback
+    }
+
+    // Try 2: Global deps location (~/.dexto/deps/node_modules/node-llama-cpp)
+    try {
+        const globalPath = getGlobalNodeLlamaCppPath();
+        const require = createRequire(import.meta.url);
+        require.resolve(globalPath);
         return true;
     } catch {
         return false;
@@ -30,13 +51,24 @@ export async function isNodeLlamaCppInstalled(): Promise<boolean> {
 /**
  * Dynamically import node-llama-cpp.
  * Returns null if not installed.
+ * Checks both standard node resolution and global deps (~/.dexto/deps).
  */
 // Using Record type for dynamic import result since we can't type node-llama-cpp at compile time
 async function importNodeLlamaCpp(): Promise<Record<string, unknown> | null> {
+    // Try 1: Standard node resolution (works in dev mode, dexto-project with local install)
     try {
-        // Dynamic import for optional dependency
         // @ts-ignore - Optional dependency may not be installed (TS2307 in CI)
         return await import('node-llama-cpp');
+    } catch {
+        // Continue to fallback
+    }
+
+    // Try 2: Global deps location (~/.dexto/deps/node_modules/node-llama-cpp)
+    try {
+        const globalPath = getGlobalNodeLlamaCppPath();
+        // Use dynamic import with absolute path
+        // @ts-ignore - Dynamic path import
+        return await import(globalPath);
     } catch {
         return null;
     }

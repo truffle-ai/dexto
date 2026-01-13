@@ -35,6 +35,7 @@ import {
     getModelFileSize,
     formatSize,
     saveCustomModel,
+    getDextoGlobalPath,
     type InstalledModel,
 } from '@dexto/agent-management';
 
@@ -59,43 +60,49 @@ export interface LocalModelSetupResult {
 }
 
 /**
- * Find the best location to install node-llama-cpp and detect package manager.
- * Prefers: project root > cwd
+ * Get the global deps directory path for installing native dependencies.
+ * Always uses ~/.dexto/deps to share across all contexts.
  */
-function findInstallContext(): { dir: string; pm: 'pnpm' | 'npm' } {
-    const cwd = process.cwd();
-
-    // Walk up to find nearest package.json
-    let dir = cwd;
-    while (dir !== path.dirname(dir)) {
-        if (fs.existsSync(path.join(dir, 'package.json'))) {
-            // Detect package manager
-            const hasPnpmLock = fs.existsSync(path.join(dir, 'pnpm-lock.yaml'));
-            return { dir, pm: hasPnpmLock ? 'pnpm' : 'npm' };
-        }
-        dir = path.dirname(dir);
-    }
-
-    // Fallback to cwd with npm
-    return { dir: cwd, pm: 'npm' };
+function getGlobalDepsDir(): string {
+    return getDextoGlobalPath('deps');
 }
 
 /**
- * Install node-llama-cpp as a local dependency.
+ * Install node-llama-cpp to the global deps directory (~/.dexto/deps).
  * This compiles native bindings for the user's system.
+ * Installing globally ensures it's available for CLI, WebUI, and all projects.
  */
 async function installNodeLlamaCpp(): Promise<boolean> {
-    const { dir, pm } = findInstallContext();
+    const depsDir = getGlobalDepsDir();
 
-    // pnpm requires -w flag for workspace root installs
-    const args =
-        pm === 'pnpm' ? ['install', '-w', 'node-llama-cpp'] : ['install', 'node-llama-cpp'];
+    // Ensure deps directory exists
+    if (!fs.existsSync(depsDir)) {
+        fs.mkdirSync(depsDir, { recursive: true });
+    }
+
+    // Initialize package.json if it doesn't exist (required for npm install)
+    const packageJsonPath = path.join(depsDir, 'package.json');
+    if (!fs.existsSync(packageJsonPath)) {
+        fs.writeFileSync(
+            packageJsonPath,
+            JSON.stringify(
+                {
+                    name: 'dexto-deps',
+                    version: '1.0.0',
+                    private: true,
+                    description: 'Native dependencies for Dexto',
+                },
+                null,
+                2
+            )
+        );
+    }
 
     return new Promise((resolve) => {
-        // Install locally in the project/cwd so it's resolvable
-        const child = spawn(pm, args, {
+        // Install to global deps directory using npm
+        const child = spawn('npm', ['install', 'node-llama-cpp'], {
             stdio: ['ignore', 'pipe', 'pipe'],
-            cwd: dir,
+            cwd: depsDir,
         });
 
         let stderr = '';
@@ -249,7 +256,7 @@ export async function setupLocalModels(): Promise<LocalModelSetupResult> {
     modelOptions.push({
         value: '_skip',
         label: `${chalk.rgb(255, 165, 0)('→')} Skip for now`,
-        hint: 'Configure later with: dexto models',
+        hint: 'Configure later with: dexto setup',
     });
 
     // Add back option
@@ -275,7 +282,7 @@ export async function setupLocalModels(): Promise<LocalModelSetupResult> {
     }
 
     if (selected === '_skip') {
-        p.log.info(chalk.gray('Skipped model selection. Use `dexto models` to configure later.'));
+        p.log.info(chalk.gray('Skipped model selection. Use `dexto setup` to configure later.'));
         return { success: true, skipped: true };
     }
 
