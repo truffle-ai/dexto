@@ -517,8 +517,10 @@ export default function ModelPickerModal() {
             maxInputTokens: customModel.maxInputTokens || 128000,
             supportedFileTypes: ['pdf', 'image', 'audio'],
         };
-        // Pass the custom model's apiKey for per-model override
-        onPickModel(provider, modelInfo, customModel.baseURL, false, customModel.apiKey);
+        // Skip API key check for custom models - user already configured them.
+        // If they didn't add an API key, it's intentional (self-hosted, local, or env var).
+        // Pass the custom model's apiKey for per-model override if present.
+        onPickModel(provider, modelInfo, customModel.baseURL, true, customModel.apiKey);
     }
 
     function onPickInstalledModel(model: LocalModel) {
@@ -530,7 +532,8 @@ export default function ModelPickerModal() {
             maxInputTokens: model.contextLength || 8192,
             supportedFileTypes: [], // Local models typically don't support file attachments
         };
-        onPickModel('local', modelInfo);
+        // Skip API key check - local models don't need API keys
+        onPickModel('local', modelInfo, undefined, true);
     }
 
     function onApiKeySaved(meta: { provider: string; envVar: string }) {

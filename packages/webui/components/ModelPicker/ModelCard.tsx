@@ -93,8 +93,10 @@ export function ModelCard({
     isInstalled = false,
 }: ModelCardProps) {
     const displayName = model.displayName || model.name;
-    // Local/installed models don't need API keys
-    const hasApiKey = isInstalled || provider === 'local' || (providerInfo?.hasApiKey ?? false);
+    // Local/ollama/installed models don't need API keys
+    // Custom models are user-configured, so don't show lock (they handle their own auth)
+    const noApiKeyNeeded = isInstalled || isCustom || provider === 'local' || provider === 'ollama';
+    const hasApiKey = noApiKeyNeeded || (providerInfo?.hasApiKey ?? false);
     const { providerName, modelName, suffix } = parseModelName(displayName, provider);
 
     // Build description lines for tooltip
