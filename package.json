@@ -126,8 +126,5 @@
             "mdast-util-to-hast": "^13.2.1"
         }
     },
-    "preinstall": "npx only-allow pnpm",
-    "dependencies": {
-        "node-llama-cpp": "^3.15.0"
-    }
+    "preinstall": "npx only-allow pnpm"
 }

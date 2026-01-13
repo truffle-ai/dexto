@@ -10,6 +10,7 @@ import React, { useState, useEffect, forwardRef, useImperativeHandle, useCallbac
 import { Box, Text } from 'ink';
 import * as fs from 'fs';
 import * as path from 'path';
+import { spawn } from 'child_process';
 import type { Key } from '../../../hooks/useInputOrchestrator.js';
 import {
     saveCustomModel,
@@ -18,6 +19,7 @@ import {
     removeInstalledModel,
     getModelsDirectory,
     formatSize,
+    getDextoGlobalPath,
     type InstalledModel,
     type CustomModel,
 } from '@dexto/agent-management';
@@ -34,6 +36,7 @@ import {
 import { SetupInfoBanner } from './shared/index.js';
 
 type WizardStep =
+    | 'install-node-llama'
     | 'select-model'
     | 'custom-path'
     | 'display-name'
@@ -76,6 +79,11 @@ const LocalModelWizard = forwardRef<LocalModelWizardHandle, LocalModelWizardProp
         const [isLoading, setIsLoading] = useState(true);
         const [error, setError] = useState<string | null>(null);
         const [nodeLlamaInstalled, setNodeLlamaInstalled] = useState(true);
+        const [nodeLlamaChecked, setNodeLlamaChecked] = useState(false); // Track if we've checked installation
+        const [isInstallingNodeLlama, setIsInstallingNodeLlama] = useState(false);
+        const [installConfirmIndex, setInstallConfirmIndex] = useState(0); // 0 = Yes, 1 = No
+        const [installSpinnerFrame, setInstallSpinnerFrame] = useState(0);
+        const [refreshTrigger, setRefreshTrigger] = useState(0); // Increment to trigger data reload
 
         // Custom path input state
         const [customPath, setCustomPath] = useState('');
@@ -118,7 +126,23 @@ const LocalModelWizard = forwardRef<LocalModelWizardHandle, LocalModelWizardProp
             setSelectedInstalledModel(null);
             setIsDeleting(false);
             setError(null);
+            setIsInstallingNodeLlama(false);
+            setInstallConfirmIndex(0);
+            setInstallSpinnerFrame(0);
+            setNodeLlamaChecked(false);
         }, [isVisible]);
+
+        // Spinner animation for installation
+        useEffect(() => {
+            if (!isInstallingNodeLlama) return;
+
+            const spinnerFrames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+            const interval = setInterval(() => {
+                setInstallSpinnerFrame((prev) => (prev + 1) % spinnerFrames.length);
+            }, 80);
+
+            return () => clearInterval(interval);
+        }, [isInstallingNodeLlama]);
 
         // Load models when visible or when showAllModels changes
         useEffect(() => {
@@ -131,9 +155,18 @@ const LocalModelWizard = forwardRef<LocalModelWizardHandle, LocalModelWizardProp
 
                 try {
                     // Check if node-llama-cpp is installed
-                    const installed = await isNodeLlamaCppInstalled();
-                    if (!cancelled) {
-                        setNodeLlamaInstalled(installed);
+                    // Skip if we've already checked AND it's installed (prevents re-check after install)
+                    if (!nodeLlamaChecked || !nodeLlamaInstalled) {
+                        const installed = await isNodeLlamaCppInstalled();
+                        if (!cancelled) {
+                            setNodeLlamaInstalled(installed);
+                            setNodeLlamaChecked(true);
+                            if (!installed) {
+                                setStep('install-node-llama');
+                                setIsLoading(false);
+                                return;
+                            }
+                        }
                     }
 
                     // Get installed models
@@ -174,7 +207,7 @@ const LocalModelWizard = forwardRef<LocalModelWizardHandle, LocalModelWizardProp
             return () => {
                 cancelled = true;
             };
-        }, [isVisible, showAllModels]);
+        }, [isVisible, showAllModels, refreshTrigger, nodeLlamaInstalled, nodeLlamaChecked]);
 
         // Calculate scroll offset
         useEffect(() => {
@@ -378,6 +411,93 @@ const LocalModelWizard = forwardRef<LocalModelWizardHandle, LocalModelWizardProp
             }
         }, [selectedInstalledModel, installedOptionIndex, onComplete]);
 
+        // Install node-llama-cpp to global deps directory
+        const installNodeLlamaCpp = useCallback(async (): Promise<boolean> => {
+            const depsDir = getDextoGlobalPath('deps');
+
+            // Ensure deps directory exists
+            if (!fs.existsSync(depsDir)) {
+                fs.mkdirSync(depsDir, { recursive: true });
+            }
+
+            // Initialize package.json if it doesn't exist
+            const packageJsonPath = path.join(depsDir, 'package.json');
+            if (!fs.existsSync(packageJsonPath)) {
+                fs.writeFileSync(
+                    packageJsonPath,
+                    JSON.stringify(
+                        {
+                            name: 'dexto-deps',
+                            version: '1.0.0',
+                            private: true,
+                            description: 'Native dependencies for Dexto',
+                        },
+                        null,
+                        2
+                    )
+                );
+            }
+
+            return new Promise((resolve) => {
+                const child = spawn('npm', ['install', 'node-llama-cpp'], {
+                    stdio: ['ignore', 'pipe', 'pipe'],
+                    cwd: depsDir,
+                });
+
+                let stderr = '';
+                child.stderr?.on('data', (data) => {
+                    stderr += data.toString();
+                });
+
+                child.on('close', (code) => {
+                    if (code === 0) {
+                        resolve(true);
+                    } else {
+                        setError(`Installation failed: ${stderr.slice(0, 200)}`);
+                        resolve(false);
+                    }
+                });
+
+                child.on('error', (err) => {
+                    setError(`Installation failed: ${err.message}`);
+                    resolve(false);
+                });
+            });
+        }, []);
+
+        // Handle install confirmation
+        const handleInstallConfirm = useCallback(async () => {
+            if (installConfirmIndex === 1) {
+                // User chose "No"
+                onClose();
+                return;
+            }
+
+            // User chose "Yes" - start installation
+            setIsInstallingNodeLlama(true);
+            setError(null);
+
+            const success = await installNodeLlamaCpp();
+
+            setIsInstallingNodeLlama(false);
+
+            if (success) {
+                // Trust npm's exit code - set states and go directly to model selection
+                setNodeLlamaInstalled(true);
+                setNodeLlamaChecked(true);
+                setStep('select-model');
+                setIsLoading(true);
+                // Trigger reload of models
+                setRefreshTrigger((prev) => prev + 1);
+            } else {
+                // Error should already be set by installNodeLlamaCpp, but ensure we show something
+                setError(
+                    (prev) =>
+                        prev || 'Installation failed. Check your internet connection and try again.'
+                );
+            }
+        }, [installConfirmIndex, installNodeLlamaCpp, onClose]);
+
         // Handle input
         useImperativeHandle(
             ref,
@@ -407,6 +527,22 @@ const LocalModelWizard = forwardRef<LocalModelWizardHandle, LocalModelWizardProp
                     }
 
                     // Handle based on current step
+                    if (step === 'install-node-llama') {
+                        if (isInstallingNodeLlama) return true; // Don't allow input while installing
+
+                        if (key.upArrow || key.downArrow) {
+                            setInstallConfirmIndex((prev) => (prev === 0 ? 1 : 0));
+                            return true;
+                        }
+
+                        if (key.return) {
+                            void handleInstallConfirm();
+                            return true;
+                        }
+
+                        return true;
+                    }
+
                     if (step === 'select-model') {
                         const itemCount = models.length + 3; // +3 for special options
 
@@ -535,14 +671,22 @@ const LocalModelWizard = forwardRef<LocalModelWizardHandle, LocalModelWizardProp
                 handleCustomPathSubmit,
                 handleDisplayNameSubmit,
                 handleInstalledOption,
+                handleInstallConfirm,
+                isInstallingNodeLlama,
+                installConfirmIndex,
                 onClose,
             ]
         );
 
         if (!isVisible) return null;
 
-        // Node-llama-cpp not installed warning
-        if (!nodeLlamaInstalled) {
+        // Node-llama-cpp install prompt
+        if (step === 'install-node-llama') {
+            const options = [
+                { label: 'Yes', description: 'Install now (may take 1-2 minutes)' },
+                { label: 'No', description: 'Go back' },
+            ];
+
             return (
                 <Box
                     flexDirection="column"
@@ -553,13 +697,59 @@ const LocalModelWizard = forwardRef<LocalModelWizardHandle, LocalModelWizardProp
                 >
                     <Box marginBottom={1}>
                         <Text bold color="yellow">
-                            node-llama-cpp Required
+                            Dependency Required
                         </Text>
                     </Box>
+
                     <Text>Local model execution requires node-llama-cpp.</Text>
-                    <Text color="gray">Run `dexto setup` and select Local to install it.</Text>
+                    <Text color="gray">This will compile native bindings for your system.</Text>
+
+                    {isInstallingNodeLlama ? (
+                        <Box marginTop={1} flexDirection="column">
+                            <Box>
+                                <Text color="cyan">
+                                    {
+                                        ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'][
+                                            installSpinnerFrame
+                                        ]
+                                    }{' '}
+                                    Installing node-llama-cpp (compiling native bindings)...
+                                </Text>
+                            </Box>
+                            <Text color="gray">This may take 1-2 minutes.</Text>
+                        </Box>
+                    ) : (
+                        <>
+                            <Box marginTop={1} marginBottom={1}>
+                                <Text>Install node-llama-cpp now?</Text>
+                            </Box>
+
+                            {options.map((option, idx) => (
+                                <Box key={option.label}>
+                                    <Text color={idx === installConfirmIndex ? 'cyan' : 'white'}>
+                                        {idx === installConfirmIndex ? '❯ ' : '  '}
+                                        {option.label}
+                                    </Text>
+                                    {idx === installConfirmIndex && (
+                                        <Text color="gray"> - {option.description}</Text>
+                                    )}
+                                </Box>
+                            ))}
+                        </>
+                    )}
+
+                    {error && (
+                        <Box marginTop={1}>
+                            <Text color="red">{error}</Text>
+                        </Box>
+                    )}
+
                     <Box marginTop={1}>
-                        <Text color="gray">Press Esc to go back</Text>
+                        <Text color="gray">
+                            {isInstallingNodeLlama
+                                ? 'Please wait...'
+                                : '↑↓ navigate • Enter select • Esc cancel'}
+                        </Text>
                     </Box>
                 </Box>
             );
