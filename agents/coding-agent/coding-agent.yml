@@ -47,7 +47,7 @@ greeting: "👨‍💻 Ready to code! What are we building today?"
 
 # LLM configuration - using a powerful model for coding tasks
 llm:
-  provider: anthropic  
+  provider: anthropic
   model: claude-sonnet-4-5-20250929
   apiKey: $ANTHROPIC_API_KEY
 
