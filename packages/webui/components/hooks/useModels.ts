@@ -88,8 +88,14 @@ export function useDeleteInstalledModel() {
                 json: { deleteFile },
             });
             if (!response.ok) {
-                const data = await response.json();
-                throw new Error(data.error || `Failed to delete model: ${response.status}`);
+                let errorMessage = `Failed to delete model: ${response.status}`;
+                try {
+                    const data = await response.json();
+                    if (data.error) errorMessage = data.error;
+                } catch {
+                    // Response body not JSON-parseable (e.g., network error, proxy error), use default message
+                }
+                throw new Error(errorMessage);
             }
             return await response.json();
         },

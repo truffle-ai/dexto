@@ -105,7 +105,10 @@ export default function ModelPickerModal() {
     const { data: customModels = [] } = useCustomModels();
     // Load installed local GGUF models from state.json (downloaded via CLI/Interactive CLI)
     const { data: localModelsData } = useLocalModels({ enabled: open });
-    const installedLocalModels = localModelsData?.models ?? [];
+    const installedLocalModels = useMemo(
+        () => localModelsData?.models ?? [],
+        [localModelsData?.models]
+    );
     const { mutateAsync: createCustomModelAsync } = useCreateCustomModel();
     const { mutate: deleteCustomModelMutation } = useDeleteCustomModel();
     const { mutate: deleteInstalledModelMutation } = useDeleteInstalledModel();

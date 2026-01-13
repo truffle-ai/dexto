@@ -440,7 +440,7 @@ const LocalModelWizard = forwardRef<LocalModelWizardHandle, LocalModelWizardProp
 
             return new Promise((resolve) => {
                 const child = spawn('npm', ['install', 'node-llama-cpp'], {
-                    stdio: ['ignore', 'pipe', 'pipe'],
+                    stdio: ['ignore', 'ignore', 'pipe'], // stdin ignored, stdout ignored (not needed), stderr piped for errors
                     cwd: depsDir,
                 });
 
@@ -811,10 +811,17 @@ const LocalModelWizard = forwardRef<LocalModelWizardHandle, LocalModelWizardProp
                             {/* Simple progress bar */}
                             <Box marginTop={1}>
                                 <Text color="green">
-                                    {'█'.repeat(Math.floor(downloadProgress.percentage / 5))}
+                                    {'█'.repeat(
+                                        Math.min(20, Math.floor(downloadProgress.percentage / 5))
+                                    )}
                                 </Text>
                                 <Text color="gray">
-                                    {'░'.repeat(20 - Math.floor(downloadProgress.percentage / 5))}
+                                    {'░'.repeat(
+                                        Math.max(
+                                            0,
+                                            20 - Math.floor(downloadProgress.percentage / 5)
+                                        )
+                                    )}
                                 </Text>
                             </Box>
                         </>

@@ -9,6 +9,7 @@ import { lookupOpenRouterModel, refreshOpenRouterModelCache, getLocalModelById }
 import type { ProviderConfig, WizardStep } from './types.js';
 import { validators } from './types.js';
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 
 /**
@@ -340,9 +341,9 @@ export const PROVIDER_CONFIGS: Record<CustomModelProvider, ProviderConfig> = {
                         return 'File path must end with .gguf';
                     }
 
-                    // Expand ~ to home directory
+                    // Expand ~ to home directory (use os.homedir() for cross-platform support)
                     const expandedPath = trimmed.startsWith('~')
-                        ? trimmed.replace('~', process.env.HOME || '')
+                        ? trimmed.replace('~', os.homedir())
                         : trimmed;
 
                     if (!fs.existsSync(expandedPath)) {

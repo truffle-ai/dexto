@@ -188,7 +188,7 @@ export function handleWizardBack<T>(
  * Handle a non-success PromptResult in settings menu context.
  * Both 'cancelled' and 'back' return to the menu (no exit).
  */
-export function handleMenuBack<T>(
+export function handleMenuBack(
     _result: { ok: false; reason: 'back' | 'cancelled' },
     message = 'Cancelled'
 ): void {

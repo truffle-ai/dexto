@@ -12,6 +12,7 @@ import {
     listOllamaModels,
     DEFAULT_OLLAMA_URL,
     checkOllamaStatus,
+    logger,
 } from '@dexto/core';
 import {
     getAllInstalledModels,
@@ -385,7 +386,9 @@ export function createModelsRouter() {
                         fileDeleted = true; // Consider it deleted
                     } else {
                         // Permission error or other issue - report but continue
-                        console.warn(`Failed to delete GGUF file ${filePath}:`, error);
+                        logger.warn(
+                            `Failed to delete GGUF file ${filePath}: ${error instanceof Error ? error.message : String(error)}`
+                        );
                     }
                 }
             }
