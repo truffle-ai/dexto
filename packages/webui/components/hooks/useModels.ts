@@ -5,7 +5,7 @@
  * Used by the model picker to display installed local models and Ollama models.
  */
 
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/queryKeys';
 import { client } from '@/lib/client';
 
@@ -64,6 +64,38 @@ export function useValidateLocalFile() {
                 throw new Error(`Failed to validate file: ${response.status}`);
             }
             return await response.json();
+        },
+    });
+}
+
+/**
+ * Delete an installed local model.
+ * Removes from state.json and optionally deletes the GGUF file from disk.
+ */
+export function useDeleteInstalledModel() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async ({
+            modelId,
+            deleteFile = true,
+        }: {
+            modelId: string;
+            deleteFile?: boolean;
+        }) => {
+            const response = await client.api.models.local[':modelId'].$delete({
+                param: { modelId },
+                json: { deleteFile },
+            });
+            if (!response.ok) {
+                const data = await response.json();
+                throw new Error(data.error || `Failed to delete model: ${response.status}`);
+            }
+            return await response.json();
+        },
+        onSuccess: () => {
+            // Invalidate local models cache to refresh the list
+            queryClient.invalidateQueries({ queryKey: queryKeys.models.local });
         },
     });
 }

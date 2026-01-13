@@ -173,8 +173,8 @@ export function ModelCard({
                             </Tooltip>
                         )}
 
-                        {/* Action Buttons - Top Left for custom models */}
-                        {isCustom && (onEdit || onDelete) && (
+                        {/* Action Buttons - Top Left for custom/installed models */}
+                        {(isCustom || isInstalled) && (onEdit || onDelete) && (
                             <div className="absolute top-2 left-2 flex gap-1 z-10 opacity-0 group-hover:opacity-100 transition-all duration-200">
                                 {onEdit && (
                                     <button
@@ -186,7 +186,11 @@ export function ModelCard({
                                             'p-1.5 rounded-full transition-all duration-200',
                                             'hover:bg-primary/20 hover:scale-110 active:scale-95'
                                         )}
-                                        aria-label="Edit custom model"
+                                        aria-label={
+                                            isInstalled
+                                                ? 'Edit installed model'
+                                                : 'Edit custom model'
+                                        }
                                     >
                                         <Pencil className="h-4 w-4 text-muted-foreground/60 hover:text-primary" />
                                     </button>
@@ -201,7 +205,11 @@ export function ModelCard({
                                             'p-1.5 rounded-full transition-all duration-200',
                                             'hover:bg-destructive/20 hover:scale-110 active:scale-95'
                                         )}
-                                        aria-label="Delete custom model"
+                                        aria-label={
+                                            isInstalled
+                                                ? 'Delete installed model'
+                                                : 'Delete custom model'
+                                        }
                                     >
                                         <X className="h-4 w-4 text-muted-foreground/60 hover:text-destructive" />
                                     </button>

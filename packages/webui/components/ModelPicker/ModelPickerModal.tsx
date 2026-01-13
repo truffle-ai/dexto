@@ -10,7 +10,7 @@ import {
     type SwitchLLMPayload,
     type CustomModel,
 } from '../hooks/useLLM';
-import { useLocalModels, type LocalModel } from '../hooks/useModels';
+import { useLocalModels, useDeleteInstalledModel, type LocalModel } from '../hooks/useModels';
 import {
     CustomModelForm,
     type CustomModelFormData,
@@ -108,6 +108,7 @@ export default function ModelPickerModal() {
     const installedLocalModels = localModelsData?.models ?? [];
     const { mutateAsync: createCustomModelAsync } = useCreateCustomModel();
     const { mutate: deleteCustomModelMutation } = useDeleteCustomModel();
+    const { mutate: deleteInstalledModelMutation } = useDeleteInstalledModel();
     const { mutateAsync: saveApiKey } = useSaveApiKey();
 
     // Fetch provider API key status for the current form provider (for smart storage logic)
@@ -385,6 +386,21 @@ export default function ModelPickerModal() {
             });
         },
         [deleteCustomModelMutation]
+    );
+
+    const deleteInstalledModel = useCallback(
+        (modelId: string) => {
+            // Delete installed model and its GGUF file from disk
+            deleteInstalledModelMutation(
+                { modelId, deleteFile: true },
+                {
+                    onError: (err: Error) => {
+                        setError(err.message);
+                    },
+                }
+            );
+        },
+        [deleteInstalledModelMutation]
     );
 
     const editCustomModel = useCallback((model: CustomModel) => {
@@ -1114,6 +1130,9 @@ export default function ModelPickerModal() {
                                                         onClick={() => onPickInstalledModel(model)}
                                                         onToggleFavorite={() =>
                                                             toggleFavorite('local', model.id)
+                                                        }
+                                                        onDelete={() =>
+                                                            deleteInstalledModel(model.id)
                                                         }
                                                         size="sm"
                                                         isInstalled

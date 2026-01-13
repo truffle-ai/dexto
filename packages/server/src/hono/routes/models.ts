@@ -13,7 +13,11 @@ import {
     DEFAULT_OLLAMA_URL,
     checkOllamaStatus,
 } from '@dexto/core';
-import { getAllInstalledModels } from '@dexto/agent-management';
+import {
+    getAllInstalledModels,
+    getInstalledModel,
+    removeInstalledModel,
+} from '@dexto/agent-management';
 
 // ============================================================================
 // Schemas
@@ -152,6 +156,65 @@ const validateLocalFileRoute = createRoute({
     },
 });
 
+const DeleteModelRequestSchema = z
+    .object({
+        deleteFile: z
+            .boolean()
+            .default(true)
+            .describe('Whether to also delete the GGUF file from disk'),
+    })
+    .describe('Delete model request options');
+
+const DeleteModelResponseSchema = z
+    .object({
+        success: z.boolean().describe('Whether the deletion was successful'),
+        modelId: z.string().describe('The deleted model ID'),
+        fileDeleted: z.boolean().describe('Whether the GGUF file was deleted'),
+        error: z.string().optional().describe('Error message if deletion failed'),
+    })
+    .describe('Delete model response');
+
+const deleteLocalModelRoute = createRoute({
+    method: 'delete',
+    path: '/models/local/{modelId}',
+    summary: 'Delete Installed Model',
+    description:
+        'Removes an installed local model from state.json. ' +
+        'Optionally deletes the GGUF file from disk (default: true).',
+    tags: ['models'],
+    request: {
+        params: z.object({
+            modelId: z.string().describe('The model ID to delete'),
+        }),
+        body: {
+            content: {
+                'application/json': {
+                    schema: DeleteModelRequestSchema,
+                },
+            },
+            required: false,
+        },
+    },
+    responses: {
+        200: {
+            description: 'Model deleted successfully',
+            content: {
+                'application/json': {
+                    schema: DeleteModelResponseSchema,
+                },
+            },
+        },
+        404: {
+            description: 'Model not found',
+            content: {
+                'application/json': {
+                    schema: DeleteModelResponseSchema,
+                },
+            },
+        },
+    },
+});
+
 // ============================================================================
 // Router
 // ============================================================================
@@ -278,5 +341,70 @@ export function createModelsRouter() {
                     error: error instanceof Error ? error.message : 'Failed to access file',
                 });
             }
+        })
+        .openapi(deleteLocalModelRoute, async (ctx) => {
+            const { modelId } = ctx.req.valid('param');
+
+            // Get body if provided, default to deleteFile: true
+            let deleteFile = true;
+            try {
+                const body = await ctx.req.json();
+                if (body && typeof body.deleteFile === 'boolean') {
+                    deleteFile = body.deleteFile;
+                }
+            } catch {
+                // No body or invalid JSON - use default (deleteFile: true)
+            }
+
+            // Get the model info first (need filePath for deletion)
+            const model = await getInstalledModel(modelId);
+            if (!model) {
+                return ctx.json(
+                    {
+                        success: false,
+                        modelId,
+                        fileDeleted: false,
+                        error: `Model '${modelId}' not found`,
+                    },
+                    404
+                );
+            }
+
+            const filePath = model.filePath;
+            let fileDeleted = false;
+
+            // Delete the GGUF file if requested
+            if (deleteFile && filePath) {
+                try {
+                    await fs.unlink(filePath);
+                    fileDeleted = true;
+                } catch (error) {
+                    const nodeError = error as NodeJS.ErrnoException;
+                    // File already deleted or doesn't exist - that's fine
+                    if (nodeError.code === 'ENOENT') {
+                        fileDeleted = true; // Consider it deleted
+                    } else {
+                        // Permission error or other issue - report but continue
+                        console.warn(`Failed to delete GGUF file ${filePath}:`, error);
+                    }
+                }
+            }
+
+            // Remove from state.json
+            const removed = await removeInstalledModel(modelId);
+            if (!removed) {
+                return ctx.json({
+                    success: false,
+                    modelId,
+                    fileDeleted,
+                    error: 'Failed to remove model from state',
+                });
+            }
+
+            return ctx.json({
+                success: true,
+                modelId,
+                fileDeleted,
+            });
         });
 }

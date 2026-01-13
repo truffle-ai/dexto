@@ -803,19 +803,10 @@ function LocalFields({ formData, onChange, setLocalError }: ProviderFieldsProps)
                 />
             </div>
 
-            {/* Max Input Tokens */}
-            <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">
-                    Context Length <span className="text-muted-foreground/60">(optional)</span>
-                </label>
-                <Input
-                    value={formData.maxInputTokens}
-                    onChange={(e) => onChange({ maxInputTokens: e.target.value })}
-                    placeholder="4096 (default)"
-                    type="number"
-                    className="h-9 text-sm"
-                />
-            </div>
+            {/* Note: Context length is auto-detected by node-llama-cpp from GGUF metadata */}
+            <p className="text-[10px] text-muted-foreground/60">
+                Context length is automatically detected from the GGUF file.
+            </p>
         </>
     );
 }

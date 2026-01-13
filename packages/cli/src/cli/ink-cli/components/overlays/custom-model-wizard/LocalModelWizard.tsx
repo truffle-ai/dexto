@@ -15,11 +15,13 @@ import {
     saveCustomModel,
     getAllInstalledModels,
     addInstalledModel,
+    removeInstalledModel,
     getModelsDirectory,
     formatSize,
     type InstalledModel,
     type CustomModel,
 } from '@dexto/agent-management';
+import { promises as fsPromises } from 'fs';
 import {
     getAllLocalModels,
     getLocalModelById,
@@ -31,7 +33,12 @@ import {
 } from '@dexto/core';
 import { SetupInfoBanner } from './shared/index.js';
 
-type WizardStep = 'select-model' | 'custom-path' | 'display-name' | 'downloading';
+type WizardStep =
+    | 'select-model'
+    | 'custom-path'
+    | 'display-name'
+    | 'downloading'
+    | 'installed-options';
 
 interface LocalModelWizardProps {
     isVisible: boolean;
@@ -84,6 +91,15 @@ const LocalModelWizard = forwardRef<LocalModelWizardHandle, LocalModelWizardProp
         );
         const [downloadError, setDownloadError] = useState<string | null>(null);
 
+        // Installed model options state
+        const [installedOptionIndex, setInstalledOptionIndex] = useState(0);
+        const [selectedInstalledModel, setSelectedInstalledModel] = useState<{
+            id: string;
+            filePath: string;
+            displayName: string;
+        } | null>(null);
+        const [isDeleting, setIsDeleting] = useState(false);
+
         // Reset state when becoming visible
         useEffect(() => {
             if (!isVisible) return;
@@ -98,6 +114,9 @@ const LocalModelWizard = forwardRef<LocalModelWizardHandle, LocalModelWizardProp
             setSelectedModelPath(null);
             setDownloadProgress(null);
             setDownloadError(null);
+            setInstalledOptionIndex(0);
+            setSelectedInstalledModel(null);
+            setIsDeleting(false);
             setError(null);
         }, [isVisible]);
 
@@ -172,16 +191,19 @@ const LocalModelWizard = forwardRef<LocalModelWizardHandle, LocalModelWizardProp
         // Handle model selection
         const handleSelectModel = useCallback(
             async (modelId: string) => {
-                // Check if already installed - registry models are already tracked in state.json
-                // No need to save to custom-models.json
+                // Check if already installed - show options (Use / Delete)
                 if (installedIds.has(modelId)) {
                     const modelInfo = getLocalModelById(modelId);
-                    // Just complete - model is already in state.json from previous download
-                    onComplete({
-                        name: modelId,
-                        provider: 'local',
+                    const installedModels = await getAllInstalledModels();
+                    const installedModel = installedModels.find((m) => m.id === modelId);
+
+                    setSelectedInstalledModel({
+                        id: modelId,
+                        filePath: installedModel?.filePath || '',
                         displayName: modelInfo?.name || modelId,
                     });
+                    setInstalledOptionIndex(0);
+                    setStep('installed-options');
                     return;
                 }
 
@@ -305,6 +327,57 @@ const LocalModelWizard = forwardRef<LocalModelWizardHandle, LocalModelWizardProp
             }
         }, [selectedModelPath, displayName, onComplete]);
 
+        // Handle installed model option selection
+        const handleInstalledOption = useCallback(async () => {
+            if (!selectedInstalledModel) return;
+
+            if (installedOptionIndex === 0) {
+                // "Use this model" option
+                onComplete({
+                    name: selectedInstalledModel.id,
+                    provider: 'local',
+                    displayName: selectedInstalledModel.displayName,
+                });
+            } else {
+                // "Delete model" option
+                setIsDeleting(true);
+                setError(null);
+
+                try {
+                    // Delete the GGUF file from disk
+                    if (selectedInstalledModel.filePath) {
+                        try {
+                            await fsPromises.unlink(selectedInstalledModel.filePath);
+                        } catch (err) {
+                            // File might already be deleted - continue
+                            const nodeErr = err as NodeJS.ErrnoException;
+                            if (nodeErr.code !== 'ENOENT') {
+                                throw err;
+                            }
+                        }
+                    }
+
+                    // Remove from state.json
+                    await removeInstalledModel(selectedInstalledModel.id);
+
+                    // Refresh the model list
+                    setInstalledIds((prev) => {
+                        const next = new Set(prev);
+                        next.delete(selectedInstalledModel.id);
+                        return next;
+                    });
+
+                    // Go back to model selection
+                    setStep('select-model');
+                    setSelectedInstalledModel(null);
+                } catch (err) {
+                    setError(err instanceof Error ? err.message : 'Failed to delete model');
+                } finally {
+                    setIsDeleting(false);
+                }
+            }
+        }, [selectedInstalledModel, installedOptionIndex, onComplete]);
+
         // Handle input
         useImperativeHandle(
             ref,
@@ -314,9 +387,14 @@ const LocalModelWizard = forwardRef<LocalModelWizardHandle, LocalModelWizardProp
 
                     // Escape to go back/close
                     if (key.escape) {
-                        if (step === 'custom-path' || step === 'display-name') {
+                        if (
+                            step === 'custom-path' ||
+                            step === 'display-name' ||
+                            step === 'installed-options'
+                        ) {
                             setStep('select-model');
                             setError(null);
+                            setSelectedInstalledModel(null);
                             return true;
                         }
                         if (step === 'downloading' && downloadError) {
@@ -418,6 +496,22 @@ const LocalModelWizard = forwardRef<LocalModelWizardHandle, LocalModelWizardProp
                         return true;
                     }
 
+                    if (step === 'installed-options') {
+                        if (isDeleting) return true; // Don't allow input while deleting
+
+                        if (key.upArrow || key.downArrow) {
+                            setInstalledOptionIndex((prev) => (prev === 0 ? 1 : 0));
+                            return true;
+                        }
+
+                        if (key.return) {
+                            void handleInstalledOption();
+                            return true;
+                        }
+
+                        return true;
+                    }
+
                     if (step === 'downloading') {
                         // Only allow escape if there's an error
                         return true;
@@ -435,9 +529,12 @@ const LocalModelWizard = forwardRef<LocalModelWizardHandle, LocalModelWizardProp
                 customPath,
                 displayName,
                 downloadError,
+                isDeleting,
+                installedOptionIndex,
                 handleSelectModel,
                 handleCustomPathSubmit,
                 handleDisplayNameSubmit,
+                handleInstalledOption,
                 onClose,
             ]
         );
@@ -534,6 +631,61 @@ const LocalModelWizard = forwardRef<LocalModelWizardHandle, LocalModelWizardProp
                     ) : (
                         <Text color="gray">Starting download...</Text>
                     )}
+                </Box>
+            );
+        }
+
+        // Installed model options (Use / Delete)
+        if (step === 'installed-options' && selectedInstalledModel) {
+            const options = [
+                { label: 'Use this model', description: 'Select this model for chat' },
+                { label: 'Delete model', description: 'Remove from disk and uninstall' },
+            ];
+
+            return (
+                <Box
+                    flexDirection="column"
+                    borderStyle="round"
+                    borderColor="green"
+                    paddingX={1}
+                    marginTop={1}
+                >
+                    <Box marginBottom={1}>
+                        <Text bold color="green">
+                            {selectedInstalledModel.displayName}
+                        </Text>
+                        <Text color="gray"> (installed)</Text>
+                    </Box>
+
+                    {isDeleting ? (
+                        <Text color="yellow">Deleting model...</Text>
+                    ) : (
+                        <>
+                            {options.map((option, idx) => (
+                                <Box key={option.label}>
+                                    <Text color={idx === installedOptionIndex ? 'cyan' : 'white'}>
+                                        {idx === installedOptionIndex ? '❯ ' : '  '}
+                                        {option.label}
+                                    </Text>
+                                    {idx === installedOptionIndex && (
+                                        <Text color="gray"> - {option.description}</Text>
+                                    )}
+                                </Box>
+                            ))}
+                        </>
+                    )}
+
+                    {error && (
+                        <Box marginTop={1}>
+                            <Text color="red">{error}</Text>
+                        </Box>
+                    )}
+
+                    <Box marginTop={1}>
+                        <Text color="gray">
+                            {isDeleting ? 'Please wait...' : 'Enter to select • Esc to go back'}
+                        </Text>
+                    </Box>
                 </Box>
             );
         }
