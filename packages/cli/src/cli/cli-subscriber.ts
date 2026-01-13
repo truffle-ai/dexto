@@ -9,7 +9,8 @@
 import { logger, DextoAgent } from '@dexto/core';
 import { EventSubscriber } from '@dexto/server';
 import { AgentEventBus } from '@dexto/core';
-import type { SanitizedToolResult } from '@dexto/core';
+import type { SanitizedToolResult, AgentEventMap } from '@dexto/core';
+import { capture } from '../analytics/index.js';
 
 /**
  * Event subscriber for CLI headless mode
@@ -41,7 +42,10 @@ export class CLISubscriber implements EventSubscriber {
             }
             // For error case (success=false), the error is handled via llm:error event
         });
-        eventBus.on('llm:response', (payload) => this.onResponse(payload.content));
+        eventBus.on('llm:response', (payload) => {
+            this.onResponse(payload.content);
+            this.captureTokenUsage(payload);
+        });
         eventBus.on('llm:error', (payload) => this.onError(payload.error));
         eventBus.on('session:reset', this.onConversationReset.bind(this));
     }
@@ -161,6 +165,29 @@ export class CLISubscriber implements EventSubscriber {
         // Clear any partial response state
         this.streamingContent = '';
         logger.info('🔄 Conversation history cleared.', null, 'blue');
+    }
+
+    /**
+     * Capture LLM token usage analytics
+     */
+    private captureTokenUsage(payload: AgentEventMap['llm:response']): void {
+        const { tokenUsage, provider, model, sessionId } = payload;
+        if (!tokenUsage || (!tokenUsage.inputTokens && !tokenUsage.outputTokens)) {
+            return;
+        }
+
+        capture('dexto_llm_tokens_consumed', {
+            source: 'cli',
+            sessionId,
+            provider,
+            model,
+            inputTokens: tokenUsage.inputTokens,
+            outputTokens: tokenUsage.outputTokens,
+            reasoningTokens: tokenUsage.reasoningTokens,
+            totalTokens: tokenUsage.totalTokens,
+            cacheReadTokens: tokenUsage.cacheReadTokens,
+            cacheWriteTokens: tokenUsage.cacheWriteTokens,
+        });
     }
 
     /**

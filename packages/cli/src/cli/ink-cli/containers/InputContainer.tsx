@@ -22,6 +22,7 @@ import { createUserMessage } from '../utils/messageFormatting.js';
 import { generateMessageId } from '../utils/idGenerator.js';
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
 import type { TextBuffer } from '../components/shared/text-buffer.js';
+import { capture } from '../../../analytics/index.js';
 
 /** Type for pending session creation promise */
 type SessionCreationResult = { id: string };
@@ -234,12 +235,22 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
         // Handle image paste from clipboard
         const handleImagePaste = useCallback(
             (image: PendingImage) => {
+                // Track image attachment analytics (only if session exists)
+                if (session.id) {
+                    capture('dexto_image_attached', {
+                        source: 'cli',
+                        sessionId: session.id,
+                        imageType: image.mimeType,
+                        imageSizeBytes: Math.floor(image.data.length * 0.75), // Approx base64 decode
+                    });
+                }
+
                 setInput((prev) => ({
                     ...prev,
                     images: [...prev.images, image],
                 }));
             },
-            [setInput]
+            [setInput, session.id]
         );
 
         // Handle image removal (when placeholder is deleted from text)
@@ -607,6 +618,20 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                         } else {
                             content = trimmed;
                         }
+
+                        // Get current LLM config for analytics
+                        const llmConfig = agent.getCurrentLLMConfig();
+
+                        // Track message sent analytics
+                        capture('dexto_message_sent', {
+                            source: 'cli',
+                            sessionId: currentSessionId,
+                            provider: llmConfig.provider,
+                            model: llmConfig.model,
+                            hasImage: pendingImages.length > 0,
+                            hasFile: false,
+                            messageLength: trimmed.length,
+                        });
 
                         // Use streaming API and process events directly
                         const iterator = await agent.stream(content, currentSessionId);

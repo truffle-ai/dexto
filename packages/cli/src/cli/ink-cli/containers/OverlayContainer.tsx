@@ -91,6 +91,7 @@ import { DextoValidationError, LLMErrorCode } from '@dexto/core';
 import { InputService } from '../services/InputService.js';
 import { createUserMessage, convertHistoryToUIMessages } from '../utils/messageFormatting.js';
 import { generateMessageId } from '../utils/idGenerator.js';
+import { capture } from '../../../analytics/index.js';
 
 export interface OverlayContainerHandle {
     handleInput: (input: string, key: Key) => boolean;
@@ -614,6 +615,13 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         ]);
                         return;
                     }
+
+                    // Track session switch analytics
+                    capture('dexto_session_switched', {
+                        source: 'cli',
+                        fromSessionId: session.id || null,
+                        toSessionId: newSessionId,
+                    });
 
                     // Clear messages and session state before switching
                     setMessages([]);
@@ -1160,10 +1168,16 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                 ]);
 
                 try {
-                    await agent.addMcpServer(
-                        result.entry.id,
-                        result.entry.config as McpServerConfig
-                    );
+                    const mcpConfig = result.entry.config as McpServerConfig;
+                    await agent.addMcpServer(result.entry.id, mcpConfig);
+
+                    // Track MCP server connected analytics
+                    capture('dexto_mcp_server_connected', {
+                        source: 'cli',
+                        serverName: result.entry.name,
+                        transportType: mcpConfig.type,
+                    });
+
                     setMessages((prev) => [
                         ...prev,
                         {
@@ -1247,6 +1261,14 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     }
 
                     await agent.addMcpServer(config.name, serverConfig);
+
+                    // Track MCP server connected analytics
+                    capture('dexto_mcp_server_connected', {
+                        source: 'cli',
+                        serverName: config.name,
+                        transportType: serverConfig.type,
+                    });
+
                     setMessages((prev) => [
                         ...prev,
                         {

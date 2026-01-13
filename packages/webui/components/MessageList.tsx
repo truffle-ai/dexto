@@ -18,7 +18,6 @@ import {
     ChevronUp,
     Loader2,
     AlertTriangle,
-    Image as ImageIcon,
     Info,
     File,
     FileAudio,
@@ -26,7 +25,6 @@ import {
     Brain,
     X,
     ZoomIn,
-    Video as VideoIcon,
     FileVideo,
 } from 'lucide-react';
 import { Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
@@ -319,7 +317,7 @@ export default function MessageList({
     activeError,
     onDismissError,
     outerRef,
-    pendingApproval,
+    pendingApproval: _pendingApproval,
     onApprovalApprove,
     onApprovalDeny,
 }: MessageListProps) {

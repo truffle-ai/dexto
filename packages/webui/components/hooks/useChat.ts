@@ -1,6 +1,5 @@
 import React, { useRef, useEffect, useCallback } from 'react';
-import type { Issue, SanitizedToolResult, ToolApprovalStatus } from '@dexto/core';
-import type { LLMProvider } from '@dexto/core';
+import type { SanitizedToolResult } from '@dexto/core';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAnalytics } from '@/lib/analytics/index.js';
 import { client } from '@/lib/client.js';
@@ -9,18 +8,10 @@ import { createMessageStream } from '@dexto/client-sdk';
 import type { MessageStreamEvent } from '@dexto/client-sdk';
 import { eventBus } from '@/lib/events/EventBus.js';
 import { useChatStore } from '@/lib/stores/chatStore.js';
-import type { Message as ChatStoreMessage } from '@/lib/stores/chatStore.js';
 import type { Session } from './useSessions.js';
 
 // Content part types - import from centralized types.ts
-import type {
-    TextPart,
-    ImagePart,
-    FilePart,
-    AudioPart,
-    FileData,
-    UIResourcePart,
-} from '../../types.js';
+import type { FileData } from '../../types.js';
 
 // Tool result types
 export interface ToolResultError {
@@ -50,7 +41,7 @@ export function isToolResultContent(result: unknown): result is ToolResultConten
 // =============================================================================
 
 // Import from chatStore
-import type { Message, ErrorMessage } from '@/lib/stores/chatStore.js';
+import type { Message } from '@/lib/stores/chatStore.js';
 
 // Re-export for API compatibility - components can import these from either place
 export type { Message, ErrorMessage } from '@/lib/stores/chatStore.js';
@@ -209,12 +200,25 @@ export function useChat(
                     break;
                 }
 
+                case 'llm:tool-call': {
+                    const { toolName, sessionId } = event;
+
+                    // Track tool called analytics
+                    if (toolName) {
+                        analyticsRef.current.trackToolCalled({
+                            toolName,
+                            sessionId,
+                        });
+                    }
+                    break;
+                }
+
                 case 'llm:tool-result': {
                     const { toolName, success } = event;
 
-                    // Track tool call completion analytics
+                    // Track tool result analytics
                     if (toolName) {
-                        analyticsRef.current.trackToolCalled({
+                        analyticsRef.current.trackToolResult({
                             toolName,
                             success: success !== false,
                             sessionId: event.sessionId,
@@ -249,8 +253,7 @@ export function useChat(
             content: string,
             imageData?: { image: string; mimeType: string },
             fileData?: FileData,
-            sessionId?: string,
-            stream = true // Controls whether chunks are shown incrementally
+            sessionId?: string
         ) => {
             if (!sessionId) {
                 console.error('Session ID required for sending message');

@@ -55,8 +55,7 @@ export class StreamProcessor {
     }
 
     async process(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        streamFn: () => StreamTextResult<VercelToolSet, any>
+        streamFn: () => StreamTextResult<VercelToolSet, unknown>
     ): Promise<StreamProcessorResult> {
         const stream = streamFn();
 

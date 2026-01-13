@@ -34,6 +34,7 @@ import {
     getToolTypeBadge,
 } from '../utils/messageFormatting.js';
 import { isEditWriteTool } from '../utils/toolUtils.js';
+import { capture } from '../../../analytics/index.js';
 import chalk from 'chalk';
 
 /**
@@ -432,6 +433,25 @@ export async function processStream(
                         state.outputTokens += event.tokenUsage.outputTokens;
                     }
 
+                    // Track token usage analytics
+                    if (
+                        event.tokenUsage &&
+                        (event.tokenUsage.inputTokens || event.tokenUsage.outputTokens)
+                    ) {
+                        capture('dexto_llm_tokens_consumed', {
+                            source: 'cli',
+                            sessionId: event.sessionId,
+                            provider: event.provider,
+                            model: event.model,
+                            inputTokens: event.tokenUsage.inputTokens,
+                            outputTokens: event.tokenUsage.outputTokens,
+                            reasoningTokens: event.tokenUsage.reasoningTokens,
+                            totalTokens: event.tokenUsage.totalTokens,
+                            cacheReadTokens: event.tokenUsage.cacheReadTokens,
+                            cacheWriteTokens: event.tokenUsage.cacheWriteTokens,
+                        });
+                    }
+
                     const finalContent = event.content || '';
 
                     if (state.messageId) {
@@ -565,6 +585,13 @@ export async function processStream(
                         timestamp: new Date(),
                         toolStatus: 'pending',
                     });
+
+                    // Track tool called analytics
+                    capture('dexto_tool_called', {
+                        source: 'cli',
+                        sessionId: event.sessionId,
+                        toolName: event.toolName,
+                    });
                     break;
                 }
 
@@ -627,6 +654,14 @@ export async function processStream(
                             ...(toolContent && { toolContent }),
                         });
                     }
+
+                    // Track tool result analytics
+                    capture('dexto_tool_result', {
+                        source: 'cli',
+                        sessionId: event.sessionId,
+                        toolName: event.toolName || 'unknown',
+                        success: event.success !== false,
+                    });
                     break;
                 }
 

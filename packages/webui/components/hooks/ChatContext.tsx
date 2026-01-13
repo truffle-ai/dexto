@@ -9,16 +9,7 @@ import React, {
 } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-    useChat,
-    Message,
-    ErrorMessage,
-    StreamStatus,
-    UIUserMessage,
-    UIAssistantMessage,
-    UIToolMessage,
-} from './useChat';
-import { useGreeting } from './useGreeting';
+import { useChat, Message, UIUserMessage, UIAssistantMessage, UIToolMessage } from './useChat';
 import { useApproval } from './ApprovalContext';
 import { usePendingApprovals } from './useApprovals';
 import type { FilePart, ImagePart, TextPart, UIResourcePart } from '../../types';
@@ -32,7 +23,6 @@ import {
     useAgentStore,
     useSessionStore,
     useChatStore,
-    usePreferenceStore,
     useCurrentSessionId,
     useIsWelcomeState,
     useSessionMessages,
@@ -313,7 +303,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     // Get state from stores using centralized selectors
     const currentSessionId = useCurrentSessionId();
     const isWelcomeState = useIsWelcomeState();
-    const isStreaming = usePreferenceStore((s) => s.isStreaming);
 
     // Local state for UI flow control only (not shared/persisted state)
     const [isSwitchingSession, setIsSwitchingSession] = useState(false); // Guard against rapid session switches
@@ -449,7 +438,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                     currentSessionIdRef.current = sessionId;
 
                     // Send message BEFORE navigating
-                    originalSendMessage(content, imageData, fileData, sessionId, isStreaming);
+                    originalSendMessage(content, imageData, fileData, sessionId);
 
                     // Navigate - this will trigger switchSession via ChatApp useEffect
                     navigate({ to: `/chat/${sessionId}`, replace: true });
@@ -471,7 +460,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
             // Only send if we're using an existing session (not a newly created one)
             if (sessionId && !isNewSession) {
-                originalSendMessage(content, imageData, fileData, sessionId, isStreaming);
+                originalSendMessage(content, imageData, fileData, sessionId);
             }
 
             // Track message sent
@@ -494,7 +483,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             isWelcomeState,
             isCreatingSession,
             createAutoSession,
-            isStreaming,
             navigate,
             analytics,
             generateTitle,
@@ -506,7 +494,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         if (currentSessionId) {
             // Track conversation reset
             const messageCount = messages.filter((m) => m.sessionId === currentSessionId).length;
-            analytics.trackConversationReset({
+            analytics.trackSessionReset({
                 sessionId: currentSessionId,
                 messageCount,
             });
