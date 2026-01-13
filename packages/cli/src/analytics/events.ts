@@ -8,7 +8,6 @@ import type { ExecutionContext } from '@dexto/agent-management';
 import type {
     LLMTokensConsumedEvent,
     MessageSentEvent,
-    FirstMessageEvent,
     ToolCalledEvent,
     ToolResultEvent,
     SessionCreatedEvent,
@@ -148,7 +147,6 @@ export interface DextoAnalyticsEventMap {
     // Shared events (from @dexto/analytics)
     dexto_llm_tokens_consumed: LLMTokensConsumedEvent;
     dexto_message_sent: MessageSentEvent;
-    dexto_first_message: FirstMessageEvent;
     dexto_tool_called: ToolCalledEvent;
     dexto_tool_result: ToolResultEvent;
     dexto_session_created: SessionCreatedEvent;

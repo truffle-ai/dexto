@@ -41,19 +41,6 @@ export interface MessageSentEvent {
 }
 
 /**
- * First message event (user activation).
- * Emitted only once per user, on their first message ever.
- */
-export interface FirstMessageEvent {
-    source: AnalyticsSource;
-    provider: string;
-    model: string;
-    hasImage: boolean;
-    hasFile: boolean;
-    messageLength: number;
-}
-
-/**
  * Tool called event.
  * Emitted when a tool is invoked by the LLM.
  */
@@ -169,7 +156,6 @@ export interface ImageAttachedEvent {
 export interface SharedAnalyticsEventMap {
     dexto_llm_tokens_consumed: LLMTokensConsumedEvent;
     dexto_message_sent: MessageSentEvent;
-    dexto_first_message: FirstMessageEvent;
     dexto_tool_called: ToolCalledEvent;
     dexto_tool_result: ToolResultEvent;
     dexto_session_created: SessionCreatedEvent;

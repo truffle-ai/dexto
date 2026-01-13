@@ -22,11 +22,7 @@ import { createUserMessage } from '../utils/messageFormatting.js';
 import { generateMessageId } from '../utils/idGenerator.js';
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
 import type { TextBuffer } from '../components/shared/text-buffer.js';
-import {
-    capture,
-    isFirstMessage as checkFirstMessage,
-    markFirstMessageSent,
-} from '../../../analytics/index.js';
+import { capture } from '../../../analytics/index.js';
 
 /** Type for pending session creation promise */
 type SessionCreationResult = { id: string };
@@ -636,19 +632,6 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                             hasFile: false,
                             messageLength: trimmed.length,
                         });
-
-                        // Track first message for activation (persistent across sessions)
-                        if (checkFirstMessage()) {
-                            capture('dexto_first_message', {
-                                source: 'cli',
-                                provider: llmConfig.provider,
-                                model: llmConfig.model,
-                                hasImage: pendingImages.length > 0,
-                                hasFile: false,
-                                messageLength: trimmed.length,
-                            });
-                            await markFirstMessageSent();
-                        }
 
                         // Use streaming API and process events directly
                         const iterator = await agent.stream(content, currentSessionId);

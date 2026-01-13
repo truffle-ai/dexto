@@ -18,33 +18,6 @@ import type {
     MCPServerConnectedEvent,
 } from '@dexto/analytics';
 
-const FIRST_MESSAGE_KEY = 'dexto_first_message_sent';
-
-/**
- * Check if this is the user's first message ever (for activation tracking).
- * Uses localStorage to persist across sessions.
- */
-function isFirstMessage(): boolean {
-    if (typeof window === 'undefined') return false;
-    try {
-        return !localStorage.getItem(FIRST_MESSAGE_KEY);
-    } catch {
-        return false;
-    }
-}
-
-/**
- * Mark that the user has sent their first message.
- */
-function markFirstMessageSent(): void {
-    if (typeof window === 'undefined') return;
-    try {
-        localStorage.setItem(FIRST_MESSAGE_KEY, 'true');
-    } catch {
-        // Ignore localStorage errors
-    }
-}
-
 export interface UseAnalyticsReturn {
     capture: ReturnType<typeof useAnalyticsContext>['capture'];
     enabled: boolean;
@@ -66,7 +39,7 @@ export interface UseAnalyticsReturn {
 
 /**
  * Hook for tracking analytics events with convenience methods.
- * Automatically handles first message detection and message counting.
+ * Automatically handles message counting per session.
  */
 export function useAnalytics(): UseAnalyticsReturn {
     const { capture, enabled, isReady } = useAnalyticsContext();
@@ -83,23 +56,6 @@ export function useAnalytics(): UseAnalyticsReturn {
                 const sessionId = params.sessionId;
                 messageCountRef.current[sessionId] = (messageCountRef.current[sessionId] || 0) + 1;
 
-                // Check if this is the user's first message ever
-                const isFirst = isFirstMessage();
-
-                if (isFirst) {
-                    // Track first message event (critical activation metric)
-                    capture('dexto_first_message', {
-                        source: 'webui',
-                        provider: params.provider,
-                        model: params.model,
-                        hasImage: params.hasImage,
-                        hasFile: params.hasFile,
-                        messageLength: params.messageLength,
-                    });
-                    markFirstMessageSent();
-                }
-
-                // Track regular message sent event
                 capture('dexto_message_sent', {
                     source: 'webui',
                     ...params,
