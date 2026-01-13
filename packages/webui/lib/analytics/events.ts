@@ -4,20 +4,7 @@
 // All events use unified names (dexto_*) with a `source` property to
 // distinguish CLI vs WebUI. This enables simpler PostHog dashboards.
 
-import type {
-    LLMTokensConsumedEvent,
-    MessageSentEvent,
-    ToolCalledEvent,
-    ToolResultEvent,
-    SessionCreatedEvent,
-    SessionResetEvent,
-    LLMSwitchedEvent,
-    SessionSwitchedEvent,
-    AgentSwitchedEvent,
-    MCPServerConnectedEvent,
-    FileAttachedEvent,
-    ImageAttachedEvent,
-} from '@dexto/analytics';
+import type { SharedAnalyticsEventMap, FileAttachedEvent } from '@dexto/analytics';
 
 /**
  * Base context automatically included with every WebUI event.
@@ -35,25 +22,14 @@ export interface BaseEventContext {
 }
 
 /**
- * Map of all WebUI analytics events.
- * Use this for type-safe event tracking.
+ * WebUI analytics event map extending shared events with WebUI-specific events.
  *
- * All events use unified names (dexto_*) with source: 'webui'.
- * CLI uses the same event names with source: 'cli'.
+ * IMPORTANT: If an event is also tracked by CLI, move it to SharedAnalyticsEventMap
+ * in @dexto/analytics to avoid duplication.
  */
-export interface WebUIAnalyticsEventMap {
-    dexto_llm_tokens_consumed: LLMTokensConsumedEvent;
-    dexto_message_sent: MessageSentEvent;
-    dexto_tool_called: ToolCalledEvent;
-    dexto_tool_result: ToolResultEvent;
-    dexto_session_created: SessionCreatedEvent;
-    dexto_session_reset: SessionResetEvent;
-    dexto_llm_switched: LLMSwitchedEvent;
-    dexto_session_switched: SessionSwitchedEvent;
-    dexto_agent_switched: AgentSwitchedEvent;
-    dexto_mcp_server_connected: MCPServerConnectedEvent;
+export interface WebUIAnalyticsEventMap extends SharedAnalyticsEventMap {
+    // WebUI-specific events (not supported by CLI)
     dexto_file_attached: FileAttachedEvent;
-    dexto_image_attached: ImageAttachedEvent;
 }
 
 export type WebUIAnalyticsEventName = keyof WebUIAnalyticsEventMap;

@@ -148,8 +148,11 @@ export interface ImageAttachedEvent {
 }
 
 /**
- * Shared analytics event map.
- * All platforms use the same event names.
+ * Shared analytics event map containing events supported by ALL platforms.
+ * CLI and WebUI extend this map with platform-specific events.
+ *
+ * IMPORTANT: If an event is tracked by both CLI and WebUI, add it here.
+ * Platform-specific events should be added to the respective platform's event map.
  */
 export interface SharedAnalyticsEventMap {
     dexto_llm_tokens_consumed: LLMTokensConsumedEvent;
@@ -162,7 +165,6 @@ export interface SharedAnalyticsEventMap {
     dexto_session_switched: SessionSwitchedEvent;
     dexto_agent_switched: AgentSwitchedEvent;
     dexto_mcp_server_connected: MCPServerConnectedEvent;
-    dexto_file_attached: FileAttachedEvent;
     dexto_image_attached: ImageAttachedEvent;
 }
 

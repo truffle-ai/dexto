@@ -5,19 +5,7 @@
 // session_id, etc.) is merged automatically in analytics/index.ts.
 
 import type { ExecutionContext } from '@dexto/agent-management';
-import type {
-    LLMTokensConsumedEvent,
-    MessageSentEvent,
-    ToolCalledEvent,
-    ToolResultEvent,
-    SessionCreatedEvent,
-    SessionResetEvent,
-    LLMSwitchedEvent,
-    SessionSwitchedEvent,
-    AgentSwitchedEvent,
-    MCPServerConnectedEvent,
-    ImageAttachedEvent,
-} from '@dexto/analytics';
+import type { SharedAnalyticsEventMap } from '@dexto/analytics';
 
 export interface BaseEventContext {
     app?: 'dexto';
@@ -133,7 +121,13 @@ export interface InitProjectEvent {
     providedKey: boolean;
 }
 
-export interface DextoAnalyticsEventMap {
+/**
+ * CLI analytics event map extending shared events with CLI-specific events.
+ *
+ * IMPORTANT: If an event is also tracked by WebUI, move it to SharedAnalyticsEventMap
+ * in @dexto/analytics to avoid duplication.
+ */
+export interface DextoAnalyticsEventMap extends SharedAnalyticsEventMap {
     // CLI-specific events
     dexto_cli_command: CliCommandEvent;
     dexto_prompt: PromptEvent;
@@ -144,18 +138,6 @@ export interface DextoAnalyticsEventMap {
     dexto_uninstall: UninstallAggregateEvent;
     dexto_create: CreateProjectEvent;
     dexto_init: InitProjectEvent;
-    // Shared events (from @dexto/analytics)
-    dexto_llm_tokens_consumed: LLMTokensConsumedEvent;
-    dexto_message_sent: MessageSentEvent;
-    dexto_tool_called: ToolCalledEvent;
-    dexto_tool_result: ToolResultEvent;
-    dexto_session_created: SessionCreatedEvent;
-    dexto_session_reset: SessionResetEvent;
-    dexto_llm_switched: LLMSwitchedEvent;
-    dexto_session_switched: SessionSwitchedEvent;
-    dexto_agent_switched: AgentSwitchedEvent;
-    dexto_mcp_server_connected: MCPServerConnectedEvent;
-    dexto_image_attached: ImageAttachedEvent;
 }
 
 export type AnalyticsEventName = keyof DextoAnalyticsEventMap;
