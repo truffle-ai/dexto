@@ -1,6 +1,6 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { streamSSE } from 'hono/streaming';
-import type { DextoAgent, ContentInput } from '@dexto/core';
+import type { ContentInput } from '@dexto/core';
 import { LLM_PROVIDERS } from '@dexto/core';
 import type { ApprovalCoordinator } from '../../approval/approval-coordinator.js';
 import { TokenUsageSchema } from '../schemas/responses.js';

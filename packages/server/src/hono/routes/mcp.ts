@@ -1,5 +1,4 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
-import type { DextoAgent } from '@dexto/core';
 import { logger, McpServerConfigSchema, MCP_CONNECTION_STATUSES } from '@dexto/core';
 import { updateAgentConfigFile } from '@dexto/agent-management';
 import { ResourceSchema } from '../schemas/responses.js';

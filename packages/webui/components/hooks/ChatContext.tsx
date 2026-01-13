@@ -9,16 +9,7 @@ import React, {
 } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-    useChat,
-    Message,
-    ErrorMessage,
-    StreamStatus,
-    UIUserMessage,
-    UIAssistantMessage,
-    UIToolMessage,
-} from './useChat';
-import { useGreeting } from './useGreeting';
+import { useChat, Message, UIUserMessage, UIAssistantMessage, UIToolMessage } from './useChat';
 import { useApproval } from './ApprovalContext';
 import { usePendingApprovals } from './useApprovals';
 import type { FilePart, ImagePart, TextPart, UIResourcePart } from '../../types';

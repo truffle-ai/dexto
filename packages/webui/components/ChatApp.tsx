@@ -67,8 +67,6 @@ import {
     DropdownMenuTrigger,
     DropdownMenuSeparator,
 } from './ui/dropdown-menu';
-import { ThemeSwitch } from './ThemeSwitch';
-import NewChatButton from './NewChatButton';
 import { SettingsPanel } from './settings/SettingsPanel';
 import AgentSelector from './AgentSelector/AgentSelector';
 import { Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';

@@ -3,7 +3,6 @@ import { usePreferenceStore } from '@/lib/stores/preferenceStore';
 import { Label } from '../../ui/label';
 import { Switch } from '../../ui/switch';
 import { Moon, Sun, Zap } from 'lucide-react';
-import { cn } from '@/lib/utils';
 
 export function AppearanceSection() {
     const { theme, toggleTheme } = useTheme();
