@@ -172,21 +172,16 @@ const LocalModelWizard = forwardRef<LocalModelWizardHandle, LocalModelWizardProp
         // Handle model selection
         const handleSelectModel = useCallback(
             async (modelId: string) => {
-                // Check if already installed
+                // Check if already installed - registry models are already tracked in state.json
+                // No need to save to custom-models.json
                 if (installedIds.has(modelId)) {
-                    // Just save as custom model and complete
                     const modelInfo = getLocalModelById(modelId);
-                    const model: CustomModel = {
+                    // Just complete - model is already in state.json from previous download
+                    onComplete({
                         name: modelId,
                         provider: 'local',
                         displayName: modelInfo?.name || modelId,
-                    };
-                    try {
-                        await saveCustomModel(model);
-                        onComplete(model);
-                    } catch (err) {
-                        setError(err instanceof Error ? err.message : 'Failed to save model');
-                    }
+                    });
                     return;
                 }
 
@@ -229,14 +224,13 @@ const LocalModelWizard = forwardRef<LocalModelWizardHandle, LocalModelWizardProp
 
                     await addInstalledModel(installedModel);
 
-                    // Save as custom model and complete
-                    const model: CustomModel = {
+                    // Registry models are tracked in state.json, not custom-models.json
+                    // Just complete - the model will appear in the selector via getAllInstalledModels()
+                    onComplete({
                         name: modelId,
                         provider: 'local',
                         displayName: modelInfo?.name || modelId,
-                    };
-                    await saveCustomModel(model);
-                    onComplete(model);
+                    });
                 } catch (err) {
                     setDownloadError(err instanceof Error ? err.message : 'Download failed');
                 }
