@@ -89,6 +89,10 @@
     {
       "name": "tools",
       "description": "List and inspect available tools from internal, custom, and MCP sources"
+    },
+    {
+      "name": "models",
+      "description": "List and manage local GGUF models and Ollama models"
     }
   ],
   "components": {
@@ -5534,6 +5538,9 @@
                           },
                           "apiKey": {
                             "type": "string"
+                          },
+                          "filePath": {
+                            "type": "string"
                           }
                         },
                         "required": [
@@ -5601,6 +5608,9 @@
                   },
                   "apiKey": {
                     "type": "string"
+                  },
+                  "filePath": {
+                    "type": "string"
                   }
                 },
                 "required": [
@@ -5664,6 +5674,9 @@
                           "exclusiveMinimum": true
                         },
                         "apiKey": {
+                          "type": "string"
+                        },
+                        "filePath": {
                           "type": "string"
                         }
                       },
@@ -12436,6 +12449,325 @@
                     "internalTools"
                   ],
                   "description": "Discovery response with providers grouped by category"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/models/local": {
+      "get": {
+        "summary": "List Local Models",
+        "description": "Returns all installed local GGUF models from ~/.dexto/models/state.json. These are models downloaded from HuggingFace or manually registered.",
+        "tags": [
+          "models"
+        ],
+        "responses": {
+          "200": {
+            "description": "List of installed local models",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "models": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "description": "Model identifier"
+                          },
+                          "displayName": {
+                            "type": "string",
+                            "description": "Human-readable model name"
+                          },
+                          "filePath": {
+                            "type": "string",
+                            "description": "Absolute path to the GGUF file"
+                          },
+                          "sizeBytes": {
+                            "type": "number",
+                            "description": "File size in bytes"
+                          },
+                          "contextLength": {
+                            "type": "number",
+                            "description": "Maximum context length in tokens"
+                          },
+                          "source": {
+                            "type": "string",
+                            "enum": [
+                              "huggingface",
+                              "manual"
+                            ],
+                            "description": "Where the model was downloaded from"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "displayName",
+                          "filePath",
+                          "sizeBytes"
+                        ],
+                        "description": "An installed local GGUF model"
+                      },
+                      "description": "List of installed local models"
+                    }
+                  },
+                  "required": [
+                    "models"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/models/ollama": {
+      "get": {
+        "summary": "List Ollama Models",
+        "description": "Returns available models from the local Ollama server. Returns empty list with available=false if Ollama is not running.",
+        "tags": [
+          "models"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uri",
+              "description": "Ollama server URL (default: http://localhost:11434)"
+            },
+            "required": false,
+            "description": "Ollama server URL (default: http://localhost:11434)",
+            "name": "baseURL",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of Ollama models",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "available": {
+                      "type": "boolean",
+                      "description": "Whether Ollama server is running"
+                    },
+                    "version": {
+                      "type": "string",
+                      "description": "Ollama server version"
+                    },
+                    "models": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string",
+                            "description": "Ollama model name (e.g., llama3.2:latest)"
+                          },
+                          "size": {
+                            "type": "number",
+                            "description": "Model size in bytes"
+                          },
+                          "digest": {
+                            "type": "string",
+                            "description": "Model digest/hash"
+                          },
+                          "modifiedAt": {
+                            "type": "string",
+                            "description": "Last modified timestamp"
+                          }
+                        },
+                        "required": [
+                          "name"
+                        ],
+                        "description": "An Ollama model"
+                      },
+                      "description": "List of available Ollama models"
+                    },
+                    "error": {
+                      "type": "string",
+                      "description": "Error message if Ollama not available"
+                    }
+                  },
+                  "required": [
+                    "available",
+                    "models"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/models/local/validate": {
+      "post": {
+        "summary": "Validate GGUF File",
+        "description": "Validates that a GGUF file exists and is readable. Used by Web UI to validate custom file paths before saving.",
+        "tags": [
+          "models"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "filePath": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Absolute path to the GGUF file to validate"
+                  }
+                },
+                "required": [
+                  "filePath"
+                ],
+                "description": "File validation request"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Validation result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "valid": {
+                      "type": "boolean",
+                      "description": "Whether the file exists and is readable"
+                    },
+                    "sizeBytes": {
+                      "type": "number",
+                      "description": "File size in bytes if valid"
+                    },
+                    "error": {
+                      "type": "string",
+                      "description": "Error message if invalid"
+                    }
+                  },
+                  "required": [
+                    "valid"
+                  ],
+                  "description": "File validation response"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/models/local/{modelId}": {
+      "delete": {
+        "summary": "Delete Installed Model",
+        "description": "Removes an installed local model from state.json. Optionally deletes the GGUF file from disk (default: true).",
+        "tags": [
+          "models"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "The model ID to delete"
+            },
+            "required": true,
+            "description": "The model ID to delete",
+            "name": "modelId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "deleteFile": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Whether to also delete the GGUF file from disk"
+                  }
+                },
+                "description": "Delete model request options"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Model deleted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "description": "Whether the deletion was successful"
+                    },
+                    "modelId": {
+                      "type": "string",
+                      "description": "The deleted model ID"
+                    },
+                    "fileDeleted": {
+                      "type": "boolean",
+                      "description": "Whether the GGUF file was deleted"
+                    },
+                    "error": {
+                      "type": "string",
+                      "description": "Error message if deletion failed"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "modelId",
+                    "fileDeleted"
+                  ],
+                  "description": "Delete model response"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Model not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "description": "Whether the deletion was successful"
+                    },
+                    "modelId": {
+                      "type": "string",
+                      "description": "The deleted model ID"
+                    },
+                    "fileDeleted": {
+                      "type": "boolean",
+                      "description": "Whether the GGUF file was deleted"
+                    },
+                    "error": {
+                      "type": "string",
+                      "description": "Error message if deletion failed"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "modelId",
+                    "fileDeleted"
+                  ],
+                  "description": "Delete model response"
                 }
               }
             }
