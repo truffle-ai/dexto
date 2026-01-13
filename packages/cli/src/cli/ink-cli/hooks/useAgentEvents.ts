@@ -11,47 +11,79 @@
  * - session:created - New session creation (e.g., from /clear)
  * - message:queued - New message added to queue
  * - message:removed - Message removed from queue (e.g., up arrow edit)
+ * - run:invoke - External trigger (scheduler, A2A, API) starting a run
+ * - run:complete (for external triggers) - External run finished
  *
  * Uses AbortController pattern for cleanup.
  */
 
 import type React from 'react';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { setMaxListeners } from 'events';
-import { getModelDisplayName, type DextoAgent, type QueuedMessage } from '@dexto/core';
+import {
+    getModelDisplayName,
+    type DextoAgent,
+    type QueuedMessage,
+    type ContentPart,
+} from '@dexto/core';
 import type { Message, UIState, SessionState } from '../state/types.js';
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
+import { generateMessageId } from '../utils/idGenerator.js';
 
 interface UseAgentEventsProps {
     agent: DextoAgent;
     setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
+    setPendingMessages: React.Dispatch<React.SetStateAction<Message[]>>;
     setUi: React.Dispatch<React.SetStateAction<UIState>>;
     setSession: React.Dispatch<React.SetStateAction<SessionState>>;
     setApproval: React.Dispatch<React.SetStateAction<ApprovalRequest | null>>;
     setApprovalQueue: React.Dispatch<React.SetStateAction<ApprovalRequest[]>>;
     setQueuedMessages: React.Dispatch<React.SetStateAction<QueuedMessage[]>>;
+    /** Current session ID for filtering events */
+    currentSessionId: string | null;
+}
+
+/**
+ * Extract text content from ContentPart array
+ */
+function extractTextContent(content: ContentPart[]): string {
+    return content
+        .filter((part): part is { type: 'text'; text: string } => part.type === 'text')
+        .map((part) => part.text)
+        .join('\n');
 }
 
 /**
  * Subscribes to agent event bus for non-streaming events only.
  * Streaming events are handled via agent.stream() iterator.
+ *
+ * Also handles external triggers (run:invoke) from scheduler, A2A, etc.
  */
 export function useAgentEvents({
     agent,
     setMessages,
+    setPendingMessages,
     setUi,
     setSession,
     setApproval,
     setApprovalQueue,
     setQueuedMessages,
+    currentSessionId,
 }: UseAgentEventsProps): void {
+    // Track if an external trigger is active (scheduler, A2A, etc.)
+    const externalTriggerRef = useRef<{
+        active: boolean;
+        sessionId: string | null;
+        messageId: string | null;
+    }>({ active: false, sessionId: null, messageId: null });
+
     useEffect(() => {
         const bus = agent.agentEventBus;
         const controller = new AbortController();
         const { signal } = controller;
 
-        // Increase listener limit for safety
-        setMaxListeners(15, signal);
+        // Increase listener limit for safety (added more for external trigger events)
+        setMaxListeners(25, signal);
 
         // NOTE: approval:request is now handled in processStream (via iterator) for proper
         // event ordering. Direct bus subscription here caused a race condition where
@@ -156,9 +188,178 @@ export function useAgentEvents({
         // Note: message:dequeued is handled in processStream (via iterator) for proper synchronization
         // with streaming events. Don't handle it here via event bus.
 
+        // ============================================================================
+        // EXTERNAL TRIGGER HANDLING (scheduler, A2A, API)
+        // When an external source invokes the agent, we receive events here instead of
+        // through processStream (which only handles user-initiated streams).
+        // ============================================================================
+
+        // Handle external trigger invocation (scheduler, A2A, API)
+        bus.on(
+            'run:invoke',
+            (payload) => {
+                // Only handle if this is for the current session
+                if (payload.sessionId !== currentSessionId) {
+                    return;
+                }
+
+                // Mark external trigger as active
+                const messageId = generateMessageId('assistant');
+                externalTriggerRef.current = {
+                    active: true,
+                    sessionId: payload.sessionId,
+                    messageId,
+                };
+
+                // Extract prompt text from content parts
+                const promptText = extractTextContent(payload.content);
+
+                // Add the scheduled prompt as a "user" message with a source indicator
+                const sourceLabel =
+                    payload.source === 'scheduler'
+                        ? '⏰ Scheduled Task'
+                        : payload.source === 'a2a'
+                          ? '🤖 A2A Request'
+                          : payload.source === 'api'
+                            ? '🔌 API Request'
+                            : '📥 External Request';
+
+                setMessages((prev) => [
+                    ...prev,
+                    {
+                        id: generateMessageId('system'),
+                        role: 'system' as const,
+                        content: `${sourceLabel}`,
+                        timestamp: new Date(),
+                    },
+                    {
+                        id: generateMessageId('user'),
+                        role: 'user' as const,
+                        content: promptText,
+                        timestamp: new Date(),
+                    },
+                ]);
+
+                // Set processing state
+                setUi((prev) => ({
+                    ...prev,
+                    isProcessing: true,
+                    isThinking: true,
+                }));
+
+                // Add assistant pending message for streaming
+                setPendingMessages([
+                    {
+                        id: messageId,
+                        role: 'assistant' as const,
+                        content: '',
+                        timestamp: new Date(),
+                        isStreaming: true,
+                    },
+                ]);
+            },
+            { signal }
+        );
+
+        // Handle streaming chunks for external triggers
+        bus.on(
+            'llm:chunk',
+            (payload) => {
+                // Only handle if this is for an active external trigger
+                if (
+                    !externalTriggerRef.current.active ||
+                    payload.sessionId !== externalTriggerRef.current.sessionId
+                ) {
+                    return;
+                }
+
+                // Only handle text chunks (not reasoning)
+                if (payload.chunkType !== 'text') {
+                    return;
+                }
+
+                // Update pending message with new content
+                setPendingMessages((prev) =>
+                    prev.map((msg) =>
+                        msg.id === externalTriggerRef.current.messageId
+                            ? { ...msg, content: msg.content + payload.content }
+                            : msg
+                    )
+                );
+
+                // Clear thinking state once we start receiving chunks
+                setUi((prev) => (prev.isThinking ? { ...prev, isThinking: false } : prev));
+            },
+            { signal }
+        );
+
+        // Handle LLM thinking for external triggers
+        bus.on(
+            'llm:thinking',
+            (payload) => {
+                if (
+                    !externalTriggerRef.current.active ||
+                    payload.sessionId !== externalTriggerRef.current.sessionId
+                ) {
+                    return;
+                }
+
+                setUi((prev) => ({ ...prev, isThinking: true }));
+            },
+            { signal }
+        );
+
+        // Handle run completion for external triggers
+        bus.on(
+            'run:complete',
+            (payload) => {
+                // Only handle if this is for an active external trigger
+                if (
+                    !externalTriggerRef.current.active ||
+                    payload.sessionId !== externalTriggerRef.current.sessionId
+                ) {
+                    return;
+                }
+
+                // Finalize the pending message
+                setPendingMessages((prev) => {
+                    const pendingMsg = prev.find(
+                        (m) => m.id === externalTriggerRef.current.messageId
+                    );
+                    if (pendingMsg) {
+                        // Move to finalized messages
+                        setMessages((msgs) => [...msgs, { ...pendingMsg, isStreaming: false }]);
+                    }
+                    // Clear pending
+                    return prev.filter((m) => m.id !== externalTriggerRef.current.messageId);
+                });
+
+                // Clear processing state
+                setUi((prev) => ({
+                    ...prev,
+                    isProcessing: false,
+                    isThinking: false,
+                }));
+
+                // Reset external trigger tracking
+                externalTriggerRef.current = { active: false, sessionId: null, messageId: null };
+            },
+            { signal }
+        );
+
         // Cleanup: abort controller removes all listeners at once
         return () => {
             controller.abort();
         };
-    }, [agent, setMessages, setUi, setSession, setApproval, setApprovalQueue, setQueuedMessages]);
+    }, [
+        agent,
+        setMessages,
+        setPendingMessages,
+        setUi,
+        setSession,
+        setApproval,
+        setApprovalQueue,
+        setQueuedMessages,
+        currentSessionId,
+    ]);
 }
