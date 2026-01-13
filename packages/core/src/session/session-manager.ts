@@ -366,10 +366,9 @@ export class SessionManager {
     public async deleteSession(sessionId: string): Promise<void> {
         await this.ensureInitialized();
 
-        // Get session (load from storage if not in memory) to clear conversation history
+        // Get session (load from storage if not in memory) to clean up memory resources
         const session = await this.getSession(sessionId);
         if (session) {
-            await session.reset(); // This deletes the conversation history
             await session.cleanup(); // This cleans up memory resources
             this.sessions.delete(sessionId);
         }
@@ -378,6 +377,12 @@ export class SessionManager {
         const sessionKey = `session:${sessionId}`;
         await this.services.storageManager.getDatabase().delete(sessionKey);
         await this.services.storageManager.getCache().delete(sessionKey);
+
+        // Remove conversation messages from storage
+        // This is done directly rather than through session.reset() to ensure
+        // messages are always deleted even if the session couldn't be loaded
+        const messagesKey = `messages:${sessionId}`;
+        await this.services.storageManager.getDatabase().delete(messagesKey);
 
         this.logger.debug(`Deleted session and conversation history: ${sessionId}`);
     }
