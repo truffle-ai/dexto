@@ -33,7 +33,8 @@ import {
 import {
     setupLocalModels,
     setupOllamaModels,
-    getLocalModelForPreferences,
+    hasSelectedModel,
+    getModelFromResult,
 } from '../utils/local-model-setup.js';
 import { requiresSetup } from '../utils/setup-utils.js';
 import * as p from '@clack/prompts';
@@ -267,6 +268,12 @@ async function handleQuickStart(): Promise<void> {
     // Ask about default mode
     const defaultMode = await selectDefaultMode();
 
+    // Handle cancellation
+    if (defaultMode === null) {
+        p.cancel('Setup cancelled');
+        process.exit(0);
+    }
+
     // Save preferences
     const preferencesOptions: CreatePreferencesOptions = {
         provider,
@@ -375,7 +382,12 @@ async function wizardStepSetupType(state: SetupWizardState): Promise<SetupWizard
 async function wizardStepProvider(state: SetupWizardState): Promise<SetupWizardState> {
     showStepProgress('provider', state.provider);
 
-    const provider = await selectProviderWithBack();
+    const provider = await selectProvider();
+
+    if (provider === null) {
+        p.cancel('Setup cancelled');
+        process.exit(0);
+    }
 
     if (provider === '_back') {
         return { ...state, step: 'setupType', provider: undefined };
@@ -394,35 +406,34 @@ async function wizardStepModel(state: SetupWizardState): Promise<SetupWizardStat
     // Handle local providers with special setup flow
     if (provider === 'local') {
         const localResult = await setupLocalModels();
-        if (localResult.cancelled) {
-            // User cancelled - go back to provider selection
+        // Only proceed if user actually selected a model
+        // (handles cancelled, back, skipped, and any other incomplete states)
+        if (!hasSelectedModel(localResult)) {
             return { ...state, step: 'provider', model: undefined };
         }
-        if (localResult.back) {
-            return { ...state, step: 'provider', model: undefined };
-        }
-        const model = getLocalModelForPreferences(localResult, 'local');
         // Local providers skip apiKey step
-        return { ...state, step: 'mode', model };
+        return { ...state, step: 'mode', model: getModelFromResult(localResult) };
     }
 
     if (provider === 'ollama') {
         const ollamaResult = await setupOllamaModels();
-        if (ollamaResult.cancelled) {
+        // Only proceed if user actually selected a model
+        if (!hasSelectedModel(ollamaResult)) {
             return { ...state, step: 'provider', model: undefined };
         }
-        if (ollamaResult.back) {
-            return { ...state, step: 'provider', model: undefined };
-        }
-        const model = getLocalModelForPreferences(ollamaResult, 'ollama');
         // Ollama skips apiKey step
-        return { ...state, step: 'mode', model };
+        return { ...state, step: 'mode', model: getModelFromResult(ollamaResult) };
     }
 
     // Handle baseURL for providers that need it
     let baseURL: string | undefined;
     if (providerRequiresBaseURL(provider)) {
-        baseURL = await promptForBaseURL(provider);
+        const result = await promptForBaseURL(provider);
+        if (result === null) {
+            // User cancelled - go back to provider selection
+            return { ...state, step: 'provider', model: undefined, baseURL: undefined };
+        }
+        baseURL = result;
     }
 
     // Cloud provider model selection with back option
@@ -487,33 +498,6 @@ async function wizardStepMode(state: SetupWizardState): Promise<SetupWizardState
     }
 
     return { ...state, step: 'complete', defaultMode: mode };
-}
-
-/**
- * Select provider with back option
- */
-async function selectProviderWithBack(): Promise<LLMProvider | '_back'> {
-    const providerOptions = LLM_PROVIDERS.map((providerId) => {
-        return {
-            value: providerId,
-            label: getProviderDisplayName(providerId),
-        };
-    });
-
-    const result = await p.select({
-        message: 'Select your AI provider',
-        options: [
-            ...providerOptions,
-            { value: '_back' as const, label: chalk.gray('← Back'), hint: 'Return to setup type' },
-        ],
-    });
-
-    if (p.isCancel(result)) {
-        p.cancel('Setup cancelled');
-        process.exit(0);
-    }
-
-    return result as LLMProvider | '_back';
 }
 
 /**
@@ -797,8 +781,8 @@ async function showSettingsMenu(): Promise<void> {
 async function changeModel(currentProvider?: LLMProvider): Promise<void> {
     const provider = currentProvider || (await selectProvider());
 
-    // Handle cancellation from selectProvider
-    if (provider === null) {
+    // Handle cancellation or back from selectProvider
+    if (provider === null || provider === '_back') {
         p.log.warn('Model change cancelled');
         return;
     }
@@ -806,11 +790,13 @@ async function changeModel(currentProvider?: LLMProvider): Promise<void> {
     // Special handling for local providers - use dedicated setup flows
     if (provider === 'local') {
         const localResult = await setupLocalModels();
-        if (localResult.cancelled) {
+        // Only proceed if user actually selected a model
+        // (handles cancelled, back, skipped - returns to menu without saving)
+        if (!hasSelectedModel(localResult)) {
             p.log.warn('Model change cancelled');
             return;
         }
-        const model = getLocalModelForPreferences(localResult, 'local');
+        const model = getModelFromResult(localResult);
         await updateGlobalPreferences({
             llm: { provider, model },
         });
@@ -820,11 +806,12 @@ async function changeModel(currentProvider?: LLMProvider): Promise<void> {
 
     if (provider === 'ollama') {
         const ollamaResult = await setupOllamaModels();
-        if (ollamaResult.cancelled) {
+        // Only proceed if user actually selected a model
+        if (!hasSelectedModel(ollamaResult)) {
             p.log.warn('Model change cancelled');
             return;
         }
-        const model = getLocalModelForPreferences(ollamaResult, 'ollama');
+        const model = getModelFromResult(ollamaResult);
         await updateGlobalPreferences({
             llm: { provider, model },
         });
@@ -864,6 +851,12 @@ async function changeModel(currentProvider?: LLMProvider): Promise<void> {
 async function changeDefaultMode(): Promise<void> {
     const mode = await selectDefaultMode();
 
+    // Handle cancellation
+    if (mode === null) {
+        p.log.warn('Mode change cancelled');
+        return;
+    }
+
     await updateGlobalPreferences({
         defaults: { defaultMode: mode },
     });
@@ -877,8 +870,8 @@ async function changeDefaultMode(): Promise<void> {
 async function updateApiKey(currentProvider?: LLMProvider): Promise<void> {
     const provider = currentProvider || (await selectProvider());
 
-    // Handle cancellation from selectProvider
-    if (provider === null) {
+    // Handle cancellation or back from selectProvider
+    if (provider === null || provider === '_back') {
         p.log.warn('API key update cancelled');
         return;
     }
@@ -986,9 +979,10 @@ function showPreferencesFilePath(): void {
 
 /**
  * Select default mode interactively
+ * Returns null if user cancels
  */
 async function selectDefaultMode(): Promise<
-    'cli' | 'web' | 'server' | 'discord' | 'telegram' | 'mcp'
+    'cli' | 'web' | 'server' | 'discord' | 'telegram' | 'mcp' | null
 > {
     const mode = await p.select({
         message: 'How do you want to use Dexto by default?',
@@ -1012,7 +1006,7 @@ async function selectDefaultMode(): Promise<
     });
 
     if (p.isCancel(mode)) {
-        return 'web'; // Default
+        return null;
     }
 
     return mode;
@@ -1073,8 +1067,11 @@ async function selectModel(provider: LLMProvider): Promise<string | null> {
 
 /**
  * Prompt for base URL for custom endpoints
+ * Returns null if user cancels (to go back)
  */
-async function promptForBaseURL(provider: LLMProvider): Promise<string> {
+async function promptForBaseURL(provider: LLMProvider): Promise<string | null> {
+    p.log.info(chalk.gray('Press Ctrl+C to go back'));
+
     const placeholder =
         provider === 'openai-compatible'
             ? 'http://localhost:11434/v1'
@@ -1099,8 +1096,7 @@ async function promptForBaseURL(provider: LLMProvider): Promise<string> {
     });
 
     if (p.isCancel(baseURL)) {
-        p.cancel('Setup cancelled');
-        process.exit(0);
+        return null;
     }
 
     return baseURL.trim();

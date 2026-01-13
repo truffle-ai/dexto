@@ -143,7 +143,7 @@ const modelCache = new Map<string, Promise<LoadedModel>>();
  * @throws {DextoRuntimeError} If node-llama-cpp is not installed
  */
 export async function loadModel(config: NodeLlamaConfig): Promise<LoadedModel> {
-    const { modelPath, gpuLayers = -1, contextSize = 4096, threads, batchSize = 512 } = config;
+    const { modelPath, gpuLayers = -1, contextSize, threads, batchSize = 512 } = config;
 
     // Check cache first
     const cacheKey = `${modelPath}:${gpuLayers}:${contextSize}`;

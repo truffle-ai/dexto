@@ -60,6 +60,21 @@ export interface LocalModelSetupResult {
 }
 
 /**
+ * Type guard: Check if local model setup result has a selected model.
+ * Use this before proceeding with model configuration.
+ *
+ * Returns false for: cancelled, back, skipped, or missing modelId
+ * Returns true only when: success=true AND modelId is present
+ */
+export function hasSelectedModel(
+    result: LocalModelSetupResult
+): result is LocalModelSetupResult & { modelId: string } {
+    return (
+        result.success && !result.cancelled && !result.back && !result.skipped && !!result.modelId
+    );
+}
+
+/**
  * Get the global deps directory path for installing native dependencies.
  * Always uses ~/.dexto/deps to share across all contexts.
  */
@@ -805,23 +820,7 @@ async function setupCustomGGUF(): Promise<LocalModelSetupResult> {
             return { success: false, cancelled: true };
         }
 
-        // Prompt for context length (optional)
-        const contextLength = await p.text({
-            message: 'Context length (tokens)',
-            placeholder: '4096',
-            initialValue: '4096',
-            validate: (value) => {
-                const num = parseInt(value);
-                if (isNaN(num) || num < 1) {
-                    return 'Please enter a valid positive number';
-                }
-                return undefined;
-            },
-        });
-
-        if (p.isCancel(contextLength)) {
-            return { success: false, cancelled: true };
-        }
+        // Note: Context length is auto-detected by node-llama-cpp from the GGUF file
 
         // Generate a model ID from the filename
         // Convert to lowercase, replace spaces with dashes, remove special chars
@@ -837,7 +836,6 @@ async function setupCustomGGUF(): Promise<LocalModelSetupResult> {
             provider: 'local',
             filePath: trimmedPath,
             displayName: displayName?.trim() || filename,
-            maxInputTokens: parseInt(contextLength) || 4096,
         });
 
         p.log.success(`Registered as '${modelId}'`);
@@ -857,23 +855,11 @@ async function setupCustomGGUF(): Promise<LocalModelSetupResult> {
 }
 
 /**
- * Get the model name for preferences based on provider.
+ * Get the model name for preferences from a validated setup result.
  *
- * For 'local' provider: Uses the local model ID (e.g., 'llama-3.3-8b-q4')
- * For 'ollama' provider: Uses the Ollama model name (e.g., 'llama3.2')
+ * IMPORTANT: Only call this after validating with hasSelectedModel().
+ * Throws if modelId is missing (indicates a bug in the calling code).
  */
-export function getLocalModelForPreferences(
-    result: LocalModelSetupResult,
-    provider: 'local' | 'ollama'
-): string {
-    if (result.modelId) {
-        return result.modelId;
-    }
-
-    // Defaults if no model selected
-    if (provider === 'ollama') {
-        return 'llama3.2';
-    }
-
-    return 'llama-3.3-8b-q4';
+export function getModelFromResult(result: LocalModelSetupResult & { modelId: string }): string {
+    return result.modelId;
 }
