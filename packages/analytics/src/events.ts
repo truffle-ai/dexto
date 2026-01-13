@@ -8,8 +8,6 @@ export type AnalyticsSource = 'cli' | 'webui';
  * LLM token consumption event.
  * Emitted after each LLM response with token usage data.
  *
- * Note: Optional properties use `| undefined` to support
- * passing undefined values with exactOptionalPropertyTypes.
  */
 export interface LLMTokensConsumedEvent {
     source: AnalyticsSource;
