@@ -8,7 +8,14 @@
  * - This file is the orchestrator - handles state, navigation, and keyboard input
  */
 
-import React, { useState, useEffect, forwardRef, useImperativeHandle, useCallback } from 'react';
+import React, {
+    useState,
+    useEffect,
+    forwardRef,
+    useImperativeHandle,
+    useCallback,
+    useRef,
+} from 'react';
 import { Box, Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
 import {
@@ -36,6 +43,9 @@ import {
     SetupInfoBanner,
     ApiKeyStep,
 } from './custom-model-wizard/shared/index.js';
+import LocalModelWizard, {
+    type LocalModelWizardHandle,
+} from './custom-model-wizard/LocalModelWizard.js';
 
 interface CustomModelWizardProps {
     isVisible: boolean;
@@ -67,6 +77,9 @@ const CustomModelWizard = forwardRef<CustomModelWizardHandle, CustomModelWizardP
         // Track original name when editing (to handle renames)
         const [originalName, setOriginalName] = useState<string | null>(null);
         const isEditing = initialModel !== null && initialModel !== undefined;
+
+        // Ref for LocalModelWizard (specialized wizard for 'local' provider)
+        const localModelWizardRef = useRef<LocalModelWizardHandle>(null);
 
         // Get provider config (data-driven, no conditionals)
         const providerConfig = selectedProvider ? getProviderConfig(selectedProvider) : null;
@@ -279,6 +292,11 @@ const CustomModelWizard = forwardRef<CustomModelWizardHandle, CustomModelWizardP
                 handleInput: (input: string, key: Key): boolean => {
                     if (!isVisible || isSaving || isValidating) return false;
 
+                    // Delegate to LocalModelWizard when local provider is selected
+                    if (selectedProvider === 'local' && localModelWizardRef.current) {
+                        return localModelWizardRef.current.handleInput(input, key);
+                    }
+
                     // Escape to go back/close
                     if (key.escape) {
                         handleBack();
@@ -348,7 +366,22 @@ const CustomModelWizard = forwardRef<CustomModelWizardHandle, CustomModelWizardP
             return <ProviderSelector selectedIndex={providerIndex} isEditing={isEditing} />;
         }
 
-        // Wizard steps screen
+        // Local provider uses specialized wizard with download support
+        if (selectedProvider === 'local') {
+            return (
+                <LocalModelWizard
+                    ref={localModelWizardRef}
+                    isVisible={isVisible}
+                    onComplete={onComplete}
+                    onClose={() => {
+                        // Go back to provider selection instead of closing completely
+                        setSelectedProvider(null);
+                    }}
+                />
+            );
+        }
+
+        // Wizard steps screen for other providers
         if (!currentStepConfig || !providerConfig) return null;
 
         return (

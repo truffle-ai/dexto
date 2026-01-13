@@ -5,9 +5,11 @@
 
 import type { CustomModel, CustomModelProvider } from '@dexto/agent-management';
 import { CUSTOM_MODEL_PROVIDERS } from '@dexto/agent-management';
-import { lookupOpenRouterModel, refreshOpenRouterModelCache } from '@dexto/core';
+import { lookupOpenRouterModel, refreshOpenRouterModelCache, getLocalModelById } from '@dexto/core';
 import type { ProviderConfig, WizardStep } from './types.js';
 import { validators } from './types.js';
+import * as fs from 'fs';
+import * as path from 'path';
 
 /**
  * Common API key step - reused across providers that support API keys.
@@ -308,7 +310,7 @@ export const PROVIDER_CONFIGS: Record<CustomModelProvider, ProviderConfig> = {
                 validate: validators.required('Model ID or path'),
             },
             { ...DISPLAY_NAME_STEP, placeholder: 'e.g., My Custom Llama' },
-            MAX_INPUT_TOKENS_STEP,
+            // Note: No MAX_INPUT_TOKENS_STEP - node-llama-cpp auto-detects context size
         ],
         buildModel: (values, provider) => {
             const model: CustomModel = {
@@ -318,10 +320,46 @@ export const PROVIDER_CONFIGS: Record<CustomModelProvider, ProviderConfig> = {
             if (values.displayName?.trim()) {
                 model.displayName = values.displayName.trim();
             }
-            if (values.maxInputTokens?.trim()) {
-                model.maxInputTokens = parseInt(values.maxInputTokens, 10);
-            }
             return model;
+        },
+        asyncValidation: {
+            field: 'name',
+            validate: async (value: string) => {
+                const trimmed = value.trim();
+
+                // Check if it looks like a file path (contains path separator or ends with .gguf)
+                const isFilePath =
+                    trimmed.includes(path.sep) ||
+                    trimmed.startsWith('/') ||
+                    trimmed.startsWith('~') ||
+                    trimmed.toLowerCase().endsWith('.gguf');
+
+                if (isFilePath) {
+                    // Validate as file path
+                    if (!trimmed.toLowerCase().endsWith('.gguf')) {
+                        return 'File path must end with .gguf';
+                    }
+
+                    // Expand ~ to home directory
+                    const expandedPath = trimmed.startsWith('~')
+                        ? trimmed.replace('~', process.env.HOME || '')
+                        : trimmed;
+
+                    if (!fs.existsSync(expandedPath)) {
+                        return `File not found: ${trimmed}`;
+                    }
+
+                    return null; // Valid file path
+                }
+
+                // Otherwise, validate as model ID from registry
+                const modelInfo = getLocalModelById(trimmed);
+                if (!modelInfo) {
+                    return `Model ID '${trimmed}' not found in registry. Use a full file path to a .gguf file, or one of the registry IDs (e.g., llama-3.3-8b-q4, qwen-2.5-coder-7b-q4)`;
+                }
+
+                return null; // Valid registry ID
+            },
         },
         setupInfo: {
             title: 'Local Models Setup',
