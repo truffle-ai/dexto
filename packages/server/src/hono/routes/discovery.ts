@@ -3,9 +3,7 @@ import { listAllProviders } from '@dexto/core';
 
 const DiscoveredProviderSchema = z
     .object({
-        type: z
-            .string()
-            .describe('Provider type identifier (e.g., "local", "s3", "reactive-overflow")'),
+        type: z.string().describe('Provider type identifier'),
         category: z
             .enum(['blob', 'database', 'compaction', 'customTools'])
             .describe('Provider category'),

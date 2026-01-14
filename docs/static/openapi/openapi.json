@@ -12345,12 +12345,15 @@
                         "properties": {
                           "type": {
                             "type": "string",
-                            "description": "Provider type identifier (e.g., \"postgres\", \"sqlite\", \"in-memory\")"
+                            "description": "Provider type identifier (e.g., \"local\", \"s3\", \"reactive-overflow\")"
                           },
                           "category": {
                             "type": "string",
                             "enum": [
-                              "database"
+                              "blob",
+                              "database",
+                              "compaction",
+                              "customTools"
                             ],
                             "description": "Provider category"
                           },
