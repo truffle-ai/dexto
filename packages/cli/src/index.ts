@@ -150,6 +150,10 @@ program
         '--image <package>',
         'Image package to load (e.g., @dexto/image-local). Overrides config image field.'
     )
+    .option(
+        '--privacy-mode',
+        'Hide full file paths from display (useful for screen recording/sharing). Can also set DEXTO_PRIVACY_MODE=true'
+    )
     .enablePositionalOptions();
 
 // 2) `create-app` SUB-COMMAND
@@ -262,9 +266,15 @@ program
                 safeExit('setup', 0);
             } catch (err) {
                 if (err instanceof ExitSignal) throw err;
-                console.error(
-                    `❌ dexto setup command failed: ${err}. Check logs in ~/.dexto/logs/dexto.log for more information`
-                );
+                if (process.env.DEXTO_PRIVACY_MODE === 'true') {
+                    console.error(
+                        `❌ dexto setup command failed: ${err}. Check logs for more information`
+                    );
+                } else {
+                    console.error(
+                        `❌ dexto setup command failed: ${err}. Check logs in ~/.dexto/logs/dexto.log for more information`
+                    );
+                }
                 safeExit('setup', 1, 'error');
             }
         })
@@ -621,7 +631,11 @@ program
                         nameOrPath,
                         globalOpts.autoInstall !== false
                     );
-                    console.log(`📄 Loading Dexto config from: ${configPath}`);
+                    if (process.env.DEXTO_PRIVACY_MODE === 'true') {
+                        console.log(`📄 Loading Dexto config...`);
+                    } else {
+                        console.log(`📄 Loading Dexto config from: ${configPath}`);
+                    }
                     const config = await loadAgentConfig(configPath);
 
                     logger.info(`Validating MCP servers...`);
@@ -721,6 +735,11 @@ program
                 }
 
                 const opts = program.opts();
+
+                // Set privacy mode early to gate all path-related output
+                if (opts.privacyMode) {
+                    process.env.DEXTO_PRIVACY_MODE = 'true';
+                }
 
                 // ——— LOAD DEFAULT MODE FROM PREFERENCES ———
                 // If --mode was not explicitly provided on CLI, use defaultMode from preferences
@@ -1191,7 +1210,12 @@ program
                 let agent: DextoAgent;
                 let derivedAgentId: string;
                 try {
-                    console.error(`🚀 Initializing Dexto with config: ${resolvedPath}`);
+                    // Show startup message (respecting privacy mode)
+                    if (process.env.DEXTO_PRIVACY_MODE === 'true') {
+                        console.error(`🚀 Initializing Dexto...`);
+                    } else {
+                        console.error(`🚀 Initializing Dexto with config: ${resolvedPath}`);
+                    }
 
                     // Set run mode for tool confirmation provider
                     process.env.DEXTO_RUN_MODE = opts.mode;

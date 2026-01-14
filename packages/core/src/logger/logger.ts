@@ -517,9 +517,14 @@ export class Logger {
         }
 
         if (info.logLevel && info.logFile) {
-            console.log(
-                `📋 ${chalk.bold('Log Level:')} ${chalk.cyan(info.logLevel)} ${chalk.dim(`(file: ${info.logFile})`)}`
-            );
+            // Respect privacy mode - hide file path if enabled
+            if (process.env.DEXTO_PRIVACY_MODE === 'true') {
+                console.log(`📋 ${chalk.bold('Log Level:')} ${chalk.cyan(info.logLevel)}`);
+            } else {
+                console.log(
+                    `📋 ${chalk.bold('Log Level:')} ${chalk.cyan(info.logLevel)} ${chalk.dim(`(file: ${info.logFile})`)}`
+                );
+            }
         }
     }
 

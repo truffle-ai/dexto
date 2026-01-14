@@ -43,15 +43,21 @@ export interface ToolCreationContext {
     agent: DextoAgent;
     /**
      * Optional services available to custom tool providers.
-     * Includes approvalManager for tools that need approval flows.
+     *
+     * Core services (provided by agent):
+     * - approvalManager: For tools that need approval flows
+     * - storageManager: For tools that need persistence
+     * - resourceManager: For tools that need resource access
+     * - searchService: For tools that need search capabilities
+     *
+     * External tool providers can add their own services using the index signature.
      */
     services?: {
         searchService?: any;
         approvalManager?: any;
-        fileSystemService?: any;
-        processService?: any;
         resourceManager?: any;
-        [key: string]: any; // Extensible for custom providers
+        storageManager?: import('../storage/index.js').StorageManager;
+        [key: string]: any; // Extensible for external tool providers
     };
 }
 

@@ -47,6 +47,7 @@ export const AGENT_EVENT_NAMES = [
     'resource:cache-invalidated',
     'approval:request',
     'approval:response',
+    'run:invoke',
 ] as const;
 
 /**
@@ -294,6 +295,22 @@ export interface AgentEventMap {
     'tools:available-updated': {
         tools: string[];
         source: 'mcp' | 'builtin';
+    };
+
+    /**
+     * Agent run is being invoked externally (e.g., by scheduler, A2A, API).
+     * Fired BEFORE agent.stream()/run() is called.
+     * UI can use this to display the incoming prompt and set up streaming subscriptions.
+     */
+    'run:invoke': {
+        /** The session this run will execute in */
+        sessionId: string;
+        /** The prompt/content being sent */
+        content: import('../context/types.js').ContentPart[];
+        /** Source of the invocation */
+        source: 'scheduler' | 'a2a' | 'api' | 'external';
+        /** Optional metadata about the invocation */
+        metadata?: Record<string, unknown>;
     };
 
     // LLM events (forwarded from session bus with sessionId added)
@@ -658,8 +675,10 @@ export const EventNames: readonly EventName[] = Object.freeze([...EVENT_NAMES]);
 /**
  * Generic typed EventEmitter base class using composition instead of inheritance
  * This provides full compile-time type safety by not extending EventEmitter
+ *
+ * Exported for extension by packages like multi-agent-server that need custom event buses.
  */
-class BaseTypedEventEmitter<TEventMap extends Record<string, any>> {
+export class BaseTypedEventEmitter<TEventMap extends Record<string, any>> {
     // Wrapped EventEmitter instance
     private _emitter = new EventEmitter();
 

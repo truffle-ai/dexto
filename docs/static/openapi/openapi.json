@@ -12284,7 +12284,7 @@
     "/api/discovery": {
       "get": {
         "summary": "Discover Available Providers and Tools",
-        "description": "Returns all registered providers (blob storage, compaction, custom tools) and available internal tools. Useful for building UIs that need to display configurable options.",
+        "description": "Returns all registered providers (blob storage, database, compaction, custom tools) and available internal tools. Useful for building UIs that need to display configurable options.",
         "tags": [
           "discovery"
         ],
@@ -12303,12 +12303,13 @@
                         "properties": {
                           "type": {
                             "type": "string",
-                            "description": "Provider type identifier (e.g., \"local\", \"s3\", \"reactive-overflow\")"
+                            "description": "Provider type identifier"
                           },
                           "category": {
                             "type": "string",
                             "enum": [
                               "blob",
+                              "database",
                               "compaction",
                               "customTools"
                             ],
@@ -12337,6 +12338,48 @@
                       },
                       "description": "Blob storage providers"
                     },
+                    "database": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "description": "Provider type identifier"
+                          },
+                          "category": {
+                            "type": "string",
+                            "enum": [
+                              "blob",
+                              "database",
+                              "compaction",
+                              "customTools"
+                            ],
+                            "description": "Provider category"
+                          },
+                          "metadata": {
+                            "type": "object",
+                            "properties": {
+                              "displayName": {
+                                "type": "string",
+                                "description": "Human-readable display name"
+                              },
+                              "description": {
+                                "type": "string",
+                                "description": "Provider description"
+                              }
+                            },
+                            "description": "Optional metadata about the provider"
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "category"
+                        ],
+                        "description": "Information about a registered provider"
+                      },
+                      "description": "Database providers"
+                    },
                     "compaction": {
                       "type": "array",
                       "items": {
@@ -12344,12 +12387,13 @@
                         "properties": {
                           "type": {
                             "type": "string",
-                            "description": "Provider type identifier (e.g., \"local\", \"s3\", \"reactive-overflow\")"
+                            "description": "Provider type identifier"
                           },
                           "category": {
                             "type": "string",
                             "enum": [
                               "blob",
+                              "database",
                               "compaction",
                               "customTools"
                             ],
@@ -12385,12 +12429,13 @@
                         "properties": {
                           "type": {
                             "type": "string",
-                            "description": "Provider type identifier (e.g., \"local\", \"s3\", \"reactive-overflow\")"
+                            "description": "Provider type identifier"
                           },
                           "category": {
                             "type": "string",
                             "enum": [
                               "blob",
+                              "database",
                               "compaction",
                               "customTools"
                             ],
@@ -12444,6 +12489,7 @@
                   },
                   "required": [
                     "blob",
+                    "database",
                     "compaction",
                     "customTools",
                     "internalTools"
