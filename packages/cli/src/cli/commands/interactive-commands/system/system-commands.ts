@@ -43,7 +43,7 @@ export const systemCommands: CommandDefinition[] = [
 
                 console.log(chalk.bold.blue('\n📊 Logging Configuration:\n'));
                 console.log(`  Current level: ${chalk.green.bold(currentLevel)}`);
-                if (logFilePath) {
+                if (logFilePath && process.env.DEXTO_PRIVACY_MODE !== 'true') {
                     console.log(`  Log file: ${chalk.cyan(logFilePath)}`);
                 }
                 console.log(chalk.gray('\n  Available levels (from least to most verbose):'));
