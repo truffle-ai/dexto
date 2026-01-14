@@ -1,5 +1,41 @@
 # dexto
 
+## 1.5.0
+
+### Minor Changes
+
+- e7722e5: Minor version bump for new release with bundler, custom tool pkgs, etc.
+
+### Patch Changes
+
+- abfe5ce: Update and standardize analytics for CLI and web UI
+- ee12727: Added support for node-llama (llama.cpp) for local GGUF models. Added Ollama as first-class provider. Updated onboarding/setup flow.
+- 1e7e974: Added image bundler, @dexto/image-local and moved tool services outside core. Added registry providers to select core services.
+- 4c05310: Improve local model/GGUF model support, bash permission fixes in TUI, and add local/ollama switching/deleting support in web UI
+- 5fa79fa: Renamed compression to compaction, added context-awareness to hono, updated cli tool display formatting and added integration test for image-local.
+- ef40e60: Upgrades package versions and related changes to MCP SDK. CLI colors improved and token streaming added to status bar.
+
+    Security: Resolve all Dependabot security vulnerabilities. Updated @modelcontextprotocol/sdk to 1.25.2, esbuild to 0.25.0, langchain to 0.3.37, and @langchain/core to 0.3.80. Added pnpm overrides for indirect vulnerabilities (preact@10.27.3, qs@6.14.1, jws@3.2.3, mdast-util-to-hast@13.2.1). Fixed type errors from MCP SDK breaking changes.
+
+- 436a900: Add support for openrouter, bedrock, glama, vertex ai, fix model switching issues and new model experience for each
+- Updated dependencies [abfe5ce]
+- Updated dependencies [ee12727]
+- Updated dependencies [1e7e974]
+- Updated dependencies [4c05310]
+- Updated dependencies [5fa79fa]
+- Updated dependencies [263fcc6]
+- Updated dependencies [ef40e60]
+- Updated dependencies [e714418]
+- Updated dependencies [e7722e5]
+- Updated dependencies [7d5ab19]
+- Updated dependencies [436a900]
+    - @dexto/analytics@1.5.0
+    - @dexto/agent-management@1.5.0
+    - @dexto/server@1.5.0
+    - @dexto/core@1.5.0
+    - @dexto/image-local@1.5.0
+    - @dexto/registry@1.5.0
+
 ## 1.4.0
 
 ### Minor Changes
