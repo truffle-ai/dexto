@@ -4,7 +4,6 @@
 '@dexto/webui': patch
 '@dexto/core': patch
 'dexto': patch
-'dexto-examples': patch
 ---
 
 Upgrades package versions and related changes to MCP SDK. CLI colors improved and token streaming added to status bar.
