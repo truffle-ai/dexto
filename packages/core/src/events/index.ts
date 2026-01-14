@@ -675,8 +675,10 @@ export const EventNames: readonly EventName[] = Object.freeze([...EVENT_NAMES]);
 /**
  * Generic typed EventEmitter base class using composition instead of inheritance
  * This provides full compile-time type safety by not extending EventEmitter
+ *
+ * Exported for extension by packages like multi-agent-server that need custom event buses.
  */
-class BaseTypedEventEmitter<TEventMap extends Record<string, any>> {
+export class BaseTypedEventEmitter<TEventMap extends Record<string, any>> {
     // Wrapped EventEmitter instance
     private _emitter = new EventEmitter();
 
