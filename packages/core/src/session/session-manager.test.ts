@@ -963,13 +963,17 @@ describe('SessionManager', () => {
             // Explicit deletion should remove everything including conversation history
             await sessionManager.deleteSession(sessionId);
 
-            // Should call reset to clear conversation history, then cleanup to dispose memory
-            expect(session.reset).toHaveBeenCalled();
+            // Should call cleanup to dispose memory resources
             expect(session.cleanup).toHaveBeenCalled();
 
             // Should remove session metadata from storage completely
             expect(mockStorageManager.database.delete).toHaveBeenCalledWith(`session:${sessionId}`);
             expect(mockStorageManager.cache.delete).toHaveBeenCalledWith(`session:${sessionId}`);
+
+            // Should delete conversation messages directly from storage
+            expect(mockStorageManager.database.delete).toHaveBeenCalledWith(
+                `messages:${sessionId}`
+            );
         });
 
         test('should handle multiple expired sessions without affecting storage', async () => {
