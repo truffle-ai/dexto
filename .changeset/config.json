@@ -10,7 +10,11 @@
     "@dexto/analytics",
     "@dexto/registry",
     "@dexto/server",
-    "@dexto/webui"
+    "@dexto/webui",
+    "@dexto/image-bundler",
+    "@dexto/image-local",
+    "@dexto/tools-filesystem",
+    "@dexto/tools-process"
   ]],
   "linked": [],
   "access": "public",
