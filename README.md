@@ -694,3 +694,14 @@ Thanks to all these amazing people for contributing to Dexto!
 ## License
 
 Elastic License 2.0.  See [LICENSE](LICENSE) for full terms.
+
+## RunLedger CI gate
+
+This repo includes a deterministic CI gate for tool-using agents:
+
+```bash
+runledger run evals/runledger --mode replay --baseline baselines/runledger-demo.json
+```
+
+It replays recorded tool calls and fails the PR on schema/tool/budget regressions.
+
