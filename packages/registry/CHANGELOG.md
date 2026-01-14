@@ -1,5 +1,11 @@
 # @dexto/registry
 
+## 1.5.0
+
+### Minor Changes
+
+- e7722e5: Minor version bump for new release with bundler, custom tool pkgs, etc.
+
 ## 1.4.0
 
 ### Minor Changes
