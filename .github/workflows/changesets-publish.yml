@@ -15,7 +15,6 @@ jobs:
   release:
     runs-on: ubuntu-latest
     env:
-      NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     concurrency:
       group: changesets-release
@@ -23,6 +22,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: corepack enable
+      - name: Upgrade npm for trusted publishing
+        run: npm install -g npm@latest
       - uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -30,21 +31,12 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
           always-auth: true
           scope: '@dexto'
-      # Rely on setup-node + NODE_AUTH_TOKEN for auth; avoid writing .npmrc manually
-      - name: Verify npm auth & registry
+      # Using OIDC trusted publishing - no token needed, auth happens at publish time
+      - name: Verify npm version & registry
         run: |
-          echo "NPM_CONFIG_USERCONFIG=${NPM_CONFIG_USERCONFIG:-$HOME/.npmrc}"
-          echo "--- .npmrc (sanitized) ---"
-          if [ -f "${NPM_CONFIG_USERCONFIG:-$HOME/.npmrc}" ]; then
-            sed -E 's/(^.*:_authToken=).*/\1*** (masked)/' "${NPM_CONFIG_USERCONFIG:-$HOME/.npmrc}" | grep -E 'registry|always-auth|@dexto' || true
-          else
-            echo "No .npmrc found at expected path"
-          fi
           echo "npm version: $(npm --version)"
           echo "pnpm version: $(pnpm --version)"
           echo "registry=$(npm config get registry)"
-          echo "whoami=$(npm whoami || echo unknown)"
-          npm view dexto maintainers --json || true
       - run: pnpm install --frozen-lockfile
       - name: Version / Publish with Changesets
         uses: changesets/action@v1
