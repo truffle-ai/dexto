@@ -3,6 +3,7 @@ import path from 'path';
 import chalk from 'chalk';
 import * as p from '@clack/prompts';
 import { executeWithTimeout } from './execute.js';
+import { textOrExit } from './prompt-helpers.js';
 import { getPackageManager, getPackageManagerInstallCommand } from './package-mgmt.js';
 
 /**
@@ -30,16 +31,14 @@ export async function promptForProjectName(
 ): Promise<string> {
     let input;
     do {
-        input = await p.text({
-            message: promptMessage,
-            placeholder: defaultName,
-            defaultValue: defaultName,
-        });
-
-        if (p.isCancel(input)) {
-            p.cancel('Project creation cancelled');
-            process.exit(0);
-        }
+        input = await textOrExit(
+            {
+                message: promptMessage,
+                placeholder: defaultName,
+                defaultValue: defaultName,
+            },
+            'Project creation cancelled'
+        );
 
         const error = validateProjectName(input);
         if (error) {
