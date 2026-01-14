@@ -64,6 +64,10 @@ import {
     handleListAgentsCommand,
     type ListAgentsCommandOptionsInput,
     handleWhichCommand,
+    handleLoginCommand,
+    handleLogoutCommand,
+    handleStatusCommand,
+    handleWhoamiCommand,
 } from './cli/commands/index.js';
 import {
     handleSessionListCommand,
@@ -582,7 +586,118 @@ program
         )
     );
 
-// 12) `mcp` SUB-COMMAND
+// 12) `auth` SUB-COMMAND GROUP
+const authCommand = program.command('auth').description('Manage authentication');
+
+authCommand
+    .command('login')
+    .description('Login to Dexto')
+    .option('--token <token>', 'Use API token instead of browser login')
+    .option('--no-interactive', 'Disable interactive prompts')
+    .action(
+        withAnalytics('auth login', async (options: { token?: string; interactive?: boolean }) => {
+            try {
+                await handleLoginCommand(options);
+                safeExit('auth login', 0);
+            } catch (err) {
+                if (err instanceof ExitSignal) throw err;
+                console.error(`❌ dexto auth login command failed: ${err}`);
+                safeExit('auth login', 1, 'error');
+            }
+        })
+    );
+
+authCommand
+    .command('logout')
+    .description('Logout from Dexto')
+    .option('--force', 'Skip confirmation prompt')
+    .option('--no-interactive', 'Disable interactive prompts')
+    .action(
+        withAnalytics(
+            'auth logout',
+            async (options: { force?: boolean; interactive?: boolean }) => {
+                try {
+                    await handleLogoutCommand(options);
+                    safeExit('auth logout', 0);
+                } catch (err) {
+                    if (err instanceof ExitSignal) throw err;
+                    console.error(`❌ dexto auth logout command failed: ${err}`);
+                    safeExit('auth logout', 1, 'error');
+                }
+            }
+        )
+    );
+
+authCommand
+    .command('status')
+    .description('Show authentication status')
+    .action(
+        withAnalytics('auth status', async () => {
+            try {
+                await handleStatusCommand();
+                safeExit('auth status', 0);
+            } catch (err) {
+                if (err instanceof ExitSignal) throw err;
+                console.error(`❌ dexto auth status command failed: ${err}`);
+                safeExit('auth status', 1, 'error');
+            }
+        })
+    );
+
+authCommand
+    .command('whoami')
+    .description('Show current authenticated user')
+    .action(
+        withAnalytics('auth whoami', async () => {
+            try {
+                await handleWhoamiCommand();
+                safeExit('auth whoami', 0);
+            } catch (err) {
+                if (err instanceof ExitSignal) throw err;
+                console.error(`❌ dexto auth whoami command failed: ${err}`);
+                safeExit('auth whoami', 1, 'error');
+            }
+        })
+    );
+
+// Also add convenience aliases at root level
+program
+    .command('login')
+    .description('Login to Dexto (alias for `dexto auth login`)')
+    .option('--token <token>', 'Use API token instead of browser login')
+    .option('--no-interactive', 'Disable interactive prompts')
+    .action(
+        withAnalytics('login', async (options: { token?: string; interactive?: boolean }) => {
+            try {
+                await handleLoginCommand(options);
+                safeExit('login', 0);
+            } catch (err) {
+                if (err instanceof ExitSignal) throw err;
+                console.error(`❌ dexto login command failed: ${err}`);
+                safeExit('login', 1, 'error');
+            }
+        })
+    );
+
+program
+    .command('logout')
+    .description('Logout from Dexto (alias for `dexto auth logout`)')
+    .option('--force', 'Skip confirmation prompt')
+    .option('--no-interactive', 'Disable interactive prompts')
+    .action(
+        withAnalytics('logout', async (options: { force?: boolean; interactive?: boolean }) => {
+            try {
+                await handleLogoutCommand(options);
+                safeExit('logout', 0);
+            } catch (err) {
+                if (err instanceof ExitSignal) throw err;
+                console.error(`❌ dexto logout command failed: ${err}`);
+                safeExit('logout', 1, 'error');
+            }
+        })
+    );
+
+// 13) `mcp` SUB-COMMAND
 // For now, this mode simply aggregates and re-expose tools from configured MCP servers (no agent)
 // dexto --mode mcp will be moved to this sub-command in the future
 program
