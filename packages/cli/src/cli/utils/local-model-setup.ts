@@ -773,8 +773,8 @@ async function setupCustomGGUF(): Promise<LocalModelSetupResult> {
             if (!value.endsWith('.gguf')) {
                 return 'File must have .gguf extension';
             }
-            if (!value.startsWith('/')) {
-                return 'Please enter an absolute path (starting with /)';
+            if (!path.isAbsolute(value)) {
+                return 'Please enter an absolute path';
             }
             return undefined;
         },
@@ -816,11 +816,16 @@ async function setupCustomGGUF(): Promise<LocalModelSetupResult> {
 
         // Generate a model ID from the filename
         // Convert to lowercase, replace spaces with dashes, remove special chars
-        const modelId = filename
+        let modelId = filename
             .toLowerCase()
             .replace(/\s+/g, '-')
             .replace(/[^a-z0-9-]/g, '')
             .substring(0, 50); // Limit length
+
+        // Fallback if modelId is empty after sanitization
+        if (!modelId) {
+            modelId = `custom-model-${Date.now()}`;
+        }
 
         // Save as custom model
         await saveCustomModel({
