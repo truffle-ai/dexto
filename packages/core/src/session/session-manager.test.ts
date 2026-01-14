@@ -525,8 +525,8 @@ describe('SessionManager', () => {
             // Create session
             const session = await sessionManager.createSession(sessionId);
 
-            // Mock error during cleanup
-            (session.reset as any).mockRejectedValue(new Error('Cleanup error'));
+            // Mock error during cleanup (SessionManager.cleanup -> endSession -> session.cleanup)
+            (session.cleanup as any).mockRejectedValue(new Error('Cleanup error'));
 
             await expect(sessionManager.cleanup()).resolves.not.toThrow();
         });
