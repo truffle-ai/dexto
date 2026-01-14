@@ -75,20 +75,12 @@ export function hasSelectedModel(
 }
 
 /**
- * Get the global deps directory path for installing native dependencies.
- * Always uses ~/.dexto/deps to share across all contexts.
- */
-function getGlobalDepsDir(): string {
-    return getDextoGlobalPath('deps');
-}
-
-/**
  * Install node-llama-cpp to the global deps directory (~/.dexto/deps).
  * This compiles native bindings for the user's system.
  * Installing globally ensures it's available for CLI, WebUI, and all projects.
  */
 async function installNodeLlamaCpp(): Promise<boolean> {
-    const depsDir = getGlobalDepsDir();
+    const depsDir = getDextoGlobalPath('deps');
 
     // Ensure deps directory exists
     if (!fs.existsSync(depsDir)) {
