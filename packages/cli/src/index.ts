@@ -736,6 +736,11 @@ program
 
                 const opts = program.opts();
 
+                // Set privacy mode early to gate all path-related output
+                if (opts.privacyMode) {
+                    process.env.DEXTO_PRIVACY_MODE = 'true';
+                }
+
                 // ——— LOAD DEFAULT MODE FROM PREFERENCES ———
                 // If --mode was not explicitly provided on CLI, use defaultMode from preferences
                 const modeSource = program.getOptionValueSource('mode');
@@ -1205,11 +1210,6 @@ program
                 let agent: DextoAgent;
                 let derivedAgentId: string;
                 try {
-                    // Set privacy mode for hiding file paths in output
-                    if (opts.privacyMode) {
-                        process.env.DEXTO_PRIVACY_MODE = 'true';
-                    }
-
                     // Show startup message (respecting privacy mode)
                     if (process.env.DEXTO_PRIVACY_MODE === 'true') {
                         console.error(`🚀 Initializing Dexto...`);

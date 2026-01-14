@@ -378,9 +378,6 @@ export class SessionManager {
         await this.services.storageManager.getDatabase().delete(sessionKey);
         await this.services.storageManager.getCache().delete(sessionKey);
 
-        // Remove conversation messages from storage
-        // This is done directly rather than through session.reset() to ensure
-        // messages are always deleted even if the session couldn't be loaded
         const messagesKey = `messages:${sessionId}`;
         await this.services.storageManager.getDatabase().delete(messagesKey);
 

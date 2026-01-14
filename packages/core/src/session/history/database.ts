@@ -46,7 +46,14 @@ export class DatabaseHistoryProvider implements IConversationHistoryProvider {
         if (this.cache === null) {
             const key = this.getMessagesKey();
             try {
-                const rawMessages = await this.database.getRange<InternalMessage>(key, 0, 10000);
+                const limit = 10000;
+                const rawMessages = await this.database.getRange<InternalMessage>(key, 0, limit);
+
+                if (rawMessages.length === limit) {
+                    this.logger.warn(
+                        `DatabaseHistoryProvider: Session ${this.sessionId} hit message limit (${limit}), history may be truncated`
+                    );
+                }
 
                 // Deduplicate messages by ID (keep first occurrence to preserve order)
                 const seen = new Set<string>();
@@ -237,19 +244,19 @@ export class DatabaseHistoryProvider implements IConversationHistoryProvider {
         const snapshot = [...this.cache];
         const messageCount = snapshot.length;
 
-        this.logger.info(
+        this.logger.debug(
             `DatabaseHistoryProvider: FLUSH START key=${key} snapshotSize=${messageCount} ids=[${snapshot.map((m) => m.id).join(',')}]`
         );
 
         try {
             // Atomic replace: delete all + re-append from snapshot
             await this.database.delete(key);
-            this.logger.info(`DatabaseHistoryProvider: FLUSH DELETED key=${key}`);
+            this.logger.debug(`DatabaseHistoryProvider: FLUSH DELETED key=${key}`);
 
             for (const msg of snapshot) {
                 await this.database.append(key, msg);
             }
-            this.logger.info(
+            this.logger.debug(
                 `DatabaseHistoryProvider: FLUSH REAPPENDED key=${key} count=${messageCount}`
             );
 

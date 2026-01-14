@@ -27,7 +27,13 @@ export { discoverCommandPrompts } from './discover-prompts.js';
 export function deriveAgentId(config: AgentConfig, configPath?: string): string {
     // 0. If agentId is explicitly set in config, use it (highest priority)
     if (config.agentId) {
-        return config.agentId;
+        // Sanitize for filesystem use (same as agentCard.name)
+        const sanitizedId = config.agentId
+            .toLowerCase()
+            .replace(/[^a-z0-9-_]/g, '-')
+            .replace(/-+/g, '-')
+            .replace(/^-|-$/g, '');
+        return sanitizedId || 'coding-agent';
     }
 
     // 1. Try agentCard.name if available

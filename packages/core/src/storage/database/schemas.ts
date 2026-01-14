@@ -52,12 +52,12 @@ export const PostgresDatabaseSchema = BaseDatabaseSchema.extend({
     port: z.number().int().positive().optional().describe('PostgreSQL port'),
     database: z.string().optional().describe('PostgreSQL database name'),
     password: z.string().optional().describe('PostgreSQL password'),
+    // TODO: keyPrefix is reserved for future use - allows namespacing keys when multiple
+    // agents or environments share the same database (e.g., "dev:agent1:" vs "prod:agent2:")
     keyPrefix: z
         .string()
         .optional()
-        .describe(
-            'Key prefix for multi-tenant isolation (e.g., "tenant:dev123:agent456:user789:")'
-        ),
+        .describe('Optional key prefix for namespacing (e.g., "dev:myagent:")'),
 }).strict();
 
 export type PostgresDatabaseConfig = z.output<typeof PostgresDatabaseSchema>;

@@ -57,10 +57,11 @@ export const systemCommands: CommandDefinition[] = [
                     chalk.gray('\n  💡 Use /log <level> to change level (e.g., /log debug)\n')
                 );
 
+                const isPrivacyMode = process.env.DEXTO_PRIVACY_MODE === 'true';
                 const output = [
                     '\n📊 Logging Configuration:',
                     `Current level: ${currentLevel}`,
-                    logFilePath ? `Log file: ${logFilePath}` : '',
+                    logFilePath && !isPrivacyMode ? `Log file: ${logFilePath}` : '',
                     '\nAvailable levels: error, warn, info, http, verbose, debug, silly',
                     '💡 Use /log <level> to change level',
                 ]

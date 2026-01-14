@@ -69,6 +69,12 @@ export class PostgresStore implements Database {
 
         // Set search_path for every connection from the pool when using custom schema
         if (schema) {
+            // Validate schema name to prevent SQL injection (alphanumeric and underscores only)
+            if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(schema)) {
+                throw StorageError.connectionFailed(
+                    `PostgreSQL: Invalid schema name "${schema}". Schema names must start with a letter or underscore and contain only alphanumeric characters and underscores.`
+                );
+            }
             this.pool.on('connect', async (client) => {
                 try {
                     await client.query(`SET search_path TO "${schema}", public`);
@@ -115,6 +121,13 @@ export class PostgresStore implements Database {
      * Creates a PostgreSQL schema if it doesn't exist.
      */
     private async createSchema(client: PoolClient, schemaName: string): Promise<void> {
+        // Validate schema name to prevent SQL injection (alphanumeric and underscores only)
+        if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(schemaName)) {
+            throw StorageError.connectionFailed(
+                `PostgreSQL: Invalid schema name "${schemaName}". Schema names must start with a letter or underscore and contain only alphanumeric characters and underscores.`
+            );
+        }
+
         try {
             await client.query(`CREATE SCHEMA IF NOT EXISTS "${schemaName}"`);
             this.logger.debug(`Schema "${schemaName}" ready`);
