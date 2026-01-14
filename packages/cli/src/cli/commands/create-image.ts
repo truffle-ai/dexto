@@ -1,6 +1,7 @@
 import path from 'path';
 import * as p from '@clack/prompts';
 import chalk from 'chalk';
+import { selectOrExit, textOrExit, confirmOrExit } from '../utils/prompt-helpers.js';
 import {
     promptForProjectName,
     createProjectDirectory,
@@ -33,65 +34,60 @@ export async function createImage(name?: string): Promise<string> {
         : await promptForProjectName('my-dexto-image', 'What do you want to name your image?');
 
     // Step 2: Get description
-    const description = (await p.text({
-        message: 'Describe your image:',
-        placeholder: 'Custom agent harness for my organization',
-        defaultValue: 'Custom agent harness for my organization',
-    })) as string;
-
-    if (p.isCancel(description)) {
-        p.cancel('Image creation cancelled');
-        process.exit(0);
-    }
+    const description = await textOrExit(
+        {
+            message: 'Describe your image:',
+            placeholder: 'Custom agent harness for my organization',
+            defaultValue: 'Custom agent harness for my organization',
+        },
+        'Image creation cancelled'
+    );
 
     // Step 3: Starting point - new base or extend existing
-    const startingPoint = (await p.select({
-        message: 'Starting point:',
-        options: [
-            { value: 'base', label: 'New base image (build from scratch)' },
-            { value: 'extend', label: 'Extend existing image (add providers to base)' },
-        ],
-    })) as 'base' | 'extend';
-
-    if (p.isCancel(startingPoint)) {
-        p.cancel('Image creation cancelled');
-        process.exit(0);
-    }
+    const startingPoint = await selectOrExit<'base' | 'extend'>(
+        {
+            message: 'Starting point:',
+            options: [
+                { value: 'base', label: 'New base image (build from scratch)' },
+                { value: 'extend', label: 'Extend existing image (add providers to base)' },
+            ],
+        },
+        'Image creation cancelled'
+    );
 
     let baseImage: string | undefined;
     if (startingPoint === 'extend') {
         // Step 4: Which image to extend?
-        const baseImageChoice = (await p.select({
-            message: 'Which image to extend?',
-            options: [
-                { value: '@dexto/image-local', label: '@dexto/image-local (local development)' },
-                { value: '@dexto/image-cloud', label: '@dexto/image-cloud (cloud production)' },
-                { value: '@dexto/image-edge', label: '@dexto/image-edge (edge/serverless)' },
-                { value: 'custom', label: 'Custom npm package...' },
-            ],
-        })) as string;
-
-        if (p.isCancel(baseImageChoice)) {
-            p.cancel('Image creation cancelled');
-            process.exit(0);
-        }
+        const baseImageChoice = await selectOrExit<string>(
+            {
+                message: 'Which image to extend?',
+                options: [
+                    {
+                        value: '@dexto/image-local',
+                        label: '@dexto/image-local (local development)',
+                    },
+                    { value: '@dexto/image-cloud', label: '@dexto/image-cloud (cloud production)' },
+                    { value: '@dexto/image-edge', label: '@dexto/image-edge (edge/serverless)' },
+                    { value: 'custom', label: 'Custom npm package...' },
+                ],
+            },
+            'Image creation cancelled'
+        );
 
         if (baseImageChoice === 'custom') {
-            const customBase = (await p.text({
-                message: 'Enter the npm package name:',
-                placeholder: '@myorg/image-base',
-                validate: (value) => {
-                    if (!value || value.trim() === '') {
-                        return 'Package name is required';
-                    }
-                    return undefined;
+            const customBase = await textOrExit(
+                {
+                    message: 'Enter the npm package name:',
+                    placeholder: '@myorg/image-base',
+                    validate: (value) => {
+                        if (!value || value.trim() === '') {
+                            return 'Package name is required';
+                        }
+                        return undefined;
+                    },
                 },
-            })) as string;
-
-            if (p.isCancel(customBase)) {
-                p.cancel('Image creation cancelled');
-                process.exit(0);
-            }
+                'Image creation cancelled'
+            );
 
             baseImage = customBase;
         } else {
@@ -100,31 +96,27 @@ export async function createImage(name?: string): Promise<string> {
     }
 
     // Step 5: Target environment
-    const target = (await p.select({
-        message: 'Target environment:',
-        options: [
-            { value: 'local-development', label: 'Local development' },
-            { value: 'cloud-production', label: 'Cloud production' },
-            { value: 'edge-serverless', label: 'Edge/serverless' },
-            { value: 'custom', label: 'Custom' },
-        ],
-    })) as string;
-
-    if (p.isCancel(target)) {
-        p.cancel('Image creation cancelled');
-        process.exit(0);
-    }
+    const target = await selectOrExit<string>(
+        {
+            message: 'Target environment:',
+            options: [
+                { value: 'local-development', label: 'Local development' },
+                { value: 'cloud-production', label: 'Cloud production' },
+                { value: 'edge-serverless', label: 'Edge/serverless' },
+                { value: 'custom', label: 'Custom' },
+            ],
+        },
+        'Image creation cancelled'
+    );
 
     // Step 6: Include example providers?
-    const includeExamples = (await p.confirm({
-        message: 'Include example tool provider?',
-        initialValue: true,
-    })) as boolean;
-
-    if (p.isCancel(includeExamples)) {
-        p.cancel('Image creation cancelled');
-        process.exit(0);
-    }
+    const includeExamples = await confirmOrExit(
+        {
+            message: 'Include example tool provider?',
+            initialValue: true,
+        },
+        'Image creation cancelled'
+    );
 
     // Start scaffolding
     const spinner = p.spinner();
@@ -262,7 +254,7 @@ export async function createImage(name?: string): Promise<string> {
         console.log(`  ${chalk.gray('blob-store/')}  - Blob storage providers`);
         console.log(`  ${chalk.gray('compression/')} - Compression strategies`);
         console.log(`  ${chalk.gray('plugins/')}     - Plugin providers`);
-        console.log(`\n${chalk.gray('Learn more:')} https://docs.dexto.ai/guides/images\n`);
+        console.log(`\n${chalk.gray('Learn more:')} https://docs.dexto.ai/docs/guides/images\n`);
     } catch (error) {
         if (spinner) {
             spinner.stop(chalk.red('✗ Failed to create image'));

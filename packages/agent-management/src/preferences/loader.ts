@@ -65,7 +65,7 @@ export async function saveGlobalPreferences(preferences: GlobalPreferences): Pro
     }
 
     try {
-        logger.info(`Saving global preferences to: ${preferencesPath}`);
+        logger.debug(`Saving global preferences to: ${preferencesPath}`);
         // Ensure ~/.dexto directory exists
         const dextoDir = getDextoGlobalPath('');
         await fs.mkdir(dextoDir, { recursive: true });
@@ -80,7 +80,7 @@ export async function saveGlobalPreferences(preferences: GlobalPreferences): Pro
         // Write to file
         await fs.writeFile(preferencesPath, yamlContent, 'utf-8');
 
-        logger.info(
+        logger.debug(
             `✓ Saved global preferences ${JSON.stringify(preferences)} to: ${preferencesPath}`
         );
     } catch (error) {

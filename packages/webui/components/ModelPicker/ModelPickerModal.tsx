@@ -10,6 +10,7 @@ import {
     type SwitchLLMPayload,
     type CustomModel,
 } from '../hooks/useLLM';
+import { useLocalModels, useDeleteInstalledModel, type LocalModel } from '../hooks/useModels';
 import {
     CustomModelForm,
     type CustomModelFormData,
@@ -69,6 +70,7 @@ export default function ModelPickerModal() {
         maxInputTokens: '',
         maxOutputTokens: '',
         apiKey: '',
+        filePath: '',
     });
     // Track original name when editing (to handle renames)
     const [editingModelName, setEditingModelName] = useState<string | null>(null);
@@ -101,8 +103,15 @@ export default function ModelPickerModal() {
 
     // Load custom models from API (always enabled so trigger shows correct icon)
     const { data: customModels = [] } = useCustomModels();
+    // Load installed local GGUF models from state.json (downloaded via CLI/Interactive CLI)
+    const { data: localModelsData } = useLocalModels({ enabled: open });
+    const installedLocalModels = useMemo(
+        () => localModelsData?.models ?? [],
+        [localModelsData?.models]
+    );
     const { mutateAsync: createCustomModelAsync } = useCreateCustomModel();
     const { mutate: deleteCustomModelMutation } = useDeleteCustomModel();
+    const { mutate: deleteInstalledModelMutation } = useDeleteInstalledModel();
     const { mutateAsync: saveApiKey } = useSaveApiKey();
 
     // Fetch provider API key status for the current form provider (for smart storage logic)
@@ -347,6 +356,7 @@ export default function ModelPickerModal() {
                 maxInputTokens: '',
                 maxOutputTokens: '',
                 apiKey: '',
+                filePath: '',
             });
             setEditingModelName(null);
             setShowCustomForm(false);
@@ -381,14 +391,31 @@ export default function ModelPickerModal() {
         [deleteCustomModelMutation]
     );
 
+    const deleteInstalledModel = useCallback(
+        (modelId: string) => {
+            // Delete installed model and its GGUF file from disk
+            deleteInstalledModelMutation(
+                { modelId, deleteFile: true },
+                {
+                    onError: (err: Error) => {
+                        setError(err.message);
+                    },
+                }
+            );
+        },
+        [deleteInstalledModelMutation]
+    );
+
     const editCustomModel = useCallback((model: CustomModel) => {
-        // Map provider to form-supported provider (ollama, local, vertex use openai-compatible form)
+        // Map provider to form-supported provider (vertex uses openai-compatible form)
         const formSupportedProviders: CustomModelProvider[] = [
             'openai-compatible',
             'openrouter',
             'litellm',
             'glama',
             'bedrock',
+            'ollama',
+            'local',
         ];
         const provider = model.provider ?? 'openai-compatible';
         const formProvider: CustomModelProvider = formSupportedProviders.includes(
@@ -405,6 +432,7 @@ export default function ModelPickerModal() {
             maxInputTokens: model.maxInputTokens?.toString() ?? '',
             maxOutputTokens: model.maxOutputTokens?.toString() ?? '',
             apiKey: model.apiKey ?? '',
+            filePath: model.filePath ?? '',
         });
         setEditingModelName(model.name);
         setShowCustomForm(true);
@@ -508,8 +536,23 @@ export default function ModelPickerModal() {
             maxInputTokens: customModel.maxInputTokens || 128000,
             supportedFileTypes: ['pdf', 'image', 'audio'],
         };
-        // Pass the custom model's apiKey for per-model override
-        onPickModel(provider, modelInfo, customModel.baseURL, false, customModel.apiKey);
+        // Skip API key check for custom models - user already configured them.
+        // If they didn't add an API key, it's intentional (self-hosted, local, or env var).
+        // Pass the custom model's apiKey for per-model override if present.
+        onPickModel(provider, modelInfo, customModel.baseURL, true, customModel.apiKey);
+    }
+
+    function onPickInstalledModel(model: LocalModel) {
+        // Installed local models use the model ID as the name
+        // Context length is auto-detected by node-llama-cpp at runtime
+        const modelInfo: ModelInfo = {
+            name: model.id,
+            displayName: model.displayName,
+            maxInputTokens: model.contextLength || 8192,
+            supportedFileTypes: [], // Local models typically don't support file attachments
+        };
+        // Skip API key check - local models don't need API keys
+        onPickModel('local', modelInfo, undefined, true);
     }
 
     function onApiKeySaved(meta: { provider: string; envVar: string }) {
@@ -638,18 +681,36 @@ export default function ModelPickerModal() {
         );
     }, [providerFilter, search, customModels]);
 
+    // Filtered installed local models (downloaded via CLI/Interactive CLI)
+    // Shown when no filter or 'local' filter is active
+    const filteredInstalledModels = useMemo(() => {
+        const hasLocalFilter = providerFilter.includes('local');
+        const noFilter = providerFilter.length === 0;
+
+        // If filter is set but not 'local', hide installed models
+        if (!noFilter && !hasLocalFilter) return [];
+
+        const q = search.trim().toLowerCase();
+        if (!q) return installedLocalModels;
+        return installedLocalModels.filter(
+            (model) =>
+                model.id.toLowerCase().includes(q) ||
+                model.displayName.toLowerCase().includes(q) ||
+                'local'.includes(q)
+        );
+    }, [providerFilter, search, installedLocalModels]);
+
     // Available providers for filter
     // OpenRouter always shown (users add their own models via custom models)
-    // TODO: Add dynamic Ollama/local model discovery. Currently these providers are excluded
-    // because they have empty static model arrays (models are discovered at runtime).
-    // The CLI already has this via listOllamaModels() from @dexto/core - we need:
-    // 1. Server endpoint: /api/llm/ollama/models (or /api/llm/local/discover)
-    // 2. WebUI: Fetch and merge discovered models into the catalog
-    // 3. Handle offline state gracefully (Ollama not running)
-    // See: packages/cli/src/cli/ink-cli/components/overlays/ModelSelectorRefactored.tsx:134
+    // Local shown when there are installed models from CLI
     const availableProviders = useMemo(() => {
-        return LLM_PROVIDERS.filter((p) => p === 'openrouter' || providers[p]?.models.length);
-    }, [providers]);
+        const base = LLM_PROVIDERS.filter((p) => p === 'openrouter' || providers[p]?.models.length);
+        // Add 'local' if there are installed local models
+        if (installedLocalModels.length > 0 && !base.includes('local')) {
+            return [...base, 'local' as LLMProvider];
+        }
+        return base;
+    }, [providers, installedLocalModels]);
 
     const isCurrentModel = (providerId: string, modelName: string) =>
         currentLLM?.provider === providerId && currentLLM?.model === modelName;
@@ -1001,17 +1062,22 @@ export default function ModelPickerModal() {
                                     /* All Models Card Grid View */
                                     <div>
                                         {allModels.length === 0 &&
-                                        filteredCustomModels.length === 0 ? (
+                                        filteredCustomModels.length === 0 &&
+                                        filteredInstalledModels.length === 0 ? (
                                             <div className="flex flex-col items-center justify-center py-8 text-center">
                                                 <p className="text-sm font-medium text-muted-foreground">
                                                     {providerFilter.includes('openrouter')
                                                         ? 'No OpenRouter models yet'
-                                                        : 'No models found'}
+                                                        : providerFilter.includes('local')
+                                                          ? 'No local models installed'
+                                                          : 'No models found'}
                                                 </p>
                                                 <p className="text-xs text-muted-foreground/70 mt-1">
                                                     {providerFilter.includes('openrouter')
                                                         ? 'Click the + button to add an OpenRouter model'
-                                                        : 'Try adjusting your search or filters'}
+                                                        : providerFilter.includes('local')
+                                                          ? 'Use the CLI to download models: dexto setup'
+                                                          : 'Try adjusting your search or filters'}
                                                 </p>
                                             </div>
                                         ) : (
@@ -1048,6 +1114,34 @@ export default function ModelPickerModal() {
                                                         />
                                                     )
                                                 )}
+                                                {/* Installed local models (downloaded via CLI) - shown before custom models */}
+                                                {filteredInstalledModels.map((model) => (
+                                                    <ModelCard
+                                                        key={`local|${model.id}`}
+                                                        provider="local"
+                                                        model={{
+                                                            name: model.id,
+                                                            displayName: model.displayName,
+                                                            maxInputTokens:
+                                                                model.contextLength || 8192,
+                                                            supportedFileTypes: [],
+                                                        }}
+                                                        isFavorite={favorites.includes(
+                                                            favKey('local', model.id)
+                                                        )}
+                                                        isActive={isCurrentModel('local', model.id)}
+                                                        onClick={() => onPickInstalledModel(model)}
+                                                        onToggleFavorite={() =>
+                                                            toggleFavorite('local', model.id)
+                                                        }
+                                                        onDelete={() =>
+                                                            deleteInstalledModel(model.id)
+                                                        }
+                                                        size="sm"
+                                                        isInstalled
+                                                    />
+                                                ))}
+                                                {/* Custom models (user-configured) */}
                                                 {filteredCustomModels.map((cm) => {
                                                     const cmProvider = (cm.provider ??
                                                         'openai-compatible') as LLMProvider;

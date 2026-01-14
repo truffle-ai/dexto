@@ -218,7 +218,9 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
             switch (displayPreview.type) {
                 case 'diff': {
                     const isOverwrite =
-                        toolName === 'internal--write_file' || toolName === 'write_file';
+                        toolName === 'custom--write_file' ||
+                        toolName === 'internal--write_file' ||
+                        toolName === 'write_file';
                     return (
                         <DiffPreview
                             data={displayPreview}

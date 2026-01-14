@@ -822,9 +822,9 @@ pnpm add ${imageName}
 
 ## Learn More
 
-- [Dexto Images Guide](https://docs.dexto.ai/guides/images)
-- [Provider Development](https://docs.dexto.ai/guides/providers)
-- [Bundler Documentation](https://docs.dexto.ai/tools/bundler)
+- [Dexto Images Guide](https://docs.dexto.ai/docs/guides/images)
+- [Provider Development](https://docs.dexto.ai/docs/guides/providers)
+- [Bundler Documentation](https://docs.dexto.ai/docs/tools/bundler)
 `;
 }
 
@@ -947,8 +947,8 @@ Edit \`agents/default.yml\` to configure:
 ## Learn More
 
 - [Dexto Documentation](https://docs.dexto.ai)
-- [Agent Configuration Guide](https://docs.dexto.ai/guides/configuration)
-- [Using Images](https://docs.dexto.ai/guides/images)
+- [Agent Configuration Guide](https://docs.dexto.ai/docs/guides/configuration)
+- [Using Images](https://docs.dexto.ai/docs/guides/images)
 `;
 }
 

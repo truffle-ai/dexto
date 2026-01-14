@@ -12,15 +12,36 @@
 import type { GPUInfo } from './types.js';
 import { LocalModelError } from './errors.js';
 import { detectGPU } from './gpu-detector.js';
+import { getDextoGlobalPath } from '../../../utils/path.js';
+import { createRequire } from 'module';
+import * as path from 'path';
+
+/**
+ * Get the global deps path where node-llama-cpp may be installed.
+ */
+function getGlobalNodeLlamaCppPath(): string {
+    return path.join(getDextoGlobalPath('deps'), 'node_modules', 'node-llama-cpp');
+}
 
 /**
  * Check if node-llama-cpp is installed.
+ * Checks both standard node resolution (for dev/projects) and global deps (~/.dexto/deps).
  */
 export async function isNodeLlamaCppInstalled(): Promise<boolean> {
+    // Try 1: Standard node resolution (works in dev mode, dexto-project with local install)
     try {
-        // Try to import the module at runtime
         // @ts-ignore - Optional dependency may not be installed (TS2307 in CI)
         await import('node-llama-cpp');
+        return true;
+    } catch {
+        // Continue to fallback
+    }
+
+    // Try 2: Global deps location (~/.dexto/deps/node_modules/node-llama-cpp)
+    try {
+        const globalPath = getGlobalNodeLlamaCppPath();
+        const require = createRequire(import.meta.url);
+        require.resolve(globalPath);
         return true;
     } catch {
         return false;
@@ -30,13 +51,25 @@ export async function isNodeLlamaCppInstalled(): Promise<boolean> {
 /**
  * Dynamically import node-llama-cpp.
  * Returns null if not installed.
+ * Checks both standard node resolution and global deps (~/.dexto/deps).
  */
 // Using Record type for dynamic import result since we can't type node-llama-cpp at compile time
 async function importNodeLlamaCpp(): Promise<Record<string, unknown> | null> {
+    // Try 1: Standard node resolution (works in dev mode, dexto-project with local install)
     try {
-        // Dynamic import for optional dependency
         // @ts-ignore - Optional dependency may not be installed (TS2307 in CI)
         return await import('node-llama-cpp');
+    } catch {
+        // Continue to fallback
+    }
+
+    // Try 2: Global deps location (~/.dexto/deps/node_modules/node-llama-cpp)
+    try {
+        const globalPath = getGlobalNodeLlamaCppPath();
+        // Use dynamic import with full path to entry point (ES modules don't support directory imports)
+        const entryPoint = path.join(globalPath, 'dist', 'index.js');
+        // @ts-ignore - Dynamic path import
+        return await import(entryPoint);
     } catch {
         return null;
     }
@@ -111,7 +144,7 @@ const modelCache = new Map<string, Promise<LoadedModel>>();
  * @throws {DextoRuntimeError} If node-llama-cpp is not installed
  */
 export async function loadModel(config: NodeLlamaConfig): Promise<LoadedModel> {
-    const { modelPath, gpuLayers = -1, contextSize = 4096, threads, batchSize = 512 } = config;
+    const { modelPath, gpuLayers = -1, contextSize, threads, batchSize = 512 } = config;
 
     // Check cache first
     const cacheKey = `${modelPath}:${gpuLayers}:${contextSize}`;
@@ -176,10 +209,14 @@ export async function loadModel(config: NodeLlamaConfig): Promise<LoadedModel> {
             });
 
             // Create context with specified options
+            // contextSize defaults to "auto" in node-llama-cpp, which uses the model's
+            // training context and auto-retries with smaller sizes on failure
             const contextOptions: Record<string, unknown> = {
-                contextSize,
                 batchSize,
             };
+            if (contextSize !== undefined) {
+                contextOptions.contextSize = contextSize;
+            }
             if (threads !== undefined) {
                 contextOptions.threads = threads;
             }

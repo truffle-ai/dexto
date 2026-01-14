@@ -167,6 +167,12 @@ function getToolConfig(toolName: string): ToolDisplayConfig | undefined {
         const baseName = toolName.replace('internal--', '');
         return TOOL_CONFIGS[baseName];
     }
+
+    // Strip "custom--" prefix and try again
+    if (toolName.startsWith('custom--')) {
+        const baseName = toolName.replace('custom--', '');
+        return TOOL_CONFIGS[baseName];
+    }
     return undefined;
 }
 

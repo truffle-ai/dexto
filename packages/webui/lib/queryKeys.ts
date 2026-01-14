@@ -96,4 +96,11 @@ export const queryKeys = {
     discovery: {
         all: ['discovery'] as const,
     },
+
+    // Model queries (local GGUF and Ollama)
+    models: {
+        local: ['models', 'local'] as const,
+        ollama: (baseURL?: string) => ['models', 'ollama', baseURL ?? 'default'] as const,
+        validateLocal: ['models', 'validateLocal'] as const,
+    },
 } as const;

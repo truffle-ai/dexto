@@ -19,6 +19,8 @@ interface ModelCardProps {
     onEdit?: () => void;
     size?: 'sm' | 'md' | 'lg';
     isCustom?: boolean;
+    /** Installed local model (downloaded via CLI) */
+    isInstalled?: boolean;
 }
 
 // Provider display name mapping
@@ -33,6 +35,8 @@ const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
     'openai-compatible': 'Custom',
     litellm: 'LiteLLM',
     glama: 'Glama',
+    local: 'Local',
+    ollama: 'Ollama',
 };
 
 // Parse display name into provider and model parts
@@ -86,16 +90,26 @@ export function ModelCard({
     onEdit,
     size = 'md',
     isCustom = false,
+    isInstalled = false,
 }: ModelCardProps) {
     const displayName = model.displayName || model.name;
-    const hasApiKey = providerInfo?.hasApiKey ?? false;
+    // Local/ollama/installed models don't need API keys
+    // Custom models are user-configured, so don't show lock (they handle their own auth)
+    const noApiKeyNeeded = isInstalled || isCustom || provider === 'local' || provider === 'ollama';
+    const hasApiKey = noApiKeyNeeded || (providerInfo?.hasApiKey ?? false);
     const { providerName, modelName, suffix } = parseModelName(displayName, provider);
 
     // Build description lines for tooltip
     const priceLines = formatPricingLines(model.pricing || undefined);
     const descriptionLines = [
         `Model: ${displayName}`,
-        provider === 'openai-compatible' ? 'Custom Model' : `Provider: ${providerInfo?.name}`,
+        isInstalled
+            ? 'Installed via CLI'
+            : provider === 'local'
+              ? 'Local Model'
+              : provider === 'openai-compatible'
+                ? 'Custom Model'
+                : `Provider: ${providerInfo?.name}`,
         `Max tokens: ${model.maxInputTokens.toLocaleString()}`,
         model.supportedFileTypes.length > 0 && `Supports: ${model.supportedFileTypes.join(', ')}`,
         !hasApiKey && 'API key required (click to add)',
@@ -159,8 +173,8 @@ export function ModelCard({
                             </Tooltip>
                         )}
 
-                        {/* Action Buttons - Top Left for custom models */}
-                        {isCustom && (onEdit || onDelete) && (
+                        {/* Action Buttons - Top Left for custom/installed models */}
+                        {(isCustom || isInstalled) && (onEdit || onDelete) && (
                             <div className="absolute top-2 left-2 flex gap-1 z-10 opacity-0 group-hover:opacity-100 transition-all duration-200">
                                 {onEdit && (
                                     <button
@@ -172,7 +186,11 @@ export function ModelCard({
                                             'p-1.5 rounded-full transition-all duration-200',
                                             'hover:bg-primary/20 hover:scale-110 active:scale-95'
                                         )}
-                                        aria-label="Edit custom model"
+                                        aria-label={
+                                            isInstalled
+                                                ? 'Edit installed model'
+                                                : 'Edit custom model'
+                                        }
                                     >
                                         <Pencil className="h-4 w-4 text-muted-foreground/60 hover:text-primary" />
                                     </button>
@@ -187,7 +205,11 @@ export function ModelCard({
                                             'p-1.5 rounded-full transition-all duration-200',
                                             'hover:bg-destructive/20 hover:scale-110 active:scale-95'
                                         )}
-                                        aria-label="Delete custom model"
+                                        aria-label={
+                                            isInstalled
+                                                ? 'Delete installed model'
+                                                : 'Delete custom model'
+                                        }
                                     >
                                         <X className="h-4 w-4 text-muted-foreground/60 hover:text-destructive" />
                                     </button>

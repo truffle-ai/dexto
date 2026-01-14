@@ -253,22 +253,29 @@ function buildProviderOptions(): Array<{ value: LLMProvider; label: string; hint
 }
 
 /**
- * Interactive provider selection
- * @returns Selected provider
+ * Interactive provider selection with back option.
+ * @returns Selected provider, '_back' if back selected, or null if cancelled
  */
-export async function selectProvider(): Promise<LLMProvider | null> {
+export async function selectProvider(): Promise<LLMProvider | '_back' | null> {
     const options = buildProviderOptions();
 
     const choice = await p.select({
         message: 'Choose your AI provider',
-        options,
+        options: [
+            ...options,
+            {
+                value: '_back' as const,
+                label: chalk.gray('← Back'),
+                hint: 'Return to previous menu',
+            },
+        ],
     });
 
     if (p.isCancel(choice)) {
         return null;
     }
 
-    return choice as LLMProvider;
+    return choice as LLMProvider | '_back';
 }
 
 /**

@@ -5,6 +5,7 @@ import path from 'path';
 import { z } from 'zod';
 import * as p from '@clack/prompts';
 import { getDextoGlobalPath, loadBundledRegistryAgents } from '@dexto/agent-management';
+import { textOrExit } from '../utils/prompt-helpers.js';
 import { installBundledAgent, installCustomAgent } from '../../utils/agent-helpers.js';
 import { capture } from '../../analytics/index.js';
 
@@ -71,68 +72,60 @@ async function promptForMetadata(suggestedName: string): Promise<{
 }> {
     p.intro('📝 Custom Agent Installation');
 
-    const agentName = (await p.text({
-        message: 'Agent name:',
-        placeholder: suggestedName,
-        defaultValue: suggestedName,
-        validate: (value) => {
-            if (!value || value.trim().length === 0) {
-                return 'Agent name is required';
-            }
-            if (!/^[a-z0-9-]+$/.test(value)) {
-                return 'Agent name must contain only lowercase letters, numbers, and hyphens';
-            }
-            return undefined;
+    const agentName = await textOrExit(
+        {
+            message: 'Agent name:',
+            placeholder: suggestedName,
+            defaultValue: suggestedName,
+            validate: (value) => {
+                if (!value || value.trim().length === 0) {
+                    return 'Agent name is required';
+                }
+                if (!/^[a-z0-9-]+$/.test(value)) {
+                    return 'Agent name must contain only lowercase letters, numbers, and hyphens';
+                }
+                return undefined;
+            },
         },
-    })) as string;
+        'Installation cancelled'
+    );
 
-    if (p.isCancel(agentName)) {
-        p.cancel('Installation cancelled');
-        process.exit(0);
-    }
-
-    const description = (await p.text({
-        message: 'Description:',
-        placeholder: 'A custom agent for...',
-        validate: (value) => {
-            if (!value || value.trim().length === 0) {
-                return 'Description is required';
-            }
-            return undefined;
+    const description = await textOrExit(
+        {
+            message: 'Description:',
+            placeholder: 'A custom agent for...',
+            validate: (value) => {
+                if (!value || value.trim().length === 0) {
+                    return 'Description is required';
+                }
+                return undefined;
+            },
         },
-    })) as string;
+        'Installation cancelled'
+    );
 
-    if (p.isCancel(description)) {
-        p.cancel('Installation cancelled');
-        process.exit(0);
-    }
-
-    const author = (await p.text({
-        message: 'Author:',
-        placeholder: 'Your Name',
-        validate: (value) => {
-            if (!value || value.trim().length === 0) {
-                return 'Author is required';
-            }
-            return undefined;
+    const author = await textOrExit(
+        {
+            message: 'Author:',
+            placeholder: 'Your Name',
+            validate: (value) => {
+                if (!value || value.trim().length === 0) {
+                    return 'Author is required';
+                }
+                return undefined;
+            },
         },
-    })) as string;
+        'Installation cancelled'
+    );
 
-    if (p.isCancel(author)) {
-        p.cancel('Installation cancelled');
-        process.exit(0);
-    }
-
-    const tagsInput = (await p.text({
-        message: 'Tags (comma-separated):',
-        placeholder: 'custom, coding, productivity',
-        defaultValue: 'custom',
-    })) as string;
-
-    if (p.isCancel(tagsInput)) {
-        p.cancel('Installation cancelled');
-        process.exit(0);
-    }
+    const tagsInput = await textOrExit(
+        {
+            message: 'Tags (comma-separated):',
+            placeholder: 'custom, coding, productivity',
+            defaultValue: 'custom',
+        },
+        'Installation cancelled'
+    );
 
     const tags = tagsInput
         .split(',')

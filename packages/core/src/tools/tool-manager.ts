@@ -204,7 +204,11 @@ export class ToolManager {
      * Check if a tool name represents a bash execution tool
      */
     private isBashTool(toolName: string): boolean {
-        return toolName === 'bash_exec' || toolName === 'internal--bash_exec';
+        return (
+            toolName === 'bash_exec' ||
+            toolName === 'internal--bash_exec' ||
+            toolName === 'custom--bash_exec'
+        );
     }
 
     /**

@@ -34,6 +34,8 @@ import {
     modelFileExists,
     getModelFileSize,
     formatSize,
+    saveCustomModel,
+    getDextoGlobalPath,
     type InstalledModel,
 } from '@dexto/agent-management';
 
@@ -58,43 +60,57 @@ export interface LocalModelSetupResult {
 }
 
 /**
- * Find the best location to install node-llama-cpp and detect package manager.
- * Prefers: project root > cwd
+ * Type guard: Check if local model setup result has a selected model.
+ * Use this before proceeding with model configuration.
+ *
+ * Returns false for: cancelled, back, skipped, or missing modelId
+ * Returns true only when: success=true AND modelId is present
  */
-function findInstallContext(): { dir: string; pm: 'pnpm' | 'npm' } {
-    const cwd = process.cwd();
-
-    // Walk up to find nearest package.json
-    let dir = cwd;
-    while (dir !== path.dirname(dir)) {
-        if (fs.existsSync(path.join(dir, 'package.json'))) {
-            // Detect package manager
-            const hasPnpmLock = fs.existsSync(path.join(dir, 'pnpm-lock.yaml'));
-            return { dir, pm: hasPnpmLock ? 'pnpm' : 'npm' };
-        }
-        dir = path.dirname(dir);
-    }
-
-    // Fallback to cwd with npm
-    return { dir: cwd, pm: 'npm' };
+export function hasSelectedModel(
+    result: LocalModelSetupResult
+): result is LocalModelSetupResult & { modelId: string } {
+    return (
+        result.success && !result.cancelled && !result.back && !result.skipped && !!result.modelId
+    );
 }
 
 /**
- * Install node-llama-cpp as a local dependency.
+ * Install node-llama-cpp to the global deps directory (~/.dexto/deps).
  * This compiles native bindings for the user's system.
+ * Installing globally ensures it's available for CLI, WebUI, and all projects.
  */
 async function installNodeLlamaCpp(): Promise<boolean> {
-    const { dir, pm } = findInstallContext();
+    const depsDir = getDextoGlobalPath('deps');
 
-    // pnpm requires -w flag for workspace root installs
-    const args =
-        pm === 'pnpm' ? ['install', '-w', 'node-llama-cpp'] : ['install', 'node-llama-cpp'];
+    // Ensure deps directory exists
+    if (!fs.existsSync(depsDir)) {
+        fs.mkdirSync(depsDir, { recursive: true });
+    }
+
+    // Initialize package.json if it doesn't exist (required for npm install)
+    const packageJsonPath = path.join(depsDir, 'package.json');
+    if (!fs.existsSync(packageJsonPath)) {
+        fs.writeFileSync(
+            packageJsonPath,
+            JSON.stringify(
+                {
+                    name: 'dexto-deps',
+                    version: '1.0.0',
+                    private: true,
+                    description: 'Native dependencies for Dexto',
+                },
+                null,
+                2
+            )
+        );
+    }
 
     return new Promise((resolve) => {
-        // Install locally in the project/cwd so it's resolvable
-        const child = spawn(pm, args, {
+        // Install to global deps directory using npm
+        const child = spawn('npm', ['install', 'node-llama-cpp'], {
             stdio: ['ignore', 'pipe', 'pipe'],
-            cwd: dir,
+            cwd: depsDir,
+            shell: true,
         });
 
         let stderr = '';
@@ -198,6 +214,10 @@ export async function setupLocalModels(): Promise<LocalModelSetupResult> {
             if (selected.cancelled) {
                 return { success: false, cancelled: true };
             }
+            if (selected.customGGUF) {
+                // User wants to use a custom GGUF file
+                return setupCustomGGUF();
+            }
             if (selected.modelId) {
                 await setActiveModel(selected.modelId);
                 p.log.success(`Using ${selected.modelId} as active model`);
@@ -233,11 +253,18 @@ export async function setupLocalModels(): Promise<LocalModelSetupResult> {
         hint: `${getAllLocalModels().length} models available`,
     });
 
+    // Add option to use custom GGUF file
+    modelOptions.push({
+        value: '_custom_gguf',
+        label: `${chalk.blue('...')} Use custom GGUF file`,
+        hint: 'For GGUF files not in registry',
+    });
+
     // Add option to skip
     modelOptions.push({
         value: '_skip',
         label: `${chalk.rgb(255, 165, 0)('→')} Skip for now`,
-        hint: 'Configure later with: dexto models',
+        hint: 'Configure later with: dexto setup',
     });
 
     // Add back option
@@ -263,7 +290,7 @@ export async function setupLocalModels(): Promise<LocalModelSetupResult> {
     }
 
     if (selected === '_skip') {
-        p.log.info(chalk.gray('Skipped model selection. Use `dexto models` to configure later.'));
+        p.log.info(chalk.gray('Skipped model selection. Use `dexto setup` to configure later.'));
         return { success: true, skipped: true };
     }
 
@@ -274,6 +301,11 @@ export async function setupLocalModels(): Promise<LocalModelSetupResult> {
     if (selected === '_all_models') {
         // Show all models
         return await showAllModelsSelection(installedIds);
+    }
+
+    if (selected === '_custom_gguf') {
+        // Use custom GGUF file
+        return setupCustomGGUF();
     }
 
     const modelId = selected as string;
@@ -500,7 +532,7 @@ export async function setupOllamaModels(): Promise<LocalModelSetupResult> {
  */
 async function selectInstalledModel(
     installed: InstalledModel[]
-): Promise<{ modelId?: string; cancelled?: boolean }> {
+): Promise<{ modelId?: string; cancelled?: boolean; customGGUF?: boolean }> {
     const options = installed.map((model) => ({
         value: model.id,
         label: model.id,
@@ -511,6 +543,12 @@ async function selectInstalledModel(
         value: '_download_new',
         label: `${chalk.blue('+')} Download a new model`,
         hint: 'Browse available models',
+    });
+
+    options.push({
+        value: '_custom_gguf',
+        label: `${chalk.blue('...')} Use custom GGUF file`,
+        hint: 'For GGUF files not in registry',
     });
 
     const selected = await p.select({
@@ -524,6 +562,10 @@ async function selectInstalledModel(
 
     if (selected === '_download_new') {
         return {}; // Continue to download flow
+    }
+
+    if (selected === '_custom_gguf') {
+        return { customGGUF: true };
     }
 
     return { modelId: selected as string };
@@ -716,23 +758,106 @@ async function downloadModelInteractive(
 }
 
 /**
- * Get the model name for preferences based on provider.
- *
- * For 'local' provider: Uses the local model ID (e.g., 'llama-3.3-8b-q4')
- * For 'ollama' provider: Uses the Ollama model name (e.g., 'llama3.2')
+ * Setup a custom GGUF file.
+ * Prompts user for file path, validates it, and saves as a custom model.
+ * Mirrors the Ollama "Enter custom model name" pattern.
  */
-export function getLocalModelForPreferences(
-    result: LocalModelSetupResult,
-    provider: 'local' | 'ollama'
-): string {
-    if (result.modelId) {
-        return result.modelId;
+async function setupCustomGGUF(): Promise<LocalModelSetupResult> {
+    // Prompt for file path
+    const filePath = await p.text({
+        message: 'Enter path to GGUF file',
+        placeholder: '/path/to/model.gguf',
+        validate: (value) => {
+            if (!value.trim()) {
+                return 'File path is required';
+            }
+            if (!value.endsWith('.gguf')) {
+                return 'File must have .gguf extension';
+            }
+            if (!path.isAbsolute(value)) {
+                return 'Please enter an absolute path';
+            }
+            return undefined;
+        },
+    });
+
+    if (p.isCancel(filePath)) {
+        return { success: false, cancelled: true };
     }
 
-    // Defaults if no model selected
-    if (provider === 'ollama') {
-        return 'llama3.2';
-    }
+    const trimmedPath = filePath.trim();
 
-    return 'llama-3.3-8b-q4';
+    // Validate file exists
+    try {
+        const stats = fs.statSync(trimmedPath);
+        if (!stats.isFile()) {
+            p.log.error('Path is not a file');
+            return { success: false };
+        }
+
+        const sizeBytes = stats.size;
+        const filename = path.basename(trimmedPath, '.gguf');
+
+        console.log(
+            chalk.green(`\n✓ Found: ${path.basename(trimmedPath)} (${formatSize(sizeBytes)})\n`)
+        );
+
+        // Prompt for display name (optional)
+        const displayName = await p.text({
+            message: 'Display name (optional)',
+            placeholder: filename,
+            initialValue: filename,
+        });
+
+        if (p.isCancel(displayName)) {
+            return { success: false, cancelled: true };
+        }
+
+        // Note: Context length is auto-detected by node-llama-cpp from the GGUF file
+
+        // Generate a model ID from the filename
+        // Convert to lowercase, replace spaces with dashes, remove special chars
+        let modelId = filename
+            .toLowerCase()
+            .replace(/\s+/g, '-')
+            .replace(/[^a-z0-9-]/g, '')
+            .substring(0, 50); // Limit length
+
+        // Fallback if modelId is empty after sanitization
+        if (!modelId) {
+            modelId = `custom-model-${Date.now()}`;
+        }
+
+        // Save as custom model
+        await saveCustomModel({
+            name: modelId,
+            provider: 'local',
+            filePath: trimmedPath,
+            displayName: displayName?.trim() || filename,
+        });
+
+        p.log.success(`Registered as '${modelId}'`);
+
+        return { success: true, modelId };
+    } catch (error) {
+        const nodeError = error as NodeJS.ErrnoException;
+        if (nodeError.code === 'ENOENT') {
+            p.log.error('File not found');
+        } else if (nodeError.code === 'EACCES') {
+            p.log.error('Permission denied - file is not readable');
+        } else {
+            p.log.error(`Error: ${error instanceof Error ? error.message : String(error)}`);
+        }
+        return { success: false };
+    }
+}
+
+/**
+ * Get the model name for preferences from a validated setup result.
+ *
+ * IMPORTANT: Only call this after validating with hasSelectedModel().
+ * Throws if modelId is missing (indicates a bug in the calling code).
+ */
+export function getModelFromResult(result: LocalModelSetupResult & { modelId: string }): string {
+    return result.modelId;
 }

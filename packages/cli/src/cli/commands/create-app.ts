@@ -3,6 +3,7 @@ import path from 'path';
 import chalk from 'chalk';
 import * as p from '@clack/prompts';
 import { logger } from '@dexto/core';
+import { selectOrExit, textOrExit } from '../utils/prompt-helpers.js';
 import {
     promptForProjectName,
     createProjectDirectory,
@@ -61,26 +62,24 @@ export async function createDextoProject(
     let appType: AppType = options?.type || 'script';
 
     if (!options?.type) {
-        appType = (await p.select({
-            message: 'What type of app?',
-            options: [
-                {
-                    value: 'script',
-                    label: 'Script',
-                    hint: 'Simple script (default)',
-                },
-                {
-                    value: 'webapp',
-                    label: 'Web App',
-                    hint: 'REST API server with web frontend',
-                },
-            ],
-        })) as AppType;
-
-        if (p.isCancel(appType)) {
-            p.cancel('App creation cancelled');
-            process.exit(0);
-        }
+        appType = await selectOrExit<AppType>(
+            {
+                message: 'What type of app?',
+                options: [
+                    {
+                        value: 'script',
+                        label: 'Script',
+                        hint: 'Simple script (default)',
+                    },
+                    {
+                        value: 'webapp',
+                        label: 'Web App',
+                        hint: 'REST API server with web frontend',
+                    },
+                ],
+            },
+            'App creation cancelled'
+        );
     }
 
     // Step 3: Determine app mode (from flags or prompt)
@@ -94,26 +93,24 @@ export async function createDextoProject(
         baseImage = options.fromImage;
     } else {
         // No flags provided, use interactive prompt
-        mode = (await p.select({
-            message: 'How do you want to start?',
-            options: [
-                {
-                    value: 'from-image',
-                    label: 'Use existing image (recommended)',
-                    hint: 'Pre-built image with providers',
-                },
-                {
-                    value: 'from-core',
-                    label: 'Build from core (advanced)',
-                    hint: 'Custom standalone app with your own providers',
-                },
-            ],
-        })) as AppMode;
-
-        if (p.isCancel(mode)) {
-            p.cancel('App creation cancelled');
-            process.exit(0);
-        }
+        mode = await selectOrExit<AppMode>(
+            {
+                message: 'How do you want to start?',
+                options: [
+                    {
+                        value: 'from-image',
+                        label: 'Use existing image (recommended)',
+                        hint: 'Pre-built image with providers',
+                    },
+                    {
+                        value: 'from-core',
+                        label: 'Build from core (advanced)',
+                        hint: 'Custom standalone app with your own providers',
+                    },
+                ],
+            },
+            'App creation cancelled'
+        );
     }
 
     const spinner = p.spinner();
@@ -145,39 +142,35 @@ export async function createDextoProject(
 
         // For from-image mode, select the image (if not already provided via flag)
         if (!baseImage) {
-            const imageChoice = (await p.select({
-                message: 'Which image?',
-                options: [
-                    {
-                        value: '@dexto/image-local',
-                        label: '@dexto/image-local (recommended)',
-                        hint: 'Local dev - SQLite, filesystem',
-                    },
-                    { value: 'custom', label: 'Custom npm package...' },
-                ],
-            })) as string;
-
-            if (p.isCancel(imageChoice)) {
-                p.cancel('App creation cancelled');
-                process.exit(0);
-            }
+            const imageChoice = await selectOrExit<string>(
+                {
+                    message: 'Which image?',
+                    options: [
+                        {
+                            value: '@dexto/image-local',
+                            label: '@dexto/image-local (recommended)',
+                            hint: 'Local dev - SQLite, filesystem',
+                        },
+                        { value: 'custom', label: 'Custom npm package...' },
+                    ],
+                },
+                'App creation cancelled'
+            );
 
             if (imageChoice === 'custom') {
-                const customImage = (await p.text({
-                    message: 'Enter the npm package name:',
-                    placeholder: '@myorg/image-custom',
-                    validate: (value) => {
-                        if (!value || value.trim() === '') {
-                            return 'Package name is required';
-                        }
-                        return undefined;
+                const customImage = await textOrExit(
+                    {
+                        message: 'Enter the npm package name:',
+                        placeholder: '@myorg/image-custom',
+                        validate: (value) => {
+                            if (!value || value.trim() === '') {
+                                return 'Package name is required';
+                            }
+                            return undefined;
+                        },
                     },
-                })) as string;
-
-                if (p.isCancel(customImage)) {
-                    p.cancel('App creation cancelled');
-                    process.exit(0);
-                }
+                    'App creation cancelled'
+                );
 
                 baseImage = customImage;
             } else {
@@ -754,7 +747,7 @@ That's it! No imports, no registration code needed.
 ## Learn More
 
 - [Dexto Documentation](https://docs.dexto.ai)
-- [Custom Tools Guide](https://docs.dexto.ai/guides/custom-tools)
+- [Custom Tools Guide](https://docs.dexto.ai/docs/guides/custom-tools)
 `;
     await fs.writeFile('README.md', readmeContent);
 

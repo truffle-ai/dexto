@@ -25,7 +25,7 @@ import {
 /**
  * Source of the model download.
  */
-export type ModelSource = 'huggingface' | 'ollama' | 'manual';
+export type ModelSource = 'huggingface' | 'manual';
 
 /**
  * Installed model metadata.
