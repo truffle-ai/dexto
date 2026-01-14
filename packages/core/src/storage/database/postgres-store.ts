@@ -357,6 +357,12 @@ export class PostgresStore implements Database {
     }
 
     // Advanced operations
+
+    /**
+     * Execute a callback within a database transaction.
+     * Note: On connection failure, the entire callback will be retried on a new connection.
+     * Ensure callback operations are idempotent or use this only for read operations.
+     */
     async transaction<T>(callback: (client: PoolClient) => Promise<T>): Promise<T> {
         return await this.withRetry('transaction', async (client) => {
             await client.query('BEGIN');
