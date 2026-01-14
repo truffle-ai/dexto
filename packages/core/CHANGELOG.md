@@ -1,5 +1,25 @@
 # @dexto/core
 
+## 1.5.0
+
+### Minor Changes
+
+- e7722e5: Minor version bump for new release with bundler, custom tool pkgs, etc.
+
+### Patch Changes
+
+- ee12727: Added support for node-llama (llama.cpp) for local GGUF models. Added Ollama as first-class provider. Updated onboarding/setup flow.
+- 1e7e974: Added image bundler, @dexto/image-local and moved tool services outside core. Added registry providers to select core services.
+- 4c05310: Improve local model/GGUF model support, bash permission fixes in TUI, and add local/ollama switching/deleting support in web UI
+- 5fa79fa: Renamed compression to compaction, added context-awareness to hono, updated cli tool display formatting and added integration test for image-local.
+- ef40e60: Upgrades package versions and related changes to MCP SDK. CLI colors improved and token streaming added to status bar.
+
+    Security: Resolve all Dependabot security vulnerabilities. Updated @modelcontextprotocol/sdk to 1.25.2, esbuild to 0.25.0, langchain to 0.3.37, and @langchain/core to 0.3.80. Added pnpm overrides for indirect vulnerabilities (preact@10.27.3, qs@6.14.1, jws@3.2.3, mdast-util-to-hast@13.2.1). Fixed type errors from MCP SDK breaking changes.
+
+- e714418: Added providers for db and cache storages. Expanded settings panel for API keys and other app preferences in WebUI along with other UI/UX enhancements.
+- 7d5ab19: Updated WebUI design, event and state management and forms
+- 436a900: Add support for openrouter, bedrock, glama, vertex ai, fix model switching issues and new model experience for each
+
 ## 1.4.0
 
 ### Minor Changes
