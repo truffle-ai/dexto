@@ -205,7 +205,7 @@ Before any release:
 **Solution**: Commit or stash all changes before publishing. Use `--no-git-checks` flag for testing only.
 
 ### Issue: Authentication error when publishing
-**Solution**: Ensure NPM_TOKEN is set in GitHub Secrets or authenticate locally with `npm login`.
+**Solution**: CI uses [npm trusted publishers](https://docs.npmjs.com/trusted-publishers) (OIDC) - ensure the package has trusted publisher configured on npmjs.com. For local publishing, use `npm login`.
 
 ## Version History
 
