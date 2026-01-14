@@ -12303,7 +12303,7 @@
                         "properties": {
                           "type": {
                             "type": "string",
-                            "description": "Provider type identifier (e.g., \"local\", \"s3\", \"reactive-overflow\")"
+                            "description": "Provider type identifier"
                           },
                           "category": {
                             "type": "string",
@@ -12345,7 +12345,7 @@
                         "properties": {
                           "type": {
                             "type": "string",
-                            "description": "Provider type identifier (e.g., \"local\", \"s3\", \"reactive-overflow\")"
+                            "description": "Provider type identifier"
                           },
                           "category": {
                             "type": "string",
@@ -12387,7 +12387,7 @@
                         "properties": {
                           "type": {
                             "type": "string",
-                            "description": "Provider type identifier (e.g., \"local\", \"s3\", \"reactive-overflow\")"
+                            "description": "Provider type identifier"
                           },
                           "category": {
                             "type": "string",
@@ -12429,7 +12429,7 @@
                         "properties": {
                           "type": {
                             "type": "string",
-                            "description": "Provider type identifier (e.g., \"local\", \"s3\", \"reactive-overflow\")"
+                            "description": "Provider type identifier"
                           },
                           "category": {
                             "type": "string",
