@@ -110,6 +110,7 @@ async function installNodeLlamaCpp(): Promise<boolean> {
         const child = spawn('npm', ['install', 'node-llama-cpp'], {
             stdio: ['ignore', 'pipe', 'pipe'],
             cwd: depsDir,
+            shell: true,
         });
 
         let stderr = '';
