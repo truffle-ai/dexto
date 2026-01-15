@@ -71,6 +71,13 @@ export function createVercelModel(llmConfig: ValidatedLLMConfig): LanguageModel 
             const baseURL = 'https://glama.ai/api/gateway/openai/v1';
             return createOpenAI({ apiKey: apiKey ?? '', baseURL }).chat(model);
         }
+        case 'dexto': {
+            // Dexto Gateway - OpenAI-compatible proxy with per-request billing
+            // Routes through api.dexto.ai to OpenRouter, deducts from user balance
+            // Requires DEXTO_API_KEY from `dexto login`
+            const dextoBaseURL = 'https://api.dexto.ai/v1';
+            return createOpenAI({ apiKey: apiKey ?? '', baseURL: dextoBaseURL }).chat(model);
+        }
         case 'vertex': {
             // Google Vertex AI - supports both Gemini and Claude models
             // Auth via Application Default Credentials (ADC)

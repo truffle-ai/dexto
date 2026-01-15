@@ -1333,7 +1333,15 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
         supportedFileTypes: ['image'], // Vision support depends on model
         supportsCustomModels: true, // Accept any Ollama model name
     },
-    // TODO: Add 'dexto' provider (similar to openrouter, uses https://api.dexto.ai/v1)
+    // Dexto Gateway - OpenAI-compatible proxy through api.dexto.ai
+    // Routes to OpenRouter with per-request billing (balance decrement)
+    // Requires DEXTO_API_KEY from `dexto login`
+    dexto: {
+        models: [], // Empty - accepts any OpenRouter model ID (e.g., anthropic/claude-4.5-sonnet)
+        baseURLSupport: 'none', // Fixed endpoint: https://api.dexto.ai/v1
+        supportedFileTypes: ['pdf', 'image', 'audio'], // Same as OpenRouter
+        supportsCustomModels: true, // Accept any OpenRouter model name
+    },
 };
 
 /**
