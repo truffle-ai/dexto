@@ -11,9 +11,9 @@
  *
  * The service role key (which has admin access) is NEVER in this codebase.
  */
-export const SUPABASE_URL = 'https://cqsrkcnwlaknqildczld.supabase.co';
+export const SUPABASE_URL = 'https://gdfbxznhnnsamvsrtwjq.supabase.co';
 export const SUPABASE_ANON_KEY =
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNxc3JrY253bGFrbnFpbGRjemxkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkzMjQ2NzMsImV4cCI6MjA3NDkwMDY3M30.a-ZOh2PpQtn02DOUBL11eujsIUvkHdayQKoknshsz10';
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdkZmJ4em5obm5zYW12c3J0d2pxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQwNjkzNjksImV4cCI6MjA3OTY0NTM2OX0.j2NWOJDOy8gTT84XeomalkGSPpLdPvTCBnQMrTgdlI4';
 
 /**
  * Dexto API URL for key provisioning
