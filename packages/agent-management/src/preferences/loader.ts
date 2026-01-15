@@ -119,6 +119,8 @@ export interface CreatePreferencesOptions {
     defaultAgent?: string;
     defaultMode?: 'cli' | 'web' | 'server' | 'discord' | 'telegram' | 'mcp';
     baseURL?: string;
+    /** Reasoning effort for OpenAI reasoning models (o1, o3, codex, gpt-5.x) */
+    reasoningEffort?: 'none' | 'low' | 'medium' | 'high' | 'xhigh';
     setupCompleted?: boolean;
     /** Whether API key setup was skipped and needs to be configured later */
     apiKeyPending?: boolean;
@@ -165,6 +167,11 @@ export function createInitialPreferences(
         // Only add baseURL if provided
         if (opts.baseURL) {
             llmConfig.baseURL = opts.baseURL;
+        }
+
+        // Only add reasoningEffort if provided
+        if (opts.reasoningEffort) {
+            llmConfig.reasoningEffort = opts.reasoningEffort;
         }
 
         return {
