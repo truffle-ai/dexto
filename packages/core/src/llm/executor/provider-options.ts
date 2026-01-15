@@ -9,9 +9,10 @@
  *
  * Caching notes:
  * - Anthropic: Requires explicit cacheControl option (we enable it)
- * - OpenAI: Automatic for prompts ≥1024 tokens (no config needed, cached tokens
- *   returned in response via cachedInputTokens)
- * - Google: Requires pre-created cachedContent IDs (not supported)
+ * - OpenAI: Automatic for prompts ≥1024 tokens (no config needed)
+ * - Google: Implicit caching automatic for Gemini 2.5+ (≥1024 tokens for Flash,
+ *   ≥2048 for Pro). Explicit caching requires pre-created cachedContent IDs.
+ * All providers return cached token counts in the response (cachedInputTokens).
  */
 
 import type { LLMProvider } from '../types.js';
