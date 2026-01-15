@@ -89,7 +89,7 @@ export class TurnExecutor {
             temperature?: number | undefined;
             baseURL?: string | undefined;
             // Provider-specific options
-            reasoningEffort?: 'none' | 'low' | 'medium' | 'high' | 'xhigh' | undefined;
+            reasoningEffort?: 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | undefined;
         },
         private llmContext: LLMContext,
         logger: IDextoLogger,

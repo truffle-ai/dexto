@@ -15,7 +15,7 @@
 import type { LLMProvider } from '../types.js';
 import { isReasoningCapableModel } from '../registry.js';
 
-export type ReasoningEffort = 'none' | 'low' | 'medium' | 'high' | 'xhigh';
+export type ReasoningEffort = 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
 
 export interface ProviderOptionsConfig {
     provider: LLMProvider;
@@ -33,6 +33,7 @@ export function buildProviderOptions(
     config: ProviderOptionsConfig
 ): Record<string, Record<string, unknown>> | undefined {
     const { provider, model, reasoningEffort } = config;
+    const modelLower = model.toLowerCase();
 
     // Anthropic: Enable prompt caching and reasoning streaming
     if (provider === 'anthropic') {
@@ -47,7 +48,7 @@ export function buildProviderOptions(
     }
 
     // Bedrock: Enable caching and reasoning for Claude models
-    if (provider === 'bedrock' && model.includes('claude')) {
+    if (provider === 'bedrock' && modelLower.includes('claude')) {
         return {
             bedrock: {
                 cacheControl: { type: 'ephemeral' },
@@ -57,7 +58,7 @@ export function buildProviderOptions(
     }
 
     // Vertex: Enable caching and reasoning for Claude models
-    if (provider === 'vertex' && model.includes('claude')) {
+    if (provider === 'vertex' && modelLower.includes('claude')) {
         return {
             'vertex-anthropic': {
                 cacheControl: { type: 'ephemeral' },
@@ -69,7 +70,7 @@ export function buildProviderOptions(
     // Google: Enable thinking for models that support it
     // Note: Google automatically enables thinking for thinking models,
     // but we explicitly enable includeThoughts to receive the reasoning
-    if (provider === 'google' || (provider === 'vertex' && !model.includes('claude'))) {
+    if (provider === 'google' || (provider === 'vertex' && !modelLower.includes('claude'))) {
         return {
             google: {
                 thinkingConfig: {

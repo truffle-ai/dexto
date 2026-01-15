@@ -351,7 +351,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                 model: string,
                 displayName?: string,
                 baseURL?: string,
-                reasoningEffort?: 'none' | 'low' | 'medium' | 'high' | 'xhigh'
+                reasoningEffort?: 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh'
             ) => {
                 setUi((prev) => ({ ...prev, activeOverlay: 'none', mcpWizardServerType: null }));
                 buffer.setText('');

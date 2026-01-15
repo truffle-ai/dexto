@@ -55,11 +55,11 @@ const DISPLAY_NAME_STEP: WizardStep = {
 const REASONING_EFFORT_STEP: WizardStep = {
     field: 'reasoningEffort',
     label: 'Reasoning Effort (optional)',
-    placeholder: 'none | low | medium | high | xhigh (blank for auto)',
+    placeholder: 'none | minimal | low | medium | high | xhigh (blank for auto)',
     required: false,
     validate: (value: string) => {
         if (!value?.trim()) return null;
-        const validValues = ['none', 'low', 'medium', 'high', 'xhigh'];
+        const validValues = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh'];
         if (!validValues.includes(value.toLowerCase())) {
             return `Invalid reasoning effort. Use: ${validValues.join(', ')}`;
         }

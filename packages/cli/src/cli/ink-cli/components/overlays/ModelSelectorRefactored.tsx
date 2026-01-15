@@ -30,7 +30,7 @@ import {
     type CustomModel,
 } from '@dexto/agent-management';
 
-type ReasoningEffort = 'none' | 'low' | 'medium' | 'high' | 'xhigh';
+type ReasoningEffort = 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
 
 interface ModelSelectorProps {
     isVisible: boolean;
@@ -75,6 +75,29 @@ function isAddCustomOption(item: SelectorItem): item is AddCustomOption {
 
 const MAX_VISIBLE_ITEMS = 10;
 
+// Reasoning effort options - defined at module scope to avoid recreation on each render
+const REASONING_EFFORT_OPTIONS: {
+    value: ReasoningEffort | 'auto';
+    label: string;
+    description: string;
+}[] = [
+    {
+        value: 'auto',
+        label: 'Auto',
+        description: 'Let the model decide (recommended for most tasks)',
+    },
+    { value: 'none', label: 'None', description: 'No reasoning, fastest responses' },
+    { value: 'minimal', label: 'Minimal', description: 'Barely any reasoning, very fast' },
+    { value: 'low', label: 'Low', description: 'Light reasoning, fast responses' },
+    {
+        value: 'medium',
+        label: 'Medium',
+        description: 'Balanced reasoning (OpenAI recommended)',
+    },
+    { value: 'high', label: 'High', description: 'Thorough reasoning for complex tasks' },
+    { value: 'xhigh', label: 'Extra High', description: 'Maximum quality, slower/costlier' },
+];
+
 /**
  * Model selector with search and custom model support
  */
@@ -95,29 +118,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
 
     // Reasoning effort sub-step state
     const [pendingReasoningModel, setPendingReasoningModel] = useState<ModelOption | null>(null);
-    const [reasoningEffortIndex, setReasoningEffortIndex] = useState(2); // Default to 'medium' (index 2)
-
-    // Reasoning effort options
-    const REASONING_EFFORT_OPTIONS: {
-        value: ReasoningEffort | 'auto';
-        label: string;
-        description: string;
-    }[] = [
-        {
-            value: 'auto',
-            label: 'Auto',
-            description: 'Let the model decide (recommended for most tasks)',
-        },
-        { value: 'none', label: 'None', description: 'No reasoning, fastest responses' },
-        { value: 'low', label: 'Low', description: 'Minimal reasoning, fast responses' },
-        {
-            value: 'medium',
-            label: 'Medium',
-            description: 'Balanced reasoning (OpenAI recommended)',
-        },
-        { value: 'high', label: 'High', description: 'Thorough reasoning for complex tasks' },
-        { value: 'xhigh', label: 'Extra High', description: 'Maximum quality, slower/costlier' },
-    ];
+    const [reasoningEffortIndex, setReasoningEffortIndex] = useState(4); // Default to 'medium' (index 4)
 
     // Keep ref in sync
     selectedIndexRef.current = selectedIndex;
@@ -619,7 +620,6 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
             handleDeleteCustomModel,
             pendingReasoningModel,
             reasoningEffortIndex,
-            REASONING_EFFORT_OPTIONS,
         ]
     );
 

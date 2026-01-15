@@ -117,7 +117,7 @@ interface SetupWizardState {
     provider?: LLMProvider | undefined;
     model?: string | undefined;
     baseURL?: string | undefined;
-    reasoningEffort?: 'none' | 'low' | 'medium' | 'high' | 'xhigh' | undefined;
+    reasoningEffort?: 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | undefined;
     apiKeySkipped?: boolean | undefined;
     defaultMode?: 'cli' | 'web' | 'server' | 'discord' | 'telegram' | 'mcp' | undefined;
     /** Quick start handles its own preferences saving */
@@ -494,7 +494,12 @@ async function wizardStepReasoningEffort(state: SetupWizardState): Promise<Setup
                 label: 'Medium (Recommended)',
                 hint: 'Balanced reasoning for most tasks',
             },
-            { value: 'low' as const, label: 'Low', hint: 'Faster responses, less reasoning' },
+            { value: 'low' as const, label: 'Low', hint: 'Light reasoning, fast responses' },
+            {
+                value: 'minimal' as const,
+                label: 'Minimal',
+                hint: 'Barely any reasoning, very fast',
+            },
             { value: 'high' as const, label: 'High', hint: 'More thorough reasoning' },
             {
                 value: 'xhigh' as const,
@@ -889,7 +894,7 @@ async function changeModel(currentProvider?: LLMProvider): Promise<void> {
         const llmUpdate: {
             provider: LLMProvider;
             model: string;
-            reasoningEffort?: 'none' | 'low' | 'medium' | 'high' | 'xhigh';
+            reasoningEffort?: 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
         } = {
             provider,
             model,
@@ -919,7 +924,7 @@ async function changeModel(currentProvider?: LLMProvider): Promise<void> {
         const llmUpdate: {
             provider: LLMProvider;
             model: string;
-            reasoningEffort?: 'none' | 'low' | 'medium' | 'high' | 'xhigh';
+            reasoningEffort?: 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
         } = {
             provider,
             model,
@@ -954,7 +959,7 @@ async function changeModel(currentProvider?: LLMProvider): Promise<void> {
         provider: LLMProvider;
         model: string;
         apiKey?: string;
-        reasoningEffort?: 'none' | 'low' | 'medium' | 'high' | 'xhigh';
+        reasoningEffort?: 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
     } = {
         provider,
         model,
@@ -1149,7 +1154,7 @@ async function selectDefaultMode(): Promise<
  * Used in settings menu when changing to a reasoning-capable model
  */
 async function selectReasoningEffort(): Promise<
-    'none' | 'low' | 'medium' | 'high' | 'xhigh' | null
+    'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | null
 > {
     const effort = await p.select({
         message: 'Select reasoning effort level',
@@ -1159,7 +1164,12 @@ async function selectReasoningEffort(): Promise<
                 label: 'Medium (Recommended)',
                 hint: 'Balanced reasoning for most tasks',
             },
-            { value: 'low' as const, label: 'Low', hint: 'Faster responses, less reasoning' },
+            { value: 'low' as const, label: 'Low', hint: 'Light reasoning, fast responses' },
+            {
+                value: 'minimal' as const,
+                label: 'Minimal',
+                hint: 'Barely any reasoning, very fast',
+            },
             { value: 'high' as const, label: 'High', hint: 'More thorough reasoning' },
             {
                 value: 'xhigh' as const,

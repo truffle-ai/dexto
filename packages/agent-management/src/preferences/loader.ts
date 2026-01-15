@@ -120,7 +120,7 @@ export interface CreatePreferencesOptions {
     defaultMode?: 'cli' | 'web' | 'server' | 'discord' | 'telegram' | 'mcp';
     baseURL?: string;
     /** Reasoning effort for OpenAI reasoning models (o1, o3, codex, gpt-5.x) */
-    reasoningEffort?: 'none' | 'low' | 'medium' | 'high' | 'xhigh';
+    reasoningEffort?: 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
     setupCompleted?: boolean;
     /** Whether API key setup was skipped and needs to be configured later */
     apiKeyPending?: boolean;

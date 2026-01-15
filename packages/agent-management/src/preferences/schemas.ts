@@ -37,7 +37,7 @@ export const PreferenceLLMSchema = z
             .describe('Custom base URL for providers that support it (openai-compatible, litellm)'),
 
         reasoningEffort: z
-            .enum(['none', 'low', 'medium', 'high', 'xhigh'])
+            .enum(['none', 'minimal', 'low', 'medium', 'high', 'xhigh'])
             .optional()
             .describe(
                 'Reasoning effort level for OpenAI reasoning models (o1, o3, codex, gpt-5.x). Auto-detected if not set.'

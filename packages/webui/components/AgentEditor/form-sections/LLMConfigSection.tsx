@@ -287,7 +287,8 @@ export function LLMConfigSection({
                         >
                             <option value="">Auto (model default)</option>
                             <option value="none">None - No reasoning</option>
-                            <option value="low">Low - Minimal reasoning</option>
+                            <option value="minimal">Minimal - Barely any reasoning</option>
+                            <option value="low">Low - Light reasoning</option>
                             <option value="medium">Medium - Balanced (recommended)</option>
                             <option value="high">High - Thorough reasoning</option>
                             <option value="xhigh">Extra High - Maximum quality</option>
