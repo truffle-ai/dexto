@@ -7,9 +7,11 @@
  * - Google: thinkingConfig for Gemini thinking models
  * - OpenAI: reasoningEffort for o1/o3/codex/gpt-5 models
  *
- * Note: OpenAI caching uses promptCacheKey which requires user-specified keys,
- * so we don't auto-enable it. Google caching uses cachedContent IDs which also
- * require pre-created caches.
+ * Caching notes:
+ * - Anthropic: Requires explicit cacheControl option (we enable it)
+ * - OpenAI: Automatic for prompts ≥1024 tokens (no config needed, cached tokens
+ *   returned in response via cachedInputTokens)
+ * - Google: Requires pre-created cachedContent IDs (not supported)
  */
 
 import type { LLMProvider } from '../types.js';
