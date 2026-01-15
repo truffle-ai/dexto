@@ -124,9 +124,9 @@ function scanCommandsDirectory(dir: string): string[] {
  * First found file wins - only one file is used
  *
  * Conventions:
- * - AGENTS.md: Google's agent instruction format
+ * - AGENTS.md: Open standard for AI coding agents (Linux Foundation/AAIF)
  * - CLAUDE.md: Anthropic's Claude Code instruction format
- * - GEMINI.md: Google's Gemini instruction format
+ * - GEMINI.md: Google's Gemini CLI instruction format
  */
 const AGENT_INSTRUCTION_FILES = ['agents.md', 'claude.md', 'gemini.md'] as const;
 
