@@ -15,6 +15,7 @@ import { ToolManager } from '../../tools/tool-manager.js';
 import { ToolSet } from '../../tools/types.js';
 import { StreamProcessor } from './stream-processor.js';
 import { ExecutorResult } from './types.js';
+import { buildProviderOptions } from './provider-options.js';
 import { TokenUsage } from '../types.js';
 import type { IDextoLogger } from '../../logger/v2/types.js';
 import { DextoLogComponent } from '../../logger/v2/types.js';
@@ -87,6 +88,8 @@ export class TurnExecutor {
             maxOutputTokens?: number | undefined;
             temperature?: number | undefined;
             baseURL?: string | undefined;
+            // Provider-specific options
+            reasoningEffort?: 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | undefined;
         },
         private llmContext: LLMContext,
         logger: IDextoLogger,
@@ -229,6 +232,13 @@ export class TurnExecutor {
                     this.approvalMetadata
                 );
 
+                // Build provider-specific options (caching, reasoning, etc.)
+                const providerOptions = buildProviderOptions({
+                    provider: this.llmContext.provider,
+                    model: this.llmContext.model,
+                    reasoningEffort: this.config.reasoningEffort,
+                });
+
                 const result = await streamProcessor.process(() =>
                     streamText({
                         model: this.model,
@@ -241,6 +251,11 @@ export class TurnExecutor {
                         }),
                         ...(this.config.temperature !== undefined && {
                             temperature: this.config.temperature,
+                        }),
+                        // Provider-specific options (caching, reasoning, etc.)
+                        ...(providerOptions !== undefined && {
+                            providerOptions:
+                                providerOptions as import('@ai-sdk/provider').SharedV2ProviderOptions,
                         }),
                         // Log stream-level errors (tool errors, API errors during streaming)
                         onError: (error) => {

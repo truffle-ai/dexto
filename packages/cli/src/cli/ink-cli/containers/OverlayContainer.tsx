@@ -346,7 +346,13 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
 
         // Handle model selection
         const handleModelSelect = useCallback(
-            async (provider: string, model: string, displayName?: string, baseURL?: string) => {
+            async (
+                provider: string,
+                model: string,
+                displayName?: string,
+                baseURL?: string,
+                reasoningEffort?: 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh'
+            ) => {
                 setUi((prev) => ({ ...prev, activeOverlay: 'none', mcpWizardServerType: null }));
                 buffer.setText('');
                 setInput((prev) => ({ ...prev, historyIndex: -1 }));
@@ -363,7 +369,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     ]);
 
                     await agent.switchLLM(
-                        { provider: provider as LLMProvider, model, baseURL },
+                        { provider: provider as LLMProvider, model, baseURL, reasoningEffort },
                         session.id || undefined
                     );
 

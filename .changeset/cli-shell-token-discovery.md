@@ -1,5 +1,5 @@
 ---
-"@dexto/cli": patch
+"dexto": patch
 "@dexto/agent-management": patch
 ---
 

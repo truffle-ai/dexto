@@ -35,6 +35,13 @@ export const PreferenceLLMSchema = z
             .url('Must be a valid URL (e.g., http://localhost:11434/v1)')
             .optional()
             .describe('Custom base URL for providers that support it (openai-compatible, litellm)'),
+
+        reasoningEffort: z
+            .enum(['none', 'minimal', 'low', 'medium', 'high', 'xhigh'])
+            .optional()
+            .describe(
+                'Reasoning effort level for OpenAI reasoning models (o1, o3, codex, gpt-5.x). Auto-detected if not set.'
+            ),
     })
     .strict()
     .superRefine((data, ctx) => {

@@ -69,9 +69,23 @@ export class VercelMessageFormatter {
 
         // Add system message if present
         if (systemPrompt) {
+            // For Anthropic/Bedrock/Vertex Claude, add cacheControl to enable prompt caching
+            // This marks the system prompt as cacheable (ephemeral = cached for session duration)
+            const modelLower = context.model.toLowerCase();
+            const isClaudeModel = modelLower.includes('claude');
+            const isAnthropicProvider =
+                context.provider === 'anthropic' ||
+                (context.provider === 'bedrock' && isClaudeModel) ||
+                (context.provider === 'vertex' && isClaudeModel);
+
             formatted.push({
                 role: 'system',
                 content: systemPrompt,
+                ...(isAnthropicProvider && {
+                    providerOptions: {
+                        anthropic: { cacheControl: { type: 'ephemeral' } },
+                    },
+                }),
             });
         }
 

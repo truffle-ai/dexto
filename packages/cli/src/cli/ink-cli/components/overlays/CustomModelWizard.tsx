@@ -83,8 +83,24 @@ const CustomModelWizard = forwardRef<CustomModelWizardHandle, CustomModelWizardP
 
         // Get provider config (data-driven, no conditionals)
         const providerConfig = selectedProvider ? getProviderConfig(selectedProvider) : null;
-        const wizardSteps = providerConfig?.steps ?? [];
-        const currentStepConfig = wizardSteps[currentStep];
+        const allWizardSteps = providerConfig?.steps ?? [];
+
+        /**
+         * Get visible steps based on current values.
+         * Steps with a condition function are only shown if the condition returns true.
+         */
+        const getVisibleSteps = useCallback(
+            (currentValues: Record<string, string>) => {
+                return allWizardSteps.filter(
+                    (step) => !step.condition || step.condition(currentValues)
+                );
+            },
+            [allWizardSteps]
+        );
+
+        // Current visible steps based on accumulated values
+        const visibleSteps = getVisibleSteps(values);
+        const currentStepConfig = visibleSteps[currentStep];
 
         // Reset when becoming visible
         useEffect(() => {
@@ -172,14 +188,17 @@ const CustomModelWizard = forwardRef<CustomModelWizardHandle, CustomModelWizardP
             setError(null);
             setCurrentInput('');
 
+            // Get updated visible steps with new values
+            const updatedVisibleSteps = getVisibleSteps(newValues);
+
             // Check if we're done
-            if (currentStep >= wizardSteps.length - 1) {
+            if (currentStep >= updatedVisibleSteps.length - 1) {
                 await saveModel(newValues);
             } else {
                 const nextStep = currentStep + 1;
                 setCurrentStep(nextStep);
                 // Pre-populate next step from stored values (for edit mode)
-                const nextStepConfig = wizardSteps[nextStep];
+                const nextStepConfig = updatedVisibleSteps[nextStep];
                 const nextValue = nextStepConfig ? newValues[nextStepConfig.field] : undefined;
                 setCurrentInput(nextValue ?? '');
             }
@@ -187,11 +206,11 @@ const CustomModelWizard = forwardRef<CustomModelWizardHandle, CustomModelWizardP
             currentInput,
             currentStep,
             currentStepConfig,
+            getVisibleSteps,
             isSaving,
             isValidating,
             selectedProvider,
             values,
-            wizardSteps,
         ]);
 
         /**
@@ -271,7 +290,7 @@ const CustomModelWizard = forwardRef<CustomModelWizardHandle, CustomModelWizardP
             if (currentStep > 0) {
                 setCurrentStep(currentStep - 1);
                 // Restore previous value
-                const prevStep = wizardSteps[currentStep - 1];
+                const prevStep = visibleSteps[currentStep - 1];
                 if (prevStep) {
                     setCurrentInput(values[prevStep.field] || '');
                 }
@@ -283,7 +302,7 @@ const CustomModelWizard = forwardRef<CustomModelWizardHandle, CustomModelWizardP
             } else {
                 onClose();
             }
-        }, [currentStep, onClose, selectedProvider, values, wizardSteps]);
+        }, [currentStep, onClose, selectedProvider, values, visibleSteps]);
 
         // Handle keyboard input
         useImperativeHandle(
@@ -399,7 +418,7 @@ const CustomModelWizard = forwardRef<CustomModelWizardHandle, CustomModelWizardP
                     </Text>
                     <Text color="gray">
                         {' '}
-                        ({providerConfig.displayName}) Step {currentStep + 1}/{wizardSteps.length}
+                        ({providerConfig.displayName}) Step {currentStep + 1}/{visibleSteps.length}
                     </Text>
                 </Box>
 

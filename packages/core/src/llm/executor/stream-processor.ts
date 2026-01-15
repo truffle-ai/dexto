@@ -212,17 +212,27 @@ export class StreamProcessor {
                         // If we abort mid-stream, that chunk never arrives. The tokens are
                         // still billed by the provider, but we can't report them.
                         if (event.usage) {
-                            // Extract cache write tokens from provider metadata (provider-specific)
-                            // Anthropic: providerMetadata.anthropic.cacheCreationInputTokens
-                            // Bedrock: providerMetadata.bedrock.usage.cacheWriteInputTokens
-                            const cacheWriteTokens = (event.providerMetadata?.['anthropic']?.[
-                                'cacheCreationInputTokens'
-                            ] ??
-                                // @ts-expect-error - Bedrock metadata typing not in Vercel SDK
-                                event.providerMetadata?.['bedrock']?.['usage']?.[
-                                    'cacheWriteInputTokens'
-                                ] ??
-                                0) as number;
+                            // Extract cache tokens from provider metadata (provider-specific)
+                            // Anthropic returns cache tokens in providerMetadata, not in usage
+                            // Bedrock follows similar pattern for Claude models
+                            const anthropicMeta = event.providerMetadata?.['anthropic'] as
+                                | Record<string, number>
+                                | undefined;
+                            const bedrockMeta = event.providerMetadata?.['bedrock'] as
+                                | { usage?: Record<string, number> }
+                                | undefined;
+
+                            const cacheWriteTokens =
+                                anthropicMeta?.['cacheCreationInputTokens'] ??
+                                bedrockMeta?.usage?.['cacheWriteInputTokens'] ??
+                                0;
+
+                            // Cache read tokens: Anthropic uses providerMetadata, others use usage.cachedInputTokens
+                            const cacheReadTokens =
+                                anthropicMeta?.['cacheReadInputTokens'] ??
+                                bedrockMeta?.usage?.['cacheReadInputTokens'] ??
+                                event.usage.cachedInputTokens ??
+                                0;
 
                             // Accumulate usage across steps
                             this.actualTokens = {
@@ -242,8 +252,7 @@ export class StreamProcessor {
                                 }),
                                 // Cache tokens
                                 cacheReadTokens:
-                                    (this.actualTokens.cacheReadTokens ?? 0) +
-                                    (event.usage.cachedInputTokens ?? 0),
+                                    (this.actualTokens.cacheReadTokens ?? 0) + cacheReadTokens,
                                 cacheWriteTokens:
                                     (this.actualTokens.cacheWriteTokens ?? 0) + cacheWriteTokens,
                             };
@@ -253,17 +262,23 @@ export class StreamProcessor {
                     case 'finish': {
                         this.finishReason = event.finishReason;
 
+                        // Use cache tokens accumulated from finish-step events (provider metadata)
+                        // For providers without finish-step events, fall back to totalUsage.cachedInputTokens
+                        const cacheReadTokens =
+                            this.actualTokens.cacheReadTokens ??
+                            event.totalUsage.cachedInputTokens ??
+                            0;
+                        const cacheWriteTokens = this.actualTokens.cacheWriteTokens ?? 0;
+
                         // Adjust input tokens based on provider
                         // Anthropic/Bedrock: inputTokens already excludes cached tokens
                         // Other providers: inputTokens includes cached, need to subtract
-                        const cachedInputTokens = event.totalUsage.cachedInputTokens ?? 0;
-                        // TODO: Add 'bedrock' to LLMProvider type when we support it
                         const providerExcludesCached =
                             this.config.provider === 'anthropic' ||
                             (this.config.provider as string) === 'bedrock';
                         const adjustedInputTokens = providerExcludesCached
                             ? (event.totalUsage.inputTokens ?? 0)
-                            : (event.totalUsage.inputTokens ?? 0) - cachedInputTokens;
+                            : (event.totalUsage.inputTokens ?? 0) - cacheReadTokens;
 
                         const usage = {
                             inputTokens: adjustedInputTokens,
@@ -273,9 +288,9 @@ export class StreamProcessor {
                             ...(event.totalUsage.reasoningTokens !== undefined && {
                                 reasoningTokens: event.totalUsage.reasoningTokens,
                             }),
-                            // Cache tokens - read from totalUsage, write from accumulated finish-step events
-                            cacheReadTokens: cachedInputTokens,
-                            cacheWriteTokens: this.actualTokens.cacheWriteTokens ?? 0,
+                            // Cache tokens from accumulated finish-step events or totalUsage fallback
+                            cacheReadTokens,
+                            cacheWriteTokens,
                         };
                         this.actualTokens = usage;
 
