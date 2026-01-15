@@ -16,7 +16,9 @@ export function LogConfigBox({ data }: LogConfigBoxProps) {
         <StyledBox title="Logging Configuration">
             <Box marginTop={1} flexDirection="column">
                 <StyledRow label="Current level" value={data.currentLevel} valueColor="green" />
-                {data.logFile && <StyledRow label="Log file" value={data.logFile} />}
+                {data.logFile && process.env.DEXTO_PRIVACY_MODE !== 'true' && (
+                    <StyledRow label="Log file" value={data.logFile} />
+                )}
             </Box>
 
             <Box marginTop={1} flexDirection="column">

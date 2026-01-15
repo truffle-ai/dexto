@@ -4,6 +4,7 @@ import type { AgentConfig } from '@dexto/core';
 // Mock the discover-prompts module (separate file, so mock works!)
 vi.mock('./discover-prompts.js', () => ({
     discoverCommandPrompts: vi.fn(() => []),
+    discoverAgentInstructionFile: vi.fn(() => null),
 }));
 
 // Import after mock is set up

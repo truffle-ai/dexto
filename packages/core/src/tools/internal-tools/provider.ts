@@ -156,7 +156,11 @@ export class InternalToolsProvider {
         const context: ToolCreationContext = {
             logger: this.logger,
             agent: this.agent,
-            services: this.services, // Includes approvalManager for tools that need approval flows
+            services: {
+                ...this.services,
+                // Include storageManager from agent services for custom tools that need persistence
+                storageManager: this.agent.services?.storageManager,
+            },
         };
 
         for (const toolConfig of this.customToolConfigs) {

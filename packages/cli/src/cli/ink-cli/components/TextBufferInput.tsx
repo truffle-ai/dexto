@@ -536,6 +536,11 @@ export function TextBufferInput({
     const separator = '─'.repeat(terminalWidth);
     const totalLines = visualLines.length;
 
+    // Detect shell command mode (input starts with "!")
+    const isShellMode = bufferText.startsWith('!');
+    const promptPrefix = isShellMode ? '$ ' : '> ';
+    const promptColor = isShellMode ? 'yellow' : 'green';
+
     // Calculate visible window
     let startLine = 0;
     let endLine = totalLines;
@@ -582,13 +587,13 @@ export function TextBufferInput({
             {visibleLines.map((line: string, idx: number) => {
                 const absoluteRow = startLine + idx;
                 const isFirst = absoluteRow === 0;
-                const prefix = isFirst ? '> ' : '  ';
+                const prefix = isFirst ? promptPrefix : '  ';
                 const isCursorLine = absoluteRow === cursorVisualRow;
 
                 if (!isCursorLine) {
                     return (
                         <Box key={absoluteRow} width={terminalWidth}>
-                            <Text color="green" bold={isFirst}>
+                            <Text color={promptColor} bold={isFirst}>
                                 {prefix}
                             </Text>
                             <HighlightedText text={line} query={highlightQuery} />
@@ -607,7 +612,7 @@ export function TextBufferInput({
 
                 return (
                     <Box key={absoluteRow} width={terminalWidth}>
-                        <Text color="green" bold={isFirst}>
+                        <Text color={promptColor} bold={isFirst}>
                             {prefix}
                         </Text>
                         <HighlightedText text={before} query={highlightQuery} />

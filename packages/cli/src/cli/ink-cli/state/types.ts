@@ -116,8 +116,8 @@ export interface LogConfigStyledData {
 export interface RunSummaryStyledData {
     /** Duration in milliseconds */
     durationMs: number;
-    /** Output tokens used */
-    outputTokens: number;
+    /** Total tokens used (lastInput + cumulativeOutput) */
+    totalTokens: number;
 }
 
 export interface PromptsStyledData {

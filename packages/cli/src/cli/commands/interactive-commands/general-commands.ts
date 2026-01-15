@@ -11,12 +11,56 @@
  */
 
 import chalk from 'chalk';
+import { spawn } from 'child_process';
 import type { DextoAgent } from '@dexto/core';
 import type { CommandDefinition, CommandHandlerResult, CommandContext } from './command-parser.js';
 import { formatForInkCli } from './utils/format-output.js';
 import { CommandOutputHelper } from './utils/command-output.js';
 import type { HelpStyledData, ShortcutsStyledData } from '../../ink-cli/state/types.js';
 import { writeToClipboard } from '../../ink-cli/utils/clipboardUtils.js';
+
+/**
+ * Execute a shell command and return the output
+ */
+async function executeShellCommand(
+    command: string,
+    cwd: string,
+    timeoutMs: number = 30000
+): Promise<{ stdout: string; stderr: string; exitCode: number }> {
+    return new Promise((resolve) => {
+        const child = spawn(command, [], {
+            cwd,
+            shell: true,
+            stdio: ['ignore', 'pipe', 'pipe'],
+        });
+
+        let stdout = '';
+        let stderr = '';
+
+        const timer = setTimeout(() => {
+            child.kill();
+            resolve({ stdout, stderr: `Command timed out after ${timeoutMs}ms`, exitCode: -1 });
+        }, timeoutMs);
+
+        child.stdout.on('data', (data: Buffer) => {
+            stdout += data.toString();
+        });
+
+        child.stderr.on('data', (data: Buffer) => {
+            stderr += data.toString();
+        });
+
+        child.on('error', (error: Error) => {
+            clearTimeout(timer);
+            resolve({ stdout, stderr: error.message, exitCode: -1 });
+        });
+
+        child.on('close', (code: number | null) => {
+            clearTimeout(timer);
+            resolve({ stdout, stderr, exitCode: code ?? -1 });
+        });
+    });
+}
 
 /**
  * Creates the help command with access to all commands for display
@@ -60,6 +104,46 @@ export function createHelpCommand(getAllCommands: () => CommandDefinition[]): Co
  * Note: The help command is created separately to avoid circular dependencies
  */
 export const generalCommands: CommandDefinition[] = [
+    {
+        name: 'shell',
+        description: 'Execute shell command directly (use !command as shortcut)',
+        usage: '!<command> or /shell <command>',
+        category: 'General',
+        handler: async (
+            args: string[],
+            agent: DextoAgent,
+            _ctx: CommandContext
+        ): Promise<boolean | string> => {
+            const command = args.join(' ').trim();
+            if (!command) {
+                return formatForInkCli('❌ No command provided. Usage: !<command>');
+            }
+
+            const cwd = process.cwd();
+            agent.logger.debug(`Executing shell command: ${command}`);
+
+            const { stdout, stderr, exitCode } = await executeShellCommand(command, cwd);
+
+            // Build output
+            const lines: string[] = [];
+
+            if (stdout.trim()) {
+                lines.push(stdout.trim());
+            }
+            if (stderr.trim()) {
+                lines.push(chalk.yellow(stderr.trim()));
+            }
+            if (exitCode !== 0) {
+                lines.push(chalk.red(`Exit code: ${exitCode}`));
+            }
+
+            if (lines.length === 0) {
+                return formatForInkCli(chalk.gray('(no output)'));
+            }
+
+            return formatForInkCli(lines.join('\n'));
+        },
+    },
     {
         name: 'exit',
         description: 'Exit the CLI',

@@ -89,8 +89,11 @@ export const MessageItem = memo(
                 case 'run-summary': {
                     const data = message.styledData as RunSummaryStyledData;
                     const durationStr = formatDuration(data.durationMs);
+                    // Only show tokens when >= 1000, using K notation
                     const tokensStr =
-                        data.outputTokens > 0 ? `, Used ${data.outputTokens} tokens` : '';
+                        data.totalTokens >= 1000
+                            ? `, Used ${(data.totalTokens / 1000).toFixed(1)}K tokens`
+                            : '';
                     return (
                         <Box marginTop={1} marginBottom={1} width="100%">
                             <Text color="gray">

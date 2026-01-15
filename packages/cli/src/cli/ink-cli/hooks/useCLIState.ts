@@ -163,14 +163,17 @@ export function useCLIState({
 
     // Setup event bus subscriptions for non-streaming events
     // (streaming events are handled directly via agent.stream() iterator in InputContainer)
+    // Also handles external triggers (run:invoke) from scheduler, A2A, API
     useAgentEvents({
         agent,
         setMessages,
+        setPendingMessages,
         setUi,
         setSession,
         setApproval,
         setApprovalQueue,
         setQueuedMessages,
+        currentSessionId: session.id,
     });
 
     // Create input handlers for the orchestrator
