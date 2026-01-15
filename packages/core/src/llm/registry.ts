@@ -104,6 +104,60 @@ export const DEFAULT_MAX_INPUT_TOKENS = 128000;
 export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
     openai: {
         models: [
+            // GPT-5.2 series (latest, released Dec 2025)
+            {
+                name: 'gpt-5.2-chat-latest',
+                displayName: 'GPT-5.2 Instant',
+                maxInputTokens: 400000,
+                supportedFileTypes: ['pdf', 'image'],
+                pricing: {
+                    inputPerM: 1.75,
+                    outputPerM: 14.0,
+                    cacheReadPerM: 0.175,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
+                name: 'gpt-5.2',
+                displayName: 'GPT-5.2 Thinking',
+                maxInputTokens: 400000,
+                supportedFileTypes: ['pdf', 'image'],
+                pricing: {
+                    inputPerM: 1.75,
+                    outputPerM: 14.0,
+                    cacheReadPerM: 0.175,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
+                name: 'gpt-5.2-pro',
+                displayName: 'GPT-5.2 Pro',
+                maxInputTokens: 400000,
+                supportedFileTypes: ['pdf', 'image'],
+                pricing: {
+                    inputPerM: 21.0,
+                    outputPerM: 168.0,
+                    cacheReadPerM: 2.1,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
+                name: 'gpt-5.2-codex',
+                displayName: 'GPT-5.2 Codex',
+                maxInputTokens: 400000,
+                supportedFileTypes: ['pdf', 'image'],
+                pricing: {
+                    inputPerM: 1.75,
+                    outputPerM: 14.0,
+                    cacheReadPerM: 0.175,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            // GPT-5.1 series
             {
                 name: 'gpt-5.1-chat-latest',
                 displayName: 'GPT-5.1 Instant',
@@ -1742,6 +1796,39 @@ export function getModelDisplayName(model: string, provider?: LLMProvider): stri
     const normalizedModel = stripBedrockRegionPrefix(model).toLowerCase();
     const modelInfo = providerInfo.models.find((m) => m.name.toLowerCase() === normalizedModel);
     return modelInfo?.displayName ?? model;
+}
+
+/**
+ * Checks if a model supports configurable reasoning effort.
+ * Currently only OpenAI reasoning models (o1, o3, codex, gpt-5.x) support this.
+ *
+ * @param model The model name to check.
+ * @param provider Optional provider for context (defaults to detecting from model name).
+ * @returns True if the model supports reasoning effort configuration.
+ */
+export function isReasoningCapableModel(model: string, provider?: LLMProvider): boolean {
+    const modelLower = model.toLowerCase();
+
+    // Codex models are optimized for complex coding with reasoning
+    if (modelLower.includes('codex')) {
+        return true;
+    }
+
+    // o1 and o3 are dedicated reasoning models
+    if (modelLower.startsWith('o1') || modelLower.startsWith('o3') || modelLower.startsWith('o4')) {
+        return true;
+    }
+
+    // GPT-5 series support reasoning effort
+    if (
+        modelLower.includes('gpt-5') ||
+        modelLower.includes('gpt-5.1') ||
+        modelLower.includes('gpt-5.2')
+    ) {
+        return true;
+    }
+
+    return false;
 }
 
 /**

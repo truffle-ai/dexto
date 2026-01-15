@@ -14,6 +14,12 @@ export interface WizardStep {
     placeholder: string;
     required: boolean;
     validate?: (value: string) => string | null;
+    /**
+     * Optional condition to determine if this step should be shown.
+     * Takes the current accumulated values and returns true if the step should be shown.
+     * If omitted, the step is always shown.
+     */
+    condition?: (values: Record<string, string>) => boolean;
 }
 
 /**

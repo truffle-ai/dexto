@@ -124,6 +124,8 @@ export class VercelLLMService {
                 maxOutputTokens: this.config.maxOutputTokens,
                 temperature: this.config.temperature,
                 baseURL: this.config.baseURL,
+                // Provider-specific options
+                reasoningEffort: this.config.reasoningEffort,
             },
             { provider: this.config.provider, model: this.getModelId() },
             this.logger,

@@ -88,6 +88,26 @@ const LLMConfigFields = {
             'MIME type patterns for media expansion (e.g., "image/*", "application/pdf"). ' +
                 'If omitted, uses model capabilities from registry. Supports wildcards.'
         ),
+
+    // Provider-specific options
+
+    /**
+     * OpenAI reasoning effort level for reasoning-capable models (o1, o3, codex, gpt-5.x).
+     * Controls how many reasoning tokens the model generates before producing a response.
+     * - 'none': No reasoning, fastest responses
+     * - 'minimal': Barely any reasoning, very fast responses
+     * - 'low': Light reasoning, fast responses
+     * - 'medium': Balanced reasoning (OpenAI's recommended daily driver)
+     * - 'high': Thorough reasoning for complex tasks
+     * - 'xhigh': Extra high reasoning for quality-critical, non-latency-sensitive tasks
+     */
+    reasoningEffort: z
+        .enum(['none', 'minimal', 'low', 'medium', 'high', 'xhigh'])
+        .optional()
+        .describe(
+            'OpenAI reasoning effort level for reasoning models (o1, o3, codex). ' +
+                "Options: 'none', 'minimal', 'low', 'medium' (recommended), 'high', 'xhigh'"
+        ),
 } as const;
 /** Business rules + compatibility checks */
 
@@ -105,6 +125,8 @@ export const LLMConfigBaseSchema = z
         maxOutputTokens: LLMConfigFields.maxOutputTokens,
         temperature: LLMConfigFields.temperature,
         allowedMediaTypes: LLMConfigFields.allowedMediaTypes,
+        // Provider-specific options
+        reasoningEffort: LLMConfigFields.reasoningEffort,
     })
     .strict();
 
