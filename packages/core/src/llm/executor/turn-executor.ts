@@ -87,6 +87,8 @@ export class TurnExecutor {
             maxOutputTokens?: number | undefined;
             temperature?: number | undefined;
             baseURL?: string | undefined;
+            // Provider-specific options
+            reasoningEffort?: 'none' | 'low' | 'medium' | 'high' | 'xhigh' | undefined;
         },
         private llmContext: LLMContext,
         logger: IDextoLogger,
@@ -122,6 +124,136 @@ export class TurnExecutor {
             provider: this.llmContext.provider,
             model: this.llmContext.model,
         };
+    }
+
+    /**
+     * Build provider-specific options for streamText.
+     *
+     * Enables features that require explicit opt-in:
+     * - Anthropic: cacheControl for prompt caching (auto-enabled), sendReasoning for extended thinking
+     * - Bedrock/Vertex Claude: Same as Anthropic (Claude models on these platforms)
+     * - Google: thinkingConfig for Gemini thinking models (auto-enabled)
+     * - OpenAI: reasoningEffort for o1/o3/codex models (configurable or auto-detected)
+     *
+     * Note: OpenAI caching uses promptCacheKey which requires user-specified keys,
+     * so we don't auto-enable it. Google caching uses cachedContent IDs which also
+     * require pre-created caches.
+     *
+     * @returns Provider options object or undefined if no special options needed
+     */
+    private buildProviderOptions(): Record<string, Record<string, unknown>> | undefined {
+        const provider = this.llmContext.provider;
+        const model = this.llmContext.model;
+
+        // Anthropic: Enable prompt caching and reasoning streaming
+        if (provider === 'anthropic') {
+            return {
+                anthropic: {
+                    // Enable prompt caching - saves money and improves latency
+                    cacheControl: { type: 'ephemeral' },
+                    // Stream reasoning/thinking content when model supports it
+                    sendReasoning: true,
+                },
+            };
+        }
+
+        // Bedrock: Enable caching and reasoning for Claude models
+        if (provider === 'bedrock' && model.includes('claude')) {
+            return {
+                bedrock: {
+                    cacheControl: { type: 'ephemeral' },
+                    sendReasoning: true,
+                },
+            };
+        }
+
+        // Vertex: Enable caching and reasoning for Claude models
+        if (provider === 'vertex' && model.includes('claude')) {
+            return {
+                'vertex-anthropic': {
+                    cacheControl: { type: 'ephemeral' },
+                    sendReasoning: true,
+                },
+            };
+        }
+
+        // Google: Enable thinking for models that support it
+        // Note: Google automatically enables thinking for thinking models,
+        // but we explicitly enable includeThoughts to receive the reasoning
+        if (provider === 'google' || (provider === 'vertex' && !model.includes('claude'))) {
+            return {
+                google: {
+                    thinkingConfig: {
+                        // Include thoughts in the response for transparency
+                        includeThoughts: true,
+                    },
+                },
+            };
+        }
+
+        // OpenAI: Set reasoning effort for reasoning-capable models
+        // Use config value if provided, otherwise auto-detect based on model
+        if (provider === 'openai') {
+            const reasoningEffort =
+                this.config.reasoningEffort ?? this.getOpenAIReasoningEffort(model);
+            if (reasoningEffort) {
+                return {
+                    openai: {
+                        reasoningEffort,
+                    },
+                };
+            }
+        }
+
+        return undefined;
+    }
+
+    /**
+     * Determine the appropriate reasoning effort for OpenAI models.
+     *
+     * OpenAI reasoning effort levels (from lowest to highest):
+     * - 'none': No reasoning, fastest responses
+     * - 'low': Minimal reasoning, fast responses
+     * - 'medium': Balanced reasoning (OpenAI's recommended daily driver)
+     * - 'high': Thorough reasoning for complex tasks
+     * - 'xhigh': Extra high reasoning for quality-critical, non-latency-sensitive tasks
+     *
+     * Default strategy:
+     * - Codex models: 'medium' - balanced reasoning for complex coding tasks
+     * - o1/o3/GPT-5 reasoning models: 'medium' - OpenAI's recommended default
+     * - Other models: undefined (no reasoning effort needed)
+     *
+     * @param model The model name
+     * @returns Reasoning effort level or undefined if not applicable
+     */
+    private getOpenAIReasoningEffort(
+        model: string
+    ): 'low' | 'medium' | 'high' | 'xhigh' | undefined {
+        const modelLower = model.toLowerCase();
+
+        // Codex models are optimized for complex coding - use high reasoning effort
+        // Includes: gpt-5.1-codex, gpt-5.1-codex-mini, gpt-5.1-codex-max, gpt-5.2-codex
+        if (modelLower.includes('codex')) {
+            return 'medium';
+        }
+
+        // o1 and o3 are dedicated reasoning models - use medium (OpenAI's recommended daily driver)
+        if (modelLower.startsWith('o1') || modelLower.startsWith('o3')) {
+            return 'medium';
+        }
+
+        // GPT-5 Pro is a high-capability model - use medium reasoning
+        if (modelLower.includes('gpt-5-pro') || modelLower.includes('gpt-5.2-pro')) {
+            return 'medium';
+        }
+
+        // GPT-5.1 and GPT-5.2 series support reasoning - use medium
+        if (modelLower.includes('gpt-5.1') || modelLower.includes('gpt-5.2')) {
+            return 'medium';
+        }
+
+        // Other models don't need explicit reasoning effort
+        return undefined;
     }
 
     /**
@@ -229,6 +361,9 @@ export class TurnExecutor {
                     this.approvalMetadata
                 );
 
+                // Build provider-specific options (caching, reasoning, etc.)
+                const providerOptions = this.buildProviderOptions();
+
                 const result = await streamProcessor.process(() =>
                     streamText({
                         model: this.model,
@@ -241,6 +376,11 @@ export class TurnExecutor {
                         }),
                         ...(this.config.temperature !== undefined && {
                             temperature: this.config.temperature,
+                        }),
+                        // Provider-specific options (caching, reasoning, etc.)
+                        ...(providerOptions !== undefined && {
+                            providerOptions:
+                                providerOptions as import('@ai-sdk/provider').SharedV2ProviderOptions,
                         }),
                         // Log stream-level errors (tool errors, API errors during streaming)
                         onError: (error) => {

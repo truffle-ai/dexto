@@ -5,7 +5,12 @@
 
 import type { CustomModel, CustomModelProvider } from '@dexto/agent-management';
 import { CUSTOM_MODEL_PROVIDERS } from '@dexto/agent-management';
-import { lookupOpenRouterModel, refreshOpenRouterModelCache, getLocalModelById } from '@dexto/core';
+import {
+    lookupOpenRouterModel,
+    refreshOpenRouterModelCache,
+    getLocalModelById,
+    isReasoningCapableModel,
+} from '@dexto/core';
 import type { ProviderConfig, WizardStep } from './types.js';
 import { validators } from './types.js';
 import * as fs from 'fs';
@@ -44,6 +49,29 @@ const DISPLAY_NAME_STEP: WizardStep = {
 };
 
 /**
+ * Common reasoning effort step - for OpenAI reasoning models (o1, o3, codex, gpt-5.x).
+ * Only shown when the model name indicates reasoning capability.
+ */
+const REASONING_EFFORT_STEP: WizardStep = {
+    field: 'reasoningEffort',
+    label: 'Reasoning Effort (optional)',
+    placeholder: 'none | low | medium | high | xhigh (blank for auto)',
+    required: false,
+    validate: (value: string) => {
+        if (!value?.trim()) return null;
+        const validValues = ['none', 'low', 'medium', 'high', 'xhigh'];
+        if (!validValues.includes(value.toLowerCase())) {
+            return `Invalid reasoning effort. Use: ${validValues.join(', ')}`;
+        }
+        return null;
+    },
+    condition: (values) => {
+        const modelName = values.name || '';
+        return isReasoningCapableModel(modelName);
+    },
+};
+
+/**
  * Provider configuration registry.
  * Keys are CustomModelProvider values.
  */
@@ -68,6 +96,7 @@ export const PROVIDER_CONFIGS: Record<CustomModelProvider, ProviderConfig> = {
             },
             { ...DISPLAY_NAME_STEP, placeholder: 'e.g., My Local Llama 3' },
             MAX_INPUT_TOKENS_STEP,
+            REASONING_EFFORT_STEP,
             API_KEY_STEP,
         ],
         buildModel: (values, provider) => {
@@ -83,6 +112,10 @@ export const PROVIDER_CONFIGS: Record<CustomModelProvider, ProviderConfig> = {
             }
             if (values.maxInputTokens?.trim()) {
                 model.maxInputTokens = parseInt(values.maxInputTokens, 10);
+            }
+            if (values.reasoningEffort?.trim()) {
+                model.reasoningEffort =
+                    values.reasoningEffort.toLowerCase() as CustomModel['reasoningEffort'];
             }
             return model;
         },
@@ -100,6 +133,7 @@ export const PROVIDER_CONFIGS: Record<CustomModelProvider, ProviderConfig> = {
                 validate: validators.slashFormat,
             },
             { ...DISPLAY_NAME_STEP, placeholder: 'e.g., Claude 3.5 Sonnet' },
+            REASONING_EFFORT_STEP,
             {
                 ...API_KEY_STEP,
                 placeholder: 'Saved as OPENROUTER_API_KEY if not set, otherwise per-model',
@@ -112,6 +146,10 @@ export const PROVIDER_CONFIGS: Record<CustomModelProvider, ProviderConfig> = {
             };
             if (values.displayName?.trim()) {
                 model.displayName = values.displayName.trim();
+            }
+            if (values.reasoningEffort?.trim()) {
+                model.reasoningEffort =
+                    values.reasoningEffort.toLowerCase() as CustomModel['reasoningEffort'];
             }
             return model;
         },
@@ -152,6 +190,7 @@ export const PROVIDER_CONFIGS: Record<CustomModelProvider, ProviderConfig> = {
                 validate: validators.slashFormat,
             },
             { ...DISPLAY_NAME_STEP, placeholder: 'e.g., GPT-4o via Glama' },
+            REASONING_EFFORT_STEP,
             {
                 ...API_KEY_STEP,
                 placeholder: 'Saved as GLAMA_API_KEY if not set, otherwise per-model',
@@ -164,6 +203,10 @@ export const PROVIDER_CONFIGS: Record<CustomModelProvider, ProviderConfig> = {
             };
             if (values.displayName?.trim()) {
                 model.displayName = values.displayName.trim();
+            }
+            if (values.reasoningEffort?.trim()) {
+                model.reasoningEffort =
+                    values.reasoningEffort.toLowerCase() as CustomModel['reasoningEffort'];
             }
             return model;
         },
@@ -189,6 +232,7 @@ export const PROVIDER_CONFIGS: Record<CustomModelProvider, ProviderConfig> = {
             },
             { ...DISPLAY_NAME_STEP, placeholder: 'e.g., My LiteLLM GPT-4' },
             MAX_INPUT_TOKENS_STEP,
+            REASONING_EFFORT_STEP,
             {
                 ...API_KEY_STEP,
                 placeholder: 'Saved as LITELLM_API_KEY if not set, otherwise per-model',
@@ -207,6 +251,10 @@ export const PROVIDER_CONFIGS: Record<CustomModelProvider, ProviderConfig> = {
             }
             if (values.maxInputTokens?.trim()) {
                 model.maxInputTokens = parseInt(values.maxInputTokens, 10);
+            }
+            if (values.reasoningEffort?.trim()) {
+                model.reasoningEffort =
+                    values.reasoningEffort.toLowerCase() as CustomModel['reasoningEffort'];
             }
             return model;
         },

@@ -17,7 +17,12 @@ import {
 import { Box, Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
 import type { DextoAgent, LLMProvider } from '@dexto/core';
-import { listOllamaModels, DEFAULT_OLLAMA_URL, getLocalModelById } from '@dexto/core';
+import {
+    listOllamaModels,
+    DEFAULT_OLLAMA_URL,
+    getLocalModelById,
+    isReasoningCapableModel,
+} from '@dexto/core';
 import {
     loadCustomModels,
     deleteCustomModel,
@@ -25,13 +30,16 @@ import {
     type CustomModel,
 } from '@dexto/agent-management';
 
+type ReasoningEffort = 'none' | 'low' | 'medium' | 'high' | 'xhigh';
+
 interface ModelSelectorProps {
     isVisible: boolean;
     onSelectModel: (
         provider: LLMProvider,
         model: string,
         displayName?: string,
-        baseURL?: string
+        baseURL?: string,
+        reasoningEffort?: ReasoningEffort
     ) => void;
     onClose: () => void;
     onAddCustomModel: () => void;
@@ -85,6 +93,32 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
     const selectedIndexRef = useRef(selectedIndex);
     const deleteTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+    // Reasoning effort sub-step state
+    const [pendingReasoningModel, setPendingReasoningModel] = useState<ModelOption | null>(null);
+    const [reasoningEffortIndex, setReasoningEffortIndex] = useState(2); // Default to 'medium' (index 2)
+
+    // Reasoning effort options
+    const REASONING_EFFORT_OPTIONS: {
+        value: ReasoningEffort | 'auto';
+        label: string;
+        description: string;
+    }[] = [
+        {
+            value: 'auto',
+            label: 'Auto',
+            description: 'Let the model decide (recommended for most tasks)',
+        },
+        { value: 'none', label: 'None', description: 'No reasoning, fastest responses' },
+        { value: 'low', label: 'Low', description: 'Minimal reasoning, fast responses' },
+        {
+            value: 'medium',
+            label: 'Medium',
+            description: 'Balanced reasoning (OpenAI recommended)',
+        },
+        { value: 'high', label: 'High', description: 'Thorough reasoning for complex tasks' },
+        { value: 'xhigh', label: 'Extra High', description: 'Maximum quality, slower/costlier' },
+    ];
+
     // Keep ref in sync
     selectedIndexRef.current = selectedIndex;
 
@@ -108,6 +142,8 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
         setScrollOffset(0);
         setCustomModelAction(null);
         setPendingDeleteConfirm(false);
+        setPendingReasoningModel(null);
+        setReasoningEffortIndex(0); // Default to 'Auto'
         if (deleteTimeoutRef.current) {
             clearTimeout(deleteTimeoutRef.current);
             deleteTimeoutRef.current = null;
@@ -355,6 +391,42 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
             handleInput: (input: string, key: Key): boolean => {
                 if (!isVisible) return false;
 
+                // Handle reasoning effort sub-step
+                if (pendingReasoningModel) {
+                    if (key.escape) {
+                        // Go back to model selection
+                        setPendingReasoningModel(null);
+                        return true;
+                    }
+                    if (key.upArrow) {
+                        setReasoningEffortIndex((prev) =>
+                            prev > 0 ? prev - 1 : REASONING_EFFORT_OPTIONS.length - 1
+                        );
+                        return true;
+                    }
+                    if (key.downArrow) {
+                        setReasoningEffortIndex((prev) =>
+                            prev < REASONING_EFFORT_OPTIONS.length - 1 ? prev + 1 : 0
+                        );
+                        return true;
+                    }
+                    if (key.return) {
+                        const selectedOption = REASONING_EFFORT_OPTIONS[reasoningEffortIndex];
+                        const reasoningEffort =
+                            selectedOption?.value === 'auto' ? undefined : selectedOption?.value;
+                        onSelectModel(
+                            pendingReasoningModel.provider,
+                            pendingReasoningModel.name,
+                            pendingReasoningModel.displayName,
+                            pendingReasoningModel.baseURL,
+                            reasoningEffort
+                        );
+                        setPendingReasoningModel(null);
+                        return true;
+                    }
+                    return true; // Consume all input in reasoning effort mode
+                }
+
                 // Escape always works
                 if (key.escape) {
                     // If in action mode, just clear it first
@@ -519,7 +591,13 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                             return true;
                         }
 
-                        // Normal selection
+                        // Normal selection - check if reasoning-capable
+                        if (isReasoningCapableModel(item.name)) {
+                            // Show reasoning effort sub-step
+                            setPendingReasoningModel(item);
+                            setReasoningEffortIndex(0); // Default to 'Auto'
+                            return true;
+                        }
                         onSelectModel(item.provider, item.name, item.displayName, item.baseURL);
                         return true;
                     }
@@ -539,6 +617,9 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
             pendingDeleteConfirm,
             customModels,
             handleDeleteCustomModel,
+            pendingReasoningModel,
+            reasoningEffortIndex,
+            REASONING_EFFORT_OPTIONS,
         ]
     );
 
@@ -548,6 +629,45 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
         return (
             <Box paddingX={0} paddingY={0}>
                 <Text color="gray">Loading models...</Text>
+            </Box>
+        );
+    }
+
+    // Reasoning effort sub-step UI
+    if (pendingReasoningModel) {
+        return (
+            <Box flexDirection="column">
+                <Box paddingX={0} paddingY={0}>
+                    <Text color="cyan" bold>
+                        Configure Reasoning Effort
+                    </Text>
+                </Box>
+                <Box paddingX={0} paddingY={0}>
+                    <Text color="gray">
+                        for {pendingReasoningModel.displayName || pendingReasoningModel.name}
+                    </Text>
+                </Box>
+                <Box paddingX={0} paddingY={0}>
+                    <Text color="gray">↑↓ navigate, Enter select, Esc back</Text>
+                </Box>
+                <Box paddingX={0} paddingY={0}>
+                    <Text color="gray">{'─'.repeat(50)}</Text>
+                </Box>
+                {REASONING_EFFORT_OPTIONS.map((option, index) => {
+                    const isSelected = index === reasoningEffortIndex;
+                    return (
+                        <Box key={option.value} paddingX={0} paddingY={0}>
+                            <Text color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>
+                                {isSelected ? '› ' : '  '}
+                                {option.label}
+                            </Text>
+                            <Text color={isSelected ? 'white' : 'gray'}>
+                                {' '}
+                                - {option.description}
+                            </Text>
+                        </Box>
+                    );
+                })}
             </Box>
         );
     }
