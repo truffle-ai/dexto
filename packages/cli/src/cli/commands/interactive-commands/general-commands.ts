@@ -57,7 +57,7 @@ async function executeShellCommand(
 
         child.on('close', (code: number | null) => {
             clearTimeout(timer);
-            resolve({ stdout, stderr, exitCode: code ?? 0 });
+            resolve({ stdout, stderr, exitCode: code ?? -1 });
         });
     });
 }
