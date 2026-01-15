@@ -53,18 +53,29 @@ export interface OAuthResult {
         | undefined;
 }
 
+// Fixed port for OAuth callback - must match Supabase redirect URL config
+const OAUTH_CALLBACK_PORT = 48102;
+
 /**
- * Find available port for local callback server
+ * Check if fixed port is available, throw if not
  */
-function findAvailablePort(): Promise<number> {
+function ensurePortAvailable(port: number): Promise<number> {
     return new Promise((resolve, reject) => {
         const server = http.createServer();
-        server.listen(0, () => {
-            const address = server.address();
-            const port = typeof address === 'object' && address ? address.port : 0;
+        server.listen(port, () => {
             server.close(() => resolve(port));
         });
-        server.on('error', reject);
+        server.on('error', (err: NodeJS.ErrnoException) => {
+            if (err.code === 'EADDRINUSE') {
+                reject(
+                    new Error(
+                        `Port ${port} is already in use. Please close the application using it and try again.`
+                    )
+                );
+            } else {
+                reject(err);
+            }
+        });
     });
 }
 
@@ -295,7 +306,7 @@ function startCallbackServer(port: number, config: OAuthConfig): Promise<OAuthRe
  */
 export async function performOAuthLogin(config: OAuthConfig): Promise<OAuthResult> {
     try {
-        const port = await findAvailablePort();
+        const port = await ensurePortAvailable(OAUTH_CALLBACK_PORT);
         const redirectUri = `http://localhost:${port}`;
 
         oauthStateStore.set(port, 'active');

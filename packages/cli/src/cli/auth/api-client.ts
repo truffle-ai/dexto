@@ -80,13 +80,17 @@ export class DextoApiClient {
 
     /**
      * Provision Dexto API key (get existing or create new with given name)
+     * @param regenerate - If true, delete existing key and create new one
      */
     async provisionDextoApiKey(
         authToken: string,
-        name: string = 'Dexto CLI Key'
+        name: string = 'Dexto CLI Key',
+        regenerate: boolean = false
     ): Promise<{ dextoApiKey: string; keyId: string; isNewKey: boolean }> {
         try {
-            logger.debug(`Provisioning DEXTO_API_KEY with name: ${name}`);
+            logger.debug(
+                `Provisioning DEXTO_API_KEY with name: ${name}, regenerate: ${regenerate}`
+            );
 
             const response = await fetch(`${this.baseUrl}/keys/provision`, {
                 method: 'POST',
@@ -94,7 +98,7 @@ export class DextoApiClient {
                     Authorization: `Bearer ${authToken}`,
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ name }),
+                body: JSON.stringify({ name, regenerate }),
             });
 
             if (!response.ok) {

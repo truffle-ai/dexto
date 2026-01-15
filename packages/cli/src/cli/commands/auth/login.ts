@@ -179,16 +179,16 @@ async function verifyToken(token: string): Promise<boolean> {
  * Returns the env var and path for display purposes
  */
 async function saveDextoApiKey(apiKey: string): Promise<{ envVar: string; targetEnvPath: string }> {
-    const { getDextoGlobalPath } = await import('@dexto/core');
+    const { getDextoEnvPath, ensureDextoGlobalDirectory } = await import('@dexto/core');
     const path = await import('path');
     const fs = await import('fs/promises');
 
     const envVar = 'DEXTO_API_KEY';
-    const dextoDir = getDextoGlobalPath('base');
-    const targetEnvPath = path.join(dextoDir, '.env');
+    const targetEnvPath = getDextoEnvPath();
 
     // Ensure directory exists
-    await fs.mkdir(dextoDir, { recursive: true });
+    await ensureDextoGlobalDirectory();
+    await fs.mkdir(path.dirname(targetEnvPath), { recursive: true });
 
     // Read existing .env or create empty
     let envContent = '';
@@ -273,20 +273,22 @@ async function provisionKeys(authToken: string, _userEmail?: string): Promise<vo
 
         // 2. No local key - provision one
         console.log(chalk.cyan('🔑 Provisioning Dexto API key...'));
-        const provisionResult = await apiClient.provisionDextoApiKey(authToken);
+        let provisionResult = await apiClient.provisionDextoApiKey(authToken);
 
         if (!auth) {
             throw new Error('Authentication state not found');
         }
 
-        // If key already exists server-side, we won't get the key value back
+        // If key already exists server-side but we don't have it locally, regenerate it
         if (!provisionResult.isNewKey) {
             console.log(
-                chalk.yellow('⚠️  CLI key already exists on server but not stored locally')
+                chalk.yellow('⚠️  CLI key exists on server but not locally, regenerating...')
             );
-            console.log(chalk.dim('   You may need to regenerate your key from the dashboard'));
-            console.log(chalk.dim(`   Key ID: ${provisionResult.keyId}`));
-            return;
+            provisionResult = await apiClient.provisionDextoApiKey(
+                authToken,
+                'Dexto CLI Key',
+                true
+            );
         }
 
         await storeAuth({
