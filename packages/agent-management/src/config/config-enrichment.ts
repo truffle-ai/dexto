@@ -15,10 +15,10 @@
 import { getDextoPath } from '../utils/path.js';
 import type { AgentConfig } from '@dexto/core';
 import * as path from 'path';
-import { discoverCommandPrompts } from './discover-prompts.js';
+import { discoverCommandPrompts, discoverAgentInstructionFile } from './discover-prompts.js';
 
 // Re-export for backwards compatibility
-export { discoverCommandPrompts } from './discover-prompts.js';
+export { discoverCommandPrompts, discoverAgentInstructionFile } from './discover-prompts.js';
 
 /**
  * Derives an agent ID from config or file path for per-agent isolation.
@@ -199,6 +199,59 @@ export function enrichAgentConfig(
         );
 
         enriched.prompts = [...existingPrompts, ...filteredDiscovered];
+    }
+
+    // Discover agent instruction file (agent.md, claude.md, gemini.md) in cwd
+    // Add as a file contributor to system prompt if found
+    const instructionFile = discoverAgentInstructionFile();
+    if (instructionFile) {
+        // Add file contributor to system prompt config
+        // Use a low priority (5) so it runs early but after any base prompt
+        const fileContributor = {
+            id: 'discovered-instructions',
+            type: 'file' as const,
+            priority: 5,
+            enabled: true,
+            files: [instructionFile],
+            options: {
+                includeFilenames: true,
+                errorHandling: 'skip' as const,
+                maxFileSize: 100000,
+            },
+        };
+
+        // Handle different systemPrompt config shapes
+        if (!config.systemPrompt) {
+            // No system prompt - create one with just the file contributor
+            enriched.systemPrompt = {
+                contributors: [fileContributor],
+            };
+        } else if (typeof config.systemPrompt === 'string') {
+            // String system prompt - convert to object with both static and file contributors
+            enriched.systemPrompt = {
+                contributors: [
+                    {
+                        id: 'inline',
+                        type: 'static' as const,
+                        content: config.systemPrompt,
+                        priority: 0,
+                        enabled: true,
+                    },
+                    fileContributor,
+                ],
+            };
+        } else if ('contributors' in config.systemPrompt) {
+            // Already structured - add file contributor if not already present
+            const existingContributors = config.systemPrompt.contributors ?? [];
+            const hasDiscoveredInstructions = existingContributors.some(
+                (c) => c.id === 'discovered-instructions'
+            );
+            if (!hasDiscoveredInstructions) {
+                enriched.systemPrompt = {
+                    contributors: [...existingContributors, fileContributor],
+                };
+            }
+        }
     }
 
     return enriched;

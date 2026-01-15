@@ -118,3 +118,34 @@ function scanCommandsDirectory(dir: string): string[] {
     }
     return files;
 }
+
+/**
+ * Agent instruction file names to discover (in priority order)
+ * First found file wins - only one file is used
+ */
+const AGENT_INSTRUCTION_FILES = ['agent.md', 'claude.md', 'gemini.md'] as const;
+
+/**
+ * Discovers agent instruction files from the current working directory.
+ *
+ * Looks for files in this order of priority:
+ * 1. agent.md
+ * 2. claude.md
+ * 3. gemini.md
+ *
+ * Only the first found file is returned (we don't want multiple instruction files).
+ *
+ * @returns The absolute path to the first found instruction file, or null if none found
+ */
+export function discoverAgentInstructionFile(): string | null {
+    const cwd = process.cwd();
+
+    for (const filename of AGENT_INSTRUCTION_FILES) {
+        const filePath = path.join(cwd, filename);
+        if (existsSync(filePath)) {
+            return filePath;
+        }
+    }
+
+    return null;
+}

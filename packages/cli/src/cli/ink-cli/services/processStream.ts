@@ -90,7 +90,10 @@ export interface ProcessStreamOptions {
 interface StreamState {
     messageId: string | null;
     content: string;
-    outputTokens: number;
+    /** Input tokens from most recent LLM response (replaced, not summed) */
+    lastInputTokens: number;
+    /** Cumulative output tokens across all LLM responses in this turn */
+    cumulativeOutputTokens: number;
     /** Content that has been finalized (moved to Static) */
     finalizedContent: string;
     /** Counter for generating unique IDs for split messages */
@@ -136,7 +139,8 @@ export async function processStream(
     const state: StreamState = {
         messageId: null,
         content: '',
-        outputTokens: 0,
+        lastInputTokens: 0,
+        cumulativeOutputTokens: 0,
         finalizedContent: '',
         splitCounter: 0,
         textFinalizedBeforeTool: false,
@@ -345,7 +349,8 @@ export async function processStream(
                     setUi((prev) => ({ ...prev, isThinking: true }));
                     state.messageId = null;
                     state.content = '';
-                    state.outputTokens = 0;
+                    state.lastInputTokens = 0;
+                    state.cumulativeOutputTokens = 0;
                     state.finalizedContent = '';
                     state.splitCounter = 0;
                     state.textFinalizedBeforeTool = false;
@@ -428,9 +433,18 @@ export async function processStream(
                         setUi((prev) => ({ ...prev, isThinking: false }));
                     }
 
-                    // Accumulate token usage
-                    if (event.tokenUsage?.outputTokens) {
-                        state.outputTokens += event.tokenUsage.outputTokens;
+                    // Track token usage: replace input (last context), accumulate output
+                    // Subtract cacheWriteTokens to exclude system prompt on first call
+                    if (event.tokenUsage) {
+                        const rawInputTokens = event.tokenUsage.inputTokens ?? 0;
+                        const cacheWriteTokens = event.tokenUsage.cacheWriteTokens ?? 0;
+                        const inputTokens = Math.max(0, rawInputTokens - cacheWriteTokens);
+                        if (inputTokens > 0) {
+                            state.lastInputTokens = inputTokens;
+                        }
+                        if (event.tokenUsage.outputTokens) {
+                            state.cumulativeOutputTokens += event.tokenUsage.outputTokens;
+                        }
                     }
 
                     // Track token usage analytics
@@ -720,7 +734,8 @@ export async function processStream(
 
                 case 'run:complete': {
                     const { durationMs } = event;
-                    const { outputTokens } = state;
+                    // Total = lastInput + cumulativeOutput (avoids double-counting shared context)
+                    const totalTokens = state.lastInputTokens + state.cumulativeOutputTokens;
 
                     // Ensure any remaining pending messages are finalized
                     finalizeAllPending();
@@ -729,7 +744,7 @@ export async function processStream(
                     // IMPORTANT: Ink's <Static> tracks rendered items by array position, not key.
                     // Inserting in the middle shifts existing items, causing them to re-render.
                     // Always append to avoid duplicate rendering.
-                    if (durationMs > 0 || outputTokens > 0) {
+                    if (durationMs > 0 || totalTokens > 0) {
                         const summaryMessage = {
                             id: generateMessageId('summary'),
                             role: 'system' as const,
@@ -738,7 +753,7 @@ export async function processStream(
                             styledType: 'run-summary' as const,
                             styledData: {
                                 durationMs,
-                                outputTokens,
+                                totalTokens,
                             },
                         };
 
