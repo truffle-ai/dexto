@@ -79,20 +79,22 @@ export class DextoApiClient {
     }
 
     /**
-     * Rotate Dexto API key (revoke old and create new)
+     * Provision Dexto API key (get existing or create new with given name)
      */
-    async rotateDextoApiKey(
-        authToken: string
+    async provisionDextoApiKey(
+        authToken: string,
+        name: string = 'Dexto CLI Key'
     ): Promise<{ dextoApiKey: string; keyId: string; isNewKey: boolean }> {
         try {
-            logger.debug('Rotating DEXTO_API_KEY');
+            logger.debug(`Provisioning DEXTO_API_KEY with name: ${name}`);
 
-            const response = await fetch(`${this.baseUrl}/keys/rotate`, {
+            const response = await fetch(`${this.baseUrl}/keys/provision`, {
                 method: 'POST',
                 headers: {
                     Authorization: `Bearer ${authToken}`,
                     'Content-Type': 'application/json',
                 },
+                body: JSON.stringify({ name }),
             });
 
             if (!response.ok) {
@@ -103,21 +105,36 @@ export class DextoApiClient {
             const result: ProvisionResponse = await response.json();
 
             if (!result.success) {
-                throw new Error(result.error || 'Failed to rotate Dexto API key');
+                throw new Error(result.error || 'Failed to provision Dexto API key');
             }
 
-            if (!result.dextoApiKey || !result.keyId) {
+            if (!result.keyId) {
                 throw new Error('Invalid response from API');
             }
 
-            logger.debug(`Successfully rotated DEXTO_API_KEY: ${result.keyId}`);
+            // If isNewKey is false, the key already exists (we don't get the key value back)
+            // This is expected - the key was already provisioned
+            if (!result.isNewKey && !result.dextoApiKey) {
+                logger.debug(`DEXTO_API_KEY already exists: ${result.keyId}`);
+                return {
+                    dextoApiKey: '', // Empty - key already exists, not returned for security
+                    keyId: result.keyId,
+                    isNewKey: false,
+                };
+            }
+
+            if (!result.dextoApiKey) {
+                throw new Error('Invalid response from API - missing key');
+            }
+
+            logger.debug(`Successfully provisioned DEXTO_API_KEY: ${result.keyId}`);
             return {
                 dextoApiKey: result.dextoApiKey,
                 keyId: result.keyId,
                 isNewKey: result.isNewKey ?? true,
             };
         } catch (error) {
-            logger.error(`Error rotating Dexto API key: ${error}`);
+            logger.error(`Error provisioning Dexto API key: ${error}`);
             throw error;
         }
     }

@@ -238,25 +238,29 @@ async function provisionKeys(authToken: string, _userEmail?: string): Promise<vo
                     return; // All good, we're done
                 }
 
-                // Key is invalid - need to rotate
-                console.log(chalk.yellow('⚠️  Existing key is invalid, rotating...'));
-                const rotateResult = await apiClient.rotateDextoApiKey(authToken);
+                // Key is invalid - need new one
+                console.log(chalk.yellow('⚠️  Existing key is invalid, provisioning new one...'));
+                const provisionResult = await apiClient.provisionDextoApiKey(authToken);
 
                 if (!auth) {
                     throw new Error('Authentication state not found');
                 }
 
+                if (!provisionResult.dextoApiKey) {
+                    throw new Error('Failed to get new API key');
+                }
+
                 await storeAuth({
                     ...auth,
-                    dextoApiKey: rotateResult.dextoApiKey,
-                    dextoKeyId: rotateResult.keyId,
+                    dextoApiKey: provisionResult.dextoApiKey,
+                    dextoKeyId: provisionResult.keyId,
                 });
 
                 // Persist to ~/.dexto/.env
-                await saveDextoApiKey(rotateResult.dextoApiKey);
+                await saveDextoApiKey(provisionResult.dextoApiKey);
 
-                console.log(chalk.green('✅ New key provisioned after rotation'));
-                console.log(chalk.dim(`   Key ID: ${rotateResult.keyId}`));
+                console.log(chalk.green('✅ New key provisioned'));
+                console.log(chalk.dim(`   Key ID: ${provisionResult.keyId}`));
                 return;
             } catch (error) {
                 // Validation or rotation failed - this is a critical error
@@ -267,26 +271,35 @@ async function provisionKeys(authToken: string, _userEmail?: string): Promise<vo
             }
         }
 
-        // 2. No local key or key is invalid - get a new one via rotate
-        // (rotate works whether a server key exists or not)
+        // 2. No local key - provision one
         console.log(chalk.cyan('🔑 Provisioning Dexto API key...'));
-        const rotateResult = await apiClient.rotateDextoApiKey(authToken);
+        const provisionResult = await apiClient.provisionDextoApiKey(authToken);
 
         if (!auth) {
             throw new Error('Authentication state not found');
         }
 
+        // If key already exists server-side, we won't get the key value back
+        if (!provisionResult.isNewKey) {
+            console.log(
+                chalk.yellow('⚠️  CLI key already exists on server but not stored locally')
+            );
+            console.log(chalk.dim('   You may need to regenerate your key from the dashboard'));
+            console.log(chalk.dim(`   Key ID: ${provisionResult.keyId}`));
+            return;
+        }
+
         await storeAuth({
             ...auth,
-            dextoApiKey: rotateResult.dextoApiKey,
-            dextoKeyId: rotateResult.keyId,
+            dextoApiKey: provisionResult.dextoApiKey,
+            dextoKeyId: provisionResult.keyId,
         });
 
         // Persist to ~/.dexto/.env
-        const { envVar, targetEnvPath } = await saveDextoApiKey(rotateResult.dextoApiKey);
+        const { envVar, targetEnvPath } = await saveDextoApiKey(provisionResult.dextoApiKey);
 
         console.log(chalk.green('✅ Dexto API key provisioned!'));
-        console.log(chalk.dim(`   Key ID: ${rotateResult.keyId}`));
+        console.log(chalk.dim(`   Key ID: ${provisionResult.keyId}`));
         console.log(chalk.dim(`   Saved ${envVar} to ${targetEnvPath}`));
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
