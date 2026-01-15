@@ -1,5 +1,5 @@
 ---
-'@dexto/core': minor
+'@dexto/core': patch
 'dexto': patch
 '@dexto/agent-management': patch
 '@dexto/server': patch
