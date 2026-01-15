@@ -3190,6 +3190,18 @@
                           },
                           "description": "MIME type patterns for media expansion (e.g., \"image/*\", \"application/pdf\"). If omitted, uses model capabilities from registry. Supports wildcards."
                         },
+                        "reasoningEffort": {
+                          "type": "string",
+                          "enum": [
+                            "none",
+                            "minimal",
+                            "low",
+                            "medium",
+                            "high",
+                            "xhigh"
+                          ],
+                          "description": "OpenAI reasoning effort level for reasoning models (o1, o3, codex). Options: 'none', 'minimal', 'low', 'medium' (recommended), 'high', 'xhigh'"
+                        },
                         "hasApiKey": {
                           "type": "boolean",
                           "description": "Whether an API key is configured"
@@ -5364,6 +5376,18 @@
                           "type": "string"
                         },
                         "description": "MIME type patterns for media expansion (e.g., \"image/*\", \"application/pdf\"). If omitted, uses model capabilities from registry. Supports wildcards."
+                      },
+                      "reasoningEffort": {
+                        "type": "string",
+                        "enum": [
+                          "none",
+                          "minimal",
+                          "low",
+                          "medium",
+                          "high",
+                          "xhigh"
+                        ],
+                        "description": "OpenAI reasoning effort level for reasoning models (o1, o3, codex). Options: 'none', 'minimal', 'low', 'medium' (recommended), 'high', 'xhigh'"
                       }
                     }
                   },
@@ -5453,6 +5477,18 @@
                           },
                           "description": "MIME type patterns for media expansion (e.g., \"image/*\", \"application/pdf\"). If omitted, uses model capabilities from registry. Supports wildcards."
                         },
+                        "reasoningEffort": {
+                          "type": "string",
+                          "enum": [
+                            "none",
+                            "minimal",
+                            "low",
+                            "medium",
+                            "high",
+                            "xhigh"
+                          ],
+                          "description": "OpenAI reasoning effort level for reasoning models (o1, o3, codex). Options: 'none', 'minimal', 'low', 'medium' (recommended), 'high', 'xhigh'"
+                        },
                         "hasApiKey": {
                           "type": "boolean",
                           "description": "Whether an API key is configured"
@@ -5541,6 +5577,17 @@
                           },
                           "filePath": {
                             "type": "string"
+                          },
+                          "reasoningEffort": {
+                            "type": "string",
+                            "enum": [
+                              "none",
+                              "minimal",
+                              "low",
+                              "medium",
+                              "high",
+                              "xhigh"
+                            ]
                           }
                         },
                         "required": [
@@ -5611,6 +5658,17 @@
                   },
                   "filePath": {
                     "type": "string"
+                  },
+                  "reasoningEffort": {
+                    "type": "string",
+                    "enum": [
+                      "none",
+                      "minimal",
+                      "low",
+                      "medium",
+                      "high",
+                      "xhigh"
+                    ]
                   }
                 },
                 "required": [
@@ -5678,6 +5736,17 @@
                         },
                         "filePath": {
                           "type": "string"
+                        },
+                        "reasoningEffort": {
+                          "type": "string",
+                          "enum": [
+                            "none",
+                            "minimal",
+                            "low",
+                            "medium",
+                            "high",
+                            "xhigh"
+                          ]
                         }
                       },
                       "required": [
