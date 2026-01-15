@@ -44,7 +44,7 @@ export default defineImage({
             register: async () => {
                 const { fileSystemToolsProvider } = await import('@dexto/tools-filesystem');
                 const { processToolsProvider } = await import('@dexto/tools-process');
-                const { agentSpawnerToolsProvider } = await import('@dexto/tools-agent-spawner');
+                const { agentSpawnerToolsProvider } = await import('@dexto/agent-management');
                 const { customToolRegistry } = await import('@dexto/core');
 
                 customToolRegistry.register(fileSystemToolsProvider);

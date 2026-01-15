@@ -20,9 +20,7 @@ Use this tool when you need to:
 - Parallelize work by spawning multiple agents (call multiple times)
 
 The sub-agent has its own conversation context and will complete the task independently.
-Tool approval requests from the sub-agent will be routed to you for approval.
-
-By default, sub-agents are ephemeral (destroyed after task completion). Set ephemeral=false to keep them for multiple tasks.`,
+Tool approval requests from the sub-agent will be routed to you for approval.`,
 
         inputSchema: SpawnAgentInputSchema,
 
@@ -33,16 +31,12 @@ By default, sub-agents are ephemeral (destroyed after task completion). Set ephe
             const options: {
                 task: string;
                 systemPrompt?: string;
-                ephemeral?: boolean;
                 timeout?: number;
             } = {
                 task: validatedInput.task,
             };
             if (validatedInput.systemPrompt !== undefined) {
                 options.systemPrompt = validatedInput.systemPrompt;
-            }
-            if (validatedInput.ephemeral !== undefined) {
-                options.ephemeral = validatedInput.ephemeral;
             }
             if (validatedInput.timeout !== undefined) {
                 options.timeout = validatedInput.timeout;

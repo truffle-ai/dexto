@@ -2,28 +2,20 @@
  * RuntimeService - Bridge between tools and AgentRuntime
  *
  * Manages the relationship between a parent agent and its sub-agents,
- * providing methods that tools can call to spawn, execute tasks, and manage sub-agents.
+ * providing methods that tools can call to spawn and execute tasks.
  *
  * This service adds parent-child semantics on top of the general-purpose AgentRuntime:
  * - Uses `group` to associate spawned agents with the parent
  * - Wires up approval delegation so sub-agent tool requests go to parent
  * - Enforces per-parent agent limits
+ * - Always cleans up agents after task completion (synchronous model)
  */
 
 import type { DextoAgent, IDextoLogger, AgentConfig } from '@dexto/core';
-import {
-    AgentRuntime,
-    createDelegatingApprovalHandler,
-    type AgentHandle,
-} from '@dexto/agent-management';
+import { AgentRuntime } from '../runtime/AgentRuntime.js';
+import { createDelegatingApprovalHandler } from '../runtime/approval-delegation.js';
 import type { AgentSpawnerConfig } from './schemas.js';
-import type {
-    SpawnAgentOutput,
-    DelegateTaskOutput,
-    GetAgentStatusOutput,
-    ListAgentsOutput,
-    StopAgentOutput,
-} from './types.js';
+import type { SpawnAgentOutput } from './types.js';
 
 export class RuntimeService {
     private runtime: AgentRuntime;
@@ -73,12 +65,11 @@ export class RuntimeService {
      * Spawn a sub-agent and execute a task
      *
      * This is the main method for the spawn_agent tool.
-     * It creates a sub-agent, executes the task, and optionally cleans up.
+     * It creates a sub-agent, executes the task, and cleans up after completion.
      */
     async spawnAndExecute(input: {
         task: string;
         systemPrompt?: string;
-        ephemeral?: boolean;
         timeout?: number;
     }): Promise<SpawnAgentOutput> {
         // Check if spawning is enabled
@@ -86,7 +77,6 @@ export class RuntimeService {
             return {
                 success: false,
                 error: 'Agent spawning is disabled in configuration',
-                agentId: '',
             };
         }
 
@@ -95,12 +85,12 @@ export class RuntimeService {
             return {
                 success: false,
                 error: `Maximum sub-agents limit (${this.config.maxConcurrentAgents}) reached for this parent`,
-                agentId: '',
             };
         }
 
-        const ephemeral = input.ephemeral ?? true;
         const timeout = input.timeout ?? this.config.defaultTimeout;
+
+        let agentId: string | undefined;
 
         try {
             // Build sub-agent config based on parent config
@@ -110,7 +100,7 @@ export class RuntimeService {
             // Wire up approval delegation in onBeforeStart (before agent.start())
             const handle = await this.runtime.spawnAgent({
                 agentConfig: subAgentConfig,
-                ephemeral,
+                ephemeral: true,
                 group: this.parentId,
                 metadata: {
                     parentId: this.parentId,
@@ -128,27 +118,15 @@ export class RuntimeService {
                 },
             });
 
-            this.logger.info(`Spawned sub-agent '${handle.agentId}' for parent '${this.parentId}'`);
+            agentId = handle.agentId;
+            this.logger.info(`Spawned sub-agent '${agentId}' for parent '${this.parentId}'`);
 
             // Execute the task
-            const result = await this.runtime.executeTask(handle.agentId, input.task, timeout);
+            const result = await this.runtime.executeTask(agentId, input.task, timeout);
 
-            // If ephemeral and failed, clean up (successful ephemeral agents auto-cleanup)
-            if (ephemeral && !result.success) {
-                try {
-                    await this.runtime.stopAgent(handle.agentId);
-                } catch {
-                    // Ignore cleanup errors
-                }
-            }
-
-            // Build output - only include optional properties if they have values
+            // Build output
             const output: SpawnAgentOutput = {
                 success: result.success,
-                agentId: handle.agentId,
-                summary: result.success
-                    ? `Sub-agent completed task successfully`
-                    : `Sub-agent failed: ${result.error}`,
             };
             if (result.response !== undefined) {
                 output.response = result.response;
@@ -164,157 +142,16 @@ export class RuntimeService {
             return {
                 success: false,
                 error: errorMessage,
-                agentId: '',
             };
-        }
-    }
-
-    /**
-     * Delegate a task to an existing (persistent) sub-agent
-     */
-    async delegateTask(
-        agentId: string,
-        task: string,
-        timeout?: number
-    ): Promise<DelegateTaskOutput> {
-        // Check if agent exists
-        const handle = this.runtime.getAgent(agentId);
-        if (!handle) {
-            return {
-                success: false,
-                error: `Sub-agent '${agentId}' not found`,
-                agentId,
-            };
-        }
-
-        // Check if agent belongs to this parent
-        if (handle.group !== this.parentId) {
-            return {
-                success: false,
-                error: `Sub-agent '${agentId}' does not belong to this parent`,
-                agentId,
-            };
-        }
-
-        try {
-            const result = await this.runtime.executeTask(
-                agentId,
-                task,
-                timeout ?? this.config.defaultTimeout
-            );
-
-            // Build output - only include optional properties if they have values
-            const output: DelegateTaskOutput = {
-                success: result.success,
-                agentId,
-            };
-            if (result.response !== undefined) {
-                output.response = result.response;
+        } finally {
+            // Always clean up the agent after task completion
+            if (agentId) {
+                try {
+                    await this.runtime.stopAgent(agentId);
+                } catch {
+                    // Ignore cleanup errors
+                }
             }
-            if (result.error !== undefined) {
-                output.error = result.error;
-            }
-            return output;
-        } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            return {
-                success: false,
-                error: errorMessage,
-                agentId,
-            };
-        }
-    }
-
-    /**
-     * Get the status of a specific sub-agent
-     */
-    getStatus(agentId: string): GetAgentStatusOutput {
-        const handle = this.runtime.getAgent(agentId);
-
-        if (!handle) {
-            return {
-                found: false,
-                agentId,
-                error: `Sub-agent '${agentId}' not found`,
-            };
-        }
-
-        // Check if agent belongs to this parent
-        if (handle.group !== this.parentId) {
-            return {
-                found: false,
-                agentId,
-                error: `Sub-agent '${agentId}' does not belong to this parent`,
-            };
-        }
-
-        return {
-            found: true,
-            agentId,
-            status: handle.status,
-            ephemeral: handle.ephemeral,
-            createdAt: handle.createdAt.toISOString(),
-        };
-    }
-
-    /**
-     * List all sub-agents for this parent
-     */
-    listAgents(): ListAgentsOutput {
-        const subAgents = this.runtime.listAgents({ group: this.parentId });
-
-        return {
-            agents: subAgents.map((handle) => ({
-                agentId: handle.agentId,
-                status: handle.status,
-                ephemeral: handle.ephemeral,
-                createdAt: handle.createdAt.toISOString(),
-            })),
-            count: subAgents.length,
-        };
-    }
-
-    /**
-     * Stop a specific sub-agent
-     */
-    async stopAgent(agentId: string): Promise<StopAgentOutput> {
-        const handle = this.runtime.getAgent(agentId);
-
-        if (!handle) {
-            return {
-                success: false,
-                agentId,
-                message: 'Agent not found',
-                error: `Sub-agent '${agentId}' not found`,
-            };
-        }
-
-        // Check if agent belongs to this parent
-        if (handle.group !== this.parentId) {
-            return {
-                success: false,
-                agentId,
-                message: 'Access denied',
-                error: `Sub-agent '${agentId}' does not belong to this parent`,
-            };
-        }
-
-        try {
-            await this.runtime.stopAgent(agentId);
-
-            return {
-                success: true,
-                agentId,
-                message: `Sub-agent '${agentId}' stopped successfully`,
-            };
-        } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            return {
-                success: false,
-                agentId,
-                message: 'Failed to stop agent',
-                error: errorMessage,
-            };
         }
     }
 

@@ -27,10 +27,10 @@
     "process"
   ],
   "dependencies": {
+    "@dexto/agent-management": "workspace:*",
     "@dexto/core": "workspace:*",
     "@dexto/tools-filesystem": "workspace:*",
-    "@dexto/tools-process": "workspace:*",
-    "@dexto/tools-agent-spawner": "workspace:*"
+    "@dexto/tools-process": "workspace:*"
   },
   "devDependencies": {
     "@dexto/image-bundler": "workspace:*",

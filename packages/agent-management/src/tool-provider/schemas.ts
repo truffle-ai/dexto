@@ -57,61 +57,9 @@ export const SpawnAgentInputSchema = z
         /** Optional custom system prompt for the sub-agent */
         systemPrompt: z.string().optional().describe('Custom system prompt for the sub-agent'),
 
-        /** Whether to destroy the agent after task completion (default: true) */
-        ephemeral: z.boolean().default(true).describe('Destroy agent after task completion'),
-
         /** Optional timeout in milliseconds */
         timeout: z.number().int().positive().optional().describe('Task timeout in milliseconds'),
     })
     .strict();
 
 export type SpawnAgentInput = z.output<typeof SpawnAgentInputSchema>;
-
-/**
- * Input schema for delegate_task tool
- */
-export const DelegateTaskInputSchema = z
-    .object({
-        /** ID of the sub-agent to delegate to */
-        agentId: z.string().min(1).describe('ID of the sub-agent'),
-
-        /** Task to execute */
-        task: z.string().min(1).describe('Task to execute'),
-
-        /** Optional timeout in milliseconds */
-        timeout: z.number().int().positive().optional().describe('Task timeout in milliseconds'),
-    })
-    .strict();
-
-export type DelegateTaskInput = z.output<typeof DelegateTaskInputSchema>;
-
-/**
- * Input schema for get_agent_status tool
- */
-export const GetAgentStatusInputSchema = z
-    .object({
-        /** ID of the sub-agent */
-        agentId: z.string().min(1).describe('ID of the sub-agent'),
-    })
-    .strict();
-
-export type GetAgentStatusInput = z.output<typeof GetAgentStatusInputSchema>;
-
-/**
- * Input schema for stop_agent tool
- */
-export const StopAgentInputSchema = z
-    .object({
-        /** ID of the sub-agent to stop */
-        agentId: z.string().min(1).describe('ID of the sub-agent to stop'),
-    })
-    .strict();
-
-export type StopAgentInput = z.output<typeof StopAgentInputSchema>;
-
-/**
- * Input schema for list_agents tool (no parameters needed)
- */
-export const ListAgentsInputSchema = z.object({}).strict();
-
-export type ListAgentsInput = z.output<typeof ListAgentsInputSchema>;

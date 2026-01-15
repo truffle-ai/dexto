@@ -156,3 +156,6 @@ export {
 
 // Multi-Agent Runtime
 export * from './runtime/index.js';
+
+// Agent Spawner Tool Provider
+export * from './tool-provider/index.js';
