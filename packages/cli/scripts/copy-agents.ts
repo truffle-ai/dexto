@@ -16,6 +16,7 @@ const AGENTS_TO_COPY = [
     // Agent directories
     'coding-agent/',
     'database-agent/',
+    'explore-agent/',
     'github-agent/',
     'image-editor-agent/',
     'music-agent/',

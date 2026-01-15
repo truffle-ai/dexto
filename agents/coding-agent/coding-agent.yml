@@ -105,6 +105,14 @@ customTools:
     maxConcurrentAgents: 5
     defaultTimeout: 300000
     allowSpawning: true
+    # Named agent configurations that can be spawned by reference.
+    # Paths are resolved at runtime via resolveBundledScript() - works in both
+    # development (repo root) and installed CLI (dist/agents/) contexts.
+    # Descriptions are shown to the LLM in the spawn_agent tool description.
+    agents:
+      explore:
+        path: "agents/explore-agent/explore-agent.yml"
+        description: "Lightweight Haiku-powered agent with read-only tools (glob, grep, read) for fast codebase exploration and research"
 
 # Internal resources configuration - expanded for coding projects
 internalResources:

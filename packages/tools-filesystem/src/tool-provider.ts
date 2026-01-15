@@ -32,6 +32,18 @@ const DEFAULT_ENABLE_BACKUPS = false;
 const DEFAULT_BACKUP_RETENTION_DAYS = 7;
 
 /**
+ * Available filesystem tool names for enabledTools configuration.
+ */
+const FILESYSTEM_TOOL_NAMES = [
+    'read_file',
+    'write_file',
+    'edit_file',
+    'glob_files',
+    'grep_content',
+] as const;
+type FileSystemToolName = (typeof FILESYSTEM_TOOL_NAMES)[number];
+
+/**
  * Configuration schema for FileSystem tools provider.
  *
  * This is the SINGLE SOURCE OF TRUTH for all configuration:
@@ -85,6 +97,12 @@ const FileSystemToolsConfigSchema = z
             .default(DEFAULT_BACKUP_RETENTION_DAYS)
             .describe(
                 `Number of days to retain backup files (default: ${DEFAULT_BACKUP_RETENTION_DAYS})`
+            ),
+        enabledTools: z
+            .array(z.enum(FILESYSTEM_TOOL_NAMES))
+            .optional()
+            .describe(
+                `Subset of tools to enable. If not specified, all tools are enabled. Available: ${FILESYSTEM_TOOL_NAMES.join(', ')}`
             ),
     })
     .strict();
@@ -169,16 +187,24 @@ export const fileSystemToolsProvider: CustomToolProvider<
             directoryApproval,
         };
 
-        // Create and return all file operation tools
-        // File tools (read, write, edit) support directory approval for external paths
-        // Glob and grep tools don't need directory approval (they only discover files)
-        return [
-            createReadFileTool(fileToolOptions),
-            createWriteFileTool(fileToolOptions),
-            createEditFileTool(fileToolOptions),
-            createGlobFilesTool(fileSystemService),
-            createGrepContentTool(fileSystemService),
-        ];
+        // Build tool map for selective enabling
+        const toolCreators: Record<FileSystemToolName, () => InternalTool> = {
+            read_file: () => createReadFileTool(fileToolOptions),
+            write_file: () => createWriteFileTool(fileToolOptions),
+            edit_file: () => createEditFileTool(fileToolOptions),
+            glob_files: () => createGlobFilesTool(fileSystemService),
+            grep_content: () => createGrepContentTool(fileSystemService),
+        };
+
+        // Determine which tools to create
+        const toolsToCreate = config.enabledTools ?? FILESYSTEM_TOOL_NAMES;
+
+        if (config.enabledTools) {
+            logger.debug(`Creating subset of filesystem tools: ${toolsToCreate.join(', ')}`);
+        }
+
+        // Create and return only the enabled tools
+        return toolsToCreate.map((toolName) => toolCreators[toolName]());
     },
 
     metadata: {
