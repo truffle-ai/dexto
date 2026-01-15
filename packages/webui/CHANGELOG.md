@@ -1,5 +1,17 @@
 # @dexto/webui
 
+## 1.5.1
+
+### Patch Changes
+
+- 4aabdb7: Fix claude caching, added gpt-5.2 models and reasoning effort options in user flows.
+- Updated dependencies [bfcc7b1]
+- Updated dependencies [4aabdb7]
+    - @dexto/core@1.5.1
+    - @dexto/analytics@1.5.1
+    - @dexto/client-sdk@1.5.1
+    - @dexto/registry@1.5.1
+
 ## 1.5.0
 
 ### Minor Changes
