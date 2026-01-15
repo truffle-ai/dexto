@@ -120,18 +120,23 @@ function scanCommandsDirectory(dir: string): string[] {
 }
 
 /**
- * Agent instruction file names to discover (in priority order)
+ * Agent instruction file names to discover (in priority order, case-insensitive)
  * First found file wins - only one file is used
+ *
+ * Conventions:
+ * - AGENTS.md: Google's agent instruction format
+ * - CLAUDE.md: Anthropic's Claude Code instruction format
+ * - GEMINI.md: Google's Gemini instruction format
  */
-const AGENT_INSTRUCTION_FILES = ['agent.md', 'claude.md', 'gemini.md'] as const;
+const AGENT_INSTRUCTION_FILES = ['agents.md', 'claude.md', 'gemini.md'] as const;
 
 /**
  * Discovers agent instruction files from the current working directory.
  *
- * Looks for files in this order of priority:
- * 1. agent.md
- * 2. claude.md
- * 3. gemini.md
+ * Looks for files in this order of priority (case-insensitive):
+ * 1. AGENTS.md (or agents.md, Agents.md, etc.)
+ * 2. CLAUDE.md (or claude.md, Claude.md, etc.)
+ * 3. GEMINI.md (or gemini.md, Gemini.md, etc.)
  *
  * Only the first found file is returned (we don't want multiple instruction files).
  *
@@ -140,10 +145,25 @@ const AGENT_INSTRUCTION_FILES = ['agent.md', 'claude.md', 'gemini.md'] as const;
 export function discoverAgentInstructionFile(): string | null {
     const cwd = process.cwd();
 
+    // Read directory once for case-insensitive matching
+    let dirEntries: string[];
+    try {
+        dirEntries = readdirSync(cwd);
+    } catch {
+        return null;
+    }
+
+    // Build a map of lowercase filename -> actual filename for case-insensitive lookup
+    const lowercaseMap = new Map<string, string>();
+    for (const entry of dirEntries) {
+        lowercaseMap.set(entry.toLowerCase(), entry);
+    }
+
+    // Find first matching file in priority order
     for (const filename of AGENT_INSTRUCTION_FILES) {
-        const filePath = path.join(cwd, filename);
-        if (existsSync(filePath)) {
-            return filePath;
+        const actualFilename = lowercaseMap.get(filename);
+        if (actualFilename) {
+            return path.join(cwd, actualFilename);
         }
     }
 

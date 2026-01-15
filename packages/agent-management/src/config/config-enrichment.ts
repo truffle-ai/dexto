@@ -201,7 +201,7 @@ export function enrichAgentConfig(
         enriched.prompts = [...existingPrompts, ...filteredDiscovered];
     }
 
-    // Discover agent instruction file (agent.md, claude.md, gemini.md) in cwd
+    // Discover agent instruction file (AGENTS.md, CLAUDE.md, GEMINI.md) in cwd
     // Add as a file contributor to system prompt if found
     const instructionFile = discoverAgentInstructionFile();
     if (instructionFile) {
