@@ -118,7 +118,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
 
     // Reasoning effort sub-step state
     const [pendingReasoningModel, setPendingReasoningModel] = useState<ModelOption | null>(null);
-    const [reasoningEffortIndex, setReasoningEffortIndex] = useState(4); // Default to 'medium' (index 4)
+    const [reasoningEffortIndex, setReasoningEffortIndex] = useState(0); // Default to 'Auto' (index 0)
 
     // Keep ref in sync
     selectedIndexRef.current = selectedIndex;

@@ -5,4 +5,4 @@
 'dexto': patch
 ---
 
-Fix claude cacheing, added gpt-5.2 models and reasoning effort options in user flows.
+Fix claude caching, added gpt-5.2 models and reasoning effort options in user flows.
