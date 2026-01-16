@@ -36,7 +36,7 @@ export function SearchRenderer({ data, maxMatches = 5 }: SearchRendererProps) {
 
             {/* Match results - file paths only for clean output */}
             {displayMatches.map((match, i) => (
-                <Text key={i} color="gray">
+                <Text key={i} color="gray" wrap="truncate">
                     {'  ⎿ '}
                     {match.file}
                     {match.line > 0 && `:${match.line}`}

@@ -299,9 +299,9 @@ export function formatToolArgsForDisplay(toolName: string, args: Record<string, 
     const formatArgValue = (argName: string, value: unknown): string => {
         const strValue = typeof value === 'string' ? value : JSON.stringify(value);
 
-        // File paths: use relative path + center-truncation
+        // File paths: use relative path (no truncation)
         if (PATH_ARGS.has(argName)) {
-            return formatPathForDisplay(strValue);
+            return makeRelativePath(strValue);
         }
 
         // Commands: show single-line in full, truncate multi-line (heredocs) to first line
