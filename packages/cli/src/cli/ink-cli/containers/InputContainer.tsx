@@ -208,9 +208,10 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
         );
 
         // Handle overlay triggers
+        // Allow triggers while processing (for queuing), but not during approval
         const handleTriggerOverlay = useCallback(
             (trigger: OverlayTrigger) => {
-                if (ui.isProcessing || approval) return;
+                if (approval) return;
 
                 if (trigger === 'close') {
                     if (
@@ -229,7 +230,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                     setUi((prev) => ({ ...prev, activeOverlay: 'resource-autocomplete' }));
                 }
             },
-            [setUi, ui.isProcessing, ui.activeOverlay, approval]
+            [setUi, ui.activeOverlay, approval]
         );
 
         // Handle image paste from clipboard
@@ -720,7 +721,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
         // Note: slash-autocomplete handles its own Enter key (either executes command or submits raw text)
         const shouldHandleSubmit = ui.activeOverlay === 'none' || ui.activeOverlay === 'approval';
         // Allow history navigation when not blocked by approval/overlay
-        // When processing: handler allows queue editing but blocks history navigation
+        // Allow during processing so users can browse previous prompts while agent runs
         const canNavigateHistory = !approval && ui.activeOverlay === 'none';
 
         const placeholder = approval
