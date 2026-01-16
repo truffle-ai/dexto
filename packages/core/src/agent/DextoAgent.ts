@@ -590,8 +590,11 @@ export class DextoAgent {
             );
         }
 
-        // Find the llm:response event (final response)
-        const responseEvent = events.find((e) => e.name === 'llm:response');
+        // Find the last llm:response event (final response after all tool calls)
+        const responseEvents = events.filter(
+            (e): e is Extract<StreamingEvent, { name: 'llm:response' }> => e.name === 'llm:response'
+        );
+        const responseEvent = responseEvents[responseEvents.length - 1];
         if (!responseEvent || responseEvent.name !== 'llm:response') {
             // Get current LLM config for error context
             const llmConfig = this.stateManager.getLLMConfig(sessionId);

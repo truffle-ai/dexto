@@ -38,36 +38,37 @@ export const AgentSpawnerConfigSchema = z
         allowSpawning: z.boolean().default(true).describe('Whether agent spawning is enabled'),
 
         /**
-         * Named agent configurations that can be spawned by reference.
-         * Each entry can be either a simple path string or an object with path and description.
+         * List of agent IDs from the registry that this parent can spawn.
+         * If not provided, any registry agent can be spawned.
          *
          * Example:
          * ```yaml
-         * agents:
-         *   # Simple format - just the path
-         *   research: "./my-research-agent.yml"
-         *
-         *   # Full format - with description (shown to LLM in tool description)
-         *   explore:
-         *     path: "agents/explore-agent/explore-agent.yml"
-         *     description: "Lightweight read-only agent for codebase exploration"
+         * customTools:
+         *   - type: agent-spawner
+         *     allowedAgents: ["explore-agent", "research-agent"]
          * ```
          */
-        agents: z
-            .record(
-                z.union([
-                    z.string().min(1),
-                    z.object({
-                        path: z.string().min(1).describe('Path to agent config file'),
-                        description: z
-                            .string()
-                            .optional()
-                            .describe('Description shown to LLM in spawn_agent tool'),
-                    }),
-                ])
-            )
+        allowedAgents: z
+            .array(z.string().min(1))
             .optional()
-            .describe('Named agent configurations that can be spawned by reference'),
+            .describe('Agent IDs from registry that can be spawned (omit to allow all)'),
+
+        /**
+         * Agent IDs that should have their tools auto-approved.
+         * Use for agents with only read-only/safe tools (e.g., explore-agent).
+         *
+         * Example:
+         * ```yaml
+         * customTools:
+         *   - type: agent-spawner
+         *     allowedAgents: ["explore-agent"]
+         *     autoApproveAgents: ["explore-agent"]
+         * ```
+         */
+        autoApproveAgents: z
+            .array(z.string().min(1))
+            .optional()
+            .describe('Agent IDs that should have tools auto-approved (read-only agents)'),
     })
     .strict()
     .describe('Configuration for the agent spawner tool provider');
@@ -83,29 +84,19 @@ export type AgentSpawnerConfig = z.output<typeof AgentSpawnerConfigSchema>;
  */
 export const SpawnAgentInputSchema = z
     .object({
-        /** Task description for the sub-agent to execute */
-        task: z.string().min(1).describe('Task description for the sub-agent'),
+        /** Short task description (shown in UI/logs) */
+        task: z.string().min(1).describe('Short task description for UI/logs'),
 
-        /**
-         * Reference to a named agent configuration.
-         * Must match a key in the `agents` map of the agent-spawner config.
-         * When provided, the sub-agent uses the referenced config instead of inheriting from parent.
-         *
-         * Example: "explore" to use the explore agent for codebase exploration
-         */
-        agentRef: z
+        /** Detailed instructions for the sub-agent */
+        instructions: z
             .string()
             .min(1)
-            .optional()
-            .describe('Reference to a named agent configuration from the agents map'),
+            .describe('Detailed instructions for the sub-agent to execute'),
 
-        /** Optional custom system prompt for the sub-agent (ignored if agentRef is provided) */
-        systemPrompt: z
-            .string()
-            .optional()
-            .describe('Custom system prompt for the sub-agent (ignored if agentRef is provided)'),
+        /** Agent ID from registry (optional - uses default minimal agent if not provided) */
+        agentId: z.string().min(1).optional().describe('Agent ID from registry'),
 
-        /** Optional timeout in milliseconds */
+        /** Task timeout in milliseconds */
         timeout: z.number().int().positive().optional().describe('Task timeout in milliseconds'),
     })
     .strict();

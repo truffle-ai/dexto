@@ -138,9 +138,9 @@
     "explore-agent": {
       "id": "explore-agent",
       "name": "Explore Agent",
-      "description": "Lightweight, read-only agent optimized for codebase exploration. Uses Haiku for speed and cost efficiency. Designed to be spawned by other agents for research tasks.",
+      "description": "Fast, read-only agent for codebase exploration. Use for: 'explore the codebase', 'what's in this folder', 'how does X work', 'find where Y is handled', 'understand the architecture'. Optimized for speed with Haiku.",
       "author": "Truffle AI",
-      "tags": ["exploration", "codebase", "research", "read-only", "haiku", "sub-agent"],
+      "tags": ["explore", "search", "understand", "find", "research"],
       "source": "explore-agent/",
       "main": "explore-agent.yml"
     }

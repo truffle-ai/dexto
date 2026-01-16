@@ -10,46 +10,47 @@ import { SpawnAgentInputSchema, type SpawnAgentInput } from './schemas.js';
 import type { RuntimeService } from './runtime-service.js';
 
 /**
- * Build dynamic tool description based on configured agents
+ * Build dynamic tool description based on available agents from registry
  */
 function buildDescription(service: RuntimeService): string {
-    const baseDescription = `Spawn a sub-agent to handle a specific task. The sub-agent will execute the task and return the result.
+    const availableAgents = service.getAvailableAgents();
 
-Use this tool when you need to:
-- Delegate a complex or time-consuming task to another agent
-- Run a task that requires different capabilities or focus
-- Parallelize work by spawning multiple agents (call multiple times)
+    if (availableAgents.length === 0) {
+        return `Spawn a sub-agent to handle a specific task. The sub-agent executes the task and returns the result.
 
-The sub-agent has its own conversation context and will complete the task independently.
-Tool approval requests from the sub-agent will be routed to you for approval.`;
+No specialized agents are configured. The sub-agent will inherit your LLM with a minimal config.
 
-    const configuredAgents = service.getConfiguredAgents();
-
-    if (configuredAgents.length === 0) {
-        return `${baseDescription}
-
-When spawning, you can provide a custom systemPrompt to guide the sub-agent's behavior.
-The sub-agent inherits the parent's LLM configuration.`;
+## Parameters
+- **task**: Short description for UI/logs (e.g., "Search for authentication code")
+- **instructions**: Detailed instructions for the sub-agent
+- **timeout**: (Optional) Task timeout in milliseconds`;
     }
 
-    // Build available agents section dynamically
-    const agentsList = configuredAgents
-        .map(({ name, description }) => {
-            if (description) {
-                return `- "${name}" - ${description}`;
-            }
-            return `- "${name}"`;
+    // Build available agents section with clear use cases
+    const agentsList = availableAgents
+        .map((agent) => {
+            const tags = agent.tags?.length ? ` [${agent.tags.slice(0, 3).join(', ')}]` : '';
+            return `### ${agent.id}
+${agent.description}${tags}`;
         })
-        .join('\n');
+        .join('\n\n');
 
-    return `${baseDescription}
+    return `Spawn a specialized sub-agent to handle a task. The sub-agent executes independently and returns the result.
 
 ## Available Agents
-Use agentRef to spawn a pre-configured specialized agent:
+
 ${agentsList}
 
-When agentRef is provided, the sub-agent uses its own LLM, tools, and system prompt.
-When not provided, the sub-agent inherits the parent's LLM with a minimal config.`;
+## Parameters
+- **task**: Short description for UI/logs (e.g., "Explore authentication flow")
+- **instructions**: Detailed instructions sent to the sub-agent
+- **agentId**: Agent ID from the list above (e.g., "${availableAgents[0]?.id ?? 'explore-agent'}")
+- **timeout**: (Optional) Task timeout in milliseconds
+
+## Notes
+- Sub-agents have their own tools, LLM, and conversation context
+- Read-only agents (like explore-agent) have auto-approved tool calls for speed
+- If a sub-agent's LLM fails, it automatically falls back to your LLM`;
 }
 
 export function createSpawnAgentTool(service: RuntimeService): InternalTool {
@@ -65,17 +66,16 @@ export function createSpawnAgentTool(service: RuntimeService): InternalTool {
             // Build options object - only include optional properties if they have values
             const options: {
                 task: string;
-                agentRef?: string;
-                systemPrompt?: string;
+                instructions: string;
+                agentId?: string;
                 timeout?: number;
             } = {
                 task: validatedInput.task,
+                instructions: validatedInput.instructions,
             };
-            if (validatedInput.agentRef !== undefined) {
-                options.agentRef = validatedInput.agentRef;
-            }
-            if (validatedInput.systemPrompt !== undefined) {
-                options.systemPrompt = validatedInput.systemPrompt;
+
+            if (validatedInput.agentId !== undefined) {
+                options.agentId = validatedInput.agentId;
             }
             if (validatedInput.timeout !== undefined) {
                 options.timeout = validatedInput.timeout;

@@ -59,7 +59,7 @@ systemPrompt:
 # LLM configuration - Haiku for speed and cost efficiency
 llm:
   provider: anthropic
-  model: claude-haiku-3-5-20241022
+  model: claude-haiku-4-5-20251001
   apiKey: $ANTHROPIC_API_KEY
 
 # Minimal storage - in-memory only for ephemeral use

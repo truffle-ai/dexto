@@ -11,12 +11,12 @@
  * - Always cleans up agents after task completion (synchronous model)
  */
 
-import path from 'path';
 import type { DextoAgent, IDextoLogger, AgentConfig } from '@dexto/core';
 import { AgentRuntime } from '../runtime/AgentRuntime.js';
 import { createDelegatingApprovalHandler } from '../runtime/approval-delegation.js';
 import { loadAgentConfig } from '../config/loader.js';
-import { resolveBundledScript } from '../utils/path.js';
+import { getAgentRegistry } from '../registry/registry.js';
+import type { AgentRegistryEntry } from '../registry/types.js';
 import type { AgentSpawnerConfig } from './schemas.js';
 import type { SpawnAgentOutput } from './types.js';
 
@@ -39,7 +39,7 @@ export class RuntimeService {
         // Note: maxAgents is global, we enforce per-parent limits in this service
         this.runtime = new AgentRuntime({
             config: {
-                maxAgents: config.maxConcurrentAgents * 10, // Allow headroom for multiple parents
+                maxAgents: config.maxConcurrentAgents,
                 defaultTaskTimeout: config.defaultTimeout,
             },
             logger,
@@ -69,11 +69,17 @@ export class RuntimeService {
      *
      * This is the main method for the spawn_agent tool.
      * It creates a sub-agent, executes the task, and cleans up after completion.
+     * If the sub-agent's LLM config fails, automatically falls back to parent's LLM.
+     *
+     * @param input.task - Short task description (for logging/UI)
+     * @param input.instructions - Full prompt sent to sub-agent
+     * @param input.agentId - Optional agent ID from registry
+     * @param input.timeout - Optional task timeout in milliseconds
      */
     async spawnAndExecute(input: {
         task: string;
-        agentRef?: string;
-        systemPrompt?: string;
+        instructions: string;
+        agentId?: string;
         timeout?: number;
     }): Promise<SpawnAgentOutput> {
         // Check if spawning is enabled
@@ -92,44 +98,142 @@ export class RuntimeService {
             };
         }
 
+        // Validate agentId against allowedAgents if configured
+        if (input.agentId && this.config.allowedAgents) {
+            if (!this.config.allowedAgents.includes(input.agentId)) {
+                return {
+                    success: false,
+                    error: `Agent '${input.agentId}' is not in the allowed agents list. Allowed: ${this.config.allowedAgents.join(', ')}`,
+                };
+            }
+        }
+
         const timeout = input.timeout ?? this.config.defaultTimeout;
 
-        let agentId: string | undefined;
+        // Check config-level autoApproveAgents
+        let autoApprove = false;
+        if (input.agentId && this.config.autoApproveAgents) {
+            autoApprove = this.config.autoApproveAgents.includes(input.agentId);
+        }
+
+        // Try with sub-agent's config first, fall back to parent's LLM if it fails
+        const result = await this.trySpawnWithFallback(input, timeout, autoApprove);
+        return result;
+    }
+
+    /**
+     * Try to spawn agent, falling back to parent's LLM config if the sub-agent's config fails
+     */
+    private async trySpawnWithFallback(
+        input: { task: string; instructions: string; agentId?: string },
+        timeout: number,
+        autoApprove: boolean
+    ): Promise<SpawnAgentOutput> {
+        let spawnedAgentId: string | undefined;
+        let usedFallback = false;
 
         try {
-            // Build sub-agent config - either from reference or parent config
-            const subAgentConfig = await this.buildSubAgentConfig(
-                input.agentRef,
-                input.systemPrompt
+            // Build options object
+            const buildOptions: {
+                agentId?: string;
+                inheritLlm?: boolean;
+                autoApprove?: boolean;
+            } = {};
+
+            if (input.agentId !== undefined) {
+                buildOptions.agentId = input.agentId;
+            }
+            if (autoApprove) {
+                buildOptions.autoApprove = autoApprove;
+            }
+
+            // Try with sub-agent's config first
+            let subAgentConfig = await this.buildSubAgentConfig(buildOptions);
+
+            try {
+                // Spawn the agent
+                const handle = await this.runtime.spawnAgent({
+                    agentConfig: subAgentConfig,
+                    ephemeral: true,
+                    group: this.parentId,
+                    metadata: {
+                        parentId: this.parentId,
+                        task: input.task,
+                        autoApprove,
+                        spawnedAt: new Date().toISOString(),
+                    },
+                    onBeforeStart: (agent) => {
+                        if (!autoApprove) {
+                            const delegatingHandler = createDelegatingApprovalHandler(
+                                this.parentAgent.services.approvalManager,
+                                agent.config.agentId ?? 'unknown',
+                                this.logger
+                            );
+                            agent.setApprovalHandler(delegatingHandler);
+                        }
+                    },
+                });
+                spawnedAgentId = handle.agentId;
+            } catch (spawnError) {
+                // Check if it's an LLM-related error (model not supported, API key missing, etc.)
+                const errorMsg =
+                    spawnError instanceof Error ? spawnError.message : String(spawnError);
+                const isLlmError =
+                    errorMsg.includes('Model') ||
+                    errorMsg.includes('model') ||
+                    errorMsg.includes('API') ||
+                    errorMsg.includes('apiKey') ||
+                    errorMsg.includes('provider');
+
+                if (isLlmError && input.agentId) {
+                    // Fallback: retry with parent's LLM config
+                    this.logger.warn(
+                        `Sub-agent LLM config failed: ${errorMsg}. Falling back to parent's LLM config.`
+                    );
+                    usedFallback = true;
+
+                    buildOptions.inheritLlm = true;
+                    subAgentConfig = await this.buildSubAgentConfig(buildOptions);
+
+                    const handle = await this.runtime.spawnAgent({
+                        agentConfig: subAgentConfig,
+                        ephemeral: true,
+                        group: this.parentId,
+                        metadata: {
+                            parentId: this.parentId,
+                            task: input.task,
+                            autoApprove,
+                            usedLlmFallback: true,
+                            spawnedAt: new Date().toISOString(),
+                        },
+                        onBeforeStart: (agent) => {
+                            if (!autoApprove) {
+                                const delegatingHandler = createDelegatingApprovalHandler(
+                                    this.parentAgent.services.approvalManager,
+                                    agent.config.agentId ?? 'unknown',
+                                    this.logger
+                                );
+                                agent.setApprovalHandler(delegatingHandler);
+                            }
+                        },
+                    });
+                    spawnedAgentId = handle.agentId;
+                } else {
+                    // Not an LLM error or no agentId, re-throw
+                    throw spawnError;
+                }
+            }
+
+            this.logger.info(
+                `Spawned sub-agent '${spawnedAgentId}' for task: ${input.task}${autoApprove ? ' (auto-approve)' : ''}${usedFallback ? ' (using parent LLM)' : ''}`
             );
 
-            // Spawn the agent with group set to parent ID
-            // Wire up approval delegation in onBeforeStart (before agent.start())
-            const handle = await this.runtime.spawnAgent({
-                agentConfig: subAgentConfig,
-                ephemeral: true,
-                group: this.parentId,
-                metadata: {
-                    parentId: this.parentId,
-                    spawnedAt: new Date().toISOString(),
-                },
-                onBeforeStart: (agent) => {
-                    // Wire up approval delegation so sub-agent tool approvals go to parent
-                    // Use agent.setApprovalHandler() which stores handler for use during start()
-                    const delegatingHandler = createDelegatingApprovalHandler(
-                        this.parentAgent.services.approvalManager,
-                        agent.config.agentId ?? 'unknown',
-                        this.logger
-                    );
-                    agent.setApprovalHandler(delegatingHandler);
-                },
-            });
-
-            agentId = handle.agentId;
-            this.logger.info(`Spawned sub-agent '${agentId}' for parent '${this.parentId}'`);
-
-            // Execute the task
-            const result = await this.runtime.executeTask(agentId, input.task, timeout);
+            // Execute with the full instructions
+            const result = await this.runtime.executeTask(
+                spawnedAgentId,
+                input.instructions,
+                timeout
+            );
 
             // Build output
             const output: SpawnAgentOutput = {
@@ -152,9 +256,9 @@ export class RuntimeService {
             };
         } finally {
             // Always clean up the agent after task completion
-            if (agentId) {
+            if (spawnedAgentId) {
                 try {
-                    await this.runtime.stopAgent(agentId);
+                    await this.runtime.stopAgent(spawnedAgentId);
                 } catch {
                     // Ignore cleanup errors
                 }
@@ -163,29 +267,51 @@ export class RuntimeService {
     }
 
     /**
-     * Build sub-agent config based on reference or parent config
+     * Build sub-agent config based on registry agent ID or parent config
      *
-     * If agentRef is provided and matches a configured agent, loads that config.
-     * Otherwise, creates a minimal config inheriting LLM settings from parent.
+     * @param options.agentId - Agent ID from registry
+     * @param options.inheritLlm - Use parent's LLM config instead of sub-agent's
+     * @param options.autoApprove - Auto-approve all tool calls
      */
-    private async buildSubAgentConfig(
-        agentRef?: string,
-        customSystemPrompt?: string
-    ): Promise<AgentConfig> {
-        // If agentRef is provided, try to load the referenced agent config
-        if (agentRef) {
-            const configPath = this.resolveAgentRef(agentRef);
-            if (configPath) {
-                this.logger.debug(`Loading agent config from: ${configPath}`);
+    private async buildSubAgentConfig(options: {
+        agentId?: string;
+        inheritLlm?: boolean;
+        autoApprove?: boolean;
+    }): Promise<AgentConfig> {
+        const { agentId, inheritLlm, autoApprove } = options;
+        const parentConfig = this.parentAgent.config;
+
+        // Determine tool confirmation mode
+        const toolConfirmationMode = autoApprove ? ('auto-approve' as const) : ('manual' as const);
+
+        // If agentId is provided, resolve from registry
+        if (agentId) {
+            const registry = getAgentRegistry();
+
+            if (!registry.hasAgent(agentId)) {
+                this.logger.warn(`Agent '${agentId}' not found in registry. Using default config.`);
+            } else {
+                // resolveAgent handles installation if needed
+                const configPath = await registry.resolveAgent(agentId);
+                this.logger.debug(`Loading agent config from registry: ${configPath}`);
                 const loadedConfig = await loadAgentConfig(configPath, this.logger);
+
+                // Determine LLM config based on options
+                let llmConfig = loadedConfig.llm;
+
+                if (inheritLlm) {
+                    // Use parent's full LLM config
+                    this.logger.debug('Using parent LLM config (inheritLlm=true)');
+                    llmConfig = { ...parentConfig.llm };
+                }
 
                 // Override certain settings for sub-agent behavior
                 return {
                     ...loadedConfig,
-                    // Sub-agents use manual tool confirmation which delegates to parent
+                    llm: llmConfig,
                     toolConfirmation: {
                         ...loadedConfig.toolConfirmation,
-                        mode: 'manual' as const,
+                        mode: toolConfirmationMode,
                     },
                     // Suppress sub-agent console logs entirely using silent transport
                     logger: {
@@ -194,27 +320,18 @@ export class RuntimeService {
                     },
                 };
             }
-            // If agentRef doesn't match a configured agent, log warning and fall through
-            this.logger.warn(
-                `Agent reference '${agentRef}' not found in configured agents. Using default config.`
-            );
         }
-
-        const parentConfig = this.parentAgent.config;
 
         // Start with a minimal config inheriting LLM settings from parent
         const config: AgentConfig = {
-            // Inherit LLM config from parent
             llm: { ...parentConfig.llm },
 
-            // Use custom system prompt if provided, otherwise use a default
+            // Default system prompt for sub-agents
             systemPrompt:
-                customSystemPrompt ??
                 'You are a helpful sub-agent. Complete the task given to you efficiently and concisely.',
 
-            // Sub-agents use manual tool confirmation which delegates to parent
             toolConfirmation: {
-                mode: 'manual' as const,
+                mode: toolConfirmationMode,
             },
 
             // Suppress sub-agent console logs entirely using silent transport
@@ -228,72 +345,27 @@ export class RuntimeService {
     }
 
     /**
-     * Get the path from an agent config entry (handles both string and object formats)
+     * Get information about available agents for tool description.
+     * Returns agent metadata from registry, filtered by allowedAgents if configured.
      */
-    private getAgentPath(
-        entry: string | { path: string; description?: string | undefined }
-    ): string {
-        return typeof entry === 'string' ? entry : entry.path;
-    }
+    getAvailableAgents(): AgentRegistryEntry[] {
+        const registry = getAgentRegistry();
+        const allAgents = registry.getAvailableAgents();
 
-    /**
-     * Resolve an agent reference to a config file path
-     *
-     * Tries multiple resolution strategies:
-     * 1. If absolute path, use as-is
-     * 2. Try to resolve via bundled scripts (works for installed CLI)
-     * 3. Fall back to cwd-relative resolution (works for development)
-     *
-     * @param agentRef - Reference name from the agents map
-     * @returns Resolved absolute path or null if not found
-     */
-    private resolveAgentRef(agentRef: string): string | null {
-        const agents = this.config.agents;
-        if (!agents || !agents[agentRef]) {
-            return null;
-        }
-
-        const configPath = this.getAgentPath(agents[agentRef]);
-
-        // If already absolute, return as-is
-        if (path.isAbsolute(configPath)) {
-            return configPath;
-        }
-
-        // Try to resolve via bundled scripts (handles installed CLI case)
-        try {
-            const bundledPath = resolveBundledScript(configPath);
-            this.logger.debug(
-                `Resolved agent ref '${agentRef}' via bundled scripts: ${bundledPath}`
-            );
-            return bundledPath;
-        } catch {
-            // Not found in bundled scripts, fall through to cwd resolution
-        }
-
-        // Fall back to cwd-relative resolution (development case)
-        const cwdPath = path.resolve(process.cwd(), configPath);
-        this.logger.debug(`Resolved agent ref '${agentRef}' via cwd: ${cwdPath}`);
-        return cwdPath;
-    }
-
-    /**
-     * Get information about configured agents for tool description
-     * Returns array of { name, description } for each configured agent
-     */
-    getConfiguredAgents(): Array<{ name: string; description?: string }> {
-        const agents = this.config.agents;
-        if (!agents) {
-            return [];
-        }
-
-        return Object.entries(agents).map(([name, entry]) => {
-            const result: { name: string; description?: string } = { name };
-            if (typeof entry === 'object' && entry.description) {
-                result.description = entry.description;
+        // If allowedAgents is configured, filter to only those
+        if (this.config.allowedAgents && this.config.allowedAgents.length > 0) {
+            const result: AgentRegistryEntry[] = [];
+            for (const id of this.config.allowedAgents) {
+                const agent = allAgents[id];
+                if (agent) {
+                    result.push(agent);
+                }
             }
             return result;
-        });
+        }
+
+        // Otherwise return all registry agents
+        return Object.values(allAgents);
     }
 
     /**
