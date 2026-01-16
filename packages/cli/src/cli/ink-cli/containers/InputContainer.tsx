@@ -209,28 +209,34 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
 
         // Handle overlay triggers
         // Allow triggers while processing (for queuing), but not during approval
+        // IMPORTANT: Use functional updates to check prev.activeOverlay, not the closure value.
+        // This avoids race conditions when open/close happen in quick succession (React batching).
         const handleTriggerOverlay = useCallback(
             (trigger: OverlayTrigger) => {
                 if (approval) return;
 
                 if (trigger === 'close') {
-                    if (
-                        ui.activeOverlay === 'slash-autocomplete' ||
-                        ui.activeOverlay === 'resource-autocomplete'
-                    ) {
-                        setUi((prev) => ({
-                            ...prev,
-                            activeOverlay: 'none',
-                            mcpWizardServerType: null,
-                        }));
-                    }
+                    // Use functional update to check the ACTUAL current state, not stale closure
+                    setUi((prev) => {
+                        if (
+                            prev.activeOverlay === 'slash-autocomplete' ||
+                            prev.activeOverlay === 'resource-autocomplete'
+                        ) {
+                            return {
+                                ...prev,
+                                activeOverlay: 'none',
+                                mcpWizardServerType: null,
+                            };
+                        }
+                        return prev;
+                    });
                 } else if (trigger === 'slash-autocomplete') {
                     setUi((prev) => ({ ...prev, activeOverlay: 'slash-autocomplete' }));
                 } else if (trigger === 'resource-autocomplete') {
                     setUi((prev) => ({ ...prev, activeOverlay: 'resource-autocomplete' }));
                 }
             },
-            [setUi, ui.activeOverlay, approval]
+            [setUi, approval]
         );
 
         // Handle image paste from clipboard

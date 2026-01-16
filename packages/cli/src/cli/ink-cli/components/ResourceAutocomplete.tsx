@@ -171,12 +171,10 @@ const ResourceAutocompleteInner = forwardRef<ResourceAutocompleteHandle, Resourc
             };
         }, [isVisible, agent]);
 
-        // Auto-close when @ is removed from input
-        useEffect(() => {
-            if (isVisible && !searchQuery.includes('@')) {
-                onClose();
-            }
-        }, [isVisible, searchQuery, onClose]);
+        // NOTE: Auto-close logic is handled synchronously in TextBufferInput.tsx
+        // (on backspace deleting @ and on space after @). We don't use useEffect here
+        // because React batches state updates, causing race conditions where isVisible
+        // and searchQuery update at different times.
 
         // Extract query from @mention (everything after @)
         const mentionQuery = useMemo(() => {
