@@ -858,6 +858,16 @@ export class DextoAgent {
         });
         listeners.push({ event: 'message:dequeued', listener: messageDequeuedListener });
 
+        // Service events - extensible pattern for non-core services (e.g., sub-agent progress)
+        const serviceEventListener = (data: AgentEventMap['service:event']) => {
+            if (data.sessionId !== sessionId) return;
+            eventQueue.push({ name: 'service:event', ...data });
+        };
+        this.agentEventBus.on('service:event', serviceEventListener, {
+            signal: cleanupSignal,
+        });
+        listeners.push({ event: 'service:event', listener: serviceEventListener });
+
         // Run lifecycle event - emitted when TurnExecutor truly finishes
         // This is when we close the iterator (not on llm:response)
         const runCompleteListener = (data: AgentEventMap['run:complete']) => {

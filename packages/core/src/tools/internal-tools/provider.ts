@@ -246,7 +246,8 @@ export class InternalToolsProvider {
         toolName: string,
         args: Record<string, unknown>,
         sessionId?: string,
-        abortSignal?: AbortSignal
+        abortSignal?: AbortSignal,
+        toolCallId?: string
     ): Promise<unknown> {
         // Check internal tools first, then custom tools
         const tool = this.internalTools.get(toolName) || this.customTools.get(toolName);
@@ -277,6 +278,7 @@ export class InternalToolsProvider {
             const context: ToolExecutionContext = {
                 sessionId,
                 abortSignal,
+                toolCallId,
             };
             const result = await tool.execute(validationResult.data, context);
             return result;

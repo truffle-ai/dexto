@@ -122,6 +122,9 @@ export const STREAMING_EVENTS = [
     // Approval events (needed for tool confirmation in streaming UIs)
     'approval:request',
     'approval:response',
+
+    // Service events (extensible pattern for non-core services)
+    'service:event',
 ] as const;
 
 /**
@@ -500,6 +503,24 @@ export interface AgentEventMap {
 
     /** Fired when user approval response is received */
     'approval:response': ApprovalResponse;
+
+    /**
+     * Extensible service event for non-core/additive services.
+     * Allows services like agent-spawner, process-tools, etc. to emit events
+     * without polluting the core event namespace.
+     */
+    'service:event': {
+        /** Service identifier (e.g., 'agent-spawner', 'process-tools') */
+        service: string;
+        /** Event type within the service (e.g., 'progress', 'stdout') */
+        event: string;
+        /** Links this event to a parent tool call */
+        toolCallId?: string;
+        /** Session this event belongs to */
+        sessionId: string;
+        /** Arbitrary event data - service-specific payload */
+        data: Record<string, unknown>;
+    };
 }
 
 /**

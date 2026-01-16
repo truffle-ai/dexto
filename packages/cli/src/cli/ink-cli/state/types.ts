@@ -167,6 +167,22 @@ export type StyledData =
     | ShortcutsStyledData;
 
 /**
+ * Sub-agent progress data for spawn_agent tool calls
+ */
+export interface SubAgentProgress {
+    /** Short task description */
+    task: string;
+    /** Agent ID (e.g., 'explore-agent') */
+    agentId: string;
+    /** Number of tools called by the sub-agent */
+    toolsCalled: number;
+    /** Current tool being executed */
+    currentTool: string;
+    /** Current tool arguments (optional) */
+    currentArgs?: Record<string, unknown> | undefined;
+}
+
+/**
  * Message in the chat interface
  *
  * TODO: Consolidate with InternalMessage from @dexto/core. Currently we have two
@@ -195,6 +211,8 @@ export interface Message {
     toolDisplayData?: ToolDisplayData;
     /** Content parts for tool result rendering */
     toolContent?: ContentPart[];
+    /** Sub-agent progress data (for spawn_agent tool calls) */
+    subAgentProgress?: SubAgentProgress;
 }
 
 /**

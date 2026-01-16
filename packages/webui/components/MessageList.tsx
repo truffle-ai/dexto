@@ -737,6 +737,7 @@ export default function MessageList({
                                                     toolArgs={msg.toolArgs}
                                                     toolResult={msg.toolResult}
                                                     displayData={msg.toolResultMeta?.display}
+                                                    subAgentProgress={msg.subAgentProgress}
                                                     success={
                                                         // Rejected approvals are failures
                                                         msg.approvalStatus === 'rejected'

@@ -75,12 +75,16 @@ export class RuntimeService {
      * @param input.instructions - Full prompt sent to sub-agent
      * @param input.agentId - Optional agent ID from registry
      * @param input.timeout - Optional task timeout in milliseconds
+     * @param input.toolCallId - Optional tool call ID for progress events
+     * @param input.sessionId - Optional session ID for progress events
      */
     async spawnAndExecute(input: {
         task: string;
         instructions: string;
         agentId?: string;
         timeout?: number;
+        toolCallId?: string;
+        sessionId?: string;
     }): Promise<SpawnAgentOutput> {
         // Check if spawning is enabled
         if (!this.config.allowSpawning) {
@@ -117,8 +121,89 @@ export class RuntimeService {
         }
 
         // Try with sub-agent's config first, fall back to parent's LLM if it fails
-        const result = await this.trySpawnWithFallback(input, timeout, autoApprove);
+        const result = await this.trySpawnWithFallback(
+            input,
+            timeout,
+            autoApprove,
+            input.toolCallId,
+            input.sessionId
+        );
         return result;
+    }
+
+    /**
+     * Set up progress event emission for a sub-agent.
+     * Subscribes to llm:tool-call events and emits service:event with progress data.
+     *
+     * @returns Cleanup function to unsubscribe from events
+     */
+    private setupProgressTracking(
+        subAgentHandle: { agentId: string; agent: DextoAgent },
+        input: { task: string; agentId?: string },
+        toolCallId?: string,
+        sessionId?: string
+    ): () => void {
+        // Don't set up progress tracking if no toolCallId or sessionId (no parent to report to)
+        if (!toolCallId || !sessionId) {
+            this.logger.debug(
+                `[Progress] Skipping progress tracking - missing toolCallId (${toolCallId}) or sessionId (${sessionId})`
+            );
+            return () => {};
+        }
+
+        this.logger.debug(
+            `[Progress] Setting up progress tracking for sub-agent ${subAgentHandle.agentId} (toolCallId: ${toolCallId}, sessionId: ${sessionId})`
+        );
+
+        let toolCount = 0;
+        const subAgentBus = subAgentHandle.agent.agentEventBus;
+        const parentBus = this.parentAgent.agentEventBus;
+
+        // Handler for llm:tool-call events
+        const toolCallHandler = (event: {
+            toolName: string;
+            args: Record<string, unknown>;
+            sessionId: string;
+        }) => {
+            toolCount++;
+            // Strip prefixes from tool name for cleaner display
+            let displayToolName = event.toolName;
+            if (displayToolName.startsWith('internal--')) {
+                displayToolName = displayToolName.replace('internal--', '');
+            } else if (displayToolName.startsWith('custom--')) {
+                displayToolName = displayToolName.replace('custom--', '');
+            } else if (displayToolName.startsWith('mcp--')) {
+                // For MCP tools, extract just the tool name (skip server prefix)
+                const parts = displayToolName.split('--');
+                if (parts.length >= 3) {
+                    displayToolName = parts.slice(2).join('--');
+                }
+            }
+            this.logger.debug(
+                `[Progress] Sub-agent tool call #${toolCount}: ${displayToolName} (toolCallId: ${toolCallId})`
+            );
+            parentBus.emit('service:event', {
+                service: 'agent-spawner',
+                event: 'progress',
+                toolCallId,
+                sessionId,
+                data: {
+                    task: input.task,
+                    agentId: input.agentId ?? 'default',
+                    toolsCalled: toolCount,
+                    currentTool: displayToolName,
+                    currentArgs: event.args,
+                },
+            });
+        };
+
+        // Subscribe to sub-agent's tool call events
+        subAgentBus.on('llm:tool-call', toolCallHandler);
+
+        // Return cleanup function
+        return () => {
+            subAgentBus.off('llm:tool-call', toolCallHandler);
+        };
     }
 
     /**
@@ -127,10 +212,13 @@ export class RuntimeService {
     private async trySpawnWithFallback(
         input: { task: string; instructions: string; agentId?: string },
         timeout: number,
-        autoApprove: boolean
+        autoApprove: boolean,
+        toolCallId?: string,
+        sessionId?: string
     ): Promise<SpawnAgentOutput> {
         let spawnedAgentId: string | undefined;
         let usedFallback = false;
+        let cleanupProgressTracking: (() => void) | undefined;
 
         try {
             // Build options object
@@ -150,9 +238,11 @@ export class RuntimeService {
             // Try with sub-agent's config first
             let subAgentConfig = await this.buildSubAgentConfig(buildOptions);
 
+            let handle: { agentId: string; agent: DextoAgent };
+
             try {
                 // Spawn the agent
-                const handle = await this.runtime.spawnAgent({
+                handle = await this.runtime.spawnAgent({
                     agentConfig: subAgentConfig,
                     ephemeral: true,
                     group: this.parentId,
@@ -195,7 +285,7 @@ export class RuntimeService {
                     buildOptions.inheritLlm = true;
                     subAgentConfig = await this.buildSubAgentConfig(buildOptions);
 
-                    const handle = await this.runtime.spawnAgent({
+                    handle = await this.runtime.spawnAgent({
                         agentConfig: subAgentConfig,
                         ephemeral: true,
                         group: this.parentId,
@@ -228,6 +318,14 @@ export class RuntimeService {
                 `Spawned sub-agent '${spawnedAgentId}' for task: ${input.task}${autoApprove ? ' (auto-approve)' : ''}${usedFallback ? ' (using parent LLM)' : ''}`
             );
 
+            // Set up progress event tracking before executing
+            cleanupProgressTracking = this.setupProgressTracking(
+                handle,
+                input,
+                toolCallId,
+                sessionId
+            );
+
             // Execute with the full instructions
             const result = await this.runtime.executeTask(
                 spawnedAgentId,
@@ -255,6 +353,11 @@ export class RuntimeService {
                 error: errorMessage,
             };
         } finally {
+            // Clean up progress tracking
+            if (cleanupProgressTracking) {
+                cleanupProgressTracking();
+            }
+
             // Always clean up the agent after task completion
             if (spawnedAgentId) {
                 try {

@@ -5,7 +5,7 @@
  * The sub-agent will execute the task and return the result.
  */
 
-import type { InternalTool } from '@dexto/core';
+import type { InternalTool, ToolExecutionContext } from '@dexto/core';
 import { SpawnAgentInputSchema, type SpawnAgentInput } from './schemas.js';
 import type { RuntimeService } from './runtime-service.js';
 
@@ -60,7 +60,7 @@ export function createSpawnAgentTool(service: RuntimeService): InternalTool {
 
         inputSchema: SpawnAgentInputSchema,
 
-        execute: async (input: unknown) => {
+        execute: async (input: unknown, context?: ToolExecutionContext) => {
             const validatedInput = input as SpawnAgentInput;
 
             // Build options object - only include optional properties if they have values
@@ -69,6 +69,8 @@ export function createSpawnAgentTool(service: RuntimeService): InternalTool {
                 instructions: string;
                 agentId?: string;
                 timeout?: number;
+                toolCallId?: string;
+                sessionId?: string;
             } = {
                 task: validatedInput.task,
                 instructions: validatedInput.instructions,
@@ -79,6 +81,12 @@ export function createSpawnAgentTool(service: RuntimeService): InternalTool {
             }
             if (validatedInput.timeout !== undefined) {
                 options.timeout = validatedInput.timeout;
+            }
+            if (context?.toolCallId !== undefined) {
+                options.toolCallId = context.toolCallId;
+            }
+            if (context?.sessionId !== undefined) {
+                options.sessionId = context.sessionId;
             }
 
             const result = await service.spawnAndExecute(options);

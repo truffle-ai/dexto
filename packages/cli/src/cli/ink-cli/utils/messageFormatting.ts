@@ -151,6 +151,9 @@ const TOOL_CONFIGS: Record<string, ToolDisplayConfig> = {
 
     // User interaction
     ask_user: { displayName: 'Ask', argsToShow: ['question'], primaryArg: 'question' },
+
+    // Agent spawning - handled specially in getToolDisplayName for dynamic agentId
+    spawn_agent: { displayName: 'Agent', argsToShow: ['task'], primaryArg: 'task' },
 };
 
 /**

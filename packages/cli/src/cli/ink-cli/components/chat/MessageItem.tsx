@@ -4,7 +4,7 @@
  * Uses colors and spacing instead of explicit labels
  */
 
-import { memo, useMemo } from 'react';
+import { memo } from 'react';
 import { Box, Text } from 'ink';
 import wrapAnsi from 'wrap-ansi';
 import type {
@@ -175,6 +175,9 @@ export const MessageItem = memo(
             const isPending =
                 message.toolStatus === 'pending' || message.toolStatus === 'pending_approval';
 
+            // Check for sub-agent progress data
+            const subAgentProgress = message.subAgentProgress;
+
             // Parse tool name and args for bold formatting: "ToolName(args)" → bold name + normal args
             const parenIndex = message.content.indexOf('(');
             const toolName =
@@ -182,7 +185,9 @@ export const MessageItem = memo(
             const toolArgs = parenIndex > 0 ? message.content.slice(parenIndex) : '';
 
             // Build the full tool header text for wrapping
-            const statusSuffix = isRunning ? ' Running...' : isPending ? ' Waiting...' : '';
+            // Don't include status suffix if we have sub-agent progress (it shows its own status)
+            const statusSuffix =
+                subAgentProgress ? '' : isRunning ? ' Running...' : isPending ? ' Waiting...' : '';
             const fullToolText = `${toolName}${toolArgs}${statusSuffix}`;
 
             // ToolIcon takes 2 chars ("● "), so available width is terminalWidth - 2
@@ -220,6 +225,16 @@ export const MessageItem = memo(
                             </Text>
                         </Box>
                     ))}
+                    {/* Sub-agent progress line - show when we have progress data */}
+                    {subAgentProgress && isRunning && (
+                        <Box marginLeft={2}>
+                            <Text color="gray">
+                                └─ {subAgentProgress.toolsCalled} tool
+                                {subAgentProgress.toolsCalled !== 1 ? 's' : ''} called | Current:{' '}
+                                {subAgentProgress.currentTool}
+                            </Text>
+                        </Box>
+                    )}
                     {/* Tool result - only show when finished */}
                     {hasStructuredDisplay ? (
                         <ToolResultRenderer
@@ -259,7 +274,11 @@ export const MessageItem = memo(
             prev.message.isError === next.message.isError &&
             prev.message.toolDisplayData === next.message.toolDisplayData &&
             prev.message.toolContent === next.message.toolContent &&
-            prev.terminalWidth === next.terminalWidth
+            prev.terminalWidth === next.terminalWidth &&
+            prev.message.subAgentProgress?.toolsCalled ===
+                next.message.subAgentProgress?.toolsCalled &&
+            prev.message.subAgentProgress?.currentTool ===
+                next.message.subAgentProgress?.currentTool
         );
     }
 );

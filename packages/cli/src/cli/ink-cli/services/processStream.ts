@@ -569,12 +569,20 @@ export async function processStream(
                         : generateMessageId('tool');
 
                     // Get friendly display name, format args, and tool type badge
-                    const displayName = getToolDisplayName(event.toolName);
-                    const argsFormatted = formatToolArgsForDisplay(
-                        event.toolName,
-                        event.args || {}
-                    );
+                    let displayName = getToolDisplayName(event.toolName);
+                    let argsFormatted = formatToolArgsForDisplay(event.toolName, event.args || {});
                     const badge = getToolTypeBadge(event.toolName);
+
+                    // Special handling for spawn_agent: use agentId as display name
+                    const isSpawnAgent =
+                        event.toolName === 'spawn_agent' ||
+                        event.toolName === 'custom--spawn_agent';
+                    if (isSpawnAgent && event.args?.agentId) {
+                        const agentId = String(event.args.agentId);
+                        const agentLabel = agentId.replace(/-agent$/, '');
+                        displayName = agentLabel.charAt(0).toUpperCase() + agentLabel.slice(1);
+                        // argsFormatted already has task from TOOL_CONFIGS
+                    }
 
                     // Extract description if present
                     const description = event.args?.description;
@@ -879,6 +887,45 @@ export async function processStream(
                             setUi((prev) => ({ ...prev, activeOverlay: 'approval' }));
                             return newApproval;
                         });
+                    }
+                    break;
+                }
+
+                case 'service:event': {
+                    // Handle service events - extensible pattern for non-core services
+                    debug.log('SERVICE-EVENT received', {
+                        service: event.service,
+                        eventType: event.event,
+                        toolCallId: event.toolCallId,
+                        sessionId: event.sessionId,
+                    });
+                    if (event.service === 'agent-spawner' && event.event === 'progress') {
+                        const { toolCallId, data } = event;
+                        if (toolCallId) {
+                            // Update the tool message with sub-agent progress
+                            const toolMessageId = `tool-${toolCallId}`;
+                            const progressData = data as {
+                                task: string;
+                                agentId: string;
+                                toolsCalled: number;
+                                currentTool: string;
+                                currentArgs?: Record<string, unknown>;
+                            };
+                            debug.log('SERVICE-EVENT updating progress', {
+                                toolMessageId,
+                                toolsCalled: progressData.toolsCalled,
+                                currentTool: progressData.currentTool,
+                            });
+                            updatePending(toolMessageId, {
+                                subAgentProgress: {
+                                    task: progressData.task,
+                                    agentId: progressData.agentId,
+                                    toolsCalled: progressData.toolsCalled,
+                                    currentTool: progressData.currentTool,
+                                    currentArgs: progressData.currentArgs,
+                                },
+                            });
+                        }
                     }
                     break;
                 }
