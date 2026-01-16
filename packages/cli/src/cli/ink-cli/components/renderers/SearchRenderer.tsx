@@ -36,8 +36,8 @@ export function SearchRenderer({ data, maxMatches = 5 }: SearchRendererProps) {
 
             {/* Match results - file paths only for clean output */}
             {displayMatches.map((match, i) => (
-                <Text key={i} color="gray">
-                    {'    '}
+                <Text key={i} color="gray" wrap="truncate">
+                    {'  ⎿ '}
                     {match.file}
                     {match.line > 0 && `:${match.line}`}
                 </Text>
@@ -45,7 +45,7 @@ export function SearchRenderer({ data, maxMatches = 5 }: SearchRendererProps) {
 
             {matches.length > maxMatches && (
                 <Text color="gray">
-                    {'    '}... {matches.length - maxMatches} more
+                    {'  ⎿ '}... {matches.length - maxMatches} more
                 </Text>
             )}
         </Box>

@@ -208,28 +208,35 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
         );
 
         // Handle overlay triggers
+        // Allow triggers while processing (for queuing), but not during approval
+        // IMPORTANT: Use functional updates to check prev.activeOverlay, not the closure value.
+        // This avoids race conditions when open/close happen in quick succession (React batching).
         const handleTriggerOverlay = useCallback(
             (trigger: OverlayTrigger) => {
-                if (ui.isProcessing || approval) return;
+                if (approval) return;
 
                 if (trigger === 'close') {
-                    if (
-                        ui.activeOverlay === 'slash-autocomplete' ||
-                        ui.activeOverlay === 'resource-autocomplete'
-                    ) {
-                        setUi((prev) => ({
-                            ...prev,
-                            activeOverlay: 'none',
-                            mcpWizardServerType: null,
-                        }));
-                    }
+                    // Use functional update to check the ACTUAL current state, not stale closure
+                    setUi((prev) => {
+                        if (
+                            prev.activeOverlay === 'slash-autocomplete' ||
+                            prev.activeOverlay === 'resource-autocomplete'
+                        ) {
+                            return {
+                                ...prev,
+                                activeOverlay: 'none',
+                                mcpWizardServerType: null,
+                            };
+                        }
+                        return prev;
+                    });
                 } else if (trigger === 'slash-autocomplete') {
                     setUi((prev) => ({ ...prev, activeOverlay: 'slash-autocomplete' }));
                 } else if (trigger === 'resource-autocomplete') {
                     setUi((prev) => ({ ...prev, activeOverlay: 'resource-autocomplete' }));
                 }
             },
-            [setUi, ui.isProcessing, ui.activeOverlay, approval]
+            [setUi, approval]
         );
 
         // Handle image paste from clipboard
@@ -720,7 +727,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
         // Note: slash-autocomplete handles its own Enter key (either executes command or submits raw text)
         const shouldHandleSubmit = ui.activeOverlay === 'none' || ui.activeOverlay === 'approval';
         // Allow history navigation when not blocked by approval/overlay
-        // When processing: handler allows queue editing but blocks history navigation
+        // Allow during processing so users can browse previous prompts while agent runs
         const canNavigateHistory = !approval && ui.activeOverlay === 'none';
 
         const placeholder = approval

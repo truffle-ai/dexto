@@ -924,7 +924,11 @@ export class ToolManager {
         try {
             // Generate preview for approval UI (if tool supports it)
             let displayPreview: ToolDisplayData | undefined;
-            const actualToolName = toolName.replace(/^internal--/, '');
+            // Strip prefix to get the base tool name for tool lookup
+            // Tools are registered by base name (e.g., 'edit_file') but exposed with prefixes:
+            // - 'internal--' for built-in internal tools
+            // - 'custom--' for custom tools (filesystem tools, bash tools, etc.)
+            const actualToolName = toolName.replace(/^internal--/, '').replace(/^custom--/, '');
             const internalTool = this.internalToolsProvider?.getTool(actualToolName);
 
             if (internalTool?.generatePreview) {

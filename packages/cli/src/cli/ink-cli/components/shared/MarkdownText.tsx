@@ -207,17 +207,16 @@ const WrappedParagraphInternal: React.FC<WrappedParagraphProps> = ({
     }, [text, defaultColor, bulletPrefix, isFirstParagraph, terminalWidth]);
 
     // Calculate indent for continuation lines (spaces to align with first line content)
-    const continuationIndent =
-        bulletPrefix && isFirstParagraph ? ' '.repeat(stringWidth(bulletPrefix)) : '';
+    // All lines get indentation when bulletPrefix is provided, for consistent left margin
+    const indentSpaces = bulletPrefix ? ' '.repeat(stringWidth(bulletPrefix)) : '';
 
     return (
         <>
             {wrappedLines.map((line, i) => {
                 const isFirstLine = i === 0;
+                // First line of first paragraph gets bullet, all other lines get space indent
                 const prefix =
-                    isFirstLine && bulletPrefix && isFirstParagraph
-                        ? bulletPrefix
-                        : continuationIndent;
+                    isFirstLine && isFirstParagraph && bulletPrefix ? bulletPrefix : indentSpaces;
 
                 return (
                     <Box key={i}>

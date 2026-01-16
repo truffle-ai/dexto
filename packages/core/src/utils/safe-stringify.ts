@@ -1,10 +1,13 @@
 import { redactSensitiveData } from './redactor.js';
 
 /**
- * Safe stringify that handles circular references, BigInt, and limits output size
- * Also redacts sensitive data to prevent PII leaks in error messages
+ * Safe stringify that handles circular references and BigInt.
+ * Also redacts sensitive data to prevent PII leaks.
+ *
+ * @param value - Value to stringify
+ * @param maxLen - Optional maximum length. If provided, truncates with '…(truncated)' suffix.
  */
-export function safeStringify(value: unknown, maxLen = 1000): string {
+export function safeStringify(value: unknown, maxLen?: number): string {
     try {
         // Handle top-level BigInt without triggering JSON.stringify errors
         if (typeof value === 'bigint') {
@@ -19,12 +22,17 @@ export function safeStringify(value: unknown, maxLen = 1000): string {
             if (typeof v === 'bigint') return v.toString();
             return v;
         });
-        const indicator = '…(truncated)';
-        const limit = Number.isFinite(maxLen) && maxLen > 0 ? Math.floor(maxLen) : 1000;
         if (typeof str === 'string') {
-            if (str.length <= limit) return str;
-            const sliceLen = Math.max(0, limit - indicator.length);
-            return `${str.slice(0, sliceLen)}${indicator}`;
+            // Only truncate if maxLen is explicitly provided
+            if (maxLen !== undefined && maxLen > 0 && str.length > maxLen) {
+                const indicator = '…(truncated)';
+                if (maxLen <= indicator.length) {
+                    return str.slice(0, maxLen);
+                }
+                const sliceLen = maxLen - indicator.length;
+                return `${str.slice(0, sliceLen)}${indicator}`;
+            }
+            return str;
         }
         return String(value);
     } catch {
