@@ -26,7 +26,10 @@ export function safeStringify(value: unknown, maxLen?: number): string {
             // Only truncate if maxLen is explicitly provided
             if (maxLen !== undefined && maxLen > 0 && str.length > maxLen) {
                 const indicator = '…(truncated)';
-                const sliceLen = Math.max(0, maxLen - indicator.length);
+                if (maxLen <= indicator.length) {
+                    return str.slice(0, maxLen);
+                }
+                const sliceLen = maxLen - indicator.length;
                 return `${str.slice(0, sliceLen)}${indicator}`;
             }
             return str;

@@ -229,23 +229,15 @@ export function useCLIState({
                 // Extract user messages for input history (arrow up navigation)
                 const userInputHistory = history
                     .filter(isUserMessage)
-                    .map((msg) => {
-                        // Extract text content from user message
-                        if (typeof msg.content === 'string') {
-                            return msg.content;
-                        }
-                        // Handle array content (text parts)
-                        if (Array.isArray(msg.content)) {
-                            return msg.content
-                                .filter(
-                                    (part): part is { type: 'text'; text: string } =>
-                                        typeof part === 'object' && part.type === 'text'
-                                )
-                                .map((part) => part.text)
-                                .join('\n');
-                        }
-                        return '';
-                    })
+                    .map((msg) =>
+                        msg.content
+                            .filter(
+                                (part): part is { type: 'text'; text: string } =>
+                                    part.type === 'text'
+                            )
+                            .map((part) => part.text)
+                            .join('\n')
+                    )
                     .filter((text) => text.trim().length > 0);
 
                 setInput((prev) => ({
