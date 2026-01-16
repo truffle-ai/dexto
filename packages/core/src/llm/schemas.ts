@@ -119,7 +119,7 @@ export const LLMConfigBaseSchema = z
         // apiKey is optional at schema level - validated based on provider in superRefine
         apiKey: LLMConfigFields.apiKey,
         // Apply defaults only for complete config validation
-        maxIterations: z.coerce.number().int().positive().default(50),
+        maxIterations: z.coerce.number().int().positive().optional(),
         baseURL: LLMConfigFields.baseURL,
         maxInputTokens: LLMConfigFields.maxInputTokens,
         maxOutputTokens: LLMConfigFields.maxOutputTokens,
