@@ -137,6 +137,7 @@ describe('requiresSetup', () => {
                     apiKeyPending: false,
                     baseURLPending: false,
                 },
+                preferDextoCredits: true,
             });
 
             const result = await requiresSetup();
@@ -161,6 +162,7 @@ describe('requiresSetup', () => {
                     apiKeyPending: false,
                     baseURLPending: false,
                 },
+                preferDextoCredits: true,
             });
 
             const result = await requiresSetup();
@@ -185,6 +187,7 @@ describe('requiresSetup', () => {
                     apiKeyPending: false,
                     baseURLPending: false,
                 },
+                preferDextoCredits: true,
             });
 
             const result = await requiresSetup();
@@ -209,6 +212,7 @@ describe('requiresSetup', () => {
                     apiKeyPending: false,
                     baseURLPending: false,
                 },
+                preferDextoCredits: true,
             });
 
             const result = await requiresSetup();

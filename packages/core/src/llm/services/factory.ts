@@ -17,7 +17,7 @@ import { createLocalLanguageModel } from '../providers/local/ai-sdk-adapter.js';
 import type { IConversationHistoryProvider } from '../../session/history/types.js';
 import type { SystemPromptManager } from '../../systemPrompt/manager.js';
 import type { IDextoLogger } from '../../logger/v2/types.js';
-import { requiresApiKey } from '../registry.js';
+import { requiresApiKey, resolveModelOrigin, transformModelNameForProvider } from '../registry.js';
 import { getPrimaryApiKeyEnvVar } from '../../utils/api-key-resolver.js';
 
 export function createVercelModel(llmConfig: ValidatedLLMConfig): LanguageModel {
@@ -75,8 +75,21 @@ export function createVercelModel(llmConfig: ValidatedLLMConfig): LanguageModel 
             // Dexto Gateway - OpenAI-compatible proxy with per-request billing
             // Routes through api.dexto.ai to OpenRouter, deducts from user balance
             // Requires DEXTO_API_KEY from `dexto login`
+            //
+            // Model name transformation:
+            // - If model is from another provider (e.g., 'gpt-5-mini'), transform to OpenRouter format
+            // - If model already has prefix (e.g., 'openai/gpt-5-mini'), use as-is
             const dextoBaseURL = 'https://api.dexto.ai/v1';
-            return createOpenAI({ apiKey: apiKey ?? '', baseURL: dextoBaseURL }).chat(model);
+
+            // Resolve the model's original provider and transform the name
+            const origin = resolveModelOrigin(model, 'dexto');
+            const transformedModel = origin
+                ? transformModelNameForProvider(model, origin.provider, 'dexto')
+                : model; // If not found in registry, use as-is (custom model)
+
+            return createOpenAI({ apiKey: apiKey ?? '', baseURL: dextoBaseURL }).chat(
+                transformedModel
+            );
         }
         case 'vertex': {
             // Google Vertex AI - supports both Gemini and Claude models
@@ -145,7 +158,6 @@ export function createVercelModel(llmConfig: ValidatedLLMConfig): LanguageModel 
             // SDK automatically reads AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_SESSION_TOKEN
             return createAmazonBedrock({ region })(modelId);
         }
-        // TODO: Add 'dexto' case (similar to openrouter, uses https://api.dexto.ai/v1)
         case 'anthropic':
             // API key required - SDK will fail with clear error if empty
             return createAnthropic({ apiKey: apiKey ?? '' })(model);

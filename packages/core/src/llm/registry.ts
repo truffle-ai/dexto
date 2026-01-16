@@ -84,7 +84,12 @@ export interface ProviderInfo {
     baseURLSupport: 'none' | 'optional' | 'required'; // Cleaner single field
     supportedFileTypes: SupportedFileType[]; // Provider-level default, used when model doesn't specify
     supportsCustomModels?: boolean; // Allow arbitrary model IDs beyond fixed list
-    // Add other provider-specific metadata if needed
+    /**
+     * When true, this provider can access all models from all other providers in the registry.
+     * Used for gateway providers like 'dexto' that route to multiple upstream providers.
+     * Model names are transformed to the gateway's format (e.g., 'gpt-5-mini' → 'openai/gpt-5-mini').
+     */
+    supportsAllRegistryModels?: boolean;
 }
 
 /** Fallback when we cannot determine the model's input-token limit */
@@ -1336,11 +1341,13 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
     // Dexto Gateway - OpenAI-compatible proxy through api.dexto.ai
     // Routes to OpenRouter with per-request billing (balance decrement)
     // Requires DEXTO_API_KEY from `dexto login`
+    // With supportsAllRegistryModels, users can select any model from any provider
     dexto: {
-        models: [], // Empty - accepts any OpenRouter model ID (e.g., anthropic/claude-4.5-sonnet)
+        models: [], // Empty - models come from other providers via supportsAllRegistryModels
         baseURLSupport: 'none', // Fixed endpoint: https://api.dexto.ai/v1
         supportedFileTypes: ['pdf', 'image', 'audio'], // Same as OpenRouter
-        supportsCustomModels: true, // Accept any OpenRouter model name
+        supportsCustomModels: true, // Also accept arbitrary OpenRouter model names
+        supportsAllRegistryModels: true, // Access all models from all providers in the registry
     },
 };
 
@@ -1390,6 +1397,7 @@ export function getSupportedModels(provider: LLMProvider): string[] {
 
 /**
  * Retrieves the maximum input token limit for a given provider and model from the registry.
+ * For gateway providers with supportsAllRegistryModels, looks up the model in its original provider.
  * @param provider The name of the provider (e.g., 'openai', 'anthropic', 'google').
  * @param model The specific model name.
  * @param logger Optional logger instance for logging. Optional because it's used in zod schema
@@ -1402,6 +1410,15 @@ export function getMaxInputTokensForModel(
     logger?: IDextoLogger
 ): number {
     const providerInfo = LLM_REGISTRY[provider];
+
+    // For gateway providers with supportsAllRegistryModels, resolve to original provider
+    if (providerInfo.supportsAllRegistryModels) {
+        const origin = resolveModelOrigin(model, provider);
+        if (origin) {
+            return getMaxInputTokensForModel(origin.provider, origin.model, logger);
+        }
+        // Model not found in any registry - fall through to error
+    }
 
     const normalizedModel = stripBedrockRegionPrefix(model).toLowerCase();
     const modelInfo = providerInfo.models.find((m) => m.name.toLowerCase() === normalizedModel);
@@ -1498,6 +1515,194 @@ export function supportsCustomModels(provider: LLMProvider): boolean {
 }
 
 /**
+ * Checks if a provider supports all registry models from all other providers.
+ * @param provider The name of the provider.
+ * @returns True if the provider supports all registry models, false otherwise.
+ */
+export function hasAllRegistryModelsSupport(provider: LLMProvider): boolean {
+    const providerInfo = LLM_REGISTRY[provider];
+    return providerInfo.supportsAllRegistryModels === true;
+}
+
+/**
+ * Provider prefix mapping for OpenRouter/Dexto model format.
+ * Maps native provider names to their OpenRouter prefix.
+ * null means the provider's models already have vendor prefixes (e.g., groq models like 'meta-llama/...')
+ */
+const OPENROUTER_PROVIDER_PREFIX: Partial<Record<LLMProvider, string | null>> = {
+    openai: 'openai',
+    anthropic: 'anthropic',
+    google: 'google',
+    xai: 'x-ai',
+    cohere: 'cohere',
+    groq: null, // Groq models already have vendor prefix (meta-llama/, qwen/, etc.)
+};
+
+/**
+ * Providers whose models are accessible via gateway providers with supportsAllRegistryModels.
+ * Excludes local-only providers and gateway providers themselves.
+ */
+const GATEWAY_ACCESSIBLE_PROVIDERS: LLMProvider[] = [
+    'openai',
+    'anthropic',
+    'google',
+    'groq',
+    'xai',
+    'cohere',
+];
+
+/**
+ * Gets all models available for a provider, including inherited models
+ * when supportsAllRegistryModels is true.
+ * @param provider The name of the provider.
+ * @returns Array of ModelInfo with additional originalProvider field for inherited models.
+ */
+export function getAllModelsForProvider(
+    provider: LLMProvider
+): Array<ModelInfo & { originalProvider?: LLMProvider }> {
+    const providerInfo = LLM_REGISTRY[provider];
+
+    // If provider doesn't support all registry models, return its own models
+    if (!providerInfo.supportsAllRegistryModels) {
+        return providerInfo.models.map((m) => ({ ...m }));
+    }
+
+    // Collect models from all gateway-accessible providers
+    const allModels: Array<ModelInfo & { originalProvider: LLMProvider }> = [];
+
+    for (const sourceProvider of GATEWAY_ACCESSIBLE_PROVIDERS) {
+        const sourceInfo = LLM_REGISTRY[sourceProvider];
+        for (const model of sourceInfo.models) {
+            allModels.push({
+                ...model,
+                originalProvider: sourceProvider,
+            });
+        }
+    }
+
+    return allModels;
+}
+
+/**
+ * Transforms a model name to the format required by a target provider.
+ * For dexto/openrouter, adds provider prefix (e.g., 'gpt-5-mini' → 'openai/gpt-5-mini').
+ * @param model The model name to transform.
+ * @param originalProvider The provider the model originally belongs to.
+ * @param targetProvider The provider to transform the model name for.
+ * @returns The transformed model name.
+ */
+export function transformModelNameForProvider(
+    model: string,
+    originalProvider: LLMProvider,
+    targetProvider: LLMProvider
+): string {
+    // Only transform for providers that need OpenRouter format
+    if (targetProvider !== 'dexto' && targetProvider !== 'openrouter') {
+        return model;
+    }
+
+    // If model already has a slash, assume it's already in the correct format
+    if (model.includes('/')) {
+        return model;
+    }
+
+    const prefix = OPENROUTER_PROVIDER_PREFIX[originalProvider];
+
+    // null means models already have vendor prefix (like groq's meta-llama/)
+    if (prefix === null) {
+        return model;
+    }
+
+    // Add the provider prefix
+    if (prefix) {
+        return `${prefix}/${model}`;
+    }
+
+    // Unknown provider - return as-is
+    return model;
+}
+
+/**
+ * Finds the original provider for a model when accessed through a gateway provider.
+ * This is needed to look up model metadata (pricing, file types, etc.) from the original registry.
+ * @param model The model name (may include provider prefix like 'openai/gpt-5-mini').
+ * @param gatewayProvider The gateway provider being used (e.g., 'dexto').
+ * @returns The original provider and normalized model name, or null if not found.
+ */
+export function resolveModelOrigin(
+    model: string,
+    gatewayProvider: LLMProvider
+): { provider: LLMProvider; model: string } | null {
+    // If the gateway doesn't support all registry models, model belongs to the gateway itself
+    if (!hasAllRegistryModelsSupport(gatewayProvider)) {
+        return { provider: gatewayProvider, model };
+    }
+
+    // Check if model has a provider prefix (e.g., 'openai/gpt-5-mini')
+    if (model.includes('/')) {
+        const [prefix, ...rest] = model.split('/');
+        const modelName = rest.join('/');
+
+        // Find provider by prefix
+        for (const [provider, providerPrefix] of Object.entries(OPENROUTER_PROVIDER_PREFIX)) {
+            if (providerPrefix === prefix) {
+                return { provider: provider as LLMProvider, model: modelName };
+            }
+        }
+
+        // For models with vendor prefix (like meta-llama/llama-3.3-70b), check groq
+        // The full model name including prefix might be in groq's registry
+        for (const sourceProvider of GATEWAY_ACCESSIBLE_PROVIDERS) {
+            const sourceInfo = LLM_REGISTRY[sourceProvider];
+            if (sourceInfo.models.some((m) => m.name.toLowerCase() === model.toLowerCase())) {
+                return { provider: sourceProvider, model };
+            }
+        }
+    }
+
+    // No prefix - search all accessible providers for the model
+    for (const sourceProvider of GATEWAY_ACCESSIBLE_PROVIDERS) {
+        const sourceInfo = LLM_REGISTRY[sourceProvider];
+        const normalizedModel = stripBedrockRegionPrefix(model).toLowerCase();
+        if (sourceInfo.models.some((m) => m.name.toLowerCase() === normalizedModel)) {
+            return { provider: sourceProvider, model };
+        }
+    }
+
+    // Model not found in any registry - might be a custom model
+    return null;
+}
+
+/**
+ * Checks if a model is valid for a provider, considering supportsAllRegistryModels.
+ * @param provider The provider to check.
+ * @param model The model name to validate.
+ * @returns True if the model is valid for the provider.
+ */
+export function isModelValidForProvider(provider: LLMProvider, model: string): boolean {
+    const providerInfo = LLM_REGISTRY[provider];
+
+    // Check provider's own models first
+    const normalizedModel = stripBedrockRegionPrefix(model).toLowerCase();
+    if (providerInfo.models.some((m) => m.name.toLowerCase() === normalizedModel)) {
+        return true;
+    }
+
+    // If provider supports custom models, any model is valid
+    if (providerInfo.supportsCustomModels) {
+        return true;
+    }
+
+    // If provider supports all registry models, check if model exists in any accessible provider
+    if (providerInfo.supportsAllRegistryModels) {
+        const origin = resolveModelOrigin(model, provider);
+        return origin !== null;
+    }
+
+    return false;
+}
+
+/**
  * Providers that don't require API keys.
  * These include:
  * - Native local providers (local for node-llama-cpp, ollama for Ollama server)
@@ -1530,6 +1735,7 @@ export function requiresApiKey(provider: LLMProvider): boolean {
 
 /**
  * Gets the supported file types for a specific model.
+ * For gateway providers with supportsAllRegistryModels, looks up the model in its original provider.
  * @param provider The name of the provider.
  * @param model The name of the model.
  * @returns Array of supported file types for the model.
@@ -1540,6 +1746,16 @@ export function getSupportedFileTypesForModel(
     model: string
 ): SupportedFileType[] {
     const providerInfo = LLM_REGISTRY[provider];
+
+    // For gateway providers with supportsAllRegistryModels, resolve to original provider
+    if (providerInfo.supportsAllRegistryModels) {
+        const origin = resolveModelOrigin(model, provider);
+        if (origin) {
+            return getSupportedFileTypesForModel(origin.provider, origin.model);
+        }
+        // Model not found - fall back to provider-level supportedFileTypes
+        return providerInfo.supportedFileTypes;
+    }
 
     // Special case: providers that accept any model name (e.g., openai-compatible)
     if (acceptsAnyModel(provider)) {
@@ -1760,11 +1976,10 @@ export function getEffectiveMaxInputTokens(config: LLMConfig, logger: IDextoLogg
 
 /**
  * Gets the pricing information for a specific model.
+ * For gateway providers with supportsAllRegistryModels, looks up the model in its original provider.
  *
- * TODO: When adding gateway providers (openrouter, vercel-ai, dexto, etc.),
- * each gateway will be its own provider with its own pricing in the registry.
- * The gateway's pricing includes any markup, so no separate "gateway multiplier" logic is needed.
- * Example: provider: 'dexto' would have models with Dexto's pricing (base + markup baked in).
+ * Note: This returns the original provider's pricing. Gateway providers may have markup
+ * that should be applied separately if needed.
  *
  * @param provider The name of the provider.
  * @param model The name of the model.
@@ -1772,6 +1987,16 @@ export function getEffectiveMaxInputTokens(config: LLMConfig, logger: IDextoLogg
  */
 export function getModelPricing(provider: LLMProvider, model: string): ModelPricing | undefined {
     const providerInfo = LLM_REGISTRY[provider];
+
+    // For gateway providers with supportsAllRegistryModels, resolve to original provider
+    if (providerInfo.supportsAllRegistryModels) {
+        const origin = resolveModelOrigin(model, provider);
+        if (origin) {
+            return getModelPricing(origin.provider, origin.model);
+        }
+        // Model not found in any registry
+        return undefined;
+    }
 
     // Special case: providers that accept any model name (e.g., openai-compatible)
     if (acceptsAnyModel(provider)) {
@@ -1785,6 +2010,7 @@ export function getModelPricing(provider: LLMProvider, model: string): ModelPric
 
 /**
  * Gets the display name for a model, falling back to the model ID if not found.
+ * For gateway providers with supportsAllRegistryModels, looks up the model in its original provider.
  */
 export function getModelDisplayName(model: string, provider?: LLMProvider): string {
     let resolvedProvider: LLMProvider;
@@ -1796,6 +2022,16 @@ export function getModelDisplayName(model: string, provider?: LLMProvider): stri
     }
 
     const providerInfo = LLM_REGISTRY[resolvedProvider];
+
+    // For gateway providers with supportsAllRegistryModels, resolve to original provider
+    if (providerInfo?.supportsAllRegistryModels) {
+        const origin = resolveModelOrigin(model, resolvedProvider);
+        if (origin) {
+            return getModelDisplayName(origin.model, origin.provider);
+        }
+        // Model not found in any registry
+        return model;
+    }
 
     if (!providerInfo || acceptsAnyModel(resolvedProvider)) {
         return model;
@@ -1857,4 +2093,48 @@ export function calculateCost(usage: TokenUsage, pricing: ModelPricing): number 
     const reasoningCost = ((usage.reasoningTokens ?? 0) * pricing.outputPerM) / 1_000_000;
 
     return inputCost + outputCost + cacheReadCost + cacheWriteCost + reasoningCost;
+}
+
+/**
+ * Options for determining whether to use the Dexto provider.
+ */
+export interface ShouldUseDextoOptions {
+    /** Whether the user has a DEXTO_API_KEY configured */
+    hasDextoKey: boolean;
+    /** Whether the user has an API key for the target provider */
+    hasProviderKey: boolean;
+    /** User's preference for using Dexto Credits (undefined = true by default) */
+    preferDextoCredits?: boolean;
+}
+
+/**
+ * Determines whether to use the Dexto provider based on available credentials and user preferences.
+ *
+ * Decision matrix:
+ * | hasDextoKey | hasProviderKey | preferDextoCredits | Result      |
+ * |-------------|----------------|-------------------|-------------|
+ * | Yes         | No             | any               | Use Dexto   |
+ * | No          | Yes            | any               | Use Provider|
+ * | Yes         | Yes            | true (default)    | Use Dexto   |
+ * | Yes         | Yes            | false             | Use Provider|
+ * | No          | No             | any               | No provider |
+ *
+ * @param options Configuration options
+ * @returns True if Dexto provider should be used, false otherwise
+ */
+export function shouldUseDextoProvider(options: ShouldUseDextoOptions): boolean {
+    const { hasDextoKey, hasProviderKey, preferDextoCredits = true } = options;
+
+    // No Dexto key = can't use Dexto
+    if (!hasDextoKey) {
+        return false;
+    }
+
+    // Has Dexto key but no provider key = use Dexto
+    if (!hasProviderKey) {
+        return true;
+    }
+
+    // Both keys available = check preference (defaults to true = prefer Dexto)
+    return preferDextoCredits;
 }

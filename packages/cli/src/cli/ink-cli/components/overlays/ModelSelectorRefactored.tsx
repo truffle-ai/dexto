@@ -60,6 +60,8 @@ interface ModelOption {
     isCurrent: boolean;
     isCustom: boolean;
     baseURL?: string;
+    /** For gateway providers like dexto, the original provider this model comes from */
+    originalProvider?: LLMProvider;
 }
 
 // Special option for adding custom model
@@ -206,6 +208,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                 for (const provider of providers) {
                     // Skip custom-only providers that don't have a static model list
                     // These are only accessible via the "Add custom model" wizard
+                    // Note: 'dexto' is NOT skipped because it has supportsAllRegistryModels
                     if (
                         provider === 'openai-compatible' ||
                         provider === 'openrouter' ||
@@ -222,6 +225,11 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
 
                     const providerModels = allModels[provider];
                     for (const model of providerModels) {
+                        // For dexto provider, models have originalProvider field
+                        // showing which provider the model originally came from
+                        const originalProvider =
+                            'originalProvider' in model ? model.originalProvider : undefined;
+
                         modelList.push({
                             provider,
                             name: model.name,
@@ -232,6 +240,8 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                                 provider === currentConfig.provider &&
                                 model.name === currentConfig.model,
                             isCustom: false,
+                            // Store original provider for display purposes
+                            ...(originalProvider && { originalProvider }),
                         });
                     }
                 }
@@ -721,13 +731,18 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                 // Show action buttons for selected custom models
                 const showActions = isSelected && item.isCustom;
 
+                // Show original provider for gateway models (e.g., dexto showing openai models)
+                const providerDisplay = item.originalProvider
+                    ? `${item.originalProvider} via ${item.provider}`
+                    : item.provider;
+
                 return (
                     <Box key={`${item.provider}-${item.name}`} paddingX={0} paddingY={0}>
                         {item.isCustom && <Text color={isSelected ? 'orange' : 'gray'}>★ </Text>}
                         <Text color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>
                             {item.displayName || item.name}
                         </Text>
-                        <Text color={isSelected ? 'white' : 'gray'}> ({item.provider})</Text>
+                        <Text color={isSelected ? 'white' : 'gray'}> ({providerDisplay})</Text>
                         <Text color={isSelected ? 'white' : 'gray'}>
                             {' '}
                             • {item.maxInputTokens.toLocaleString()} tokens
