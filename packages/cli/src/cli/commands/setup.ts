@@ -38,6 +38,8 @@ import {
     getModelFromResult,
 } from '../utils/local-model-setup.js';
 import { requiresSetup } from '../utils/setup-utils.js';
+import { canUseDextoProvider, getDefaultDextoModel } from '../utils/dexto-setup.js';
+import { handleBrowserLogin } from './auth/login.js';
 import * as p from '@clack/prompts';
 import { logger } from '@dexto/core';
 import { capture } from '../../analytics/index.js';
@@ -325,6 +327,105 @@ async function handleQuickStart(): Promise<void> {
 }
 
 /**
+ * Dexto Credits setup flow - login if needed, select model, save preferences
+ */
+async function handleDextoProviderSetup(): Promise<void> {
+    console.log(chalk.magenta('\n★ Dexto Credits Setup\n'));
+
+    const provider: LLMProvider = 'dexto';
+
+    // Check if user already has DEXTO_API_KEY
+    const hasKey = await canUseDextoProvider();
+
+    if (!hasKey) {
+        p.note(
+            `Dexto Credits gives you instant access to ${chalk.cyan('all AI models')} with a single account.\n\n` +
+                `We'll open your browser to sign in or create an account.`,
+            'Login Required'
+        );
+
+        const shouldLogin = await p.confirm({
+            message: 'Continue with browser login?',
+            initialValue: true,
+        });
+
+        if (p.isCancel(shouldLogin) || !shouldLogin) {
+            p.cancel('Setup cancelled');
+            process.exit(0);
+        }
+
+        try {
+            await handleBrowserLogin();
+            p.log.success('Login successful! Continuing with setup...');
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            p.log.error(`Login failed: ${errorMessage}`);
+            p.cancel('Setup cancelled - login required for Dexto Credits');
+            process.exit(1);
+        }
+    } else {
+        p.log.success('Already logged in to Dexto');
+    }
+
+    // Model selection for dexto - default to recommended model
+    const defaultModel = getDefaultDextoModel();
+
+    p.note(
+        `Dexto supports any OpenRouter model.\n\n` +
+            `Recommended: ${chalk.cyan(defaultModel)}\n` +
+            `Browse models: ${chalk.dim('https://openrouter.ai/models')}`,
+        'Model Selection'
+    );
+
+    const modelChoice = await p.text({
+        message: 'Enter model name',
+        placeholder: defaultModel,
+        initialValue: defaultModel,
+        validate: (value) => {
+            if (!value.trim()) return 'Model name is required';
+            return undefined;
+        },
+    });
+
+    if (p.isCancel(modelChoice)) {
+        p.cancel('Setup cancelled');
+        process.exit(0);
+    }
+
+    const model = (modelChoice as string).trim() || defaultModel;
+
+    // Ask about default mode
+    const defaultMode = await selectDefaultMode();
+
+    if (defaultMode === null) {
+        p.cancel('Setup cancelled');
+        process.exit(0);
+    }
+
+    // Save preferences
+    const preferences = createInitialPreferences({
+        provider,
+        model,
+        defaultMode,
+        setupCompleted: true,
+        apiKeyPending: false,
+        apiKeyVar: 'DEXTO_API_KEY',
+    });
+
+    await saveGlobalPreferences(preferences);
+
+    capture('dexto_setup', {
+        provider,
+        model,
+        setupMode: 'interactive',
+        setupVariant: 'dexto-credits',
+        defaultMode,
+    });
+
+    showSetupComplete(provider, model, defaultMode, false);
+}
+
+/**
  * Full interactive setup flow with wizard navigation.
  * Users can go back to previous steps to change their selections.
  */
@@ -375,9 +476,14 @@ async function wizardStepSetupType(state: SetupWizardState): Promise<SetupWizard
         message: 'How would you like to set up Dexto?',
         options: [
             {
+                value: 'dexto',
+                label: `${chalk.magenta('★')} Dexto Credits`,
+                hint: 'All models, one account - login to get started (recommended)',
+            },
+            {
                 value: 'quick',
                 label: `${chalk.green('●')} Quick Start`,
-                hint: 'Google Gemini (free) - recommended for new users',
+                hint: 'Google Gemini (free) - no account needed',
             },
             {
                 value: 'custom',
@@ -390,6 +496,12 @@ async function wizardStepSetupType(state: SetupWizardState): Promise<SetupWizard
     if (p.isCancel(setupType)) {
         p.cancel('Setup cancelled');
         process.exit(0);
+    }
+
+    if (setupType === 'dexto') {
+        // Handle Dexto Credits flow - login if needed, then proceed to model selection
+        await handleDextoProviderSetup();
+        return { ...state, step: 'complete', quickStartHandled: true };
     }
 
     if (setupType === 'quick') {
