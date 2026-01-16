@@ -5,8 +5,8 @@
 
 import path from 'path';
 import os from 'os';
-import type { DextoAgent, InternalMessage, ContentPart } from '@dexto/core';
-import { isTextPart } from '@dexto/core';
+import type { DextoAgent, InternalMessage, ContentPart, ToolCall } from '@dexto/core';
+import { isTextPart, isAssistantMessage, isToolMessage } from '@dexto/core';
 import type { Message } from '../state/types.js';
 import { generateMessageId } from './idGenerator.js';
 
@@ -477,6 +477,27 @@ function extractTextContent(content: ContentPart[] | null): string {
 }
 
 /**
+ * Generates a preview of tool result content for display
+ */
+function generateToolResultPreview(content: ContentPart[]): string {
+    const textContent = extractTextContent(content);
+    if (!textContent) return '';
+
+    const lines = textContent.split('\n');
+    const previewLines = lines.slice(0, 5);
+    let preview = previewLines.join('\n');
+
+    // Truncate if too long
+    if (preview.length > 400) {
+        preview = preview.slice(0, 397) + '...';
+    } else if (lines.length > 5) {
+        preview += '\n...';
+    }
+
+    return preview;
+}
+
+/**
  * Converts session history messages to UI messages
  */
 export function convertHistoryToUIMessages(
@@ -485,8 +506,85 @@ export function convertHistoryToUIMessages(
 ): Message[] {
     const uiMessages: Message[] = [];
 
+    // Build a map of toolCallId -> ToolCall for looking up tool call args
+    const toolCallMap = new Map<string, ToolCall>();
+    for (const msg of history) {
+        if (isAssistantMessage(msg) && msg.toolCalls) {
+            for (const toolCall of msg.toolCalls) {
+                toolCallMap.set(toolCall.id, toolCall);
+            }
+        }
+    }
+
     history.forEach((msg, index) => {
-        // Extract text content properly
+        const timestamp = new Date(msg.timestamp ?? Date.now() - (history.length - index) * 1000);
+
+        // Handle tool messages specially
+        if (isToolMessage(msg)) {
+            // Look up the original tool call to get args
+            const toolCall = toolCallMap.get(msg.toolCallId);
+
+            // Format tool name
+            const displayName = getToolDisplayName(msg.name);
+
+            // Format args if we have them
+            let toolContent = displayName;
+            if (toolCall) {
+                try {
+                    const args = JSON.parse(toolCall.function.arguments || '{}');
+                    const argsFormatted = formatToolArgsForDisplay(msg.name, args);
+                    if (argsFormatted) {
+                        toolContent = `${displayName}${argsFormatted}`;
+                    }
+                } catch {
+                    // Ignore JSON parse errors
+                }
+            }
+
+            // Add tool type badge
+            const badge = getToolTypeBadge(msg.name);
+            if (badge) {
+                toolContent = `${toolContent} ${badge}`;
+            }
+
+            // Generate result preview
+            const resultPreview = generateToolResultPreview(msg.content);
+
+            uiMessages.push({
+                id: `session-${sessionId}-${index}`,
+                role: 'tool',
+                content: toolContent,
+                timestamp,
+                toolStatus: 'finished',
+                toolResult: resultPreview,
+                isError: msg.success === false,
+                // Store content parts for potential rich rendering
+                toolContent: msg.content,
+                // Restore structured display data for rich rendering (diffs, shell output, etc.)
+                ...(msg.displayData !== undefined && {
+                    toolDisplayData: msg.displayData,
+                }),
+            });
+            return;
+        }
+
+        // Handle assistant messages - skip those with only tool calls (no text content)
+        if (isAssistantMessage(msg)) {
+            const textContent = extractTextContent(msg.content);
+
+            // Skip if no text content (message was just tool calls)
+            if (!textContent) return;
+
+            uiMessages.push({
+                id: `session-${sessionId}-${index}`,
+                role: 'assistant',
+                content: textContent,
+                timestamp,
+            });
+            return;
+        }
+
+        // Handle other messages (user, system)
         const textContent = extractTextContent(msg.content);
 
         // Skip empty messages
@@ -496,7 +594,7 @@ export function convertHistoryToUIMessages(
             id: `session-${sessionId}-${index}`,
             role: msg.role,
             content: textContent,
-            timestamp: new Date(msg.timestamp ?? Date.now() - (history.length - index) * 1000),
+            timestamp,
         });
     });
 

@@ -645,6 +645,10 @@ export class ContextManager<TMessage = unknown> {
             name,
             // Success status comes from sanitizedResult.meta (single source of truth)
             success: sanitizedResult.meta.success,
+            // Persist display data for rich rendering on session resume
+            ...(sanitizedResult.meta.display !== undefined && {
+                displayData: sanitizedResult.meta.display,
+            }),
             // Persist approval metadata for frontend display after reload
             ...(metadata?.requireApproval !== undefined && {
                 requireApproval: metadata.requireApproval,
