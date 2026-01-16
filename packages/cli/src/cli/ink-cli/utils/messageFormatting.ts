@@ -534,7 +534,7 @@ export function convertHistoryToUIMessages(
                     const args = JSON.parse(toolCall.function.arguments || '{}');
                     const argsFormatted = formatToolArgsForDisplay(msg.name, args);
                     if (argsFormatted) {
-                        toolContent = `${displayName}${argsFormatted}`;
+                        toolContent = `${displayName}(${argsFormatted})`;
                     }
                 } catch {
                     // Ignore JSON parse errors
@@ -544,7 +544,7 @@ export function convertHistoryToUIMessages(
             // Add tool type badge
             const badge = getToolTypeBadge(msg.name);
             if (badge) {
-                toolContent = `${toolContent} ${badge}`;
+                toolContent = `${toolContent} [${badge}]`;
             }
 
             // Generate result preview
