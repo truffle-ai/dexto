@@ -555,6 +555,7 @@ export function TextBufferInput({
     const isShellMode = bufferText.startsWith('!');
     const promptPrefix = isShellMode ? '$ ' : '> ';
     const promptColor = isShellMode ? 'yellow' : 'green';
+    const separatorColor = isShellMode ? 'yellow' : 'gray';
 
     // Calculate visible window
     let startLine = 0;
@@ -592,7 +593,7 @@ export function TextBufferInput({
 
     return (
         <Box flexDirection="column" width={terminalWidth}>
-            <Text color="gray">{separator}</Text>
+            <Text color={separatorColor}>{separator}</Text>
             {startLine > 0 && (
                 <Text color="gray">
                     {'  '}↑ {startLine} more line{startLine > 1 ? 's' : ''} above (
@@ -658,7 +659,7 @@ export function TextBufferInput({
                     cursorOnCollapsed={findCollapsedBlockAtCursor()}
                 />
             )}
-            <Text color="gray">{separator}</Text>
+            <Text color={separatorColor}>{separator}</Text>
         </Box>
     );
 }
