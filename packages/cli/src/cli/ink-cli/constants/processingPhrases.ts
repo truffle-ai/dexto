@@ -37,7 +37,7 @@ export const processingPhrases: string[] = [
 
     // Playful
     'Let me cook...',
-    'Manifesting greatness..',
+    'Manifesting greatness...',
     'Rizzing the huzz...',
     'Memeing...',
     'Outperforming other AI agents...',
@@ -53,6 +53,17 @@ export const processingPhrases: string[] = [
     'Braining...',
     'Using all 3 brain cells...',
     //'Installing malware (just kidding)...',
+
+    // Vines
+    'Look at all those chickens...',
+    'What are those!!?...',
+    'He needs some milk...',
+    'Something came in the mail today...',
+    'Road work ahead? Sure hope it does...',
+    'Merry Chrysler...',
+    "I'm in me mum's car. Broom broom...",
+    'I could have dropped my croissant...',
+    'That was legitness...',
 
     // Nerdy
     'Attention is all I need...',
