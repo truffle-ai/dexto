@@ -1806,6 +1806,7 @@ export function getModelDisplayName(model: string, provider?: LLMProvider): stri
     return modelInfo?.displayName ?? model;
 }
 
+// TODO: Add reasoningCapable as a property in the model registry instead of hardcoding here
 /**
  * Checks if a model supports configurable reasoning effort.
  * Currently only OpenAI reasoning models (o1, o3, codex, gpt-5.x) support this.
@@ -1814,7 +1815,7 @@ export function getModelDisplayName(model: string, provider?: LLMProvider): stri
  * @param provider Optional provider for context (defaults to detecting from model name).
  * @returns True if the model supports reasoning effort configuration.
  */
-export function isReasoningCapableModel(model: string, provider?: LLMProvider): boolean {
+export function isReasoningCapableModel(model: string, _provider?: LLMProvider): boolean {
     const modelLower = model.toLowerCase();
 
     // Codex models are optimized for complex coding with reasoning

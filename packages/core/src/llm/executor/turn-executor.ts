@@ -84,7 +84,7 @@ export class TurnExecutor {
         private resourceManager: ResourceManager,
         private sessionId: string,
         private config: {
-            maxSteps: number;
+            maxSteps?: number | undefined;
             maxOutputTokens?: number | undefined;
             temperature?: number | undefined;
             baseURL?: string | undefined;
@@ -296,7 +296,8 @@ export class TurnExecutor {
                     lastFinishReason = 'cancelled';
                     break;
                 }
-                if (++stepCount >= this.config.maxSteps) {
+                stepCount++;
+                if (this.config.maxSteps !== undefined && stepCount >= this.config.maxSteps) {
                     this.logger.debug(`Terminating: reached maxSteps (${this.config.maxSteps})`);
                     lastFinishReason = 'max-steps';
                     break;

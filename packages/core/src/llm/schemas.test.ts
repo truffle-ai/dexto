@@ -71,7 +71,7 @@ describe('LLMConfigSchema', () => {
             const config = LLMTestHelpers.getValidConfigForProvider('openai');
             const result = LLMConfigSchema.parse(config);
 
-            expect(result.maxIterations).toBe(50);
+            expect(result.maxIterations).toBeUndefined();
         });
 
         it('should preserve explicit optional values', () => {
@@ -432,7 +432,7 @@ describe('LLMConfigSchema', () => {
             const result: ValidatedLLMConfig = LLMConfigSchema.parse(input);
 
             // Should have applied defaults
-            expect(result.maxIterations).toBe(50);
+            expect(result.maxIterations).toBeUndefined();
 
             // Should preserve input values
             expect(result.provider).toBe(input.provider);
@@ -448,7 +448,7 @@ describe('LLMConfigSchema', () => {
             expect(typeof result.provider).toBe('string');
             expect(typeof result.model).toBe('string');
             expect(typeof result.apiKey).toBe('string');
-            expect(typeof result.maxIterations).toBe('number');
+            expect(result.maxIterations).toBeUndefined();
         });
     });
 
