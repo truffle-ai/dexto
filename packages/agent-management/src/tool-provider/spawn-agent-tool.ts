@@ -91,7 +91,12 @@ export function createSpawnAgentTool(service: RuntimeService): InternalTool {
 
             const result = await service.spawnAndExecute(options);
 
-            return result;
+            // Return clean output: just response on success, error message on failure
+            if (result.success) {
+                return result.response ?? 'Task completed successfully.';
+            } else {
+                return `Error: ${result.error ?? 'Unknown error'}`;
+            }
         },
     };
 }
