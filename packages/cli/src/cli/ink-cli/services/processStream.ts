@@ -881,7 +881,8 @@ export async function processStream(
                     });
                     if (event.service === 'agent-spawner' && event.event === 'progress') {
                         const { toolCallId, data } = event;
-                        if (toolCallId) {
+                        // Guard against null/non-object data payloads
+                        if (toolCallId && data && typeof data === 'object') {
                             // Update the tool message with sub-agent progress
                             const toolMessageId = `tool-${toolCallId}`;
                             const progressData = data as {

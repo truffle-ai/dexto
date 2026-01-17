@@ -285,7 +285,9 @@ export function formatToolHeader(
     const badge = getToolTypeBadge(toolName);
 
     // Special handling for spawn_agent: use agentId as display name
-    const isSpawnAgent = toolName === 'spawn_agent' || toolName === 'custom--spawn_agent';
+    // Normalize tool name to handle all prefixes (internal--, custom--)
+    const normalizedToolName = toolName.replace(/^(?:internal--|custom--)/, '');
+    const isSpawnAgent = normalizedToolName === 'spawn_agent';
     if (isSpawnAgent && args.agentId) {
         const agentId = String(args.agentId);
         const agentLabel = agentId.replace(/-agent$/, '');

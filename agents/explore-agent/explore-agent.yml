@@ -84,7 +84,35 @@ customTools:
   - type: filesystem-tools
     enabledTools: ["read_file", "glob_files", "grep_content"]  # Read-only tools only
     allowedPaths: ["."]
-    blockedPaths: [".git", "node_modules/.bin", ".env", ".env.local", ".env.production"]
+    blockedPaths:
+      # Version control
+      - ".git"
+      # Binaries
+      - "node_modules/.bin"
+      # Environment files with secrets
+      - ".env"
+      - ".env.local"
+      - ".env.production"
+      - ".env.development"
+      - ".env.test"
+      - ".env.staging"
+      # Package manager credentials
+      - ".npmrc"
+      - ".yarnrc"
+      - ".pypirc"
+      # Git credentials
+      - ".git-credentials"
+      - ".gitconfig"
+      # SSH keys
+      - ".ssh"
+      # Cloud provider credentials
+      - ".aws"
+      - ".gcp"
+      - ".azure"
+      # Kubernetes config
+      - ".kube"
+      # Docker credentials
+      - ".docker"
     blockedExtensions: [".exe", ".dll", ".so", ".dylib"]
     maxFileSize: 10485760  # 10MB
     enableBackups: false

@@ -36,7 +36,7 @@ export function createTransport(config: LoggerTransportConfig): ILoggerTransport
 
         case 'upstash':
             // TODO: Implement UpstashTransport in Phase B (optional)
-            throw LoggerError.transportNotImplemented('upstash', ['console', 'file']);
+            throw LoggerError.transportNotImplemented('upstash', ['silent', 'console', 'file']);
 
         default:
             throw LoggerError.unknownTransportType((config as any).type);
