@@ -1,10 +1,18 @@
-import React, { forwardRef, useState, useImperativeHandle, useRef, useEffect } from 'react';
+import React, {
+    forwardRef,
+    useState,
+    useImperativeHandle,
+    useRef,
+    useEffect,
+    useMemo,
+} from 'react';
 import { Box, Text } from 'ink';
 import type { ToolDisplayData, ElicitationMetadata } from '@dexto/core';
 import type { Key } from '../hooks/useInputOrchestrator.js';
 import { ElicitationForm, type ElicitationFormHandle } from './ElicitationForm.js';
 import { DiffPreview, CreateFilePreview } from './renderers/index.js';
 import { isEditWriteTool } from '../utils/toolUtils.js';
+import { formatToolHeader } from '../utils/messageFormatting.js';
 
 export interface ApprovalRequest {
     approvalId: string;
@@ -67,7 +75,14 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
 
         // Check if this is an edit/write file tool
         const toolName = approval.metadata.toolName as string | undefined;
+        const toolArgs = (approval.metadata.args as Record<string, unknown>) || {};
         const isEditOrWriteTool = isEditWriteTool(toolName);
+
+        // Format tool header using shared utility (same format as tool messages)
+        const formattedTool = useMemo(() => {
+            if (!toolName) return null;
+            return formatToolHeader(toolName, toolArgs);
+        }, [toolName, toolArgs]);
 
         const [selectedIndex, setSelectedIndex] = useState(0);
 
@@ -280,8 +295,8 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
                             <Box flexDirection="row" marginTop={0}>
                                 <Text color="gray">{'  '}</Text>
                                 <Text color="gray">
-                                    {toolName ? `"${toolName}"` : 'Tool'} wants to{' '}
-                                    {operation || 'access'} files outside working directory
+                                    {formattedTool ? `"${formattedTool.displayName}"` : 'Tool'}{' '}
+                                    wants to {operation || 'access'} files outside working directory
                                 </Text>
                             </Box>
                         </>
@@ -291,7 +306,7 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
                                 <Text color="yellowBright" bold>
                                     🔐 Approval:{' '}
                                 </Text>
-                                {toolName && <Text color="cyan">{toolName}</Text>}
+                                {formattedTool && <Text color="cyan">{formattedTool.header}</Text>}
                             </Box>
                             {isCommandConfirmation && command && (
                                 <Box flexDirection="row" marginTop={0}>

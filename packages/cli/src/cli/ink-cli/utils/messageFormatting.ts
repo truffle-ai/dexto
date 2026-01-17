@@ -151,6 +151,9 @@ const TOOL_CONFIGS: Record<string, ToolDisplayConfig> = {
 
     // User interaction
     ask_user: { displayName: 'Ask', argsToShow: ['question'], primaryArg: 'question' },
+
+    // Agent spawning - handled specially in getToolDisplayName for dynamic agentId
+    spawn_agent: { displayName: 'Agent', argsToShow: ['task'], primaryArg: 'task' },
 };
 
 /**
@@ -247,6 +250,65 @@ export function getToolTypeBadge(toolName: string): string {
 
     // Unknown - likely custom
     return 'custom';
+}
+
+/**
+ * Result of formatting a tool header for display
+ */
+export interface FormattedToolHeader {
+    /** User-friendly display name (e.g., "Explore", "Read") */
+    displayName: string;
+    /** Formatted arguments string (e.g., "file.ts" or "pattern, path: /src") */
+    argsFormatted: string;
+    /** Tool type badge (e.g., "internal", "custom", "MCP: github") */
+    badge: string;
+    /** Full formatted header string (e.g., "Explore(task) [custom]") */
+    header: string;
+}
+
+/**
+ * Formats a tool call header for consistent display across CLI.
+ * Used by both tool messages and approval prompts.
+ *
+ * Handles special cases like spawn_agent (uses agentId as display name).
+ *
+ * @param toolName - Raw tool name (may include prefixes like "custom--")
+ * @param args - Tool arguments object
+ * @returns Formatted header components and full string
+ */
+export function formatToolHeader(
+    toolName: string,
+    args: Record<string, unknown> = {}
+): FormattedToolHeader {
+    let displayName = getToolDisplayName(toolName);
+    const argsFormatted = formatToolArgsForDisplay(toolName, args);
+    const badge = getToolTypeBadge(toolName);
+
+    // Special handling for spawn_agent: use agentId as display name
+    // Normalize tool name to handle all prefixes (internal--, custom--)
+    const normalizedToolName = toolName.replace(/^(?:internal--|custom--)/, '');
+    const isSpawnAgent = normalizedToolName === 'spawn_agent';
+    if (isSpawnAgent && args.agentId) {
+        const agentId = String(args.agentId);
+        const agentLabel = agentId.replace(/-agent$/, '');
+        displayName = agentLabel.charAt(0).toUpperCase() + agentLabel.slice(1);
+    }
+
+    // Only show badge for MCP tools (external tools worth distinguishing)
+    const isMcpTool = badge.startsWith('MCP');
+    const badgeSuffix = isMcpTool ? ` [${badge}]` : '';
+
+    // Format: DisplayName(args) [badge] (badge only for MCP)
+    const header = argsFormatted
+        ? `${displayName}(${argsFormatted})${badgeSuffix}`
+        : `${displayName}()${badgeSuffix}`;
+
+    return {
+        displayName,
+        argsFormatted,
+        badge,
+        header,
+    };
 }
 
 /**
@@ -541,9 +603,9 @@ export function convertHistoryToUIMessages(
                 }
             }
 
-            // Add tool type badge
+            // Add tool type badge (only for MCP tools)
             const badge = getToolTypeBadge(msg.name);
-            if (badge) {
+            if (badge.startsWith('MCP')) {
                 toolContent = `${toolContent} [${badge}]`;
             }
 

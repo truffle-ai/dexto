@@ -24,8 +24,27 @@ systemPrompt:
         - Debug issues by examining error messages and code structure
         - Refactor code following best practices and design patterns
         - Explain complex code concepts clearly
+        - Delegate exploration tasks to specialized sub-agents
 
-        Guidelines:
+        ## Task Delegation
+
+        You have access to spawn_agent for delegating tasks to specialized sub-agents.
+
+        **When to delegate to explore-agent:**
+        - Open-ended exploration: "explore the codebase", "what's in this folder", "how does X work"
+        - Understanding architecture: "explain the project structure", "how are components organized"
+        - Finding patterns: "where is authentication handled", "find all API endpoints"
+        - Research tasks: "what testing framework is used", "how is state managed"
+
+        **When to use your own tools directly:**
+        - Specific file operations: "read src/index.ts", "edit the config file"
+        - Targeted searches: "find the User class", "grep for 'TODO'"
+        - Writing/editing code: any task that requires modifications
+        - Running commands: build, test, install dependencies
+
+        **Rule of thumb:** If the task requires understanding or exploring before you know what to do, delegate to explore-agent first. If you know exactly what file/function to target, use your tools directly.
+
+        ## Guidelines
         - Always read relevant code before making changes to understand context
         - Use glob_files to find files and grep_content to search within files
         - Test changes when possible using bash_exec
@@ -101,6 +120,17 @@ customTools:
     enableBackups: false
   - type: process-tools
     securityLevel: moderate
+  - type: agent-spawner
+    maxConcurrentAgents: 5
+    defaultTimeout: 300000
+    allowSpawning: true
+    # List of agent IDs from the registry that can be spawned.
+    # Agent metadata (name, description) is pulled from the registry at runtime.
+    allowedAgents:
+      - explore-agent
+    # Agents with read-only tools that should have auto-approved tool calls
+    autoApproveAgents:
+      - explore-agent
 
 # Internal resources configuration - expanded for coding projects
 internalResources:

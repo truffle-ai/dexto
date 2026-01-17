@@ -479,7 +479,8 @@ export class ToolManager {
                     actualToolName,
                     args,
                     sessionId,
-                    abortSignal
+                    abortSignal,
+                    toolCallId
                 );
             }
             // Route to custom tools
@@ -497,7 +498,8 @@ export class ToolManager {
                     actualToolName,
                     args,
                     sessionId,
-                    abortSignal
+                    abortSignal,
+                    toolCallId
                 );
             }
             // Tool doesn't have proper prefix

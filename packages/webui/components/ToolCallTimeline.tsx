@@ -20,6 +20,17 @@ import { Button } from './ui/button';
 import { CodePreview } from './CodePreview';
 import type { ToolDisplayData } from '@dexto/core';
 
+/**
+ * Sub-agent progress data for spawn_agent tool calls
+ */
+export interface SubAgentProgress {
+    task: string;
+    agentId: string;
+    toolsCalled: number;
+    currentTool: string;
+    currentArgs?: Record<string, unknown>;
+}
+
 export interface ToolCallTimelineProps {
     toolName: string;
     toolArgs?: Record<string, unknown>;
@@ -28,6 +39,7 @@ export interface ToolCallTimelineProps {
     requireApproval?: boolean;
     approvalStatus?: 'pending' | 'approved' | 'rejected';
     displayData?: ToolDisplayData;
+    subAgentProgress?: SubAgentProgress;
     onApprove?: (formData?: Record<string, unknown>, rememberChoice?: boolean) => void;
     onReject?: () => void;
 }
@@ -107,6 +119,7 @@ export function ToolCallTimeline({
     requireApproval = false,
     approvalStatus,
     displayData,
+    subAgentProgress,
     onApprove,
     onReject,
 }: ToolCallTimelineProps) {
@@ -117,6 +130,7 @@ export function ToolCallTimeline({
     // Tool is processing only if: no result yet, not pending approval, and not marked as failed
     // The `success === false` check handles incomplete tool calls from history (never got a result)
     const isProcessing = !hasResult && !isPendingApproval && !isFailed;
+    const hasSubAgentProgress = !!subAgentProgress;
 
     // Determine if there's meaningful content to show
     const hasExpandableContent = Boolean(
@@ -153,6 +167,14 @@ export function ToolCallTimeline({
 
     const { displayName, source } = stripToolPrefix(toolName);
     const summary = getSummary(displayName, toolArgs);
+
+    // For sub-agent progress, format the agent name nicely
+    const subAgentLabel = hasSubAgentProgress
+        ? subAgentProgress.agentId
+              .replace(/-agent$/, '')
+              .charAt(0)
+              .toUpperCase() + subAgentProgress.agentId.replace(/-agent$/, '').slice(1)
+        : null;
 
     // Status icon
     const StatusIcon = isPendingApproval ? (
@@ -216,16 +238,27 @@ export function ToolCallTimeline({
                     {isPendingApproval ? 'Approval required: ' : ''}
                     {isFailed ? 'Failed: ' : ''}
                     {isRejected ? 'Rejected: ' : ''}
-                    <span className="font-mono">
-                        <span className="text-blue-600 dark:text-blue-400">
-                            {summary.name.toLowerCase()}
+                    {hasSubAgentProgress ? (
+                        <span className="font-mono">
+                            <span className="text-purple-600 dark:text-purple-400 font-medium">
+                                {subAgentLabel}
+                            </span>
+                            <span className="text-muted-foreground/50">(</span>
+                            <span className="text-foreground/80">{subAgentProgress.task}</span>
+                            <span className="text-muted-foreground/50">)</span>
                         </span>
-                        <span className="text-muted-foreground/50">(</span>
-                        {summary.detail && (
-                            <span className="text-foreground/80">{summary.detail}</span>
-                        )}
-                        <span className="text-muted-foreground/50">)</span>
-                    </span>
+                    ) : (
+                        <span className="font-mono">
+                            <span className="text-blue-600 dark:text-blue-400">
+                                {summary.name.toLowerCase()}
+                            </span>
+                            <span className="text-muted-foreground/50">(</span>
+                            {summary.detail && (
+                                <span className="text-foreground/80">{summary.detail}</span>
+                            )}
+                            <span className="text-muted-foreground/50">)</span>
+                        </span>
+                    )}
                 </span>
 
                 {/* Badges */}
@@ -239,9 +272,18 @@ export function ToolCallTimeline({
                         approved
                     </span>
                 )}
-                {isProcessing && (
+                {isProcessing && !hasSubAgentProgress && (
                     <span className="text-[10px] text-muted-foreground/50 flex-shrink-0">
                         running...
+                    </span>
+                )}
+
+                {/* Sub-agent progress indicator */}
+                {hasSubAgentProgress && isProcessing && (
+                    <span className="text-[10px] text-muted-foreground flex-shrink-0">
+                        {subAgentProgress.toolsCalled} tool
+                        {subAgentProgress.toolsCalled !== 1 ? 's' : ''} |{' '}
+                        {subAgentProgress.currentTool}
                     </span>
                 )}
 

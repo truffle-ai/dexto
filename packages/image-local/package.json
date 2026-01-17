@@ -27,6 +27,7 @@
     "process"
   ],
   "dependencies": {
+    "@dexto/agent-management": "workspace:*",
     "@dexto/core": "workspace:*",
     "@dexto/tools-filesystem": "workspace:*",
     "@dexto/tools-process": "workspace:*"

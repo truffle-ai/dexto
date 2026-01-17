@@ -29,6 +29,22 @@ export type ToolResult =
     | Record<string, unknown>;
 
 /**
+ * Sub-agent progress data for spawn_agent tool calls
+ */
+export interface SubAgentProgress {
+    /** Short task description */
+    task: string;
+    /** Agent ID (e.g., 'explore-agent') */
+    agentId: string;
+    /** Number of tools called by the sub-agent */
+    toolsCalled: number;
+    /** Current tool being executed */
+    currentTool: string;
+    /** Current tool arguments (optional) */
+    currentArgs?: Record<string, unknown>;
+}
+
+/**
  * Message in the chat UI
  * Extends core InternalMessage with UI-specific fields
  * Note: Excludes 'system' role as system messages are not displayed in UI
@@ -50,6 +66,8 @@ export interface Message extends Omit<InternalMessage, 'content' | 'role'> {
     toolResult?: ToolResult;
     toolResultMeta?: SanitizedToolResult['meta'];
     toolResultSuccess?: boolean;
+    /** Sub-agent progress data (for spawn_agent tool calls) */
+    subAgentProgress?: SubAgentProgress;
 
     // Approval fields
     requireApproval?: boolean;
