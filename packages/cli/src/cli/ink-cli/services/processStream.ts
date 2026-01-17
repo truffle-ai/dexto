@@ -28,11 +28,7 @@ import type { Message, UIState, ToolStatus } from '../state/types.js';
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
 import { generateMessageId } from '../utils/idGenerator.js';
 import { checkForSplit } from '../utils/streamSplitter.js';
-import {
-    getToolDisplayName,
-    formatToolArgsForDisplay,
-    getToolTypeBadge,
-} from '../utils/messageFormatting.js';
+import { formatToolHeader } from '../utils/messageFormatting.js';
 import { isEditWriteTool } from '../utils/toolUtils.js';
 import { capture } from '../../../analytics/index.js';
 import chalk from 'chalk';
@@ -568,33 +564,17 @@ export async function processStream(
                         ? `tool-${event.callId}`
                         : generateMessageId('tool');
 
-                    // Get friendly display name, format args, and tool type badge
-                    let displayName = getToolDisplayName(event.toolName);
-                    let argsFormatted = formatToolArgsForDisplay(event.toolName, event.args || {});
-                    const badge = getToolTypeBadge(event.toolName);
+                    // Format tool header using shared utility
+                    const { header: toolContent } = formatToolHeader(
+                        event.toolName,
+                        (event.args as Record<string, unknown>) || {}
+                    );
 
-                    // Special handling for spawn_agent: use agentId as display name
-                    const isSpawnAgent =
-                        event.toolName === 'spawn_agent' ||
-                        event.toolName === 'custom--spawn_agent';
-                    if (isSpawnAgent && event.args?.agentId) {
-                        const agentId = String(event.args.agentId);
-                        const agentLabel = agentId.replace(/-agent$/, '');
-                        displayName = agentLabel.charAt(0).toUpperCase() + agentLabel.slice(1);
-                        // argsFormatted already has task from TOOL_CONFIGS
-                    }
-
-                    // Extract description if present
+                    // Add description if present (dim styling, on new line)
+                    let finalToolContent = toolContent;
                     const description = event.args?.description;
-
-                    // Format: toolName(args) [badge]
-                    // If description exists, add it on a new line with dim styling
-                    let toolContent = argsFormatted
-                        ? `${displayName}(${argsFormatted}) [${badge}]`
-                        : `${displayName}() [${badge}]`;
-
                     if (description && typeof description === 'string') {
-                        toolContent += `\n${chalk.dim(description)}`;
+                        finalToolContent += `\n${chalk.dim(description)}`;
                     }
 
                     // Tool calls start in 'pending' state (don't know if approval needed yet)
@@ -603,7 +583,7 @@ export async function processStream(
                     addToPending({
                         id: toolMessageId,
                         role: 'tool',
-                        content: toolContent,
+                        content: finalToolContent,
                         timestamp: new Date(),
                         toolStatus: 'pending',
                     });
