@@ -1,5 +1,14 @@
 # @dexto/server
 
+## 1.5.3
+
+### Patch Changes
+
+- Updated dependencies [4f00295]
+    - @dexto/agent-management@1.5.3
+    - @dexto/image-local@1.5.3
+    - @dexto/core@1.5.3
+
 ## 1.5.2
 
 ### Patch Changes

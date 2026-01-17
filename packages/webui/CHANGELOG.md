@@ -1,5 +1,16 @@
 # @dexto/webui
 
+## 1.5.3
+
+### Patch Changes
+
+- 4f00295: Added spawn-agent tools and explore agent.
+- Updated dependencies [4f00295]
+    - @dexto/core@1.5.3
+    - @dexto/analytics@1.5.3
+    - @dexto/client-sdk@1.5.3
+    - @dexto/registry@1.5.3
+
 ## 1.5.2
 
 ### Patch Changes
