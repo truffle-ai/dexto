@@ -1,5 +1,12 @@
 # @dexto/image-bundler
 
+## 1.5.3
+
+### Patch Changes
+
+- Updated dependencies [4f00295]
+    - @dexto/core@1.5.3
+
 ## 1.5.2
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @dexto/core
 
+## 1.5.3
+
+### Patch Changes
+
+- 4f00295: Added spawn-agent tools and explore agent.
+
 ## 1.5.2
 
 ### Patch Changes
