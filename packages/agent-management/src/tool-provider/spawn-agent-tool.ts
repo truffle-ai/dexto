@@ -22,8 +22,7 @@ No specialized agents are configured. The sub-agent will inherit your LLM with a
 
 ## Parameters
 - **task**: Short description for UI/logs (e.g., "Search for authentication code")
-- **instructions**: Detailed instructions for the sub-agent
-- **timeout**: (Optional) Task timeout in milliseconds`;
+- **instructions**: Detailed instructions for the sub-agent`;
     }
 
     // Build available agents section with clear use cases
@@ -45,7 +44,6 @@ ${agentsList}
 - **task**: Short description for UI/logs (e.g., "Explore authentication flow")
 - **instructions**: Detailed instructions sent to the sub-agent
 - **agentId**: Agent ID from the list above (e.g., "${availableAgents[0]?.id ?? 'explore-agent'}")
-- **timeout**: (Optional) Task timeout in milliseconds
 
 ## Notes
 - Sub-agents have their own tools, LLM, and conversation context
@@ -68,7 +66,6 @@ export function createSpawnAgentTool(service: RuntimeService): InternalTool {
                 task: string;
                 instructions: string;
                 agentId?: string;
-                timeout?: number;
                 toolCallId?: string;
                 sessionId?: string;
             } = {
@@ -78,9 +75,6 @@ export function createSpawnAgentTool(service: RuntimeService): InternalTool {
 
             if (validatedInput.agentId !== undefined) {
                 options.agentId = validatedInput.agentId;
-            }
-            if (validatedInput.timeout !== undefined) {
-                options.timeout = validatedInput.timeout;
             }
             if (context?.toolCallId !== undefined) {
                 options.toolCallId = context.toolCallId;

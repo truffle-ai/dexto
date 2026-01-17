@@ -81,6 +81,9 @@ export type AgentSpawnerConfig = z.output<typeof AgentSpawnerConfigSchema>;
 
 /**
  * Input schema for spawn_agent tool
+ *
+ * Note: Timeout is configured at the provider level (defaultTimeout in config).
+ * We don't expose timeout as a tool parameter because lowering it just wastes runs.
  */
 export const SpawnAgentInputSchema = z
     .object({
@@ -95,9 +98,6 @@ export const SpawnAgentInputSchema = z
 
         /** Agent ID from registry (optional - uses default minimal agent if not provided) */
         agentId: z.string().min(1).optional().describe('Agent ID from registry'),
-
-        /** Task timeout in milliseconds */
-        timeout: z.number().int().positive().optional().describe('Task timeout in milliseconds'),
     })
     .strict();
 
