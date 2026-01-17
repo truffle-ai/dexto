@@ -117,7 +117,7 @@ export class AgentPool {
         const previousStatus = handle.status;
         handle.status = status;
         if (status !== 'error') {
-            handle.error = undefined;
+            delete handle.error;
         } else if (error !== undefined) {
             handle.error = error;
         }
