@@ -196,6 +196,8 @@ function getEnvVarForProvider(provider: LLMProvider): string {
         // Local providers don't require API keys (empty string signals no key needed)
         local: '',
         ollama: '',
+        // Dexto gateway uses DEXTO_API_KEY from `dexto login`
+        dexto: 'DEXTO_API_KEY',
     };
     return envVarMap[provider];
 }

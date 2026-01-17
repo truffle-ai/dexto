@@ -56,6 +56,7 @@ describe('Config Writer', () => {
                 apiKeyPending: false,
                 baseURLPending: false,
             },
+            preferDextoCredits: true,
         };
     });
 

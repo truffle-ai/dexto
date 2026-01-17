@@ -6,6 +6,7 @@ import {
     LLM_PROVIDERS,
     SUPPORTED_FILE_TYPES,
     supportsBaseURL,
+    getAllModelsForProvider,
     type ProviderInfo,
     type LLMProvider,
     LLMUpdatesSchema,
@@ -340,12 +341,16 @@ export function createLlmRouter(getAgent: GetAgentFn) {
                 const displayName = provider.charAt(0).toUpperCase() + provider.slice(1);
                 const keyStatus = getProviderKeyStatus(provider);
 
+                // Use getAllModelsForProvider to get inherited models for gateway providers
+                // like 'dexto' that have supportsAllRegistryModels: true
+                const models = getAllModelsForProvider(provider);
+
                 providers[provider] = {
                     name: displayName,
                     hasApiKey: keyStatus.hasApiKey,
                     primaryEnvVar: keyStatus.envVar,
                     supportsBaseURL: supportsBaseURL(provider),
-                    models: info.models,
+                    models,
                     supportedFileTypes: info.supportedFileTypes,
                 };
             }

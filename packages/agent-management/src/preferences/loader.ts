@@ -126,6 +126,8 @@ export interface CreatePreferencesOptions {
     apiKeyPending?: boolean;
     /** Whether baseURL setup was skipped and needs to be configured later */
     baseURLPending?: boolean;
+    /** Whether to prefer Dexto Credits over direct API keys when both are available (default: true) */
+    preferDextoCredits?: boolean;
 }
 
 /**
@@ -185,6 +187,7 @@ export function createInitialPreferences(
                 apiKeyPending: opts.apiKeyPending ?? false,
                 baseURLPending: opts.baseURLPending ?? false,
             },
+            preferDextoCredits: opts.preferDextoCredits ?? true,
         };
     }
 
@@ -204,6 +207,7 @@ export function createInitialPreferences(
             apiKeyPending: false,
             baseURLPending: false,
         },
+        preferDextoCredits: true,
     };
 }
 

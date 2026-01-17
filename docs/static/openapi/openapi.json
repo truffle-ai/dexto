@@ -2818,7 +2818,8 @@
                         "vertex",
                         "bedrock",
                         "local",
-                        "ollama"
+                        "ollama",
+                        "dexto"
                       ],
                       "description": "LLM provider"
                     }
@@ -3146,7 +3147,8 @@
                             "vertex",
                             "bedrock",
                             "local",
-                            "ollama"
+                            "ollama",
+                            "dexto"
                           ],
                           "description": "LLM provider (e.g., 'openai', 'anthropic', 'google', 'groq')"
                         },
@@ -5176,6 +5178,135 @@
                               ],
                               "additionalProperties": false,
                               "description": "Provider catalog entry with models and capabilities"
+                            },
+                            "dexto": {
+                              "type": "object",
+                              "properties": {
+                                "name": {
+                                  "type": "string",
+                                  "description": "Provider display name"
+                                },
+                                "hasApiKey": {
+                                  "type": "boolean",
+                                  "description": "Whether API key is configured"
+                                },
+                                "primaryEnvVar": {
+                                  "type": "string",
+                                  "description": "Primary environment variable for API key"
+                                },
+                                "supportsBaseURL": {
+                                  "type": "boolean",
+                                  "description": "Whether custom base URLs are supported"
+                                },
+                                "models": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "name": {
+                                        "type": "string",
+                                        "description": "Model name identifier"
+                                      },
+                                      "maxInputTokens": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "exclusiveMinimum": true,
+                                        "description": "Maximum input tokens"
+                                      },
+                                      "default": {
+                                        "type": "boolean",
+                                        "description": "Whether this is a default model"
+                                      },
+                                      "supportedFileTypes": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string",
+                                          "enum": [
+                                            "audio",
+                                            "pdf",
+                                            "image"
+                                          ]
+                                        },
+                                        "description": "File types this model supports"
+                                      },
+                                      "displayName": {
+                                        "type": "string",
+                                        "description": "Human-readable display name"
+                                      },
+                                      "pricing": {
+                                        "type": "object",
+                                        "properties": {
+                                          "inputPerM": {
+                                            "type": "number",
+                                            "description": "Input cost per million tokens (USD)"
+                                          },
+                                          "outputPerM": {
+                                            "type": "number",
+                                            "description": "Output cost per million tokens (USD)"
+                                          },
+                                          "cacheReadPerM": {
+                                            "type": "number",
+                                            "description": "Cache read cost per million tokens"
+                                          },
+                                          "cacheWritePerM": {
+                                            "type": "number",
+                                            "description": "Cache write cost per million tokens"
+                                          },
+                                          "currency": {
+                                            "type": "string",
+                                            "enum": [
+                                              "USD"
+                                            ],
+                                            "description": "Currency"
+                                          },
+                                          "unit": {
+                                            "type": "string",
+                                            "enum": [
+                                              "per_million_tokens"
+                                            ],
+                                            "description": "Unit"
+                                          }
+                                        },
+                                        "required": [
+                                          "inputPerM",
+                                          "outputPerM"
+                                        ],
+                                        "description": "Pricing information in USD per million tokens"
+                                      }
+                                    },
+                                    "required": [
+                                      "name",
+                                      "maxInputTokens",
+                                      "supportedFileTypes"
+                                    ],
+                                    "additionalProperties": false,
+                                    "description": "Model information from LLM registry"
+                                  },
+                                  "description": "Models available from this provider"
+                                },
+                                "supportedFileTypes": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string",
+                                    "enum": [
+                                      "audio",
+                                      "pdf",
+                                      "image"
+                                    ]
+                                  },
+                                  "description": "Provider-level file type support"
+                                }
+                              },
+                              "required": [
+                                "name",
+                                "hasApiKey",
+                                "primaryEnvVar",
+                                "supportsBaseURL",
+                                "models",
+                                "supportedFileTypes"
+                              ],
+                              "additionalProperties": false,
+                              "description": "Provider catalog entry with models and capabilities"
                             }
                           },
                           "description": "Providers grouped by ID with their models and capabilities"
@@ -5328,7 +5459,8 @@
                           "vertex",
                           "bedrock",
                           "local",
-                          "ollama"
+                          "ollama",
+                          "dexto"
                         ],
                         "description": "LLM provider (e.g., 'openai', 'anthropic', 'google', 'groq')"
                       },
@@ -5432,7 +5564,8 @@
                             "vertex",
                             "bedrock",
                             "local",
-                            "ollama"
+                            "ollama",
+                            "dexto"
                           ],
                           "description": "LLM provider (e.g., 'openai', 'anthropic', 'google', 'groq')"
                         },
@@ -6498,7 +6631,8 @@
                               "vertex",
                               "bedrock",
                               "local",
-                              "ollama"
+                              "ollama",
+                              "dexto"
                             ],
                             "description": "Provider identifier for assistant messages"
                           },
@@ -7148,7 +7282,8 @@
                                   "vertex",
                                   "bedrock",
                                   "local",
-                                  "ollama"
+                                  "ollama",
+                                  "dexto"
                                 ],
                                 "description": "Provider identifier for assistant messages"
                               },
@@ -7563,7 +7698,8 @@
                                       "vertex",
                                       "bedrock",
                                       "local",
-                                      "ollama"
+                                      "ollama",
+                                      "dexto"
                                     ],
                                     "description": "Provider identifier for assistant messages"
                                   },
@@ -12023,7 +12159,8 @@
                 "vertex",
                 "bedrock",
                 "local",
-                "ollama"
+                "ollama",
+                "dexto"
               ],
               "description": "LLM provider identifier"
             },
@@ -12057,7 +12194,8 @@
                         "vertex",
                         "bedrock",
                         "local",
-                        "ollama"
+                        "ollama",
+                        "dexto"
                       ],
                       "description": "Provider identifier"
                     },
@@ -12117,7 +12255,8 @@
                       "vertex",
                       "bedrock",
                       "local",
-                      "ollama"
+                      "ollama",
+                      "dexto"
                     ],
                     "description": "LLM provider identifier (e.g., openai, anthropic)"
                   },
@@ -12168,7 +12307,8 @@
                         "vertex",
                         "bedrock",
                         "local",
-                        "ollama"
+                        "ollama",
+                        "dexto"
                       ],
                       "description": "Provider for which the key was saved"
                     },

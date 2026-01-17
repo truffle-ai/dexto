@@ -61,6 +61,7 @@ describe('Preferences Loader', () => {
                 apiKeyPending: false,
                 baseURLPending: false,
             },
+            preferDextoCredits: true,
         };
     });
 
@@ -307,6 +308,7 @@ setup:
                     apiKeyPending: false,
                     baseURLPending: false,
                 },
+                preferDextoCredits: true,
             });
         });
 

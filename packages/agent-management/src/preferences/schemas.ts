@@ -122,6 +122,18 @@ export const GlobalPreferencesSchema = z
         setup: PreferenceSetupSchema.default({ completed: false }).describe(
             'Setup completion tracking'
         ),
+
+        /**
+         * When true (default), use Dexto Credits via the dexto provider when both
+         * DEXTO_API_KEY and a direct provider API key are available.
+         * When false, prefer direct API keys over Dexto Credits.
+         */
+        preferDextoCredits: z
+            .boolean()
+            .default(true)
+            .describe(
+                'Use Dexto Credits instead of direct API keys when both are available (default: true)'
+            ),
     })
     .strict();
 

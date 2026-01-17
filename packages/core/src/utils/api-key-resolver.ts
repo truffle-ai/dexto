@@ -29,7 +29,8 @@ export const PROVIDER_API_KEY_MAP: Record<LLMProvider, string[]> = {
     // Local providers don't require API keys
     local: [], // Native node-llama-cpp execution
     ollama: [], // Ollama server (no authentication required)
-    // TODO: dexto: ['DEXTO_API_KEY'],
+    // Dexto gateway - requires key from `dexto login`
+    dexto: ['DEXTO_API_KEY'],
     // perplexity: ['PERPLEXITY_API_KEY'],
     // together: ['TOGETHER_API_KEY'],
     // fireworks: ['FIREWORKS_API_KEY'],
