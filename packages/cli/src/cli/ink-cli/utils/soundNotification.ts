@@ -97,7 +97,8 @@ function playSound(soundPath: string): void {
     }
 
     // Execute sound command asynchronously (fire and forget)
-    exec(command, (error) => {
+    // Use 5s timeout to prevent hanging processes (e.g., audio device issues)
+    exec(command, { timeout: 5000 }, (error) => {
         if (error) {
             // Silently fall back to terminal bell on error
             playTerminalBell();

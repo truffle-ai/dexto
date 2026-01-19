@@ -1,12 +1,17 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { exec } from 'child_process';
 import { SoundNotificationService, type SoundConfig } from './soundNotification.js';
 
 // Mock child_process exec
 vi.mock('child_process', () => ({
-    exec: vi.fn((command, callback) => {
-        if (callback) callback(null, '', '');
+    exec: vi.fn((_command, _options, callback) => {
+        // Handle both (command, callback) and (command, options, callback) signatures
+        const cb = typeof _options === 'function' ? _options : callback;
+        if (cb) cb(null, '', '');
     }),
 }));
+
+const mockedExec = vi.mocked(exec);
 
 // Full config for testing (mirrors defaults from PreferenceSoundsSchema)
 const TEST_CONFIG: SoundConfig = {
@@ -71,6 +76,17 @@ describe('SoundNotificationService', () => {
             // The service checks onApprovalRequired before playing
             expect(writeSpy).not.toHaveBeenCalled();
         });
+
+        it('should attempt to play sound when enabled', () => {
+            const service = new SoundNotificationService(TEST_CONFIG);
+            mockedExec.mockClear();
+            writeSpy.mockClear();
+            service.playApprovalSound();
+            // Should either call exec (platform sound) or write bell (fallback)
+            const soundAttempted =
+                mockedExec.mock.calls.length > 0 || writeSpy.mock.calls.length > 0;
+            expect(soundAttempted).toBe(true);
+        });
     });
 
     describe('playCompleteSound', () => {
@@ -87,6 +103,17 @@ describe('SoundNotificationService', () => {
             });
             service.playCompleteSound();
             expect(writeSpy).not.toHaveBeenCalled();
+        });
+
+        it('should attempt to play sound when enabled', () => {
+            const service = new SoundNotificationService(TEST_CONFIG);
+            mockedExec.mockClear();
+            writeSpy.mockClear();
+            service.playCompleteSound();
+            // Should either call exec (platform sound) or write bell (fallback)
+            const soundAttempted =
+                mockedExec.mock.calls.length > 0 || writeSpy.mock.calls.length > 0;
+            expect(soundAttempted).toBe(true);
         });
     });
 });

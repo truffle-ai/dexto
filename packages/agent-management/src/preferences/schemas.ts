@@ -139,8 +139,8 @@ export const GlobalPreferencesSchema = z
             'Setup completion tracking'
         ),
 
-        sounds: PreferenceSoundsSchema.optional().describe(
-            'Sound notification preferences (optional)'
+        sounds: PreferenceSoundsSchema.default({}).describe(
+            'Sound notification preferences (defaults applied for legacy preferences)'
         ),
     })
     .strict();

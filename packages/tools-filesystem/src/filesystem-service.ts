@@ -75,6 +75,14 @@ export class FileSystemService {
     }
 
     /**
+     * Get the effective working directory for file operations.
+     * Falls back to process.cwd() if not configured.
+     */
+    getWorkingDirectory(): string {
+        return this.config.workingDirectory || process.cwd();
+    }
+
+    /**
      * Initialize the service.
      * Safe to call multiple times - subsequent calls return the same promise.
      */

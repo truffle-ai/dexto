@@ -708,6 +708,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                 ui.activeOverlay,
                 session.id,
                 useStreaming,
+                soundService,
             ]
         );
 

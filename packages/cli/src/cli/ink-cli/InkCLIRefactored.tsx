@@ -158,8 +158,12 @@ export async function startInkCliRefactored(
             if (soundConfig.enabled) {
                 soundService = new SoundNotificationService(soundConfig);
             }
-        } catch {
-            // Preferences couldn't load - continue without sounds
+        } catch (error) {
+            // Log at debug level to help troubleshoot sound configuration issues
+            // Continue without sounds - this is non-critical functionality
+            agent.logger.debug(
+                `Sound preferences could not be loaded: ${error instanceof Error ? error.message : String(error)}`
+            );
         }
     }
 

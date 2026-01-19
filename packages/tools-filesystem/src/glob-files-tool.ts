@@ -53,8 +53,10 @@ export function createGlobFilesTool(options: FileToolOptions): InternalTool {
         getApprovalOverride: async (args: unknown): Promise<ApprovalRequestDetails | null> => {
             const { path: searchPath } = args as GlobFilesInput;
 
-            // Resolve the search directory (use cwd if not specified)
-            const searchDir = path.resolve(searchPath || process.cwd());
+            // Resolve the search directory using the same base the service uses
+            // This ensures approval decisions align with actual execution context
+            const baseDir = fileSystemService.getWorkingDirectory();
+            const searchDir = path.resolve(baseDir, searchPath || '.');
 
             // Check if path is within config-allowed paths
             const isAllowed = await fileSystemService.isPathWithinConfigAllowed(searchDir);
