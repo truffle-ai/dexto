@@ -308,7 +308,7 @@ setup:
                     baseURLPending: false,
                 },
                 sounds: {
-                    enabled: false,
+                    enabled: true,
                     onApprovalRequired: true,
                     onTaskComplete: true,
                 },
@@ -342,7 +342,7 @@ setup:
             });
 
             expect(preferences.sounds).toEqual({
-                enabled: false,
+                enabled: true,
                 onApprovalRequired: true,
                 onTaskComplete: true,
             });

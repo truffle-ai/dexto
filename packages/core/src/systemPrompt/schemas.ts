@@ -127,6 +127,13 @@ export const SystemPromptContributorsSchema = z
                     enabled: true,
                 },
                 {
+                    id: 'env',
+                    type: 'dynamic',
+                    priority: 15,
+                    source: 'env',
+                    enabled: true,
+                },
+                {
                     id: 'resources',
                     type: 'dynamic',
                     priority: 20,
