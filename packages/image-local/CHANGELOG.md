@@ -1,5 +1,17 @@
 # @dexto/image-local
 
+## 1.5.3
+
+### Patch Changes
+
+- 4f00295: Added spawn-agent tools and explore agent.
+- Updated dependencies [4f00295]
+- Updated dependencies [69c944c]
+    - @dexto/agent-management@1.5.3
+    - @dexto/tools-filesystem@1.5.3
+    - @dexto/core@1.5.3
+    - @dexto/tools-process@1.5.3
+
 ## 1.5.2
 
 ### Patch Changes
