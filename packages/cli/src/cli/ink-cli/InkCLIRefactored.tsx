@@ -146,25 +146,32 @@ export async function startInkCliRefactored(
     );
 
     let soundService: SoundNotificationService | null = null;
+    // Initialize sound config with defaults (enabled by default even without preferences file)
+    let soundConfig = {
+        enabled: true,
+        onApprovalRequired: true,
+        onTaskComplete: true,
+    };
+    // Override with user preferences if they exist
     if (globalPreferencesExist()) {
         try {
             const preferences = await loadGlobalPreferences();
-            // Sound defaults come from PreferenceSoundsSchema (enabled: true by default)
-            const soundConfig = {
-                enabled: preferences.sounds?.enabled ?? true,
-                onApprovalRequired: preferences.sounds?.onApprovalRequired ?? true,
-                onTaskComplete: preferences.sounds?.onTaskComplete ?? true,
+            soundConfig = {
+                enabled: preferences.sounds?.enabled ?? soundConfig.enabled,
+                onApprovalRequired:
+                    preferences.sounds?.onApprovalRequired ?? soundConfig.onApprovalRequired,
+                onTaskComplete: preferences.sounds?.onTaskComplete ?? soundConfig.onTaskComplete,
             };
-            if (soundConfig.enabled) {
-                soundService = new SoundNotificationService(soundConfig);
-            }
         } catch (error) {
             // Log at debug level to help troubleshoot sound configuration issues
-            // Continue without sounds - this is non-critical functionality
+            // Continue with default sounds - this is non-critical functionality
             agent.logger.debug(
                 `Sound preferences could not be loaded: ${error instanceof Error ? error.message : String(error)}`
             );
         }
+    }
+    if (soundConfig.enabled) {
+        soundService = new SoundNotificationService(soundConfig);
     }
 
     const inkApp = render(
