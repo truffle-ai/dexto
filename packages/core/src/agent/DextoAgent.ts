@@ -1577,10 +1577,12 @@ export class DextoAgent {
                 `Context compacted for session ${sessionId}: ` +
                     `${result.originalTokens} → ${result.compactedTokens} tokens`
             );
+            const runtimeConfig = this.stateManager.getRuntimeConfig(sessionId);
+            const strategy = runtimeConfig.compaction?.type ?? 'reactive-overflow';
             this.agentEventBus.emit('context:compacted', {
                 sessionId,
                 ...result,
-                strategy: 'reactive-overflow',
+                strategy,
                 reason: 'manual',
             });
         }

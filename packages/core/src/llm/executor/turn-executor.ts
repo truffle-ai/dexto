@@ -933,10 +933,18 @@ export class TurnExecutor {
 
         if (summaryMessages.length === 0) {
             // Compaction returned empty - nothing to summarize (e.g., already compacted)
-            // Don't emit context:compacted since no actual compaction happened
+            // Still emit context:compacted to clear the UI's compacting state
             this.logger.debug(
                 'Compaction skipped: strategy returned no summary (likely already compacted or nothing to summarize)'
             );
+            this.eventBus.emit('context:compacted', {
+                originalTokens,
+                compactedTokens: originalTokens, // No change
+                originalMessages: history.length,
+                compactedMessages: history.length, // No change
+                strategy: this.compactionStrategy.name,
+                reason: 'overflow',
+            });
             return;
         }
 

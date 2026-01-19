@@ -814,10 +814,14 @@ export async function processStream(
                     // Context was compacted - clear compacting state and show notification
                     setUi((prev) => ({ ...prev, isCompacting: false }));
 
-                    const reductionPercent = Math.round(
-                        ((event.originalTokens - event.compactedTokens) / event.originalTokens) *
-                            100
-                    );
+                    const reductionPercent =
+                        event.originalTokens > 0
+                            ? Math.round(
+                                  ((event.originalTokens - event.compactedTokens) /
+                                      event.originalTokens) *
+                                      100
+                              )
+                            : 0;
 
                     // Show compaction notification
                     const compactionContent =

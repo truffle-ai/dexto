@@ -179,9 +179,10 @@ export class CLISubscriber implements EventSubscriber {
     onContextCompacted(payload: AgentEventMap['context:compacted']): void {
         const { originalTokens, compactedTokens, originalMessages, compactedMessages, reason } =
             payload;
-        const reductionPercent = Math.round(
-            ((originalTokens - compactedTokens) / originalTokens) * 100
-        );
+        const reductionPercent =
+            originalTokens > 0
+                ? Math.round(((originalTokens - compactedTokens) / originalTokens) * 100)
+                : 0;
 
         // Output to stderr (doesn't interfere with stdout response stream)
         process.stderr.write(

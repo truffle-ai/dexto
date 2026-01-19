@@ -326,7 +326,7 @@ export class VercelLLMService {
         const result = {
             originalTokens,
             compactedTokens,
-            originalMessages: history.length,
+            originalMessages: preFilteredHistory.length,
             compactedMessages: filteredHistory.length,
         };
 

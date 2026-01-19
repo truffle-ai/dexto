@@ -50,7 +50,7 @@ describe('isOverflow', () => {
             expect(result).toBe(true);
         });
 
-        it('should return true when input tokens equal usable limit', () => {
+        it('should return false when input tokens exactly equal usable limit', () => {
             // Edge case: exactly at the limit should NOT trigger overflow
             // (inputTokens > usableTokens, not >=)
             const tokens: TokenUsage = {
