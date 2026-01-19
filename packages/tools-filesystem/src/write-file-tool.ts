@@ -5,9 +5,16 @@
  */
 
 import * as path from 'node:path';
+import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { createPatch } from 'diff';
-import { InternalTool, ToolExecutionContext, DextoRuntimeError, ApprovalType } from '@dexto/core';
+import {
+    InternalTool,
+    ToolExecutionContext,
+    DextoRuntimeError,
+    ApprovalType,
+    ToolError,
+} from '@dexto/core';
 import type {
     DiffDisplayData,
     FileDisplayData,
@@ -17,6 +24,26 @@ import type {
 import { FileSystemErrorCode } from './error-codes.js';
 import { BufferEncoding } from './types.js';
 import type { FileToolOptions } from './file-tool-types.js';
+
+/**
+ * Cache for content hashes between preview and execute phases.
+ * Keyed by toolCallId to ensure proper cleanup after execution.
+ * This prevents file corruption when user modifies file between preview and execute.
+ *
+ * For new files (file doesn't exist at preview time), we store a special marker
+ * to detect if the file was created between preview and execute.
+ */
+const previewContentHashCache = new Map<string, string | null>();
+
+/** Marker for files that didn't exist at preview time */
+const FILE_NOT_EXISTS_MARKER = null;
+
+/**
+ * Compute SHA-256 hash of content for change detection
+ */
+function computeContentHash(content: string): string {
+    return createHash('sha256').update(content, 'utf8').digest('hex');
+}
 
 const WriteFileInputSchema = z
     .object({
@@ -131,14 +158,23 @@ export function createWriteFileTool(options: FileToolOptions): InternalTool {
 
         /**
          * Generate preview for approval UI - shows diff or file creation info
+         * Stores content hash for change detection in execute phase.
          */
-        generatePreview: async (input: unknown, _context?: ToolExecutionContext) => {
+        generatePreview: async (input: unknown, context?: ToolExecutionContext) => {
             const { file_path, content } = input as WriteFileInput;
 
             try {
                 // Try to read existing file
                 const originalFile = await fileSystemService.readFile(file_path);
                 const originalContent = originalFile.content;
+
+                // Store content hash for change detection in execute phase
+                if (context?.toolCallId) {
+                    previewContentHashCache.set(
+                        context.toolCallId,
+                        computeContentHash(originalContent)
+                    );
+                }
 
                 // File exists - show diff preview
                 return generateDiffPreview(file_path, originalContent, content);
@@ -148,6 +184,11 @@ export function createWriteFileTool(options: FileToolOptions): InternalTool {
                     error instanceof DextoRuntimeError &&
                     error.code === FileSystemErrorCode.FILE_NOT_FOUND
                 ) {
+                    // Store marker that file didn't exist at preview time
+                    if (context?.toolCallId) {
+                        previewContentHashCache.set(context.toolCallId, FILE_NOT_EXISTS_MARKER);
+                    }
+
                     // File doesn't exist - show as file creation with full content
                     const lineCount = content.split('\n').length;
                     const preview: FileDisplayData = {
@@ -165,15 +206,19 @@ export function createWriteFileTool(options: FileToolOptions): InternalTool {
             }
         },
 
-        execute: async (input: unknown, _context?: ToolExecutionContext) => {
+        execute: async (input: unknown, context?: ToolExecutionContext) => {
             // Input is validated by provider before reaching here
             const { file_path, content, create_dirs, encoding } = input as WriteFileInput;
 
-            // Check if file exists (for diff generation)
+            // Check if file was modified since preview (safety check)
+            // This prevents corrupting user edits made between preview approval and execution
             let originalContent: string | null = null;
+            let fileExistsNow = false;
+
             try {
                 const originalFile = await fileSystemService.readFile(file_path);
                 originalContent = originalFile.content;
+                fileExistsNow = true;
             } catch (error) {
                 // Only treat FILE_NOT_FOUND as "create new file", rethrow other errors
                 if (
@@ -182,9 +227,33 @@ export function createWriteFileTool(options: FileToolOptions): InternalTool {
                 ) {
                     // File doesn't exist - this is a create operation
                     originalContent = null;
+                    fileExistsNow = false;
                 } else {
                     // Permission denied, I/O errors, etc. - rethrow
                     throw error;
+                }
+            }
+
+            // Verify file hasn't changed since preview
+            if (context?.toolCallId && previewContentHashCache.has(context.toolCallId)) {
+                const expectedHash = previewContentHashCache.get(context.toolCallId);
+                previewContentHashCache.delete(context.toolCallId); // Clean up regardless of outcome
+
+                if (expectedHash === FILE_NOT_EXISTS_MARKER) {
+                    // File didn't exist at preview time - verify it still doesn't exist
+                    if (fileExistsNow) {
+                        throw ToolError.fileModifiedSincePreview('write_file', file_path);
+                    }
+                } else if (expectedHash !== null) {
+                    // File existed at preview time - verify content hasn't changed
+                    if (!fileExistsNow) {
+                        // File was deleted between preview and execute
+                        throw ToolError.fileModifiedSincePreview('write_file', file_path);
+                    }
+                    const currentHash = computeContentHash(originalContent!);
+                    if (expectedHash !== currentHash) {
+                        throw ToolError.fileModifiedSincePreview('write_file', file_path);
+                    }
                 }
             }
 

@@ -11,6 +11,7 @@ export enum ToolErrorCode {
 
     // Validation (pre-execution)
     VALIDATION_FAILED = 'tools_validation_failed',
+    FILE_MODIFIED_SINCE_PREVIEW = 'tools_file_modified_since_preview',
 
     // Confirmation
     CONFIRMATION_HANDLER_MISSING = 'tools_confirmation_handler_missing',

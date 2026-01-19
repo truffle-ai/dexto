@@ -492,11 +492,11 @@ export class FileSystemService {
 
         // Read current file content
         const fileContent = await this.readFile(normalizedPath);
-        let content = fileContent.content;
+        const originalContent = fileContent.content;
 
         // Count occurrences of old string
         const occurrences = (
-            content.match(
+            originalContent.match(
                 new RegExp(operation.oldString.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')
             ) || []
         ).length;
@@ -517,17 +517,18 @@ export class FileSystemService {
 
         try {
             // Perform replacement
+            let newContent: string;
             if (operation.replaceAll) {
-                content = content.replace(
+                newContent = originalContent.replace(
                     new RegExp(operation.oldString.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'),
                     operation.newString
                 );
             } else {
-                content = content.replace(operation.oldString, operation.newString);
+                newContent = originalContent.replace(operation.oldString, operation.newString);
             }
 
             // Write updated content
-            await fs.writeFile(normalizedPath, content, options.encoding || DEFAULT_ENCODING);
+            await fs.writeFile(normalizedPath, newContent, options.encoding || DEFAULT_ENCODING);
 
             this.logger.debug(`File edited: ${normalizedPath} (${occurrences} replacements)`);
 
@@ -536,6 +537,8 @@ export class FileSystemService {
                 path: normalizedPath,
                 changesCount: occurrences,
                 backupPath,
+                originalContent,
+                newContent,
             };
         } catch (error) {
             throw FileSystemError.editFailed(

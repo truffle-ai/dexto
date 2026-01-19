@@ -935,7 +935,7 @@ export class ToolManager {
 
             if (internalTool?.generatePreview) {
                 try {
-                    const context: ToolExecutionContext = { sessionId };
+                    const context: ToolExecutionContext = { sessionId, toolCallId };
                     const preview = await internalTool.generatePreview(args, context);
                     displayPreview = preview ?? undefined;
                     this.logger.debug(`Generated preview for ${toolName}`);

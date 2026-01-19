@@ -135,6 +135,8 @@ export interface WriteResult {
     path: string;
     bytesWritten: number;
     backupPath?: string | undefined;
+    /** Original content if file was overwritten (undefined for new files) */
+    originalContent?: string | undefined;
 }
 
 /**
@@ -164,6 +166,10 @@ export interface EditResult {
     path: string;
     changesCount: number;
     backupPath?: string | undefined;
+    /** Original content before edit (for diff generation) */
+    originalContent: string;
+    /** New content after edit (for diff generation) */
+    newContent: string;
 }
 
 /**

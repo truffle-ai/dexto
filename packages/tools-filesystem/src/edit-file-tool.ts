@@ -5,6 +5,7 @@
  */
 
 import * as path from 'node:path';
+import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { createPatch } from 'diff';
 import { InternalTool, ToolExecutionContext, ApprovalType } from '@dexto/core';
@@ -13,6 +14,20 @@ import { ToolError } from '@dexto/core';
 import { ToolErrorCode } from '@dexto/core';
 import { DextoRuntimeError } from '@dexto/core';
 import type { FileToolOptions } from './file-tool-types.js';
+
+/**
+ * Cache for content hashes between preview and execute phases.
+ * Keyed by toolCallId to ensure proper cleanup after execution.
+ * This prevents file corruption when user modifies file between preview and execute.
+ */
+const previewContentHashCache = new Map<string, string>();
+
+/**
+ * Compute SHA-256 hash of content for change detection
+ */
+function computeContentHash(content: string): string {
+    return createHash('sha256').update(content, 'utf8').digest('hex');
+}
 
 const EditFileInputSchema = z
     .object({
@@ -126,14 +141,23 @@ export function createEditFileTool(options: FileToolOptions): InternalTool {
         /**
          * Generate preview for approval UI - shows diff without modifying file
          * Throws ToolError.validationFailed() for validation errors (file not found, string not found)
+         * Stores content hash for change detection in execute phase.
          */
-        generatePreview: async (input: unknown, _context?: ToolExecutionContext) => {
+        generatePreview: async (input: unknown, context?: ToolExecutionContext) => {
             const { file_path, old_string, new_string, replace_all } = input as EditFileInput;
 
             try {
                 // Read current file content
                 const originalFile = await fileSystemService.readFile(file_path);
                 const originalContent = originalFile.content;
+
+                // Store content hash for change detection in execute phase
+                if (context?.toolCallId) {
+                    previewContentHashCache.set(
+                        context.toolCallId,
+                        computeContentHash(originalContent)
+                    );
+                }
 
                 // Validate uniqueness constraint when replace_all is false
                 if (!replace_all) {
@@ -182,28 +206,40 @@ export function createEditFileTool(options: FileToolOptions): InternalTool {
             }
         },
 
-        execute: async (input: unknown, _context?: ToolExecutionContext) => {
+        execute: async (input: unknown, context?: ToolExecutionContext) => {
             // Input is validated by provider before reaching here
             const { file_path, old_string, new_string, replace_all } = input as EditFileInput;
 
-            // Read original content before editing (for diff generation)
-            const originalFile = await fileSystemService.readFile(file_path);
-            const originalContent = originalFile.content;
+            // Check if file was modified since preview (safety check)
+            // This prevents corrupting user edits made between preview approval and execution
+            if (context?.toolCallId && previewContentHashCache.has(context.toolCallId)) {
+                const expectedHash = previewContentHashCache.get(context.toolCallId)!;
+                previewContentHashCache.delete(context.toolCallId); // Clean up regardless of outcome
+
+                // Read current content to verify it hasn't changed
+                const currentFile = await fileSystemService.readFile(file_path);
+                const currentHash = computeContentHash(currentFile.content);
+
+                if (expectedHash !== currentHash) {
+                    throw ToolError.fileModifiedSincePreview('edit_file', file_path);
+                }
+            }
 
             // Edit file using FileSystemService
             // Backup behavior is controlled by config.enableBackups (default: false)
+            // editFile returns originalContent and newContent, eliminating extra file reads
             const result = await fileSystemService.editFile(file_path, {
                 oldString: old_string,
                 newString: new_string,
                 replaceAll: replace_all,
             });
 
-            // Read new content after editing (for diff generation)
-            const newFile = await fileSystemService.readFile(file_path);
-            const newContent = newFile.content;
-
-            // Generate display data using shared helper
-            const _display = generateDiffPreview(file_path, originalContent, newContent);
+            // Generate display data using content returned from editFile
+            const _display = generateDiffPreview(
+                file_path,
+                result.originalContent,
+                result.newContent
+            );
 
             return {
                 success: result.success,
