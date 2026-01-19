@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { client } from '@/lib/client';
 import { queryKeys } from '@/lib/queryKeys';
+import type { Attachment } from '../../lib/attachment-types.js';
 
 /**
  * Hook to fetch queued messages for a session
@@ -39,16 +40,13 @@ export function useQueueMessage() {
         mutationFn: async ({
             sessionId,
             message,
-            imageData,
-            fileData,
+            attachments,
         }: {
             sessionId: string;
             message?: string;
-            imageData?: { image: string; mimeType: string };
-            fileData?: { data: string; mimeType: string; filename?: string };
+            attachments?: Attachment[];
         }) => {
-            // Build content parts array from text, image, and file data
-            // New API uses unified ContentInput = string | ContentPart[]
+            // Build content parts array from text and attachments
             const contentParts: Array<
                 | { type: 'text'; text: string }
                 | { type: 'image'; image: string; mimeType?: string }
@@ -58,20 +56,24 @@ export function useQueueMessage() {
             if (message) {
                 contentParts.push({ type: 'text', text: message });
             }
-            if (imageData) {
-                contentParts.push({
-                    type: 'image',
-                    image: imageData.image,
-                    mimeType: imageData.mimeType,
-                });
-            }
-            if (fileData) {
-                contentParts.push({
-                    type: 'file',
-                    data: fileData.data,
-                    mimeType: fileData.mimeType,
-                    filename: fileData.filename,
-                });
+
+            if (attachments) {
+                for (const attachment of attachments) {
+                    if (attachment.type === 'image') {
+                        contentParts.push({
+                            type: 'image',
+                            image: attachment.data,
+                            mimeType: attachment.mimeType,
+                        });
+                    } else {
+                        contentParts.push({
+                            type: 'file',
+                            data: attachment.data,
+                            mimeType: attachment.mimeType,
+                            filename: attachment.filename,
+                        });
+                    }
+                }
             }
 
             const response = await client.api.queue[':sessionId'].$post({
