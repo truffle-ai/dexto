@@ -47,7 +47,7 @@ export function createBashExecTool(processService: ProcessService): InternalTool
     return {
         id: 'bash_exec',
         description:
-            'Execute a shell command with 2-minute default timeout. Returns stdout, stderr, exit code, and duration. For long-running commands (servers, watchers, npm run dev), MUST use run_in_background=true (use bash_output to retrieve results later). Commands ending with & are blocked - use run_in_background instead. Requires approval (with pattern-based session memory). Always quote file paths with spaces. Security: dangerous commands are blocked, injection attempts are detected.',
+            'Execute a shell command with 2-minute default timeout. Default working directory is the project root; each command runs in a fresh shell so cd does not persist between calls. Returns stdout, stderr, exit code, and duration. For long-running commands (servers, watchers, npm run dev), MUST use run_in_background=true (use bash_output to retrieve results later). Commands ending with & are blocked - use run_in_background instead. Requires approval (with pattern-based session memory). Always quote file paths with spaces. Security: dangerous commands are blocked, injection attempts are detected.',
         inputSchema: BashExecInputSchema,
 
         /**
