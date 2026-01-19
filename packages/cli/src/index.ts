@@ -154,6 +154,10 @@ program
         '--privacy-mode',
         'Hide full file paths from display (useful for screen recording/sharing). Can also set DEXTO_PRIVACY_MODE=true'
     )
+    .option(
+        '--dev',
+        '[maintainers] Use local ./agents instead of ~/.dexto (for dexto repo development)'
+    )
     .enablePositionalOptions();
 
 // 2) `create-app` SUB-COMMAND
@@ -739,6 +743,11 @@ program
                 // Set privacy mode early to gate all path-related output
                 if (opts.privacyMode) {
                     process.env.DEXTO_PRIVACY_MODE = 'true';
+                }
+
+                // Set dev mode early to use local repo agents instead of ~/.dexto
+                if (opts.dev) {
+                    process.env.DEXTO_DEV_MODE = 'true';
                 }
 
                 // ——— LOAD DEFAULT MODE FROM PREFERENCES ———
