@@ -77,6 +77,12 @@ export class TurnExecutor {
         { requireApproval: boolean; approvalStatus?: 'approved' | 'rejected' }
     >();
 
+    /**
+     * Tracks whether compaction occurred during this turn.
+     * Used to signal to the caller that session continuation may be needed.
+     */
+    private compactionOccurred = false;
+
     constructor(
         private model: LanguageModel,
         private toolManager: ToolManager,
@@ -374,6 +380,9 @@ export class TurnExecutor {
             stepCount,
             usage: lastStepTokens,
             finishReason: lastFinishReason,
+            // Signal to caller that compaction occurred during this turn
+            // Caller can use this to trigger session-native continuation
+            didCompact: this.compactionOccurred,
         };
     }
 
@@ -953,6 +962,9 @@ export class TurnExecutor {
         for (const summary of summaryMessages) {
             await this.contextManager.addMessage(summary);
         }
+
+        // Mark that compaction occurred during this turn
+        this.compactionOccurred = true;
 
         // Get filtered history to report message counts
         const { filterCompacted, estimateMessagesTokens: estimateTokens } = await import(

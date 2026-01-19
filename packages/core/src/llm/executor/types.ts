@@ -14,6 +14,11 @@ export interface ExecutorResult {
     usage: TokenUsage | null;
     /** Reason the execution finished */
     finishReason: LLMFinishReason;
+    /**
+     * Set to true if context compaction occurred during this turn.
+     * Caller can use this to trigger session-native continuation (create new session).
+     */
+    didCompact: boolean;
 }
 
 export interface StreamProcessorResult {

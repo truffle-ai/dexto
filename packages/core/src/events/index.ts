@@ -28,6 +28,7 @@ export type LLMFinishReason =
 export const AGENT_EVENT_NAMES = [
     'session:reset',
     'session:created',
+    'session:continued',
     'session:title-updated',
     'session:override-set',
     'session:override-cleared',
@@ -120,6 +121,7 @@ export const STREAMING_EVENTS = [
 
     // Session metadata
     'session:title-updated',
+    'session:continued',
 
     // Approval events (needed for tool confirmation in streaming UIs)
     'approval:request',
@@ -228,6 +230,22 @@ export interface AgentEventMap {
     'session:created': {
         sessionId: string | null; // null means clear without creating (deferred creation)
         switchTo: boolean; // Whether UI should switch to this session
+    };
+
+    /** Fired when context compaction creates a new session (session-native compaction) */
+    'session:continued': {
+        /** The session that was compacted */
+        previousSessionId: string;
+        /** The new session to continue in */
+        newSessionId: string;
+        /** Number of tokens in the summary */
+        summaryTokens: number;
+        /** Original message count that was summarized */
+        originalMessages: number;
+        /** Why the compaction occurred */
+        reason: 'overflow' | 'manual';
+        /** The new session ID (for consistency with other streaming events) */
+        sessionId: string;
     };
 
     /** Fired when a session's human-friendly title is updated */

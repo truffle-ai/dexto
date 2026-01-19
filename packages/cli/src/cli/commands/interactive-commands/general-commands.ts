@@ -220,10 +220,10 @@ export const generalCommands: CommandDefinition[] = [
                 }
 
                 return formatForInkCli(
-                    `📦 Context compacted\n` +
-                        `   Tokens: ${result.originalTokens.toLocaleString()} → ~${result.compactedTokens.toLocaleString()}\n` +
-                        `   Messages: ${result.originalMessages} → ${result.compactedMessages} (after filtering)\n` +
-                        `💡 Older messages summarized. Full history still in DB.`
+                    `📦 Context compacted → Continuing in new session\n` +
+                        `   ${result.previousSessionId.slice(0, 8)}... → ${result.newSessionId.slice(0, 8)}...\n` +
+                        `   ${result.originalMessages} messages → ~${result.summaryTokens.toLocaleString()} token summary\n` +
+                        `💡 New session created with conversation summary. Old session preserved.`
                 );
             } catch (error) {
                 const errorMsg = `Failed to compact context: ${error instanceof Error ? error.message : String(error)}`;

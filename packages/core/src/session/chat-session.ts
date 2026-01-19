@@ -325,15 +325,15 @@ export class ChatSession {
      *
      * @param content - String or ContentPart[] (text, images, files)
      * @param options - { signal?: AbortSignal }
-     * @returns Promise that resolves to the AI's response text
+     * @returns Promise that resolves to object with text and compaction status
      *
      * @example
      * ```typescript
      * // Text only
-     * const response = await session.stream('What is the weather?');
+     * const { text, didCompact } = await session.stream('What is the weather?');
      *
      * // Multiple images
-     * const response = await session.stream([
+     * const { text, didCompact } = await session.stream([
      *     { type: 'text', text: 'Compare these images' },
      *     { type: 'image', image: base64Data1, mimeType: 'image/png' },
      *     { type: 'image', image: base64Data2, mimeType: 'image/png' }
@@ -343,7 +343,7 @@ export class ChatSession {
     public async stream(
         content: ContentInput,
         options?: { signal?: AbortSignal }
-    ): Promise<string> {
+    ): Promise<{ text: string; didCompact: boolean }> {
         // Normalize content to ContentPart[]
         const parts: ContentPart[] =
             typeof content === 'string' ? [{ type: 'text', text: content }] : content;
@@ -416,12 +416,12 @@ export class ChatSession {
             }
 
             // Call LLM service stream
-            const response = await this.llmService.stream(modifiedParts, { signal });
+            const streamResult = await this.llmService.stream(modifiedParts, { signal });
 
             // Execute beforeResponse plugins
             const llmConfig = this.services.stateManager.getLLMConfig(this.id);
             const beforeResponsePayload: BeforeResponsePayload = {
-                content: response,
+                content: streamResult.text,
                 provider: llmConfig.provider,
                 model: llmConfig.model,
                 sessionId: this.id,
@@ -440,7 +440,10 @@ export class ChatSession {
                 }
             );
 
-            return modifiedResponsePayload.content;
+            return {
+                text: modifiedResponsePayload.content,
+                didCompact: streamResult.didCompact,
+            };
         } catch (error) {
             // If this was an intentional cancellation, return partial response from history
             const aborted =
@@ -458,12 +461,12 @@ export class ChatSession {
                     const history = await this.getHistory();
                     const lastAssistant = history.filter((m) => m.role === 'assistant').pop();
                     if (lastAssistant && typeof lastAssistant.content === 'string') {
-                        return lastAssistant.content;
+                        return { text: lastAssistant.content, didCompact: false };
                     }
                 } catch {
                     this.logger.debug('Failed to retrieve partial response from history on cancel');
                 }
-                return '';
+                return { text: '', didCompact: false };
             }
 
             // Check if this is a plugin blocking error
@@ -491,7 +494,7 @@ export class ChatSession {
                     );
                 }
 
-                return error.message;
+                return { text: error.message, didCompact: false };
             }
 
             this.logger.error(
@@ -584,21 +587,6 @@ export class ChatSession {
      */
     public getContextManager(): ContextManager<unknown> {
         return this.llmService.getContextManager();
-    }
-
-    /**
-     * Manually compact the context by generating a summary of older messages.
-     * This is useful for users who want to compact before hitting the auto-compaction threshold.
-     *
-     * @returns Compaction result with token counts, or null if compaction was skipped
-     */
-    public async compactContext(): Promise<{
-        originalTokens: number;
-        compactedTokens: number;
-        originalMessages: number;
-        compactedMessages: number;
-    } | null> {
-        return this.llmService.compactContext();
     }
 
     /**

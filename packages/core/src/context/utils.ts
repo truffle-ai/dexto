@@ -1728,21 +1728,27 @@ export function toTextForToolMessage(content: InternalMessage['content']): strin
 
 /**
  * Filter history to exclude messages before the most recent summary.
- * This implements read-time compression.
+ * This implements read-time compression for inline compaction.
  *
- * When a summary message exists (with metadata.isSummary === true),
- * this function returns only the summary message and everything after it.
- * This effectively hides old messages from the LLM while preserving them in storage.
+ * Used by:
+ * - TurnExecutor for inline compaction during agentic turns (overflow handling)
+ * - DextoAgent.getContextStats() for accurate token/message counts
+ *
+ * When a summary message exists (with metadata.isSummary === true or
+ * metadata.isSessionSummary === true), this function returns only the
+ * summary message and everything after it. This effectively hides old
+ * messages from the LLM while preserving them in storage.
  *
  * @param history The full conversation history
  * @returns Filtered history starting from the most recent summary (or full history if no summary)
  */
 export function filterCompacted(history: readonly InternalMessage[]): InternalMessage[] {
     // Find the most recent summary message (search backwards for efficiency)
+    // Check for both old isSummary marker and new isSessionSummary marker
     let summaryIndex = -1;
     for (let i = history.length - 1; i >= 0; i--) {
         const msg = history[i];
-        if (msg?.metadata?.isSummary === true) {
+        if (msg?.metadata?.isSummary === true || msg?.metadata?.isSessionSummary === true) {
             summaryIndex = i;
             break;
         }

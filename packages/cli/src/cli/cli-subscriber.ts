@@ -50,6 +50,7 @@ export class CLISubscriber implements EventSubscriber {
         eventBus.on('session:reset', this.onConversationReset.bind(this));
         eventBus.on('context:compacting', this.onContextCompacting.bind(this));
         eventBus.on('context:compacted', this.onContextCompacted.bind(this));
+        eventBus.on('session:continued', this.onSessionContinued.bind(this));
     }
 
     /**
@@ -187,6 +188,17 @@ export class CLISubscriber implements EventSubscriber {
         // Output to stderr (doesn't interfere with stdout response stream)
         process.stderr.write(
             `[📦 Context compacted (${reason}): ${originalTokens.toLocaleString()} → ~${compactedTokens.toLocaleString()} tokens (${reductionPercent}% reduction), ${originalMessages} → ${compactedMessages} messages]\n`
+        );
+    }
+
+    onSessionContinued(payload: AgentEventMap['session:continued']): void {
+        const { previousSessionId, newSessionId, summaryTokens, originalMessages, reason } =
+            payload;
+        // Output to stderr (doesn't interfere with stdout response stream)
+        process.stderr.write(
+            `[📦 Context compacted → Continuing in new session\n` +
+                `   ${previousSessionId.slice(0, 8)}... → ${newSessionId.slice(0, 8)}...\n` +
+                `   ${originalMessages} messages → ~${summaryTokens.toLocaleString()} token summary (${reason})]\n`
         );
     }
 

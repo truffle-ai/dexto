@@ -165,14 +165,22 @@ export class VercelLLMService {
     }
 
     /**
+     * Result from streaming a response.
+     */
+    public static StreamResult: { text: string; didCompact: boolean };
+
+    /**
      * Stream a response for the given content.
      * Primary method for running conversations with multi-image support.
      *
      * @param content - String or ContentPart[] (text, images, files)
      * @param options - { signal?: AbortSignal }
-     * @returns The assistant's text response
+     * @returns Object with text response and whether compaction occurred
      */
-    async stream(content: ContentInput, options?: { signal?: AbortSignal }): Promise<string> {
+    async stream(
+        content: ContentInput,
+        options?: { signal?: AbortSignal }
+    ): Promise<{ text: string; didCompact: boolean }> {
         // Get active span and context for telemetry
         const activeSpan = trace.getActiveSpan();
         const currentContext = context.active();
@@ -222,7 +230,10 @@ export class VercelLLMService {
             const contributorContext = { mcpManager: this.toolManager.getMcpManager() };
             const result = await executor.execute(contributorContext, true);
 
-            return result.text ?? '';
+            return {
+                text: result.text ?? '',
+                didCompact: result.didCompact,
+            };
         });
     }
 
@@ -276,65 +287,11 @@ export class VercelLLMService {
     }
 
     /**
-     * Manually compact the context by generating a summary of older messages.
-     * This is useful for users who want to compact before hitting the auto-compaction threshold.
-     *
-     * @returns Compaction result with token counts, or null if compaction was skipped
+     * Get the compaction strategy for external access (e.g., session-native compaction)
      */
-    async compactContext(): Promise<{
-        originalTokens: number;
-        compactedTokens: number;
-        originalMessages: number;
-        compactedMessages: number;
-    } | null> {
-        if (!this.compactionStrategy) {
-            this.logger.warn('Compaction strategy not configured - skipping manual compaction');
-            return null;
-        }
-
-        const history = await this.contextManager.getHistory();
-
-        // Get estimated token count before compaction
-        const { filterCompacted, estimateMessagesTokens } = await import('../../context/utils.js');
-        const preFilteredHistory = filterCompacted(history);
-        const originalTokens = estimateMessagesTokens(preFilteredHistory);
-
-        if (history.length < 4) {
-            this.logger.debug('History too short for compaction (less than 4 messages)');
-            return null;
-        }
-
-        // Generate summary
-        this.logger.info(`Manual compaction requested, processing ${history.length} messages`);
-        const summaryMessages = await this.compactionStrategy.compact(history);
-
-        if (summaryMessages.length === 0) {
-            this.logger.debug('Compaction returned no summary - history may already be summarized');
-            return null;
-        }
-
-        // Add summary to history
-        for (const summary of summaryMessages) {
-            await this.contextManager.addMessage(summary);
-        }
-
-        // Get filtered history to report message counts
-        const updatedHistory = await this.contextManager.getHistory();
-        const filteredHistory = filterCompacted(updatedHistory);
-        const compactedTokens = estimateMessagesTokens(filteredHistory);
-
-        const result = {
-            originalTokens,
-            compactedTokens,
-            originalMessages: preFilteredHistory.length,
-            compactedMessages: filteredHistory.length,
-        };
-
-        this.logger.info(
-            `Manual compaction complete: ${result.originalTokens} → ~${result.compactedTokens} tokens ` +
-                `(${result.originalMessages} → ${result.compactedMessages} messages after filtering)`
-        );
-
-        return result;
+    getCompactionStrategy():
+        | import('../../context/compaction/types.js').ICompactionStrategy
+        | null {
+        return this.compactionStrategy;
     }
 }

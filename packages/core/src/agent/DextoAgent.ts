@@ -1071,7 +1071,10 @@ export class DextoAgent {
                         (await this.sessionManager.createSession(sessionId));
 
                     // Call session.stream() directly with ALL content parts
-                    await session.stream(contentParts, signal ? { signal } : undefined);
+                    const streamResult = await session.stream(
+                        contentParts,
+                        signal ? { signal } : undefined
+                    );
 
                     // Increment message count
                     this.sessionManager
@@ -1081,6 +1084,11 @@ export class DextoAgent {
                                 `Failed to increment message count: ${error instanceof Error ? error.message : String(error)}`
                             )
                         );
+
+                    // Handle session-native compaction if compaction occurred
+                    if (streamResult.didCompact) {
+                        await this.handleSessionContinuation(session);
+                    }
                 } catch (err) {
                     // Preserve typed errors, wrap unknown values in AgentError.streamFailed
                     const error =
@@ -1545,17 +1553,26 @@ export class DextoAgent {
     }
 
     /**
-     * Manually compact the context by generating a summary of older messages.
-     * This is useful for users who want to compact before hitting the auto-compaction threshold.
+     * Manually compact the context using session-native compaction.
      *
-     * @param sessionId Session ID (required)
-     * @returns Compaction result with token counts, or null if compaction was skipped
+     * Session-native compaction creates a NEW session with the summary as initial context,
+     * providing clean session isolation while maintaining traceability via linking.
+     *
+     * The old session is marked as compacted with `continuedTo` pointing to the new session,
+     * and the new session has `continuedFrom` pointing back to the old session.
+     *
+     * @param sessionId Session ID of the session to compact (required)
+     * @returns Compaction result with new session info, or null if compaction was skipped
      */
     public async compactContext(sessionId: string): Promise<{
-        originalTokens: number;
-        compactedTokens: number;
+        /** The session that was compacted */
+        previousSessionId: string;
+        /** The new session created for continuation */
+        newSessionId: string;
+        /** Estimated tokens in the summary */
+        summaryTokens: number;
+        /** Number of messages that were summarized */
         originalMessages: number;
-        compactedMessages: number;
     } | null> {
         this.ensureStarted();
 
@@ -1570,24 +1587,104 @@ export class DextoAgent {
             throw SessionError.notFound(sessionId);
         }
 
-        const result = await session.compactContext();
+        // Get compaction strategy from the session's LLM service
+        const llmService = session.getLLMService();
+        const compactionStrategy = llmService.getCompactionStrategy();
 
-        if (result) {
-            this.logger.info(
-                `Context compacted for session ${sessionId}: ` +
-                    `${result.originalTokens} → ${result.compactedTokens} tokens`
+        if (!compactionStrategy) {
+            this.logger.warn(
+                `Compaction strategy not configured for session ${sessionId} - skipping manual compaction`
             );
-            const runtimeConfig = this.stateManager.getRuntimeConfig(sessionId);
-            const strategy = runtimeConfig.compaction?.type ?? 'reactive-overflow';
-            this.agentEventBus.emit('context:compacted', {
-                sessionId,
-                ...result,
-                strategy,
-                reason: 'manual',
-            });
+            return null;
         }
 
-        return result;
+        // Use SessionCompactionService for session-native compaction
+        const { SessionCompactionService } = await import('../session/compaction-service.js');
+        const compactionService = new SessionCompactionService(
+            this.sessionManager,
+            compactionStrategy,
+            this.logger
+        );
+
+        const compactionResult = await compactionService.compact(session, {
+            reason: 'manual',
+            eventBus: this.agentEventBus,
+        });
+
+        if (!compactionResult) {
+            this.logger.debug(`Compaction skipped for session ${sessionId} - nothing to compact`);
+            return null;
+        }
+
+        this.logger.info(
+            `Session-native compaction complete: ${sessionId} → ${compactionResult.newSessionId}, ` +
+                `${compactionResult.originalMessages} messages → ~${compactionResult.summaryTokens} token summary`
+        );
+
+        return {
+            previousSessionId: compactionResult.previousSessionId,
+            newSessionId: compactionResult.newSessionId,
+            summaryTokens: compactionResult.summaryTokens,
+            originalMessages: compactionResult.originalMessages,
+        };
+    }
+
+    /**
+     * Get the chain of linked sessions (ancestors and descendants) for a session.
+     * Useful for displaying session history and understanding compaction lineage.
+     *
+     * @param sessionId Any session ID in the chain
+     * @returns Array of session data in the chain, ordered chronologically (oldest first)
+     */
+    public async getSessionLineage(sessionId: string): Promise<{
+        /** All sessions in the chain, ordered chronologically */
+        chain: Array<{
+            id: string;
+            createdAt: number;
+            continuedFrom?: string;
+            continuedTo?: string;
+            compactedAt?: number;
+        }>;
+        /** Index of the requested session in the chain */
+        currentIndex: number;
+    }> {
+        this.ensureStarted();
+
+        if (!sessionId || typeof sessionId !== 'string') {
+            throw AgentError.apiValidationError(
+                'sessionId is required and must be a non-empty string'
+            );
+        }
+
+        const chain = await this.sessionManager.getSessionChain(sessionId);
+
+        const currentIndex = chain.findIndex((s) => s.id === sessionId);
+
+        return {
+            chain: chain.map((s) => {
+                const item: {
+                    id: string;
+                    createdAt: number;
+                    continuedFrom?: string;
+                    continuedTo?: string;
+                    compactedAt?: number;
+                } = {
+                    id: s.id,
+                    createdAt: s.createdAt,
+                };
+                if (s.continuedFrom !== undefined) {
+                    item.continuedFrom = s.continuedFrom;
+                }
+                if (s.continuedTo !== undefined) {
+                    item.continuedTo = s.continuedTo;
+                }
+                if (s.compactedAt !== undefined) {
+                    item.compactedAt = s.compactedAt;
+                }
+                return item;
+            }),
+            currentIndex: currentIndex >= 0 ? currentIndex : 0,
+        };
     }
 
     /**
@@ -1643,8 +1740,10 @@ export class DextoAgent {
             maxContextTokens = Math.floor(maxContextTokens * compactionConfig.thresholdPercent);
         }
 
-        // Check if there's a summary in history
-        const hasSummary = history.some((msg) => msg.metadata?.isSummary === true);
+        // Check if there's a summary in history (old isSummary or new isSessionSummary marker)
+        const hasSummary = history.some(
+            (msg) => msg.metadata?.isSummary === true || msg.metadata?.isSessionSummary === true
+        );
 
         return {
             estimatedTokens,
@@ -1749,6 +1848,102 @@ export class DextoAgent {
 
         // Return the validated config directly
         return validatedConfig;
+    }
+
+    /**
+     * Handles session-native continuation after compaction.
+     *
+     * When context compaction occurs, this method:
+     * 1. Extracts the summary message from the compacted session
+     * 2. Creates a new continuation session
+     * 3. Adds the summary as the first message in the new session
+     * 4. Links the old and new sessions for traceability
+     * 5. Emits session:continued event for UI to handle session switch
+     *
+     * @param currentSession The session that was compacted
+     */
+    private async handleSessionContinuation(currentSession: ChatSession): Promise<void> {
+        const currentSessionId = currentSession.id;
+
+        try {
+            // Get history to find the summary message
+            const history = await currentSession.getHistory();
+            const summaryMessage = history.find((msg) => msg.metadata?.isSummary === true);
+
+            if (!summaryMessage) {
+                this.logger.warn(
+                    `Session continuation skipped: no summary found in session ${currentSessionId}`
+                );
+                return;
+            }
+
+            // Extract text content from summary
+            if (!summaryMessage.content) {
+                this.logger.warn(
+                    `Session continuation skipped: summary message has no content in session ${currentSessionId}`
+                );
+                return;
+            }
+            const summaryText =
+                typeof summaryMessage.content === 'string'
+                    ? summaryMessage.content
+                    : summaryMessage.content
+                          .filter(
+                              (part): part is { type: 'text'; text: string } => part.type === 'text'
+                          )
+                          .map((part) => part.text)
+                          .join('\n');
+
+            // Create new continuation session
+            const { sessionId: newSessionId, session: newSession } =
+                await this.sessionManager.createContinuationSession(currentSessionId);
+
+            // Create session summary message for new session
+            const sessionSummaryMessage: import('../context/types.js').InternalMessage = {
+                role: 'assistant',
+                content: [{ type: 'text', text: summaryText }],
+                timestamp: Date.now(),
+                metadata: {
+                    isSessionSummary: true,
+                    continuedFrom: currentSessionId,
+                    summarizedAt: Date.now(),
+                    originalMessageCount: history.length,
+                },
+            };
+
+            // Add summary to new session
+            const contextManager = newSession.getContextManager();
+            await contextManager.addMessage(sessionSummaryMessage);
+
+            // Mark old session as compacted
+            await this.sessionManager.markSessionCompacted(currentSessionId, newSessionId);
+
+            // Estimate tokens in summary for the event
+            const { estimateMessagesTokens } = await import('../context/utils.js');
+            const summaryTokens = estimateMessagesTokens([sessionSummaryMessage]);
+
+            this.logger.info(
+                `Session continuation: ${currentSessionId} → ${newSessionId} ` +
+                    `(${history.length} messages → ~${summaryTokens} token summary)`
+            );
+
+            // Emit session:continued event for UI/CLI to handle session switch
+            this.agentEventBus.emit('session:continued', {
+                previousSessionId: currentSessionId,
+                newSessionId,
+                summaryTokens,
+                originalMessages: history.length,
+                reason: 'overflow',
+                sessionId: newSessionId,
+            });
+        } catch (error) {
+            this.logger.error(
+                `Failed to handle session continuation for ${currentSessionId}: ` +
+                    `${error instanceof Error ? error.message : String(error)}`
+            );
+            // Don't throw - the main stream already completed successfully
+            // Session continuation is a best-effort operation
+        }
     }
 
     /**
