@@ -1753,8 +1753,29 @@ export function filterCompacted(history: readonly InternalMessage[]): InternalMe
         return history.slice();
     }
 
-    // Return summary + everything after it
-    return history.slice(summaryIndex);
+    // Get the summary message (we know it exists since we found the index)
+    const summaryMessage = history[summaryIndex]!;
+
+    // Get the count of messages that were summarized (stored in metadata)
+    // The preserved messages are between the summarized portion and the summary
+    const rawCount = summaryMessage.metadata?.originalMessageCount;
+    const originalMessageCount = typeof rawCount === 'number' ? rawCount : 0;
+
+    // Layout after compaction:
+    // [summarized..., preserved..., summary, afterSummary...]
+    //  ^-- indices 0 to (originalMessageCount-1)
+    //              ^-- indices originalMessageCount to (summaryIndex-1)
+    //                          ^-- index summaryIndex
+    //                                   ^-- indices (summaryIndex+1) onwards
+
+    // Get preserved messages (messages between summarized portion and summary)
+    const preservedMessages = history.slice(originalMessageCount, summaryIndex);
+
+    // Get any messages added after the summary (rare but possible)
+    const messagesAfterSummary = history.slice(summaryIndex + 1);
+
+    // Return: summary + preserved + afterSummary
+    return [summaryMessage, ...preservedMessages, ...messagesAfterSummary];
 }
 
 /**

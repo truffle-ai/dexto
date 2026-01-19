@@ -839,6 +839,25 @@ export class DextoAgent {
         });
         listeners.push({ event: 'tool:running', listener: toolRunningListener });
 
+        // Context compaction events - emitted when context is being compacted
+        const contextCompactingListener = (data: AgentEventMap['context:compacting']) => {
+            if (data.sessionId !== sessionId) return;
+            eventQueue.push({ name: 'context:compacting', ...data });
+        };
+        this.agentEventBus.on('context:compacting', contextCompactingListener, {
+            signal: cleanupSignal,
+        });
+        listeners.push({ event: 'context:compacting', listener: contextCompactingListener });
+
+        const contextCompactedListener = (data: AgentEventMap['context:compacted']) => {
+            if (data.sessionId !== sessionId) return;
+            eventQueue.push({ name: 'context:compacted', ...data });
+        };
+        this.agentEventBus.on('context:compacted', contextCompactedListener, {
+            signal: cleanupSignal,
+        });
+        listeners.push({ event: 'context:compacted', listener: contextCompactedListener });
+
         // Message queue events (for mid-task user guidance)
         const messageQueuedListener = (data: AgentEventMap['message:queued']) => {
             if (data.sessionId !== sessionId) return;
@@ -1523,6 +1542,116 @@ export class DextoAgent {
         this.agentEventBus.emit('context:cleared', {
             sessionId,
         });
+    }
+
+    /**
+     * Manually compact the context by generating a summary of older messages.
+     * This is useful for users who want to compact before hitting the auto-compaction threshold.
+     *
+     * @param sessionId Session ID (required)
+     * @returns Compaction result with token counts, or null if compaction was skipped
+     */
+    public async compactContext(sessionId: string): Promise<{
+        originalTokens: number;
+        compactedTokens: number;
+        originalMessages: number;
+        compactedMessages: number;
+    } | null> {
+        this.ensureStarted();
+
+        if (!sessionId || typeof sessionId !== 'string') {
+            throw AgentError.apiValidationError(
+                'sessionId is required and must be a non-empty string'
+            );
+        }
+
+        const session = await this.sessionManager.getSession(sessionId);
+        if (!session) {
+            throw SessionError.notFound(sessionId);
+        }
+
+        const result = await session.compactContext();
+
+        if (result) {
+            this.logger.info(
+                `Context compacted for session ${sessionId}: ` +
+                    `${result.originalTokens} → ${result.compactedTokens} tokens`
+            );
+            this.agentEventBus.emit('context:compacted', {
+                sessionId,
+                ...result,
+                strategy: 'reactive-overflow',
+                reason: 'manual',
+            });
+        }
+
+        return result;
+    }
+
+    /**
+     * Get context usage statistics for a session.
+     * Useful for monitoring context window usage and compaction status.
+     *
+     * @param sessionId Session ID (required)
+     * @returns Context statistics including token estimates and message counts
+     */
+    public async getContextStats(sessionId: string): Promise<{
+        estimatedTokens: number;
+        maxContextTokens: number;
+        usagePercent: number;
+        messageCount: number;
+        filteredMessageCount: number;
+        hasSummary: boolean;
+    }> {
+        this.ensureStarted();
+
+        if (!sessionId || typeof sessionId !== 'string') {
+            throw AgentError.apiValidationError(
+                'sessionId is required and must be a non-empty string'
+            );
+        }
+
+        const session = await this.sessionManager.getSession(sessionId);
+        if (!session) {
+            throw SessionError.notFound(sessionId);
+        }
+
+        const contextManager = session.getContextManager();
+        const history = await contextManager.getHistory();
+
+        // Import utilities for token estimation and filtering
+        const { filterCompacted, estimateMessagesTokens } = await import('../context/utils.js');
+
+        const filteredHistory = filterCompacted(history);
+        const estimatedTokens = estimateMessagesTokens(filteredHistory);
+
+        // Get the effective max context tokens (compaction threshold takes priority)
+        const runtimeConfig = this.stateManager.getRuntimeConfig(sessionId);
+        const compactionConfig = runtimeConfig.compaction;
+        let maxContextTokens = contextManager.getMaxInputTokens();
+
+        // Apply compaction config overrides (same logic as vercel.ts)
+        if (compactionConfig?.maxContextTokens !== undefined) {
+            maxContextTokens = Math.min(maxContextTokens, compactionConfig.maxContextTokens);
+        }
+        if (
+            compactionConfig?.thresholdPercent !== undefined &&
+            compactionConfig.thresholdPercent < 1.0
+        ) {
+            maxContextTokens = Math.floor(maxContextTokens * compactionConfig.thresholdPercent);
+        }
+
+        // Check if there's a summary in history
+        const hasSummary = history.some((msg) => msg.metadata?.isSummary === true);
+
+        return {
+            estimatedTokens,
+            maxContextTokens,
+            usagePercent: Math.round((estimatedTokens / maxContextTokens) * 100),
+            messageCount: history.length,
+            filteredMessageCount: filteredHistory.length,
+            hasSummary,
+        };
     }
 
     // ============= LLM MANAGEMENT =============

@@ -103,6 +103,14 @@ toolConfirmation:
     # alwaysDeny:
     #   - custom--process-tools--bash_exec--rm -rf*  # Prevent recursive deletion
 
+# Compaction configuration - automatically summarizes conversation when context is full
+compaction:
+  type: reactive-overflow
+  enabled: true
+  # Uncomment to override model's context window (useful for testing or capping usage):
+  maxContextTokens: 50000  # Cap at 50K tokens regardless of model's max
+  thresholdPercent: 0.9    # Trigger at 90% of context window (leaves safety buffer)
+
 # Elicitation configuration - required for ask_user tool
 elicitation:
   enabled: true

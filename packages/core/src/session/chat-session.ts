@@ -265,7 +265,8 @@ export class ChatSession {
             this.id,
             this.services.resourceManager, // Pass ResourceManager for blob storage
             this.logger, // Pass logger for dependency injection
-            compactionStrategy // Pass compaction strategy
+            compactionStrategy, // Pass compaction strategy
+            runtimeConfig.compaction // Pass compaction config for threshold settings
         );
 
         this.logger.debug(`ChatSession ${this.id}: Services initialized with storage`);
@@ -586,6 +587,21 @@ export class ChatSession {
     }
 
     /**
+     * Manually compact the context by generating a summary of older messages.
+     * This is useful for users who want to compact before hitting the auto-compaction threshold.
+     *
+     * @returns Compaction result with token counts, or null if compaction was skipped
+     */
+    public async compactContext(): Promise<{
+        originalTokens: number;
+        compactedTokens: number;
+        originalMessages: number;
+        compactedMessages: number;
+    } | null> {
+        return this.llmService.compactContext();
+    }
+
+    /**
      * Gets the session's LLMService instance.
      *
      * @returns The LLMService for this session
@@ -636,7 +652,8 @@ export class ChatSession {
                 this.id,
                 this.services.resourceManager,
                 this.logger,
-                compactionStrategy // Pass compaction strategy
+                compactionStrategy, // Pass compaction strategy
+                runtimeConfig.compaction // Pass compaction config for threshold settings
             );
 
             // Replace the LLM service

@@ -767,6 +767,7 @@ export class ContextManager<TMessage = unknown> {
     ): Promise<{
         formattedMessages: TMessage[];
         systemPrompt: string;
+        filteredHistory: InternalMessage[];
     }> {
         // Step 1: Get system prompt
         const systemPrompt = await this.getSystemPrompt(contributorContext);
@@ -813,6 +814,7 @@ export class ContextManager<TMessage = unknown> {
         return {
             formattedMessages,
             systemPrompt,
+            filteredHistory: history,
         };
     }
 

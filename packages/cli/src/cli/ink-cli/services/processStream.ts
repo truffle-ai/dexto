@@ -60,6 +60,8 @@ export interface ProcessStreamSetters {
     /** Setter for dequeued buffer (user messages waiting to render after pending) */
     setDequeuedBuffer: React.Dispatch<React.SetStateAction<Message[]>>;
     setUi: React.Dispatch<React.SetStateAction<UIState>>;
+    /** Setter for session state (for session switch on compaction) */
+    setSession: React.Dispatch<React.SetStateAction<import('../state/types.js').SessionState>>;
     /** Setter for queued messages (cleared when dequeued) */
     setQueuedMessages: React.Dispatch<React.SetStateAction<import('@dexto/core').QueuedMessage[]>>;
     /** Setter for current approval request (for approval UI) */
@@ -125,6 +127,7 @@ export async function processStream(
         setPendingMessages,
         setDequeuedBuffer,
         setUi,
+        setSession,
         setQueuedMessages,
         setApproval,
         setApprovalQueue,
@@ -753,6 +756,7 @@ export async function processStream(
                         isProcessing: false,
                         isCancelling: false,
                         isThinking: false,
+                        isCompacting: false,
                     }));
                     break;
                 }
@@ -797,6 +801,39 @@ export async function processStream(
                     // Update status from 'pending' or 'pending_approval' to 'running'
                     const runningToolId = `tool-${event.toolCallId}`;
                     updatePendingStatus(runningToolId, 'running');
+                    break;
+                }
+
+                case 'context:compacting': {
+                    // Context compaction starting - show compacting indicator
+                    setUi((prev) => ({ ...prev, isCompacting: true }));
+                    break;
+                }
+
+                case 'context:compacted': {
+                    // Context was compacted - clear compacting state and show notification
+                    setUi((prev) => ({ ...prev, isCompacting: false }));
+
+                    const reductionPercent = Math.round(
+                        ((event.originalTokens - event.compactedTokens) / event.originalTokens) *
+                            100
+                    );
+
+                    // Show compaction notification
+                    const compactionContent =
+                        `📦 Context compacted (${event.reason})\n` +
+                        `   Tokens: ${event.originalTokens.toLocaleString()} → ~${event.compactedTokens.toLocaleString()} (${reductionPercent}% reduction)\n` +
+                        `   Messages: ${event.originalMessages} → ${event.compactedMessages}`;
+
+                    setMessages((prev) => [
+                        ...prev,
+                        {
+                            id: generateMessageId('system'),
+                            role: 'system',
+                            content: compactionContent,
+                            timestamp: new Date(),
+                        },
+                    ]);
                     break;
                 }
 

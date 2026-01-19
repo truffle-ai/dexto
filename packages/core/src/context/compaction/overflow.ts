@@ -21,26 +21,35 @@ const DEFAULT_OUTPUT_BUFFER = 16_000;
  * Determines if the context has overflowed based on actual token usage from the API.
  *
  * Overflow is detected when:
- * used tokens > (contextWindow - outputBuffer)
+ * used tokens > (contextWindow - outputBuffer) * thresholdPercent
  *
  * The outputBuffer ensures we always have room for the model's response.
+ * The thresholdPercent allows triggering compaction before hitting 100% (e.g., at 90%).
  *
  * @param tokens The actual token usage from the last LLM API call
  * @param modelLimits The model's context window and output limits
+ * @param thresholdPercent Percentage of usable tokens at which to trigger (default 1.0 = 100%)
  * @returns true if context has overflowed and compaction is needed
  */
-export function isOverflow(tokens: TokenUsage, modelLimits: ModelLimits): boolean {
+export function isOverflow(
+    tokens: TokenUsage,
+    modelLimits: ModelLimits,
+    thresholdPercent: number = 1.0
+): boolean {
     const { contextWindow, maxOutput } = modelLimits;
 
     // Reserve space for model output
     const outputBuffer = Math.min(maxOutput, DEFAULT_OUTPUT_BUFFER);
     const usableTokens = contextWindow - outputBuffer;
 
+    // Apply threshold - trigger compaction at thresholdPercent of usable tokens
+    const effectiveLimit = Math.floor(usableTokens * thresholdPercent);
+
     // Calculate used tokens - inputTokens is the main metric from API response
     const inputTokens = tokens.inputTokens ?? 0;
 
-    // Check if we've exceeded the usable context
-    return inputTokens > usableTokens;
+    // Check if we've exceeded the effective limit
+    return inputTokens > effectiveLimit;
 }
 
 /**

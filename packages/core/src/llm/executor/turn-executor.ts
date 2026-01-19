@@ -34,6 +34,7 @@ import { toError } from '../../utils/error-conversion.js';
 import { isOverflow, type ModelLimits } from '../../context/compaction/overflow.js';
 import { ReactiveOverflowStrategy } from '../../context/compaction/strategies/reactive-overflow.js';
 import type { ICompactionStrategy } from '../../context/compaction/types.js';
+import { estimateMessagesTokens } from '../../context/utils.js';
 
 /**
  * Static cache for tool support validation.
@@ -96,7 +97,8 @@ export class TurnExecutor {
         private messageQueue: MessageQueueService,
         private modelLimits?: ModelLimits,
         private externalSignal?: AbortSignal,
-        compactionStrategy?: ICompactionStrategy | null
+        compactionStrategy?: ICompactionStrategy | null,
+        private compactionThresholdPercent: number = 1.0
     ) {
         this.logger = logger.createChild(DextoLogComponent.EXECUTOR);
         // Initial controller - will be replaced per-step in execute()
@@ -202,17 +204,27 @@ export class TurnExecutor {
                     await this.injectQueuedMessages(coalesced);
                 }
 
-                // 2. Check for compaction need (reactive, based on actual tokens)
-                if (lastStepTokens && this.checkAndHandleOverflow(lastStepTokens)) {
-                    await this.compress(lastStepTokens.inputTokens ?? 0);
-                    // Continue with fresh context after compression
-                }
-
-                // 3. Get formatted messages for this step
-                const prepared = await this.contextManager.getFormattedMessagesWithCompression(
+                // 2. Get formatted messages for this step
+                let prepared = await this.contextManager.getFormattedMessagesWithCompression(
                     contributorContext,
                     this.llmContext
                 );
+
+                // 3. PRE-CHECK: Estimate tokens and compact if over threshold BEFORE LLM call
+                // This ensures we never make an oversized call and avoids unnecessary compaction on stop steps
+                const estimatedTokens = estimateMessagesTokens(prepared.filteredHistory);
+                if (this.shouldCompact(estimatedTokens)) {
+                    this.logger.debug(
+                        `Pre-check: estimated ${estimatedTokens} tokens exceeds threshold, compacting`
+                    );
+                    await this.compress(estimatedTokens);
+
+                    // Re-fetch messages after compaction (now includes summary, excludes old messages)
+                    prepared = await this.contextManager.getFormattedMessagesWithCompression(
+                        contributorContext,
+                        this.llmContext
+                    );
+                }
 
                 this.logger.debug(`Step ${stepCount}: Starting`);
 
@@ -274,6 +286,18 @@ export class TurnExecutor {
                         `tokens=${JSON.stringify(result.usage)}`
                 );
 
+                // 6b. POST-RESPONSE CHECK: Use actual inputTokens from API to detect overflow
+                // This catches cases where the LLM's response pushed us over the threshold
+                if (
+                    result.usage?.inputTokens &&
+                    this.shouldCompactFromActual(result.usage.inputTokens)
+                ) {
+                    this.logger.debug(
+                        `Post-response: actual ${result.usage.inputTokens} tokens exceeds threshold, compacting`
+                    );
+                    await this.compress(result.usage.inputTokens);
+                }
+
                 // 7. Check termination conditions
                 if (result.finishReason !== 'tool-calls') {
                     // Check queue before terminating - process queued messages if any
@@ -287,6 +311,7 @@ export class TurnExecutor {
                         await this.injectQueuedMessages(queuedOnTerminate);
                         continue; // Keep looping with fresh controller - process queued messages
                     }
+
                     this.logger.debug(`Terminating: finishReason is "${result.finishReason}"`);
                     break;
                 }
@@ -835,13 +860,41 @@ export class TurnExecutor {
     }
 
     /**
-     * Check if context has overflowed based on actual token usage from API.
+     * Check if context should be compacted based on estimated token count.
+     * Uses the threshold percentage from compaction config to trigger earlier (e.g., at 90%).
+     *
+     * @param estimatedTokens Estimated token count from the current context
+     * @returns true if compaction is needed before making the LLM call
      */
-    private checkAndHandleOverflow(tokens: TokenUsage): boolean {
+    private shouldCompact(estimatedTokens: number): boolean {
         if (!this.modelLimits || !this.compactionStrategy) {
             return false;
         }
-        return isOverflow(tokens, this.modelLimits);
+        // Use the overflow logic with threshold to trigger compaction earlier
+        return isOverflow(
+            { inputTokens: estimatedTokens },
+            this.modelLimits,
+            this.compactionThresholdPercent
+        );
+    }
+
+    /**
+     * Check if context should be compacted based on actual token count from API response.
+     * This is a post-response check using real token counts rather than estimates.
+     *
+     * @param actualTokens Actual input token count from the API response
+     * @returns true if compaction is needed
+     */
+    private shouldCompactFromActual(actualTokens: number): boolean {
+        if (!this.modelLimits || !this.compactionStrategy) {
+            return false;
+        }
+        // Use the same overflow logic but with actual tokens from API
+        return isOverflow(
+            { inputTokens: actualTokens },
+            this.modelLimits,
+            this.compactionThresholdPercent
+        );
     }
 
     /**
@@ -851,7 +904,7 @@ export class TurnExecutor {
      * The actual token reduction happens at read-time via filterCompacted()
      * in getFormattedMessagesWithCompression().
      *
-     * @param originalTokens The actual input token count from API that triggered overflow
+     * @param originalTokens The estimated input token count that triggered overflow
      */
     private async compress(originalTokens: number): Promise<void> {
         if (!this.compactionStrategy) {
@@ -859,30 +912,47 @@ export class TurnExecutor {
         }
 
         this.logger.info(
-            `Context overflow detected (${originalTokens} tokens), running compression`
+            `Context overflow detected (${originalTokens} tokens), checking if compression is possible`
         );
 
         const history = await this.contextManager.getHistory();
 
-        // Generate summary message(s)
-        const summaryMessages = await this.compactionStrategy.compact(history);
-
-        if (summaryMessages.length === 0) {
-            this.logger.debug('Compaction returned no summary (history too short)');
+        // Pre-check if history is long enough for compaction (need at least 4 messages for meaningful summary)
+        if (history.length < 4) {
+            this.logger.debug('Compaction skipped: history too short to summarize');
             return;
         }
 
-        // Add summary to history
+        // Emit event BEFORE the LLM summarization call so UI shows indicator during compaction
+        this.eventBus.emit('context:compacting', {
+            estimatedTokens: originalTokens,
+        });
+
+        // Generate summary message(s) - this makes an LLM call
+        const summaryMessages = await this.compactionStrategy.compact(history);
+
+        if (summaryMessages.length === 0) {
+            // Compaction returned empty - nothing to summarize (e.g., already compacted)
+            // Don't emit context:compacted since no actual compaction happened
+            this.logger.debug(
+                'Compaction skipped: strategy returned no summary (likely already compacted or nothing to summarize)'
+            );
+            return;
+        }
+
+        // Add summary to current session history
         // filterCompacted() will exclude pre-summary messages at read-time
         for (const summary of summaryMessages) {
             await this.contextManager.addMessage(summary);
         }
 
         // Get filtered history to report message counts
-        const { filterCompacted, estimateMessagesTokens } = await import('../../context/utils.js');
+        const { filterCompacted, estimateMessagesTokens: estimateTokens } = await import(
+            '../../context/utils.js'
+        );
         const updatedHistory = await this.contextManager.getHistory();
         const filteredHistory = filterCompacted(updatedHistory);
-        const compactedTokens = estimateMessagesTokens(filteredHistory);
+        const compactedTokens = estimateTokens(filteredHistory);
 
         this.eventBus.emit('context:compacted', {
             originalTokens,

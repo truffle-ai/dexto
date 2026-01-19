@@ -48,6 +48,8 @@ export class CLISubscriber implements EventSubscriber {
         });
         eventBus.on('llm:error', (payload) => this.onError(payload.error));
         eventBus.on('session:reset', this.onConversationReset.bind(this));
+        eventBus.on('context:compacting', this.onContextCompacting.bind(this));
+        eventBus.on('context:compacted', this.onContextCompacted.bind(this));
     }
 
     /**
@@ -165,6 +167,26 @@ export class CLISubscriber implements EventSubscriber {
         // Clear any partial response state
         this.streamingContent = '';
         logger.info('🔄 Conversation history cleared.', null, 'blue');
+    }
+
+    onContextCompacting(payload: AgentEventMap['context:compacting']): void {
+        // Output to stderr (doesn't interfere with stdout response stream)
+        process.stderr.write(
+            `[📦 Compacting context (~${payload.estimatedTokens.toLocaleString()} tokens)...]\n`
+        );
+    }
+
+    onContextCompacted(payload: AgentEventMap['context:compacted']): void {
+        const { originalTokens, compactedTokens, originalMessages, compactedMessages, reason } =
+            payload;
+        const reductionPercent = Math.round(
+            ((originalTokens - compactedTokens) / originalTokens) * 100
+        );
+
+        // Output to stderr (doesn't interfere with stdout response stream)
+        process.stderr.write(
+            `[📦 Context compacted (${reason}): ${originalTokens.toLocaleString()} → ~${compactedTokens.toLocaleString()} tokens (${reductionPercent}% reduction), ${originalMessages} → ${compactedMessages} messages]\n`
+        );
     }
 
     /**

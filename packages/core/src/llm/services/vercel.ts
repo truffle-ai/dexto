@@ -6,6 +6,8 @@ import { DextoLogComponent } from '../../logger/v2/types.js';
 import { ToolSet } from '../../tools/types.js';
 import { ContextManager } from '../../context/manager.js';
 import { getEffectiveMaxInputTokens, getMaxInputTokensForModel } from '../registry.js';
+import type { ModelLimits } from '../../context/compaction/overflow.js';
+import type { CompactionConfigInput } from '../../context/compaction/schemas.js';
 import { ContentPart } from '../../context/types.js';
 import type { SessionEventBus } from '../../events/index.js';
 import type { IConversationHistoryProvider } from '../../session/history/types.js';
@@ -52,6 +54,8 @@ export class VercelLLMService {
     private compactionStrategy:
         | import('../../context/compaction/types.js').ICompactionStrategy
         | null;
+    private modelLimits: ModelLimits;
+    private compactionThresholdPercent: number;
 
     /**
      * Helper to extract model ID from LanguageModel union type (string | LanguageModelV2)
@@ -70,7 +74,8 @@ export class VercelLLMService {
         sessionId: string,
         resourceManager: ResourceManager,
         logger: IDextoLogger,
-        compactionStrategy?: import('../../context/compaction/types.js').ICompactionStrategy | null
+        compactionStrategy?: import('../../context/compaction/types.js').ICompactionStrategy | null,
+        compactionConfig?: CompactionConfigInput
     ) {
         this.logger = logger.createChild(DextoLogComponent.LLM);
         this.model = model;
@@ -80,6 +85,7 @@ export class VercelLLMService {
         this.sessionId = sessionId;
         this.resourceManager = resourceManager;
         this.compactionStrategy = compactionStrategy ?? null;
+        this.compactionThresholdPercent = compactionConfig?.thresholdPercent ?? 1.0;
 
         // Create session-level message queue for mid-task user messages
         this.messageQueue = new MessageQueueService(this.sessionEventBus, this.logger);
@@ -87,6 +93,27 @@ export class VercelLLMService {
         // Create properly-typed ContextManager for Vercel
         const formatter = new VercelMessageFormatter(this.logger);
         const maxInputTokens = getEffectiveMaxInputTokens(config, this.logger);
+
+        // Set model limits for compaction overflow detection
+        // - maxContextTokens overrides the model's context window
+        // - thresholdPercent is applied separately in isOverflow() to trigger before 100%
+        let effectiveContextWindow = maxInputTokens;
+
+        // Apply maxContextTokens override if set (cap the context window)
+        if (compactionConfig?.maxContextTokens !== undefined) {
+            effectiveContextWindow = Math.min(maxInputTokens, compactionConfig.maxContextTokens);
+            this.logger.debug(
+                `Compaction: Using maxContextTokens override: ${compactionConfig.maxContextTokens} (model max: ${maxInputTokens})`
+            );
+        }
+
+        // NOTE: thresholdPercent is NOT applied here - it's only applied in isOverflow()
+        // to trigger compaction early (e.g., at 90% instead of 100%)
+
+        this.modelLimits = {
+            contextWindow: effectiveContextWindow,
+            maxOutput: config.maxOutputTokens ?? 16_000,
+        };
 
         this.contextManager = new ContextManager<ModelMessage>(
             config,
@@ -130,9 +157,10 @@ export class VercelLLMService {
             { provider: this.config.provider, model: this.getModelId() },
             this.logger,
             this.messageQueue,
-            undefined, // modelLimits - TurnExecutor will use defaults
+            this.modelLimits,
             externalSignal,
-            this.compactionStrategy
+            this.compactionStrategy,
+            this.compactionThresholdPercent
         );
     }
 
@@ -245,5 +273,68 @@ export class VercelLLMService {
      */
     getMessageQueue(): MessageQueueService {
         return this.messageQueue;
+    }
+
+    /**
+     * Manually compact the context by generating a summary of older messages.
+     * This is useful for users who want to compact before hitting the auto-compaction threshold.
+     *
+     * @returns Compaction result with token counts, or null if compaction was skipped
+     */
+    async compactContext(): Promise<{
+        originalTokens: number;
+        compactedTokens: number;
+        originalMessages: number;
+        compactedMessages: number;
+    } | null> {
+        if (!this.compactionStrategy) {
+            this.logger.warn('Compaction strategy not configured - skipping manual compaction');
+            return null;
+        }
+
+        const history = await this.contextManager.getHistory();
+
+        // Get estimated token count before compaction
+        const { filterCompacted, estimateMessagesTokens } = await import('../../context/utils.js');
+        const preFilteredHistory = filterCompacted(history);
+        const originalTokens = estimateMessagesTokens(preFilteredHistory);
+
+        if (history.length < 4) {
+            this.logger.debug('History too short for compaction (less than 4 messages)');
+            return null;
+        }
+
+        // Generate summary
+        this.logger.info(`Manual compaction requested, processing ${history.length} messages`);
+        const summaryMessages = await this.compactionStrategy.compact(history);
+
+        if (summaryMessages.length === 0) {
+            this.logger.debug('Compaction returned no summary - history may already be summarized');
+            return null;
+        }
+
+        // Add summary to history
+        for (const summary of summaryMessages) {
+            await this.contextManager.addMessage(summary);
+        }
+
+        // Get filtered history to report message counts
+        const updatedHistory = await this.contextManager.getHistory();
+        const filteredHistory = filterCompacted(updatedHistory);
+        const compactedTokens = estimateMessagesTokens(filteredHistory);
+
+        const result = {
+            originalTokens,
+            compactedTokens,
+            originalMessages: history.length,
+            compactedMessages: filteredHistory.length,
+        };
+
+        this.logger.info(
+            `Manual compaction complete: ${result.originalTokens} → ~${result.compactedTokens} tokens ` +
+                `(${result.originalMessages} → ${result.compactedMessages} messages after filtering)`
+        );
+
+        return result;
     }
 }

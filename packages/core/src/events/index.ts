@@ -63,6 +63,7 @@ export const SESSION_EVENT_NAMES = [
     'llm:switched',
     'llm:unsupported-input',
     'tool:running',
+    'context:compacting',
     'context:compacted',
     'context:pruned',
     'message:queued',
@@ -106,6 +107,7 @@ export const STREAMING_EVENTS = [
     'tool:running',
 
     // Context management events
+    'context:compacting',
     'context:compacted',
     'context:pruned',
 
@@ -408,6 +410,13 @@ export interface AgentEventMap {
         sessionId: string;
     };
 
+    /** Context compaction is starting */
+    'context:compacting': {
+        /** Estimated tokens that triggered compaction */
+        estimatedTokens: number;
+        sessionId: string;
+    };
+
     /** Context was compacted during multi-step tool calling */
     'context:compacted': {
         /** Actual input tokens from API that triggered compaction */
@@ -417,7 +426,7 @@ export interface AgentEventMap {
         originalMessages: number;
         compactedMessages: number;
         strategy: string;
-        reason: 'overflow' | 'token_limit' | 'message_limit';
+        reason: 'overflow' | 'token_limit' | 'message_limit' | 'manual';
         sessionId: string;
     };
 
@@ -609,6 +618,12 @@ export interface SessionEventMap {
         details?: any;
     };
 
+    /** Context compaction is starting */
+    'context:compacting': {
+        /** Estimated tokens that triggered compaction */
+        estimatedTokens: number;
+    };
+
     /** Context was compacted during multi-step tool calling */
     'context:compacted': {
         /** Actual input tokens from API that triggered compaction */
@@ -618,7 +633,7 @@ export interface SessionEventMap {
         originalMessages: number;
         compactedMessages: number;
         strategy: string;
-        reason: 'overflow' | 'token_limit' | 'message_limit';
+        reason: 'overflow' | 'token_limit' | 'message_limit' | 'manual';
     };
 
     /** Old tool outputs were pruned (marked with compactedAt) to save tokens */
