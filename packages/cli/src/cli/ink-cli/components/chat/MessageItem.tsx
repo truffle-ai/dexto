@@ -235,12 +235,12 @@ export const MessageItem = memo(
                         <Box marginLeft={2}>
                             <Text color="gray">
                                 └─ {subAgentProgress.toolsCalled} tool
-                                {subAgentProgress.toolsCalled !== 1 ? 's' : ''} called
+                                {subAgentProgress.toolsCalled !== 1 ? 's' : ''} called | Current:{' '}
+                                {subAgentProgress.currentTool}
                                 {subAgentProgress.tokenUsage &&
                                 subAgentProgress.tokenUsage.total > 0
                                     ? ` | ${subAgentProgress.tokenUsage.total.toLocaleString()} tokens`
-                                    : ''}{' '}
-                                | Current: {subAgentProgress.currentTool}
+                                    : ''}
                             </Text>
                         </Box>
                     )}
