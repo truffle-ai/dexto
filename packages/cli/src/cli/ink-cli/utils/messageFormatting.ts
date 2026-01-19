@@ -5,8 +5,8 @@
 
 import path from 'path';
 import os from 'os';
-import type { DextoAgent, InternalMessage, ContentPart } from '@dexto/core';
-import { isTextPart } from '@dexto/core';
+import type { DextoAgent, InternalMessage, ContentPart, ToolCall } from '@dexto/core';
+import { isTextPart, isAssistantMessage, isToolMessage } from '@dexto/core';
 import type { Message } from '../state/types.js';
 import { generateMessageId } from './idGenerator.js';
 
@@ -151,6 +151,9 @@ const TOOL_CONFIGS: Record<string, ToolDisplayConfig> = {
 
     // User interaction
     ask_user: { displayName: 'Ask', argsToShow: ['question'], primaryArg: 'question' },
+
+    // Agent spawning - handled specially in getToolDisplayName for dynamic agentId
+    spawn_agent: { displayName: 'Agent', argsToShow: ['task'], primaryArg: 'task' },
 };
 
 /**
@@ -250,6 +253,65 @@ export function getToolTypeBadge(toolName: string): string {
 }
 
 /**
+ * Result of formatting a tool header for display
+ */
+export interface FormattedToolHeader {
+    /** User-friendly display name (e.g., "Explore", "Read") */
+    displayName: string;
+    /** Formatted arguments string (e.g., "file.ts" or "pattern, path: /src") */
+    argsFormatted: string;
+    /** Tool type badge (e.g., "internal", "custom", "MCP: github") */
+    badge: string;
+    /** Full formatted header string (e.g., "Explore(task) [custom]") */
+    header: string;
+}
+
+/**
+ * Formats a tool call header for consistent display across CLI.
+ * Used by both tool messages and approval prompts.
+ *
+ * Handles special cases like spawn_agent (uses agentId as display name).
+ *
+ * @param toolName - Raw tool name (may include prefixes like "custom--")
+ * @param args - Tool arguments object
+ * @returns Formatted header components and full string
+ */
+export function formatToolHeader(
+    toolName: string,
+    args: Record<string, unknown> = {}
+): FormattedToolHeader {
+    let displayName = getToolDisplayName(toolName);
+    const argsFormatted = formatToolArgsForDisplay(toolName, args);
+    const badge = getToolTypeBadge(toolName);
+
+    // Special handling for spawn_agent: use agentId as display name
+    // Normalize tool name to handle all prefixes (internal--, custom--)
+    const normalizedToolName = toolName.replace(/^(?:internal--|custom--)/, '');
+    const isSpawnAgent = normalizedToolName === 'spawn_agent';
+    if (isSpawnAgent && args.agentId) {
+        const agentId = String(args.agentId);
+        const agentLabel = agentId.replace(/-agent$/, '');
+        displayName = agentLabel.charAt(0).toUpperCase() + agentLabel.slice(1);
+    }
+
+    // Only show badge for MCP tools (external tools worth distinguishing)
+    const isMcpTool = badge.startsWith('MCP');
+    const badgeSuffix = isMcpTool ? ` [${badge}]` : '';
+
+    // Format: DisplayName(args) [badge] (badge only for MCP)
+    const header = argsFormatted
+        ? `${displayName}(${argsFormatted})${badgeSuffix}`
+        : `${displayName}()${badgeSuffix}`;
+
+    return {
+        displayName,
+        argsFormatted,
+        badge,
+        header,
+    };
+}
+
+/**
  * Fallback primary argument names for unknown tools.
  * Used when we don't have a specific config for a tool.
  */
@@ -299,9 +361,9 @@ export function formatToolArgsForDisplay(toolName: string, args: Record<string, 
     const formatArgValue = (argName: string, value: unknown): string => {
         const strValue = typeof value === 'string' ? value : JSON.stringify(value);
 
-        // File paths: use relative path + center-truncation
+        // File paths: use relative path (no truncation)
         if (PATH_ARGS.has(argName)) {
-            return formatPathForDisplay(strValue);
+            return makeRelativePath(strValue);
         }
 
         // Commands: show single-line in full, truncate multi-line (heredocs) to first line
@@ -477,6 +539,27 @@ function extractTextContent(content: ContentPart[] | null): string {
 }
 
 /**
+ * Generates a preview of tool result content for display
+ */
+function generateToolResultPreview(content: ContentPart[]): string {
+    const textContent = extractTextContent(content);
+    if (!textContent) return '';
+
+    const lines = textContent.split('\n');
+    const previewLines = lines.slice(0, 5);
+    let preview = previewLines.join('\n');
+
+    // Truncate if too long
+    if (preview.length > 400) {
+        preview = preview.slice(0, 397) + '...';
+    } else if (lines.length > 5) {
+        preview += '\n...';
+    }
+
+    return preview;
+}
+
+/**
  * Converts session history messages to UI messages
  */
 export function convertHistoryToUIMessages(
@@ -485,8 +568,85 @@ export function convertHistoryToUIMessages(
 ): Message[] {
     const uiMessages: Message[] = [];
 
+    // Build a map of toolCallId -> ToolCall for looking up tool call args
+    const toolCallMap = new Map<string, ToolCall>();
+    for (const msg of history) {
+        if (isAssistantMessage(msg) && msg.toolCalls) {
+            for (const toolCall of msg.toolCalls) {
+                toolCallMap.set(toolCall.id, toolCall);
+            }
+        }
+    }
+
     history.forEach((msg, index) => {
-        // Extract text content properly
+        const timestamp = new Date(msg.timestamp ?? Date.now() - (history.length - index) * 1000);
+
+        // Handle tool messages specially
+        if (isToolMessage(msg)) {
+            // Look up the original tool call to get args
+            const toolCall = toolCallMap.get(msg.toolCallId);
+
+            // Format tool name
+            const displayName = getToolDisplayName(msg.name);
+
+            // Format args if we have them
+            let toolContent = displayName;
+            if (toolCall) {
+                try {
+                    const args = JSON.parse(toolCall.function.arguments || '{}');
+                    const argsFormatted = formatToolArgsForDisplay(msg.name, args);
+                    if (argsFormatted) {
+                        toolContent = `${displayName}(${argsFormatted})`;
+                    }
+                } catch {
+                    // Ignore JSON parse errors
+                }
+            }
+
+            // Add tool type badge (only for MCP tools)
+            const badge = getToolTypeBadge(msg.name);
+            if (badge.startsWith('MCP')) {
+                toolContent = `${toolContent} [${badge}]`;
+            }
+
+            // Generate result preview
+            const resultPreview = generateToolResultPreview(msg.content);
+
+            uiMessages.push({
+                id: `session-${sessionId}-${index}`,
+                role: 'tool',
+                content: toolContent,
+                timestamp,
+                toolStatus: 'finished',
+                toolResult: resultPreview,
+                isError: msg.success === false,
+                // Store content parts for potential rich rendering
+                toolContent: msg.content,
+                // Restore structured display data for rich rendering (diffs, shell output, etc.)
+                ...(msg.displayData !== undefined && {
+                    toolDisplayData: msg.displayData,
+                }),
+            });
+            return;
+        }
+
+        // Handle assistant messages - skip those with only tool calls (no text content)
+        if (isAssistantMessage(msg)) {
+            const textContent = extractTextContent(msg.content);
+
+            // Skip if no text content (message was just tool calls)
+            if (!textContent) return;
+
+            uiMessages.push({
+                id: `session-${sessionId}-${index}`,
+                role: 'assistant',
+                content: textContent,
+                timestamp,
+            });
+            return;
+        }
+
+        // Handle other messages (user, system)
         const textContent = extractTextContent(msg.content);
 
         // Skip empty messages
@@ -496,7 +656,7 @@ export function convertHistoryToUIMessages(
             id: `session-${sessionId}-${index}`,
             role: msg.role,
             content: textContent,
-            timestamp: new Date(msg.timestamp ?? Date.now() - (history.length - index) * 1000),
+            timestamp,
         });
     });
 

@@ -1,6 +1,6 @@
 {
   "name": "@dexto/image-local",
-  "version": "1.5.1",
+  "version": "1.5.2",
   "description": "Local development base image for Dexto agents with filesystem and process tools",
   "type": "module",
   "main": "./dist/index.js",
@@ -27,6 +27,7 @@
     "process"
   ],
   "dependencies": {
+    "@dexto/agent-management": "workspace:*",
     "@dexto/core": "workspace:*",
     "@dexto/tools-filesystem": "workspace:*",
     "@dexto/tools-process": "workspace:*"

@@ -623,6 +623,42 @@ function handleContextCompacted(event: EventByName<'context:compacted'>): void {
     );
 }
 
+/**
+ * service:event - Extensible service event for non-core services
+ * Currently handles agent-spawner progress events
+ */
+function handleServiceEvent(event: EventByName<'service:event'>): void {
+    const { service, event: eventType, toolCallId, sessionId, data } = event;
+
+    // Handle agent-spawner progress events
+    if (service === 'agent-spawner' && eventType === 'progress' && toolCallId && sessionId) {
+        const chatStore = useChatStore.getState();
+        const progressData = data as {
+            task: string;
+            agentId: string;
+            toolsCalled: number;
+            currentTool: string;
+            currentArgs?: Record<string, unknown>;
+        };
+
+        // Find and update the tool message
+        const messages = chatStore.getMessages(sessionId);
+        const toolMessage = messages.find((m) => m.role === 'tool' && m.toolCallId === toolCallId);
+
+        if (toolMessage) {
+            chatStore.updateMessage(sessionId, toolMessage.id, {
+                subAgentProgress: {
+                    task: progressData.task,
+                    agentId: progressData.agentId,
+                    toolsCalled: progressData.toolsCalled,
+                    currentTool: progressData.currentTool,
+                    currentArgs: progressData.currentArgs,
+                },
+            });
+        }
+    }
+}
+
 // =============================================================================
 // Registry Management
 // =============================================================================
@@ -648,6 +684,7 @@ export function registerHandlers(): void {
     handlers.set('session:title-updated', handleSessionTitleUpdated);
     handlers.set('message:dequeued', handleMessageDequeued);
     handlers.set('context:compacted', handleContextCompacted);
+    handlers.set('service:event', handleServiceEvent);
 }
 
 /**
@@ -714,4 +751,5 @@ export {
     handleSessionTitleUpdated,
     handleMessageDequeued,
     handleContextCompacted,
+    handleServiceEvent,
 };

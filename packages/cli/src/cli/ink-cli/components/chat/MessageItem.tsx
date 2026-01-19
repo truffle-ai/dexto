@@ -6,6 +6,7 @@
 
 import { memo } from 'react';
 import { Box, Text } from 'ink';
+import wrapAnsi from 'wrap-ansi';
 import type {
     Message,
     ConfigStyledData,
@@ -58,6 +59,8 @@ function formatDuration(ms: number): string {
 
 interface MessageItemProps {
     message: Message;
+    /** Terminal width for proper text wrapping calculations */
+    terminalWidth?: number;
 }
 
 /**
@@ -68,7 +71,7 @@ interface MessageItemProps {
  * but individual message content hasn't changed.
  */
 export const MessageItem = memo(
-    ({ message }: MessageItemProps) => {
+    ({ message, terminalWidth = 80 }: MessageItemProps) => {
         // Check for styled message first
         if (message.styledType && message.styledData) {
             switch (message.styledType) {
@@ -95,7 +98,7 @@ export const MessageItem = memo(
                             ? `, Used ${(data.totalTokens / 1000).toFixed(1)}K tokens`
                             : '';
                     return (
-                        <Box marginTop={1} marginBottom={1} width="100%">
+                        <Box marginTop={1} marginBottom={1} width={terminalWidth}>
                             <Text color="gray">
                                 ─ Worked for {durationStr}
                                 {tokensStr} ─
@@ -111,14 +114,27 @@ export const MessageItem = memo(
         }
 
         // User message: '>' prefix with gray background
+        // Properly wrap text accounting for prefix "> " (2 chars) and paddingX={1} (2 chars total)
         if (message.role === 'user') {
+            const prefix = '> ';
+            const paddingChars = 2; // paddingX={1} = 1 char on each side
+            const availableWidth = Math.max(20, terminalWidth - prefix.length - paddingChars);
+            const wrappedContent = wrapAnsi(message.content, availableWidth, {
+                hard: true,
+                wordWrap: true,
+                trim: false,
+            });
+            const lines = wrappedContent.split('\n');
+
             return (
-                <Box flexDirection="column" marginTop={2} marginBottom={1} width="100%">
-                    <Box flexDirection="row" paddingX={1} backgroundColor="gray">
-                        <Text color="green">{'> '}</Text>
-                        <Text color="white" wrap="wrap">
-                            {message.content}
-                        </Text>
+                <Box flexDirection="column" marginTop={2} marginBottom={1} width={terminalWidth}>
+                    <Box flexDirection="column" paddingX={1} backgroundColor="gray">
+                        {lines.map((line, i) => (
+                            <Box key={i} flexDirection="row">
+                                <Text color="green">{i === 0 ? prefix : '  '}</Text>
+                                <Text color="white">{line}</Text>
+                            </Box>
+                        ))}
                     </Box>
                 </Box>
             );
@@ -132,7 +148,7 @@ export const MessageItem = memo(
             // Continuation messages: no indicator, just content
             if (message.isContinuation) {
                 return (
-                    <Box flexDirection="column" width="100%">
+                    <Box flexDirection="column" width={terminalWidth}>
                         <MarkdownText>{message.content || ''}</MarkdownText>
                     </Box>
                 );
@@ -142,7 +158,7 @@ export const MessageItem = memo(
             // Text wraps at terminal width - wrapped lines may start at column 0
             // This is simpler and avoids mid-word splitting issues with Ink's wrap
             return (
-                <Box flexDirection="column" marginTop={1} width="100%">
+                <Box flexDirection="column" marginTop={1} width={terminalWidth}>
                     <MarkdownText bulletPrefix="⏺ ">{message.content || ''}</MarkdownText>
                 </Box>
             );
@@ -159,29 +175,66 @@ export const MessageItem = memo(
             const isPending =
                 message.toolStatus === 'pending' || message.toolStatus === 'pending_approval';
 
+            // Check for sub-agent progress data
+            const subAgentProgress = message.subAgentProgress;
+
             // Parse tool name and args for bold formatting: "ToolName(args)" → bold name + normal args
             const parenIndex = message.content.indexOf('(');
             const toolName =
                 parenIndex > 0 ? message.content.slice(0, parenIndex) : message.content;
             const toolArgs = parenIndex > 0 ? message.content.slice(parenIndex) : '';
 
+            // Build the full tool header text for wrapping
+            // Don't include status suffix if we have sub-agent progress (it shows its own status)
+            const statusSuffix =
+                subAgentProgress ? '' : isRunning ? ' Running...' : isPending ? ' Waiting...' : '';
+            const fullToolText = `${toolName}${toolArgs}${statusSuffix}`;
+
+            // ToolIcon takes 2 chars ("● "), so available width is terminalWidth - 2
+            const iconWidth = 2;
+            const availableWidth = Math.max(20, terminalWidth - iconWidth);
+            const wrappedToolText = wrapAnsi(fullToolText, availableWidth, {
+                hard: true,
+                wordWrap: true,
+                trim: false,
+            });
+            const toolLines = wrappedToolText.split('\n');
+
             return (
-                <Box flexDirection="column" marginTop={1} width="100%">
+                <Box flexDirection="column" marginTop={1} width={terminalWidth}>
                     {/* Tool header: icon + name + args + status text */}
-                    <Box flexDirection="row">
-                        <ToolIcon
-                            status={message.toolStatus || 'finished'}
-                            isError={message.isError ?? false}
-                        />
-                        <Box flexGrow={1} flexShrink={1}>
-                            <Text wrap="wrap">
-                                <Text bold>{toolName}</Text>
-                                <Text>{toolArgs}</Text>
-                                {isRunning && <Text color="green"> Running...</Text>}
-                                {isPending && <Text color="yellowBright"> Waiting...</Text>}
+                    {toolLines.map((line, i) => (
+                        <Box key={i} flexDirection="row">
+                            {i === 0 ? (
+                                <ToolIcon
+                                    status={message.toolStatus || 'finished'}
+                                    isError={message.isError ?? false}
+                                />
+                            ) : (
+                                <Text>{'  '}</Text>
+                            )}
+                            <Text>
+                                {i === 0 ? (
+                                    <>
+                                        <Text bold>{line.slice(0, toolName.length)}</Text>
+                                        <Text>{line.slice(toolName.length)}</Text>
+                                    </>
+                                ) : (
+                                    line
+                                )}
                             </Text>
                         </Box>
-                    </Box>
+                    ))}
+                    {/* Sub-agent progress line - show when we have progress data */}
+                    {subAgentProgress && isRunning && (
+                        <Box marginLeft={2}>
+                            <Text color="gray">
+                                └─ {subAgentProgress.toolsCalled} tool
+                                {subAgentProgress.toolsCalled !== 1 ? 's' : ''} called | Current:{' '}
+                                {subAgentProgress.currentTool}
+                            </Text>
+                        </Box>
+                    )}
                     {/* Tool result - only show when finished */}
                     {hasStructuredDisplay ? (
                         <ToolResultRenderer
@@ -201,7 +254,7 @@ export const MessageItem = memo(
 
         // System message: Compact gray text
         return (
-            <Box flexDirection="column" marginBottom={1} width="100%">
+            <Box flexDirection="column" marginBottom={1} width={terminalWidth}>
                 <Text color="gray">{message.content}</Text>
             </Box>
         );
@@ -220,7 +273,12 @@ export const MessageItem = memo(
             prev.message.isContinuation === next.message.isContinuation &&
             prev.message.isError === next.message.isError &&
             prev.message.toolDisplayData === next.message.toolDisplayData &&
-            prev.message.toolContent === next.message.toolContent
+            prev.message.toolContent === next.message.toolContent &&
+            prev.terminalWidth === next.terminalWidth &&
+            prev.message.subAgentProgress?.toolsCalled ===
+                next.message.subAgentProgress?.toolsCalled &&
+            prev.message.subAgentProgress?.currentTool ===
+                next.message.subAgentProgress?.currentTool
         );
     }
 );

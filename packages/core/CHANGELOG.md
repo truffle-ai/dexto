@@ -1,5 +1,12 @@
 # @dexto/core
 
+## 1.5.2
+
+### Patch Changes
+
+- 8a85ea4: Fix maxsteps in agent loop causing early termination
+- 527f3f9: Fixes for interactive CLI
+
 ## 1.5.1
 
 ### Patch Changes

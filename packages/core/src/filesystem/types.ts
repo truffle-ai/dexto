@@ -164,6 +164,10 @@ export interface EditResult {
     path: string;
     changesCount: number;
     backupPath?: string | undefined;
+    /** Original content before edit (for diff generation) */
+    originalContent: string;
+    /** New content after edit (for diff generation) */
+    newContent: string;
 }
 
 /**

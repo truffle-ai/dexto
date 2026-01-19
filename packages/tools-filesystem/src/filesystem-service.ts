@@ -142,7 +142,7 @@ export class FileSystemService {
      * @param filePath The file path to check (can be relative or absolute)
      * @returns true if the path is within config-allowed paths, false otherwise
      */
-    isPathWithinConfigAllowed(filePath: string): boolean {
+    async isPathWithinConfigAllowed(filePath: string): Promise<boolean> {
         return this.pathValidator.isPathWithinAllowed(filePath);
     }
 
@@ -152,8 +152,8 @@ export class FileSystemService {
     async readFile(filePath: string, options: ReadFileOptions = {}): Promise<FileContent> {
         await this.ensureInitialized();
 
-        // Validate path
-        const validation = this.pathValidator.validatePath(filePath);
+        // Validate path (async for non-blocking symlink resolution)
+        const validation = await this.pathValidator.validatePath(filePath);
         if (!validation.isValid || !validation.normalizedPath) {
             throw FileSystemError.invalidPath(filePath, validation.error || 'Unknown error');
         }
@@ -248,8 +248,8 @@ export class FileSystemService {
             const validFiles: FileMetadata[] = [];
 
             for (const file of files) {
-                // Validate path
-                const validation = this.pathValidator.validatePath(file);
+                // Validate path (async for non-blocking symlink resolution)
+                const validation = await this.pathValidator.validatePath(file);
                 if (!validation.isValid || !validation.normalizedPath) {
                     this.logger.debug(`Skipping invalid path: ${file}`);
                     continue;
@@ -419,8 +419,8 @@ export class FileSystemService {
     ): Promise<WriteResult> {
         await this.ensureInitialized();
 
-        // Validate path
-        const validation = this.pathValidator.validatePath(filePath);
+        // Validate path (async for non-blocking symlink resolution)
+        const validation = await this.pathValidator.validatePath(filePath);
         if (!validation.isValid || !validation.normalizedPath) {
             throw FileSystemError.invalidPath(filePath, validation.error || 'Unknown error');
         }
@@ -482,8 +482,8 @@ export class FileSystemService {
     ): Promise<EditResult> {
         await this.ensureInitialized();
 
-        // Validate path
-        const validation = this.pathValidator.validatePath(filePath);
+        // Validate path (async for non-blocking symlink resolution)
+        const validation = await this.pathValidator.validatePath(filePath);
         if (!validation.isValid || !validation.normalizedPath) {
             throw FileSystemError.invalidPath(filePath, validation.error || 'Unknown error');
         }
@@ -492,11 +492,11 @@ export class FileSystemService {
 
         // Read current file content
         const fileContent = await this.readFile(normalizedPath);
-        let content = fileContent.content;
+        const originalContent = fileContent.content;
 
         // Count occurrences of old string
         const occurrences = (
-            content.match(
+            originalContent.match(
                 new RegExp(operation.oldString.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')
             ) || []
         ).length;
@@ -517,17 +517,18 @@ export class FileSystemService {
 
         try {
             // Perform replacement
+            let newContent: string;
             if (operation.replaceAll) {
-                content = content.replace(
+                newContent = originalContent.replace(
                     new RegExp(operation.oldString.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'),
                     operation.newString
                 );
             } else {
-                content = content.replace(operation.oldString, operation.newString);
+                newContent = originalContent.replace(operation.oldString, operation.newString);
             }
 
             // Write updated content
-            await fs.writeFile(normalizedPath, content, options.encoding || DEFAULT_ENCODING);
+            await fs.writeFile(normalizedPath, newContent, options.encoding || DEFAULT_ENCODING);
 
             this.logger.debug(`File edited: ${normalizedPath} (${occurrences} replacements)`);
 
@@ -536,6 +537,8 @@ export class FileSystemService {
                 path: normalizedPath,
                 changesCount: occurrences,
                 backupPath,
+                originalContent,
+                newContent,
             };
         } catch (error) {
             throw FileSystemError.editFailed(
@@ -646,10 +649,10 @@ export class FileSystemService {
     }
 
     /**
-     * Check if a path is allowed
+     * Check if a path is allowed (async for non-blocking symlink resolution)
      */
-    isPathAllowed(filePath: string): boolean {
-        const validation = this.pathValidator.validatePath(filePath);
+    async isPathAllowed(filePath: string): Promise<boolean> {
+        const validation = await this.pathValidator.validatePath(filePath);
         return validation.isValid;
     }
 }

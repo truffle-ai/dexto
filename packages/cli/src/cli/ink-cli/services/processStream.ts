@@ -28,11 +28,7 @@ import type { Message, UIState, ToolStatus } from '../state/types.js';
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
 import { generateMessageId } from '../utils/idGenerator.js';
 import { checkForSplit } from '../utils/streamSplitter.js';
-import {
-    getToolDisplayName,
-    formatToolArgsForDisplay,
-    getToolTypeBadge,
-} from '../utils/messageFormatting.js';
+import { formatToolHeader } from '../utils/messageFormatting.js';
 import { isEditWriteTool } from '../utils/toolUtils.js';
 import { capture } from '../../../analytics/index.js';
 import chalk from 'chalk';
@@ -568,25 +564,17 @@ export async function processStream(
                         ? `tool-${event.callId}`
                         : generateMessageId('tool');
 
-                    // Get friendly display name, format args, and tool type badge
-                    const displayName = getToolDisplayName(event.toolName);
-                    const argsFormatted = formatToolArgsForDisplay(
+                    // Format tool header using shared utility
+                    const { header: toolContent } = formatToolHeader(
                         event.toolName,
-                        event.args || {}
+                        (event.args as Record<string, unknown>) || {}
                     );
-                    const badge = getToolTypeBadge(event.toolName);
 
-                    // Extract description if present
+                    // Add description if present (dim styling, on new line)
+                    let finalToolContent = toolContent;
                     const description = event.args?.description;
-
-                    // Format: toolName(args) [badge]
-                    // If description exists, add it on a new line with dim styling
-                    let toolContent = argsFormatted
-                        ? `${displayName}(${argsFormatted}) [${badge}]`
-                        : `${displayName}() [${badge}]`;
-
                     if (description && typeof description === 'string') {
-                        toolContent += `\n${chalk.dim(description)}`;
+                        finalToolContent += `\n${chalk.dim(description)}`;
                     }
 
                     // Tool calls start in 'pending' state (don't know if approval needed yet)
@@ -595,7 +583,7 @@ export async function processStream(
                     addToPending({
                         id: toolMessageId,
                         role: 'tool',
-                        content: toolContent,
+                        content: finalToolContent,
                         timestamp: new Date(),
                         toolStatus: 'pending',
                     });
@@ -879,6 +867,89 @@ export async function processStream(
                             setUi((prev) => ({ ...prev, activeOverlay: 'approval' }));
                             return newApproval;
                         });
+                    }
+                    break;
+                }
+
+                case 'approval:response': {
+                    // Handle approval responses - dismisses auto-approved parallel tool calls
+                    //
+                    // When user approves a tool with "remember", other pending parallel requests
+                    // for the same tool are auto-approved. The handler emits approval:response
+                    // for each, and we need to dismiss them from the UI.
+                    //
+                    // For user-initiated approvals, completeApproval() in OverlayContainer
+                    // already clears the state before emitting, so these are no-ops.
+
+                    const { approvalId } = event;
+
+                    // Step 1: Remove from queue if present
+                    setApprovalQueue((queue) => queue.filter((a) => a.approvalId !== approvalId));
+
+                    // Step 2: If this is the current approval, dismiss and show next
+                    // We use the same pattern as completeApproval in OverlayContainer:
+                    // setApprovalQueue as coordinator, calling setApproval inside
+                    setApproval((currentApproval) => {
+                        if (currentApproval?.approvalId !== approvalId) {
+                            return currentApproval; // Not current, nothing to do
+                        }
+
+                        // Current approval was auto-approved - show next or close
+                        // Note: queue was already filtered in Step 1, so we read updated queue
+                        setApprovalQueue((queue) => {
+                            if (queue.length > 0) {
+                                const [next, ...rest] = queue;
+                                setApproval(next!);
+                                setUi((prev) => ({ ...prev, activeOverlay: 'approval' }));
+                                return rest;
+                            } else {
+                                setUi((prev) => ({ ...prev, activeOverlay: 'none' }));
+                                return [];
+                            }
+                        });
+
+                        return null; // Clear current while setApprovalQueue handles next
+                    });
+
+                    break;
+                }
+
+                case 'service:event': {
+                    // Handle service events - extensible pattern for non-core services
+                    debug.log('SERVICE-EVENT received', {
+                        service: event.service,
+                        eventType: event.event,
+                        toolCallId: event.toolCallId,
+                        sessionId: event.sessionId,
+                    });
+                    if (event.service === 'agent-spawner' && event.event === 'progress') {
+                        const { toolCallId, data } = event;
+                        // Guard against null/non-object data payloads
+                        if (toolCallId && data && typeof data === 'object') {
+                            // Update the tool message with sub-agent progress
+                            const toolMessageId = `tool-${toolCallId}`;
+                            const progressData = data as {
+                                task: string;
+                                agentId: string;
+                                toolsCalled: number;
+                                currentTool: string;
+                                currentArgs?: Record<string, unknown>;
+                            };
+                            debug.log('SERVICE-EVENT updating progress', {
+                                toolMessageId,
+                                toolsCalled: progressData.toolsCalled,
+                                currentTool: progressData.currentTool,
+                            });
+                            updatePending(toolMessageId, {
+                                subAgentProgress: {
+                                    task: progressData.task,
+                                    agentId: progressData.agentId,
+                                    toolsCalled: progressData.toolsCalled,
+                                    currentTool: progressData.currentTool,
+                                    currentArgs: progressData.currentArgs,
+                                },
+                            });
+                        }
                     }
                     break;
                 }

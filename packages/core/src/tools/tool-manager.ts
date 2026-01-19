@@ -11,7 +11,8 @@ import type { IDextoLogger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
 import type { AgentEventBus } from '../events/index.js';
 import type { ApprovalManager } from '../approval/manager.js';
-import { ApprovalStatus } from '../approval/types.js';
+import { ApprovalStatus, ApprovalType } from '../approval/types.js';
+import type { ApprovalRequest, ToolConfirmationMetadata } from '../approval/types.js';
 import type { IAllowedToolsProvider } from './confirmation/allowed-tools-provider/types.js';
 import type { PluginManager } from '../plugins/manager.js';
 import type { SessionManager } from '../session/index.js';
@@ -244,6 +245,94 @@ export class ToolManager {
             approved: false,
             suggestedPatterns: generateBashPatternSuggestions(command),
         };
+    }
+
+    /**
+     * Auto-approve pending tool confirmation requests for the same tool.
+     * Called after a user selects "remember choice" for a tool.
+     * This handles the case where parallel tool calls come in before the first one is approved.
+     *
+     * @param toolName The tool name that was just remembered
+     * @param sessionId The session ID for which the tool was allowed
+     */
+    private autoApprovePendingToolRequests(toolName: string, sessionId?: string): void {
+        const count = this.approvalManager.autoApprovePendingRequests(
+            (request: ApprovalRequest) => {
+                // Only match tool confirmation requests
+                if (request.type !== ApprovalType.TOOL_CONFIRMATION) {
+                    return false;
+                }
+
+                // Only match requests for the same session
+                if (request.sessionId !== sessionId) {
+                    return false;
+                }
+
+                // Check if it's the same tool
+                const metadata = request.metadata as ToolConfirmationMetadata;
+                return metadata.toolName === toolName;
+            },
+            { rememberChoice: false } // Don't propagate remember choice to auto-approved requests
+        );
+
+        if (count > 0) {
+            this.logger.info(
+                `Auto-approved ${count} parallel request(s) for tool '${toolName}' after user selected "remember choice"`
+            );
+        }
+    }
+
+    /**
+     * Auto-approve pending bash command requests that match a pattern.
+     * Called after a user selects "remember pattern" for a bash command.
+     * This handles the case where parallel bash commands come in before the first one is approved.
+     *
+     * @param pattern The bash pattern that was just remembered
+     * @param sessionId The session ID for context
+     */
+    private autoApprovePendingBashRequests(pattern: string, sessionId?: string): void {
+        const count = this.approvalManager.autoApprovePendingRequests(
+            (request: ApprovalRequest) => {
+                // Only match tool confirmation requests
+                if (request.type !== ApprovalType.TOOL_CONFIRMATION) {
+                    return false;
+                }
+
+                // Only match requests for the same session
+                if (request.sessionId !== sessionId) {
+                    return false;
+                }
+
+                // Check if it's a bash tool
+                const metadata = request.metadata as ToolConfirmationMetadata;
+                if (!this.isBashTool(metadata.toolName)) {
+                    return false;
+                }
+
+                // Check if the command matches the pattern
+                const command = metadata.args?.command as string | undefined;
+                if (!command) {
+                    return false;
+                }
+
+                // Generate pattern key for this command and check if it matches
+                const patternKey = generateBashPatternKey(command);
+                if (!patternKey) {
+                    return false;
+                }
+
+                // Check if this command would now be approved with the new pattern
+                // The pattern was just added, so we can use matchesBashPattern
+                return this.approvalManager.matchesBashPattern(patternKey);
+            },
+            { rememberPattern: undefined } // Don't propagate pattern to auto-approved requests
+        );
+
+        if (count > 0) {
+            this.logger.info(
+                `Auto-approved ${count} parallel bash command(s) matching pattern '${pattern}'`
+            );
+        }
     }
 
     getMcpManager(): MCPManager {
@@ -479,7 +568,8 @@ export class ToolManager {
                     actualToolName,
                     args,
                     sessionId,
-                    abortSignal
+                    abortSignal,
+                    toolCallId
                 );
             }
             // Route to custom tools
@@ -497,7 +587,8 @@ export class ToolManager {
                     actualToolName,
                     args,
                     sessionId,
-                    abortSignal
+                    abortSignal,
+                    toolCallId
                 );
             }
             // Tool doesn't have proper prefix
@@ -785,8 +876,8 @@ export class ToolManager {
             return { handled: false };
         }
 
-        // Get the custom approval request from the tool
-        const approvalRequest = tool.getApprovalOverride(args);
+        // Get the custom approval request from the tool (may be async)
+        const approvalRequest = await tool.getApprovalOverride(args);
         if (!approvalRequest) {
             // Tool decided no custom approval needed, continue normal flow
             return { handled: false };
@@ -924,12 +1015,16 @@ export class ToolManager {
         try {
             // Generate preview for approval UI (if tool supports it)
             let displayPreview: ToolDisplayData | undefined;
-            const actualToolName = toolName.replace(/^internal--/, '');
+            // Strip prefix to get the base tool name for tool lookup
+            // Tools are registered by base name (e.g., 'edit_file') but exposed with prefixes:
+            // - 'internal--' for built-in internal tools
+            // - 'custom--' for custom tools (filesystem tools, bash tools, etc.)
+            const actualToolName = toolName.replace(/^internal--/, '').replace(/^custom--/, '');
             const internalTool = this.internalToolsProvider?.getTool(actualToolName);
 
             if (internalTool?.generatePreview) {
                 try {
-                    const context: ToolExecutionContext = { sessionId };
+                    const context: ToolExecutionContext = { sessionId, toolCallId };
                     const preview = await internalTool.generatePreview(args, context);
                     displayPreview = preview ?? undefined;
                     this.logger.debug(`Generated preview for ${toolName}`);
@@ -999,6 +1094,9 @@ export class ToolManager {
                     this.logger.info(
                         `Tool '${toolName}' added to allowed tools for session '${allowSessionId ?? 'global'}' (remember choice selected)`
                     );
+
+                    // Auto-approve any pending parallel requests for the same tool
+                    this.autoApprovePendingToolRequests(toolName, allowSessionId);
                 } else if (
                     rememberPattern &&
                     typeof rememberPattern === 'string' &&
@@ -1009,6 +1107,9 @@ export class ToolManager {
                     this.logger.info(
                         `Bash pattern '${rememberPattern}' added for session approval`
                     );
+
+                    // Auto-approve any pending parallel bash commands that match this pattern
+                    this.autoApprovePendingBashRequests(rememberPattern, sessionId);
                 }
             }
 

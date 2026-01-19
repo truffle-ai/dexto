@@ -134,6 +134,15 @@
       "tags": ["gaming", "gameboy", "pokemon", "emulator", "mcp"],
       "source": "gaming-agent/",
       "main": "gaming-agent.yml"
+    },
+    "explore-agent": {
+      "id": "explore-agent",
+      "name": "Explore Agent",
+      "description": "Fast, read-only agent for codebase exploration. Use for: 'explore the codebase', 'what's in this folder', 'how does X work', 'find where Y is handled', 'understand the architecture'. Optimized for speed with Haiku.",
+      "author": "Truffle AI",
+      "tags": ["explore", "search", "understand", "find", "research"],
+      "source": "explore-agent/",
+      "main": "explore-agent.yml"
     }
   }
 }

@@ -165,7 +165,7 @@ export function AlternateBufferCLI({
     }, [selectionHintVisible]);
 
     // Get terminal dimensions - updates on resize
-    const { rows: terminalHeight } = useTerminalSize();
+    const { rows: terminalHeight, columns: terminalWidth } = useTerminalSize();
 
     // Build list data: header as first item, then finalized + pending + dequeued buffer
     // In alternate buffer mode, everything is re-rendered anyway, so we combine all
@@ -200,9 +200,9 @@ export function AlternateBufferCLI({
                     />
                 );
             }
-            return <MessageItem message={item.message} />;
+            return <MessageItem message={item.message} terminalWidth={terminalWidth} />;
         },
-        [session.modelName, session.id, session.hasActiveSession, startupInfo]
+        [session.modelName, session.id, session.hasActiveSession, startupInfo, terminalWidth]
     );
 
     // Smart height estimation based on item type and content
@@ -350,6 +350,7 @@ export function AlternateBufferCLI({
                     modelName={session.modelName}
                     cwd={process.cwd()}
                     autoApproveEdits={ui.autoApproveEdits}
+                    isShellMode={buffer.text.startsWith('!')}
                 />
 
                 {/* History search bar (Ctrl+R) - shown at very bottom */}

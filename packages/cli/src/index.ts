@@ -1382,31 +1382,21 @@ program
                     case 'cli': {
                         // Set up approval handler for interactive CLI if manual mode OR elicitation enabled
                         // Note: Headless CLI with manual mode is blocked by validation above
-                        // Ink CLI uses ApprovalCoordinator (same as server/web mode) to coordinate
-                        // approval requests with React UI components
                         const needsHandler =
                             !headlessInput &&
                             (validatedConfig.toolConfirmation?.mode === 'manual' ||
                                 validatedConfig.elicitation.enabled);
 
                         if (needsHandler) {
-                            const { createManualApprovalHandler, ApprovalCoordinator } =
-                                await import('@dexto/server');
-                            const approvalCoordinator = new ApprovalCoordinator();
-                            const handler = createManualApprovalHandler(approvalCoordinator);
+                            // CLI uses its own approval handler that works directly with AgentEventBus
+                            // This avoids the indirection of ApprovalCoordinator (designed for HTTP flows)
+                            const { createCLIApprovalHandler } = await import(
+                                './cli/approval/index.js'
+                            );
+                            const handler = createCLIApprovalHandler(agent.agentEventBus);
                             agent.setApprovalHandler(handler);
 
-                            // Bridge approval events between coordinator and agent event bus for Ink CLI
-                            // Forward requests from coordinator to event bus (for UI to receive)
-                            approvalCoordinator.on('approval:request', (request) => {
-                                agent.agentEventBus.emit('approval:request', request);
-                            });
-                            // Forward responses from event bus to coordinator (for handler to receive)
-                            agent.agentEventBus.on('approval:response', (response) => {
-                                approvalCoordinator.emitResponse(response);
-                            });
-
-                            logger.debug('Event-based approval handler configured for Ink CLI');
+                            logger.debug('CLI approval handler configured for Ink CLI');
                         }
 
                         // Start the agent now that approval handler is configured

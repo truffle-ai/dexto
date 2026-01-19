@@ -8,7 +8,7 @@ import { Box } from 'ink';
 import type { DextoAgent, McpServerConfig, McpServerStatus, McpServerType } from '@dexto/core';
 import type { TextBuffer } from '../components/shared/text-buffer.js';
 import type { Key } from '../hooks/useInputOrchestrator.js';
-import { ApprovalStatus, DenialReason } from '@dexto/core';
+import { ApprovalStatus, DenialReason, isUserMessage } from '@dexto/core';
 import type { Message, UIState, InputState, SessionState } from '../state/types.js';
 import {
     ApprovalPrompt,
@@ -650,6 +650,34 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     if (history && history.length > 0) {
                         const historyMessages = convertHistoryToUIMessages(history, newSessionId);
                         setMessages(historyMessages);
+
+                        // Extract user messages for input history (arrow up navigation)
+                        const userInputHistory = history
+                            .filter(isUserMessage)
+                            .map((msg) => {
+                                // Extract text content from user message
+                                if (typeof msg.content === 'string') {
+                                    return msg.content;
+                                }
+                                // Handle array content (text parts)
+                                if (Array.isArray(msg.content)) {
+                                    return msg.content
+                                        .filter(
+                                            (part): part is { type: 'text'; text: string } =>
+                                                typeof part === 'object' && part.type === 'text'
+                                        )
+                                        .map((part) => part.text)
+                                        .join('\n');
+                                }
+                                return '';
+                            })
+                            .filter((text) => text.trim().length > 0);
+
+                        setInput((prev) => ({
+                            ...prev,
+                            history: userInputHistory,
+                            historyIndex: -1,
+                        }));
                     }
 
                     setMessages((prev) => [

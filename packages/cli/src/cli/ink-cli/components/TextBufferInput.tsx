@@ -355,13 +355,24 @@ export function TextBufferInput({
                 checkRemovedImages();
                 checkRemovedPasteBlocks();
 
+                // Check if we should close overlay after backspace
+                // NOTE: buffer.text is memoized and won't update until next render,
+                // so we calculate the expected new text ourselves
                 if (onTriggerOverlay && cursorPos > 0) {
                     const deletedChar = prevText[cursorPos - 1];
-                    const newText = buffer.text;
+                    // Calculate what the text will be after backspace
+                    const expectedNewText =
+                        prevText.slice(0, cursorPos - 1) + prevText.slice(cursorPos);
+
                     if (deletedChar === '/' && cursorPos === 1) {
                         onTriggerOverlay('close');
-                    } else if (deletedChar === '@' && !newText.includes('@')) {
-                        onTriggerOverlay('close');
+                    } else if (deletedChar === '@') {
+                        // Close if no valid @ mention remains
+                        // A valid @ is at start of text or after whitespace
+                        const hasValidAt = /(^|[\s])@/.test(expectedNewText);
+                        if (!hasValidAt) {
+                            onTriggerOverlay('close');
+                        }
                     }
                 }
                 return;
@@ -502,6 +513,10 @@ export function TextBufferInput({
                         onTriggerOverlay('slash-autocomplete');
                     } else if (key.sequence === '@') {
                         onTriggerOverlay('resource-autocomplete');
+                    } else if (/\s/.test(key.sequence)) {
+                        // Close resource autocomplete when user types whitespace
+                        // Whitespace means user is done with the mention (either selected or abandoned)
+                        onTriggerOverlay('close');
                     }
                 }
             }
@@ -540,6 +555,7 @@ export function TextBufferInput({
     const isShellMode = bufferText.startsWith('!');
     const promptPrefix = isShellMode ? '$ ' : '> ';
     const promptColor = isShellMode ? 'yellow' : 'green';
+    const separatorColor = isShellMode ? 'yellow' : 'gray';
 
     // Calculate visible window
     let startLine = 0;
@@ -577,7 +593,7 @@ export function TextBufferInput({
 
     return (
         <Box flexDirection="column" width={terminalWidth}>
-            <Text color="gray">{separator}</Text>
+            <Text color={separatorColor}>{separator}</Text>
             {startLine > 0 && (
                 <Text color="gray">
                     {'  '}↑ {startLine} more line{startLine > 1 ? 's' : ''} above (
@@ -643,7 +659,7 @@ export function TextBufferInput({
                     cursorOnCollapsed={findCollapsedBlockAtCursor()}
                 />
             )}
-            <Text color="gray">{separator}</Text>
+            <Text color={separatorColor}>{separator}</Text>
         </Box>
     );
 }

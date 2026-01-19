@@ -95,6 +95,25 @@ export class ToolError {
     }
 
     /**
+     * File was modified between preview and execute.
+     * This is a safety check to prevent corrupting user edits.
+     */
+    static fileModifiedSincePreview(toolName: string, filePath: string) {
+        return new DextoRuntimeError(
+            ToolErrorCode.FILE_MODIFIED_SINCE_PREVIEW,
+            ErrorScope.TOOLS,
+            ErrorType.USER,
+            `File '${filePath}' was modified since the preview was generated. Please read the file again and retry the operation.`,
+            {
+                toolName,
+                filePath,
+                recovery:
+                    'Read the file with read_file tool to get current content, then retry the edit.',
+            }
+        );
+    }
+
+    /**
      * Tool unauthorized access
      */
     static unauthorized(toolName: string, sessionId?: string) {

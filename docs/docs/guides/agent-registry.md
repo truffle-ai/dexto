@@ -38,6 +38,7 @@ For detailed installation instructions, see the [Installing Custom Agents guide]
 | [Sora Video Agent](#-sora-video-agent) | Content Creation | AI video generation | OpenAI GPT-5 Mini |
 | [Image Editor Agent](#%EF%B8%8F-image-editor-agent) | Content Creation | Image manipulation, face detection | OpenAI GPT-5 Mini |
 | [Coding Agent](#-coding-agent) | Development | Software development, debugging | Anthropic Claude Haiku 4.5 |
+| [Explore Agent](#-explore-agent) | Development | Codebase exploration, research | Anthropic Claude Haiku 4.5 |
 | [Database Agent](#%EF%B8%8F-database-agent) | Data & Analysis | SQL queries, database operations | OpenAI GPT-5 Mini |
 | [Talk2PDF Agent](#-talk2pdf-agent) | Data & Analysis | PDF analysis, document conversation | OpenAI GPT-5 Mini |
 | [Product Analysis Agent](#-product-analysis-agent) | Data & Analysis | Product analytics, user behavior | Anthropic Claude Sonnet 4.5 |
@@ -239,6 +240,48 @@ dexto --agent coding-agent "Create a landing page for a coffee brand"
 **File Support:** 50+ programming languages and config formats
 
 **Demo:** [Snake Game Development](/examples/snake-game)
+
+---
+
+#### 🔍 Explore Agent
+
+**ID:** `explore-agent`
+**Best For:** Codebase exploration, finding files, understanding architecture, researching code
+
+Fast, read-only agent optimized for codebase exploration. Designed to be spawned by other agents for quick research tasks.
+
+**Key Features:**
+- **File Discovery** – Find files matching patterns using glob
+- **Content Search** – Search for text/patterns within files using grep
+- **Code Reading** – Read and analyze file contents
+- **Architecture Understanding** – Map relationships between components
+- **Fast Response** – Optimized for speed with Haiku model
+
+**Use Cases:**
+- "What's in this folder?"
+- "How does X work?"
+- "Find where Y is handled"
+- "Understand the architecture"
+- "Explore the codebase"
+
+**Available Tools:**
+- `glob_files` – Find files matching patterns (e.g., `src/**/*.ts`)
+- `grep_content` – Search for text/patterns within files
+- `read_file` – Read file contents
+
+**Example Use:**
+```bash
+dexto --agent explore-agent "How is authentication handled in this codebase?"
+dexto --agent explore-agent "Find all API endpoints"
+```
+
+**Recommended LLM:** Anthropic Claude Haiku 4.5
+
+**Performance Notes:**
+- Read-only tools only (no write operations)
+- Auto-approves all tool calls for speed
+- Optimized for quick research tasks
+- In-memory storage for ephemeral use
 
 ---
 
@@ -557,6 +600,7 @@ defaults:
 | triage-agent | Multi-Agent | Claude/GPT | - |
 | gaming-agent | Entertainment | Claude (Vision) | ROM files |
 | coding-agent | Development | Any | Pre-installed |
+| explore-agent | Development | Claude Haiku | - |
 | default-agent | General | Any | - |
 
 ## Choosing the Right Agent
@@ -569,6 +613,7 @@ defaults:
 
 ### For Development
 - **Coding:** Use `coding-agent` for comprehensive development assistance
+- **Exploration:** Use `explore-agent` for fast codebase research and understanding
 - **GitHub:** Use `github-agent` for repository management and PR analysis
 - **Databases:** Use `database-agent` for SQL and data operations
 

@@ -7,7 +7,12 @@
 
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useStdout } from 'ink';
-import { getModelDisplayName, type DextoAgent, type QueuedMessage } from '@dexto/core';
+import {
+    getModelDisplayName,
+    isUserMessage,
+    type DextoAgent,
+    type QueuedMessage,
+} from '@dexto/core';
 import type { Message, StartupInfo, UIState, InputState, SessionState } from '../state/types.js';
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
 import { useAgentEvents } from './useAgentEvents.js';
@@ -220,6 +225,26 @@ export function useCLIState({
                 if (!history?.length || cancelled) return;
                 const historyMessages = convertHistoryToUIMessages(history, initialSessionId);
                 setMessages(historyMessages);
+
+                // Extract user messages for input history (arrow up navigation)
+                const userInputHistory = history
+                    .filter(isUserMessage)
+                    .map((msg) =>
+                        msg.content
+                            .filter(
+                                (part): part is { type: 'text'; text: string } =>
+                                    part.type === 'text'
+                            )
+                            .map((part) => part.text)
+                            .join('\n')
+                    )
+                    .filter((text) => text.trim().length > 0);
+
+                setInput((prev) => ({
+                    ...prev,
+                    history: userInputHistory,
+                    historyIndex: -1,
+                }));
             } catch (error) {
                 if (cancelled) return;
                 setMessages((prev) => [

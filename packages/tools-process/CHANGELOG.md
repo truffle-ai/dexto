@@ -1,5 +1,13 @@
 # @dexto/tools-process
 
+## 1.5.2
+
+### Patch Changes
+
+- Updated dependencies [8a85ea4]
+- Updated dependencies [527f3f9]
+    - @dexto/core@1.5.2
+
 ## 1.5.1
 
 ### Patch Changes

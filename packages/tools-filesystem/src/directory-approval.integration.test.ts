@@ -98,7 +98,7 @@ describe('Directory Approval Integration Tests', () => {
                 const testFile = path.join(tempDir, 'test.txt');
                 await fs.writeFile(testFile, 'test content');
 
-                const override = tool.getApprovalOverride?.({ file_path: testFile });
+                const override = await tool.getApprovalOverride?.({ file_path: testFile });
                 expect(override).toBeNull();
             });
 
@@ -111,7 +111,7 @@ describe('Directory Approval Integration Tests', () => {
                 // External path (outside working directory)
                 const externalPath = '/external/project/file.ts';
 
-                const override = tool.getApprovalOverride?.({ file_path: externalPath });
+                const override = await tool.getApprovalOverride?.({ file_path: externalPath });
 
                 expect(override).not.toBeNull();
                 expect(override?.type).toBe(ApprovalType.DIRECTORY_ACCESS);
@@ -132,7 +132,7 @@ describe('Directory Approval Integration Tests', () => {
 
                 const externalPath = '/external/project/file.ts';
 
-                const override = tool.getApprovalOverride?.({ file_path: externalPath });
+                const override = await tool.getApprovalOverride?.({ file_path: externalPath });
                 expect(override).toBeNull();
                 expect(isSessionApprovedMock).toHaveBeenCalledWith(externalPath);
             });
@@ -143,7 +143,7 @@ describe('Directory Approval Integration Tests', () => {
                     directoryApproval,
                 });
 
-                const override = tool.getApprovalOverride?.({});
+                const override = await tool.getApprovalOverride?.({});
                 expect(override).toBeNull();
             });
         });
@@ -157,7 +157,7 @@ describe('Directory Approval Integration Tests', () => {
 
                 // First trigger getApprovalOverride to set pendingApprovalParentDir
                 const externalPath = '/external/project/file.ts';
-                tool.getApprovalOverride?.({ file_path: externalPath });
+                await tool.getApprovalOverride?.({ file_path: externalPath });
 
                 // Then call onApprovalGranted with rememberDirectory: true
                 tool.onApprovalGranted?.({
@@ -179,7 +179,7 @@ describe('Directory Approval Integration Tests', () => {
                 });
 
                 const externalPath = '/external/project/file.ts';
-                tool.getApprovalOverride?.({ file_path: externalPath });
+                await tool.getApprovalOverride?.({ file_path: externalPath });
 
                 tool.onApprovalGranted?.({
                     approvalId: 'test-approval',
@@ -200,7 +200,7 @@ describe('Directory Approval Integration Tests', () => {
                 });
 
                 const externalPath = '/external/project/file.ts';
-                tool.getApprovalOverride?.({ file_path: externalPath });
+                await tool.getApprovalOverride?.({ file_path: externalPath });
 
                 tool.onApprovalGranted?.({
                     approvalId: 'test-approval',
@@ -221,7 +221,7 @@ describe('Directory Approval Integration Tests', () => {
                 });
 
                 const externalPath = '/external/project/file.ts';
-                tool.getApprovalOverride?.({ file_path: externalPath });
+                await tool.getApprovalOverride?.({ file_path: externalPath });
 
                 // Should not throw
                 tool.onApprovalGranted?.({
@@ -266,7 +266,7 @@ describe('Directory Approval Integration Tests', () => {
 
                 const testFile = path.join(tempDir, 'new-file.txt');
 
-                const override = tool.getApprovalOverride?.({
+                const override = await tool.getApprovalOverride?.({
                     file_path: testFile,
                     content: 'test',
                 });
@@ -281,7 +281,7 @@ describe('Directory Approval Integration Tests', () => {
 
                 const externalPath = '/external/project/new.ts';
 
-                const override = tool.getApprovalOverride?.({
+                const override = await tool.getApprovalOverride?.({
                     file_path: externalPath,
                     content: 'test',
                 });
@@ -303,7 +303,7 @@ describe('Directory Approval Integration Tests', () => {
 
                 const externalPath = '/external/project/new.ts';
 
-                const override = tool.getApprovalOverride?.({
+                const override = await tool.getApprovalOverride?.({
                     file_path: externalPath,
                     content: 'test',
                 });
@@ -319,7 +319,7 @@ describe('Directory Approval Integration Tests', () => {
                 });
 
                 const externalPath = '/external/project/new.ts';
-                tool.getApprovalOverride?.({ file_path: externalPath, content: 'test' });
+                await tool.getApprovalOverride?.({ file_path: externalPath, content: 'test' });
 
                 tool.onApprovalGranted?.({
                     approvalId: 'test-approval',
@@ -349,7 +349,7 @@ describe('Directory Approval Integration Tests', () => {
 
                 const testFile = path.join(tempDir, 'existing.txt');
 
-                const override = tool.getApprovalOverride?.({
+                const override = await tool.getApprovalOverride?.({
                     file_path: testFile,
                     old_string: 'old',
                     new_string: 'new',
@@ -365,7 +365,7 @@ describe('Directory Approval Integration Tests', () => {
 
                 const externalPath = '/external/project/existing.ts';
 
-                const override = tool.getApprovalOverride?.({
+                const override = await tool.getApprovalOverride?.({
                     file_path: externalPath,
                     old_string: 'old',
                     new_string: 'new',
@@ -388,7 +388,7 @@ describe('Directory Approval Integration Tests', () => {
 
                 const externalPath = '/external/project/existing.ts';
 
-                const override = tool.getApprovalOverride?.({
+                const override = await tool.getApprovalOverride?.({
                     file_path: externalPath,
                     old_string: 'old',
                     new_string: 'new',
@@ -413,7 +413,7 @@ describe('Directory Approval Integration Tests', () => {
             const externalPath2 = '/external/project/file2.ts';
 
             // First request - needs approval
-            let override = tool.getApprovalOverride?.({ file_path: externalPath1 });
+            let override = await tool.getApprovalOverride?.({ file_path: externalPath1 });
             expect(override).not.toBeNull();
 
             // Simulate session approval
@@ -433,7 +433,7 @@ describe('Directory Approval Integration Tests', () => {
             isSessionApprovedMock.mockReturnValue(true);
 
             // Second request - should not need approval (session approved)
-            override = tool.getApprovalOverride?.({ file_path: externalPath2 });
+            override = await tool.getApprovalOverride?.({ file_path: externalPath2 });
             expect(override).toBeNull();
         });
 
@@ -447,7 +447,7 @@ describe('Directory Approval Integration Tests', () => {
             const externalPath2 = '/external/project/file2.ts';
 
             // First request - needs approval
-            let override = tool.getApprovalOverride?.({ file_path: externalPath1 });
+            let override = await tool.getApprovalOverride?.({ file_path: externalPath1 });
             expect(override).not.toBeNull();
 
             // Simulate once approval
@@ -467,7 +467,7 @@ describe('Directory Approval Integration Tests', () => {
             isSessionApprovedMock.mockReturnValue(false);
 
             // Second request - should still need approval (only 'once')
-            override = tool.getApprovalOverride?.({ file_path: externalPath2 });
+            override = await tool.getApprovalOverride?.({ file_path: externalPath2 });
             expect(override).not.toBeNull();
         });
     });
@@ -495,11 +495,13 @@ describe('Directory Approval Integration Tests', () => {
             });
 
             // Direct child path - should be approved
-            let override = tool.getApprovalOverride?.({ file_path: '/external/project/file.ts' });
+            let override = await tool.getApprovalOverride?.({
+                file_path: '/external/project/file.ts',
+            });
             expect(override).toBeNull();
 
             // Deep nested path - should also be approved
-            override = tool.getApprovalOverride?.({
+            override = await tool.getApprovalOverride?.({
                 file_path: '/external/project/deep/nested/file.ts',
             });
             expect(override).toBeNull();
@@ -522,11 +524,11 @@ describe('Directory Approval Integration Tests', () => {
             });
 
             // /external/sub path - approved
-            let override = tool.getApprovalOverride?.({ file_path: '/external/sub/file.ts' });
+            let override = await tool.getApprovalOverride?.({ file_path: '/external/sub/file.ts' });
             expect(override).toBeNull();
 
             // /external/other path - NOT approved (sibling directory)
-            override = tool.getApprovalOverride?.({ file_path: '/external/other/file.ts' });
+            override = await tool.getApprovalOverride?.({ file_path: '/external/other/file.ts' });
             expect(override).not.toBeNull();
         });
     });
@@ -546,12 +548,12 @@ describe('Directory Approval Integration Tests', () => {
             const dir2Path = '/external/project2/file.ts';
 
             // Both directories need approval
-            const override1 = tool.getApprovalOverride?.({ file_path: dir1Path });
+            const override1 = await tool.getApprovalOverride?.({ file_path: dir1Path });
             expect(override1).not.toBeNull();
             const metadata1 = override1?.metadata as any;
             expect(metadata1?.parentDir).toBe('/external/project1');
 
-            const override2 = tool.getApprovalOverride?.({ file_path: dir2Path });
+            const override2 = await tool.getApprovalOverride?.({ file_path: dir2Path });
             expect(override2).not.toBeNull();
             const metadata2 = override2?.metadata as any;
             expect(metadata2?.parentDir).toBe('/external/project2');
@@ -572,16 +574,16 @@ describe('Directory Approval Integration Tests', () => {
 
             // All operations need approval initially
             expect(
-                readTool.getApprovalOverride?.({ file_path: `${externalDir}/file1.ts` })
+                await readTool.getApprovalOverride?.({ file_path: `${externalDir}/file1.ts` })
             ).not.toBeNull();
             expect(
-                writeTool.getApprovalOverride?.({
+                await writeTool.getApprovalOverride?.({
                     file_path: `${externalDir}/file2.ts`,
                     content: 'test',
                 })
             ).not.toBeNull();
             expect(
-                editTool.getApprovalOverride?.({
+                await editTool.getApprovalOverride?.({
                     file_path: `${externalDir}/file3.ts`,
                     old_string: 'a',
                     new_string: 'b',
@@ -593,16 +595,16 @@ describe('Directory Approval Integration Tests', () => {
 
             // Now all operations should not need approval
             expect(
-                readTool.getApprovalOverride?.({ file_path: `${externalDir}/file1.ts` })
+                await readTool.getApprovalOverride?.({ file_path: `${externalDir}/file1.ts` })
             ).toBeNull();
             expect(
-                writeTool.getApprovalOverride?.({
+                await writeTool.getApprovalOverride?.({
                     file_path: `${externalDir}/file2.ts`,
                     content: 'test',
                 })
             ).toBeNull();
             expect(
-                editTool.getApprovalOverride?.({
+                await editTool.getApprovalOverride?.({
                     file_path: `${externalDir}/file3.ts`,
                     old_string: 'a',
                     new_string: 'b',
@@ -623,7 +625,9 @@ describe('Directory Approval Integration Tests', () => {
             });
 
             // External path without approval callbacks - no override (normal tool flow)
-            const override = tool.getApprovalOverride?.({ file_path: '/external/project/file.ts' });
+            const override = await tool.getApprovalOverride?.({
+                file_path: '/external/project/file.ts',
+            });
 
             // Without directoryApproval, isSessionApproved is never checked, so we fall through to
             // returning a directory access request. Let me re-check the implementation...

@@ -150,13 +150,22 @@ export function StaticCLI({
                 hasActiveSession={session.hasActiveSession}
                 startupInfo={startupInfo}
             />,
-            ...visibleMessages.map((msg) => <MessageItem key={msg.id} message={msg} />),
+            ...visibleMessages.map((msg) => (
+                <MessageItem key={msg.id} message={msg} terminalWidth={terminalWidth} />
+            )),
         ];
         return items;
-    }, [visibleMessages, session.modelName, session.id, session.hasActiveSession, startupInfo]);
+    }, [
+        visibleMessages,
+        session.modelName,
+        session.id,
+        session.hasActiveSession,
+        startupInfo,
+        terminalWidth,
+    ]);
 
     return (
-        <Box flexDirection="column">
+        <Box flexDirection="column" width={terminalWidth}>
             {/* Static: header + finalized messages - rendered once to terminal scrollback */}
             {/* Key changes on resize to force full re-render after terminal clear */}
             <Static key={staticRemountKey} items={staticItems}>
@@ -165,13 +174,13 @@ export function StaticCLI({
 
             {/* Dynamic: pending/streaming messages - re-rendered on updates */}
             {pendingMessages.map((message) => (
-                <MessageItem key={message.id} message={message} />
+                <MessageItem key={message.id} message={message} terminalWidth={terminalWidth} />
             ))}
 
             {/* Dequeued buffer: user messages waiting to be flushed to finalized */}
             {/* Rendered AFTER pending to guarantee correct visual order */}
             {dequeuedBuffer.map((message) => (
-                <MessageItem key={message.id} message={message} />
+                <MessageItem key={message.id} message={message} terminalWidth={terminalWidth} />
             ))}
 
             {/* Controls area */}
@@ -244,6 +253,7 @@ export function StaticCLI({
                     modelName={session.modelName}
                     cwd={process.cwd()}
                     autoApproveEdits={ui.autoApproveEdits}
+                    isShellMode={buffer.text.startsWith('!')}
                 />
 
                 {/* History search bar (Ctrl+R) - shown at very bottom */}
