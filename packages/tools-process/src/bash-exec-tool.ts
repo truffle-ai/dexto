@@ -46,8 +46,51 @@ type BashExecInput = z.input<typeof BashExecInputSchema>;
 export function createBashExecTool(processService: ProcessService): InternalTool {
     return {
         id: 'bash_exec',
-        description:
-            'Execute a shell command with 2-minute default timeout. Default working directory is the project root; each command runs in a fresh shell so cd does not persist between calls. Returns stdout, stderr, exit code, and duration. For long-running commands (servers, watchers, npm run dev), MUST use run_in_background=true (use bash_output to retrieve results later). Commands ending with & are blocked - use run_in_background instead. Requires approval (with pattern-based session memory). Always quote file paths with spaces. Security: dangerous commands are blocked, injection attempts are detected.',
+        description: `Execute a shell command in the project root directory.
+
+IMPORTANT: This tool is for terminal operations like git, npm, docker, etc. Do NOT use it for file operations - use the specialized tools instead:
+- File search: Use glob_files (NOT find or ls)
+- Content search: Use grep_content (NOT grep or rg)
+- Read files: Use read_file (NOT cat/head/tail)
+- Edit files: Use edit_file (NOT sed/awk)
+- Write files: Use write_file (NOT echo/cat with heredoc)
+
+Before executing the command, follow these steps:
+
+1. Directory Verification:
+   - If the command will create new directories or files, first use ls to verify the parent directory exists and is the correct location
+   - For example, before running "mkdir foo/bar", first use ls foo to check that "foo" exists
+
+2. Command Execution:
+   - Always quote file paths that contain spaces with double quotes
+   - Examples of proper quoting:
+     - cd "/Users/name/My Documents" (correct)
+     - cd /Users/name/My Documents (incorrect - will fail)
+     - python "/path/with spaces/script.py" (correct)
+     - python /path/with spaces/script.py (incorrect - will fail)
+
+Usage notes:
+- The command argument is required.
+- You can specify an optional timeout in milliseconds (max 600000ms / 10 minutes). Default is 120000ms (2 minutes).
+- The description parameter should be a clear, concise summary of what the command does (5-10 words for simple commands, more context for complex commands).
+- If the output exceeds 1MB, it will be truncated.
+- You can use run_in_background=true to run the command in the background. Use this when you don't need the result immediately. You do not need to check the output right away - use bash_output to retrieve results later. Commands ending with & are blocked; use run_in_background instead.
+
+When issuing multiple commands:
+- If the commands are independent and can run in parallel, make multiple bash_exec calls in a single response.
+- If the commands depend on each other and must run sequentially, use a single call with && to chain them (e.g., git add . && git commit -m "msg" && git push).
+- Use ; only when you need to run commands sequentially but don't care if earlier commands fail.
+- Do NOT use newlines to separate commands (newlines are ok in quoted strings).
+
+Try to maintain your working directory throughout the session by using absolute paths and avoiding usage of cd. You may use cd if the user explicitly requests it.
+- GOOD: pnpm test
+- GOOD: pytest /absolute/path/to/tests
+- BAD: cd /project && pnpm test
+- BAD: cd /some/path && command
+
+Each command runs in a fresh shell, so cd does not persist between calls.
+
+Security: Dangerous commands are blocked. Injection attempts are detected. Requires approval with pattern-based session memory.`,
         inputSchema: BashExecInputSchema,
 
         /**
