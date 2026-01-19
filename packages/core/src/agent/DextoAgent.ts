@@ -858,6 +858,17 @@ export class DextoAgent {
         });
         listeners.push({ event: 'context:compacted', listener: contextCompactedListener });
 
+        // Session continuation event - emitted when compaction creates a new session
+        // Use previousSessionId for filtering since this event transitions to a new session
+        const sessionContinuedListener = (data: AgentEventMap['session:continued']) => {
+            if (data.previousSessionId !== sessionId) return;
+            eventQueue.push({ name: 'session:continued', ...data });
+        };
+        this.agentEventBus.on('session:continued', sessionContinuedListener, {
+            signal: cleanupSignal,
+        });
+        listeners.push({ event: 'session:continued', listener: sessionContinuedListener });
+
         // Message queue events (for mid-task user guidance)
         const messageQueuedListener = (data: AgentEventMap['message:queued']) => {
             if (data.sessionId !== sessionId) return;
@@ -1912,11 +1923,17 @@ export class DextoAgent {
             };
 
             // Add summary to new session
-            const contextManager = newSession.getContextManager();
-            await contextManager.addMessage(sessionSummaryMessage);
+            const newContextManager = newSession.getContextManager();
+            await newContextManager.addMessage(sessionSummaryMessage);
 
             // Mark old session as compacted
             await this.sessionManager.markSessionCompacted(currentSessionId, newSessionId);
+
+            // CRITICAL: Remove the isSummary marker from the old session
+            // This preserves the full history in the old session for viewing/auditing
+            // Without this, filterCompacted() would hide the original messages
+            const oldContextManager = currentSession.getContextManager();
+            await oldContextManager.removeInlineSummaryMarker();
 
             // Estimate tokens in summary for the event
             const { estimateMessagesTokens } = await import('../context/utils.js');

@@ -114,6 +114,35 @@ export class ReactiveOverflowStrategy implements ICompactionStrategy {
             return [];
         }
 
+        // Check if there's already a summary in history
+        // If so, we need to work with messages AFTER the summary only
+        const existingSummaryIndex = history.findIndex(
+            (msg) => msg.metadata?.isSummary === true || msg.metadata?.isSessionSummary === true
+        );
+
+        if (existingSummaryIndex !== -1) {
+            // There's already a summary - only consider messages AFTER it
+            const messagesAfterSummary = history.slice(existingSummaryIndex + 1);
+
+            // If there are very few messages after the summary, skip compaction
+            // (nothing meaningful to re-summarize)
+            if (messagesAfterSummary.length <= 4) {
+                this.logger.debug(
+                    `ReactiveOverflowStrategy: Only ${messagesAfterSummary.length} messages after existing summary, skipping re-compaction`
+                );
+                return [];
+            }
+
+            this.logger.info(
+                `ReactiveOverflowStrategy: Found existing summary at index ${existingSummaryIndex}, ` +
+                    `working with ${messagesAfterSummary.length} messages after it`
+            );
+
+            // Re-run compaction on the subset after the summary
+            // This prevents cascading summaries of summaries
+            return this.compactSubset(messagesAfterSummary, history);
+        }
+
         // Split history into messages to summarize and messages to keep
         const { toSummarize, toKeep } = this.splitHistory(history);
 
@@ -150,6 +179,57 @@ export class ReactiveOverflowStrategy implements ICompactionStrategy {
 
         // Return just the summary message - caller adds it to history
         // filterCompacted() will handle excluding old messages at read-time
+        return [summaryMessage];
+    }
+
+    /**
+     * Handle re-compaction when there's already a summary in history.
+     * Only summarizes messages AFTER the existing summary, preventing
+     * cascading summaries of summaries.
+     *
+     * @param messagesAfterSummary Messages after the existing summary
+     * @param fullHistory The complete history (for current task detection)
+     * @returns Array with single summary message, or empty if nothing to summarize
+     */
+    private async compactSubset(
+        messagesAfterSummary: readonly InternalMessage[],
+        fullHistory: readonly InternalMessage[]
+    ): Promise<InternalMessage[]> {
+        // Split the subset into messages to summarize and keep
+        const { toSummarize, toKeep } = this.splitHistory(messagesAfterSummary);
+
+        if (toSummarize.length === 0) {
+            this.logger.debug('ReactiveOverflowStrategy: No messages to summarize in subset');
+            return [];
+        }
+
+        // Get current task from the full history
+        const currentTaskMessage = this.findCurrentTaskMessage(fullHistory);
+
+        this.logger.info(
+            `ReactiveOverflowStrategy (re-compact): Summarizing ${toSummarize.length} messages after existing summary, keeping ${toKeep.length}`
+        );
+
+        // Generate summary
+        const summary = await this.generateSummary(toSummarize, currentTaskMessage);
+
+        // Create summary message
+        // Note: originalMessageCount here is relative to the messages being summarized,
+        // not the total history. filterCompacted will use this to know how many to skip.
+        const summaryMessage: InternalMessage = {
+            role: 'assistant',
+            content: [{ type: 'text', text: summary }],
+            timestamp: Date.now(),
+            metadata: {
+                isSummary: true,
+                summarizedAt: Date.now(),
+                originalMessageCount: toSummarize.length,
+                isRecompaction: true, // Mark that this is a re-compaction
+                originalFirstTimestamp: toSummarize[0]?.timestamp,
+                originalLastTimestamp: toSummarize[toSummarize.length - 1]?.timestamp,
+            },
+        };
+
         return [summaryMessage];
     }
 
@@ -217,8 +297,11 @@ export class ReactiveOverflowStrategy implements ICompactionStrategy {
 
         // Fallback for agentic conversations: if splitIndex is 0 (few user messages)
         // or we can't identify turns, use a message-count-based approach.
-        // Keep only the last ~20% of messages or minimum 6 messages (2-3 tool rounds)
-        const minKeep = 6;
+        // Keep only the last ~20% of messages or minimum 3 messages
+        // Note: We use a low minKeep because even a few messages can have huge token counts
+        // (e.g., tool outputs with large file contents). Token-based compaction needs to be
+        // aggressive about message counts when tokens are overflowing.
+        const minKeep = 3;
         const maxKeepPercent = 0.2;
         const keepCount = Math.max(minKeep, Math.floor(history.length * maxKeepPercent));
 

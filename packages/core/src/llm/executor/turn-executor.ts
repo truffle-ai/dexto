@@ -210,13 +210,17 @@ export class TurnExecutor {
                     await this.injectQueuedMessages(coalesced);
                 }
 
-                // 2. Get formatted messages for this step
+                // 2. Prune old tool outputs BEFORE checking compaction
+                // This gives pruning a chance to free up space and potentially avoid compaction
+                await this.pruneOldToolOutputs();
+
+                // 3. Get formatted messages for this step
                 let prepared = await this.contextManager.getFormattedMessagesWithCompression(
                     contributorContext,
                     this.llmContext
                 );
 
-                // 3. PRE-CHECK: Estimate tokens and compact if over threshold BEFORE LLM call
+                // 4. PRE-CHECK: Estimate tokens and compact if over threshold BEFORE LLM call
                 // This ensures we never make an oversized call and avoids unnecessary compaction on stop steps
                 const estimatedTokens = estimateMessagesTokens(prepared.filteredHistory);
                 if (this.shouldCompact(estimatedTokens)) {
@@ -234,11 +238,11 @@ export class TurnExecutor {
 
                 this.logger.debug(`Step ${stepCount}: Starting`);
 
-                // 4. Create tools with execute callbacks and toModelOutput
+                // 5. Create tools with execute callbacks and toModelOutput
                 // Use empty object if model doesn't support tools
                 const tools = supportsTools ? await this.createTools() : {};
 
-                // 5. Execute single step with stream processing
+                // 6. Execute single step with stream processing
                 const streamProcessor = new StreamProcessor(
                     this.contextManager,
                     this.eventBus,
@@ -282,7 +286,7 @@ export class TurnExecutor {
                     })
                 );
 
-                // 6. Capture results for tracking and overflow check
+                // 7. Capture results for tracking and overflow check
                 lastStepTokens = result.usage;
                 lastFinishReason = result.finishReason;
                 lastText = result.text;
@@ -292,7 +296,7 @@ export class TurnExecutor {
                         `tokens=${JSON.stringify(result.usage)}`
                 );
 
-                // 6b. POST-RESPONSE CHECK: Use actual inputTokens from API to detect overflow
+                // 7b. POST-RESPONSE CHECK: Use actual inputTokens from API to detect overflow
                 // This catches cases where the LLM's response pushed us over the threshold
                 if (
                     result.usage?.inputTokens &&
@@ -304,7 +308,7 @@ export class TurnExecutor {
                     await this.compress(result.usage.inputTokens);
                 }
 
-                // 7. Check termination conditions
+                // 8. Check termination conditions
                 if (result.finishReason !== 'tool-calls') {
                     // Check queue before terminating - process queued messages if any
                     // Note: Hard cancel clears the queue BEFORE aborting, so if messages exist
@@ -333,9 +337,6 @@ export class TurnExecutor {
                     lastFinishReason = 'max-steps';
                     break;
                 }
-
-                // 8. Prune old tool outputs (mark with compactedAt)
-                await this.pruneOldToolOutputs();
             }
         } catch (error) {
             // Map provider errors to DextoRuntimeError
