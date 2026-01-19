@@ -61,7 +61,7 @@ export function Footer({ modelName, cwd, branchName, autoApproveEdits, isShellMo
                     <Text color="yellow" bold>
                         !
                     </Text>
-                    <Text color="gray"> for bash mode</Text>
+                    <Text color="gray"> for shell mode</Text>
                 </Box>
             )}
             {autoApproveEdits && !isShellMode && (

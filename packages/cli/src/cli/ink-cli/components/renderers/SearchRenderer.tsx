@@ -15,9 +15,10 @@ import type { SearchDisplayData } from '@dexto/core';
  */
 function toRelativePath(absolutePath: string): string {
     const cwd = process.cwd();
-    if (absolutePath.startsWith(cwd)) {
-        const relative = path.relative(cwd, absolutePath);
-        return relative || '.';
+    const relative = path.relative(cwd, absolutePath);
+    if (relative === '') return '.';
+    if (!relative.startsWith('..') && !path.isAbsolute(relative)) {
+        return relative;
     }
     return absolutePath;
 }

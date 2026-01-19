@@ -14,6 +14,7 @@ import { ToolError } from '@dexto/core';
 import { ToolErrorCode } from '@dexto/core';
 import { DextoRuntimeError } from '@dexto/core';
 import type { FileToolOptions } from './file-tool-types.js';
+import { FileSystemErrorCode } from './error-codes.js';
 
 /**
  * Cache for content hashes between preview and execute phases.
@@ -217,8 +218,21 @@ export function createEditFileTool(options: FileToolOptions): InternalTool {
                 previewContentHashCache.delete(context.toolCallId); // Clean up regardless of outcome
 
                 // Read current content to verify it hasn't changed
-                const currentFile = await fileSystemService.readFile(file_path);
-                const currentHash = computeContentHash(currentFile.content);
+                let currentContent: string;
+                try {
+                    const currentFile = await fileSystemService.readFile(file_path);
+                    currentContent = currentFile.content;
+                } catch (error) {
+                    // File was deleted between preview and execute - treat as modified
+                    if (
+                        error instanceof DextoRuntimeError &&
+                        error.code === FileSystemErrorCode.FILE_NOT_FOUND
+                    ) {
+                        throw ToolError.fileModifiedSincePreview('edit_file', file_path);
+                    }
+                    throw error;
+                }
+                const currentHash = computeContentHash(currentContent);
 
                 if (expectedHash !== currentHash) {
                     throw ToolError.fileModifiedSincePreview('edit_file', file_path);

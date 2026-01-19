@@ -33,7 +33,7 @@ export const tips: string[] = [
     'Press Enter to submit your message…',
     'Press Ctrl+T to collapse/expand large pastes…',
     'Press Ctrl+R to search previous prompts…',
-    'Press Shift+Enter to submit a new line…',
+    'Press Shift+Enter to insert a new line…',
 
     // Feature tips
     'Start with ! to run bash commands directly…',
