@@ -326,7 +326,7 @@ export default function InputArea({
 
             // Convert to Attachment[] format
             const loadedAttachments: Attachment[] = [
-                ...imageParts.map((img, idx) => ({
+                ...imageParts.map((img) => ({
                     id: generateAttachmentId(),
                     type: 'image' as const,
                     data: img.image,
