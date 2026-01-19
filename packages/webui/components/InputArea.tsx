@@ -605,10 +605,182 @@ export default function InputArea({
             return btoa(str);
         }
     };
-    const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-        const pasted = e.clipboardData.getData('text/plain');
+
+    // Unified file handler for button uploads, paste, and drag-drop
+    const handleFilesAdded = async (files: File[], source: 'button' | 'paste' | 'drop') => {
+        if (files.length === 0) return;
+
+        const errors: Array<{
+            filename: string;
+            reason: string;
+            compatibleModels?: string[];
+        }> = [];
+
+        // 1. Validate file count
+        if (attachments.length + files.length > ATTACHMENT_LIMITS.MAX_COUNT) {
+            showUserError(
+                `Cannot add ${files.length} file(s). Maximum ${ATTACHMENT_LIMITS.MAX_COUNT} attachments allowed (currently ${attachments.length}).`
+            );
+            return;
+        }
+
+        // 2. Validate total size
+        const currentTotalSize = attachments.reduce((sum, att) => sum + att.size, 0);
+        const newFilesSize = files.reduce((sum, f) => sum + f.size, 0);
+        if (currentTotalSize + newFilesSize > ATTACHMENT_LIMITS.MAX_TOTAL_SIZE) {
+            showUserError(
+                `Total size would exceed ${formatFileSize(ATTACHMENT_LIMITS.MAX_TOTAL_SIZE)}. Current: ${formatFileSize(currentTotalSize)}, Adding: ${formatFileSize(newFilesSize)}.`
+            );
+            return;
+        }
+
+        // 3. Process files
+        const validFiles: File[] = [];
+        const rejectedFiles: Array<{
+            file: File;
+            reason: 'size_limit' | 'type_unsupported' | 'duplicate';
+        }> = [];
+
+        for (const file of files) {
+            // Check individual file size
+            if (file.size > ATTACHMENT_LIMITS.MAX_FILE_SIZE) {
+                rejectedFiles.push({ file, reason: 'size_limit' });
+                errors.push({
+                    filename: file.name,
+                    reason: `File too large (${formatFileSize(file.size)}). Maximum ${formatFileSize(ATTACHMENT_LIMITS.MAX_FILE_SIZE)} per file.`,
+                });
+                continue;
+            }
+
+            // Check for duplicates (by filename and size)
+            const isDuplicate = attachments.some(
+                (att) => att.filename === file.name && att.size === file.size
+            );
+            if (isDuplicate) {
+                const proceed = files.length === 1; // Auto-proceed for single file paste
+                if (!proceed) {
+                    rejectedFiles.push({ file, reason: 'duplicate' });
+                    errors.push({
+                        filename: file.name,
+                        reason: 'File already attached (duplicate name and size).',
+                    });
+                    continue;
+                }
+                // Allow duplicate for single file (user explicitly pasted/dropped it)
+            }
+
+            // Check file type against supported types
+            if (supportedFileTypes.length > 0) {
+                const fileCategory = file.type.startsWith('image/')
+                    ? 'image'
+                    : file.type.startsWith('audio/')
+                      ? 'audio'
+                      : file.type === 'application/pdf'
+                        ? 'pdf'
+                        : null;
+
+                const isSupported = fileCategory && supportedFileTypes.includes(fileCategory);
+
+                if (!isSupported) {
+                    rejectedFiles.push({ file, reason: 'type_unsupported' });
+
+                    // Find compatible models
+                    const compatibleModels: string[] = [];
+                    if (catalogData && 'models' in catalogData) {
+                        const models = catalogData.models;
+                        for (const model of models) {
+                            if (fileCategory && model.supportedFileTypes?.includes(fileCategory)) {
+                                compatibleModels.push(`${model.provider}/${model.name}`);
+                            }
+                        }
+                    }
+
+                    errors.push({
+                        filename: file.name,
+                        reason: `File type not supported by current model (${currentLLM?.provider}/${currentLLM?.model}).`,
+                        compatibleModels:
+                            compatibleModels.length > 0 ? compatibleModels.slice(0, 3) : undefined,
+                    });
+                    continue;
+                }
+            }
+
+            validFiles.push(file);
+        }
+
+        // 4. Track rejected files
+        if (currentSessionId) {
+            for (const rejected of rejectedFiles) {
+                analyticsRef.current.trackFileRejected({
+                    reason: rejected.reason,
+                    fileType: rejected.file.type,
+                    fileSizeBytes: rejected.file.size,
+                    sessionId: currentSessionId,
+                });
+            }
+        }
+
+        // 5. Convert valid files to attachments
+        if (validFiles.length > 0) {
+            try {
+                const newAttachments = await Promise.all(
+                    validFiles.map((file) => fileToAttachment(file, source))
+                );
+
+                setAttachments((prev) => [...prev, ...newAttachments]);
+
+                // Track successful attachments
+                if (currentSessionId) {
+                    for (const attachment of newAttachments) {
+                        trackAttachment(attachment);
+                    }
+                }
+            } catch (error) {
+                showUserError(`Failed to process ${validFiles.length} file(s). Please try again.`);
+                console.error('File processing error:', error);
+            }
+        }
+
+        // 6. Show error summary if any files were rejected
+        if (errors.length > 0) {
+            setFileUploadError(
+                errors.length === 1
+                    ? `${errors[0].filename}: ${errors[0].reason}${errors[0].compatibleModels ? ` Try: ${errors[0].compatibleModels.join(', ')}` : ''}`
+                    : `${errors.length} file(s) rejected. Check file types and sizes.`
+            );
+        }
+    };
+
+    const handlePaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+        const clipboardData = e.clipboardData;
+
+        // Priority 1: Check for files (files copied from file manager or screenshots)
+        const files = Array.from(clipboardData.files);
+        if (files.length > 0) {
+            e.preventDefault();
+            await handleFilesAdded(files, 'paste');
+            return;
+        }
+
+        // Priority 2: Check for image data items (some browsers expose images as items)
+        const items = Array.from(clipboardData.items);
+        const imageItems = items.filter((item) => item.type.startsWith('image/'));
+        if (imageItems.length > 0) {
+            e.preventDefault();
+            const imageFiles = imageItems
+                .map((item) => item.getAsFile())
+                .filter((f): f is File => f !== null);
+            if (imageFiles.length > 0) {
+                await handleFilesAdded(imageFiles, 'paste');
+            }
+            return;
+        }
+
+        // Priority 3: Large text paste guard
+        const pasted = clipboardData.getData('text/plain');
         if (!pasted) return;
         if (pasted.length <= LARGE_PASTE_THRESHOLD) return;
+
         e.preventDefault();
         const attach = window.confirm(
             'Large text detected. Attach as a file instead of inflating the input?\n(OK = attach as file, Cancel = paste truncated preview)'
@@ -690,46 +862,7 @@ export default function InputArea({
         const file = e.target.files?.[0];
         if (!file) return;
 
-        // File size validation
-        if (file.size > ATTACHMENT_LIMITS.MAX_FILE_SIZE) {
-            showUserError(
-                `PDF file too large. Maximum size is ${formatFileSize(ATTACHMENT_LIMITS.MAX_FILE_SIZE)}.`
-            );
-            e.target.value = '';
-            return;
-        }
-
-        // Check attachment count limit
-        if (attachments.length >= ATTACHMENT_LIMITS.MAX_COUNT) {
-            showUserError(`Maximum ${ATTACHMENT_LIMITS.MAX_COUNT} attachments allowed.`);
-            e.target.value = '';
-            return;
-        }
-
-        // Check total size limit
-        if (totalAttachmentsSize + file.size > ATTACHMENT_LIMITS.MAX_TOTAL_SIZE) {
-            showUserError(
-                `Total size would exceed ${formatFileSize(ATTACHMENT_LIMITS.MAX_TOTAL_SIZE)}.`
-            );
-            e.target.value = '';
-            return;
-        }
-
-        if (file.type !== 'application/pdf') {
-            showUserError('Please select a valid PDF file.');
-            e.target.value = '';
-            return;
-        }
-
-        try {
-            const attachment = await fileToAttachment(file, 'button');
-            setAttachments((prev) => [...prev, attachment]);
-            setFileUploadError(null);
-            trackAttachment(attachment);
-        } catch {
-            showUserError('Failed to process PDF file. Please try again.');
-        }
-
+        await handleFilesAdded([file], 'button');
         e.target.value = '';
     };
 
@@ -809,46 +942,7 @@ export default function InputArea({
         const file = e.target.files?.[0];
         if (!file) return;
 
-        // File size validation
-        if (file.size > ATTACHMENT_LIMITS.MAX_FILE_SIZE) {
-            showUserError(
-                `Image file too large. Maximum size is ${formatFileSize(ATTACHMENT_LIMITS.MAX_FILE_SIZE)}.`
-            );
-            e.target.value = '';
-            return;
-        }
-
-        // Check attachment count limit
-        if (attachments.length >= ATTACHMENT_LIMITS.MAX_COUNT) {
-            showUserError(`Maximum ${ATTACHMENT_LIMITS.MAX_COUNT} attachments allowed.`);
-            e.target.value = '';
-            return;
-        }
-
-        // Check total size limit
-        if (totalAttachmentsSize + file.size > ATTACHMENT_LIMITS.MAX_TOTAL_SIZE) {
-            showUserError(
-                `Total size would exceed ${formatFileSize(ATTACHMENT_LIMITS.MAX_TOTAL_SIZE)}.`
-            );
-            e.target.value = '';
-            return;
-        }
-
-        if (!file.type.startsWith('image/')) {
-            showUserError('Please select a valid image file.');
-            e.target.value = '';
-            return;
-        }
-
-        try {
-            const attachment = await fileToAttachment(file, 'button');
-            setAttachments((prev) => [...prev, attachment]);
-            setFileUploadError(null);
-            trackAttachment(attachment);
-        } catch {
-            showUserError('Failed to process image file. Please try again.');
-        }
-
+        await handleFilesAdded([file], 'button');
         e.target.value = '';
     };
 
@@ -870,46 +964,7 @@ export default function InputArea({
         const file = e.target.files?.[0];
         if (!file) return;
 
-        // File size validation
-        if (file.size > ATTACHMENT_LIMITS.MAX_FILE_SIZE) {
-            showUserError(
-                `Audio file too large. Maximum size is ${formatFileSize(ATTACHMENT_LIMITS.MAX_FILE_SIZE)}.`
-            );
-            e.target.value = '';
-            return;
-        }
-
-        // Check attachment count limit
-        if (attachments.length >= ATTACHMENT_LIMITS.MAX_COUNT) {
-            showUserError(`Maximum ${ATTACHMENT_LIMITS.MAX_COUNT} attachments allowed.`);
-            e.target.value = '';
-            return;
-        }
-
-        // Check total size limit
-        if (totalAttachmentsSize + file.size > ATTACHMENT_LIMITS.MAX_TOTAL_SIZE) {
-            showUserError(
-                `Total size would exceed ${formatFileSize(ATTACHMENT_LIMITS.MAX_TOTAL_SIZE)}.`
-            );
-            e.target.value = '';
-            return;
-        }
-
-        if (!file.type.startsWith('audio/')) {
-            showUserError('Please select a valid audio file.');
-            e.target.value = '';
-            return;
-        }
-
-        try {
-            const attachment = await fileToAttachment(file, 'button');
-            setAttachments((prev) => [...prev, attachment]);
-            setFileUploadError(null);
-            trackAttachment(attachment);
-        } catch {
-            showUserError('Failed to process audio file. Please try again.');
-        }
-
+        await handleFilesAdded([file], 'button');
         e.target.value = '';
     };
 
