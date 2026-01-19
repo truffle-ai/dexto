@@ -871,6 +871,49 @@ export async function processStream(
                     break;
                 }
 
+                case 'approval:response': {
+                    // Handle approval responses - dismisses auto-approved parallel tool calls
+                    //
+                    // When user approves a tool with "remember", other pending parallel requests
+                    // for the same tool are auto-approved. The handler emits approval:response
+                    // for each, and we need to dismiss them from the UI.
+                    //
+                    // For user-initiated approvals, completeApproval() in OverlayContainer
+                    // already clears the state before emitting, so these are no-ops.
+
+                    const { approvalId } = event;
+
+                    // Step 1: Remove from queue if present
+                    setApprovalQueue((queue) => queue.filter((a) => a.approvalId !== approvalId));
+
+                    // Step 2: If this is the current approval, dismiss and show next
+                    // We use the same pattern as completeApproval in OverlayContainer:
+                    // setApprovalQueue as coordinator, calling setApproval inside
+                    setApproval((currentApproval) => {
+                        if (currentApproval?.approvalId !== approvalId) {
+                            return currentApproval; // Not current, nothing to do
+                        }
+
+                        // Current approval was auto-approved - show next or close
+                        // Note: queue was already filtered in Step 1, so we read updated queue
+                        setApprovalQueue((queue) => {
+                            if (queue.length > 0) {
+                                const [next, ...rest] = queue;
+                                setApproval(next!);
+                                setUi((prev) => ({ ...prev, activeOverlay: 'approval' }));
+                                return rest;
+                            } else {
+                                setUi((prev) => ({ ...prev, activeOverlay: 'none' }));
+                                return [];
+                            }
+                        });
+
+                        return null; // Clear current while setApprovalQueue handles next
+                    });
+
+                    break;
+                }
+
                 case 'service:event': {
                     // Handle service events - extensible pattern for non-core services
                     debug.log('SERVICE-EVENT received', {

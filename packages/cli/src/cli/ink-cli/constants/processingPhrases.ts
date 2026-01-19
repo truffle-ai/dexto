@@ -56,7 +56,7 @@ export const processingPhrases: string[] = [
 
     // Vines
     'Look at all those chickens…',
-    'What are those!!?…',
+    'What are those!!…',
     'He needs some milk…',
     'Something came in the mail today…',
     'Road work ahead? Sure hope it does…',

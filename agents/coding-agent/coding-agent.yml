@@ -89,13 +89,14 @@ toolConfirmation:
   # Tool policies optimized for coding workflows
   toolPolicies:
     # Tools that never require approval (safe, read-only operations)
+    # Use qualified names: custom--{tool_id} for custom tools, internal--{tool_id} for internal tools
     alwaysAllow:
       - internal--ask_user
-      - custom--filesystem-tools--read_file      # Read files without approval
-      - custom--filesystem-tools--glob_files     # Search for files without approval
-      - custom--filesystem-tools--grep_content   # Search within files without approval
-      - custom--process-tools--bash_output       # Check background process output
-      - custom--process-tools--kill_process      # Kill processes without approval
+      - custom--read_file      # Read files without approval
+      - custom--glob_files     # Search for files without approval
+      - custom--grep_content   # Search within files without approval
+      - custom--bash_output    # Check background process output
+      - custom--kill_process   # Kill processes without approval (only processes started by agent)
 
     # Tools that are always denied (dangerous operations)
     # Uncomment to restrict certain operations
