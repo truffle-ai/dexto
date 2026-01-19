@@ -78,6 +78,8 @@ export interface ProcessStreamOptions {
     autoApproveEditsRef: { current: boolean };
     /** Event bus for emitting auto-approval responses */
     eventBus: import('@dexto/core').AgentEventBus;
+    /** Sound notification service for playing sounds on events */
+    soundService?: import('../utils/soundNotification.js').SoundNotificationService;
 }
 
 /**
@@ -754,6 +756,9 @@ export async function processStream(
                         isCancelling: false,
                         isThinking: false,
                     }));
+
+                    // Play completion sound to notify user task is done
+                    options.soundService?.playCompleteSound();
                     break;
                 }
 
@@ -867,6 +872,9 @@ export async function processStream(
                             setUi((prev) => ({ ...prev, activeOverlay: 'approval' }));
                             return newApproval;
                         });
+
+                        // Play approval sound to notify user
+                        options.soundService?.playApprovalSound();
                     }
                     break;
                 }

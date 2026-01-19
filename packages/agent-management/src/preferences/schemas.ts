@@ -113,6 +113,22 @@ export const PreferenceSetupSchema = z
     })
     .strict();
 
+export const PreferenceSoundsSchema = z
+    .object({
+        enabled: z.boolean().default(true).describe('Enable sound notifications (default: true)'),
+        onApprovalRequired: z
+            .boolean()
+            .default(true)
+            .describe(
+                'Play sound when tool approval is required (default: true when sounds enabled)'
+            ),
+        onTaskComplete: z
+            .boolean()
+            .default(true)
+            .describe('Play sound when agent task completes (default: true when sounds enabled)'),
+    })
+    .strict();
+
 export const GlobalPreferencesSchema = z
     .object({
         llm: PreferenceLLMSchema.describe('LLM configuration preferences'),
@@ -122,6 +138,10 @@ export const GlobalPreferencesSchema = z
         setup: PreferenceSetupSchema.default({ completed: false }).describe(
             'Setup completion tracking'
         ),
+
+        sounds: PreferenceSoundsSchema.optional().describe(
+            'Sound notification preferences (optional)'
+        ),
     })
     .strict();
 
@@ -129,4 +149,5 @@ export const GlobalPreferencesSchema = z
 export type PreferenceLLM = z.output<typeof PreferenceLLMSchema>;
 export type PreferenceDefaults = z.output<typeof PreferenceDefaultsSchema>;
 export type PreferenceSetup = z.output<typeof PreferenceSetupSchema>;
+export type PreferenceSounds = z.output<typeof PreferenceSoundsSchema>;
 export type GlobalPreferences = z.output<typeof GlobalPreferencesSchema>;

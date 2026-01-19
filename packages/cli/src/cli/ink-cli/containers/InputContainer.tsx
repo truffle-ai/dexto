@@ -10,6 +10,7 @@ import React, { useCallback, useRef, useEffect, useImperativeHandle, forwardRef 
 import type { DextoAgent, ContentPart, ImagePart, TextPart, QueuedMessage } from '@dexto/core';
 import { InputArea, type OverlayTrigger } from '../components/input/InputArea.js';
 import { InputService, processStream } from '../services/index.js';
+import { useSoundService } from '../contexts/index.js';
 import type {
     Message,
     UIState,
@@ -96,6 +97,9 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
     ) {
         // Track pending session creation to prevent race conditions
         const sessionCreationPromiseRef = useRef<Promise<SessionCreationResult> | null>(null);
+
+        // Sound notification service from context
+        const soundService = useSoundService();
 
         // Ref to track autoApproveEdits so processStream can read latest value mid-stream
         const autoApproveEditsRef = useRef(ui.autoApproveEdits);
@@ -540,6 +544,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                                     useStreaming,
                                     autoApproveEditsRef,
                                     eventBus: agent.agentEventBus,
+                                    ...(soundService && { soundService }),
                                 }
                             );
                             return; // processStream handles UI state
@@ -657,6 +662,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                                 useStreaming,
                                 autoApproveEditsRef,
                                 eventBus: agent.agentEventBus,
+                                ...(soundService && { soundService }),
                             }
                         );
 
