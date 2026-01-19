@@ -20,8 +20,45 @@ import type { HelpStyledData, ShortcutsStyledData } from '../../ink-cli/state/ty
 import { writeToClipboard } from '../../ink-cli/utils/clipboardUtils.js';
 
 /**
- * Execute a shell command and return the output
+ * Get the shell rc file path for the given shell
  */
+function getShellRcFile(shell: string): string | null {
+    const home = process.env.HOME;
+    if (!home) return null;
+
+    if (shell.includes('zsh')) {
+        return `${home}/.zshrc`;
+    } else if (shell.includes('bash')) {
+        return `${home}/.bashrc`;
+    }
+    return null;
+}
+
+/**
+ * Wrap command to source shell rc file for alias support
+ * This mimics how Claude Code handles shell aliases - by sourcing the rc file
+ * before executing the command, we get aliases without using -i flag.
+ * We use eval to force the command to be re-parsed after sourcing, since
+ * aliases are expanded at parse time, not execution time.
+ */
+function wrapCommandWithRcSource(command: string, shell: string): string {
+    const rcFile = getShellRcFile(shell);
+    if (!rcFile) {
+        return command;
+    }
+
+    // Escape single quotes in the command for safe eval
+    const escapedCommand = command.replace(/'/g, "'\\''");
+
+    // Source the rc file (suppressing errors if it doesn't exist), then eval the command
+    // eval forces re-parsing after sourcing, allowing aliases to expand
+    // For bash, we also need to enable expand_aliases
+    if (shell.includes('bash')) {
+        return `source "${rcFile}" 2>/dev/null; shopt -s expand_aliases 2>/dev/null; eval '${escapedCommand}'`;
+    }
+    return `source "${rcFile}" 2>/dev/null; eval '${escapedCommand}'`;
+}
+
 async function executeShellCommand(
     command: string,
     cwd: string,
@@ -29,12 +66,19 @@ async function executeShellCommand(
 ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
     return new Promise((resolve) => {
         // Use user's default shell from SHELL env var, fallback to /bin/sh
-        // Use -i flag for interactive mode to load aliases from shell config
+        // Avoid -i (interactive) as it sets up job control which causes SIGTTIN
+        // when the parent process tries to read stdin while shell runs.
+        // Instead, source the shell's rc file to get aliases (similar to Claude Code).
+        // Use detached: true to create a new process group, preventing the child
+        // from interfering with the parent's terminal control.
         const userShell = process.env.SHELL || '/bin/sh';
-        const child = spawn(userShell, ['-ic', command], {
+        const wrappedCommand = wrapCommandWithRcSource(command, userShell);
+
+        const child = spawn(userShell, ['-c', wrappedCommand], {
             cwd,
             stdio: ['ignore', 'pipe', 'pipe'],
             env: { ...process.env },
+            detached: true,
         });
 
         let stdout = '';

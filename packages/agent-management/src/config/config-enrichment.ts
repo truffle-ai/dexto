@@ -5,9 +5,10 @@
  * This layer runs before agent initialization and injects explicit paths
  * into the configuration, eliminating the need for core services to resolve paths themselves.
  *
- * Also discovers command prompts from:
- * - Local: <projectRoot>/commands/ (in dev mode or dexto-project context)
- * - Global: ~/.dexto/commands/
+ * Also discovers command prompts from (in priority order):
+ * - Local: <projectRoot>/commands/ (dexto-source dev mode or dexto-project only)
+ * - Local: <cwd>/.dexto/commands/, <cwd>/.claude/commands/, <cwd>/.cursor/commands/
+ * - Global: ~/.dexto/commands/, ~/.claude/commands/, ~/.cursor/commands/
  *
  * Core services now require explicit paths - this enrichment layer provides them.
  */

@@ -54,7 +54,7 @@ You can help with:
         it('should apply default contributors for empty object', () => {
             const result = SystemPromptConfigSchema.parse({});
 
-            expect(result.contributors).toHaveLength(2);
+            expect(result.contributors).toHaveLength(3);
             expect(result.contributors[0]).toEqual({
                 id: 'date',
                 type: 'dynamic',
@@ -63,6 +63,13 @@ You can help with:
                 enabled: true,
             });
             expect(result.contributors[1]).toEqual({
+                id: 'env',
+                type: 'dynamic',
+                priority: 15,
+                source: 'env',
+                enabled: true,
+            });
+            expect(result.contributors[2]).toEqual({
                 id: 'resources',
                 type: 'dynamic',
                 priority: 20,
@@ -161,7 +168,7 @@ You can help with:
         });
 
         it('should validate dynamic contributor source enum', () => {
-            const validSources = ['date', 'resources'];
+            const validSources = ['date', 'env', 'resources'];
 
             for (const source of validSources) {
                 const validConfig = {

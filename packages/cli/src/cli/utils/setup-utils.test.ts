@@ -137,6 +137,11 @@ describe('requiresSetup', () => {
                     apiKeyPending: false,
                     baseURLPending: false,
                 },
+                sounds: {
+                    enabled: true,
+                    onApprovalRequired: true,
+                    onTaskComplete: true,
+                },
                 preferDextoCredits: true,
             });
 
@@ -161,6 +166,11 @@ describe('requiresSetup', () => {
                     completed: true,
                     apiKeyPending: false,
                     baseURLPending: false,
+                },
+                sounds: {
+                    enabled: true,
+                    onApprovalRequired: true,
+                    onTaskComplete: true,
                 },
                 preferDextoCredits: true,
             });
@@ -187,6 +197,11 @@ describe('requiresSetup', () => {
                     apiKeyPending: false,
                     baseURLPending: false,
                 },
+                sounds: {
+                    enabled: true,
+                    onApprovalRequired: true,
+                    onTaskComplete: true,
+                },
                 preferDextoCredits: true,
             });
 
@@ -211,6 +226,11 @@ describe('requiresSetup', () => {
                     completed: true,
                     apiKeyPending: false,
                     baseURLPending: false,
+                },
+                sounds: {
+                    enabled: true,
+                    onApprovalRequired: true,
+                    onTaskComplete: true,
                 },
                 preferDextoCredits: true,
             });

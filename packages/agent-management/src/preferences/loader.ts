@@ -51,6 +51,21 @@ export async function loadGlobalPreferences(): Promise<GlobalPreferences> {
 }
 
 /**
+ * Header comment for preferences.yml file
+ */
+const PREFERENCES_FILE_HEADER = `# Dexto Global Preferences
+# Documentation: https://dexto.dev/docs/configuration/preferences
+#
+# Sound Notifications:
+#   Dexto plays sounds for approval requests and task completion.
+#   To customize sounds, place audio files in ~/.dexto/sounds/:
+#     - approval.wav (or .mp3, .ogg, .aiff, .m4a) - played when tool approval is needed
+#     - complete.wav (or .mp3, .ogg, .aiff, .m4a) - played when agent finishes a task
+#   Set sounds.enabled: false to disable all sounds.
+
+`;
+
+/**
  * Save global preferences to ~/.dexto/preferences.yml
  * @param preferences Validated preferences object
  * @throws DextoRuntimeError if write fails
@@ -77,8 +92,8 @@ export async function saveGlobalPreferences(preferences: GlobalPreferences): Pro
             minContentWidth: 20,
         });
 
-        // Write to file
-        await fs.writeFile(preferencesPath, yamlContent, 'utf-8');
+        // Write to file with header comment
+        await fs.writeFile(preferencesPath, PREFERENCES_FILE_HEADER + yamlContent, 'utf-8');
 
         logger.debug(
             `✓ Saved global preferences ${JSON.stringify(preferences)} to: ${preferencesPath}`
@@ -126,6 +141,12 @@ export interface CreatePreferencesOptions {
     apiKeyPending?: boolean;
     /** Whether baseURL setup was skipped and needs to be configured later */
     baseURLPending?: boolean;
+    /** Sound notification preferences */
+    sounds?: {
+        enabled?: boolean;
+        onApprovalRequired?: boolean;
+        onTaskComplete?: boolean;
+    };
     /** Whether to prefer Dexto Credits over direct API keys when both are available (default: true) */
     preferDextoCredits?: boolean;
 }
@@ -134,80 +155,44 @@ export interface CreatePreferencesOptions {
  * Create initial preferences from setup data
  * @param options Configuration options for preferences
  */
-export function createInitialPreferences(options: CreatePreferencesOptions): GlobalPreferences;
+export function createInitialPreferences(options: CreatePreferencesOptions): GlobalPreferences {
+    const llmConfig: GlobalPreferences['llm'] = {
+        provider: options.provider,
+        model: options.model,
+    };
 
-/**
- * Create initial preferences from setup data (legacy signature)
- * @deprecated Use options object instead
- */
-export function createInitialPreferences(
-    provider: LLMProvider,
-    model: string,
-    apiKeyVar: string,
-    defaultAgent?: string
-): GlobalPreferences;
-
-export function createInitialPreferences(
-    providerOrOptions: LLMProvider | CreatePreferencesOptions,
-    model?: string,
-    apiKeyVar?: string,
-    defaultAgent: string = 'coding-agent'
-): GlobalPreferences {
-    // Handle options object
-    if (typeof providerOrOptions === 'object') {
-        const opts = providerOrOptions;
-        const llmConfig: GlobalPreferences['llm'] = {
-            provider: opts.provider,
-            model: opts.model,
-        };
-
-        // Only add apiKey if provided (optional for local providers like Ollama)
-        if (opts.apiKeyVar) {
-            llmConfig.apiKey = `$${opts.apiKeyVar}`;
-        }
-
-        // Only add baseURL if provided
-        if (opts.baseURL) {
-            llmConfig.baseURL = opts.baseURL;
-        }
-
-        // Only add reasoningEffort if provided
-        if (opts.reasoningEffort) {
-            llmConfig.reasoningEffort = opts.reasoningEffort;
-        }
-
-        return {
-            llm: llmConfig,
-            defaults: {
-                defaultAgent: opts.defaultAgent || 'coding-agent',
-                defaultMode: opts.defaultMode || 'web',
-            },
-            setup: {
-                completed: opts.setupCompleted ?? true,
-                apiKeyPending: opts.apiKeyPending ?? false,
-                baseURLPending: opts.baseURLPending ?? false,
-            },
-            preferDextoCredits: opts.preferDextoCredits ?? true,
-        };
+    // Only add apiKey if provided (optional for local providers like Ollama)
+    if (options.apiKeyVar) {
+        llmConfig.apiKey = '$' + options.apiKeyVar;
     }
 
-    // Legacy signature support
+    // Only add baseURL if provided
+    if (options.baseURL) {
+        llmConfig.baseURL = options.baseURL;
+    }
+
+    // Only add reasoningEffort if provided
+    if (options.reasoningEffort) {
+        llmConfig.reasoningEffort = options.reasoningEffort;
+    }
+
     return {
-        llm: {
-            provider: providerOrOptions,
-            model: model!,
-            apiKey: `$${apiKeyVar}`,
-        },
+        llm: llmConfig,
         defaults: {
-            defaultAgent,
-            defaultMode: 'web',
+            defaultAgent: options.defaultAgent || 'coding-agent',
+            defaultMode: options.defaultMode || 'web',
         },
         setup: {
-            completed: true,
-            apiKeyPending: false,
-            baseURLPending: false,
+            completed: options.setupCompleted ?? true,
+            apiKeyPending: options.apiKeyPending ?? false,
+            baseURLPending: options.baseURLPending ?? false,
         },
-        preferDextoCredits: true,
+        sounds: {
+            enabled: options.sounds?.enabled ?? true,
+            onApprovalRequired: options.sounds?.onApprovalRequired ?? true,
+            onTaskComplete: options.sounds?.onTaskComplete ?? true,
+        },
+        preferDextoCredits: options.preferDextoCredits ?? true,
     };
 }
 
@@ -218,6 +203,7 @@ export type GlobalPreferencesUpdates = {
     llm?: GlobalPreferences['llm'];
     defaults?: Partial<GlobalPreferences['defaults']>;
     setup?: Partial<GlobalPreferences['setup']>;
+    sounds?: Partial<GlobalPreferences['sounds']>;
 };
 
 /**
@@ -239,11 +225,12 @@ export async function updateGlobalPreferences(
         ...updates,
         // LLM section requires complete replacement (high coherence - provider/model/apiKey must match)
         llm: updates.llm || existing.llm,
-        // Defaults and setup sections allow partial updates (low coherence - independent fields)
+        // Defaults, setup, and sounds sections allow partial updates (low coherence - independent fields)
         defaults: updates.defaults
             ? { ...existing.defaults, ...updates.defaults }
             : existing.defaults,
         setup: updates.setup ? { ...existing.setup, ...updates.setup } : existing.setup,
+        sounds: updates.sounds ? { ...existing.sounds, ...updates.sounds } : existing.sounds,
     };
 
     // Validate merged result

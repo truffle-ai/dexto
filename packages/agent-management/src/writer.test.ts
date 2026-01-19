@@ -56,6 +56,11 @@ describe('Config Writer', () => {
                 apiKeyPending: false,
                 baseURLPending: false,
             },
+            sounds: {
+                enabled: true,
+                onApprovalRequired: true,
+                onTaskComplete: true,
+            },
             preferDextoCredits: true,
         };
     });

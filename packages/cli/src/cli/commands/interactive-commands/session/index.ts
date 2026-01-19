@@ -7,8 +7,9 @@
  * Exports:
  * - searchCommand: Opens interactive search overlay
  * - resumeCommand: Shows interactive session selector
+ * - renameCommand: Rename the current session
  *
  * Note: For headless CLI session management, see src/cli/commands/session-commands.ts
  */
 
-export { searchCommand, resumeCommand } from './session-commands.js';
+export { searchCommand, resumeCommand, renameCommand } from './session-commands.js';

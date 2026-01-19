@@ -61,6 +61,11 @@ describe('Preferences Loader', () => {
                 apiKeyPending: false,
                 baseURLPending: false,
             },
+            sounds: {
+                enabled: true,
+                onApprovalRequired: true,
+                onTaskComplete: true,
+            },
             preferDextoCredits: true,
         };
     });
@@ -286,12 +291,12 @@ setup:
 
     describe('createInitialPreferences', () => {
         it('should create preferences with provided values', () => {
-            const preferences = createInitialPreferences(
-                'openai',
-                'gpt-5',
-                'OPENAI_API_KEY',
-                'my-agent'
-            );
+            const preferences = createInitialPreferences({
+                provider: 'openai',
+                model: 'gpt-5',
+                apiKeyVar: 'OPENAI_API_KEY',
+                defaultAgent: 'my-agent',
+            });
 
             expect(preferences).toEqual({
                 llm: {
@@ -308,24 +313,63 @@ setup:
                     apiKeyPending: false,
                     baseURLPending: false,
                 },
+                sounds: {
+                    enabled: true,
+                    onApprovalRequired: true,
+                    onTaskComplete: true,
+                },
                 preferDextoCredits: true,
             });
         });
 
         it('should use default agent name when not provided', () => {
-            const preferences = createInitialPreferences(
-                'anthropic',
-                'claude-4-sonnet-20250514',
-                'ANTHROPIC_API_KEY'
-            );
+            const preferences = createInitialPreferences({
+                provider: 'anthropic',
+                model: 'claude-4-sonnet-20250514',
+                apiKeyVar: 'ANTHROPIC_API_KEY',
+            });
 
             expect(preferences.defaults.defaultAgent).toBe('coding-agent');
         });
 
         it('should format API key with $ prefix', () => {
-            const preferences = createInitialPreferences('google', 'gemini-pro', 'GOOGLE_API_KEY');
+            const preferences = createInitialPreferences({
+                provider: 'google',
+                model: 'gemini-pro',
+                apiKeyVar: 'GOOGLE_API_KEY',
+            });
 
             expect(preferences.llm.apiKey).toBe('$GOOGLE_API_KEY');
+        });
+
+        it('should populate sounds with defaults', () => {
+            const preferences = createInitialPreferences({
+                provider: 'google',
+                model: 'gemini-pro',
+            });
+
+            expect(preferences.sounds).toEqual({
+                enabled: true,
+                onApprovalRequired: true,
+                onTaskComplete: true,
+            });
+        });
+
+        it('should allow custom sounds configuration', () => {
+            const preferences = createInitialPreferences({
+                provider: 'google',
+                model: 'gemini-pro',
+                sounds: {
+                    enabled: true,
+                    onApprovalRequired: false,
+                },
+            });
+
+            expect(preferences.sounds).toEqual({
+                enabled: true,
+                onApprovalRequired: false,
+                onTaskComplete: true,
+            });
         });
     });
 

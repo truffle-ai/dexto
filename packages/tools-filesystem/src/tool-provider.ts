@@ -192,8 +192,8 @@ export const fileSystemToolsProvider: CustomToolProvider<
             read_file: () => createReadFileTool(fileToolOptions),
             write_file: () => createWriteFileTool(fileToolOptions),
             edit_file: () => createEditFileTool(fileToolOptions),
-            glob_files: () => createGlobFilesTool(fileSystemService),
-            grep_content: () => createGrepContentTool(fileSystemService),
+            glob_files: () => createGlobFilesTool(fileToolOptions),
+            grep_content: () => createGrepContentTool(fileToolOptions),
         };
 
         // Determine which tools to create
