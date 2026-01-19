@@ -191,17 +191,12 @@ export function createEditFileTool(options: FileToolOptions): InternalTool {
             const originalContent = originalFile.content;
 
             // Edit file using FileSystemService
-            const result = await fileSystemService.editFile(
-                file_path,
-                {
-                    oldString: old_string,
-                    newString: new_string,
-                    replaceAll: replace_all,
-                },
-                {
-                    backup: true, // Always create backup for internal tools
-                }
-            );
+            // Backup behavior is controlled by config.enableBackups (default: false)
+            const result = await fileSystemService.editFile(file_path, {
+                oldString: old_string,
+                newString: new_string,
+                replaceAll: replace_all,
+            });
 
             // Read new content after editing (for diff generation)
             const newFile = await fileSystemService.readFile(file_path);

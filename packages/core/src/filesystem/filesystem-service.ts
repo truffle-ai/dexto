@@ -53,7 +53,7 @@ export class FileSystemService {
             blockedPaths: config.blockedPaths || ['.git', 'node_modules/.bin', '.env'],
             blockedExtensions: config.blockedExtensions || ['.exe', '.dll', '.so'],
             maxFileSize: config.maxFileSize || DEFAULT_MAX_FILE_SIZE,
-            enableBackups: config.enableBackups ?? true,
+            enableBackups: config.enableBackups ?? false,
             backupPath: config.backupPath, // Optional absolute override, defaults handled by getBackupDir()
             backupRetentionDays: config.backupRetentionDays || 7,
             workingDirectory: config.workingDirectory,

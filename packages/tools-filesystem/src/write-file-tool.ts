@@ -189,10 +189,10 @@ export function createWriteFileTool(options: FileToolOptions): InternalTool {
             }
 
             // Write file using FileSystemService
+            // Backup behavior is controlled by config.enableBackups (default: false)
             const result = await fileSystemService.writeFile(file_path, content, {
                 createDirs: create_dirs,
                 encoding: encoding as BufferEncoding,
-                backup: true, // Always create backup for internal tools
             });
 
             // Build display data based on operation type
