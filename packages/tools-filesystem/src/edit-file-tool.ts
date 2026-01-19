@@ -88,12 +88,12 @@ export function createEditFileTool(options: FileToolOptions): InternalTool {
          * Check if this edit operation needs directory access approval.
          * Returns custom approval request if the file is outside allowed paths.
          */
-        getApprovalOverride: (args: unknown): ApprovalRequestDetails | null => {
+        getApprovalOverride: async (args: unknown): Promise<ApprovalRequestDetails | null> => {
             const { file_path } = args as EditFileInput;
             if (!file_path) return null;
 
-            // Check if path is within config-allowed paths
-            const isAllowed = fileSystemService.isPathWithinConfigAllowed(file_path);
+            // Check if path is within config-allowed paths (async for non-blocking symlink resolution)
+            const isAllowed = await fileSystemService.isPathWithinConfigAllowed(file_path);
             if (isAllowed) {
                 return null; // Use normal tool confirmation
             }

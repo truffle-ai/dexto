@@ -78,7 +78,10 @@ describe('edit_file tool', () => {
             expect(preview).toBeDefined();
 
             // Execute without modifying file (should succeed)
-            const result = await tool.execute(input, { toolCallId });
+            const result = (await tool.execute(input, { toolCallId })) as {
+                success: boolean;
+                path: string;
+            };
 
             expect(result.success).toBe(true);
             expect(result.path).toBe(testFile);
@@ -217,7 +220,7 @@ describe('edit_file tool', () => {
             // Second execution with same toolCallId should work
             // (hash should have been cleaned up, so no stale check)
             await tool.generatePreview!(input2, { toolCallId });
-            const result = await tool.execute(input2, { toolCallId });
+            const result = (await tool.execute(input2, { toolCallId })) as { success: boolean };
 
             expect(result.success).toBe(true);
             const content = await fs.readFile(testFile, 'utf-8');
@@ -255,7 +258,7 @@ describe('edit_file tool', () => {
             // Next execution with same toolCallId should work
             // (hash should have been cleaned up even after failure)
             await tool.generatePreview!(input, { toolCallId });
-            const result = await tool.execute(input, { toolCallId });
+            const result = (await tool.execute(input, { toolCallId })) as { success: boolean };
 
             expect(result.success).toBe(true);
         });

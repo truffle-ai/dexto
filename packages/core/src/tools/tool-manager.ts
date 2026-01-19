@@ -787,8 +787,8 @@ export class ToolManager {
             return { handled: false };
         }
 
-        // Get the custom approval request from the tool
-        const approvalRequest = tool.getApprovalOverride(args);
+        // Get the custom approval request from the tool (may be async)
+        const approvalRequest = await tool.getApprovalOverride(args);
         if (!approvalRequest) {
             // Tool decided no custom approval needed, continue normal flow
             return { handled: false };
