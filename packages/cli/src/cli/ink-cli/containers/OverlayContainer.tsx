@@ -84,6 +84,9 @@ import PromptDeleteSelector, {
     type PromptDeleteSelectorHandle,
     type DeletablePrompt,
 } from '../components/overlays/PromptDeleteSelector.js';
+import SessionRenameOverlay, {
+    type SessionRenameOverlayHandle,
+} from '../components/overlays/SessionRenameOverlay.js';
 import type { PromptAddScope } from '../state/types.js';
 import type { PromptInfo, ResourceMetadata, LLMProvider, SearchResult } from '@dexto/core';
 import type { LogLevel } from '@dexto/core';
@@ -167,6 +170,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
         const promptAddChoiceRef = useRef<PromptAddChoiceHandle>(null);
         const promptAddWizardRef = useRef<PromptAddWizardHandle>(null);
         const promptDeleteSelectorRef = useRef<PromptDeleteSelectorHandle>(null);
+        const sessionRenameRef = useRef<SessionRenameOverlayHandle>(null);
 
         // Expose handleInput method via ref - routes to appropriate overlay
         useImperativeHandle(
@@ -236,6 +240,8 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             return (
                                 promptDeleteSelectorRef.current?.handleInput(inputStr, key) ?? false
                             );
+                        case 'session-rename':
+                            return sessionRenameRef.current?.handleInput(inputStr, key) ?? false;
                         default:
                             return false;
                     }
@@ -1740,6 +1746,58 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
             }));
         }, [setUi]);
 
+        // State for current session title (for rename overlay)
+        const [currentSessionTitle, setCurrentSessionTitle] = useState<string | undefined>(
+            undefined
+        );
+
+        // Fetch current session title when rename overlay opens
+        React.useEffect(() => {
+            if (ui.activeOverlay === 'session-rename' && session.id) {
+                void agent.getSessionTitle(session.id).then(setCurrentSessionTitle);
+            }
+        }, [ui.activeOverlay, session.id, agent]);
+
+        // Handle session rename
+        const handleSessionRename = useCallback(
+            async (newTitle: string) => {
+                if (!session.id) return;
+
+                setUi((prev) => ({ ...prev, activeOverlay: 'none' }));
+                buffer.setText('');
+                setInput((prev) => ({ ...prev, historyIndex: -1 }));
+
+                try {
+                    await agent.setSessionTitle(session.id, newTitle);
+                    setMessages((prev) => [
+                        ...prev,
+                        {
+                            id: generateMessageId('system'),
+                            role: 'system',
+                            content: `✅ Session renamed to: ${newTitle}`,
+                            timestamp: new Date(),
+                        },
+                    ]);
+                } catch (error) {
+                    setMessages((prev) => [
+                        ...prev,
+                        {
+                            id: generateMessageId('error'),
+                            role: 'system',
+                            content: `❌ Failed to rename session: ${error instanceof Error ? error.message : String(error)}`,
+                            timestamp: new Date(),
+                        },
+                    ]);
+                }
+            },
+            [session.id, setUi, setInput, setMessages, agent, buffer]
+        );
+
+        // Handle session rename close
+        const handleSessionRenameClose = useCallback(() => {
+            setUi((prev) => ({ ...prev, activeOverlay: 'none' }));
+        }, [setUi]);
+
         return (
             <>
                 {/* Approval prompt */}
@@ -2020,6 +2078,17 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             agent={agent}
                         />
                     </Box>
+                )}
+
+                {/* Session rename overlay */}
+                {ui.activeOverlay === 'session-rename' && (
+                    <SessionRenameOverlay
+                        ref={sessionRenameRef}
+                        isVisible={true}
+                        currentTitle={currentSessionTitle}
+                        onRename={handleSessionRename}
+                        onClose={handleSessionRenameClose}
+                    />
                 )}
             </>
         );

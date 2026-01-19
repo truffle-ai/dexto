@@ -192,8 +192,8 @@ const WrappedParagraphInternal: React.FC<WrappedParagraphProps> = ({
         const segments = parseInlineMarkdown(text);
         const ansiString = segmentsToAnsi(segments, defaultColor);
 
-        // Calculate available width
-        const prefixWidth = bulletPrefix && isFirstParagraph ? stringWidth(bulletPrefix) : 0;
+        // Calculate available width - always account for bullet indent since all lines get it
+        const prefixWidth = bulletPrefix ? stringWidth(bulletPrefix) : 0;
         const availableWidth = Math.max(20, terminalWidth - prefixWidth);
 
         // Word-wrap the ANSI string

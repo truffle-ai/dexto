@@ -332,12 +332,12 @@ const FALLBACK_PRIMARY_ARGS = new Set([
 const PATH_ARGS = new Set(['file_path', 'path']);
 
 /**
- * Arguments that should never be truncated (urls, etc.)
+ * Arguments that should never be truncated (urls, task descriptions, etc.)
  * These provide important context that users need to see in full.
  * Note: 'command' is handled specially - single-line commands are not truncated,
  * but multi-line commands (heredocs) are truncated to first line only.
  */
-const NEVER_TRUNCATE_ARGS = new Set(['url']);
+const NEVER_TRUNCATE_ARGS = new Set(['url', 'task']);
 
 /**
  * Formats tool arguments for display.

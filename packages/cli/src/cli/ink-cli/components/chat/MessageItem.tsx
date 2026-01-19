@@ -186,8 +186,13 @@ export const MessageItem = memo(
 
             // Build the full tool header text for wrapping
             // Don't include status suffix if we have sub-agent progress (it shows its own status)
-            const statusSuffix =
-                subAgentProgress ? '' : isRunning ? ' Running...' : isPending ? ' Waiting...' : '';
+            const statusSuffix = subAgentProgress
+                ? ''
+                : isRunning
+                  ? ' Running...'
+                  : isPending
+                    ? ' Waiting...'
+                    : '';
             const fullToolText = `${toolName}${toolArgs}${statusSuffix}`;
 
             // ToolIcon takes 2 chars ("● "), so available width is terminalWidth - 2
@@ -232,6 +237,10 @@ export const MessageItem = memo(
                                 └─ {subAgentProgress.toolsCalled} tool
                                 {subAgentProgress.toolsCalled !== 1 ? 's' : ''} called | Current:{' '}
                                 {subAgentProgress.currentTool}
+                                {subAgentProgress.tokenUsage &&
+                                subAgentProgress.tokenUsage.total > 0
+                                    ? ` | ${subAgentProgress.tokenUsage.total.toLocaleString()} tokens`
+                                    : ''}
                             </Text>
                         </Box>
                     )}
@@ -278,7 +287,9 @@ export const MessageItem = memo(
             prev.message.subAgentProgress?.toolsCalled ===
                 next.message.subAgentProgress?.toolsCalled &&
             prev.message.subAgentProgress?.currentTool ===
-                next.message.subAgentProgress?.currentTool
+                next.message.subAgentProgress?.currentTool &&
+            prev.message.subAgentProgress?.tokenUsage?.total ===
+                next.message.subAgentProgress?.tokenUsage?.total
         );
     }
 );

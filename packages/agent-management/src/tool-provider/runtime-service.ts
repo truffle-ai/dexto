@@ -133,7 +133,7 @@ export class RuntimeService {
 
     /**
      * Set up progress event emission for a sub-agent.
-     * Subscribes to llm:tool-call events and emits service:event with progress data.
+     * Subscribes to llm:tool-call and llm:response events and emits service:event with progress data.
      *
      * @returns Cleanup function to unsubscribe from events
      */
@@ -156,8 +156,37 @@ export class RuntimeService {
         );
 
         let toolCount = 0;
+        // Token usage tracking - reflects context window utilization (matches parent CLI formula):
+        // - input: REPLACED each call (current context size, not cumulative API billing)
+        // - output: ACCUMULATED across all calls (total generated tokens)
+        // - total: lastInput + cumulativeOutput
+        // This shows "how full is the context window" rather than "total API cost across all calls".
+        // For billing, you'd need to sum all inputTokens across calls, but that's not useful for
+        // understanding context limits. See: processStream.ts line 728 for parent formula.
+        const tokenUsage = { input: 0, output: 0, total: 0 };
+        // Track current tool for emissions (persists between events)
+        let currentTool = '';
+
         const subAgentBus = subAgentHandle.agent.agentEventBus;
         const parentBus = this.parentAgent.agentEventBus;
+
+        // Helper to emit progress event
+        const emitProgress = (tool: string, args?: Record<string, unknown>) => {
+            parentBus.emit('service:event', {
+                service: 'agent-spawner',
+                event: 'progress',
+                toolCallId,
+                sessionId,
+                data: {
+                    task: input.task,
+                    agentId: input.agentId ?? 'default',
+                    toolsCalled: toolCount,
+                    currentTool: tool,
+                    currentArgs: args,
+                    tokenUsage: { ...tokenUsage },
+                },
+            });
+        };
 
         // Handler for llm:tool-call events
         const toolCallHandler = (event: {
@@ -179,30 +208,45 @@ export class RuntimeService {
                     displayToolName = parts.slice(2).join('--');
                 }
             }
+            currentTool = displayToolName;
             this.logger.debug(
                 `[Progress] Sub-agent tool call #${toolCount}: ${displayToolName} (toolCallId: ${toolCallId})`
             );
-            parentBus.emit('service:event', {
-                service: 'agent-spawner',
-                event: 'progress',
-                toolCallId,
-                sessionId,
-                data: {
-                    task: input.task,
-                    agentId: input.agentId ?? 'default',
-                    toolsCalled: toolCount,
-                    currentTool: displayToolName,
-                    currentArgs: event.args,
-                },
-            });
+            emitProgress(displayToolName, event.args);
         };
 
-        // Subscribe to sub-agent's tool call events
+        // Handler for llm:response events - accumulate token usage
+        const responseHandler = (event: {
+            tokenUsage?: {
+                inputTokens?: number;
+                outputTokens?: number;
+                totalTokens?: number;
+            };
+            sessionId: string;
+        }) => {
+            if (event.tokenUsage) {
+                // Replace input tokens (most recent call's context) - matches parent CLI formula
+                tokenUsage.input = event.tokenUsage.inputTokens ?? 0;
+                // Accumulate output tokens
+                tokenUsage.output += event.tokenUsage.outputTokens ?? 0;
+                // Total = lastInput + cumulativeOutput (consistent with parent)
+                tokenUsage.total = tokenUsage.input + tokenUsage.output;
+                this.logger.debug(
+                    `[Progress] Sub-agent tokens: input=${tokenUsage.input}, cumOutput=${tokenUsage.output}, total=${tokenUsage.total}`
+                );
+                // Emit updated progress with new token counts
+                emitProgress(currentTool || 'processing');
+            }
+        };
+
+        // Subscribe to sub-agent's events
         subAgentBus.on('llm:tool-call', toolCallHandler);
+        subAgentBus.on('llm:response', responseHandler);
 
         // Return cleanup function
         return () => {
             subAgentBus.off('llm:tool-call', toolCallHandler);
+            subAgentBus.off('llm:response', responseHandler);
         };
     }
 

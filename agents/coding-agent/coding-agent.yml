@@ -8,6 +8,14 @@ image: '@dexto/image-local'
 # System prompt configuration - defines the agent's behavior as a coding assistant
 systemPrompt:
   contributors:
+    - id: date
+      type: dynamic
+      priority: 10
+      source: date
+    - id: env
+      type: dynamic
+      priority: 15
+      source: env
     - id: primary
       type: static
       priority: 0
