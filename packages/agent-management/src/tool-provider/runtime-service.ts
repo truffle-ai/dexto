@@ -133,7 +133,7 @@ export class RuntimeService {
 
     /**
      * Set up progress event emission for a sub-agent.
-     * Subscribes to llm:tool-call events and emits service:event with progress data.
+     * Subscribes to llm:tool-call and llm:response events and emits service:event with progress data.
      *
      * @returns Cleanup function to unsubscribe from events
      */
@@ -156,8 +156,31 @@ export class RuntimeService {
         );
 
         let toolCount = 0;
+        // Cumulative token usage across all LLM responses in the sub-agent's run
+        const cumulativeTokens = { input: 0, output: 0, total: 0 };
+        // Track current tool for emissions (persists between events)
+        let currentTool = '';
+
         const subAgentBus = subAgentHandle.agent.agentEventBus;
         const parentBus = this.parentAgent.agentEventBus;
+
+        // Helper to emit progress event
+        const emitProgress = (tool: string, args?: Record<string, unknown>) => {
+            parentBus.emit('service:event', {
+                service: 'agent-spawner',
+                event: 'progress',
+                toolCallId,
+                sessionId,
+                data: {
+                    task: input.task,
+                    agentId: input.agentId ?? 'default',
+                    toolsCalled: toolCount,
+                    currentTool: tool,
+                    currentArgs: args,
+                    tokenUsage: { ...cumulativeTokens },
+                },
+            });
+        };
 
         // Handler for llm:tool-call events
         const toolCallHandler = (event: {
@@ -179,30 +202,42 @@ export class RuntimeService {
                     displayToolName = parts.slice(2).join('--');
                 }
             }
+            currentTool = displayToolName;
             this.logger.debug(
                 `[Progress] Sub-agent tool call #${toolCount}: ${displayToolName} (toolCallId: ${toolCallId})`
             );
-            parentBus.emit('service:event', {
-                service: 'agent-spawner',
-                event: 'progress',
-                toolCallId,
-                sessionId,
-                data: {
-                    task: input.task,
-                    agentId: input.agentId ?? 'default',
-                    toolsCalled: toolCount,
-                    currentTool: displayToolName,
-                    currentArgs: event.args,
-                },
-            });
+            emitProgress(displayToolName, event.args);
         };
 
-        // Subscribe to sub-agent's tool call events
+        // Handler for llm:response events - accumulate token usage
+        const responseHandler = (event: {
+            tokenUsage?: {
+                inputTokens?: number;
+                outputTokens?: number;
+                totalTokens?: number;
+            };
+            sessionId: string;
+        }) => {
+            if (event.tokenUsage) {
+                cumulativeTokens.input += event.tokenUsage.inputTokens ?? 0;
+                cumulativeTokens.output += event.tokenUsage.outputTokens ?? 0;
+                cumulativeTokens.total += event.tokenUsage.totalTokens ?? 0;
+                this.logger.debug(
+                    `[Progress] Sub-agent tokens: +${event.tokenUsage.totalTokens ?? 0} (cumulative: ${cumulativeTokens.total})`
+                );
+                // Emit updated progress with new token counts
+                emitProgress(currentTool || 'processing');
+            }
+        };
+
+        // Subscribe to sub-agent's events
         subAgentBus.on('llm:tool-call', toolCallHandler);
+        subAgentBus.on('llm:response', responseHandler);
 
         // Return cleanup function
         return () => {
             subAgentBus.off('llm:tool-call', toolCallHandler);
+            subAgentBus.off('llm:response', responseHandler);
         };
     }
 

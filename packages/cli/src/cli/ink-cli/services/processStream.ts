@@ -934,11 +934,17 @@ export async function processStream(
                                 toolsCalled: number;
                                 currentTool: string;
                                 currentArgs?: Record<string, unknown>;
+                                tokenUsage?: {
+                                    input: number;
+                                    output: number;
+                                    total: number;
+                                };
                             };
                             debug.log('SERVICE-EVENT updating progress', {
                                 toolMessageId,
                                 toolsCalled: progressData.toolsCalled,
                                 currentTool: progressData.currentTool,
+                                tokenUsage: progressData.tokenUsage,
                             });
                             updatePending(toolMessageId, {
                                 subAgentProgress: {
@@ -946,7 +952,12 @@ export async function processStream(
                                     agentId: progressData.agentId,
                                     toolsCalled: progressData.toolsCalled,
                                     currentTool: progressData.currentTool,
-                                    currentArgs: progressData.currentArgs,
+                                    ...(progressData.currentArgs && {
+                                        currentArgs: progressData.currentArgs,
+                                    }),
+                                    ...(progressData.tokenUsage && {
+                                        tokenUsage: progressData.tokenUsage,
+                                    }),
                                 },
                             });
                         }

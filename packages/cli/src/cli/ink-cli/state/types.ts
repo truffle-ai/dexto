@@ -180,6 +180,12 @@ export interface SubAgentProgress {
     currentTool: string;
     /** Current tool arguments (optional) */
     currentArgs?: Record<string, unknown> | undefined;
+    /** Cumulative token usage from the sub-agent (updated on each llm:response) */
+    tokenUsage?: {
+        input: number;
+        output: number;
+        total: number;
+    };
 }
 
 /**
