@@ -15,6 +15,8 @@ export interface ToolExecutionContext {
     sessionId?: string | undefined;
     /** Abort signal for cancellation support */
     abortSignal?: AbortSignal | undefined;
+    /** Unique tool call ID for tracking parallel tool calls */
+    toolCallId?: string | undefined;
 }
 
 /**

@@ -440,6 +440,9 @@ importers:
 
   packages/image-local:
     dependencies:
+      '@dexto/agent-management':
+        specifier: workspace:*
+        version: link:../agent-management
       '@dexto/core':
         specifier: workspace:*
         version: link:../core

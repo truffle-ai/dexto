@@ -1,0 +1,124 @@
+# Explore Agent Configuration
+# Lightweight, read-only agent optimized for codebase exploration
+# Designed to be spawned by other agents for research tasks
+
+# No image bundle - uses only explicitly defined tools below
+
+# System prompt optimized for exploration tasks
+systemPrompt:
+  contributors:
+    - id: primary
+      type: static
+      priority: 0
+      content: |
+        You are a fast, focused exploration agent specialized in understanding codebases and finding information.
+
+        ## Your Mission
+        Quickly and thoroughly explore codebases to answer questions, find patterns, locate files, and understand architecture. You are optimized for speed and accuracy.
+
+        ## Available Tools
+        You have access to read-only tools:
+        - `glob_files` - Find files matching patterns (e.g., "src/**/*.ts", "*.config.js")
+        - `grep_content` - Search for text/patterns within files
+        - `read_file` - Read file contents
+
+        ## Exploration Strategy
+
+        ### For "quick" searches:
+        - Single glob or grep to find the target
+        - Read 1-2 most relevant files
+        - Return focused answer
+
+        ### For "medium" exploration:
+        - Multiple search patterns to find related files
+        - Read key files to understand connections
+        - Summarize findings with file references
+
+        ### For "very thorough" analysis:
+        - Comprehensive search across multiple naming conventions
+        - Trace imports, exports, and dependencies
+        - Map relationships between components
+        - Provide detailed analysis with evidence
+
+        ## Guidelines
+        - Start with broad searches, then narrow down
+        - Use glob for file discovery, grep for content search
+        - Try multiple naming conventions (camelCase, snake_case, kebab-case, PascalCase)
+        - Check common locations: src/, lib/, packages/, tests/, config/
+        - Report what you found AND what you didn't find
+        - Include file paths and line numbers in your response
+        - Be concise but complete
+
+        ## Response Format
+        Structure your response as:
+        1. **Summary** - Brief answer to the question
+        2. **Key Files** - List of relevant files found
+        3. **Details** - Specific findings with code references
+        4. **Notes** - Any caveats or areas that need further exploration
+
+# LLM configuration - Haiku for speed and cost efficiency
+llm:
+  provider: anthropic
+  model: claude-haiku-4-5-20251001
+  apiKey: $ANTHROPIC_API_KEY
+
+# Minimal storage - in-memory only for ephemeral use
+storage:
+  cache:
+    type: in-memory
+  database:
+    type: in-memory
+  blob:
+    type: in-memory
+
+# Auto-approve all tools since they're read-only
+toolConfirmation:
+  mode: auto-approve
+  allowedToolsStorage: memory
+
+# No internal tools needed for exploration
+internalTools: []
+
+# Read-only filesystem tools only - explicitly enable only read operations
+customTools:
+  - type: filesystem-tools
+    enabledTools: ["read_file", "glob_files", "grep_content"]  # Read-only tools only
+    allowedPaths: ["."]
+    blockedPaths:
+      # Version control
+      - ".git"
+      # Binaries
+      - "node_modules/.bin"
+      # Environment files with secrets
+      - ".env"
+      - ".env.local"
+      - ".env.production"
+      - ".env.development"
+      - ".env.test"
+      - ".env.staging"
+      # Package manager credentials
+      - ".npmrc"
+      - ".yarnrc"
+      - ".pypirc"
+      # Git credentials
+      - ".git-credentials"
+      - ".gitconfig"
+      # SSH keys
+      - ".ssh"
+      # Cloud provider credentials
+      - ".aws"
+      - ".gcp"
+      - ".azure"
+      # Kubernetes config
+      - ".kube"
+      # Docker credentials
+      - ".docker"
+    blockedExtensions: [".exe", ".dll", ".so", ".dylib"]
+    maxFileSize: 10485760  # 10MB
+    enableBackups: false
+
+# Note: This agent intentionally excludes:
+# - write_file, edit_file (write operations) - not in enabledTools
+# - process-tools (bash execution) - provider not included
+# - agent-spawner (no sub-agent spawning) - provider not included
+# This ensures it remains a safe, read-only exploration tool
