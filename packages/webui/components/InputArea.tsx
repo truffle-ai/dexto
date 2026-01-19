@@ -76,6 +76,10 @@ export default function InputArea({
     const [isRecording, setIsRecording] = useState(false);
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
 
+    // Drag-drop state
+    const [isDragging, setIsDragging] = useState(false);
+    const dragCounterRef = useRef(0); // Track nested drag events
+
     // Get state from centralized selectors
     const currentSessionId = useCurrentSessionId();
     const processing = useSessionProcessing(currentSessionId);
@@ -968,6 +972,42 @@ export default function InputArea({
         e.target.value = '';
     };
 
+    // Drag event handlers
+    const handleDragEnter = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dragCounterRef.current++;
+        if (e.dataTransfer.types.includes('Files')) {
+            setIsDragging(true);
+        }
+    };
+
+    const handleDragOver = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+    };
+
+    const handleDragLeave = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dragCounterRef.current--;
+        if (dragCounterRef.current === 0) {
+            setIsDragging(false);
+        }
+    };
+
+    const handleDrop = async (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(false);
+        dragCounterRef.current = 0;
+
+        const files = Array.from(e.dataTransfer.files);
+        if (files.length > 0) {
+            await handleFilesAdded(files, 'drop');
+        }
+    };
+
     // Unified input panel: use the same full-featured chat composer in both welcome and chat states
 
     // Chat variant - full featured input area
@@ -1017,238 +1057,268 @@ export default function InputArea({
                         handleSend();
                     }}
                 >
-                    <ChatInputContainer>
-                        {/* Queued messages display (shows when messages are pending) */}
-                        {queuedMessages.length > 0 && (
-                            <QueuedMessagesDisplay
-                                messages={queuedMessages}
-                                onEditMessage={handleEditQueuedMessage}
-                                onRemoveMessage={(messageId) => {
-                                    if (currentSessionId) {
-                                        removeQueuedMessage({
-                                            sessionId: currentSessionId,
-                                            messageId,
-                                        });
-                                    }
-                                }}
-                            />
+                    <div
+                        className={cn(
+                            'relative transition-all duration-200',
+                            isDragging && 'ring-2 ring-primary ring-offset-2 rounded-lg'
                         )}
-
-                        {/* Attachments strip (inside bubble, above editor) */}
-                        {attachments.length > 0 && (
-                            <div className="px-4 pt-4">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                    {attachments.map((attachment) => (
-                                        <div
-                                            key={attachment.id}
-                                            className="relative w-fit border border-border rounded-lg p-1 bg-muted/50 group"
-                                        >
-                                            {attachment.type === 'image' ? (
-                                                <img
-                                                    src={`data:${attachment.mimeType};base64,${attachment.data}`}
-                                                    alt={attachment.filename || 'preview'}
-                                                    className="h-12 w-auto rounded-md"
-                                                />
-                                            ) : attachment.mimeType.startsWith('audio') ? (
-                                                <div className="flex items-center gap-2 p-1">
-                                                    <FileAudio className="h-4 w-4" />
-                                                    <audio
-                                                        controls
-                                                        src={`data:${attachment.mimeType};base64,${attachment.data}`}
-                                                        className="h-8"
-                                                    />
-                                                </div>
-                                            ) : (
-                                                <div className="flex items-center gap-2 p-1">
-                                                    <File className="h-4 w-4" />
-                                                    <div className="flex flex-col">
-                                                        <span className="text-xs font-medium truncate max-w-[160px]">
-                                                            {attachment.filename || 'attachment'}
-                                                        </span>
-                                                        <span className="text-xs text-muted-foreground">
-                                                            {formatFileSize(attachment.size)}
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                            )}
-                                            <Button
-                                                variant="destructive"
-                                                size="icon"
-                                                onClick={() =>
-                                                    handleRemoveAttachment(attachment.id)
-                                                }
-                                                className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-destructive text-destructive-foreground opacity-100 group-hover:opacity-100 transition-opacity duration-150 shadow-md"
-                                                aria-label="Remove attachment"
-                                            >
-                                                <X className="h-2 w-2" />
-                                            </Button>
-                                        </div>
-                                    ))}
+                        onDragEnter={handleDragEnter}
+                        onDragOver={handleDragOver}
+                        onDragLeave={handleDragLeave}
+                        onDrop={handleDrop}
+                    >
+                        <ChatInputContainer>
+                            {/* Drop overlay with visual feedback */}
+                            {isDragging && (
+                                <div className="absolute inset-0 z-50 flex items-center justify-center bg-primary/10 rounded-lg pointer-events-none">
+                                    <div className="text-center">
+                                        <div className="text-4xl mb-2">📎</div>
+                                        <p className="text-sm font-medium text-primary">
+                                            Drop files to attach
+                                        </p>
+                                        <p className="text-xs text-muted-foreground mt-1">
+                                            Up to {ATTACHMENT_LIMITS.MAX_COUNT} files,{' '}
+                                            {formatFileSize(ATTACHMENT_LIMITS.MAX_FILE_SIZE)} each
+                                        </p>
+                                    </div>
                                 </div>
-                                {/* Attachment count and size indicator */}
-                                <div className="mt-2 text-xs text-muted-foreground">
-                                    {attachments.length} / {ATTACHMENT_LIMITS.MAX_COUNT} files (
-                                    {formatFileSize(totalAttachmentsSize)} /{' '}
-                                    {formatFileSize(ATTACHMENT_LIMITS.MAX_TOTAL_SIZE)})
-                                </div>
-                            </div>
-                        )}
+                            )}
 
-                        {/* Editor area: scrollable, independent from footer */}
-                        <div className="flex-auto overflow-y-auto relative">
-                            {fontsReady ? (
-                                <TextareaAutosize
-                                    ref={textareaRef}
-                                    value={text}
-                                    onChange={handleInputChange}
-                                    onKeyDown={handleKeyDown}
-                                    onPaste={handlePaste}
-                                    placeholder="Ask Dexto anything... Type @ for resources, / for prompts, # for memories"
-                                    minRows={1}
-                                    maxRows={8}
-                                    className="w-full px-4 pt-4 pb-1 text-lg leading-7 placeholder:text-lg bg-transparent border-none resize-none outline-none ring-0 ring-offset-0 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none max-h-full"
-                                />
-                            ) : (
-                                <textarea
-                                    ref={textareaRef}
-                                    rows={1}
-                                    value={text}
-                                    onChange={handleInputChange}
-                                    onKeyDown={handleKeyDown}
-                                    onPaste={handlePaste}
-                                    placeholder="Ask Dexto anything... Type @ for resources, / for prompts, # for memories"
-                                    className="w-full px-4 pt-4 pb-1 text-lg leading-7 placeholder:text-lg bg-transparent border-none resize-none outline-none ring-0 ring-offset-0 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none"
+                            {/* Queued messages display (shows when messages are pending) */}
+                            {queuedMessages.length > 0 && (
+                                <QueuedMessagesDisplay
+                                    messages={queuedMessages}
+                                    onEditMessage={handleEditQueuedMessage}
+                                    onRemoveMessage={(messageId) => {
+                                        if (currentSessionId) {
+                                            removeQueuedMessage({
+                                                sessionId: currentSessionId,
+                                                messageId,
+                                            });
+                                        }
+                                    }}
                                 />
                             )}
 
-                            {showMention &&
-                                dropdownStyle &&
-                                typeof window !== 'undefined' &&
-                                ReactDOM.createPortal(
-                                    <div
-                                        style={dropdownStyle}
-                                        className="max-h-64 overflow-y-auto rounded-md border border-border bg-popover text-popover-foreground shadow-md"
-                                    >
-                                        <ResourceAutocomplete
-                                            resources={resources}
-                                            query={mentionQuery}
-                                            selectedIndex={mentionIndex}
-                                            onHoverIndex={(i) => setMentionIndex(i)}
-                                            onSelect={(r) => applyMentionSelection(mentionIndex, r)}
-                                            loading={resourcesLoading}
+                            {/* Attachments strip (inside bubble, above editor) */}
+                            {attachments.length > 0 && (
+                                <div className="px-4 pt-4">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        {attachments.map((attachment) => (
+                                            <div
+                                                key={attachment.id}
+                                                className="relative w-fit border border-border rounded-lg p-1 bg-muted/50 group"
+                                            >
+                                                {attachment.type === 'image' ? (
+                                                    <img
+                                                        src={`data:${attachment.mimeType};base64,${attachment.data}`}
+                                                        alt={attachment.filename || 'preview'}
+                                                        className="h-12 w-auto rounded-md"
+                                                    />
+                                                ) : attachment.mimeType.startsWith('audio') ? (
+                                                    <div className="flex items-center gap-2 p-1">
+                                                        <FileAudio className="h-4 w-4" />
+                                                        <audio
+                                                            controls
+                                                            src={`data:${attachment.mimeType};base64,${attachment.data}`}
+                                                            className="h-8"
+                                                        />
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex items-center gap-2 p-1">
+                                                        <File className="h-4 w-4" />
+                                                        <div className="flex flex-col">
+                                                            <span className="text-xs font-medium truncate max-w-[160px]">
+                                                                {attachment.filename ||
+                                                                    'attachment'}
+                                                            </span>
+                                                            <span className="text-xs text-muted-foreground">
+                                                                {formatFileSize(attachment.size)}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                <Button
+                                                    variant="destructive"
+                                                    size="icon"
+                                                    onClick={() =>
+                                                        handleRemoveAttachment(attachment.id)
+                                                    }
+                                                    className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-destructive text-destructive-foreground opacity-100 group-hover:opacity-100 transition-opacity duration-150 shadow-md"
+                                                    aria-label="Remove attachment"
+                                                >
+                                                    <X className="h-2 w-2" />
+                                                </Button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    {/* Attachment count and size indicator */}
+                                    <div className="mt-2 text-xs text-muted-foreground">
+                                        {attachments.length} / {ATTACHMENT_LIMITS.MAX_COUNT} files (
+                                        {formatFileSize(totalAttachmentsSize)} /{' '}
+                                        {formatFileSize(ATTACHMENT_LIMITS.MAX_TOTAL_SIZE)})
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Editor area: scrollable, independent from footer */}
+                            <div className="flex-auto overflow-y-auto relative">
+                                {fontsReady ? (
+                                    <TextareaAutosize
+                                        ref={textareaRef}
+                                        value={text}
+                                        onChange={handleInputChange}
+                                        onKeyDown={handleKeyDown}
+                                        onPaste={handlePaste}
+                                        placeholder="Ask Dexto anything... Type @ for resources, / for prompts, # for memories"
+                                        minRows={1}
+                                        maxRows={8}
+                                        className="w-full px-4 pt-4 pb-1 text-lg leading-7 placeholder:text-lg bg-transparent border-none resize-none outline-none ring-0 ring-offset-0 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none max-h-full"
+                                    />
+                                ) : (
+                                    <textarea
+                                        ref={textareaRef}
+                                        rows={1}
+                                        value={text}
+                                        onChange={handleInputChange}
+                                        onKeyDown={handleKeyDown}
+                                        onPaste={handlePaste}
+                                        placeholder="Ask Dexto anything... Type @ for resources, / for prompts, # for memories"
+                                        className="w-full px-4 pt-4 pb-1 text-lg leading-7 placeholder:text-lg bg-transparent border-none resize-none outline-none ring-0 ring-offset-0 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none"
+                                    />
+                                )}
+
+                                {showMention &&
+                                    dropdownStyle &&
+                                    typeof window !== 'undefined' &&
+                                    ReactDOM.createPortal(
+                                        <div
+                                            style={dropdownStyle}
+                                            className="max-h-64 overflow-y-auto rounded-md border border-border bg-popover text-popover-foreground shadow-md"
+                                        >
+                                            <ResourceAutocomplete
+                                                resources={resources}
+                                                query={mentionQuery}
+                                                selectedIndex={mentionIndex}
+                                                onHoverIndex={(i) => setMentionIndex(i)}
+                                                onSelect={(r) =>
+                                                    applyMentionSelection(mentionIndex, r)
+                                                }
+                                                loading={resourcesLoading}
+                                            />
+                                        </div>,
+                                        document.body
+                                    )}
+
+                                {showMemoryHint &&
+                                    memoryHintStyle &&
+                                    typeof window !== 'undefined' &&
+                                    ReactDOM.createPortal(
+                                        <div
+                                            style={memoryHintStyle}
+                                            className="rounded-md border border-border bg-popover text-popover-foreground shadow-md"
+                                        >
+                                            <div className="p-2 flex items-center gap-2 text-sm text-muted-foreground">
+                                                <Brain className="h-3.5 w-3.5" />
+                                                <span>
+                                                    Press{' '}
+                                                    <kbd className="px-1.5 py-0.5 text-xs bg-muted border border-border rounded">
+                                                        Enter
+                                                    </kbd>{' '}
+                                                    to create a memory
+                                                </span>
+                                            </div>
+                                        </div>,
+                                        document.body
+                                    )}
+                            </div>
+
+                            {/* Slash command autocomplete overlay (inside container to anchor positioning) */}
+                            <SlashCommandAutocomplete
+                                isVisible={showSlashCommands}
+                                searchQuery={text}
+                                onSelectPrompt={handlePromptSelect}
+                                onClose={closeSlashCommands}
+                                onCreatePrompt={openCreatePromptModal}
+                                refreshKey={slashRefreshKey}
+                            />
+
+                            {/* Footer row: normal flow */}
+                            <ButtonFooter
+                                leftButtons={
+                                    <div className="flex items-center gap-2">
+                                        <AttachButton
+                                            onImageAttach={triggerFileInput}
+                                            onPdfAttach={triggerPdfInput}
+                                            onAudioAttach={triggerAudioInput}
+                                            supports={{
+                                                // If not yet loaded (length===0), pass undefined so AttachButton defaults to enabled
+                                                image: supportedFileTypes.length
+                                                    ? supportedFileTypes.includes('image')
+                                                    : undefined,
+                                                pdf: supportedFileTypes.length
+                                                    ? supportedFileTypes.includes('pdf')
+                                                    : undefined,
+                                                audio: supportedFileTypes.length
+                                                    ? supportedFileTypes.includes('audio')
+                                                    : undefined,
+                                            }}
+                                            useLargeBreakpoint={isSessionsPanelOpen}
                                         />
-                                    </div>,
-                                    document.body
-                                )}
 
-                            {showMemoryHint &&
-                                memoryHintStyle &&
-                                typeof window !== 'undefined' &&
-                                ReactDOM.createPortal(
-                                    <div
-                                        style={memoryHintStyle}
-                                        className="rounded-md border border-border bg-popover text-popover-foreground shadow-md"
-                                    >
-                                        <div className="p-2 flex items-center gap-2 text-sm text-muted-foreground">
-                                            <Brain className="h-3.5 w-3.5" />
-                                            <span>
-                                                Press{' '}
-                                                <kbd className="px-1.5 py-0.5 text-xs bg-muted border border-border rounded">
-                                                    Enter
-                                                </kbd>{' '}
-                                                to create a memory
-                                            </span>
-                                        </div>
-                                    </div>,
-                                    document.body
-                                )}
-                        </div>
+                                        <RecordButton
+                                            isRecording={isRecording}
+                                            onToggleRecording={
+                                                isRecording ? stopRecording : startRecording
+                                            }
+                                            disabled={
+                                                supportedFileTypes.length > 0 &&
+                                                !supportedFileTypes.includes('audio')
+                                            }
+                                            useLargeBreakpoint={isSessionsPanelOpen}
+                                        />
+                                    </div>
+                                }
+                                rightButtons={
+                                    <div className="flex items-center gap-2">
+                                        <ModelPickerModal />
 
-                        {/* Slash command autocomplete overlay (inside container to anchor positioning) */}
-                        <SlashCommandAutocomplete
-                            isVisible={showSlashCommands}
-                            searchQuery={text}
-                            onSelectPrompt={handlePromptSelect}
-                            onClose={closeSlashCommands}
-                            onCreatePrompt={openCreatePromptModal}
-                            refreshKey={slashRefreshKey}
-                        />
-
-                        {/* Footer row: normal flow */}
-                        <ButtonFooter
-                            leftButtons={
-                                <div className="flex items-center gap-2">
-                                    <AttachButton
-                                        onImageAttach={triggerFileInput}
-                                        onPdfAttach={triggerPdfInput}
-                                        onAudioAttach={triggerAudioInput}
-                                        supports={{
-                                            // If not yet loaded (length===0), pass undefined so AttachButton defaults to enabled
-                                            image: supportedFileTypes.length
-                                                ? supportedFileTypes.includes('image')
-                                                : undefined,
-                                            pdf: supportedFileTypes.length
-                                                ? supportedFileTypes.includes('pdf')
-                                                : undefined,
-                                            audio: supportedFileTypes.length
-                                                ? supportedFileTypes.includes('audio')
-                                                : undefined,
-                                        }}
-                                        useLargeBreakpoint={isSessionsPanelOpen}
-                                    />
-
-                                    <RecordButton
-                                        isRecording={isRecording}
-                                        onToggleRecording={
-                                            isRecording ? stopRecording : startRecording
-                                        }
-                                        disabled={
-                                            supportedFileTypes.length > 0 &&
-                                            !supportedFileTypes.includes('audio')
-                                        }
-                                        useLargeBreakpoint={isSessionsPanelOpen}
-                                    />
-                                </div>
-                            }
-                            rightButtons={
-                                <div className="flex items-center gap-2">
-                                    <ModelPickerModal />
-
-                                    {/* Stop/Cancel button shown when a run is in progress */}
-                                    <Button
-                                        type={processing ? 'button' : 'submit'}
-                                        onClick={
-                                            processing
-                                                ? () => cancel(currentSessionId || undefined)
-                                                : undefined
-                                        }
-                                        disabled={
-                                            processing
-                                                ? false
-                                                : (!text.trim() && attachments.length === 0) ||
-                                                  isSending
-                                        }
-                                        className={cn(
-                                            'h-10 w-10 p-0 rounded-full transition-all duration-200',
-                                            processing
-                                                ? 'bg-secondary/80 text-secondary-foreground hover:bg-secondary shadow-sm hover:shadow-md border border-border/50'
-                                                : 'bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm hover:shadow-lg'
-                                        )}
-                                        aria-label={processing ? 'Stop' : 'Send message'}
-                                        title={processing ? 'Stop' : 'Send'}
-                                    >
-                                        {processing ? (
-                                            <Square className="h-3.5 w-3.5 fill-current" />
-                                        ) : isSending ? (
-                                            <Loader2 className="h-4 w-4 animate-spin" />
-                                        ) : (
-                                            <SendHorizontal className="h-4 w-4" />
-                                        )}
-                                    </Button>
-                                </div>
-                            }
-                        />
-                    </ChatInputContainer>
+                                        {/* Stop/Cancel button shown when a run is in progress */}
+                                        <Button
+                                            type={processing ? 'button' : 'submit'}
+                                            onClick={
+                                                processing
+                                                    ? () => cancel(currentSessionId || undefined)
+                                                    : undefined
+                                            }
+                                            disabled={
+                                                processing
+                                                    ? false
+                                                    : (!text.trim() && attachments.length === 0) ||
+                                                      isSending
+                                            }
+                                            className={cn(
+                                                'h-10 w-10 p-0 rounded-full transition-all duration-200',
+                                                processing
+                                                    ? 'bg-secondary/80 text-secondary-foreground hover:bg-secondary shadow-sm hover:shadow-md border border-border/50'
+                                                    : 'bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm hover:shadow-lg'
+                                            )}
+                                            aria-label={processing ? 'Stop' : 'Send message'}
+                                            title={processing ? 'Stop' : 'Send'}
+                                        >
+                                            {processing ? (
+                                                <Square className="h-3.5 w-3.5 fill-current" />
+                                            ) : isSending ? (
+                                                <Loader2 className="h-4 w-4 animate-spin" />
+                                            ) : (
+                                                <SendHorizontal className="h-4 w-4" />
+                                            )}
+                                        </Button>
+                                    </div>
+                                }
+                            />
+                        </ChatInputContainer>
+                    </div>
                 </form>
 
                 {/* Previews moved inside bubble above editor */}
