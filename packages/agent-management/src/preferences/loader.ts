@@ -51,6 +51,21 @@ export async function loadGlobalPreferences(): Promise<GlobalPreferences> {
 }
 
 /**
+ * Header comment for preferences.yml file
+ */
+const PREFERENCES_FILE_HEADER = `# Dexto Global Preferences
+# Documentation: https://dexto.dev/docs/configuration/preferences
+#
+# Sound Notifications:
+#   Dexto plays sounds for approval requests and task completion.
+#   To customize sounds, place audio files in ~/.dexto/sounds/:
+#     - approval.wav (or .mp3, .ogg, .aiff, .m4a) - played when tool approval is needed
+#     - complete.wav (or .mp3, .ogg, .aiff, .m4a) - played when agent finishes a task
+#   Set sounds.enabled: false to disable all sounds.
+
+`;
+
+/**
  * Save global preferences to ~/.dexto/preferences.yml
  * @param preferences Validated preferences object
  * @throws DextoRuntimeError if write fails
@@ -77,8 +92,8 @@ export async function saveGlobalPreferences(preferences: GlobalPreferences): Pro
             minContentWidth: 20,
         });
 
-        // Write to file
-        await fs.writeFile(preferencesPath, yamlContent, 'utf-8');
+        // Write to file with header comment
+        await fs.writeFile(preferencesPath, PREFERENCES_FILE_HEADER + yamlContent, 'utf-8');
 
         logger.debug(
             `✓ Saved global preferences ${JSON.stringify(preferences)} to: ${preferencesPath}`
