@@ -26,20 +26,44 @@ export interface FilePromptEntry {
 /**
  * Discovers command prompts from commands/ directories.
  *
- * Discovery locations based on execution context:
- * - dexto-source (dev mode): <sourceRoot>/commands/
- * - dexto-project: <projectRoot>/commands/
- * - global-cli: skip local (use global only)
+ * Discovery locations (in priority order):
  *
- * Global commands (~/.dexto/commands/) are always included.
+ * Local commands (project-specific):
+ * 1. <projectRoot>/commands/ (dexto-source dev mode or dexto-project only)
+ * 2. <cwd>/.dexto/commands/
+ * 3. <cwd>/.claude/commands/ (Claude Code compatibility)
+ * 4. <cwd>/.cursor/commands/ (Cursor compatibility)
+ *
+ * Global commands (user-wide):
+ * 5. ~/.dexto/commands/
+ * 6. ~/.claude/commands/ (Claude Code compatibility)
+ * 7. ~/.cursor/commands/ (Cursor compatibility)
+ *
+ * Files with the same basename are deduplicated (first found wins).
  *
  * @returns Array of file prompt entries for discovered .md files
  */
 export function discoverCommandPrompts(): FilePromptEntry[] {
     const prompts: FilePromptEntry[] = [];
     const seenFiles = new Set<string>();
+    const homeDir = process.env.HOME || process.env.USERPROFILE || '';
+    const cwd = process.cwd();
 
-    // Determine local commands directory based on context
+    // Helper to scan a directory and add unique files
+    const scanAndAdd = (dir: string): void => {
+        if (!existsSync(dir)) return;
+        const files = scanCommandsDirectory(dir);
+        for (const file of files) {
+            // Normalize to lowercase for case-insensitive deduplication (Windows/macOS)
+            const basename = path.basename(file).toLowerCase();
+            if (!seenFiles.has(basename)) {
+                seenFiles.add(basename);
+                prompts.push({ type: 'file', file });
+            }
+        }
+    };
+
+    // Determine local commands/ directory based on context (dexto-native projects only)
     const context = getExecutionContext();
     let localCommandsDir: string | null = null;
 
@@ -63,37 +87,41 @@ export function discoverCommandPrompts(): FilePromptEntry[] {
             break;
         }
         case 'global-cli':
-            // No local commands for global CLI
+            // No local commands/ for global CLI (but .dexto/commands etc. still apply)
             break;
     }
 
-    // Global commands directory
-    const globalCommandsDir = getDextoGlobalPath('commands');
+    // Scan in priority order (first found wins for same basename)
 
-    // Scan local commands first (higher priority)
-    if (localCommandsDir && existsSync(localCommandsDir)) {
-        const files = scanCommandsDirectory(localCommandsDir);
-        for (const file of files) {
-            // Normalize to lowercase for case-insensitive deduplication (Windows/macOS)
-            const basename = path.basename(file).toLowerCase();
-            if (!seenFiles.has(basename)) {
-                seenFiles.add(basename);
-                prompts.push({ type: 'file', file });
-            }
-        }
+    // === Local commands (project-specific) ===
+
+    // 1. Local commands/ directory (dexto-native projects only)
+    if (localCommandsDir) {
+        scanAndAdd(localCommandsDir);
     }
 
-    // Scan global commands (lower priority - won't override local)
-    if (existsSync(globalCommandsDir)) {
-        const files = scanCommandsDirectory(globalCommandsDir);
-        for (const file of files) {
-            // Normalize to lowercase for case-insensitive deduplication (Windows/macOS)
-            const basename = path.basename(file).toLowerCase();
-            if (!seenFiles.has(basename)) {
-                seenFiles.add(basename);
-                prompts.push({ type: 'file', file });
-            }
-        }
+    // 2. Dexto local commands: <cwd>/.dexto/commands/
+    scanAndAdd(path.join(cwd, '.dexto', 'commands'));
+
+    // 3. Claude Code local commands: <cwd>/.claude/commands/
+    scanAndAdd(path.join(cwd, '.claude', 'commands'));
+
+    // 4. Cursor local commands: <cwd>/.cursor/commands/
+    scanAndAdd(path.join(cwd, '.cursor', 'commands'));
+
+    // === Global commands (user-wide) ===
+
+    // 5. Dexto global commands: ~/.dexto/commands/
+    scanAndAdd(getDextoGlobalPath('commands'));
+
+    // 6. Claude Code global commands: ~/.claude/commands/
+    if (homeDir) {
+        scanAndAdd(path.join(homeDir, '.claude', 'commands'));
+    }
+
+    // 7. Cursor global commands: ~/.cursor/commands/
+    if (homeDir) {
+        scanAndAdd(path.join(homeDir, '.cursor', 'commands'));
     }
 
     return prompts;
