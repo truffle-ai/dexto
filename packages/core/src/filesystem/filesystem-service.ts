@@ -53,7 +53,7 @@ export class FileSystemService {
             blockedPaths: config.blockedPaths || ['.git', 'node_modules/.bin', '.env'],
             blockedExtensions: config.blockedExtensions || ['.exe', '.dll', '.so'],
             maxFileSize: config.maxFileSize || DEFAULT_MAX_FILE_SIZE,
-            enableBackups: config.enableBackups ?? true,
+            enableBackups: config.enableBackups ?? false,
             backupPath: config.backupPath, // Optional absolute override, defaults handled by getBackupDir()
             backupRetentionDays: config.backupRetentionDays || 7,
             workingDirectory: config.workingDirectory,
@@ -106,7 +106,7 @@ export class FileSystemService {
      * @param filePath The file path to check (can be relative or absolute)
      * @returns true if the path is within allowed paths, false otherwise
      */
-    isPathWithinAllowed(filePath: string): boolean {
+    async isPathWithinAllowed(filePath: string): Promise<boolean> {
         return this.pathValidator.isPathWithinAllowed(filePath);
     }
 
@@ -149,8 +149,8 @@ export class FileSystemService {
             throw FileSystemError.notInitialized();
         }
 
-        // Validate path
-        const validation = this.pathValidator.validatePath(filePath);
+        // Validate path (async for non-blocking symlink resolution)
+        const validation = await this.pathValidator.validatePath(filePath);
         if (!validation.isValid || !validation.normalizedPath) {
             throw FileSystemError.invalidPath(filePath, validation.error || 'Unknown error');
         }
@@ -247,8 +247,8 @@ export class FileSystemService {
             const validFiles: FileMetadata[] = [];
 
             for (const file of files) {
-                // Validate path
-                const validation = this.pathValidator.validatePath(file);
+                // Validate path (async for non-blocking symlink resolution)
+                const validation = await this.pathValidator.validatePath(file);
                 if (!validation.isValid || !validation.normalizedPath) {
                     this.logger.debug(`Skipping invalid path: ${file}`);
                     continue;
@@ -414,8 +414,8 @@ export class FileSystemService {
             throw FileSystemError.notInitialized();
         }
 
-        // Validate path
-        const validation = this.pathValidator.validatePath(filePath);
+        // Validate path (async for non-blocking symlink resolution)
+        const validation = await this.pathValidator.validatePath(filePath);
         if (!validation.isValid || !validation.normalizedPath) {
             throw FileSystemError.invalidPath(filePath, validation.error || 'Unknown error');
         }
@@ -479,8 +479,8 @@ export class FileSystemService {
             throw FileSystemError.notInitialized();
         }
 
-        // Validate path
-        const validation = this.pathValidator.validatePath(filePath);
+        // Validate path (async for non-blocking symlink resolution)
+        const validation = await this.pathValidator.validatePath(filePath);
         if (!validation.isValid || !validation.normalizedPath) {
             throw FileSystemError.invalidPath(filePath, validation.error || 'Unknown error');
         }
@@ -489,11 +489,11 @@ export class FileSystemService {
 
         // Read current file content
         const fileContent = await this.readFile(normalizedPath);
-        let content = fileContent.content;
+        const originalContent = fileContent.content;
 
         // Count occurrences of old string
         const occurrences = (
-            content.match(
+            originalContent.match(
                 new RegExp(operation.oldString.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')
             ) || []
         ).length;
@@ -514,17 +514,18 @@ export class FileSystemService {
 
         try {
             // Perform replacement
+            let newContent: string;
             if (operation.replaceAll) {
-                content = content.replace(
+                newContent = originalContent.replace(
                     new RegExp(operation.oldString.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'),
                     operation.newString
                 );
             } else {
-                content = content.replace(operation.oldString, operation.newString);
+                newContent = originalContent.replace(operation.oldString, operation.newString);
             }
 
             // Write updated content
-            await fs.writeFile(normalizedPath, content, options.encoding || DEFAULT_ENCODING);
+            await fs.writeFile(normalizedPath, newContent, options.encoding || DEFAULT_ENCODING);
 
             this.logger.debug(`File edited: ${normalizedPath} (${occurrences} replacements)`);
 
@@ -533,6 +534,8 @@ export class FileSystemService {
                 path: normalizedPath,
                 changesCount: occurrences,
                 backupPath,
+                originalContent,
+                newContent,
             };
         } catch (error) {
             throw FileSystemError.editFailed(
@@ -643,10 +646,10 @@ export class FileSystemService {
     }
 
     /**
-     * Check if a path is allowed
+     * Check if a path is allowed (async for non-blocking symlink resolution)
      */
-    isPathAllowed(filePath: string): boolean {
-        const validation = this.pathValidator.validatePath(filePath);
+    async isPathAllowed(filePath: string): Promise<boolean> {
+        const validation = await this.pathValidator.validatePath(filePath);
         return validation.isValid;
     }
 }

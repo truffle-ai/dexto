@@ -253,6 +253,7 @@ export function StaticCLI({
                     modelName={session.modelName}
                     cwd={process.cwd()}
                     autoApproveEdits={ui.autoApproveEdits}
+                    isShellMode={buffer.text.startsWith('!')}
                 />
 
                 {/* History search bar (Ctrl+R) - shown at very bottom */}

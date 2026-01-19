@@ -73,9 +73,9 @@ export interface InternalTool {
      * @example
      * ```typescript
      * // File tool requesting directory access approval for external paths
-     * getApprovalOverride: (args) => {
+     * getApprovalOverride: async (args) => {
      *   const filePath = (args as {file_path: string}).file_path;
-     *   if (!isPathWithinAllowed(filePath)) {
+     *   if (!await isPathWithinAllowed(filePath)) {
      *     return {
      *       type: ApprovalType.DIRECTORY_ACCESS,
      *       metadata: { path: filePath, operation: 'read', ... }
@@ -85,7 +85,9 @@ export interface InternalTool {
      * }
      * ```
      */
-    getApprovalOverride?: (args: unknown) => ApprovalRequestDetails | null;
+    getApprovalOverride?: (
+        args: unknown
+    ) => Promise<ApprovalRequestDetails | null> | ApprovalRequestDetails | null;
 
     /**
      * Optional callback invoked when custom approval is granted.

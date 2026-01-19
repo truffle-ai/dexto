@@ -1,36 +1,38 @@
-import type { ApprovalHandler, ApprovalRequest, ApprovalResponse } from '@dexto/core';
+/**
+ * CLI-specific Approval Handler
+ *
+ * Creates a manual approval handler that works directly with AgentEventBus
+ * for the CLI/TUI mode. Unlike the server's ManualApprovalHandler which uses
+ * ApprovalCoordinator for HTTP-based flows, this handler emits events directly
+ * to the event bus that the TUI listens to.
+ *
+ * Flow:
+ * 1. Handler emits 'approval:request' → EventBus → TUI shows prompt
+ * 2. User responds in TUI → EventBus emits 'approval:response' → Handler resolves
+ * 3. For auto-approvals (parallel tools), handler emits 'approval:response' → TUI dismisses
+ */
+
+import type {
+    ApprovalHandler,
+    ApprovalRequest,
+    ApprovalResponse,
+    AgentEventBus,
+} from '@dexto/core';
 import { ApprovalStatus, DenialReason } from '@dexto/core';
-import type { ApprovalCoordinator } from './approval-coordinator.js';
 
 /**
- * Creates a manual approval handler that uses ApprovalCoordinator for server communication.
+ * Creates a manual approval handler for CLI mode that uses AgentEventBus directly.
  *
- * This handler emits `approval:request` and waits for `approval:response` via the coordinator,
- * enabling SSE-based approval flows where:
- * 1. Handler emits approval:request → Coordinator → SSE endpoint forwards to client
- * 2. Client sends decision via POST /api/approvals/{approvalId}
- * 3. API route emits approval:response → Coordinator → Handler resolves
- *
- * The returned handler implements the optional cancellation methods (cancel, cancelAll, getPending)
- * for managing pending approval requests.
- *
- * Timeouts are handled per-request using the timeout value from ApprovalRequest, which
- * is set by ApprovalManager based on the request type (tool confirmation vs elicitation).
- *
- * @param coordinator The approval coordinator for request/response communication
- * @returns ApprovalHandler with cancellation support
+ * @param eventBus The agent event bus for request/response communication
+ * @returns ApprovalHandler with cancellation and auto-approve support
  *
  * @example
  * ```typescript
- * const coordinator = new ApprovalCoordinator();
- * const handler = createManualApprovalHandler(coordinator);
+ * const handler = createCLIApprovalHandler(agent.agentEventBus);
  * agent.setApprovalHandler(handler);
- *
- * // Later, cancel a specific approval (if handler supports it)
- * handler.cancel?.('approval-id-123');
  * ```
  */
-export function createManualApprovalHandler(coordinator: ApprovalCoordinator): ApprovalHandler {
+export function createCLIApprovalHandler(eventBus: AgentEventBus): ApprovalHandler {
     // Track pending approvals for cancellation support
     const pendingApprovals = new Map<
         string,
@@ -44,19 +46,16 @@ export function createManualApprovalHandler(coordinator: ApprovalCoordinator): A
     const handleApproval = (request: ApprovalRequest): Promise<ApprovalResponse> => {
         return new Promise<ApprovalResponse>((resolve) => {
             // Use per-request timeout (optional - undefined means no timeout)
-            // - Tool confirmations use config.toolConfirmation.timeout
-            // - Elicitations use config.elicitation.timeout
             const effectiveTimeout = request.timeout;
 
             // Set timeout timer ONLY if timeout is specified
-            // If undefined, wait indefinitely for user response
             let timer: NodeJS.Timeout | undefined;
             if (effectiveTimeout !== undefined) {
                 timer = setTimeout(() => {
                     cleanup();
                     pendingApprovals.delete(request.approvalId);
 
-                    // Emit timeout response so UI/clients can dismiss the prompt
+                    // Create timeout response
                     const timeoutResponse: ApprovalResponse = {
                         approvalId: request.approvalId,
                         status: ApprovalStatus.CANCELLED,
@@ -65,24 +64,21 @@ export function createManualApprovalHandler(coordinator: ApprovalCoordinator): A
                         message: `Approval request timed out after ${effectiveTimeout}ms`,
                         timeoutMs: effectiveTimeout,
                     };
-                    coordinator.emitResponse(timeoutResponse);
 
-                    // Resolve with CANCELLED response (not reject) to match auto-approve/deny behavior
-                    // Callers can uniformly check response.status instead of handling exceptions
+                    // Emit timeout response so TUI can dismiss the prompt
+                    eventBus.emit('approval:response', timeoutResponse);
+
                     resolve(timeoutResponse);
                 }, effectiveTimeout);
             }
 
             // Cleanup function to remove listener and clear timeout
-            let cleanupListener: (() => void) | null = null;
+            const controller = new AbortController();
             const cleanup = () => {
                 if (timer !== undefined) {
                     clearTimeout(timer);
                 }
-                if (cleanupListener) {
-                    cleanupListener();
-                    cleanupListener = null;
-                }
+                controller.abort();
             };
 
             // Listen for approval:response events
@@ -95,9 +91,8 @@ export function createManualApprovalHandler(coordinator: ApprovalCoordinator): A
                 }
             };
 
-            // Register listener
-            coordinator.on('approval:response', listener);
-            cleanupListener = () => coordinator.off('approval:response', listener);
+            // Register listener with abort signal for cleanup
+            eventBus.on('approval:response', listener, { signal: controller.signal });
 
             // Store for cancellation support
             pendingApprovals.set(request.approvalId, {
@@ -106,9 +101,8 @@ export function createManualApprovalHandler(coordinator: ApprovalCoordinator): A
                 request,
             });
 
-            // Emit the approval:request event via coordinator
-            // SSE endpoints will subscribe to coordinator and forward to clients
-            coordinator.emitRequest(request);
+            // Emit the approval:request event for TUI to receive
+            eventBus.emit('approval:request', request);
         });
     };
 
@@ -128,11 +122,10 @@ export function createManualApprovalHandler(coordinator: ApprovalCoordinator): A
                     message: 'Approval request was cancelled',
                 };
 
-                // Emit cancellation event so UI listeners can dismiss the prompt
-                coordinator.emitResponse(cancelResponse);
+                // Emit cancellation event so TUI can dismiss the prompt
+                eventBus.emit('approval:response', cancelResponse);
 
-                // Resolve with CANCELLED response (not reject) to match auto-approve/deny behavior
-                // Callers can uniformly check response.status instead of handling exceptions
+                // Resolve with CANCELLED response
                 pending.resolve(cancelResponse);
             }
         },
@@ -178,8 +171,8 @@ export function createManualApprovalHandler(coordinator: ApprovalCoordinator): A
                         data: responseData,
                     };
 
-                    // Emit response so UI can update
-                    coordinator.emitResponse(autoApproveResponse);
+                    // Emit response so TUI can dismiss the prompt
+                    eventBus.emit('approval:response', autoApproveResponse);
 
                     // Resolve the pending promise
                     pending.resolve(autoApproveResponse);

@@ -6,8 +6,22 @@
  */
 
 import React from 'react';
+import path from 'path';
 import { Box, Text } from 'ink';
 import type { SearchDisplayData } from '@dexto/core';
+
+/**
+ * Convert absolute path to relative path from cwd
+ */
+function toRelativePath(absolutePath: string): string {
+    const cwd = process.cwd();
+    const relative = path.relative(cwd, absolutePath);
+    if (relative === '') return '.';
+    if (!relative.startsWith('..') && !path.isAbsolute(relative)) {
+        return relative;
+    }
+    return absolutePath;
+}
 
 interface SearchRendererProps {
     /** Search display data from tool result */
@@ -38,7 +52,7 @@ export function SearchRenderer({ data, maxMatches = 5 }: SearchRendererProps) {
             {displayMatches.map((match, i) => (
                 <Text key={i} color="gray" wrap="truncate">
                     {'  ⎿ '}
-                    {match.file}
+                    {toRelativePath(match.file)}
                     {match.line > 0 && `:${match.line}`}
                 </Text>
             ))}

@@ -28,10 +28,13 @@ async function executeShellCommand(
     timeoutMs: number = 30000
 ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
     return new Promise((resolve) => {
-        const child = spawn(command, [], {
+        // Use user's default shell from SHELL env var, fallback to /bin/sh
+        // Use -i flag for interactive mode to load aliases from shell config
+        const userShell = process.env.SHELL || '/bin/sh';
+        const child = spawn(userShell, ['-ic', command], {
             cwd,
-            shell: true,
             stdio: ['ignore', 'pipe', 'pipe'],
+            env: { ...process.env },
         });
 
         let stdout = '';
