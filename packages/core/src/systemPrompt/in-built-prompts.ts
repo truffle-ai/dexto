@@ -14,6 +14,14 @@ import { DynamicContributorContext } from './types.js';
  * - Each function should be named clearly to reflect its purpose (e.g., getCurrentDate, getResourceData).
  */
 
+// TODO: Consider expanding this to getEnvironmentInfo that includes:
+// - Working directory (process.cwd())
+// - Platform (os.platform())
+// - Is git repo (fs.existsSync('.git'))
+// - Current date
+// This would help agents understand their execution context and avoid
+// unnecessary "cd /path &&" prefixes in bash commands.
+// See: packages/tools-process/src/bash-exec-tool.ts for related guidance.
 export async function getCurrentDate(_context: DynamicContributorContext): Promise<string> {
     // Only return date (not time) to prevent KV-cache invalidation
     const date = new Date().toISOString().split('T')[0];

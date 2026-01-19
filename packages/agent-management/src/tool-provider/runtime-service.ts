@@ -156,8 +156,14 @@ export class RuntimeService {
         );
 
         let toolCount = 0;
-        // Cumulative token usage across all LLM responses in the sub-agent's run
-        const cumulativeTokens = { input: 0, output: 0, total: 0 };
+        // Token usage tracking - reflects context window utilization (matches parent CLI formula):
+        // - input: REPLACED each call (current context size, not cumulative API billing)
+        // - output: ACCUMULATED across all calls (total generated tokens)
+        // - total: lastInput + cumulativeOutput
+        // This shows "how full is the context window" rather than "total API cost across all calls".
+        // For billing, you'd need to sum all inputTokens across calls, but that's not useful for
+        // understanding context limits. See: processStream.ts line 728 for parent formula.
+        const tokenUsage = { input: 0, output: 0, total: 0 };
         // Track current tool for emissions (persists between events)
         let currentTool = '';
 
@@ -177,7 +183,7 @@ export class RuntimeService {
                     toolsCalled: toolCount,
                     currentTool: tool,
                     currentArgs: args,
-                    tokenUsage: { ...cumulativeTokens },
+                    tokenUsage: { ...tokenUsage },
                 },
             });
         };
@@ -219,11 +225,14 @@ export class RuntimeService {
             sessionId: string;
         }) => {
             if (event.tokenUsage) {
-                cumulativeTokens.input += event.tokenUsage.inputTokens ?? 0;
-                cumulativeTokens.output += event.tokenUsage.outputTokens ?? 0;
-                cumulativeTokens.total += event.tokenUsage.totalTokens ?? 0;
+                // Replace input tokens (most recent call's context) - matches parent CLI formula
+                tokenUsage.input = event.tokenUsage.inputTokens ?? 0;
+                // Accumulate output tokens
+                tokenUsage.output += event.tokenUsage.outputTokens ?? 0;
+                // Total = lastInput + cumulativeOutput (consistent with parent)
+                tokenUsage.total = tokenUsage.input + tokenUsage.output;
                 this.logger.debug(
-                    `[Progress] Sub-agent tokens: +${event.tokenUsage.totalTokens ?? 0} (cumulative: ${cumulativeTokens.total})`
+                    `[Progress] Sub-agent tokens: input=${tokenUsage.input}, cumOutput=${tokenUsage.output}, total=${tokenUsage.total}`
                 );
                 // Emit updated progress with new token counts
                 emitProgress(currentTool || 'processing');
