@@ -7,6 +7,7 @@
  * Commands:
  * - resume: Shows interactive session selector
  * - search: Opens interactive search overlay
+ * - rename: Rename the current session
  *
  * Note: For headless CLI session management (list, history, delete),
  * see src/cli/commands/session-commands.ts
@@ -61,5 +62,38 @@ export const searchCommand: CommandDefinition = {
     ): Promise<boolean> => {
         // Interactive overlay handles everything - just return success
         return true;
+    },
+};
+
+/**
+ * Rename command - rename the current session
+ */
+export const renameCommand: CommandDefinition = {
+    name: 'rename',
+    description: 'Rename the current session',
+    usage: '/rename <new title>',
+    category: 'General',
+    handler: async (
+        args: string[],
+        agent: DextoAgent,
+        ctx: CommandContext
+    ): Promise<boolean | string> => {
+        const newTitle = args.join(' ').trim();
+
+        if (!newTitle) {
+            return chalk.yellow('Usage: /rename <new title>\nExample: /rename My coding session');
+        }
+
+        if (!ctx.sessionId) {
+            return chalk.red('No active session to rename');
+        }
+
+        try {
+            await agent.setSessionTitle(ctx.sessionId, newTitle);
+            return chalk.green(`✓ Session renamed to: ${newTitle}`);
+        } catch (error) {
+            const errorMsg = error instanceof Error ? error.message : String(error);
+            return chalk.red(`Failed to rename session: ${errorMsg}`);
+        }
     },
 };
