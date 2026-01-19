@@ -20,9 +20,6 @@ import type { HelpStyledData, ShortcutsStyledData } from '../../ink-cli/state/ty
 import { writeToClipboard } from '../../ink-cli/utils/clipboardUtils.js';
 
 /**
- * Execute a shell command and return the output
- */
-/**
  * Get the shell rc file path for the given shell
  */
 function getShellRcFile(shell: string): string | null {
