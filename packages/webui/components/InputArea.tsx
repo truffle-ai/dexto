@@ -4,16 +4,8 @@ import TextareaAutosize from 'react-textarea-autosize';
 import { Button } from './ui/button';
 import { ChatInputContainer, ButtonFooter, AttachButton, RecordButton } from './ChatInput';
 import ModelPickerModal from './ModelPicker';
-import {
-    SendHorizontal,
-    X,
-    Loader2,
-    AlertCircle,
-    Square,
-    FileAudio,
-    File,
-    Brain,
-} from 'lucide-react';
+import AttachmentPreview from './AttachmentPreview';
+import { SendHorizontal, X, Loader2, AlertCircle, Square, Brain } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
 import { useChatContext } from './hooks/ChatContext';
 import { useFontsReady } from './hooks/useFontsReady';
@@ -1103,60 +1095,31 @@ export default function InputArea({
                             {/* Attachments strip (inside bubble, above editor) */}
                             {attachments.length > 0 && (
                                 <div className="px-4 pt-4">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <div className="text-xs text-muted-foreground">
+                                            {attachments.length} / {ATTACHMENT_LIMITS.MAX_COUNT}{' '}
+                                            files ({formatFileSize(totalAttachmentsSize)} /{' '}
+                                            {formatFileSize(ATTACHMENT_LIMITS.MAX_TOTAL_SIZE)})
+                                        </div>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => setAttachments([])}
+                                            className="h-6 text-xs text-muted-foreground hover:text-destructive"
+                                        >
+                                            Clear all
+                                        </Button>
+                                    </div>
                                     <div className="flex items-center gap-2 flex-wrap">
                                         {attachments.map((attachment) => (
-                                            <div
+                                            <AttachmentPreview
                                                 key={attachment.id}
-                                                className="relative w-fit border border-border rounded-lg p-1 bg-muted/50 group"
-                                            >
-                                                {attachment.type === 'image' ? (
-                                                    <img
-                                                        src={`data:${attachment.mimeType};base64,${attachment.data}`}
-                                                        alt={attachment.filename || 'preview'}
-                                                        className="h-12 w-auto rounded-md"
-                                                    />
-                                                ) : attachment.mimeType.startsWith('audio') ? (
-                                                    <div className="flex items-center gap-2 p-1">
-                                                        <FileAudio className="h-4 w-4" />
-                                                        <audio
-                                                            controls
-                                                            src={`data:${attachment.mimeType};base64,${attachment.data}`}
-                                                            className="h-8"
-                                                        />
-                                                    </div>
-                                                ) : (
-                                                    <div className="flex items-center gap-2 p-1">
-                                                        <File className="h-4 w-4" />
-                                                        <div className="flex flex-col">
-                                                            <span className="text-xs font-medium truncate max-w-[160px]">
-                                                                {attachment.filename ||
-                                                                    'attachment'}
-                                                            </span>
-                                                            <span className="text-xs text-muted-foreground">
-                                                                {formatFileSize(attachment.size)}
-                                                            </span>
-                                                        </div>
-                                                    </div>
-                                                )}
-                                                <Button
-                                                    variant="destructive"
-                                                    size="icon"
-                                                    onClick={() =>
-                                                        handleRemoveAttachment(attachment.id)
-                                                    }
-                                                    className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-destructive text-destructive-foreground opacity-100 group-hover:opacity-100 transition-opacity duration-150 shadow-md"
-                                                    aria-label="Remove attachment"
-                                                >
-                                                    <X className="h-2 w-2" />
-                                                </Button>
-                                            </div>
+                                                attachment={attachment}
+                                                onRemove={() =>
+                                                    handleRemoveAttachment(attachment.id)
+                                                }
+                                            />
                                         ))}
-                                    </div>
-                                    {/* Attachment count and size indicator */}
-                                    <div className="mt-2 text-xs text-muted-foreground">
-                                        {attachments.length} / {ATTACHMENT_LIMITS.MAX_COUNT} files (
-                                        {formatFileSize(totalAttachmentsSize)} /{' '}
-                                        {formatFileSize(ATTACHMENT_LIMITS.MAX_TOTAL_SIZE)})
                                     </div>
                                 </div>
                             )}
