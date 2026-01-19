@@ -20,7 +20,7 @@ export type SoundType = 'approval' | 'complete';
 const PLATFORM_SOUNDS: Record<string, Record<SoundType, string>> = {
     darwin: {
         // macOS system sounds
-        approval: '/System/Library/Sounds/Glass.aiff',
+        approval: '/System/Library/Sounds/Ping.aiff',
         complete: '/System/Library/Sounds/Glass.aiff',
     },
     linux: {
