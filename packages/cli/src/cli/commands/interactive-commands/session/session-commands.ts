@@ -67,33 +67,20 @@ export const searchCommand: CommandDefinition = {
 
 /**
  * Rename command - rename the current session
+ * In interactive CLI, this shows the rename overlay.
+ * The overlay is triggered via commandOverlays.ts registry.
  */
 export const renameCommand: CommandDefinition = {
     name: 'rename',
     description: 'Rename the current session',
-    usage: '/rename <new title>',
+    usage: '/rename',
     category: 'General',
     handler: async (
-        args: string[],
-        agent: DextoAgent,
-        ctx: CommandContext
-    ): Promise<boolean | string> => {
-        const newTitle = args.join(' ').trim();
-
-        if (!newTitle) {
-            return chalk.yellow('Usage: /rename <new title>\nExample: /rename My coding session');
-        }
-
-        if (!ctx.sessionId) {
-            return chalk.red('No active session to rename');
-        }
-
-        try {
-            await agent.setSessionTitle(ctx.sessionId, newTitle);
-            return chalk.green(`✓ Session renamed to: ${newTitle}`);
-        } catch (error) {
-            const errorMsg = error instanceof Error ? error.message : String(error);
-            return chalk.red(`Failed to rename session: ${errorMsg}`);
-        }
+        _args: string[],
+        _agent: DextoAgent,
+        _ctx: CommandContext
+    ): Promise<boolean> => {
+        // Interactive overlay handles everything - just return success
+        return true;
     },
 };
