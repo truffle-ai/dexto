@@ -36,13 +36,15 @@ import { useResolvePrompt } from './hooks/usePrompts';
 import { useInputHistory } from './hooks/useInputHistory';
 import { useQueuedMessages, useRemoveQueuedMessage, useQueueMessage } from './hooks/useQueue';
 import { QueuedMessagesDisplay } from './QueuedMessagesDisplay';
+import { Attachment, ATTACHMENT_LIMITS } from '../lib/attachment-types.js';
+import {
+    generateAttachmentId,
+    estimateBase64Size,
+    formatFileSize,
+} from '../lib/attachment-utils.js';
 
 interface InputAreaProps {
-    onSend: (
-        content: string,
-        imageData?: { image: string; mimeType: string },
-        fileData?: { data: string; mimeType: string; filename?: string }
-    ) => void;
+    onSend: (content: string, attachments?: Attachment[]) => void;
     isSending?: boolean;
     variant?: 'welcome' | 'chat';
     isSessionsPanelOpen?: boolean;
@@ -56,12 +58,10 @@ export default function InputArea({
     const queryClient = useQueryClient();
     const [text, setText] = useState('');
     const textareaRef = useRef<HTMLTextAreaElement>(null);
-    const [imageData, setImageData] = useState<{ image: string; mimeType: string } | null>(null);
-    const [fileData, setFileData] = useState<{
-        data: string;
-        mimeType: string;
-        filename?: string;
-    } | null>(null);
+
+    // NEW: Replace imageData and fileData with attachments array
+    const [attachments, setAttachments] = useState<Attachment[]>([]);
+
     const fileInputRef = useRef<HTMLInputElement>(null);
     const pdfInputRef = useRef<HTMLInputElement>(null);
     const audioInputRef = useRef<HTMLInputElement>(null);
@@ -146,9 +146,6 @@ export default function InputArea({
         return -1;
     };
 
-    // File size limit (64MB)
-    const MAX_FILE_SIZE = 64 * 1024 * 1024; // 64MB in bytes
-
     // Slash command state
     const [showSlashCommands, setShowSlashCommands] = useState(false);
     const [showCreatePromptModal, setShowCreatePromptModal] = useState(false);
@@ -210,10 +207,15 @@ export default function InputArea({
     // NOTE: We intentionally do not manually resize the textarea. We rely on
     // CSS max-height + overflow to keep layout stable.
 
+    // Calculate total size of all attachments
+    const totalAttachmentsSize = useMemo(() => {
+        return attachments.reduce((sum, att) => sum + att.size, 0);
+    }, [attachments]);
+
     const handleSend = async () => {
         let trimmed = text.trim();
         // Allow sending if we have text OR any attachment
-        if (!trimmed && !imageData && !fileData) return;
+        if (!trimmed && attachments.length === 0) return;
 
         // If slash command typed, resolve to full prompt content at send time
         if (trimmed === '/') {
@@ -258,26 +260,23 @@ export default function InputArea({
             queueMessage({
                 sessionId: currentSessionId,
                 message: trimmed || undefined,
-                imageData: imageData ?? undefined,
-                fileData: fileData ?? undefined,
+                attachments: attachments.length > 0 ? attachments : undefined,
             });
             // Invalidate history cache so it refetches with new message
             invalidateHistory();
             setText('');
-            setImageData(null);
-            setFileData(null);
+            setAttachments([]);
             setShowSlashCommands(false);
             // Keep focus in input for quick follow-up messages
             textareaRef.current?.focus();
             return;
         }
 
-        onSend(trimmed, imageData ?? undefined, fileData ?? undefined);
+        onSend(trimmed, attachments.length > 0 ? attachments : undefined);
         // Invalidate history cache so it refetches with new message
         invalidateHistory();
         setText('');
-        setImageData(null);
-        setFileData(null);
+        setAttachments([]);
         // Ensure guidance window closes after submit
         setShowSlashCommands(false);
         // Keep focus in input for quick follow-up messages
@@ -323,28 +322,36 @@ export default function InputArea({
                 .map((part) => part.text)
                 .join('\n');
 
-            // Extract image attachment if present
-            const imagePart = message.content.find(isImagePart);
+            // Extract ALL image parts (multiple images now supported)
+            const imageParts = message.content.filter(isImagePart);
 
-            // Extract file attachment if present
-            const filePart = message.content.find(isFilePart);
+            // Extract ALL file parts (multiple files now supported)
+            const fileParts = message.content.filter(isFilePart);
+
+            // Convert to Attachment[] format
+            const loadedAttachments: Attachment[] = [
+                ...imageParts.map((img, idx) => ({
+                    id: generateAttachmentId(),
+                    type: 'image' as const,
+                    data: img.image,
+                    mimeType: img.mimeType ?? 'image/jpeg',
+                    size: estimateBase64Size(img.image),
+                    source: 'button' as const,
+                })),
+                ...fileParts.map((file) => ({
+                    id: generateAttachmentId(),
+                    type: 'file' as const,
+                    data: file.data,
+                    mimeType: file.mimeType,
+                    filename: file.filename,
+                    size: estimateBase64Size(file.data),
+                    source: 'button' as const,
+                })),
+            ];
 
             // Load into input
             setText(textContent);
-            setImageData(
-                imagePart
-                    ? { image: imagePart.image, mimeType: imagePart.mimeType ?? 'image/jpeg' }
-                    : null
-            );
-            setFileData(
-                filePart
-                    ? {
-                          data: filePart.data,
-                          mimeType: filePart.mimeType,
-                          filename: filePart.filename,
-                      }
-                    : null
-            );
+            setAttachments(loadedAttachments);
 
             // Remove from queue
             removeQueuedMessage({ sessionId: currentSessionId, messageId: message.id });
@@ -450,6 +457,13 @@ export default function InputArea({
             e.preventDefault();
             setShowMemoryHint(false);
             setText('');
+            return;
+        }
+
+        // NEW: Backspace on empty input removes last attachment
+        if (e.key === 'Backspace' && !text && attachments.length > 0) {
+            e.preventDefault();
+            setAttachments((prev) => prev.slice(0, -1));
             return;
         }
 
@@ -600,24 +614,103 @@ export default function InputArea({
             'Large text detected. Attach as a file instead of inflating the input?\n(OK = attach as file, Cancel = paste truncated preview)'
         );
         if (attach) {
-            setFileData({
+            const attachment: Attachment = {
+                id: generateAttachmentId(),
+                type: 'file',
                 data: toBase64(pasted),
                 mimeType: 'text/plain',
                 filename: 'pasted.txt',
-            });
+                size: pasted.length,
+                source: 'paste',
+            };
+            setAttachments((prev) => [...prev, attachment]);
         } else {
             const preview = pasted.slice(0, LARGE_PASTE_THRESHOLD);
             setText((prev) => prev + preview);
         }
     };
 
-    const handlePdfChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Helper: Convert File to Attachment
+    const fileToAttachment = async (
+        file: File,
+        source: 'button' | 'paste' | 'drop'
+    ): Promise<Attachment> => {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                try {
+                    const result = reader.result as string;
+                    const commaIndex = result.indexOf(',');
+                    const data = result.substring(commaIndex + 1);
+
+                    const attachment: Attachment = {
+                        id: generateAttachmentId(),
+                        type: file.type.startsWith('image/') ? 'image' : 'file',
+                        data,
+                        mimeType: file.type,
+                        filename: file.name,
+                        size: file.size,
+                        source,
+                    };
+                    resolve(attachment);
+                } catch (error) {
+                    reject(error);
+                }
+            };
+            reader.onerror = () => reject(new Error('Failed to read file'));
+            reader.readAsDataURL(file);
+        });
+    };
+
+    // Handle remove attachment
+    const handleRemoveAttachment = (id: string) => {
+        setAttachments((prev) => prev.filter((att) => att.id !== id));
+    };
+
+    // Track attachment analytics
+    const trackAttachment = (attachment: Attachment) => {
+        if (!currentSessionId) return;
+
+        if (attachment.type === 'image') {
+            analyticsRef.current.trackImageAttached({
+                imageType: attachment.mimeType,
+                imageSizeBytes: attachment.size,
+                sessionId: currentSessionId,
+            });
+        } else {
+            analyticsRef.current.trackFileAttached({
+                fileType: attachment.mimeType,
+                fileSizeBytes: attachment.size,
+                sessionId: currentSessionId,
+            });
+        }
+    };
+
+    const handlePdfChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
 
         // File size validation
-        if (file.size > MAX_FILE_SIZE) {
-            showUserError('PDF file too large. Maximum size is 64MB.');
+        if (file.size > ATTACHMENT_LIMITS.MAX_FILE_SIZE) {
+            showUserError(
+                `PDF file too large. Maximum size is ${formatFileSize(ATTACHMENT_LIMITS.MAX_FILE_SIZE)}.`
+            );
+            e.target.value = '';
+            return;
+        }
+
+        // Check attachment count limit
+        if (attachments.length >= ATTACHMENT_LIMITS.MAX_COUNT) {
+            showUserError(`Maximum ${ATTACHMENT_LIMITS.MAX_COUNT} attachments allowed.`);
+            e.target.value = '';
+            return;
+        }
+
+        // Check total size limit
+        if (totalAttachmentsSize + file.size > ATTACHMENT_LIMITS.MAX_TOTAL_SIZE) {
+            showUserError(
+                `Total size would exceed ${formatFileSize(ATTACHMENT_LIMITS.MAX_TOTAL_SIZE)}.`
+            );
             e.target.value = '';
             return;
         }
@@ -628,33 +721,15 @@ export default function InputArea({
             return;
         }
 
-        const reader = new FileReader();
-        reader.onloadend = () => {
-            try {
-                const result = reader.result as string;
-                const commaIndex = result.indexOf(',');
-                const data = result.substring(commaIndex + 1);
-                setFileData({ data, mimeType: 'application/pdf', filename: file.name });
-                setFileUploadError(null); // Clear any previous errors
+        try {
+            const attachment = await fileToAttachment(file, 'button');
+            setAttachments((prev) => [...prev, attachment]);
+            setFileUploadError(null);
+            trackAttachment(attachment);
+        } catch {
+            showUserError('Failed to process PDF file. Please try again.');
+        }
 
-                // Track file upload
-                if (currentSessionId) {
-                    analyticsRef.current.trackFileAttached({
-                        fileType: 'application/pdf',
-                        fileSizeBytes: file.size,
-                        sessionId: currentSessionId,
-                    });
-                }
-            } catch {
-                showUserError('Failed to process PDF file. Please try again.');
-                setFileData(null);
-            }
-        };
-        reader.onerror = () => {
-            showUserError('Failed to read PDF file. Please try again.');
-            setFileData(null);
-        };
-        reader.readAsDataURL(file);
         e.target.value = '';
     };
 
@@ -696,23 +771,20 @@ export default function InputArea({
                         };
                         const ext = getExtensionFromMime(mimeType);
 
-                        setFileData({
+                        const attachment: Attachment = {
+                            id: generateAttachmentId(),
+                            type: 'file',
                             data,
-                            mimeType: mimeType,
+                            mimeType,
                             filename: `recording.${ext}`,
-                        });
+                            size: blob.size,
+                            source: 'button',
+                        };
 
-                        // Track audio recording upload
-                        if (currentSessionId) {
-                            analyticsRef.current.trackFileAttached({
-                                fileType: mimeType,
-                                fileSizeBytes: blob.size,
-                                sessionId: currentSessionId,
-                            });
-                        }
+                        setAttachments((prev) => [...prev, attachment]);
+                        trackAttachment(attachment);
                     } catch {
                         showUserError('Failed to process audio recording. Please try again.');
-                        setFileData(null);
                     }
                 };
                 reader.readAsDataURL(blob);
@@ -733,13 +805,31 @@ export default function InputArea({
         setIsRecording(false);
     };
 
-    const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
 
         // File size validation
-        if (file.size > MAX_FILE_SIZE) {
-            showUserError('Image file too large. Maximum size is 64MB.');
+        if (file.size > ATTACHMENT_LIMITS.MAX_FILE_SIZE) {
+            showUserError(
+                `Image file too large. Maximum size is ${formatFileSize(ATTACHMENT_LIMITS.MAX_FILE_SIZE)}.`
+            );
+            e.target.value = '';
+            return;
+        }
+
+        // Check attachment count limit
+        if (attachments.length >= ATTACHMENT_LIMITS.MAX_COUNT) {
+            showUserError(`Maximum ${ATTACHMENT_LIMITS.MAX_COUNT} attachments allowed.`);
+            e.target.value = '';
+            return;
+        }
+
+        // Check total size limit
+        if (totalAttachmentsSize + file.size > ATTACHMENT_LIMITS.MAX_TOTAL_SIZE) {
+            showUserError(
+                `Total size would exceed ${formatFileSize(ATTACHMENT_LIMITS.MAX_TOTAL_SIZE)}.`
+            );
             e.target.value = '';
             return;
         }
@@ -750,46 +840,17 @@ export default function InputArea({
             return;
         }
 
-        const reader = new FileReader();
-        reader.onloadend = () => {
-            try {
-                const result = reader.result as string;
-                const commaIndex = result.indexOf(',');
-                if (commaIndex === -1) throw new Error('Invalid Data URL format');
+        try {
+            const attachment = await fileToAttachment(file, 'button');
+            setAttachments((prev) => [...prev, attachment]);
+            setFileUploadError(null);
+            trackAttachment(attachment);
+        } catch {
+            showUserError('Failed to process image file. Please try again.');
+        }
 
-                const meta = result.substring(0, commaIndex);
-                const image = result.substring(commaIndex + 1);
-
-                const mimeMatch = meta.match(/data:(.*);base64/);
-                const mimeType = mimeMatch ? mimeMatch[1] : file.type;
-
-                if (!mimeType) throw new Error('Could not determine MIME type');
-
-                setImageData({ image, mimeType });
-                setFileUploadError(null); // Clear any previous errors
-
-                // Track image upload
-                if (currentSessionId) {
-                    analyticsRef.current.trackImageAttached({
-                        imageType: mimeType,
-                        imageSizeBytes: file.size,
-                        sessionId: currentSessionId,
-                    });
-                }
-            } catch {
-                showUserError('Failed to process image file. Please try again.');
-                setImageData(null);
-            }
-        };
-        reader.onerror = () => {
-            showUserError('Failed to read image file. Please try again.');
-            setImageData(null);
-        };
-        reader.readAsDataURL(file);
         e.target.value = '';
     };
-
-    const removeImage = () => setImageData(null);
 
     const triggerFileInput = () => fileInputRef.current?.click();
     const triggerPdfInput = () => pdfInputRef.current?.click();
@@ -805,13 +866,31 @@ export default function InputArea({
         }
     }, [text, modelSwitchError, fileUploadError]);
 
-    const handleAudioFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleAudioFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
 
         // File size validation
-        if (file.size > MAX_FILE_SIZE) {
-            showUserError('Audio file too large. Maximum size is 64MB.');
+        if (file.size > ATTACHMENT_LIMITS.MAX_FILE_SIZE) {
+            showUserError(
+                `Audio file too large. Maximum size is ${formatFileSize(ATTACHMENT_LIMITS.MAX_FILE_SIZE)}.`
+            );
+            e.target.value = '';
+            return;
+        }
+
+        // Check attachment count limit
+        if (attachments.length >= ATTACHMENT_LIMITS.MAX_COUNT) {
+            showUserError(`Maximum ${ATTACHMENT_LIMITS.MAX_COUNT} attachments allowed.`);
+            e.target.value = '';
+            return;
+        }
+
+        // Check total size limit
+        if (totalAttachmentsSize + file.size > ATTACHMENT_LIMITS.MAX_TOTAL_SIZE) {
+            showUserError(
+                `Total size would exceed ${formatFileSize(ATTACHMENT_LIMITS.MAX_TOTAL_SIZE)}.`
+            );
             e.target.value = '';
             return;
         }
@@ -822,34 +901,15 @@ export default function InputArea({
             return;
         }
 
-        const reader = new FileReader();
-        reader.onloadend = () => {
-            try {
-                const result = reader.result as string;
-                const commaIndex = result.indexOf(',');
-                const data = result.substring(commaIndex + 1);
-                // Preserve original MIME type from file
-                setFileData({ data, mimeType: file.type, filename: file.name });
-                setFileUploadError(null); // Clear any previous errors
+        try {
+            const attachment = await fileToAttachment(file, 'button');
+            setAttachments((prev) => [...prev, attachment]);
+            setFileUploadError(null);
+            trackAttachment(attachment);
+        } catch {
+            showUserError('Failed to process audio file. Please try again.');
+        }
 
-                // Track file upload
-                if (currentSessionId) {
-                    analyticsRef.current.trackFileAttached({
-                        fileType: file.type,
-                        fileSizeBytes: file.size,
-                        sessionId: currentSessionId,
-                    });
-                }
-            } catch {
-                showUserError('Failed to process audio file. Please try again.');
-                setFileData(null);
-            }
-        };
-        reader.onerror = () => {
-            showUserError('Failed to read audio file. Please try again.');
-            setFileData(null);
-        };
-        reader.readAsDataURL(file);
         e.target.value = '';
     };
 
@@ -920,57 +980,61 @@ export default function InputArea({
                         )}
 
                         {/* Attachments strip (inside bubble, above editor) */}
-                        {(imageData || fileData) && (
+                        {attachments.length > 0 && (
                             <div className="px-4 pt-4">
                                 <div className="flex items-center gap-2 flex-wrap">
-                                    {imageData && (
-                                        <div className="relative w-fit border border-border rounded-lg p-1 bg-muted/50 group">
-                                            <img
-                                                src={`data:${imageData.mimeType};base64,${imageData.image}`}
-                                                alt="preview"
-                                                className="h-12 w-auto rounded-md"
-                                            />
-                                            <Button
-                                                variant="destructive"
-                                                size="icon"
-                                                onClick={removeImage}
-                                                className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-destructive text-destructive-foreground opacity-100 group-hover:opacity-100 transition-opacity duration-150 shadow-md"
-                                                aria-label="Remove image"
-                                            >
-                                                <X className="h-2 w-2" />
-                                            </Button>
-                                        </div>
-                                    )}
-                                    {fileData && (
-                                        <div className="relative w-fit border border-border rounded-lg p-2 bg-muted/50 flex items-center gap-2 group">
-                                            {fileData.mimeType.startsWith('audio') ? (
-                                                <>
+                                    {attachments.map((attachment) => (
+                                        <div
+                                            key={attachment.id}
+                                            className="relative w-fit border border-border rounded-lg p-1 bg-muted/50 group"
+                                        >
+                                            {attachment.type === 'image' ? (
+                                                <img
+                                                    src={`data:${attachment.mimeType};base64,${attachment.data}`}
+                                                    alt={attachment.filename || 'preview'}
+                                                    className="h-12 w-auto rounded-md"
+                                                />
+                                            ) : attachment.mimeType.startsWith('audio') ? (
+                                                <div className="flex items-center gap-2 p-1">
                                                     <FileAudio className="h-4 w-4" />
                                                     <audio
                                                         controls
-                                                        src={`data:${fileData.mimeType};base64,${fileData.data}`}
+                                                        src={`data:${attachment.mimeType};base64,${attachment.data}`}
                                                         className="h-8"
                                                     />
-                                                </>
+                                                </div>
                                             ) : (
-                                                <>
+                                                <div className="flex items-center gap-2 p-1">
                                                     <File className="h-4 w-4" />
-                                                    <span className="text-xs font-medium max-w-[160px] truncate">
-                                                        {fileData.filename || 'attachment'}
-                                                    </span>
-                                                </>
+                                                    <div className="flex flex-col">
+                                                        <span className="text-xs font-medium truncate max-w-[160px]">
+                                                            {attachment.filename || 'attachment'}
+                                                        </span>
+                                                        <span className="text-xs text-muted-foreground">
+                                                            {formatFileSize(attachment.size)}
+                                                        </span>
+                                                    </div>
+                                                </div>
                                             )}
                                             <Button
                                                 variant="destructive"
                                                 size="icon"
-                                                onClick={() => setFileData(null)}
+                                                onClick={() =>
+                                                    handleRemoveAttachment(attachment.id)
+                                                }
                                                 className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-destructive text-destructive-foreground opacity-100 group-hover:opacity-100 transition-opacity duration-150 shadow-md"
                                                 aria-label="Remove attachment"
                                             >
                                                 <X className="h-2 w-2" />
                                             </Button>
                                         </div>
-                                    )}
+                                    ))}
+                                </div>
+                                {/* Attachment count and size indicator */}
+                                <div className="mt-2 text-xs text-muted-foreground">
+                                    {attachments.length} / {ATTACHMENT_LIMITS.MAX_COUNT} files (
+                                    {formatFileSize(totalAttachmentsSize)} /{' '}
+                                    {formatFileSize(ATTACHMENT_LIMITS.MAX_TOTAL_SIZE)})
                                 </div>
                             </div>
                         )}
@@ -1106,7 +1170,7 @@ export default function InputArea({
                                         disabled={
                                             processing
                                                 ? false
-                                                : (!text.trim() && !imageData && !fileData) ||
+                                                : (!text.trim() && attachments.length === 0) ||
                                                   isSending
                                         }
                                         className={cn(
