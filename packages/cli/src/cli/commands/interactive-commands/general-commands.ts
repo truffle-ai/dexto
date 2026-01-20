@@ -307,11 +307,37 @@ export const generalCommands: CommandDefinition[] = [
                 if (stats.usagePercent > 80) usageColor = chalk.red;
                 else if (stats.usagePercent > 60) usageColor = chalk.yellow;
 
+                // Helper to format token counts
+                const formatTokens = (tokens: number): string => {
+                    if (tokens >= 1000) {
+                        return `${(tokens / 1000).toFixed(1)}k`;
+                    }
+                    return tokens.toLocaleString();
+                };
+
+                // Helper to calculate percentage of max
+                const pct = (tokens: number): string => {
+                    const percent =
+                        stats.maxContextTokens > 0
+                            ? ((tokens / stats.maxContextTokens) * 100).toFixed(1)
+                            : '0.0';
+                    return `${percent}%`;
+                };
+
                 const overflowWarning = stats.usagePercent > 100 ? ' ⚠️  OVERFLOW' : '';
+                const { breakdown } = stats;
+
                 const lines = [
                     `📊 Context Usage`,
                     `   ${usageColor(progressBar)} ${stats.usagePercent}%${overflowWarning}`,
-                    `   Tokens: ~${stats.estimatedTokens.toLocaleString()} / ${stats.maxContextTokens.toLocaleString()}`,
+                    `   ${chalk.dim(stats.modelDisplayName)} · ${formatTokens(stats.estimatedTokens)} / ${formatTokens(stats.maxContextTokens)} tokens`,
+                    ``,
+                    `   ${chalk.cyan('Breakdown:')}`,
+                    `   ├─ System prompt: ${formatTokens(breakdown.systemPrompt)} (${pct(breakdown.systemPrompt)})`,
+                    `   ├─ Tools: ${formatTokens(breakdown.tools.total)} (${pct(breakdown.tools.total)})`,
+                    `   ├─ Messages: ${formatTokens(breakdown.messages)} (${pct(breakdown.messages)})`,
+                    `   └─ Output buffer: ${formatTokens(breakdown.outputBuffer)} (reserved)`,
+                    ``,
                     `   Messages: ${stats.filteredMessageCount} visible (${stats.messageCount} total)`,
                 ];
 

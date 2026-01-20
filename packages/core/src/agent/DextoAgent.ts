@@ -1723,6 +1723,10 @@ export class DextoAgent {
         messageCount: number;
         filteredMessageCount: number;
         hasSummary: boolean;
+        /** Current model identifier */
+        model: string;
+        /** Display name for the model */
+        modelDisplayName: string;
         /** Detailed breakdown of context usage by category */
         breakdown: {
             systemPrompt: number;
@@ -1811,6 +1815,11 @@ export class DextoAgent {
             (msg) => msg.metadata?.isSummary === true || msg.metadata?.isSessionSummary === true
         );
 
+        // Get model info for display
+        const llmConfig = runtimeConfig.llm;
+        const { getModelDisplayName } = await import('../llm/registry.js');
+        const modelDisplayName = getModelDisplayName(llmConfig.model, llmConfig.provider);
+
         return {
             estimatedTokens,
             maxContextTokens,
@@ -1819,6 +1828,8 @@ export class DextoAgent {
             messageCount: history.length,
             filteredMessageCount: filteredHistory.length,
             hasSummary,
+            model: llmConfig.model,
+            modelDisplayName,
             breakdown: {
                 systemPrompt: systemPromptTokens,
                 tools: {
