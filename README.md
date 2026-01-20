@@ -18,7 +18,7 @@
 <p align="center"><b>An open agent harness for AI applications—ships with a powerful coding agent.</b></p>
 
 <div align="center">
-  <img src="https://github.com/user-attachments/assets/89d30349-0cb1-4160-85db-d99a80a71d7a" alt="Dexto Demo" width="700" />
+  <img src=".github/assets/dexto_title.gif" alt="Dexto Demo" width="600" />
 </div>
 
 ---
