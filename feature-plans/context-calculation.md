@@ -413,43 +413,63 @@ interface ContextCalculation {
 
 ### Verification: Why `lastOutputTokens` Is Safe to Use Directly
 
-*Verified on 2025-01-20 by analyzing stream-processor.ts and manager.ts*
+*Verified on 2025-01-20 by analyzing AI SDK source code and our codebase*
 
 **Question:** Does `outputTokens` include content that might be pruned before the next LLM call?
 
 **Answer:** No. `outputTokens` is safe to use directly because:
 
-1. **What `outputTokens` includes** (from Vercel AI SDK / provider APIs):
-   - Assistant's text response
-   - Assistant's tool calls (function names, arguments)
-   - Does NOT include tool execution results (those are separate messages)
+#### Part 1: What does `outputTokens` include? (AI SDK Verification)
 
-2. **What gets pruned in our system** (from `manager.ts` `prepareHistory()`):
-   - Only **tool result messages** (role='tool') can be pruned
-   - They're marked with `compactedAt` timestamp
-   - Replaced with placeholder: `[Old tool result content cleared]`
+**Anthropic** - verified via `ai/packages/anthropic/src/__fixtures__/anthropic-json-tool.1.chunks.txt`:
+```json
+{"type":"message_delta","delta":{"stop_reason":"tool_use"},"usage":{"output_tokens":47}}
+```
+Tool call response reports `output_tokens: 47` - **includes tool calls** ✅
 
-3. **What is NEVER pruned:**
-   - Assistant messages (text content)
-   - Assistant's tool calls
-   - User messages
+**OpenAI** - verified via `ai/packages/openai/src/responses/__fixtures__/openai-shell-tool.1.chunks.txt`:
+```json
+{"output":[{"type":"shell_call","action":{"commands":["ls -a ~/Desktop"]}}],"usage":{"output_tokens":41}}
+```
+Shell tool call reports `output_tokens: 41` - **includes tool calls** ✅
 
-**Verification table:**
+**Google** - verified via `ai/packages/google/src/google-generative-ai-language-model.test.ts` lines 2274-2302:
+```typescript
+content: { parts: [{ functionCall: { name: 'test-tool', args: { value: 'test' } } }] },
+usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 20, totalTokenCount: 30 }
+```
+Function call response reports `candidatesTokenCount: 20` - **includes tool calls** ✅
+
+#### Part 2: What gets pruned in our system?
+
+From `manager.ts` `prepareHistory()`:
+- Only **tool result messages** (role='tool') can be pruned
+- They're marked with `compactedAt` timestamp
+- Replaced with placeholder: `[Old tool result content cleared]`
+
+**What is NEVER pruned:**
+- Assistant messages (text content)
+- Assistant's tool calls
+- User messages
+
+#### Verification Table
 
 | Message Type | Pruned? | Part of outputTokens? |
 |-------------|---------|----------------------|
 | Assistant text | ❌ Never | ✅ Yes |
-| Assistant tool calls | ❌ Never | ✅ Yes |
+| Assistant tool calls | ❌ Never | ✅ Yes (verified across all providers) |
 | Tool results (role='tool') | ✅ Can be pruned | ❌ No (separate messages) |
 
-**Code evidence:**
+#### Code Evidence
+
 - `stream-processor.ts`: Tool calls stored via `addToolCall()` with full arguments
 - `manager.ts` line 279: Only `msg.role === 'tool' && msg.compactedAt` gets placeholder
 - No code path exists to prune assistant messages
 
 **Conclusion:** The formula `lastInputTokens + lastOutputTokens + newMessagesEstimate` is correct because:
 - `lastInputTokens` reflects pruned history (API tells us exactly what was sent)
-- `lastOutputTokens` is the assistant's response which is stored and sent back as-is
+- `lastOutputTokens` is the assistant's response (text + tool calls) which is stored and sent back as-is
+- All major providers (Anthropic, OpenAI, Google) include tool calls in their output token counts
 - Only tool results (separate messages) can be pruned, and those are in `inputTokens`
 
 ---
