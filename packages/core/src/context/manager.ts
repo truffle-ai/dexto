@@ -953,16 +953,15 @@ export class ContextManager<TMessage = unknown> {
         // Step 5: Calculate total
         const estimated = systemPromptTokens + toolsTokensTotal + messagesTokens;
 
-        // Step 6: Get actual and log comparison
+        // Step 6: Get actual and log comparison for calibration
         const actual = this.lastActualInputTokens;
         if (actual !== null) {
             const diff = estimated - actual;
             const diffPercent = actual > 0 ? ((diff / actual) * 100).toFixed(1) : '0.0';
-            this.logger.debug(
-                `Context token estimate: estimated=${estimated}, actual=${actual}, ` +
-                    `diff=${diff} (${diffPercent}%), breakdown: sys=${systemPromptTokens}, ` +
-                    `tools=${toolsTokensTotal}, msgs=${messagesTokens}, ` +
-                    `stats: orig=${stats.originalCount}, filtered=${stats.filteredCount}, pruned=${stats.prunedToolCount}`
+            // Log at info level so users can see estimation accuracy
+            this.logger.info(
+                `Context token estimate vs actual: estimated=${estimated}, actual=${actual}, ` +
+                    `diff=${diff} (${diffPercent}%)`
             );
         }
 
