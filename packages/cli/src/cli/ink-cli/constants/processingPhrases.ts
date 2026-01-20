@@ -34,6 +34,7 @@ export const processingPhrases: string[] = [
     'Elementary, my dear Watson…',
     'Identity theft is not a joke, Jim! …',
     "I'm not superstitious, but I am a little stitious…",
+    'Why waste time say lot word when few word do trick?…',
 
     // Playful
     'Let me cook…',
@@ -59,10 +60,10 @@ export const processingPhrases: string[] = [
     'What are those!!…',
     'He needs some milk…',
     'Something came in the mail today…',
-    'Road work ahead? Sure hope it does…',
+    'Road work ahead? I sure hope it does…',
     'Merry Chrysler…',
     "I'm in me mum's car. Broom broom…",
-    'I could have dropped my croissant…',
+    'Stop! I could have dropped my croissant!…',
     'That was legitness…',
 
     // Nerdy
