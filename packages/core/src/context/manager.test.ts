@@ -970,5 +970,330 @@ describe('ContextManager', () => {
             expect(estimatedViaMethod).toBe(fullEstimate.estimated);
             expect(fullEstimate.calculationBasis?.method).toBe('actuals');
         });
+
+        it('should include all messages since last successful call when tracking is not updated (cancellation scenario)', async () => {
+            // Scenario: User sends message, LLM responds successfully, then user sends another
+            // message but the LLM call gets cancelled. On cancellation, we don't update tracking.
+            // The next estimate should include all content since the last successful call.
+            //
+            // In real execution, the sequence is:
+            // 1. User message added to history
+            // 2. LLM stream starts, assistant message added on first delta
+            // 3. Stream finishes with usage data
+            // 4. We set lastInputTokens, lastOutputTokens
+            // 5. We call recordLastCallMessageCount() - captures count AFTER assistant is added
+            //
+            // So the boundary is set AFTER the assistant response, not before.
+
+            // === Successful call 1 ===
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+            // Assistant response added during stream (before we record)
+            await contextManager.addAssistantMessage('Hi there! How can I help?', []);
+            // Now we record tracking (simulating what happens after stream completes)
+            contextManager.setLastActualInputTokens(5000);
+            contextManager.setLastActualOutputTokens(200);
+            await contextManager.recordLastCallMessageCount(); // boundary = 2 (user1 + assistant1)
+
+            // Get estimate after successful call - should have zero newMessagesEstimate
+            const mockContributorContext = { mcpManager: {} as any };
+            const estimateAfterSuccess = await contextManager.getContextTokenEstimate(
+                mockContributorContext,
+                mockTools
+            );
+
+            // newMessagesEstimate should be 0 - no messages after boundary
+            expect(estimateAfterSuccess.calculationBasis?.newMessagesEstimate).toBe(0);
+            expect(contextManager.getLastCallMessageCount()).toBe(2);
+
+            // === Cancelled call 2 ===
+            // User sends new message
+            await contextManager.addUserMessage([
+                { type: 'text', text: 'Tell me a long story about dragons' },
+            ]);
+
+            // Partial assistant response gets saved to history (what happens on cancel)
+            await contextManager.addAssistantMessage(
+                'Once upon a time, in a land far away, there lived a magnificent dragon...',
+                []
+            );
+
+            // IMPORTANT: On cancellation, we do NOT update tracking:
+            // - No setLastActualInputTokens()
+            // - No setLastActualOutputTokens()
+            // - No recordLastCallMessageCount()
+
+            // Get estimate after cancelled call
+            const estimateAfterCancel = await contextManager.getContextTokenEstimate(
+                mockContributorContext,
+                mockTools
+            );
+
+            // Should still use actuals-based method (from successful call 1)
+            expect(estimateAfterCancel.calculationBasis?.method).toBe('actuals');
+            expect(estimateAfterCancel.calculationBasis?.lastInputTokens).toBe(5000);
+            expect(estimateAfterCancel.calculationBasis?.lastOutputTokens).toBe(200);
+
+            // newMessagesEstimate should now include:
+            // - User message from call 2
+            // - Partial assistant response from cancelled call 2
+            const afterCancelNewMsgs = estimateAfterCancel.calculationBasis?.newMessagesEstimate;
+            expect(afterCancelNewMsgs).toBeDefined();
+            expect(afterCancelNewMsgs!).toBeGreaterThan(0);
+
+            // Verify the total estimate increased
+            expect(estimateAfterCancel.estimated).toBeGreaterThan(estimateAfterSuccess.estimated);
+
+            // Verify by checking history and expected new messages
+            const history = await contextManager.getHistory();
+            expect(history.length).toBe(4); // user1, assistant1, user2, assistant2-partial
+
+            // lastCallMessageCount should still be 2 (from successful call)
+            expect(contextManager.getLastCallMessageCount()).toBe(2);
+
+            // So newMessages should be history.slice(2) = [user2, assistant2-partial]
+            const { estimateMessagesTokens } = await import('./utils.js');
+            const expectedNewMessages = history.slice(2);
+            expect(expectedNewMessages.length).toBe(2);
+            const expectedNewEstimate = estimateMessagesTokens(expectedNewMessages);
+            expect(afterCancelNewMsgs).toBe(expectedNewEstimate);
+        });
+
+        it('should accumulate multiple cancelled calls in newMessagesEstimate', async () => {
+            // Scenario: Successful call, then 2 cancelled calls in a row
+            // All cancelled content should accumulate in newMessagesEstimate
+
+            // === Successful call ===
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hi' }]);
+            await contextManager.addAssistantMessage('Hello!', []); // Added during stream
+            contextManager.setLastActualInputTokens(5000);
+            contextManager.setLastActualOutputTokens(100);
+            await contextManager.recordLastCallMessageCount(); // boundary = 2 (after assistant added)
+
+            // === Cancelled call 1 ===
+            await contextManager.addUserMessage([
+                { type: 'text', text: 'First cancelled request' },
+            ]);
+            await contextManager.addAssistantMessage('Starting to respond...', []);
+            // No tracking update (cancelled)
+
+            // === Cancelled call 2 ===
+            await contextManager.addUserMessage([
+                { type: 'text', text: 'Second cancelled request' },
+            ]);
+            await contextManager.addAssistantMessage('Another partial...', []);
+            // No tracking update (cancelled)
+
+            const mockContributorContext = { mcpManager: {} as any };
+            const estimate = await contextManager.getContextTokenEstimate(
+                mockContributorContext,
+                mockTools
+            );
+
+            // Should still use actuals from the one successful call
+            expect(estimate.calculationBasis?.method).toBe('actuals');
+            expect(estimate.calculationBasis?.lastInputTokens).toBe(5000);
+            expect(estimate.calculationBasis?.lastOutputTokens).toBe(100);
+
+            // History: [user1, assistant1, user2, assistant2-partial, user3, assistant3-partial]
+            const history = await contextManager.getHistory();
+            expect(history.length).toBe(6);
+            expect(contextManager.getLastCallMessageCount()).toBe(2);
+
+            // newMessages = history.slice(2) = 4 messages from cancelled calls
+            const { estimateMessagesTokens } = await import('./utils.js');
+            const newMessages = history.slice(2);
+            expect(newMessages.length).toBe(4);
+            expect(estimate.calculationBasis?.newMessagesEstimate).toBe(
+                estimateMessagesTokens(newMessages)
+            );
+        });
+
+        it('should self-correct after successful call following cancellation', async () => {
+            // Scenario: Success → Cancel → Success
+            // The second success should provide fresh actuals
+
+            // === Successful call 1 ===
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+            await contextManager.addAssistantMessage('Hi!', []);
+            contextManager.setLastActualInputTokens(5000);
+            contextManager.setLastActualOutputTokens(100);
+            await contextManager.recordLastCallMessageCount(); // boundary = 2
+
+            // === Cancelled call ===
+            await contextManager.addUserMessage([{ type: 'text', text: 'Tell me a story' }]);
+            await contextManager.addAssistantMessage('Once upon a time...', []);
+            // No tracking update
+
+            // Verify we're estimating the cancelled content
+            const mockContributorContext = { mcpManager: {} as any };
+            const estimateAfterCancel = await contextManager.getContextTokenEstimate(
+                mockContributorContext,
+                mockTools
+            );
+            expect(estimateAfterCancel.calculationBasis?.method).toBe('actuals');
+            expect(estimateAfterCancel.calculationBasis?.lastInputTokens).toBe(5000);
+            expect(estimateAfterCancel.calculationBasis?.newMessagesEstimate).toBeGreaterThan(0);
+
+            // === Successful call 2 ===
+            await contextManager.addUserMessage([{ type: 'text', text: 'Just say hi' }]);
+            await contextManager.addAssistantMessage('Hi again!', []);
+            // This time we DO update tracking (successful call)
+            contextManager.setLastActualInputTokens(5800); // Fresh actual from API
+            contextManager.setLastActualOutputTokens(50);
+            await contextManager.recordLastCallMessageCount(); // boundary = 6
+
+            // Now estimate should use fresh actuals, newMessagesEstimate = 0
+            const estimateAfterSuccess = await contextManager.getContextTokenEstimate(
+                mockContributorContext,
+                mockTools
+            );
+            expect(estimateAfterSuccess.calculationBasis?.method).toBe('actuals');
+            expect(estimateAfterSuccess.calculationBasis?.lastInputTokens).toBe(5800);
+            expect(estimateAfterSuccess.calculationBasis?.lastOutputTokens).toBe(50);
+            expect(estimateAfterSuccess.calculationBasis?.newMessagesEstimate).toBe(0);
+
+            // History should have 6 messages, boundary at 6
+            const history = await contextManager.getHistory();
+            expect(history.length).toBe(6);
+            expect(contextManager.getLastCallMessageCount()).toBe(6);
+        });
+
+        it('should fall back to pure estimation when first call is cancelled', async () => {
+            // Scenario: Very first call gets cancelled, no prior actuals exist
+
+            // === First call - cancelled ===
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+            await contextManager.addAssistantMessage('Hi...', []); // Partial response
+            // No tracking update - all values remain null
+
+            expect(contextManager.getLastActualInputTokens()).toBeNull();
+            expect(contextManager.getLastActualOutputTokens()).toBeNull();
+            expect(contextManager.getLastCallMessageCount()).toBeNull();
+
+            const mockContributorContext = { mcpManager: {} as any };
+            const estimate = await contextManager.getContextTokenEstimate(
+                mockContributorContext,
+                mockTools
+            );
+
+            // Should fall back to pure estimation since no actuals available
+            expect(estimate.calculationBasis?.method).toBe('estimate');
+            expect(estimate.calculationBasis?.lastInputTokens).toBeUndefined();
+            expect(estimate.calculationBasis?.lastOutputTokens).toBeUndefined();
+        });
+
+        it('should update tracking on each successful step in multi-step tool flow', async () => {
+            // Scenario: LLM makes tool call (step 1), tool executes, LLM responds (step 2)
+            // Tracking is updated after each step
+
+            // === Step 1: User message, LLM calls tool ===
+            await contextManager.addUserMessage([{ type: 'text', text: 'What is the weather?' }]);
+            await contextManager.addAssistantMessage('', [
+                {
+                    id: 'tool-1',
+                    type: 'function' as const,
+                    function: { name: 'get_weather', arguments: '{"city":"NYC"}' },
+                },
+            ]);
+            // Step 1 completes with usage data
+            contextManager.setLastActualInputTokens(5000);
+            contextManager.setLastActualOutputTokens(50);
+            await contextManager.recordLastCallMessageCount(); // boundary = 2
+
+            // Verify state after step 1
+            expect(contextManager.getLastCallMessageCount()).toBe(2);
+
+            // === Tool executes, result added ===
+            const toolResult: SanitizedToolResult = {
+                content: [{ type: 'text', text: 'Weather in NYC: Sunny, 72°F' }],
+                meta: { toolName: 'get_weather', toolCallId: 'tool-1', success: true },
+            };
+            await contextManager.addToolResult('tool-1', 'get_weather', toolResult);
+
+            // Before step 2, estimate should include tool result in newMessagesEstimate
+            const mockContributorContext = { mcpManager: {} as any };
+            const estimateBeforeStep2 = await contextManager.getContextTokenEstimate(
+                mockContributorContext,
+                mockTools
+            );
+            expect(estimateBeforeStep2.calculationBasis?.method).toBe('actuals');
+            expect(estimateBeforeStep2.calculationBasis?.newMessagesEstimate).toBeGreaterThan(0);
+
+            // === Step 2: LLM responds with final answer ===
+            await contextManager.addAssistantMessage('The weather in NYC is sunny and 72°F!', []);
+            // Step 2 completes with fresh usage data
+            contextManager.setLastActualInputTokens(5200); // Includes tool result now
+            contextManager.setLastActualOutputTokens(30);
+            await contextManager.recordLastCallMessageCount(); // boundary = 4
+
+            // Verify state after step 2
+            expect(contextManager.getLastCallMessageCount()).toBe(4);
+
+            // After step 2, newMessagesEstimate should be 0
+            const estimateAfterStep2 = await contextManager.getContextTokenEstimate(
+                mockContributorContext,
+                mockTools
+            );
+            expect(estimateAfterStep2.calculationBasis?.method).toBe('actuals');
+            expect(estimateAfterStep2.calculationBasis?.lastInputTokens).toBe(5200);
+            expect(estimateAfterStep2.calculationBasis?.lastOutputTokens).toBe(30);
+            expect(estimateAfterStep2.calculationBasis?.newMessagesEstimate).toBe(0);
+
+            // History should have 4 messages
+            const history = await contextManager.getHistory();
+            expect(history.length).toBe(4); // user, assistant-tool-call, tool-result, assistant-final
+        });
+
+        it('should handle tool call flow with cancellation during tool execution', async () => {
+            // Scenario: LLM makes tool call, then cancelled before tool completes
+            // Tool result is persisted as "cancelled"
+
+            // === Step 1: LLM calls tool (successful step) ===
+            await contextManager.addUserMessage([{ type: 'text', text: 'What is the weather?' }]);
+            // Assistant message with tool call added during stream
+            await contextManager.addAssistantMessage('', [
+                {
+                    id: 'tool-1',
+                    type: 'function' as const,
+                    function: { name: 'get_weather', arguments: '{"city":"NYC"}' },
+                },
+            ]);
+            // Step 1 completes with usage data
+            contextManager.setLastActualInputTokens(5000);
+            contextManager.setLastActualOutputTokens(50);
+            await contextManager.recordLastCallMessageCount(); // boundary = 2
+
+            // === Cancelled during tool execution ===
+            // Tool result is added as "cancelled" by persistCancelledToolResults()
+            const cancelledResult: SanitizedToolResult = {
+                content: [{ type: 'text', text: 'Cancelled by user' }],
+                meta: { toolName: 'get_weather', toolCallId: 'tool-1', success: false },
+            };
+            await contextManager.addToolResult('tool-1', 'get_weather', cancelledResult);
+            // No tracking update since overall turn was cancelled
+
+            const mockContributorContext = { mcpManager: {} as any };
+            const estimate = await contextManager.getContextTokenEstimate(
+                mockContributorContext,
+                mockTools
+            );
+
+            // Should use actuals from the successful tool-call step
+            expect(estimate.calculationBasis?.method).toBe('actuals');
+            expect(estimate.calculationBasis?.lastInputTokens).toBe(5000);
+            expect(estimate.calculationBasis?.lastOutputTokens).toBe(50);
+
+            // newMessagesEstimate should include the cancelled tool result
+            const history = await contextManager.getHistory();
+            expect(history.length).toBe(3); // user, assistant-tool-call, tool-result
+            expect(contextManager.getLastCallMessageCount()).toBe(2);
+
+            const { estimateMessagesTokens } = await import('./utils.js');
+            const newMessages = history.slice(2); // Just the tool result
+            expect(newMessages.length).toBe(1);
+            expect(estimate.calculationBasis?.newMessagesEstimate).toBe(
+                estimateMessagesTokens(newMessages)
+            );
+        });
     });
 });
