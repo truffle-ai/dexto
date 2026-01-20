@@ -411,6 +411,47 @@ interface ContextCalculation {
    - Include in context calculation
    - Track separately for display
 
+### Verification: Why `lastOutputTokens` Is Safe to Use Directly
+
+*Verified on 2025-01-20 by analyzing stream-processor.ts and manager.ts*
+
+**Question:** Does `outputTokens` include content that might be pruned before the next LLM call?
+
+**Answer:** No. `outputTokens` is safe to use directly because:
+
+1. **What `outputTokens` includes** (from Vercel AI SDK / provider APIs):
+   - Assistant's text response
+   - Assistant's tool calls (function names, arguments)
+   - Does NOT include tool execution results (those are separate messages)
+
+2. **What gets pruned in our system** (from `manager.ts` `prepareHistory()`):
+   - Only **tool result messages** (role='tool') can be pruned
+   - They're marked with `compactedAt` timestamp
+   - Replaced with placeholder: `[Old tool result content cleared]`
+
+3. **What is NEVER pruned:**
+   - Assistant messages (text content)
+   - Assistant's tool calls
+   - User messages
+
+**Verification table:**
+
+| Message Type | Pruned? | Part of outputTokens? |
+|-------------|---------|----------------------|
+| Assistant text | ❌ Never | ✅ Yes |
+| Assistant tool calls | ❌ Never | ✅ Yes |
+| Tool results (role='tool') | ✅ Can be pruned | ❌ No (separate messages) |
+
+**Code evidence:**
+- `stream-processor.ts`: Tool calls stored via `addToolCall()` with full arguments
+- `manager.ts` line 279: Only `msg.role === 'tool' && msg.compactedAt` gets placeholder
+- No code path exists to prune assistant messages
+
+**Conclusion:** The formula `lastInputTokens + lastOutputTokens + newMessagesEstimate` is correct because:
+- `lastInputTokens` reflects pruned history (API tells us exactly what was sent)
+- `lastOutputTokens` is the assistant's response which is stored and sent back as-is
+- Only tool results (separate messages) can be pruned, and those are in `inputTokens`
+
 ---
 
 ## Implementation Plan
