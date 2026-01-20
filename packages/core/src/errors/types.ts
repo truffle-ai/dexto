@@ -13,8 +13,6 @@ import type { PromptErrorCode } from '@core/prompts/error-codes.js';
 import type { ApprovalErrorCode } from '@core/approval/error-codes.js';
 import type { MemoryErrorCode } from '@core/memory/error-codes.js';
 import type { PluginErrorCode } from '@core/plugins/error-codes.js';
-import type { FileSystemErrorCode } from '@core/filesystem/error-codes.js';
-import type { ProcessErrorCode } from '@core/process/error-codes.js';
 import type { TelemetryErrorCode } from '@core/telemetry/error-codes.js';
 
 /**
@@ -76,8 +74,6 @@ export type DextoErrorCode =
     | ApprovalErrorCode
     | MemoryErrorCode
     | PluginErrorCode
-    | FileSystemErrorCode
-    | ProcessErrorCode
     | TelemetryErrorCode;
 
 /** Severity of an issue */
