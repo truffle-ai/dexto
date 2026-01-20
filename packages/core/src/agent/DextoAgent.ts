@@ -1670,7 +1670,17 @@ export class DextoAgent {
 
         const chain = await this.sessionManager.getSessionChain(sessionId);
 
+        // Guard: empty chain means session not found
+        if (chain.length === 0) {
+            throw SessionError.notFound(sessionId);
+        }
+
         const currentIndex = chain.findIndex((s) => s.id === sessionId);
+
+        // Guard: session not in chain (shouldn't happen but be defensive)
+        if (currentIndex < 0) {
+            throw SessionError.notFound(sessionId);
+        }
 
         return {
             chain: chain.map((s) => {
@@ -1695,7 +1705,7 @@ export class DextoAgent {
                 }
                 return item;
             }),
-            currentIndex: currentIndex >= 0 ? currentIndex : 0,
+            currentIndex,
         };
     }
 

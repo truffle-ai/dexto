@@ -803,6 +803,12 @@ export class SessionManager {
             throw SessionError.notFound(fromSessionId);
         }
 
+        // Enforce maxSessions limit (same guard as createSessionInternal)
+        const activeSessionKeys = await this.services.storageManager.getDatabase().list('session:');
+        if (activeSessionKeys.length >= this.maxSessions) {
+            throw SessionError.maxSessionsExceeded(activeSessionKeys.length, this.maxSessions);
+        }
+
         // Generate new session ID
         const newSessionId = randomUUID();
 
