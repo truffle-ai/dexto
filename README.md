@@ -470,6 +470,7 @@ toolConfirmation:
 Switch between providers instantly—no code changes required.
 
 #### Built-in Providers
+
 | Provider | Models | Setup |
 |----------|--------|-------|
 | **OpenAI** | `gpt-5.2`, `gpt-5.2-pro`, `gpt-5.2-codex`, `o4-mini` | API key |
@@ -480,18 +481,21 @@ Switch between providers instantly—no code changes required.
 | **Cohere** | `command-r-plus`, `command-r` | API key |
 
 #### Local Models (Privacy-First)
+
 | Provider | Models | Setup |
 |----------|--------|-------|
 | **Ollama** | Llama, Qwen, Mistral, DeepSeek, etc. | Local install |
 | **node-llama-cpp** | Any GGUF model | Bundled (auto GPU detection: Metal, CUDA, Vulkan) |
 
 #### Cloud Platforms
+
 | Provider | Models | Setup |
 |----------|--------|-------|
 | **AWS Bedrock** | Claude, Llama, Mistral | AWS credentials |
 | **Google Vertex AI** | Gemini, Claude | GCP credentials |
 
 #### Gateway Providers
+
 | Provider | Access | Setup |
 |----------|--------|-------|
 | **OpenRouter** | 100+ models from multiple providers | API key |
