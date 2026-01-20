@@ -60,6 +60,8 @@ export interface ProcessStreamSetters {
     /** Setter for dequeued buffer (user messages waiting to render after pending) */
     setDequeuedBuffer: React.Dispatch<React.SetStateAction<Message[]>>;
     setUi: React.Dispatch<React.SetStateAction<UIState>>;
+    /** Setter for session state (for session switch on compaction) */
+    setSession: React.Dispatch<React.SetStateAction<import('../state/types.js').SessionState>>;
     /** Setter for queued messages (cleared when dequeued) */
     setQueuedMessages: React.Dispatch<React.SetStateAction<import('@dexto/core').QueuedMessage[]>>;
     /** Setter for current approval request (for approval UI) */
@@ -127,6 +129,7 @@ export async function processStream(
         setPendingMessages,
         setDequeuedBuffer,
         setUi,
+        setSession,
         setQueuedMessages,
         setApproval,
         setApprovalQueue,
@@ -755,6 +758,7 @@ export async function processStream(
                         isProcessing: false,
                         isCancelling: false,
                         isThinking: false,
+                        isCompacting: false,
                     }));
 
                     // Play completion sound to notify user task is done
@@ -802,6 +806,72 @@ export async function processStream(
                     // Update status from 'pending' or 'pending_approval' to 'running'
                     const runningToolId = `tool-${event.toolCallId}`;
                     updatePendingStatus(runningToolId, 'running');
+                    break;
+                }
+
+                case 'context:compacting': {
+                    // Context compaction starting - show compacting indicator
+                    setUi((prev) => ({ ...prev, isCompacting: true }));
+                    break;
+                }
+
+                case 'context:compacted': {
+                    // Context was compacted - clear compacting state and show notification
+                    setUi((prev) => ({ ...prev, isCompacting: false }));
+
+                    const reductionPercent =
+                        event.originalTokens > 0
+                            ? Math.round(
+                                  ((event.originalTokens - event.compactedTokens) /
+                                      event.originalTokens) *
+                                      100
+                              )
+                            : 0;
+
+                    // Show compaction notification
+                    const compactionContent =
+                        `📦 Context compacted (${event.reason})\n` +
+                        `   Tokens: ${event.originalTokens.toLocaleString()} → ~${event.compactedTokens.toLocaleString()} (${reductionPercent}% reduction)\n` +
+                        `   Messages: ${event.originalMessages} → ${event.compactedMessages}`;
+
+                    setMessages((prev) => [
+                        ...prev,
+                        {
+                            id: generateMessageId('system'),
+                            role: 'system',
+                            content: compactionContent,
+                            timestamp: new Date(),
+                        },
+                    ]);
+                    break;
+                }
+
+                case 'session:continued': {
+                    // Session-native compaction created a new session
+                    // Update session state to switch to the new session
+                    setSession((prev) => ({
+                        ...prev,
+                        id: event.newSessionId,
+                    }));
+
+                    // Clear compacting state
+                    setUi((prev) => ({ ...prev, isCompacting: false }));
+
+                    // Show notification about session continuation
+                    const continuationContent =
+                        `📦 Context compacted → Continuing in new session\n` +
+                        `   ${event.previousSessionId.slice(0, 8)}... → ${event.newSessionId.slice(0, 8)}...\n` +
+                        `   ${event.originalMessages} messages → ~${event.summaryTokens.toLocaleString()} token summary (${event.reason})`;
+
+                    setMessages((prev) => [
+                        ...prev,
+                        {
+                            id: generateMessageId('system'),
+                            role: 'system',
+                            content: continuationContent,
+                            timestamp: new Date(),
+                        },
+                    ]);
                     break;
                 }
 

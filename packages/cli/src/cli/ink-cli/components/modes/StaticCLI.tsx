@@ -189,6 +189,7 @@ export function StaticCLI({
                     agent={agent}
                     isProcessing={ui.isProcessing}
                     isThinking={ui.isThinking}
+                    isCompacting={ui.isCompacting}
                     approvalQueueCount={approvalQueue.length}
                     copyModeEnabled={ui.copyModeEnabled}
                     isAwaitingApproval={approval !== null}

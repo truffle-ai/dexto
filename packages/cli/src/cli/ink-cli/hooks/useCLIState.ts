@@ -96,6 +96,7 @@ export function useCLIState({
         isProcessing: false,
         isCancelling: false,
         isThinking: false,
+        isCompacting: false,
         activeOverlay: 'none',
         exitWarningShown: false,
         exitWarningTimestamp: null,

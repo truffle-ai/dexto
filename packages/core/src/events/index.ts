@@ -28,6 +28,7 @@ export type LLMFinishReason =
 export const AGENT_EVENT_NAMES = [
     'session:reset',
     'session:created',
+    'session:continued',
     'session:title-updated',
     'session:override-set',
     'session:override-cleared',
@@ -63,6 +64,7 @@ export const SESSION_EVENT_NAMES = [
     'llm:switched',
     'llm:unsupported-input',
     'tool:running',
+    'context:compacting',
     'context:compacted',
     'context:pruned',
     'message:queued',
@@ -106,6 +108,7 @@ export const STREAMING_EVENTS = [
     'tool:running',
 
     // Context management events
+    'context:compacting',
     'context:compacted',
     'context:pruned',
 
@@ -118,6 +121,7 @@ export const STREAMING_EVENTS = [
 
     // Session metadata
     'session:title-updated',
+    'session:continued',
 
     // Approval events (needed for tool confirmation in streaming UIs)
     'approval:request',
@@ -226,6 +230,22 @@ export interface AgentEventMap {
     'session:created': {
         sessionId: string | null; // null means clear without creating (deferred creation)
         switchTo: boolean; // Whether UI should switch to this session
+    };
+
+    /** Fired when context compaction creates a new session (session-native compaction) */
+    'session:continued': {
+        /** The session that was compacted */
+        previousSessionId: string;
+        /** The new session to continue in */
+        newSessionId: string;
+        /** Number of tokens in the summary */
+        summaryTokens: number;
+        /** Original message count that was summarized */
+        originalMessages: number;
+        /** Why the compaction occurred */
+        reason: 'overflow' | 'manual';
+        /** The new session ID (for consistency with other streaming events) */
+        sessionId: string;
     };
 
     /** Fired when a session's human-friendly title is updated */
@@ -408,6 +428,13 @@ export interface AgentEventMap {
         sessionId: string;
     };
 
+    /** Context compaction is starting */
+    'context:compacting': {
+        /** Estimated tokens that triggered compaction */
+        estimatedTokens: number;
+        sessionId: string;
+    };
+
     /** Context was compacted during multi-step tool calling */
     'context:compacted': {
         /** Actual input tokens from API that triggered compaction */
@@ -417,7 +444,7 @@ export interface AgentEventMap {
         originalMessages: number;
         compactedMessages: number;
         strategy: string;
-        reason: 'overflow' | 'token_limit' | 'message_limit';
+        reason: 'overflow' | 'token_limit' | 'message_limit' | 'manual';
         sessionId: string;
     };
 
@@ -609,6 +636,12 @@ export interface SessionEventMap {
         details?: any;
     };
 
+    /** Context compaction is starting */
+    'context:compacting': {
+        /** Estimated tokens that triggered compaction */
+        estimatedTokens: number;
+    };
+
     /** Context was compacted during multi-step tool calling */
     'context:compacted': {
         /** Actual input tokens from API that triggered compaction */
@@ -618,7 +651,7 @@ export interface SessionEventMap {
         originalMessages: number;
         compactedMessages: number;
         strategy: string;
-        reason: 'overflow' | 'token_limit' | 'message_limit';
+        reason: 'overflow' | 'token_limit' | 'message_limit' | 'manual';
     };
 
     /** Old tool outputs were pruned (marked with compactedAt) to save tokens */

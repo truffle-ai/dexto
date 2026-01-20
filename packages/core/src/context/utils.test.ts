@@ -1149,13 +1149,15 @@ describe('filterCompacted', () => {
     });
 
     it('should return summary and messages after it when summary exists', () => {
+        // Layout: [summarized, summarized, summary, afterSummary, afterSummary]
+        // originalMessageCount=2 means first 2 messages were summarized
         const messages = [
             { role: 'user', content: 'Old message 1' },
             { role: 'assistant', content: 'Old response 1' },
             {
                 role: 'assistant',
                 content: 'Summary of conversation',
-                metadata: { isSummary: true },
+                metadata: { isSummary: true, originalMessageCount: 2 },
             },
             { role: 'user', content: 'New message' },
             { role: 'assistant', content: 'New response' },
@@ -1171,11 +1173,21 @@ describe('filterCompacted', () => {
     });
 
     it('should use most recent summary when multiple exist', () => {
+        // Layout: [summarized, firstSummary, preserved, secondSummary, afterSummary]
+        // The second summary at index 3 summarized messages 0-2 (originalMessageCount=3)
         const messages = [
             { role: 'user', content: 'Very old' },
-            { role: 'assistant', content: 'First summary', metadata: { isSummary: true } },
+            {
+                role: 'assistant',
+                content: 'First summary',
+                metadata: { isSummary: true, originalMessageCount: 1 },
+            },
             { role: 'user', content: 'Medium old' },
-            { role: 'assistant', content: 'Second summary', metadata: { isSummary: true } },
+            {
+                role: 'assistant',
+                content: 'Second summary',
+                metadata: { isSummary: true, originalMessageCount: 3 },
+            },
             { role: 'user', content: 'Recent message' },
         ] as unknown as InternalMessage[];
 
@@ -1218,16 +1230,48 @@ describe('filterCompacted', () => {
     });
 
     it('should handle summary at the end of history', () => {
+        // Layout: [summarized, summarized, summary]
+        // originalMessageCount=2 means first 2 messages were summarized, no preserved messages
         const messages = [
             { role: 'user', content: 'Old message' },
             { role: 'assistant', content: 'Old response' },
-            { role: 'assistant', content: 'Final summary', metadata: { isSummary: true } },
+            {
+                role: 'assistant',
+                content: 'Final summary',
+                metadata: { isSummary: true, originalMessageCount: 2 },
+            },
         ] as unknown as InternalMessage[];
 
         const result = filterCompacted(messages);
 
         expect(result).toHaveLength(1);
         expect(result[0]?.content).toBe('Final summary');
+    });
+
+    it('should preserve messages between summarized portion and summary', () => {
+        // This is the typical case after compaction:
+        // Layout: [summarized, summarized, preserved, preserved, summary]
+        // originalMessageCount=2 means first 2 messages were summarized
+        // Messages at indices 2,3 should be preserved
+        const messages = [
+            { role: 'user', content: 'Old message 1' },
+            { role: 'assistant', content: 'Old response 1' },
+            { role: 'user', content: 'Recent message' },
+            { role: 'assistant', content: 'Recent response' },
+            {
+                role: 'system',
+                content: 'Summary',
+                metadata: { isSummary: true, originalMessageCount: 2 },
+            },
+        ] as unknown as InternalMessage[];
+
+        const result = filterCompacted(messages);
+
+        // Should return: [summary, preserved1, preserved2]
+        expect(result).toHaveLength(3);
+        expect(result[0]?.content).toBe('Summary');
+        expect(result[1]?.content).toBe('Recent message');
+        expect(result[2]?.content).toBe('Recent response');
     });
 });
 

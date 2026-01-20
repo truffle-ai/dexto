@@ -19,6 +19,7 @@ import type { SystemPromptManager } from '../../systemPrompt/manager.js';
 import type { IDextoLogger } from '../../logger/v2/types.js';
 import { requiresApiKey } from '../registry.js';
 import { getPrimaryApiKeyEnvVar } from '../../utils/api-key-resolver.js';
+import type { CompactionConfigInput } from '../../context/compaction/schemas.js';
 
 export function createVercelModel(llmConfig: ValidatedLLMConfig): LanguageModel {
     const provider = llmConfig.provider;
@@ -201,6 +202,7 @@ function getOpenAICompatibleBaseURL(llmConfig: ValidatedLLMConfig): string {
  * @param resourceManager Resource manager for blob storage and resource access
  * @param logger Logger instance for dependency injection
  * @param compactionStrategy Optional compaction strategy for context management
+ * @param compactionConfig Optional compaction configuration for thresholds
  * @returns VercelLLMService instance
  */
 export function createLLMService(
@@ -212,7 +214,8 @@ export function createLLMService(
     sessionId: string,
     resourceManager: import('../../resources/index.js').ResourceManager,
     logger: IDextoLogger,
-    compactionStrategy?: import('../../context/compaction/types.js').ICompactionStrategy | null
+    compactionStrategy?: import('../../context/compaction/types.js').ICompactionStrategy | null,
+    compactionConfig?: CompactionConfigInput
 ): VercelLLMService {
     const model = createVercelModel(config);
 
@@ -226,6 +229,7 @@ export function createLLMService(
         sessionId,
         resourceManager,
         logger,
-        compactionStrategy
+        compactionStrategy,
+        compactionConfig
     );
 }

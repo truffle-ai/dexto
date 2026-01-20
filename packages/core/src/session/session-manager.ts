@@ -41,6 +41,12 @@ export interface SessionData {
     metadata?: Record<string, any>;
     tokenUsage?: SessionTokenUsage;
     estimatedCost?: number;
+    /** Parent session that was compacted to create this session */
+    continuedFrom?: string;
+    /** Child session created when this session was compacted */
+    continuedTo?: string;
+    /** Timestamp when this session was compacted (created a continuation) */
+    compactedAt?: number;
 }
 
 /**
@@ -764,6 +770,178 @@ export class SessionManager {
             maxSessions: this.maxSessions,
             sessionTTL: this.sessionTTL,
         };
+    }
+
+    /**
+     * Get the raw session data for a session ID.
+     * This is used for accessing continuation fields and other metadata.
+     *
+     * @param sessionId The session ID
+     * @returns Session data if found, undefined otherwise
+     */
+    public async getSessionData(sessionId: string): Promise<SessionData | undefined> {
+        await this.ensureInitialized();
+        const sessionKey = `session:${sessionId}`;
+        return await this.services.storageManager.getDatabase().get<SessionData>(sessionKey);
+    }
+
+    /**
+     * Creates a continuation session from a compacted session.
+     * The new session will have the summary as its first message.
+     *
+     * @param fromSessionId The session being compacted
+     * @returns The new session ID and ChatSession
+     */
+    public async createContinuationSession(
+        fromSessionId: string
+    ): Promise<{ sessionId: string; session: ChatSession }> {
+        await this.ensureInitialized();
+
+        // Verify source session exists
+        const fromSessionData = await this.getSessionData(fromSessionId);
+        if (!fromSessionData) {
+            throw SessionError.notFound(fromSessionId);
+        }
+
+        // Enforce maxSessions limit (same guard as createSessionInternal)
+        const activeSessionKeys = await this.services.storageManager.getDatabase().list('session:');
+        if (activeSessionKeys.length >= this.maxSessions) {
+            throw SessionError.maxSessionsExceeded(activeSessionKeys.length, this.maxSessions);
+        }
+
+        // Generate new session ID
+        const newSessionId = randomUUID();
+
+        // Create new session with continuation metadata
+        const newSessionData: SessionData = {
+            id: newSessionId,
+            createdAt: Date.now(),
+            lastActivity: Date.now(),
+            messageCount: 0,
+            continuedFrom: fromSessionId,
+            ...(fromSessionData.userId !== undefined && { userId: fromSessionData.userId }),
+            ...(fromSessionData.metadata && {
+                metadata: {
+                    ...fromSessionData.metadata,
+                    title: fromSessionData.metadata?.title, // Preserve title
+                },
+            }),
+        };
+
+        // Store new session metadata
+        const sessionKey = `session:${newSessionId}`;
+        await this.services.storageManager.getDatabase().set(sessionKey, newSessionData);
+        await this.services.storageManager
+            .getCache()
+            .set(sessionKey, newSessionData, this.sessionTTL / 1000);
+
+        // Create the ChatSession instance
+        // Wrap in try/catch to clean up persisted entries if init fails
+        const session = new ChatSession(
+            { ...this.services, sessionManager: this },
+            newSessionId,
+            this.logger
+        );
+
+        try {
+            await session.init();
+        } catch (error) {
+            // Clean up persisted entries on init failure
+            session.dispose();
+            await this.services.storageManager.getDatabase().delete(sessionKey);
+            await this.services.storageManager.getCache().delete(sessionKey);
+            throw error;
+        }
+
+        this.sessions.set(newSessionId, session);
+
+        this.logger.info(
+            `Created continuation session ${newSessionId} from compacted session ${fromSessionId}`
+        );
+
+        return { sessionId: newSessionId, session };
+    }
+
+    /**
+     * Marks a session as compacted and links it to its continuation session.
+     *
+     * @param sessionId The session being compacted
+     * @param continuedToId The new session created from compaction
+     */
+    public async markSessionCompacted(sessionId: string, continuedToId: string): Promise<void> {
+        await this.ensureInitialized();
+
+        const sessionKey = `session:${sessionId}`;
+        const sessionData = await this.services.storageManager
+            .getDatabase()
+            .get<SessionData>(sessionKey);
+
+        if (!sessionData) {
+            throw SessionError.notFound(sessionId);
+        }
+
+        // Update with compaction metadata
+        sessionData.continuedTo = continuedToId;
+        sessionData.compactedAt = Date.now();
+        sessionData.lastActivity = Date.now();
+
+        await this.services.storageManager.getDatabase().set(sessionKey, sessionData);
+        await this.services.storageManager
+            .getCache()
+            .set(sessionKey, sessionData, this.sessionTTL / 1000);
+
+        this.logger.debug(`Marked session ${sessionId} as compacted → ${continuedToId}`);
+    }
+
+    /**
+     * Gets the chain of linked sessions (ancestors and descendants).
+     * Returns sessions in chronological order (oldest first).
+     *
+     * @param sessionId Any session ID in the chain
+     * @returns Array of session data in the chain, ordered chronologically
+     */
+    public async getSessionChain(sessionId: string): Promise<SessionData[]> {
+        await this.ensureInitialized();
+
+        const chain: SessionData[] = [];
+        const visited = new Set<string>();
+
+        // Get the initial session
+        let currentData = await this.getSessionData(sessionId);
+        if (!currentData) {
+            return [];
+        }
+
+        // Walk backwards to find the root (oldest ancestor)
+        while (currentData?.continuedFrom && !visited.has(currentData.continuedFrom)) {
+            visited.add(currentData.id);
+            const parent = await this.getSessionData(currentData.continuedFrom);
+            if (!parent) {
+                // Keep last known node as root if ancestor is missing
+                break;
+            }
+            currentData = parent;
+        }
+
+        // If we stopped at a valid session, add it as root
+        if (currentData && !visited.has(currentData.id)) {
+            visited.add(currentData.id);
+        }
+
+        // Walk forwards from root, collecting all sessions
+        visited.clear();
+        while (currentData && !visited.has(currentData.id)) {
+            visited.add(currentData.id);
+            chain.push(currentData);
+
+            if (currentData.continuedTo) {
+                currentData = await this.getSessionData(currentData.continuedTo);
+            } else {
+                break;
+            }
+        }
+
+        return chain;
     }
 
     /**

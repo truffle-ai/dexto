@@ -238,6 +238,102 @@ export const generalCommands: CommandDefinition[] = [
         },
     },
     {
+        name: 'compact',
+        description: 'Compact context by summarizing older messages',
+        usage: '/compact',
+        category: 'General',
+        aliases: ['summarize'],
+        handler: async (
+            _args: string[],
+            agent: DextoAgent,
+            ctx: CommandContext
+        ): Promise<boolean | string> => {
+            try {
+                const { sessionId } = ctx;
+                if (!sessionId) {
+                    return formatForInkCli('⚠️  No active session to compact');
+                }
+
+                // Compact context - generates summary and hides older messages
+                const result = await agent.compactContext(sessionId);
+
+                if (!result) {
+                    return formatForInkCli(
+                        '💡 Nothing to compact - history is too short or compaction is not configured.'
+                    );
+                }
+
+                return formatForInkCli(
+                    `📦 Context compacted → Continuing in new session\n` +
+                        `   ${result.previousSessionId.slice(0, 8)}... → ${result.newSessionId.slice(0, 8)}...\n` +
+                        `   ${result.originalMessages} messages → ~${result.summaryTokens.toLocaleString()} token summary\n` +
+                        `💡 New session created with conversation summary. Old session preserved.`
+                );
+            } catch (error) {
+                const errorMsg = `Failed to compact context: ${error instanceof Error ? error.message : String(error)}`;
+                agent.logger.error(errorMsg);
+                return formatForInkCli(`❌ ${errorMsg}`);
+            }
+        },
+    },
+    {
+        name: 'context',
+        description: 'Show context window usage statistics',
+        usage: '/context',
+        category: 'General',
+        aliases: ['ctx', 'tokens'],
+        handler: async (
+            _args: string[],
+            agent: DextoAgent,
+            ctx: CommandContext
+        ): Promise<boolean | string> => {
+            try {
+                const { sessionId } = ctx;
+                if (!sessionId) {
+                    return formatForInkCli('⚠️  No active session');
+                }
+
+                const stats = await agent.getContextStats(sessionId);
+
+                // Create a visual progress bar (clamped to 0-100% for display)
+                const barWidth = 20;
+                const displayPercent = Math.min(stats.usagePercent, 100);
+                const filledWidth = Math.round((displayPercent / 100) * barWidth);
+                const emptyWidth = barWidth - filledWidth;
+                const progressBar = '█'.repeat(filledWidth) + '░'.repeat(emptyWidth);
+
+                // Color based on usage
+                let usageColor = chalk.green;
+                if (stats.usagePercent > 80) usageColor = chalk.red;
+                else if (stats.usagePercent > 60) usageColor = chalk.yellow;
+
+                const overflowWarning = stats.usagePercent > 100 ? ' ⚠️  OVERFLOW' : '';
+                const lines = [
+                    `📊 Context Usage`,
+                    `   ${usageColor(progressBar)} ${stats.usagePercent}%${overflowWarning}`,
+                    `   Tokens: ~${stats.estimatedTokens.toLocaleString()} / ${stats.maxContextTokens.toLocaleString()}`,
+                    `   Messages: ${stats.filteredMessageCount} visible (${stats.messageCount} total)`,
+                ];
+
+                if (stats.hasSummary) {
+                    lines.push(`   📦 Context has been compacted`);
+                }
+
+                if (stats.usagePercent > 100) {
+                    lines.push(
+                        `   💡 Use /compact to manually compact, or send a message to trigger auto-compaction`
+                    );
+                }
+
+                return formatForInkCli(lines.join('\n'));
+            } catch (error) {
+                const errorMsg = `Failed to get context stats: ${error instanceof Error ? error.message : String(error)}`;
+                agent.logger.error(errorMsg);
+                return formatForInkCli(`❌ ${errorMsg}`);
+            }
+        },
+    },
+    {
         name: 'copy',
         description: 'Copy the last assistant response to clipboard',
         usage: '/copy',
