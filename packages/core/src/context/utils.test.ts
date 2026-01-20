@@ -26,6 +26,8 @@ import {
     estimateFileTokens,
     estimateContentPartTokens,
     estimateMessagesTokens,
+    estimateToolsTokens,
+    estimateContextTokens,
 } from './utils.js';
 import { InternalMessage } from './types.js';
 import { LLMContext } from '../llm/types.js';
@@ -1653,5 +1655,166 @@ describe('Token Estimation - Overflow Functions', () => {
 
         // DEFAULT_OUTPUT_BUFFER should be 16000
         expect(DEFAULT_OUTPUT_BUFFER).toBe(16000);
+    });
+});
+
+describe('estimateToolsTokens', () => {
+    it('should return 0 total for empty tools object', () => {
+        const result = estimateToolsTokens({});
+        expect(result.total).toBe(0);
+        expect(result.perTool).toEqual([]);
+    });
+
+    it('should estimate tokens for single tool', () => {
+        const tools = {
+            search: {
+                name: 'search',
+                description: 'Search the web for information',
+                parameters: { type: 'object', properties: { query: { type: 'string' } } },
+            },
+        };
+        const result = estimateToolsTokens(tools);
+        expect(result.total).toBeGreaterThan(0);
+        expect(result.perTool).toHaveLength(1);
+        expect(result.perTool[0]?.name).toBe('search');
+        expect(result.perTool[0]?.tokens).toBeGreaterThan(0);
+    });
+
+    it('should estimate tokens for multiple tools', () => {
+        const tools = {
+            read_file: {
+                name: 'read_file',
+                description: 'Read a file from disk',
+                parameters: { type: 'object', properties: { path: { type: 'string' } } },
+            },
+            write_file: {
+                name: 'write_file',
+                description: 'Write content to a file',
+                parameters: {
+                    type: 'object',
+                    properties: { path: { type: 'string' }, content: { type: 'string' } },
+                },
+            },
+        };
+        const result = estimateToolsTokens(tools);
+        expect(result.total).toBeGreaterThan(0);
+        expect(result.perTool).toHaveLength(2);
+        // Total should equal sum of per-tool tokens
+        const sumOfPerTool = result.perTool.reduce((sum, t) => sum + t.tokens, 0);
+        expect(result.total).toBe(sumOfPerTool);
+    });
+
+    it('should use key as tool name when name property is missing', () => {
+        const tools = {
+            my_tool: {
+                description: 'A tool without a name property',
+                parameters: {},
+            },
+        };
+        const result = estimateToolsTokens(tools);
+        expect(result.perTool[0]?.name).toBe('my_tool');
+    });
+
+    it('should handle tools with complex parameters', () => {
+        const tools = {
+            complex_tool: {
+                name: 'complex_tool',
+                description: 'A tool with complex nested parameters',
+                parameters: {
+                    type: 'object',
+                    properties: {
+                        nested: {
+                            type: 'object',
+                            properties: {
+                                array: { type: 'array', items: { type: 'string' } },
+                                number: { type: 'number' },
+                            },
+                        },
+                    },
+                },
+            },
+        };
+        const result = estimateToolsTokens(tools);
+        // Complex parameters should result in more tokens
+        expect(result.total).toBeGreaterThan(20);
+    });
+});
+
+describe('estimateContextTokens', () => {
+    it('should return total and breakdown with all components', () => {
+        const systemPrompt = 'You are a helpful assistant.';
+        const messages: InternalMessage[] = [
+            { role: 'user', content: [{ type: 'text', text: 'Hello!' }] },
+        ];
+        const tools = {
+            search: {
+                name: 'search',
+                description: 'Search the web',
+                parameters: {},
+            },
+        };
+
+        const result = estimateContextTokens(systemPrompt, messages, tools);
+
+        expect(result.total).toBeGreaterThan(0);
+        expect(result.breakdown.systemPrompt).toBeGreaterThan(0);
+        expect(result.breakdown.messages).toBeGreaterThan(0);
+        expect(result.breakdown.tools.total).toBeGreaterThan(0);
+        expect(result.breakdown.tools.perTool).toHaveLength(1);
+    });
+
+    it('should return 0 for tools when no tools provided', () => {
+        const systemPrompt = 'You are helpful.';
+        const messages: InternalMessage[] = [
+            { role: 'user', content: [{ type: 'text', text: 'Hi' }] },
+        ];
+
+        const result = estimateContextTokens(systemPrompt, messages);
+
+        expect(result.breakdown.tools.total).toBe(0);
+        expect(result.breakdown.tools.perTool).toEqual([]);
+    });
+
+    it('should have total equal to sum of breakdown components', () => {
+        const systemPrompt = 'System instructions here.';
+        const messages: InternalMessage[] = [
+            { role: 'user', content: [{ type: 'text', text: 'User message' }] },
+            { role: 'assistant', content: [{ type: 'text', text: 'Assistant response' }] },
+        ];
+        const tools = {
+            tool1: { name: 'tool1', description: 'First tool', parameters: {} },
+            tool2: { name: 'tool2', description: 'Second tool', parameters: {} },
+        };
+
+        const result = estimateContextTokens(systemPrompt, messages, tools);
+
+        const expectedTotal =
+            result.breakdown.systemPrompt +
+            result.breakdown.messages +
+            result.breakdown.tools.total;
+        expect(result.total).toBe(expectedTotal);
+    });
+
+    it('should handle empty messages array', () => {
+        const systemPrompt = 'System prompt';
+        const messages: InternalMessage[] = [];
+
+        const result = estimateContextTokens(systemPrompt, messages);
+
+        expect(result.breakdown.messages).toBe(0);
+        expect(result.breakdown.systemPrompt).toBeGreaterThan(0);
+        expect(result.total).toBe(result.breakdown.systemPrompt);
+    });
+
+    it('should handle empty system prompt', () => {
+        const systemPrompt = '';
+        const messages: InternalMessage[] = [
+            { role: 'user', content: [{ type: 'text', text: 'Hello' }] },
+        ];
+
+        const result = estimateContextTokens(systemPrompt, messages);
+
+        expect(result.breakdown.systemPrompt).toBe(0);
+        expect(result.breakdown.messages).toBeGreaterThan(0);
     });
 });

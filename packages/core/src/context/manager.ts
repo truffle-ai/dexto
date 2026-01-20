@@ -10,8 +10,7 @@ import {
     expandBlobReferences,
     isLikelyBase64String,
     filterCompacted,
-    estimateStringTokens,
-    estimateMessagesTokens,
+    estimateContextTokens,
 } from './utils.js';
 import type { SanitizedToolResult } from './types.js';
 import { DynamicContributorContext } from '../systemPrompt/types.js';
@@ -930,52 +929,29 @@ export class ContextManager<TMessage = unknown> {
     }> {
         // Step 1: Get system prompt (same as LLM preparation)
         const systemPrompt = await this.getSystemPrompt(contributorContext);
-        const systemPromptTokens = estimateStringTokens(systemPrompt);
 
         // Step 2: Prepare history (same as LLM preparation - single source of truth)
         const { preparedHistory, stats } = await this.prepareHistory();
 
-        // Step 3: Estimate message tokens from prepared history
-        const messagesTokens = estimateMessagesTokens(preparedHistory);
+        // Step 3: Estimate all context tokens using single source of truth
+        const estimate = estimateContextTokens(systemPrompt, preparedHistory, tools);
 
-        // Step 4: Estimate tool tokens
-        const perToolTokens: Array<{ name: string; tokens: number }> = [];
-        let toolsTokensTotal = 0;
-        for (const [key, tool] of Object.entries(tools)) {
-            const toolName = tool.name || key;
-            const toolDescription = tool.description || '';
-            const toolSchema = JSON.stringify(tool.parameters || {});
-            const tokens = estimateStringTokens(toolName + toolDescription + toolSchema);
-            perToolTokens.push({ name: toolName, tokens });
-            toolsTokensTotal += tokens;
-        }
-
-        // Step 5: Calculate total
-        const estimated = systemPromptTokens + toolsTokensTotal + messagesTokens;
-
-        // Step 6: Get actual and log comparison for calibration
+        // Step 4: Get actual and log comparison for calibration
         const actual = this.lastActualInputTokens;
         if (actual !== null) {
-            const diff = estimated - actual;
+            const diff = estimate.total - actual;
             const diffPercent = actual > 0 ? ((diff / actual) * 100).toFixed(1) : '0.0';
             // Log at info level so users can see estimation accuracy
             this.logger.info(
-                `Context token estimate vs actual: estimated=${estimated}, actual=${actual}, ` +
+                `Context token estimate vs actual: estimated=${estimate.total}, actual=${actual}, ` +
                     `diff=${diff} (${diffPercent}%)`
             );
         }
 
         return {
-            estimated,
+            estimated: estimate.total,
             actual,
-            breakdown: {
-                systemPrompt: systemPromptTokens,
-                tools: {
-                    total: toolsTokensTotal,
-                    perTool: perToolTokens,
-                },
-                messages: messagesTokens,
-            },
+            breakdown: estimate.breakdown,
             stats: {
                 originalMessageCount: stats.originalCount,
                 filteredMessageCount: stats.filteredCount,

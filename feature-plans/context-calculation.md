@@ -415,7 +415,7 @@ interface ContextCalculation {
 
 ## Implementation Plan
 
-### Phase 1: Fix Reasoning Storage (HIGH PRIORITY - Bug #1)
+### Phase 1: Fix Reasoning Storage (HIGH PRIORITY - Bug #1) ✅ COMPLETED
 
 **The root cause:** `stream-processor.ts` collects reasoning but never persists it.
 
@@ -465,7 +465,7 @@ interface ContextCalculation {
    }
    ```
 
-### Phase 2: Fix Reasoning Round-Trip (Bug #2)
+### Phase 2: Fix Reasoning Round-Trip (Bug #2) ✅ COMPLETED
 
 **Files to modify:**
 - `packages/core/src/llm/formatters/vercel.ts`
@@ -497,7 +497,7 @@ export interface ReasoningPart {
 }
 ```
 
-### Phase 3: Unified Context Calculation
+### Phase 3: Unified Context Calculation ✅ COMPLETED
 
 **Files to modify:**
 - `packages/core/src/context/manager.ts` - `getContextTokenEstimate()`

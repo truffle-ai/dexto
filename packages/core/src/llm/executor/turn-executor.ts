@@ -40,7 +40,7 @@ import { toError } from '../../utils/error-conversion.js';
 import { isOverflow, type ModelLimits } from '../../context/compaction/overflow.js';
 import { ReactiveOverflowStrategy } from '../../context/compaction/strategies/reactive-overflow.js';
 import type { ICompactionStrategy } from '../../context/compaction/types.js';
-import { estimateMessagesTokens } from '../../context/utils.js';
+import { estimateContextTokens } from '../../context/utils.js';
 
 /**
  * Static cache for tool support validation.
@@ -247,7 +247,13 @@ export class TurnExecutor {
 
                 // 4. PRE-CHECK: Estimate tokens and compact if over threshold BEFORE LLM call
                 // This ensures we never make an oversized call and avoids unnecessary compaction on stop steps
-                const estimatedTokens = estimateMessagesTokens(prepared.preparedHistory);
+                // Get tool definitions for estimation (same formula as /context overlay)
+                const toolDefinitions = supportsTools ? await this.toolManager.getAllTools() : {};
+                const estimatedTokens = estimateContextTokens(
+                    prepared.systemPrompt,
+                    prepared.preparedHistory,
+                    toolDefinitions
+                ).total;
                 if (this.shouldCompact(estimatedTokens)) {
                     this.logger.debug(
                         `Pre-check: estimated ${estimatedTokens} tokens exceeds threshold, compacting`

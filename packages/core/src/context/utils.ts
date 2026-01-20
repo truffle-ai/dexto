@@ -469,6 +469,88 @@ export function estimateMessagesTokens(messages: readonly InternalMessage[]): nu
 }
 
 /**
+ * Tool definition interface for token estimation.
+ * Matches the structure used by both ToolManager and getContextTokenEstimate.
+ */
+export interface ToolDefinition {
+    name?: string;
+    description?: string;
+    parameters?: unknown;
+}
+
+/**
+ * Estimate tokens for tool definitions.
+ * Returns both total and per-tool breakdown for UI display.
+ */
+export function estimateToolsTokens(tools: Record<string, ToolDefinition>): {
+    total: number;
+    perTool: Array<{ name: string; tokens: number }>;
+} {
+    const perTool: Array<{ name: string; tokens: number }> = [];
+    let total = 0;
+    for (const [key, tool] of Object.entries(tools)) {
+        const toolName = tool.name || key;
+        const toolDescription = tool.description || '';
+        const toolSchema = JSON.stringify(tool.parameters || {});
+        const tokens = estimateStringTokens(toolName + toolDescription + toolSchema);
+        perTool.push({ name: toolName, tokens });
+        total += tokens;
+    }
+    return { total, perTool };
+}
+
+/**
+ * Result of context token estimation with breakdown.
+ */
+export interface ContextTokenEstimate {
+    /** Total estimated tokens */
+    total: number;
+    /** Breakdown by category */
+    breakdown: {
+        systemPrompt: number;
+        messages: number;
+        tools: {
+            total: number;
+            perTool: Array<{ name: string; tokens: number }>;
+        };
+    };
+}
+
+/**
+ * Estimate total context tokens for LLM calls.
+ * This is the single source of truth for context token estimation,
+ * used by both /context overlay and compaction pre-check.
+ *
+ * IMPORTANT: The `preparedHistory` parameter must be the result of
+ * `ContextManager.prepareHistory()` or `getFormattedMessagesForLLM()`.
+ * This ensures messages are properly filtered (compacted messages removed)
+ * and pruned tool outputs are replaced with placeholders.
+ *
+ * @param systemPrompt The system prompt string
+ * @param preparedHistory Message history AFTER filterCompacted and pruning
+ * @param tools Optional tool definitions - if not provided, tools are not counted
+ * @returns Token estimate with total and breakdown
+ */
+export function estimateContextTokens(
+    systemPrompt: string,
+    preparedHistory: readonly InternalMessage[],
+    tools?: Record<string, ToolDefinition>
+): ContextTokenEstimate {
+    const systemPromptTokens = estimateStringTokens(systemPrompt);
+    const messagesTokens = estimateMessagesTokens(preparedHistory);
+    const toolsEstimate = tools ? estimateToolsTokens(tools) : { total: 0, perTool: [] };
+
+    return {
+        total: systemPromptTokens + toolsEstimate.total + messagesTokens,
+        breakdown: {
+            systemPrompt: systemPromptTokens,
+            messages: messagesTokens,
+            tools: toolsEstimate,
+        },
+    };
+}
+
+/**
  * Extracts image data (base64 or URL) from an ImagePart or raw buffer.
  * @param imagePart The image part containing image data
  * @returns Base64-encoded string or URL string
