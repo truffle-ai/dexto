@@ -1726,6 +1726,8 @@ export class DextoAgent {
         filteredMessageCount: number;
         prunedToolCount: number;
         hasSummary: boolean;
+        /** Number of times this session chain has been compacted */
+        compactionCount: number;
         /** Current model identifier */
         model: string;
         /** Display name for the model */
@@ -1806,6 +1808,9 @@ export class DextoAgent {
         // Use actual tokens if available, otherwise use estimate
         const estimatedTokens = tokenEstimate.actual ?? tokenEstimate.estimated;
 
+        // Get compaction count for this session
+        const compactionCount = await this.sessionManager.getCompactionCount(sessionId);
+
         return {
             estimatedTokens,
             actualTokens: tokenEstimate.actual,
@@ -1816,6 +1821,7 @@ export class DextoAgent {
             filteredMessageCount: tokenEstimate.stats.filteredMessageCount,
             prunedToolCount: tokenEstimate.stats.prunedToolCount,
             hasSummary,
+            compactionCount,
             model: llmConfig.model,
             modelDisplayName,
             breakdown: {

@@ -34,6 +34,7 @@ interface ContextStats {
     filteredMessageCount: number;
     prunedToolCount: number;
     hasSummary: boolean;
+    compactionCount: number;
     model: string;
     modelDisplayName: string;
     breakdown: {
@@ -308,8 +309,11 @@ const ContextStatsOverlay = forwardRef<ContextStatsOverlayHandle, ContextStatsOv
                             </Text>
                         )}
 
-                        {stats.hasSummary && (
-                            <Text color="blue">📦 Context has been compacted</Text>
+                        {stats.compactionCount > 0 && (
+                            <Text color="blue">
+                                📦 Compacted {stats.compactionCount} time
+                                {stats.compactionCount > 1 ? 's' : ''}
+                            </Text>
                         )}
 
                         {stats.usagePercent > 100 && (

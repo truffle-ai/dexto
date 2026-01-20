@@ -47,6 +47,8 @@ export interface SessionData {
     continuedTo?: string;
     /** Timestamp when this session was compacted (created a continuation) */
     compactedAt?: number;
+    /** Number of times this session chain has been compacted (inherited + 1 on each compaction) */
+    compactionCount?: number;
 }
 
 /**
@@ -819,12 +821,16 @@ export class SessionManager {
         this.services.stateManager.updateLLM(originalLLMConfig, newSessionId);
 
         // Create new session with continuation metadata
+        // Increment compaction count from parent (0 if not set)
+        const parentCompactionCount = fromSessionData.compactionCount ?? 0;
+
         const newSessionData: SessionData = {
             id: newSessionId,
             createdAt: Date.now(),
             lastActivity: Date.now(),
             messageCount: 0,
             continuedFrom: fromSessionId,
+            compactionCount: parentCompactionCount + 1,
             ...(fromSessionData.userId !== undefined && { userId: fromSessionData.userId }),
             ...(fromSessionData.metadata && {
                 metadata: {
@@ -897,6 +903,18 @@ export class SessionManager {
             .set(sessionKey, sessionData, this.sessionTTL / 1000);
 
         this.logger.debug(`Marked session ${sessionId} as compacted → ${continuedToId}`);
+    }
+
+    /**
+     * Gets the compaction count for a session.
+     * Returns 0 if the session has never been compacted.
+     *
+     * @param sessionId The session ID
+     * @returns Number of times this session chain has been compacted
+     */
+    public async getCompactionCount(sessionId: string): Promise<number> {
+        const sessionData = await this.getSessionData(sessionId);
+        return sessionData?.compactionCount ?? 0;
     }
 
     /**
