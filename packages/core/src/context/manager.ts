@@ -1105,11 +1105,42 @@ export class ContextManager<TMessage = unknown> {
     }
 
     /**
-     * Estimates the next input token count using the same formula as getContextTokenEstimate().
+     * Estimates the next input token count using actual token data from the previous LLM call.
      * This is a lightweight version for compaction pre-checks that only returns the total.
      *
-     * Formula (when actuals are available):
+     * ## Formula (when actuals are available):
      *   estimatedNextInput = lastInputTokens + lastOutputTokens + newMessagesEstimate
+     *
+     * ## Why this formula works:
+     *
+     * Consider two consecutive LLM calls:
+     *
+     * ```
+     * Call N:
+     *   Input sent: system + tools + [user1]           = lastInput tokens
+     *   Output received: assistant response            = lastOutput tokens
+     *
+     * Call N+1:
+     *   Input will be: system + tools + [user1, assistant1, user2, ...]
+     *                ≈ lastInput + assistant1_as_input + new_messages
+     *                ≈ lastInput + lastOutput + newMessagesEstimate
+     * ```
+     *
+     * The assistant's response (lastOutput) becomes part of the next input as conversation
+     * history. Text tokenizes similarly whether sent as input or received as output.
+     *
+     * ## No double-counting:
+     *
+     * The assistant message is added to history DURING streaming (before this method runs),
+     * and recordLastCallMessageCount() captures the count INCLUDING that message.
+     * Therefore, newMessages = history.slice(lastMsgCount) EXCLUDES the assistant message,
+     * so lastOutput and newMessages don't overlap.
+     *
+     * ## Pruning caveat:
+     *
+     * If tool output pruning occurs between calls, lastInput may be stale (higher than
+     * actual). This causes OVERESTIMATION, which is SAFE - we'd trigger compaction
+     * earlier rather than risk context overflow.
      *
      * @param systemPrompt The system prompt string
      * @param preparedHistory Message history AFTER filterCompacted and pruning
