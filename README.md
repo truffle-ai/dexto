@@ -3,7 +3,7 @@
     <picture>
       <source media="(prefers-color-scheme: light)" srcset=".github/assets/dexto_logo_light.svg">
       <source media="(prefers-color-scheme: dark)" srcset=".github/assets/dexto_logo_dark.svg">
-      <img alt="Dexto" src=".github/assets/dexto_logo_dark.svg" width="80%" style="max-width: 1000px; padding: 24px;">
+      <img alt="Dexto" src=".github/assets/dexto_logo_dark.svg" width="40%" style="max-width: 1000px; padding: 24px 8px;">
     </picture>
   </div>
 </a>
@@ -304,13 +304,12 @@ Start a Dexto server programmatically to expose REST and SSE streaming APIs to i
 
 ```typescript
 import { DextoAgent } from '@dexto/core';
-import { startHonoApiServer } from 'dexto';
+import { loadAgentConfig, startHonoApiServer } from 'dexto';
 
+const config = await loadAgentConfig('./agents/my-agent.yml');
 const agent = new DextoAgent(config);
 const { server } = await startHonoApiServer(agent, 3001);
 // POST /api/message, GET /api/sessions, etc.
-// ngrok http 3001  # Optional: expose publicly
-
 ```
 
 This starts an HTTP server with full REST and SSE APIs, enabling integration with web frontends, webhooks, and other services. See the [REST API Documentation](https://docs.dexto.ai/api/rest/) for available endpoints.
