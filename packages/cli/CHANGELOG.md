@@ -1,5 +1,52 @@
 # dexto
 
+## 1.5.4
+
+### Patch Changes
+
+- 0016cd3: Bug fixes and updates for compaction. Also added UI enhancements for compaction.
+- 499b890: Fix model override persistence after compaction and improve context token tracking
+
+    **Bug Fixes:**
+    - Fix model override resetting to config model after compaction (now respects session overrides)
+
+    **Context Tracking Improvements:**
+    - New algorithm uses actual `input_tokens` and `output_tokens` from LLM responses as source of truth
+    - Self-correcting estimates: inaccuracies auto-correct when next LLM response arrives
+    - Handles pruning automatically (next response's input_tokens reflects pruned state)
+    - `/context` and compaction decisions now share common calculation logic
+    - Removed `outputBuffer` concept in favor of single configurable threshold
+    - Default compaction threshold lowered to 90%
+
+    **New `/context` Command:**
+    - Interactive overlay with stacked token bar visualization
+    - Breakdown by component: system prompt, tools, messages, free space, auto-compact buffer
+    - Expandable per-tool token details
+    - Shows pruned tool count and compaction history
+
+    **Observability:**
+    - Comparison logging between estimated vs actual tokens for calibration
+    - `dexto_llm_tokens_consumed` metric now includes estimated input tokens and accuracy metrics
+
+- aa2c9a0: - new --dev flag for using dev mode with the CLI (for maintainers) (sets DEXTO_DEV_MODE=true and ensures local files are used)
+    - improved bash tool descriptions
+    - fixed explore agent task description getting truncated
+    - fixed some alignment issues
+    - fix search/find tools not asking approval for working outside directory
+    - add sound feature (sounds when approval reqd, when loop done)
+        - configurable in `preferences.yml` (on by default) and in `~/.dexto/sounds`, instructions in comment in `~/.dexto/preferences.yml`
+    - add new `env` system prompt contributor that includes info about os, working directory, git status. useful for coding agent to get enough context to improve cmd construction without unnecessary directory shifts
+    - support for loading `.claude/commands` and `.cursor/commands` global and local commands in addition to `.dexto/commands`
+- Updated dependencies [0016cd3]
+- Updated dependencies [499b890]
+- Updated dependencies [aa2c9a0]
+    - @dexto/core@1.5.4
+    - @dexto/analytics@1.5.4
+    - @dexto/agent-management@1.5.4
+    - @dexto/image-local@1.5.4
+    - @dexto/server@1.5.4
+    - @dexto/registry@1.5.4
+
 ## 1.5.3
 
 ### Patch Changes
