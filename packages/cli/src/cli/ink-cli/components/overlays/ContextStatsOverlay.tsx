@@ -2,6 +2,7 @@
  * ContextStatsOverlay Component
  * Interactive overlay for viewing context window usage statistics
  * Features:
+ * - Stacked colored progress bar showing breakdown
  * - Navigate with arrow keys to highlight items
  * - Press Enter to expand/collapse sections (e.g., Tools)
  */
@@ -46,8 +47,23 @@ interface ContextStats {
 }
 
 // Breakdown items that can be selected
-type BreakdownItem = 'systemPrompt' | 'tools' | 'messages' | 'outputBuffer';
-const BREAKDOWN_ITEMS: BreakdownItem[] = ['systemPrompt', 'tools', 'messages', 'outputBuffer'];
+type BreakdownItem = 'systemPrompt' | 'tools' | 'messages' | 'freeSpace' | 'outputBuffer';
+const BREAKDOWN_ITEMS: BreakdownItem[] = [
+    'systemPrompt',
+    'tools',
+    'messages',
+    'freeSpace',
+    'outputBuffer',
+];
+
+// Colors for each breakdown category
+const ITEM_COLORS: Record<BreakdownItem, string> = {
+    systemPrompt: 'cyan',
+    tools: 'yellow',
+    messages: 'blue',
+    freeSpace: 'gray',
+    outputBuffer: 'magenta',
+};
 
 /**
  * Format token count for display (e.g., 1500 -> "1.5k")
@@ -60,13 +76,64 @@ function formatTokens(tokens: number): string {
 }
 
 /**
- * Create a visual progress bar
+ * Create a stacked colored progress bar
+ * Returns an array of {char, color} segments to render
  */
-function createProgressBar(percent: number, width: number = 20): string {
-    const clampedPercent = Math.min(percent, 100);
-    const filledWidth = Math.round((clampedPercent / 100) * width);
-    const emptyWidth = width - filledWidth;
-    return '█'.repeat(filledWidth) + '░'.repeat(emptyWidth);
+interface BarSegment {
+    char: string;
+    color: string;
+    width: number;
+}
+
+function createStackedBar(
+    breakdown: ContextStats['breakdown'],
+    maxTokens: number,
+    totalWidth: number = 40
+): BarSegment[] {
+    const segments: BarSegment[] = [];
+
+    // Calculate widths for each segment (proportional to token count)
+    const usedTokens = breakdown.systemPrompt + breakdown.tools.total + breakdown.messages;
+    const freeTokens = Math.max(0, maxTokens - usedTokens - breakdown.outputBuffer);
+
+    // Helper to calculate width (minimum 1 char if tokens > 0, proportional otherwise)
+    const getWidth = (tokens: number): number => {
+        if (tokens <= 0) return 0;
+        const proportional = Math.round((tokens / maxTokens) * totalWidth);
+        return Math.max(1, proportional);
+    };
+
+    // Add used segments
+    const sysWidth = getWidth(breakdown.systemPrompt);
+    const toolsWidth = getWidth(breakdown.tools.total);
+    const msgsWidth = getWidth(breakdown.messages);
+    const freeWidth = getWidth(freeTokens);
+    const reservedWidth = getWidth(breakdown.outputBuffer);
+
+    // Adjust to fit total width (take from free space)
+    const totalUsed = sysWidth + toolsWidth + msgsWidth + freeWidth + reservedWidth;
+    const adjustment = totalUsed - totalWidth;
+
+    // Apply adjustment to free space (it's the most flexible)
+    const adjustedFreeWidth = Math.max(0, freeWidth - adjustment);
+
+    if (sysWidth > 0) {
+        segments.push({ char: '█', color: ITEM_COLORS.systemPrompt, width: sysWidth });
+    }
+    if (toolsWidth > 0) {
+        segments.push({ char: '█', color: ITEM_COLORS.tools, width: toolsWidth });
+    }
+    if (msgsWidth > 0) {
+        segments.push({ char: '█', color: ITEM_COLORS.messages, width: msgsWidth });
+    }
+    if (adjustedFreeWidth > 0) {
+        segments.push({ char: '░', color: 'gray', width: adjustedFreeWidth });
+    }
+    if (reservedWidth > 0) {
+        segments.push({ char: '▒', color: ITEM_COLORS.outputBuffer, width: reservedWidth });
+    }
+
+    return segments;
 }
 
 /**
@@ -216,12 +283,6 @@ const ContextStatsOverlay = forwardRef<ContextStatsOverlayHandle, ContextStatsOv
             return `${percent}%`;
         };
 
-        // Determine usage color
-        let usageColor: string = 'green';
-        if (stats.usagePercent > 80) usageColor = 'red';
-        else if (stats.usagePercent > 60) usageColor = 'yellow';
-
-        const progressBar = createProgressBar(stats.usagePercent);
         const tokenDisplay =
             stats.actualTokens !== null
                 ? formatTokens(stats.actualTokens)
@@ -229,7 +290,10 @@ const ContextStatsOverlay = forwardRef<ContextStatsOverlayHandle, ContextStatsOv
 
         const isToolsExpanded = expandedSections.has('tools');
 
-        // Helper to render a breakdown row
+        // Create stacked bar segments
+        const barSegments = createStackedBar(stats.breakdown, stats.maxContextTokens);
+
+        // Helper to render a breakdown row with colored indicator
         const renderRow = (
             index: number,
             item: BreakdownItem,
@@ -241,19 +305,41 @@ const ContextStatsOverlay = forwardRef<ContextStatsOverlayHandle, ContextStatsOv
             const isSelected = selectedIndex === index;
             const prefix = isLast ? '└─' : '├─';
             const expandIcon = expandable ? (isToolsExpanded ? '▼' : '▶') : ' ';
+            const itemColor = ITEM_COLORS[item];
+            // Use different characters for different types
+            const indicator = item === 'freeSpace' ? '░' : item === 'outputBuffer' ? '▒' : '█';
 
             return (
-                <Text key={item} color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>
-                    {prefix} {expandIcon} {label}: {formatTokens(tokens)} ({pct(tokens)})
+                <Box key={item}>
+                    <Text color={isSelected ? 'white' : 'gray'}>{prefix} </Text>
+                    <Text color={itemColor} bold={isSelected}>
+                        {indicator}
+                    </Text>
+                    <Text color={isSelected ? 'white' : 'gray'} bold={isSelected}>
+                        {' '}
+                        {expandIcon} {label}: {formatTokens(tokens)} ({pct(tokens)})
+                    </Text>
                     {isSelected && expandable && (
                         <Text color="gray" dimColor>
                             {' '}
                             (Enter to {isToolsExpanded ? 'collapse' : 'expand'})
                         </Text>
                     )}
-                </Text>
+                </Box>
             );
         };
+
+        // Calculate free space
+        const usedTokens =
+            stats.breakdown.systemPrompt + stats.breakdown.tools.total + stats.breakdown.messages;
+        const freeTokens = Math.max(
+            0,
+            stats.maxContextTokens - usedTokens - stats.breakdown.outputBuffer
+        );
+        const freePercent =
+            stats.maxContextTokens > 0
+                ? ((freeTokens / stats.maxContextTokens) * 100).toFixed(1)
+                : '0.0';
 
         return (
             <Box
@@ -271,11 +357,13 @@ const ContextStatsOverlay = forwardRef<ContextStatsOverlayHandle, ContextStatsOv
                     <Text color="gray"> - {stats.modelDisplayName}</Text>
                 </Box>
 
-                {/* Progress bar */}
+                {/* Stacked progress bar */}
                 <Box>
-                    <Text color={usageColor}>{progressBar}</Text>
-                    <Text color={usageColor}> {stats.usagePercent}%</Text>
-                    {stats.usagePercent > 100 && <Text color="red"> ⚠️ OVERFLOW</Text>}
+                    {barSegments.map((segment, idx) => (
+                        <Text key={idx} color={segment.color}>
+                            {segment.char.repeat(segment.width)}
+                        </Text>
+                    ))}
                 </Box>
 
                 {/* Token summary */}
@@ -289,6 +377,18 @@ const ContextStatsOverlay = forwardRef<ContextStatsOverlayHandle, ContextStatsOv
                             (estimated)
                         </Text>
                     )}
+                    <Text color="gray"> • </Text>
+                    <Text
+                        color={
+                            stats.usagePercent > 80
+                                ? 'red'
+                                : stats.usagePercent > 60
+                                  ? 'yellow'
+                                  : 'green'
+                        }
+                    >
+                        {stats.usagePercent}% used
+                    </Text>
                 </Box>
 
                 {/* Breakdown */}
@@ -323,7 +423,7 @@ const ContextStatsOverlay = forwardRef<ContextStatsOverlayHandle, ContextStatsOv
                                     .map((tool, idx, arr) => (
                                         <Text key={tool.name} color="gray" dimColor>
                                             {idx === arr.length - 1 ? '└─' : '├─'}{' '}
-                                            <Text color="cyan" dimColor>
+                                            <Text color="yellow" dimColor>
                                                 {tool.name}
                                             </Text>
                                             : {formatTokens(tool.tokens)} ({pct(tool.tokens)})
@@ -334,8 +434,9 @@ const ContextStatsOverlay = forwardRef<ContextStatsOverlayHandle, ContextStatsOv
                     )}
 
                     {renderRow(2, 'messages', 'Messages', stats.breakdown.messages, false)}
+                    {renderRow(3, 'freeSpace', 'Free space', freeTokens, false)}
                     {renderRow(
-                        3,
+                        4,
                         'outputBuffer',
                         'Output buffer (reserved)',
                         stats.breakdown.outputBuffer,
