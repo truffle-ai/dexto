@@ -34,8 +34,6 @@ export enum ErrorScope {
     PROMPT = 'prompt', // Prompt management, resolution, and providers
     MEMORY = 'memory', // Memory management and storage
     PLUGIN = 'plugin', // Plugin loading, validation, and execution
-    FILESYSTEM = 'filesystem', // File system operations and path validation
-    PROCESS = 'process', // Process execution and command validation
     TELEMETRY = 'telemetry', // Telemetry initialization and export operations
 }
 
