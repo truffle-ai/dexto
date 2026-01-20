@@ -3,7 +3,7 @@
     <picture>
       <source media="(prefers-color-scheme: light)" srcset=".github/assets/dexto_logo_light.svg">
       <source media="(prefers-color-scheme: dark)" srcset=".github/assets/dexto_logo_dark.svg">
-      <img alt="Dexto" src=".github/assets/dexto_logo_dark.svg" width="40%" style="max-width: 1000px; padding: 24px 8px;">
+      <img alt="Dexto" src=".github/assets/dexto_logo_dark.svg" width="55%" style="max-width: 1000px; padding: 48px 8px;">
     </picture>
   </div>
 </a>
