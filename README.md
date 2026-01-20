@@ -207,7 +207,7 @@ customTools:
 ```
 
 **Built-in sub-agents:**
-- **explore-agent** – Fast, read-only codebase exploration (uses Haiku for speed)
+- **explore-agent** – Fast, read-only codebase exploration
 
 Any agent in the [Agent Registry](#agent-registry) can be spawned as a sub-agent—including custom agents you create and register.
 
