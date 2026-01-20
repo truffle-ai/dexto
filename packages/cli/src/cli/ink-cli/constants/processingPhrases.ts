@@ -62,9 +62,13 @@ export const processingPhrases: string[] = [
     'Something came in the mail today…',
     'Road work ahead? I sure hope it does…',
     'Merry Chrysler…',
-    "I'm in me mum's car. Broom broom…",
+    "I'm in me mum's car. Vroom vroom…",
     'Stop! I could have dropped my croissant!…',
     'That was legitness…',
+    'Why are you running?…',
+    'What da dog doin?…',
+    'Can i pet that dawg?…',
+    'And they were roommates!…',
 
     // Nerdy
     'Attention is all I need…',
