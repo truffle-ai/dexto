@@ -373,37 +373,27 @@ const ContextStatsOverlay = forwardRef<ContextStatsOverlayHandle, ContextStatsOv
                     <Text color="gray"> - {stats.modelDisplayName}</Text>
                 </Box>
 
-                {/* Stacked progress bar */}
+                {/* Arrow indicator above the bar */}
                 <Box>
                     {barSegments.map((segment, idx) => {
                         const isHighlighted = BREAKDOWN_ITEMS[selectedIndex] === segment.item;
-                        // Dim non-selected segments when something is selected
-                        const dimmed = !isHighlighted;
-                        // Add brackets around selected segment
-                        const leftBorder = isHighlighted ? '[' : '';
-                        const rightBorder = isHighlighted ? ']' : '';
-                        // Reduce width by 2 if highlighted to account for brackets
-                        const displayWidth = isHighlighted
-                            ? Math.max(1, segment.width - 2)
-                            : segment.width;
                         return (
-                            <Text key={idx}>
-                                {isHighlighted && (
-                                    <Text color="white" bold>
-                                        {leftBorder}
-                                    </Text>
-                                )}
-                                <Text color={segment.color} bold={isHighlighted} dimColor={dimmed}>
-                                    {segment.char.repeat(displayWidth)}
-                                </Text>
-                                {isHighlighted && (
-                                    <Text color="white" bold>
-                                        {rightBorder}
-                                    </Text>
-                                )}
+                            <Text key={idx} color="white">
+                                {isHighlighted
+                                    ? '▼'.repeat(segment.width)
+                                    : ' '.repeat(segment.width)}
                             </Text>
                         );
                     })}
+                </Box>
+
+                {/* Stacked progress bar */}
+                <Box>
+                    {barSegments.map((segment, idx) => (
+                        <Text key={idx} color={segment.color}>
+                            {segment.char.repeat(segment.width)}
+                        </Text>
+                    ))}
                 </Box>
 
                 {/* Token summary */}
