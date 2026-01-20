@@ -40,7 +40,6 @@ import { toError } from '../../utils/error-conversion.js';
 import { isOverflow, type ModelLimits } from '../../context/compaction/overflow.js';
 import { ReactiveOverflowStrategy } from '../../context/compaction/strategies/reactive-overflow.js';
 import type { ICompactionStrategy } from '../../context/compaction/types.js';
-import { estimateMessagesTokens } from '../../context/utils.js';
 
 /**
  * Static cache for tool support validation.
@@ -98,7 +97,7 @@ export class TurnExecutor {
 
     /**
      * Virtual context for remaining iterations after compaction.
-     * When set, the main loop uses this instead of calling getFormattedMessagesWithCompression().
+     * When set, the main loop uses this instead of calling getFormattedMessagesForLLM().
      * This provides reduced context to the LLM without persisting to the original session.
      */
     private virtualContext: {
@@ -150,11 +149,13 @@ export class TurnExecutor {
 
     /**
      * Get StreamProcessor config from TurnExecutor state.
+     * @param estimatedInputTokens Optional estimated input tokens for analytics
      */
-    private getStreamProcessorConfig(): StreamProcessorConfig {
+    private getStreamProcessorConfig(estimatedInputTokens?: number): StreamProcessorConfig {
         return {
             provider: this.llmContext.provider,
             model: this.llmContext.model,
+            ...(estimatedInputTokens !== undefined && { estimatedInputTokens }),
         };
     }
 
@@ -238,14 +239,23 @@ export class TurnExecutor {
                 await this.pruneOldToolOutputs();
 
                 // 3. Get formatted messages for this step
-                let prepared = await this.contextManager.getFormattedMessagesWithCompression(
-                    contributorContext,
-                    this.llmContext
-                );
+                // If virtualContext is set (from prior compaction), use it to avoid rebuilding full history
+                let prepared = this.virtualContext
+                    ? await this.buildMessagesFromVirtualContext(contributorContext)
+                    : await this.contextManager.getFormattedMessagesForLLM(
+                          contributorContext,
+                          this.llmContext
+                      );
 
                 // 4. PRE-CHECK: Estimate tokens and compact if over threshold BEFORE LLM call
                 // This ensures we never make an oversized call and avoids unnecessary compaction on stop steps
-                const estimatedTokens = estimateMessagesTokens(prepared.filteredHistory);
+                // Uses the same formula as /context overlay: lastInput + lastOutput + newMessagesEstimate
+                const toolDefinitions = supportsTools ? await this.toolManager.getAllTools() : {};
+                let estimatedTokens = await this.contextManager.getEstimatedNextInputTokens(
+                    prepared.systemPrompt,
+                    prepared.preparedHistory,
+                    toolDefinitions
+                );
                 if (this.shouldCompact(estimatedTokens)) {
                     this.logger.debug(
                         `Pre-check: estimated ${estimatedTokens} tokens exceeds threshold, compacting`
@@ -255,6 +265,15 @@ export class TurnExecutor {
                     // If compaction occurred, rebuild messages using virtual context
                     if (this.virtualContext) {
                         prepared = await this.buildMessagesFromVirtualContext(contributorContext);
+                        // Recompute token estimate after compaction for accurate analytics/metrics
+                        estimatedTokens = await this.contextManager.getEstimatedNextInputTokens(
+                            prepared.systemPrompt,
+                            prepared.preparedHistory,
+                            toolDefinitions
+                        );
+                        this.logger.debug(
+                            `Post-compaction: recomputed estimate is ${estimatedTokens} tokens`
+                        );
                     }
                 }
 
@@ -270,7 +289,7 @@ export class TurnExecutor {
                     this.eventBus,
                     this.resourceManager,
                     this.stepAbortController.signal,
-                    this.getStreamProcessorConfig(),
+                    this.getStreamProcessorConfig(estimatedTokens),
                     this.logger,
                     streaming,
                     this.approvalMetadata
@@ -317,6 +336,53 @@ export class TurnExecutor {
                     `Step ${stepCount}: Finished with reason="${result.finishReason}", ` +
                         `tokens=${JSON.stringify(result.usage)}`
                 );
+
+                // 7a. Store actual token counts for context estimation formula
+                // Formula: estimatedNextInput = lastInput + lastOutput + newMessagesEstimate
+                //
+                // Strategy: Only update tracking variables on successful calls with actual token data.
+                // - lastInput/lastOutput: ground truth from API, used as base for next estimate
+                // - lastCallMessageCount: boundary for identifying "new" messages to estimate
+                //
+                // On cancellation: Don't update anything. The partial response is saved to history,
+                // and newMessagesEstimate will include it when calculating from the last successful
+                // call's boundary. This minimizes estimation surface - we only estimate the delta
+                // since the last call that gave us actual token counts. Multiple consecutive
+                // cancellations accumulate in newMessagesEstimate until a successful call self-corrects.
+                //
+                // Tracking issue for AI SDK to support partial usage on cancel:
+                // https://github.com/vercel/ai/issues/7628
+                if (result.finishReason === 'cancelled') {
+                    // On cancellation, don't update any tracking variables.
+                    // The partial response is saved to history, and newMessagesEstimate will
+                    // include it when calculating from the last successful call's boundary.
+                    // This keeps estimation surface minimal - we only estimate the delta since
+                    // the last call that gave us actual token counts.
+                    this.logger.info(
+                        `Context estimation (cancelled): keeping last known actuals, partial response (${result.text.length} chars) will be estimated`
+                    );
+                } else if (result.usage?.inputTokens !== undefined) {
+                    // Log verification metric: compare our estimate vs actual from API
+                    const diff = estimatedTokens - result.usage.inputTokens;
+                    const diffPercent =
+                        result.usage.inputTokens > 0
+                            ? ((diff / result.usage.inputTokens) * 100).toFixed(1)
+                            : '0.0';
+                    this.logger.info(
+                        `Context estimation accuracy: estimated=${estimatedTokens}, actual=${result.usage.inputTokens}, ` +
+                            `error=${diff} (${diffPercent}%)`
+                    );
+                    this.contextManager.setLastActualInputTokens(result.usage.inputTokens);
+
+                    if (result.usage?.outputTokens !== undefined) {
+                        this.contextManager.setLastActualOutputTokens(result.usage.outputTokens);
+                    }
+
+                    // Record message count boundary for identifying "new" messages
+                    // Only update on successful calls - cancelled calls leave boundary unchanged
+                    // so their content is included in newMessagesEstimate
+                    await this.contextManager.recordLastCallMessageCount();
+                }
 
                 // 7b. POST-RESPONSE CHECK: Use actual inputTokens from API to detect overflow
                 // This catches cases where the LLM's response pushed us over the threshold
@@ -799,7 +865,7 @@ export class TurnExecutor {
     /**
      * Prunes old tool outputs by marking them with compactedAt timestamp.
      * Does NOT modify content - transformation happens at format time in
-     * ContextManager.getFormattedMessagesWithCompression().
+     * ContextManager.prepareHistory().
      *
      * Algorithm:
      * 1. Go backwards through history (most recent first)
@@ -1036,7 +1102,7 @@ export class TurnExecutor {
         };
 
         // Store virtual context for remaining iterations
-        // The main loop will use this instead of calling getFormattedMessagesWithCompression()
+        // The main loop will use this instead of calling getFormattedMessagesForLLM()
         this.virtualContext = {
             summaryMessage,
             preservedMessages: [...preservedMessages],
@@ -1044,6 +1110,10 @@ export class TurnExecutor {
 
         // Mark that compaction occurred during this turn
         this.compactionOccurred = true;
+
+        // Reset actual token tracking since context has fundamentally changed
+        // The formula (lastInput + lastOutput + newEstimate) is no longer valid after compaction
+        this.contextManager.resetActualTokenTracking();
 
         // Estimate new token count (summary + preserved messages)
         const { estimateMessagesTokens: estimateTokens } = await import('../../context/utils.js');
@@ -1090,18 +1160,18 @@ export class TurnExecutor {
      * - Summary message (as first message)
      * - Preserved messages (formatted for LLM)
      *
-     * Uses the same formatting pipeline as getFormattedMessagesWithCompression()
+     * Uses the same formatting pipeline as getFormattedMessagesForLLM()
      * but with our virtual history instead of the stored history.
      *
      * @param contributorContext Context for system prompt contributors
-     * @returns Formatted messages ready for LLM call, matching getFormattedMessagesWithCompression return type
+     * @returns Formatted messages ready for LLM call, matching getFormattedMessagesForLLM return type
      */
     private async buildMessagesFromVirtualContext(
         contributorContext: DynamicContributorContext
     ): Promise<{
         formattedMessages: ModelMessage[];
         systemPrompt: string;
-        filteredHistory: InternalMessage[];
+        preparedHistory: InternalMessage[];
     }> {
         if (!this.virtualContext) {
             throw new Error('buildMessagesFromVirtualContext called without virtual context');
@@ -1127,7 +1197,7 @@ export class TurnExecutor {
         return {
             formattedMessages,
             systemPrompt,
-            filteredHistory: virtualHistory,
+            preparedHistory: virtualHistory,
         };
     }
 

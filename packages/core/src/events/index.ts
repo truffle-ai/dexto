@@ -246,6 +246,10 @@ export interface AgentEventMap {
         reason: 'overflow' | 'manual';
         /** The new session ID (for consistency with other streaming events) */
         sessionId: string;
+        /** Model name/ID for the new session (for UI sync) */
+        model: string;
+        /** Display name for the model (for UI sync) */
+        modelDisplayName?: string;
     };
 
     /** Fired when a session's human-friendly title is updated */
@@ -364,6 +368,8 @@ export interface AgentEventMap {
             cacheReadTokens?: number;
             cacheWriteTokens?: number;
         };
+        /** Estimated input tokens before LLM call (for analytics/calibration) */
+        estimatedInputTokens?: number;
         /** Finish reason: 'tool-calls' means more steps coming, others indicate completion */
         finishReason?: LLMFinishReason;
         sessionId: string;
@@ -579,6 +585,8 @@ export interface SessionEventMap {
             cacheReadTokens?: number;
             cacheWriteTokens?: number;
         };
+        /** Estimated input tokens before LLM call (for analytics/calibration) */
+        estimatedInputTokens?: number;
         /** Finish reason: 'tool-calls' means more steps coming, others indicate completion */
         finishReason?: LLMFinishReason;
     };

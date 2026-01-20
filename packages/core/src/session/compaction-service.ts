@@ -166,6 +166,14 @@ export class SessionCompactionService {
 
         // Emit session:continued event if event bus provided
         if (eventBus) {
+            // Get model info from the new session's config for UI sync
+            const llmConfig = newSession.getLLMService().getConfig();
+            // Extract model ID string from LanguageModel (can be string or LanguageModelV2)
+            const modelId =
+                typeof llmConfig.model === 'string' ? llmConfig.model : llmConfig.model.modelId;
+            const { getModelDisplayName } = await import('../llm/registry.js');
+            const modelDisplayName = getModelDisplayName(modelId, llmConfig.provider);
+
             eventBus.emit('session:continued', {
                 previousSessionId: currentSessionId,
                 newSessionId,
@@ -173,6 +181,8 @@ export class SessionCompactionService {
                 originalMessages: history.length,
                 reason,
                 sessionId: newSessionId, // For consistency with other streaming events
+                model: modelId,
+                modelDisplayName,
             });
         }
 

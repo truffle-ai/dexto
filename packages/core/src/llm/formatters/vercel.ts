@@ -210,23 +210,40 @@ export class VercelMessageFormatter {
         return null;
     }
 
-    // Helper to format Assistant messages (with optional tool calls)
+    // Helper to format Assistant messages (with optional tool calls and reasoning)
     private formatAssistantMessage(msg: AssistantMessage): {
         content: AssistantContent;
         function_call?: { name: string; arguments: string };
     } {
-        if (msg.toolCalls && msg.toolCalls.length > 0) {
-            const contentParts: AssistantContent = [];
-            if (Array.isArray(msg.content)) {
-                // Extract text parts from content array
-                const combined = msg.content
-                    .map((part) => (part.type === 'text' ? part.text : ''))
-                    .filter(Boolean)
-                    .join('\n');
-                if (combined) {
-                    contentParts.push({ type: 'text', text: combined });
-                }
+        const contentParts: AssistantContent = [];
+
+        // Add reasoning part if present (for round-tripping extended thinking)
+        if (msg.reasoning) {
+            // Cast to AssistantContent element type - providerOptions is Record<string, JSONObject>
+            // which is compatible with our Record<string, unknown> storage
+            const reasoningPart = {
+                type: 'reasoning' as const,
+                text: msg.reasoning,
+                ...(msg.reasoningMetadata && { providerOptions: msg.reasoningMetadata }),
+            };
+            contentParts.push(reasoningPart as (typeof contentParts)[number]);
+        }
+
+        // Add text content
+        if (Array.isArray(msg.content)) {
+            const combined = msg.content
+                .map((part) => (part.type === 'text' ? part.text : ''))
+                .filter(Boolean)
+                .join('\n');
+            if (combined) {
+                contentParts.push({ type: 'text', text: combined });
             }
+        } else if (typeof msg.content === 'string') {
+            contentParts.push({ type: 'text', text: msg.content });
+        }
+
+        // Add tool calls if present
+        if (msg.toolCalls && msg.toolCalls.length > 0) {
             for (const toolCall of msg.toolCalls) {
                 const rawArgs = toolCall.function.arguments;
                 let parsed: unknown = {};
@@ -257,34 +274,29 @@ export class VercelMessageFormatter {
                 }
                 contentParts.push(toolCallPart);
             }
-            const firstToolCall = msg.toolCalls?.[0];
-            if (firstToolCall) {
-                // Ensure function_call.arguments is always a valid JSON string
-                const argString = (() => {
-                    const raw = firstToolCall.function.arguments;
-                    if (typeof raw === 'string') return raw;
-                    try {
-                        return JSON.stringify(raw ?? {});
-                    } catch {
-                        return '{}';
-                    }
-                })();
-                return {
-                    content: contentParts,
-                    function_call: {
-                        name: firstToolCall.function.name,
-                        arguments: argString,
-                    },
-                };
-            }
+
+            const firstToolCall = msg.toolCalls[0]!;
+            // Ensure function_call.arguments is always a valid JSON string
+            const argString = (() => {
+                const raw = firstToolCall.function.arguments;
+                if (typeof raw === 'string') return raw;
+                try {
+                    return JSON.stringify(raw ?? {});
+                } catch {
+                    return '{}';
+                }
+            })();
+            return {
+                content: contentParts,
+                function_call: {
+                    name: firstToolCall.function.name,
+                    arguments: argString,
+                },
+            };
         }
+
         return {
-            content:
-                typeof msg.content === 'string'
-                    ? [{ type: 'text', text: msg.content }]
-                    : msg.content === null
-                      ? []
-                      : (msg.content as unknown as AssistantContent),
+            content: contentParts.length > 0 ? contentParts : [],
         };
     }
 

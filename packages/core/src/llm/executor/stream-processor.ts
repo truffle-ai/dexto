@@ -13,6 +13,8 @@ import { LLMProvider, TokenUsage } from '../types.js';
 export interface StreamProcessorConfig {
     provider: LLMProvider;
     model: string;
+    /** Estimated input tokens before LLM call (for analytics/calibration) */
+    estimatedInputTokens?: number;
 }
 
 export class StreamProcessor {
@@ -20,6 +22,7 @@ export class StreamProcessor {
     private actualTokens: TokenUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
     private finishReason: LLMFinishReason = 'unknown';
     private reasoningText: string = '';
+    private reasoningMetadata: Record<string, unknown> | undefined;
     private accumulatedText: string = '';
     private logger: IDextoLogger;
     /**
@@ -95,6 +98,12 @@ export class StreamProcessor {
                     case 'reasoning-delta':
                         // Handle reasoning delta (extended thinking from Claude, etc.)
                         this.reasoningText += event.text;
+
+                        // Capture provider metadata for round-tripping (e.g., OpenAI itemId, Gemini thought signatures)
+                        // This must be passed back to the provider on subsequent requests
+                        if (event.providerMetadata) {
+                            this.reasoningMetadata = event.providerMetadata;
+                        }
 
                         // Only emit chunks in streaming mode
                         if (this.streaming) {
@@ -308,12 +317,17 @@ export class StreamProcessor {
                             model: this.config.model,
                         });
 
-                        // Finalize assistant message with usage
+                        // Finalize assistant message with usage in reasoning
                         if (this.assistantMessageId) {
                             await this.contextManager.updateAssistantMessage(
                                 this.assistantMessageId,
                                 {
                                     tokenUsage: usage,
+                                    // Persist reasoning text and metadata for round-tripping
+                                    ...(this.reasoningText && { reasoning: this.reasoningText }),
+                                    ...(this.reasoningMetadata && {
+                                        reasoningMetadata: this.reasoningMetadata,
+                                    }),
                                 }
                             );
                         }
@@ -328,6 +342,9 @@ export class StreamProcessor {
                                 provider: this.config.provider,
                                 model: this.config.model,
                                 tokenUsage: usage,
+                                ...(this.config.estimatedInputTokens !== undefined && {
+                                    estimatedInputTokens: this.config.estimatedInputTokens,
+                                }),
                                 finishReason: this.finishReason,
                             });
                         }
@@ -413,6 +430,9 @@ export class StreamProcessor {
                             provider: this.config.provider,
                             model: this.config.model,
                             tokenUsage: this.actualTokens,
+                            ...(this.config.estimatedInputTokens !== undefined && {
+                                estimatedInputTokens: this.config.estimatedInputTokens,
+                            }),
                             finishReason: 'cancelled',
                         });
 
@@ -444,6 +464,9 @@ export class StreamProcessor {
                     provider: this.config.provider,
                     model: this.config.model,
                     tokenUsage: this.actualTokens,
+                    ...(this.config.estimatedInputTokens !== undefined && {
+                        estimatedInputTokens: this.config.estimatedInputTokens,
+                    }),
                     finishReason: 'cancelled',
                 });
 

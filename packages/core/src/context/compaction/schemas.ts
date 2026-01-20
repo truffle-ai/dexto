@@ -27,7 +27,7 @@ export const CompactionConfigSchema = z
             ),
         /**
          * Percentage of context window that triggers compaction (0.0 to 1.0).
-         * Default is 1.0 (100%), meaning compaction triggers when context is full.
+         * Default is 0.9 (90%), leaving a 10% buffer to avoid context degradation.
          * Set lower values to trigger compaction earlier.
          * Example: 0.8 triggers compaction when 80% of context is used.
          */
@@ -35,9 +35,9 @@ export const CompactionConfigSchema = z
             .number()
             .min(0.1)
             .max(1.0)
-            .default(1.0)
+            .default(0.9)
             .describe(
-                'Percentage of context window that triggers compaction (0.1 to 1.0, default 1.0)'
+                'Percentage of context window that triggers compaction (0.1 to 1.0, default 0.9)'
             ),
     })
     .passthrough() // Allow additional fields that will be validated by provider schemas
@@ -51,5 +51,5 @@ export type CompactionConfigInput = z.output<typeof CompactionConfigSchema>;
 export const DEFAULT_COMPACTION_CONFIG: CompactionConfigInput = {
     type: 'reactive-overflow',
     enabled: true,
-    thresholdPercent: 1.0,
+    thresholdPercent: 0.9,
 };

@@ -1198,4 +1198,68 @@ describe('SessionManager', () => {
             });
         });
     });
+
+    describe('Continuation Sessions', () => {
+        test('createContinuationSession should copy LLM config from original session', async () => {
+            // Setup: Create a mock for getRuntimeConfig that returns session-specific config
+            const originalSessionId = 'original-session-id';
+            const originalLLMConfig = {
+                provider: 'openai',
+                model: 'gpt-5.2-codex',
+                apiKey: 'test-key',
+                maxIterations: 50,
+                maxInputTokens: 20000, // Custom value
+            };
+
+            // Mock getRuntimeConfig to return the original session's config
+            mockServices.stateManager.getRuntimeConfig = vi.fn().mockImplementation((sessionId) => {
+                if (sessionId === originalSessionId) {
+                    return { llm: originalLLMConfig };
+                }
+                // For new sessions, return default config (simulating the bug scenario)
+                return {
+                    llm: { ...originalLLMConfig, model: 'claude-4.5-opus', maxInputTokens: 200000 },
+                };
+            });
+
+            // Mock database to return the original session data
+            mockStorageManager.database.get.mockImplementation(async (key: string) => {
+                if (key === `session:${originalSessionId}`) {
+                    return {
+                        id: originalSessionId,
+                        createdAt: Date.now(),
+                        lastActivity: Date.now(),
+                        messageCount: 10,
+                    };
+                }
+                return null;
+            });
+
+            await sessionManager.init();
+
+            // Act: Create continuation session
+            const { sessionId: newSessionId } =
+                await sessionManager.createContinuationSession(originalSessionId);
+
+            // Assert: updateLLM should have been called with the original config for the new session
+            expect(mockServices.stateManager.updateLLM).toHaveBeenCalledWith(
+                originalLLMConfig,
+                newSessionId
+            );
+
+            // Verify getRuntimeConfig was called with the original session ID
+            expect(mockServices.stateManager.getRuntimeConfig).toHaveBeenCalledWith(
+                originalSessionId
+            );
+        });
+
+        test('createContinuationSession should throw if original session not found', async () => {
+            mockStorageManager.database.get.mockResolvedValue(null);
+            await sessionManager.init();
+
+            await expect(
+                sessionManager.createContinuationSession('non-existent-session')
+            ).rejects.toThrow();
+        });
+    });
 });

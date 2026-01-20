@@ -134,7 +134,7 @@ function handleLLMChunk(event: EventByName<'llm:chunk'>): void {
  * 3. Multi-turn: assistant message already in messages array → update it
  */
 function handleLLMResponse(event: EventByName<'llm:response'>): void {
-    const { sessionId, content, tokenUsage, model, provider } = event;
+    const { sessionId, content, tokenUsage, model, provider, estimatedInputTokens } = event;
     const chatStore = useChatStore.getState();
     const sessionState = chatStore.getSessionState(sessionId);
     const finalContent = typeof content === 'string' ? content : '';
@@ -151,6 +151,13 @@ function handleLLMResponse(event: EventByName<'llm:response'>): void {
 
         // Track token usage analytics before returning
         if (tokenUsage && (tokenUsage.inputTokens || tokenUsage.outputTokens)) {
+            // Calculate estimate accuracy if both estimate and actual are available
+            let estimateAccuracyPercent: number | undefined;
+            if (estimatedInputTokens !== undefined && tokenUsage.inputTokens) {
+                const diff = estimatedInputTokens - tokenUsage.inputTokens;
+                estimateAccuracyPercent = Math.round((diff / tokenUsage.inputTokens) * 100);
+            }
+
             captureTokenUsage({
                 sessionId,
                 provider,
@@ -161,6 +168,8 @@ function handleLLMResponse(event: EventByName<'llm:response'>): void {
                 totalTokens: tokenUsage.totalTokens,
                 cacheReadTokens: tokenUsage.cacheReadTokens,
                 cacheWriteTokens: tokenUsage.cacheWriteTokens,
+                estimatedInputTokens,
+                estimateAccuracyPercent,
             });
         }
         return;
@@ -209,6 +218,13 @@ function handleLLMResponse(event: EventByName<'llm:response'>): void {
 
     // Track token usage analytics (at end, after all processing)
     if (tokenUsage && (tokenUsage.inputTokens || tokenUsage.outputTokens)) {
+        // Calculate estimate accuracy if both estimate and actual are available
+        let estimateAccuracyPercent: number | undefined;
+        if (estimatedInputTokens !== undefined && tokenUsage.inputTokens) {
+            const diff = estimatedInputTokens - tokenUsage.inputTokens;
+            estimateAccuracyPercent = Math.round((diff / tokenUsage.inputTokens) * 100);
+        }
+
         captureTokenUsage({
             sessionId,
             provider,
@@ -219,6 +235,8 @@ function handleLLMResponse(event: EventByName<'llm:response'>): void {
             totalTokens: tokenUsage.totalTokens,
             cacheReadTokens: tokenUsage.cacheReadTokens,
             cacheWriteTokens: tokenUsage.cacheWriteTokens,
+            estimatedInputTokens,
+            estimateAccuracyPercent,
         });
     }
 }
