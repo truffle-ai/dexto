@@ -297,7 +297,7 @@ export const generalCommands: CommandDefinition[] = [
 
                 // Create a visual progress bar (clamped to 0-100% for display)
                 const barWidth = 20;
-                const displayPercent = Math.min(stats.usagePercent, 100);
+                const displayPercent = Math.min(Math.max(stats.usagePercent, 0), 100);
                 const filledWidth = Math.round((displayPercent / 100) * barWidth);
                 const emptyWidth = barWidth - filledWidth;
                 const progressBar = '█'.repeat(filledWidth) + '░'.repeat(emptyWidth);
@@ -334,9 +334,15 @@ export const generalCommands: CommandDefinition[] = [
                         : `~${formatTokens(stats.estimatedTokens)}`;
 
                 // Calculate auto compact buffer (reserved space before compaction triggers)
-                const autoCompactBuffer = Math.floor(
-                    stats.modelContextWindow * (1 - stats.thresholdPercent)
-                );
+                // maxContextTokens already has thresholdPercent applied, so we need to derive
+                // the buffer as: maxContextTokens * (1 - thresholdPercent) / thresholdPercent
+                const autoCompactBuffer =
+                    stats.thresholdPercent < 1.0
+                        ? Math.floor(
+                              (stats.maxContextTokens * (1 - stats.thresholdPercent)) /
+                                  stats.thresholdPercent
+                          )
+                        : 0;
                 const bufferPercent = Math.round((1 - stats.thresholdPercent) * 100);
                 const bufferLabel =
                     bufferPercent > 0

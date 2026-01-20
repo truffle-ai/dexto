@@ -104,25 +104,30 @@ interface BarSegment {
 
 function createStackedBar(
     breakdown: ContextStats['breakdown'],
-    modelContextWindow: number,
+    maxContextTokens: number,
     thresholdPercent: number,
     totalWidth: number = 40
 ): BarSegment[] {
     const segments: BarSegment[] = [];
 
     // Calculate auto compact buffer (the reserved margin for early compaction)
-    // e.g., if thresholdPercent=0.9 and modelContextWindow=200K, buffer = 20K
-    const autoCompactBuffer = Math.floor(modelContextWindow * (1 - thresholdPercent));
-    const effectiveLimit = modelContextWindow - autoCompactBuffer;
+    // maxContextTokens already has thresholdPercent applied, so derive buffer as:
+    // buffer = maxContextTokens * (1 - thresholdPercent) / thresholdPercent
+    const autoCompactBuffer =
+        thresholdPercent < 1.0
+            ? Math.floor((maxContextTokens * (1 - thresholdPercent)) / thresholdPercent)
+            : 0;
+    // Total space = effective limit + buffer
+    const totalTokenSpace = maxContextTokens + autoCompactBuffer;
 
     // Calculate widths for each segment (proportional to token count)
     const usedTokens = breakdown.systemPrompt + breakdown.tools.total + breakdown.messages;
-    const freeTokens = Math.max(0, effectiveLimit - usedTokens);
+    const freeTokens = Math.max(0, maxContextTokens - usedTokens);
 
     // Helper to calculate width (minimum 1 char if tokens > 0, proportional otherwise)
     const getWidth = (tokens: number): number => {
         if (tokens <= 0) return 0;
-        const proportional = Math.round((tokens / modelContextWindow) * totalWidth);
+        const proportional = Math.round((tokens / totalTokenSpace) * totalWidth);
         return Math.max(1, proportional);
     };
 
@@ -329,10 +334,10 @@ const ContextStatsOverlay = forwardRef<ContextStatsOverlayHandle, ContextStatsOv
         const isToolsExpanded = expandedSections.has('tools');
 
         // Create stacked bar segments
-        // Use modelContextWindow as the full bar, with autoCompactBuffer showing the reserved portion
+        // Uses maxContextTokens (effective limit) + autoCompactBuffer as the full bar
         const barSegments = createStackedBar(
             stats.breakdown,
-            stats.modelContextWindow,
+            stats.maxContextTokens,
             stats.thresholdPercent
         );
 
@@ -377,9 +382,15 @@ const ContextStatsOverlay = forwardRef<ContextStatsOverlayHandle, ContextStatsOv
         const freeTokens = Math.max(0, stats.maxContextTokens - stats.estimatedTokens);
 
         // Calculate auto compact buffer (reserved space before compaction triggers)
-        const autoCompactBuffer = Math.floor(
-            stats.modelContextWindow * (1 - stats.thresholdPercent)
-        );
+        // maxContextTokens already has thresholdPercent applied, so we need to derive
+        // the buffer as: maxContextTokens * (1 - thresholdPercent) / thresholdPercent
+        const autoCompactBuffer =
+            stats.thresholdPercent < 1.0
+                ? Math.floor(
+                      (stats.maxContextTokens * (1 - stats.thresholdPercent)) /
+                          stats.thresholdPercent
+                  )
+                : 0;
         const bufferPercent = Math.round((1 - stats.thresholdPercent) * 100);
 
         return (

@@ -67,7 +67,7 @@ export const processingPhrases: string[] = [
     'That was legitness…',
     'Why are you running?…',
     'What da dog doin?…',
-    'Can i pet that dawg?…',
+    'Can I pet that dawg?…',
     'And they were roommates!…',
 
     // Nerdy
