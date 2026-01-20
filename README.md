@@ -131,7 +131,7 @@ Switch models mid-conversation—no code changes, no restarts.
 
 | Provider | Models |
 |----------|--------|
-| **OpenAI** | o3, o1, gpt-5.1, gpt-5-mini, gpt-4o |
+| **OpenAI** | gpt-5.2, gpt-5.2-pro, gpt-5.2-codex, o4-mini |
 | **Anthropic** | Claude Sonnet, Opus, Haiku (with extended thinking) |
 | **Google** | Gemini 3 Pro, 2.5 Pro/Flash |
 | **Groq** | Llama 4, Qwen, DeepSeek |
@@ -143,7 +143,7 @@ Switch models mid-conversation—no code changes, no restarts.
 
 ### MCP Integration (30+ Tools)
 
-Connect to Model Context Protocol servers for filesystem, browser, database, and API access.
+Connect to Model Context Protocol servers—Puppeteer, Linear, ElevenLabs, Firecrawl, Sora, and more.
 
 ```yaml
 # agents/my-agent.yml
@@ -158,7 +158,7 @@ mcpServers:
     args: ['-y', '@anthropics/mcp-server-puppeteer']
 ```
 
-Browse and add servers from the MCP Store directly in the Web UI.
+Browse and add servers from the MCP Store in the Web UI or via `/mcp` commands in the CLI.
 
 ### Human-in-the-Loop Controls
 
@@ -167,12 +167,13 @@ Fine-grained control over what your agent can do:
 ```yaml
 toolConfirmation:
   mode: manual           # Require approval for each tool
-  # mode: auto-approve   # Trust mode for local iteration
+  # mode: auto-approve   # Trust mode for local development
   toolPolicies:
-    - tool: bash_execute
-      policy: always_confirm
-    - tool: read_file
-      policy: auto_approve
+    alwaysAllow:
+      - mcp--filesystem--read_file
+      - mcp--filesystem--list_directory
+    alwaysDeny:
+      - mcp--filesystem--delete_file
 ```
 
 Agents remember which tools you've approved per session.
@@ -192,7 +193,7 @@ dexto -r session-abc123
 dexto search "database schema"
 ```
 
-### Multi-Agent Systems Using Sub-Agents
+### Multi-Agent Systems
 
 Agents can spawn specialized sub-agents to handle complex subtasks. The coding agent uses this to delegate exploration:
 
@@ -200,14 +201,13 @@ Agents can spawn specialized sub-agents to handle complex subtasks. The coding a
 # In your agent config
 customTools:
   - type: agent-spawner
-    allowedAgents: ["explore-agent", "plan-agent"]
+    allowedAgents: ["explore-agent"]
     maxConcurrentAgents: 5
     defaultTimeout: 300000  # 5 minutes
 ```
 
 **Built-in sub-agents:**
 - **explore-agent** – Fast, read-only codebase exploration (uses Haiku for speed)
-- **plan-agent** – Architecture planning and design decisions
 
 Any agent in the [Agent Registry](#agent-registry) can be spawned as a sub-agent—including custom agents you create and register.
 
@@ -473,7 +473,7 @@ Switch between providers instantly—no code changes required.
 #### Built-in Providers
 | Provider | Models | Setup |
 |----------|--------|-------|
-| **OpenAI** | `gpt-5.1`, `gpt-5-mini`, `gpt-4o`, `o3`, `o1` | API key |
+| **OpenAI** | `gpt-5.2`, `gpt-5.2-pro`, `gpt-5.2-codex`, `o4-mini` | API key |
 | **Anthropic** | `claude-sonnet-4-5-20250929`, `claude-opus-4-5-20250929`, extended thinking | API key |
 | **Google** | `gemini-3-pro`, `gemini-2.5-pro`, `gemini-2.5-flash` | API key |
 | **Groq** | `llama-4-scout`, `qwen-qwq`, `deepseek-r1-distill` | API key |
@@ -645,6 +645,7 @@ Built by [Truffle AI](https://www.trytruffle.ai). Join [Discord](https://discord
 
 If you find Dexto useful, please give us a ⭐ on GitHub—it helps a lot!
 
+[![Twitter Follow](https://img.shields.io/twitter/follow/Dexto?style=social)](https://x.com/intent/user?screen_name=dexto_ai)
 [![Twitter Follow](https://img.shields.io/twitter/follow/Rahul?style=social)](https://x.com/intent/user?screen_name=Road_Kill11)
 [![Twitter Follow](https://img.shields.io/twitter/follow/Shaunak?style=social)](https://x.com/intent/user?screen_name=shaun5k_)
 
