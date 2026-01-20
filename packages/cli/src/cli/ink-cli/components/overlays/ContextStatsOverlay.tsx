@@ -345,12 +345,11 @@ const ContextStatsOverlay = forwardRef<ContextStatsOverlayHandle, ContextStatsOv
             );
         };
 
-        // Calculate free space
-        const usedTokens =
-            stats.breakdown.systemPrompt + stats.breakdown.tools.total + stats.breakdown.messages;
+        // Calculate free space using the actual/estimated tokens (not breakdown sum)
+        // This ensures consistency with the total shown at the top
         const freeTokens = Math.max(
             0,
-            stats.maxContextTokens - usedTokens - stats.breakdown.outputBuffer
+            stats.maxContextTokens - stats.estimatedTokens - stats.breakdown.outputBuffer
         );
         const freePercent =
             stats.maxContextTokens > 0
