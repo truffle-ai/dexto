@@ -399,27 +399,73 @@ async function resolveBlobReferenceToParts(
     }
 }
 
+// ============= TOKEN ESTIMATION =============
+// These functions provide rough token estimates using heuristics.
+// Used for context management, compaction decisions, and UI display.
+// Actual token counts come from the LLM API response.
+
 /**
- * Simple token estimation using length/4 heuristic.
+ * Estimate tokens for a text string.
+ * Uses the common heuristic of ~4 characters per token.
+ */
+export function estimateStringTokens(text: string): number {
+    if (!text) return 0;
+    return Math.round(text.length / 4);
+}
+
+/**
+ * Estimate tokens for an image.
+ * Images use a fixed token budget regardless of dimensions.
+ * Based on typical LLM pricing (~1000 tokens per image).
+ */
+export function estimateImageTokens(): number {
+    return 1000;
+}
+
+/**
+ * Estimate tokens for a file based on its content.
+ * If content is available, estimates based on text length.
+ * Falls back to a default estimate if no content provided.
+ */
+export function estimateFileTokens(content?: string): number {
+    if (content) {
+        return estimateStringTokens(content);
+    }
+    // Fallback for when content is not available
+    return 1000;
+}
+
+/**
+ * Estimate tokens for a content part (text, image, or file).
+ */
+export function estimateContentPartTokens(part: ContentPart): number {
+    if (part.type === 'text') {
+        return estimateStringTokens(part.text);
+    }
+    if (part.type === 'image') {
+        return estimateImageTokens();
+    }
+    if (part.type === 'file') {
+        // File parts may have content embedded
+        const content = 'content' in part ? (part.content as string) : undefined;
+        return estimateFileTokens(content);
+    }
+    return 0;
+}
+
+/**
+ * Estimate tokens for an array of messages.
  * Used for telemetry/logging only - actual token counts come from the LLM API.
- *
- * @param messages Messages to estimate tokens for
- * @returns Estimated token count
  */
 export function estimateMessagesTokens(messages: readonly InternalMessage[]): number {
-    return messages.reduce((sum, msg) => {
-        if (Array.isArray(msg.content)) {
-            return (
-                sum +
-                msg.content.reduce((partSum, part) => {
-                    if (part.type === 'text') return partSum + Math.ceil(part.text.length / 4);
-                    if (part.type === 'image' || part.type === 'file') return partSum + 1000;
-                    return partSum;
-                }, 0)
-            );
+    let total = 0;
+    for (const msg of messages) {
+        if (!Array.isArray(msg.content)) continue;
+        for (const part of msg.content) {
+            total += estimateContentPartTokens(part);
         }
-        return sum;
-    }, 0);
+    }
+    return total;
 }
 
 /**

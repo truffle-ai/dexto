@@ -15,7 +15,18 @@ export interface ModelLimits {
  * Default maximum output tokens to reserve as a buffer.
  * This ensures we have space for the model's response.
  */
-const DEFAULT_OUTPUT_BUFFER = 16_000;
+export const DEFAULT_OUTPUT_BUFFER = 16_000;
+
+/**
+ * Calculate the effective output buffer size.
+ * Uses the minimum of configured maxOutput and DEFAULT_OUTPUT_BUFFER.
+ *
+ * @param maxOutput The configured maximum output tokens
+ * @returns The effective output buffer size
+ */
+export function getOutputBuffer(maxOutput: number): number {
+    return Math.min(maxOutput, DEFAULT_OUTPUT_BUFFER);
+}
 
 /**
  * Determines if the context has overflowed based on actual token usage from the API.
@@ -39,7 +50,7 @@ export function isOverflow(
     const { contextWindow, maxOutput } = modelLimits;
 
     // Reserve space for model output
-    const outputBuffer = Math.min(maxOutput, DEFAULT_OUTPUT_BUFFER);
+    const outputBuffer = getOutputBuffer(maxOutput);
     const usableTokens = contextWindow - outputBuffer;
 
     // Apply threshold - trigger compaction at thresholdPercent of usable tokens
@@ -64,7 +75,7 @@ export function getCompactionTarget(
     targetPercentage: number = 0.7
 ): number {
     const { contextWindow, maxOutput } = modelLimits;
-    const outputBuffer = Math.min(maxOutput, DEFAULT_OUTPUT_BUFFER);
+    const outputBuffer = getOutputBuffer(maxOutput);
     const usableTokens = contextWindow - outputBuffer;
 
     return Math.floor(usableTokens * targetPercentage);

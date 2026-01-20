@@ -21,6 +21,11 @@ import {
     fileTypesToMimePatterns,
     filterCompacted,
     sanitizeToolResultToContentWithBlobs,
+    estimateStringTokens,
+    estimateImageTokens,
+    estimateFileTokens,
+    estimateContentPartTokens,
+    estimateMessagesTokens,
 } from './utils.js';
 import { InternalMessage } from './types.js';
 import { LLMContext } from '../llm/types.js';
@@ -1470,5 +1475,183 @@ describe('sanitizeToolResultToContentWithBlobs', () => {
             expect(result).toHaveLength(1);
             expect(result![0]?.type).toBe('text');
         });
+    });
+});
+
+describe('Token Estimation Functions', () => {
+    describe('estimateStringTokens', () => {
+        it('should return 0 for empty string', () => {
+            expect(estimateStringTokens('')).toBe(0);
+        });
+
+        it('should return 0 for null/undefined', () => {
+            expect(estimateStringTokens(null as unknown as string)).toBe(0);
+            expect(estimateStringTokens(undefined as unknown as string)).toBe(0);
+        });
+
+        it('should estimate ~4 chars per token', () => {
+            // 100 chars should be ~25 tokens
+            const text = 'a'.repeat(100);
+            expect(estimateStringTokens(text)).toBe(25);
+        });
+
+        it('should round to nearest integer', () => {
+            // 10 chars = 2.5 -> rounds to 3
+            expect(estimateStringTokens('a'.repeat(10))).toBe(3);
+            // 8 chars = 2 -> exactly 2
+            expect(estimateStringTokens('a'.repeat(8))).toBe(2);
+        });
+
+        it('should handle realistic text content', () => {
+            const systemPrompt = `You are a helpful coding assistant. 
+            You help users write, debug, and understand code.
+            Always provide clear explanations.`;
+            // ~150 chars -> ~38 tokens
+            const tokens = estimateStringTokens(systemPrompt);
+            expect(tokens).toBeGreaterThan(30);
+            expect(tokens).toBeLessThan(50);
+        });
+    });
+
+    describe('estimateImageTokens', () => {
+        it('should return fixed 1000 tokens for images', () => {
+            expect(estimateImageTokens()).toBe(1000);
+        });
+    });
+
+    describe('estimateFileTokens', () => {
+        it('should estimate based on content when provided', () => {
+            const content = 'a'.repeat(400); // 400 chars = 100 tokens
+            expect(estimateFileTokens(content)).toBe(100);
+        });
+
+        it('should return 1000 when no content provided', () => {
+            expect(estimateFileTokens()).toBe(1000);
+            expect(estimateFileTokens(undefined)).toBe(1000);
+        });
+    });
+
+    describe('estimateContentPartTokens', () => {
+        it('should estimate text parts using string estimation', () => {
+            const textPart = { type: 'text' as const, text: 'a'.repeat(100) };
+            expect(estimateContentPartTokens(textPart)).toBe(25);
+        });
+
+        it('should estimate image parts as 1000 tokens', () => {
+            const imagePart = {
+                type: 'image' as const,
+                data: 'base64data',
+                mimeType: 'image/png' as const,
+            };
+            expect(estimateContentPartTokens(imagePart)).toBe(1000);
+        });
+
+        it('should estimate file parts with content', () => {
+            const filePart = {
+                type: 'file' as const,
+                data: 'base64data',
+                mimeType: 'text/plain' as const,
+                content: 'a'.repeat(200), // 200 chars = 50 tokens
+            };
+            expect(estimateContentPartTokens(filePart as any)).toBe(50);
+        });
+
+        it('should return 1000 for file parts without content', () => {
+            const filePart = {
+                type: 'file' as const,
+                data: 'base64data',
+                mimeType: 'application/pdf' as const,
+            };
+            expect(estimateContentPartTokens(filePart)).toBe(1000);
+        });
+
+        it('should return 0 for unknown part types', () => {
+            const unknownPart = { type: 'unknown' as any };
+            expect(estimateContentPartTokens(unknownPart)).toBe(0);
+        });
+    });
+
+    describe('estimateMessagesTokens', () => {
+        it('should return 0 for empty messages array', () => {
+            expect(estimateMessagesTokens([])).toBe(0);
+        });
+
+        it('should estimate single text message', () => {
+            const messages: InternalMessage[] = [
+                {
+                    role: 'user',
+                    content: [{ type: 'text', text: 'a'.repeat(100) }],
+                },
+            ];
+            expect(estimateMessagesTokens(messages)).toBe(25);
+        });
+
+        it('should sum tokens across multiple messages', () => {
+            const messages: InternalMessage[] = [
+                {
+                    role: 'user',
+                    content: [{ type: 'text', text: 'a'.repeat(100) }], // 25 tokens
+                },
+                {
+                    role: 'assistant',
+                    content: [{ type: 'text', text: 'a'.repeat(200) }], // 50 tokens
+                },
+            ];
+            expect(estimateMessagesTokens(messages)).toBe(75);
+        });
+
+        it('should sum tokens across multiple content parts', () => {
+            const messages: InternalMessage[] = [
+                {
+                    role: 'user',
+                    content: [
+                        { type: 'text', text: 'a'.repeat(100) }, // 25 tokens
+                        { type: 'image', data: 'base64', mimeType: 'image/png' as const }, // 1000 tokens
+                    ],
+                },
+            ];
+            expect(estimateMessagesTokens(messages)).toBe(1025);
+        });
+
+        it('should handle messages with non-array content', () => {
+            const messages: InternalMessage[] = [
+                {
+                    role: 'user',
+                    content: 'plain string content' as any, // Not an array - should be skipped
+                },
+            ];
+            expect(estimateMessagesTokens(messages)).toBe(0);
+        });
+
+        it('should handle mixed content types', () => {
+            const messages: InternalMessage[] = [
+                {
+                    role: 'user',
+                    content: [
+                        { type: 'text', text: 'Hello' }, // ~1-2 tokens
+                        { type: 'image', data: 'base64', mimeType: 'image/png' as const }, // 1000 tokens
+                        { type: 'file', data: 'base64', mimeType: 'application/pdf' as const }, // 1000 tokens
+                    ],
+                },
+            ];
+            const tokens = estimateMessagesTokens(messages);
+            expect(tokens).toBeGreaterThanOrEqual(2001); // At least 2000 + some text
+        });
+    });
+});
+
+describe('Token Estimation - Overflow Functions', () => {
+    // Note: These tests are for the exported helper function in overflow.ts
+    // We import them separately since they're in a different module
+    it('getOutputBuffer should be importable and return correct value', async () => {
+        const { getOutputBuffer, DEFAULT_OUTPUT_BUFFER } = await import('./compaction/overflow.js');
+
+        // Should return min of provided value and DEFAULT_OUTPUT_BUFFER
+        expect(getOutputBuffer(10000)).toBe(10000);
+        expect(getOutputBuffer(20000)).toBe(DEFAULT_OUTPUT_BUFFER); // 16000
+        expect(getOutputBuffer(16000)).toBe(16000);
+
+        // DEFAULT_OUTPUT_BUFFER should be 16000
+        expect(DEFAULT_OUTPUT_BUFFER).toBe(16000);
     });
 });

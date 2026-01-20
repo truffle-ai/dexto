@@ -1723,6 +1723,18 @@ export class DextoAgent {
         messageCount: number;
         filteredMessageCount: number;
         hasSummary: boolean;
+        /** Detailed breakdown of context usage by category */
+        breakdown: {
+            systemPrompt: number;
+            tools: {
+                total: number;
+                /** Per-tool token estimates */
+                perTool: Array<{ name: string; tokens: number }>;
+            };
+            messages: number;
+            /** Reserved space for model output (not counted in usagePercent) */
+            outputBuffer: number;
+        };
     }> {
         this.ensureStarted();
 
@@ -1741,15 +1753,47 @@ export class DextoAgent {
         const history = await contextManager.getHistory();
 
         // Import utilities for token estimation and filtering
-        const { filterCompacted, estimateMessagesTokens } = await import('../context/utils.js');
+        const { filterCompacted, estimateMessagesTokens, estimateStringTokens } = await import(
+            '../context/utils.js'
+        );
 
         const filteredHistory = filterCompacted(history);
-        const estimatedTokens = estimateMessagesTokens(filteredHistory);
+        const messagesTokens = estimateMessagesTokens(filteredHistory);
+
+        // Get system prompt tokens
+        const contributorContext = { mcpManager: this.mcpManager };
+        const systemPrompt = await contextManager.getSystemPrompt(contributorContext);
+        const systemPromptTokens = estimateStringTokens(systemPrompt);
+
+        // Get tools tokens - estimate from actual tool definitions
+        const llmService = session.getLLMService();
+        const tools = await llmService.getAllTools();
+        // Serialize each tool's name, description, and JSON schema to estimate tokens
+        const perToolTokens: Array<{ name: string; tokens: number }> = [];
+        let toolsTokensTotal = 0;
+        for (const [key, tool] of Object.entries(tools)) {
+            const toolName = tool.name || key;
+            const toolDescription = tool.description || '';
+            const toolSchema = JSON.stringify(tool.parameters || {});
+            const tokens = estimateStringTokens(toolName + toolDescription + toolSchema);
+            perToolTokens.push({ name: toolName, tokens });
+            toolsTokensTotal += tokens;
+        }
+
+        // Calculate total estimated tokens (what actually gets sent to the LLM)
+        const estimatedTokens = systemPromptTokens + toolsTokensTotal + messagesTokens;
 
         // Get the effective max context tokens (compaction threshold takes priority)
         const runtimeConfig = this.stateManager.getRuntimeConfig(sessionId);
         const compactionConfig = runtimeConfig.compaction;
         let maxContextTokens = contextManager.getMaxInputTokens();
+
+        // Output buffer - reserved space for model response
+        const { getOutputBuffer, DEFAULT_OUTPUT_BUFFER } = await import(
+            '../context/compaction/overflow.js'
+        );
+        const maxOutputTokens = runtimeConfig.llm.maxOutputTokens ?? DEFAULT_OUTPUT_BUFFER;
+        const outputBuffer = getOutputBuffer(maxOutputTokens);
 
         // Apply compaction config overrides (same logic as vercel.ts)
         if (compactionConfig?.maxContextTokens !== undefined) {
@@ -1775,6 +1819,15 @@ export class DextoAgent {
             messageCount: history.length,
             filteredMessageCount: filteredHistory.length,
             hasSummary,
+            breakdown: {
+                systemPrompt: systemPromptTokens,
+                tools: {
+                    total: toolsTokensTotal,
+                    perTool: perToolTokens,
+                },
+                messages: messagesTokens,
+                outputBuffer,
+            },
         };
     }
 
