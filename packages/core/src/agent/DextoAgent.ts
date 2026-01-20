@@ -1744,6 +1744,17 @@ export class DextoAgent {
             /** Reserved space for model output (not counted in usagePercent) */
             outputBuffer: number;
         };
+        /** Calculation basis showing how the estimate was computed */
+        calculationBasis?: {
+            /** 'actuals' = used lastInput + lastOutput + newEstimate, 'estimate' = pure estimation */
+            method: 'actuals' | 'estimate';
+            /** Last actual input tokens from API (if method is 'actuals') */
+            lastInputTokens?: number;
+            /** Last actual output tokens from API (if method is 'actuals') */
+            lastOutputTokens?: number;
+            /** Estimated tokens for new messages since last call (if method is 'actuals') */
+            newMessagesEstimate?: number;
+        };
     }> {
         this.ensureStarted();
 
@@ -1830,6 +1841,9 @@ export class DextoAgent {
                 messages: tokenEstimate.breakdown.messages,
                 outputBuffer,
             },
+            ...(tokenEstimate.calculationBasis && {
+                calculationBasis: tokenEstimate.calculationBasis,
+            }),
         };
     }
 

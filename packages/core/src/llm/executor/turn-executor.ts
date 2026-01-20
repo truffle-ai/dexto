@@ -40,7 +40,6 @@ import { toError } from '../../utils/error-conversion.js';
 import { isOverflow, type ModelLimits } from '../../context/compaction/overflow.js';
 import { ReactiveOverflowStrategy } from '../../context/compaction/strategies/reactive-overflow.js';
 import type { ICompactionStrategy } from '../../context/compaction/types.js';
-import { estimateContextTokens } from '../../context/utils.js';
 
 /**
  * Static cache for tool support validation.
@@ -247,13 +246,13 @@ export class TurnExecutor {
 
                 // 4. PRE-CHECK: Estimate tokens and compact if over threshold BEFORE LLM call
                 // This ensures we never make an oversized call and avoids unnecessary compaction on stop steps
-                // Get tool definitions for estimation (same formula as /context overlay)
+                // Uses the same formula as /context overlay: lastInput + lastOutput + newMessagesEstimate
                 const toolDefinitions = supportsTools ? await this.toolManager.getAllTools() : {};
-                const estimatedTokens = estimateContextTokens(
+                const estimatedTokens = await this.contextManager.getEstimatedNextInputTokens(
                     prepared.systemPrompt,
                     prepared.preparedHistory,
                     toolDefinitions
-                ).total;
+                );
                 if (this.shouldCompact(estimatedTokens)) {
                     this.logger.debug(
                         `Pre-check: estimated ${estimatedTokens} tokens exceeds threshold, compacting`
@@ -326,10 +325,26 @@ export class TurnExecutor {
                         `tokens=${JSON.stringify(result.usage)}`
                 );
 
-                // 7a. Store actual token count for /context reporting
-                if (result.usage?.inputTokens) {
+                // 7a. Store actual token counts for context estimation formula
+                // Formula: estimatedNextInput = lastInput + lastOutput + newMessagesEstimate
+                if (result.usage?.inputTokens !== undefined) {
+                    // Log verification metric: compare our estimate vs actual from API
+                    const diff = estimatedTokens - result.usage.inputTokens;
+                    const diffPercent =
+                        result.usage.inputTokens > 0
+                            ? ((diff / result.usage.inputTokens) * 100).toFixed(1)
+                            : '0.0';
+                    this.logger.info(
+                        `Context estimation accuracy: estimated=${estimatedTokens}, actual=${result.usage.inputTokens}, ` +
+                            `error=${diff} (${diffPercent}%)`
+                    );
                     this.contextManager.setLastActualInputTokens(result.usage.inputTokens);
                 }
+                if (result.usage?.outputTokens !== undefined) {
+                    this.contextManager.setLastActualOutputTokens(result.usage.outputTokens);
+                }
+                // Record message count boundary for identifying "new" messages
+                await this.contextManager.recordLastCallMessageCount();
 
                 // 7b. POST-RESPONSE CHECK: Use actual inputTokens from API to detect overflow
                 // This catches cases where the LLM's response pushed us over the threshold
@@ -1057,6 +1072,10 @@ export class TurnExecutor {
 
         // Mark that compaction occurred during this turn
         this.compactionOccurred = true;
+
+        // Reset actual token tracking since context has fundamentally changed
+        // The formula (lastInput + lastOutput + newEstimate) is no longer valid after compaction
+        this.contextManager.resetActualTokenTracking();
 
         // Estimate new token count (summary + preserved messages)
         const { estimateMessagesTokens: estimateTokens } = await import('../../context/utils.js');

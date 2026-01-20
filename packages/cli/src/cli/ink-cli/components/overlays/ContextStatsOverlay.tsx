@@ -44,6 +44,13 @@ interface ContextStats {
         messages: number;
         outputBuffer: number;
     };
+    /** Calculation basis showing how the estimate was computed */
+    calculationBasis?: {
+        method: 'actuals' | 'estimate';
+        lastInputTokens?: number;
+        lastOutputTokens?: number;
+        newMessagesEstimate?: number;
+    };
 }
 
 // Breakdown items that can be selected
@@ -400,7 +407,12 @@ const ContextStatsOverlay = forwardRef<ContextStatsOverlayHandle, ContextStatsOv
                     <Text color="gray">
                         {tokenDisplay} / {formatTokens(stats.maxContextTokens)} tokens
                     </Text>
-                    {stats.actualTokens === null && (
+                    {stats.calculationBasis?.method === 'actuals' ? (
+                        <Text color="green" dimColor>
+                            {' '}
+                            (actuals-based)
+                        </Text>
+                    ) : (
                         <Text color="gray" dimColor>
                             {' '}
                             (estimated)
@@ -419,6 +431,18 @@ const ContextStatsOverlay = forwardRef<ContextStatsOverlayHandle, ContextStatsOv
                         {stats.usagePercent}% used
                     </Text>
                 </Box>
+
+                {/* Show calculation formula when using actuals */}
+                {stats.calculationBasis?.method === 'actuals' && (
+                    <Box marginBottom={1}>
+                        <Text color="gray" dimColor>
+                            Formula: {formatTokens(stats.calculationBasis.lastInputTokens ?? 0)}{' '}
+                            (lastIn) + {formatTokens(stats.calculationBasis.lastOutputTokens ?? 0)}{' '}
+                            (lastOut) +{' '}
+                            {formatTokens(stats.calculationBasis.newMessagesEstimate ?? 0)} (new)
+                        </Text>
+                    </Box>
+                )}
 
                 {/* Breakdown */}
                 <Box flexDirection="column">

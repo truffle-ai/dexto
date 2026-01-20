@@ -11,6 +11,7 @@ import {
     isLikelyBase64String,
     filterCompacted,
     estimateContextTokens,
+    estimateMessagesTokens,
 } from './utils.js';
 import type { SanitizedToolResult } from './types.js';
 import { DynamicContributorContext } from '../systemPrompt/types.js';
@@ -59,6 +60,20 @@ export class ContextManager<TMessage = unknown> {
      * Updated after each LLM call. Used by /context for accurate reporting.
      */
     private lastActualInputTokens: number | null = null;
+
+    /**
+     * Last known actual output token count from the LLM API response.
+     * Updated after each LLM call. Used in the context estimation formula:
+     * estimatedNextInput = lastInputTokens + lastOutputTokens + newMessagesEstimate
+     */
+    private lastActualOutputTokens: number | null = null;
+
+    /**
+     * Message count at the time of the last LLM call.
+     * Used to identify which messages are "new" since the last call.
+     * Messages after this index are estimated with length/4 heuristic.
+     */
+    private lastCallMessageCount: number | null = null;
 
     private historyProvider: IConversationHistoryProvider;
     private readonly sessionId: string;
@@ -224,6 +239,52 @@ export class ContextManager<TMessage = unknown> {
     setLastActualInputTokens(tokens: number): void {
         this.lastActualInputTokens = tokens;
         this.logger.debug(`Updated lastActualInputTokens: ${tokens}`);
+    }
+
+    /**
+     * Returns the last known actual output token count from the LLM API.
+     * Returns null if no LLM call has been made yet.
+     */
+    getLastActualOutputTokens(): number | null {
+        return this.lastActualOutputTokens;
+    }
+
+    /**
+     * Updates the last known actual output token count.
+     * Called after each LLM response with the actual usage from the API.
+     */
+    setLastActualOutputTokens(tokens: number): void {
+        this.lastActualOutputTokens = tokens;
+        this.logger.debug(`Updated lastActualOutputTokens: ${tokens}`);
+    }
+
+    /**
+     * Returns the message count at the time of the last LLM call.
+     * Returns null if no LLM call has been made yet.
+     */
+    getLastCallMessageCount(): number | null {
+        return this.lastCallMessageCount;
+    }
+
+    /**
+     * Records the current message count after an LLM call completes.
+     * This marks the boundary for "new messages" calculation.
+     */
+    async recordLastCallMessageCount(): Promise<void> {
+        const history = await this.historyProvider.getHistory();
+        this.lastCallMessageCount = history.length;
+        this.logger.debug(`Recorded lastCallMessageCount: ${this.lastCallMessageCount}`);
+    }
+
+    /**
+     * Resets the actual token tracking state.
+     * Called after compaction since the context has fundamentally changed.
+     */
+    resetActualTokenTracking(): void {
+        this.lastActualInputTokens = null;
+        this.lastActualOutputTokens = null;
+        this.lastCallMessageCount = null;
+        this.logger.debug('Reset actual token tracking state (after compaction)');
     }
 
     // ============= HISTORY PREPARATION =============
@@ -896,8 +957,18 @@ export class ContextManager<TMessage = unknown> {
     }
 
     /**
-     * Estimates context token usage for the /context command.
+     * Estimates context token usage for the /context command and compaction decisions.
      * Uses the same prepareHistory() logic as getFormattedMessagesForLLM() to ensure consistency.
+     *
+     * When actuals are available from previous LLM calls:
+     *   estimatedNextInput = lastInputTokens + lastOutputTokens + newMessagesEstimate
+     *
+     * This formula is more accurate because:
+     * - lastInputTokens: exactly what the API processed (ground truth)
+     * - lastOutputTokens: exactly what the LLM returned (ground truth)
+     * - newMessagesEstimate: only estimate the delta (tool results, new user messages)
+     *
+     * When no LLM call has been made yet (or after compaction), falls back to pure estimation.
      *
      * @param contributorContext Context for building the system prompt
      * @param tools Tool definitions to include in the estimate
@@ -926,6 +997,17 @@ export class ContextManager<TMessage = unknown> {
             filteredMessageCount: number;
             prunedToolCount: number;
         };
+        /** Calculation basis for debugging/display */
+        calculationBasis?: {
+            /** Whether we used the actual-based formula or pure estimation */
+            method: 'actuals' | 'estimate';
+            /** Last actual input tokens from API (if method is 'actuals') */
+            lastInputTokens?: number;
+            /** Last actual output tokens from API (if method is 'actuals') */
+            lastOutputTokens?: number;
+            /** Estimated tokens for new messages since last call (if method is 'actuals') */
+            newMessagesEstimate?: number;
+        };
     }> {
         // Step 1: Get system prompt (same as LLM preparation)
         const systemPrompt = await this.getSystemPrompt(contributorContext);
@@ -933,31 +1015,132 @@ export class ContextManager<TMessage = unknown> {
         // Step 2: Prepare history (same as LLM preparation - single source of truth)
         const { preparedHistory, stats } = await this.prepareHistory();
 
-        // Step 3: Estimate all context tokens using single source of truth
-        const estimate = estimateContextTokens(systemPrompt, preparedHistory, tools);
+        // Step 3: Calculate tokens using Phase 4 formula when actuals are available
+        // Formula: estimatedNextInput = lastInputTokens + lastOutputTokens + newMessagesEstimate
+        const lastInput = this.lastActualInputTokens;
+        const lastOutput = this.lastActualOutputTokens;
+        const lastMsgCount = this.lastCallMessageCount;
+        const currentHistory = await this.historyProvider.getHistory();
 
-        // Step 4: Get actual and log comparison for calibration
-        const actual = this.lastActualInputTokens;
-        if (actual !== null) {
-            const diff = estimate.total - actual;
-            const diffPercent = actual > 0 ? ((diff / actual) * 100).toFixed(1) : '0.0';
-            // Log at info level so users can see estimation accuracy
+        // Get pure estimate as fallback and for breakdown calculation
+        const pureEstimate = estimateContextTokens(systemPrompt, preparedHistory, tools);
+
+        let total: number;
+        let calculationBasis: {
+            method: 'actuals' | 'estimate';
+            lastInputTokens?: number;
+            lastOutputTokens?: number;
+            newMessagesEstimate?: number;
+        };
+
+        // Use actuals-based formula if we have all the required values
+        if (lastInput !== null && lastOutput !== null && lastMsgCount !== null) {
+            // Calculate estimate for messages added AFTER the last LLM call
+            // These are: tool results from the last assistant's tool calls + any new user messages
+            const newMessages = currentHistory.slice(lastMsgCount);
+            const newMessagesEstimate = estimateMessagesTokens(newMessages);
+
+            // Apply the formula
+            total = lastInput + lastOutput + newMessagesEstimate;
+
+            calculationBasis = {
+                method: 'actuals',
+                lastInputTokens: lastInput,
+                lastOutputTokens: lastOutput,
+                newMessagesEstimate,
+            };
+
+            this.logger.debug(
+                `Context estimate (actuals-based): lastInput=${lastInput}, lastOutput=${lastOutput}, ` +
+                    `newMsgs=${newMessagesEstimate} (${newMessages.length} messages), total=${total}`
+            );
+        } else {
+            // Fallback to pure estimation when no actuals available
+            total = pureEstimate.total;
+
+            calculationBasis = {
+                method: 'estimate',
+            };
+
+            this.logger.debug(
+                `Context estimate (pure estimate): total=${total} (no actuals available yet)`
+            );
+        }
+
+        // Step 4: Calculate breakdown for display
+        // System and tools are always estimated. Messages is back-calculated so numbers add up.
+        const systemPromptTokens = pureEstimate.breakdown.systemPrompt;
+        const toolsTokens = pureEstimate.breakdown.tools;
+
+        // Back-calculate messages so: systemPrompt + tools + messages = total
+        const messagesDisplay = Math.max(0, total - systemPromptTokens - toolsTokens.total);
+
+        // Log calibration info when we have actuals to compare against pure estimate
+        if (lastInput !== null) {
+            const pureTotal = pureEstimate.total;
+            const diff = pureTotal - lastInput;
+            const diffPercent = lastInput > 0 ? ((diff / lastInput) * 100).toFixed(1) : '0.0';
             this.logger.info(
-                `Context token estimate vs actual: estimated=${estimate.total}, actual=${actual}, ` +
+                `Context token calibration: pureEstimate=${pureTotal}, lastActual=${lastInput}, ` +
                     `diff=${diff} (${diffPercent}%)`
             );
         }
 
         return {
-            estimated: estimate.total,
-            actual,
-            breakdown: estimate.breakdown,
+            estimated: total,
+            actual: lastInput,
+            breakdown: {
+                systemPrompt: systemPromptTokens,
+                tools: toolsTokens,
+                messages: messagesDisplay,
+            },
             stats: {
                 originalMessageCount: stats.originalCount,
                 filteredMessageCount: stats.filteredCount,
                 prunedToolCount: stats.prunedToolCount,
             },
+            calculationBasis,
         };
+    }
+
+    /**
+     * Estimates the next input token count using the same formula as getContextTokenEstimate().
+     * This is a lightweight version for compaction pre-checks that only returns the total.
+     *
+     * Formula (when actuals are available):
+     *   estimatedNextInput = lastInputTokens + lastOutputTokens + newMessagesEstimate
+     *
+     * @param systemPrompt The system prompt string
+     * @param preparedHistory Message history AFTER filterCompacted and pruning
+     * @param tools Tool definitions
+     * @returns Estimated total input tokens for the next LLM call
+     */
+    async getEstimatedNextInputTokens(
+        systemPrompt: string,
+        preparedHistory: readonly InternalMessage[],
+        tools: Record<string, { name?: string; description?: string; parameters?: unknown }>
+    ): Promise<number> {
+        const lastInput = this.lastActualInputTokens;
+        const lastOutput = this.lastActualOutputTokens;
+        const lastMsgCount = this.lastCallMessageCount;
+        const currentHistory = await this.historyProvider.getHistory();
+
+        // Use actuals-based formula if we have all the required values
+        if (lastInput !== null && lastOutput !== null && lastMsgCount !== null) {
+            const newMessages = currentHistory.slice(lastMsgCount);
+            const newMessagesEstimate = estimateMessagesTokens(newMessages);
+            const total = lastInput + lastOutput + newMessagesEstimate;
+
+            this.logger.debug(
+                `Estimated next input (actuals-based): ${lastInput} + ${lastOutput} + ${newMessagesEstimate} = ${total}`
+            );
+            return total;
+        }
+
+        // Fallback to pure estimation
+        const pureEstimate = estimateContextTokens(systemPrompt, preparedHistory, tools);
+        this.logger.debug(`Estimated next input (pure estimate): ${pureEstimate.total}`);
+        return pureEstimate.total;
     }
 
     /**
