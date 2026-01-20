@@ -484,8 +484,18 @@ interface ContextCalculation {
    }
    ```
 
-**Note:** Need to verify Vercel AI SDK's `AssistantContent` type supports reasoning parts.
-Check `ai` package types - if not supported, may need to use provider-specific handling.
+**Verified:** Vercel AI SDK's `AssistantContent` type supports `ReasoningPart`:
+```typescript
+// packages/provider-utils/src/types/assistant-model-message.ts
+export type AssistantContent = string | Array<TextPart | FilePart | ReasoningPart | ...>;
+
+// packages/provider-utils/src/types/content-part.ts
+export interface ReasoningPart {
+  type: 'reasoning';
+  text: string;
+  providerOptions?: ProviderOptions;  // For round-tripping provider metadata
+}
+```
 
 ### Phase 3: Unified Context Calculation
 
