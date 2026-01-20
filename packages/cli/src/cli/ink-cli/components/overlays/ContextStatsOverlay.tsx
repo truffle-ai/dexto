@@ -77,12 +77,13 @@ function formatTokens(tokens: number): string {
 
 /**
  * Create a stacked colored progress bar
- * Returns an array of {char, color} segments to render
+ * Returns an array of {char, color, item} segments to render
  */
 interface BarSegment {
     char: string;
     color: string;
     width: number;
+    item: BreakdownItem;
 }
 
 function createStackedBar(
@@ -118,19 +119,34 @@ function createStackedBar(
     const adjustedFreeWidth = Math.max(0, freeWidth - adjustment);
 
     if (sysWidth > 0) {
-        segments.push({ char: '█', color: ITEM_COLORS.systemPrompt, width: sysWidth });
+        segments.push({
+            char: '█',
+            color: ITEM_COLORS.systemPrompt,
+            width: sysWidth,
+            item: 'systemPrompt',
+        });
     }
     if (toolsWidth > 0) {
-        segments.push({ char: '█', color: ITEM_COLORS.tools, width: toolsWidth });
+        segments.push({ char: '█', color: ITEM_COLORS.tools, width: toolsWidth, item: 'tools' });
     }
     if (msgsWidth > 0) {
-        segments.push({ char: '█', color: ITEM_COLORS.messages, width: msgsWidth });
+        segments.push({
+            char: '█',
+            color: ITEM_COLORS.messages,
+            width: msgsWidth,
+            item: 'messages',
+        });
     }
     if (adjustedFreeWidth > 0) {
-        segments.push({ char: '░', color: 'gray', width: adjustedFreeWidth });
+        segments.push({ char: '░', color: 'gray', width: adjustedFreeWidth, item: 'freeSpace' });
     }
     if (reservedWidth > 0) {
-        segments.push({ char: '▒', color: ITEM_COLORS.outputBuffer, width: reservedWidth });
+        segments.push({
+            char: '▒',
+            color: ITEM_COLORS.outputBuffer,
+            width: reservedWidth,
+            item: 'outputBuffer',
+        });
     }
 
     return segments;
@@ -359,11 +375,21 @@ const ContextStatsOverlay = forwardRef<ContextStatsOverlayHandle, ContextStatsOv
 
                 {/* Stacked progress bar */}
                 <Box>
-                    {barSegments.map((segment, idx) => (
-                        <Text key={idx} color={segment.color}>
-                            {segment.char.repeat(segment.width)}
-                        </Text>
-                    ))}
+                    {barSegments.map((segment, idx) => {
+                        const isHighlighted = BREAKDOWN_ITEMS[selectedIndex] === segment.item;
+                        // Dim non-selected segments when something is selected
+                        const dimmed = !isHighlighted;
+                        return (
+                            <Text
+                                key={idx}
+                                color={isHighlighted ? segment.color : segment.color}
+                                bold={isHighlighted}
+                                dimColor={dimmed}
+                            >
+                                {segment.char.repeat(segment.width)}
+                            </Text>
+                        );
+                    })}
                 </Box>
 
                 {/* Token summary */}
