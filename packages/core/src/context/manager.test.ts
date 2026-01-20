@@ -651,5 +651,326 @@ describe('ContextManager', () => {
             );
             expect(afterPrune.stats.prunedToolCount).toBe(1);
         });
+
+        it('should use actuals-based formula when all actuals are available', async () => {
+            // Add initial message
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+
+            // Simulate LLM call completing - set all actuals
+            contextManager.setLastActualInputTokens(5000);
+            contextManager.setLastActualOutputTokens(200);
+            await contextManager.recordLastCallMessageCount();
+
+            // Add assistant response (simulating what happens after LLM call)
+            await contextManager.addAssistantMessage([{ type: 'text', text: 'Hi there!' }], []);
+
+            // Add a "new" message (tool result)
+            const toolResult: SanitizedToolResult = {
+                content: [{ type: 'text', text: 'Tool output here' }],
+                meta: { toolName: 'test', toolCallId: 'call-1', success: true },
+            };
+            await contextManager.addToolResult('call-1', 'test', toolResult);
+
+            const result = await contextManager.getContextTokenEstimate(
+                mockContributorContext,
+                mockTools
+            );
+
+            // Should have calculationBasis with method 'actuals'
+            expect(result.calculationBasis).toBeDefined();
+            expect(result.calculationBasis?.method).toBe('actuals');
+            expect(result.calculationBasis?.lastInputTokens).toBe(5000);
+            expect(result.calculationBasis?.lastOutputTokens).toBe(200);
+            expect(result.calculationBasis?.newMessagesEstimate).toBeGreaterThan(0);
+
+            // The estimated total should be: lastInput + lastOutput + newMessagesEstimate
+            const expectedTotal = 5000 + 200 + (result.calculationBasis?.newMessagesEstimate ?? 0);
+            expect(result.estimated).toBe(expectedTotal);
+        });
+
+        it('should fall back to pure estimation when actuals not available', async () => {
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+
+            // Don't set any actuals
+            const result = await contextManager.getContextTokenEstimate(
+                mockContributorContext,
+                mockTools
+            );
+
+            // Should have calculationBasis with method 'estimate'
+            expect(result.calculationBasis).toBeDefined();
+            expect(result.calculationBasis?.method).toBe('estimate');
+            expect(result.calculationBasis?.lastInputTokens).toBeUndefined();
+            expect(result.calculationBasis?.lastOutputTokens).toBeUndefined();
+        });
+    });
+
+    describe('lastActualOutputTokens', () => {
+        it('should return null initially and store/update values', () => {
+            expect(contextManager.getLastActualOutputTokens()).toBeNull();
+
+            contextManager.setLastActualOutputTokens(300);
+            expect(contextManager.getLastActualOutputTokens()).toBe(300);
+
+            contextManager.setLastActualOutputTokens(500);
+            expect(contextManager.getLastActualOutputTokens()).toBe(500);
+        });
+    });
+
+    describe('lastCallMessageCount', () => {
+        it('should return null initially', () => {
+            expect(contextManager.getLastCallMessageCount()).toBeNull();
+        });
+
+        it('should record current history length', async () => {
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+            await contextManager.addAssistantMessage([{ type: 'text', text: 'Hi!' }], []);
+
+            await contextManager.recordLastCallMessageCount();
+
+            expect(contextManager.getLastCallMessageCount()).toBe(2);
+        });
+
+        it('should update when new messages are added and recorded again', async () => {
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+            await contextManager.recordLastCallMessageCount();
+            expect(contextManager.getLastCallMessageCount()).toBe(1);
+
+            await contextManager.addAssistantMessage([{ type: 'text', text: 'Hi!' }], []);
+            await contextManager.recordLastCallMessageCount();
+            expect(contextManager.getLastCallMessageCount()).toBe(2);
+        });
+    });
+
+    describe('resetActualTokenTracking', () => {
+        it('should reset all tracking values to null', async () => {
+            // Set all values
+            contextManager.setLastActualInputTokens(5000);
+            contextManager.setLastActualOutputTokens(300);
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+            await contextManager.recordLastCallMessageCount();
+
+            // Verify they're set
+            expect(contextManager.getLastActualInputTokens()).toBe(5000);
+            expect(contextManager.getLastActualOutputTokens()).toBe(300);
+            expect(contextManager.getLastCallMessageCount()).toBe(1);
+
+            // Reset
+            contextManager.resetActualTokenTracking();
+
+            // Verify all are null
+            expect(contextManager.getLastActualInputTokens()).toBeNull();
+            expect(contextManager.getLastActualOutputTokens()).toBeNull();
+            expect(contextManager.getLastCallMessageCount()).toBeNull();
+        });
+
+        it('should cause estimation to fall back to pure estimation', async () => {
+            const mockContributorContext = { mcpManager: {} as any };
+            const mockTools = {};
+
+            // Set actuals
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+            contextManager.setLastActualInputTokens(5000);
+            contextManager.setLastActualOutputTokens(200);
+            await contextManager.recordLastCallMessageCount();
+
+            // Verify actuals-based method
+            const beforeReset = await contextManager.getContextTokenEstimate(
+                mockContributorContext,
+                mockTools
+            );
+            expect(beforeReset.calculationBasis?.method).toBe('actuals');
+
+            // Reset
+            contextManager.resetActualTokenTracking();
+
+            // Verify fallback to pure estimation
+            const afterReset = await contextManager.getContextTokenEstimate(
+                mockContributorContext,
+                mockTools
+            );
+            expect(afterReset.calculationBasis?.method).toBe('estimate');
+        });
+    });
+
+    describe('getEstimatedNextInputTokens', () => {
+        const mockTools = {
+            'test-tool': {
+                name: 'test-tool',
+                description: 'A test tool',
+                parameters: { type: 'object', properties: {} },
+            },
+        };
+
+        it('should calculate formula exactly: lastInput + lastOutput + newMessagesEstimate', async () => {
+            // Setup: one message BEFORE recording
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+
+            // Simulate LLM call: set actuals and record boundary
+            const LAST_INPUT = 5000;
+            const LAST_OUTPUT = 200;
+            contextManager.setLastActualInputTokens(LAST_INPUT);
+            contextManager.setLastActualOutputTokens(LAST_OUTPUT);
+            await contextManager.recordLastCallMessageCount(); // count = 1
+
+            // Add NEW messages after the boundary (these are the "new" messages)
+            // Use a known string length so we can predict token estimate
+            const newMessageText = 'A'.repeat(400); // ~100 tokens with length/4 heuristic
+            await contextManager.addAssistantMessage([{ type: 'text', text: newMessageText }], []);
+
+            const { preparedHistory } = await contextManager.prepareHistory();
+            const systemPrompt = 'System';
+
+            const estimated = await contextManager.getEstimatedNextInputTokens(
+                systemPrompt,
+                preparedHistory,
+                mockTools
+            );
+
+            // Get the actual newMessagesEstimate by checking the raw history
+            const history = await contextManager.getHistory();
+            const newMessages = history.slice(1); // slice from lastCallMessageCount (1)
+            expect(newMessages.length).toBe(1); // Just the assistant message we added
+
+            // The formula should be: LAST_INPUT + LAST_OUTPUT + newMessagesEstimate
+            // We can verify the formula is applied by checking the result is exactly this
+            const { estimateMessagesTokens } = await import('./utils.js');
+            const expectedNewEstimate = estimateMessagesTokens(newMessages);
+            const expectedTotal = LAST_INPUT + LAST_OUTPUT + expectedNewEstimate;
+
+            expect(estimated).toBe(expectedTotal);
+        });
+
+        it('should only count messages AFTER lastCallMessageCount as new', async () => {
+            // Add messages BEFORE recording
+            await contextManager.addUserMessage([{ type: 'text', text: 'Message 1' }]);
+            await contextManager.addAssistantMessage([{ type: 'text', text: 'Response 1' }], []);
+
+            // Record boundary at 2 messages
+            contextManager.setLastActualInputTokens(10000);
+            contextManager.setLastActualOutputTokens(500);
+            await contextManager.recordLastCallMessageCount();
+            expect(contextManager.getLastCallMessageCount()).toBe(2);
+
+            // Add messages AFTER recording - these should be the only "new" messages
+            await contextManager.addUserMessage([{ type: 'text', text: 'Message 2' }]);
+
+            const { preparedHistory } = await contextManager.prepareHistory();
+            const systemPrompt = 'System';
+
+            // Get estimate with actuals
+            const estimated = await contextManager.getEstimatedNextInputTokens(
+                systemPrompt,
+                preparedHistory,
+                mockTools
+            );
+
+            // Verify by calculating expected value
+            const history = await contextManager.getHistory();
+            expect(history.length).toBe(3); // 2 before + 1 after
+
+            const newMessages = history.slice(2); // Only messages after lastCallMessageCount
+            expect(newMessages.length).toBe(1); // Just "Message 2"
+
+            const { estimateMessagesTokens } = await import('./utils.js');
+            const newEstimate = estimateMessagesTokens(newMessages);
+            const expectedTotal = 10000 + 500 + newEstimate;
+
+            expect(estimated).toBe(expectedTotal);
+        });
+
+        it('should return zero newMessagesEstimate when no new messages', async () => {
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+
+            // Record boundary at current history length
+            contextManager.setLastActualInputTokens(5000);
+            contextManager.setLastActualOutputTokens(200);
+            await contextManager.recordLastCallMessageCount();
+
+            // Don't add any new messages
+
+            const { preparedHistory } = await contextManager.prepareHistory();
+            const systemPrompt = 'System';
+
+            const estimated = await contextManager.getEstimatedNextInputTokens(
+                systemPrompt,
+                preparedHistory,
+                mockTools
+            );
+
+            // Should be exactly lastInput + lastOutput + 0
+            expect(estimated).toBe(5000 + 200);
+        });
+
+        it('should fall back to pure estimation when only lastInput is set', async () => {
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+
+            // Only set lastInput, not lastOutput or lastCallMessageCount
+            contextManager.setLastActualInputTokens(5000);
+            // lastOutput is null, lastCallMessageCount is null
+
+            const mockContributorContext = { mcpManager: {} as any };
+
+            // Should fall back to pure estimation since not all actuals are set
+            const fullEstimate = await contextManager.getContextTokenEstimate(
+                mockContributorContext,
+                mockTools
+            );
+
+            // Verify it's using pure estimation (not actuals-based)
+            expect(fullEstimate.calculationBasis?.method).toBe('estimate');
+
+            // The estimated value should NOT be based on the lastInput we set (5000)
+            // It should be a pure estimate based on system + tools + messages
+            // If it were using actuals, it would be much larger (5000 + something)
+            expect(fullEstimate.estimated).toBeLessThan(1000); // Pure estimate of small message
+        });
+
+        it('should fall back to pure estimation when lastCallMessageCount is null', async () => {
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+
+            // Set input and output but NOT message count
+            contextManager.setLastActualInputTokens(5000);
+            contextManager.setLastActualOutputTokens(200);
+            // Don't call recordLastCallMessageCount()
+
+            const { preparedHistory } = await contextManager.prepareHistory();
+            const systemPrompt = 'System';
+            const mockContributorContext = { mcpManager: {} as any };
+
+            const fullEstimate = await contextManager.getContextTokenEstimate(
+                mockContributorContext,
+                mockTools
+            );
+
+            // Should fall back to pure estimation
+            expect(fullEstimate.calculationBasis?.method).toBe('estimate');
+        });
+
+        it('should return same result as getContextTokenEstimate for consistency', async () => {
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+            contextManager.setLastActualInputTokens(5000);
+            contextManager.setLastActualOutputTokens(200);
+            await contextManager.recordLastCallMessageCount();
+
+            const { preparedHistory } = await contextManager.prepareHistory();
+            const systemPrompt = 'You are a helpful assistant.';
+            const mockContributorContext = { mcpManager: {} as any };
+
+            const estimatedViaMethod = await contextManager.getEstimatedNextInputTokens(
+                systemPrompt,
+                preparedHistory,
+                mockTools
+            );
+
+            const fullEstimate = await contextManager.getContextTokenEstimate(
+                mockContributorContext,
+                mockTools
+            );
+
+            // Both should use the same formula and return the same total
+            expect(estimatedViaMethod).toBe(fullEstimate.estimated);
+            expect(fullEstimate.calculationBasis?.method).toBe('actuals');
+        });
     });
 });
