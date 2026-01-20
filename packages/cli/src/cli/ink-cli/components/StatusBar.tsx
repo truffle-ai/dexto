@@ -19,6 +19,7 @@ interface StatusBarProps {
     agent: DextoAgent;
     isProcessing: boolean;
     isThinking: boolean;
+    isCompacting: boolean;
     approvalQueueCount: number;
     copyModeEnabled?: boolean;
     /** Whether an approval prompt is currently shown */
@@ -37,12 +38,13 @@ export function StatusBar({
     agent,
     isProcessing,
     isThinking,
+    isCompacting,
     approvalQueueCount,
     copyModeEnabled = false,
     isAwaitingApproval = false,
 }: StatusBarProps) {
-    // Cycle through witty phrases while processing
-    const { phrase } = usePhraseCycler({ isActive: isProcessing });
+    // Cycle through witty phrases while processing (not during compacting)
+    const { phrase } = usePhraseCycler({ isActive: isProcessing && !isCompacting });
     // Track elapsed time during processing
     const { formatted: elapsedTime, elapsedMs } = useElapsedTime({ isActive: isProcessing });
     // Track token usage during processing
@@ -69,6 +71,30 @@ export function StatusBar({
     // Hide status bar during approval wait - user is reviewing, not waiting
     if (isAwaitingApproval) {
         return null;
+    }
+
+    // Show compacting state - yellow/orange color to indicate context management
+    if (isCompacting) {
+        const metaParts: string[] = [];
+        if (showTime) metaParts.push(`(${elapsedTime})`);
+        metaParts.push('Esc to cancel');
+        const metaContent = metaParts.join(' • ');
+
+        return (
+            <Box paddingX={1} marginTop={1} marginBottom={1} flexDirection="column">
+                {/* Line 1: spinner + compacting message */}
+                <Box flexDirection="row" alignItems="center">
+                    <Text color="yellow">
+                        <Spinner type="dots" />
+                    </Text>
+                    <Text color="yellow"> 📦 Compacting context...</Text>
+                </Box>
+                {/* Line 2: meta info */}
+                <Box marginLeft={2}>
+                    <Text color="gray">{metaContent}</Text>
+                </Box>
+            </Box>
+        );
     }
 
     // Show initial processing state (before streaming starts) - green/teal color

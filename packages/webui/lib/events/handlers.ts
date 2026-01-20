@@ -613,14 +613,26 @@ function handleMessageDequeued(event: EventByName<'message:dequeued'>): void {
 }
 
 /**
- * context:compacted - Context was compacted
+ * context:compacted - Context was compacted (inline compaction)
  * Log for now (future: add to activity store)
  */
 function handleContextCompacted(event: EventByName<'context:compacted'>): void {
     console.debug(
-        `[handlers] Context compacted: ${event.originalTokens.toLocaleString()} → ${event.compactedTokens.toLocaleString()} tokens`,
-        `(${event.originalMessages} → ${event.compactedMessages} messages) via ${event.strategy}`
+        `[handlers] Context compacted: ${event.originalTokens.toLocaleString()} → ${event.compactedTokens.toLocaleString()} tokens (${event.originalMessages} → ${event.compactedMessages} messages) via ${event.strategy}`
     );
+}
+
+/**
+ * session:continued - Session-native compaction created a new session
+ * The active session should be switched to the new session
+ */
+function handleSessionContinued(event: EventByName<'session:continued'>): void {
+    const { previousSessionId, newSessionId, summaryTokens, originalMessages, reason } = event;
+    console.debug(
+        `[handlers] Session continued: ${previousSessionId.slice(0, 8)}... → ${newSessionId.slice(0, 8)}... (${originalMessages} messages → ~${summaryTokens.toLocaleString()} token summary, reason: ${reason})`
+    );
+    // Note: Session switching is handled at the app level via router/context
+    // This event can be used by the app to update the active session ID
 }
 
 /**
@@ -684,6 +696,7 @@ export function registerHandlers(): void {
     handlers.set('session:title-updated', handleSessionTitleUpdated);
     handlers.set('message:dequeued', handleMessageDequeued);
     handlers.set('context:compacted', handleContextCompacted);
+    handlers.set('session:continued', handleSessionContinued);
     handlers.set('service:event', handleServiceEvent);
 }
 
@@ -751,5 +764,6 @@ export {
     handleSessionTitleUpdated,
     handleMessageDequeued,
     handleContextCompacted,
+    handleSessionContinued,
     handleServiceEvent,
 };

@@ -25,6 +25,7 @@ export function createInitialState(initialModelName: string = ''): CLIState {
             isProcessing: false,
             isCancelling: false,
             isThinking: false,
+            isCompacting: false,
             activeOverlay: 'none',
             exitWarningShown: false,
             exitWarningTimestamp: null,

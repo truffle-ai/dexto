@@ -6,6 +6,8 @@ import { DextoLogComponent } from '../../logger/v2/types.js';
 import { ToolSet } from '../../tools/types.js';
 import { ContextManager } from '../../context/manager.js';
 import { getEffectiveMaxInputTokens, getMaxInputTokensForModel } from '../registry.js';
+import type { ModelLimits } from '../../context/compaction/overflow.js';
+import type { CompactionConfigInput } from '../../context/compaction/schemas.js';
 import { ContentPart } from '../../context/types.js';
 import type { SessionEventBus } from '../../events/index.js';
 import type { IConversationHistoryProvider } from '../../session/history/types.js';
@@ -15,6 +17,7 @@ import type { ValidatedLLMConfig } from '../schemas.js';
 import { InstrumentClass } from '../../telemetry/decorators.js';
 import { trace, context, propagation } from '@opentelemetry/api';
 import { TurnExecutor } from '../executor/turn-executor.js';
+import type { CompactionData } from '../executor/types.js';
 import { MessageQueueService } from '../../session/message-queue.js';
 import type { ResourceManager } from '../../resources/index.js';
 import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
@@ -52,6 +55,8 @@ export class VercelLLMService {
     private compactionStrategy:
         | import('../../context/compaction/types.js').ICompactionStrategy
         | null;
+    private modelLimits: ModelLimits;
+    private compactionThresholdPercent: number;
 
     /**
      * Helper to extract model ID from LanguageModel union type (string | LanguageModelV2)
@@ -70,7 +75,8 @@ export class VercelLLMService {
         sessionId: string,
         resourceManager: ResourceManager,
         logger: IDextoLogger,
-        compactionStrategy?: import('../../context/compaction/types.js').ICompactionStrategy | null
+        compactionStrategy?: import('../../context/compaction/types.js').ICompactionStrategy | null,
+        compactionConfig?: CompactionConfigInput
     ) {
         this.logger = logger.createChild(DextoLogComponent.LLM);
         this.model = model;
@@ -80,6 +86,7 @@ export class VercelLLMService {
         this.sessionId = sessionId;
         this.resourceManager = resourceManager;
         this.compactionStrategy = compactionStrategy ?? null;
+        this.compactionThresholdPercent = compactionConfig?.thresholdPercent ?? 1.0;
 
         // Create session-level message queue for mid-task user messages
         this.messageQueue = new MessageQueueService(this.sessionEventBus, this.logger);
@@ -87,6 +94,27 @@ export class VercelLLMService {
         // Create properly-typed ContextManager for Vercel
         const formatter = new VercelMessageFormatter(this.logger);
         const maxInputTokens = getEffectiveMaxInputTokens(config, this.logger);
+
+        // Set model limits for compaction overflow detection
+        // - maxContextTokens overrides the model's context window
+        // - thresholdPercent is applied separately in isOverflow() to trigger before 100%
+        let effectiveContextWindow = maxInputTokens;
+
+        // Apply maxContextTokens override if set (cap the context window)
+        if (compactionConfig?.maxContextTokens !== undefined) {
+            effectiveContextWindow = Math.min(maxInputTokens, compactionConfig.maxContextTokens);
+            this.logger.debug(
+                `Compaction: Using maxContextTokens override: ${compactionConfig.maxContextTokens} (model max: ${maxInputTokens})`
+            );
+        }
+
+        // NOTE: thresholdPercent is NOT applied here - it's only applied in isOverflow()
+        // to trigger compaction early (e.g., at 90% instead of 100%)
+
+        this.modelLimits = {
+            contextWindow: effectiveContextWindow,
+            maxOutput: config.maxOutputTokens ?? 16_000,
+        };
 
         this.contextManager = new ContextManager<ModelMessage>(
             config,
@@ -130,11 +158,17 @@ export class VercelLLMService {
             { provider: this.config.provider, model: this.getModelId() },
             this.logger,
             this.messageQueue,
-            undefined, // modelLimits - TurnExecutor will use defaults
+            this.modelLimits,
             externalSignal,
-            this.compactionStrategy
+            this.compactionStrategy,
+            this.compactionThresholdPercent
         );
     }
+
+    /**
+     * Result from streaming a response.
+     */
+    public static StreamResult: { text: string; didCompact: boolean; compaction?: CompactionData };
 
     /**
      * Stream a response for the given content.
@@ -142,9 +176,12 @@ export class VercelLLMService {
      *
      * @param content - String or ContentPart[] (text, images, files)
      * @param options - { signal?: AbortSignal }
-     * @returns The assistant's text response
+     * @returns Object with text response, whether compaction occurred, and compaction data if applicable
      */
-    async stream(content: ContentInput, options?: { signal?: AbortSignal }): Promise<string> {
+    async stream(
+        content: ContentInput,
+        options?: { signal?: AbortSignal }
+    ): Promise<{ text: string; didCompact: boolean; compaction?: CompactionData }> {
         // Get active span and context for telemetry
         const activeSpan = trace.getActiveSpan();
         const currentContext = context.active();
@@ -194,7 +231,12 @@ export class VercelLLMService {
             const contributorContext = { mcpManager: this.toolManager.getMcpManager() };
             const result = await executor.execute(contributorContext, true);
 
-            return result.text ?? '';
+            return {
+                text: result.text ?? '',
+                didCompact: result.didCompact,
+                // Use spread to conditionally include compaction (exactOptionalPropertyTypes)
+                ...(result.compaction && { compaction: result.compaction }),
+            };
         });
     }
 
@@ -245,5 +287,14 @@ export class VercelLLMService {
      */
     getMessageQueue(): MessageQueueService {
         return this.messageQueue;
+    }
+
+    /**
+     * Get the compaction strategy for external access (e.g., session-native compaction)
+     */
+    getCompactionStrategy():
+        | import('../../context/compaction/types.js').ICompactionStrategy
+        | null {
+        return this.compactionStrategy;
     }
 }
