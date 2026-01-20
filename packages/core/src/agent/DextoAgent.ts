@@ -55,6 +55,7 @@ import type { SearchOptions, SearchResponse, SessionSearchResponse } from '../se
 import { safeStringify } from '@core/utils/safe-stringify.js';
 import { deriveHeuristicTitle, generateSessionTitle } from '../session/title-generator.js';
 import type { ApprovalHandler } from '../approval/types.js';
+import type { CompactionData } from '../llm/executor/types.js';
 
 const requiredServices: (keyof AgentServices)[] = [
     'mcpManager',
@@ -1097,8 +1098,8 @@ export class DextoAgent {
                         );
 
                     // Handle session-native compaction if compaction occurred
-                    if (streamResult.didCompact) {
-                        await this.handleSessionContinuation(session);
+                    if (streamResult.didCompact && streamResult.compaction) {
+                        await this.handleSessionContinuation(session, streamResult.compaction);
                     }
                 } catch (err) {
                     // Preserve typed errors, wrap unknown values in AgentError.streamFailed
@@ -1865,52 +1866,43 @@ export class DextoAgent {
      * Handles session-native continuation after compaction.
      *
      * When context compaction occurs, this method:
-     * 1. Extracts the summary message from the compacted session
+     * 1. Receives compaction data directly (summary text + preserved messages)
      * 2. Creates a new continuation session
      * 3. Adds the summary as the first message in the new session
-     * 4. Links the old and new sessions for traceability
-     * 5. Emits session:continued event for UI to handle session switch
+     * 4. Adds preserved messages to the new session
+     * 5. Links the old and new sessions for traceability
+     * 6. Emits session:continued event for UI to handle session switch
      *
-     * @param currentSession The session that was compacted
+     * IMPORTANT: The original session is NOT modified. The summary was never added to it.
+     * This is the clean session-native compaction approach where:
+     * - Original session: UNCHANGED (full history preserved)
+     * - New session: [summary, ...preservedMessages]
+     *
+     * @param currentSession The session that triggered compaction
+     * @param compactionData The compaction data with summary text and preserved messages
      */
-    private async handleSessionContinuation(currentSession: ChatSession): Promise<void> {
+    private async handleSessionContinuation(
+        currentSession: ChatSession,
+        compactionData: CompactionData
+    ): Promise<void> {
         const currentSessionId = currentSession.id;
 
         try {
-            // Get history to find the summary message
-            const history = await currentSession.getHistory();
-            const summaryMessage = history.find((msg) => msg.metadata?.isSummary === true);
+            const { summaryText, preservedMessages, summarizedCount } = compactionData;
 
-            if (!summaryMessage) {
+            if (!summaryText) {
                 this.logger.warn(
-                    `Session continuation skipped: no summary found in session ${currentSessionId}`
+                    `Session continuation skipped: empty summary text for session ${currentSessionId}`
                 );
                 return;
             }
-
-            // Extract text content from summary
-            if (!summaryMessage.content) {
-                this.logger.warn(
-                    `Session continuation skipped: summary message has no content in session ${currentSessionId}`
-                );
-                return;
-            }
-            const summaryText =
-                typeof summaryMessage.content === 'string'
-                    ? summaryMessage.content
-                    : summaryMessage.content
-                          .filter(
-                              (part): part is { type: 'text'; text: string } => part.type === 'text'
-                          )
-                          .map((part) => part.text)
-                          .join('\n');
 
             // Create new continuation session
             const { sessionId: newSessionId, session: newSession } =
                 await this.sessionManager.createContinuationSession(currentSessionId);
 
             // Create session summary message for new session
-            const sessionSummaryMessage: import('../context/types.js').InternalMessage = {
+            const sessionSummaryMessage: InternalMessage = {
                 role: 'assistant',
                 content: [{ type: 'text', text: summaryText }],
                 timestamp: Date.now(),
@@ -1918,7 +1910,9 @@ export class DextoAgent {
                     isSessionSummary: true,
                     continuedFrom: currentSessionId,
                     summarizedAt: Date.now(),
-                    originalMessageCount: history.length,
+                    originalMessageCount: summarizedCount,
+                    originalFirstTimestamp: compactionData.originalFirstTimestamp,
+                    originalLastTimestamp: compactionData.originalLastTimestamp,
                 },
             };
 
@@ -1926,22 +1920,25 @@ export class DextoAgent {
             const newContextManager = newSession.getContextManager();
             await newContextManager.addMessage(sessionSummaryMessage);
 
-            // Mark old session as compacted
+            // Add preserved messages to new session
+            for (const msg of preservedMessages) {
+                await newContextManager.addMessage(msg);
+            }
+
+            // Mark old session as compacted (links sessions in metadata)
             await this.sessionManager.markSessionCompacted(currentSessionId, newSessionId);
 
-            // CRITICAL: Remove the isSummary marker from the old session
-            // This preserves the full history in the old session for viewing/auditing
-            // Without this, filterCompacted() would hide the original messages
-            const oldContextManager = currentSession.getContextManager();
-            await oldContextManager.removeInlineSummaryMarker();
+            // NOTE: No need to call removeInlineSummaryMarker() on old session
+            // The original session was never modified - summary was only in virtual context
 
             // Estimate tokens in summary for the event
             const { estimateMessagesTokens } = await import('../context/utils.js');
             const summaryTokens = estimateMessagesTokens([sessionSummaryMessage]);
+            const totalOriginalMessages = summarizedCount + preservedMessages.length;
 
             this.logger.info(
                 `Session continuation: ${currentSessionId} → ${newSessionId} ` +
-                    `(${history.length} messages → ~${summaryTokens} token summary)`
+                    `(${totalOriginalMessages} messages → summary + ${preservedMessages.length} preserved)`
             );
 
             // Emit session:continued event for UI/CLI to handle session switch
@@ -1949,7 +1946,7 @@ export class DextoAgent {
                 previousSessionId: currentSessionId,
                 newSessionId,
                 summaryTokens,
-                originalMessages: history.length,
+                originalMessages: totalOriginalMessages,
                 reason: 'overflow',
                 sessionId: newSessionId,
             });

@@ -27,6 +27,7 @@ import type { InternalMessage, ContentPart } from '../context/types.js';
 import type { UserMessageInput } from './message-queue.js';
 import type { ContentInput } from '../agent/types.js';
 import { getModelPricing, calculateCost } from '../llm/registry.js';
+import type { CompactionData } from '../llm/executor/types.js';
 
 /**
  * Represents an isolated conversation session within a Dexto agent.
@@ -343,7 +344,7 @@ export class ChatSession {
     public async stream(
         content: ContentInput,
         options?: { signal?: AbortSignal }
-    ): Promise<{ text: string; didCompact: boolean }> {
+    ): Promise<{ text: string; didCompact: boolean; compaction?: CompactionData }> {
         // Normalize content to ContentPart[]
         const parts: ContentPart[] =
             typeof content === 'string' ? [{ type: 'text', text: content }] : content;
@@ -443,6 +444,8 @@ export class ChatSession {
             return {
                 text: modifiedResponsePayload.content,
                 didCompact: streamResult.didCompact,
+                // Use spread to conditionally include compaction (exactOptionalPropertyTypes)
+                ...(streamResult.compaction && { compaction: streamResult.compaction }),
             };
         } catch (error) {
             // If this was an intentional cancellation, return partial response from history
