@@ -2,9 +2,8 @@
  * ContextStatsOverlay Component
  * Interactive overlay for viewing context window usage statistics
  * Features:
- * - Summary view with progress bar
- * - Detailed breakdown by category
- * - Per-tool token usage (expandable)
+ * - Navigate with arrow keys to highlight items
+ * - Press Enter to expand/collapse sections (e.g., Tools)
  */
 
 import React, { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
@@ -22,8 +21,6 @@ interface ContextStatsOverlayProps {
 export interface ContextStatsOverlayHandle {
     handleInput: (input: string, key: Key) => boolean;
 }
-
-type ViewMode = 'summary' | 'tools';
 
 interface ContextStats {
     estimatedTokens: number;
@@ -48,6 +45,10 @@ interface ContextStats {
     };
 }
 
+// Breakdown items that can be selected
+type BreakdownItem = 'systemPrompt' | 'tools' | 'messages' | 'outputBuffer';
+const BREAKDOWN_ITEMS: BreakdownItem[] = ['systemPrompt', 'tools', 'messages', 'outputBuffer'];
+
 /**
  * Format token count for display (e.g., 1500 -> "1.5k")
  */
@@ -69,25 +70,23 @@ function createProgressBar(percent: number, width: number = 20): string {
 }
 
 /**
- * Context stats overlay with tab navigation
+ * Context stats overlay with selectable breakdown items
  */
 const ContextStatsOverlay = forwardRef<ContextStatsOverlayHandle, ContextStatsOverlayProps>(
     function ContextStatsOverlay({ isVisible, onClose, agent, sessionId }, ref) {
         const [stats, setStats] = useState<ContextStats | null>(null);
         const [isLoading, setIsLoading] = useState(false);
         const [error, setError] = useState<string | null>(null);
-        const [viewMode, setViewMode] = useState<ViewMode>('summary');
-        const [toolScrollIndex, setToolScrollIndex] = useState(0);
-
-        const MAX_VISIBLE_TOOLS = 10;
+        const [selectedIndex, setSelectedIndex] = useState(0);
+        const [expandedSections, setExpandedSections] = useState<Set<BreakdownItem>>(new Set());
 
         // Fetch stats when overlay becomes visible
         useEffect(() => {
             if (!isVisible) {
                 setStats(null);
                 setError(null);
-                setViewMode('summary');
-                setToolScrollIndex(0);
+                setSelectedIndex(0);
+                setExpandedSections(new Set());
                 return;
             }
 
@@ -129,24 +128,30 @@ const ContextStatsOverlay = forwardRef<ContextStatsOverlayHandle, ContextStatsOv
                         return true;
                     }
 
-                    // Tab to switch views
-                    if (key.tab) {
-                        setViewMode((prev) => (prev === 'summary' ? 'tools' : 'summary'));
-                        setToolScrollIndex(0);
+                    // Arrow keys for navigation
+                    if (key.upArrow) {
+                        setSelectedIndex((prev) => Math.max(0, prev - 1));
+                        return true;
+                    }
+                    if (key.downArrow) {
+                        setSelectedIndex((prev) => Math.min(BREAKDOWN_ITEMS.length - 1, prev + 1));
                         return true;
                     }
 
-                    // Arrow keys for scrolling in tools view
-                    if (viewMode === 'tools' && stats) {
-                        const toolCount = stats.breakdown.tools.perTool.length;
-                        if (key.upArrow) {
-                            setToolScrollIndex((prev) => Math.max(0, prev - 1));
-                            return true;
-                        }
-                        if (key.downArrow) {
-                            setToolScrollIndex((prev) =>
-                                Math.min(Math.max(0, toolCount - MAX_VISIBLE_TOOLS), prev + 1)
-                            );
+                    // Enter to expand/collapse
+                    if (key.return) {
+                        const item = BREAKDOWN_ITEMS[selectedIndex];
+                        // Only tools is expandable for now
+                        if (item === 'tools') {
+                            setExpandedSections((prev) => {
+                                const next = new Set(prev);
+                                if (next.has(item)) {
+                                    next.delete(item);
+                                } else {
+                                    next.add(item);
+                                }
+                                return next;
+                            });
                             return true;
                         }
                     }
@@ -154,7 +159,7 @@ const ContextStatsOverlay = forwardRef<ContextStatsOverlayHandle, ContextStatsOv
                     return false;
                 },
             }),
-            [isVisible, onClose, viewMode, stats]
+            [isVisible, onClose, selectedIndex]
         );
 
         if (!isVisible) return null;
@@ -222,6 +227,34 @@ const ContextStatsOverlay = forwardRef<ContextStatsOverlayHandle, ContextStatsOv
                 ? formatTokens(stats.actualTokens)
                 : `~${formatTokens(stats.estimatedTokens)}`;
 
+        const isToolsExpanded = expandedSections.has('tools');
+
+        // Helper to render a breakdown row
+        const renderRow = (
+            index: number,
+            item: BreakdownItem,
+            label: string,
+            tokens: number,
+            isLast: boolean,
+            expandable?: boolean
+        ) => {
+            const isSelected = selectedIndex === index;
+            const prefix = isLast ? '└─' : '├─';
+            const expandIcon = expandable ? (isToolsExpanded ? '▼' : '▶') : ' ';
+
+            return (
+                <Text key={item} color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>
+                    {prefix} {expandIcon} {label}: {formatTokens(tokens)} ({pct(tokens)})
+                    {isSelected && expandable && (
+                        <Text color="gray" dimColor>
+                            {' '}
+                            (Enter to {isToolsExpanded ? 'collapse' : 'expand'})
+                        </Text>
+                    )}
+                </Text>
+            );
+        };
+
         return (
             <Box
                 flexDirection="column"
@@ -258,115 +291,87 @@ const ContextStatsOverlay = forwardRef<ContextStatsOverlayHandle, ContextStatsOv
                     )}
                 </Box>
 
-                {/* Tab navigation */}
-                <Box marginBottom={1}>
-                    <Text
-                        color={viewMode === 'summary' ? 'cyan' : 'gray'}
-                        bold={viewMode === 'summary'}
-                    >
-                        [Summary]
-                    </Text>
-                    <Text color="gray"> </Text>
-                    <Text
-                        color={viewMode === 'tools' ? 'cyan' : 'gray'}
-                        bold={viewMode === 'tools'}
-                    >
-                        [Tools ({stats.breakdown.tools.perTool.length})]
-                    </Text>
-                </Box>
+                {/* Breakdown */}
+                <Box flexDirection="column">
+                    <Text color="white">Breakdown:</Text>
+                    {renderRow(
+                        0,
+                        'systemPrompt',
+                        'System prompt',
+                        stats.breakdown.systemPrompt,
+                        false
+                    )}
+                    {renderRow(
+                        1,
+                        'tools',
+                        `Tools (${stats.breakdown.tools.perTool.length})`,
+                        stats.breakdown.tools.total,
+                        false,
+                        true
+                    )}
 
-                {/* Summary view */}
-                {viewMode === 'summary' && (
-                    <Box flexDirection="column">
-                        <Text color="white">Breakdown:</Text>
-                        <Text color="gray">
-                            ├─ System prompt: {formatTokens(stats.breakdown.systemPrompt)} (
-                            {pct(stats.breakdown.systemPrompt)})
-                        </Text>
-                        <Text color="gray">
-                            ├─ Tools: {formatTokens(stats.breakdown.tools.total)} (
-                            {pct(stats.breakdown.tools.total)})
-                        </Text>
-                        <Text color="gray">
-                            ├─ Messages: {formatTokens(stats.breakdown.messages)} (
-                            {pct(stats.breakdown.messages)})
-                        </Text>
-                        <Text color="gray">
-                            └─ Output buffer: {formatTokens(stats.breakdown.outputBuffer)}{' '}
-                            (reserved)
-                        </Text>
-
-                        <Box marginTop={1}>
-                            <Text color="gray">
-                                Messages: {stats.filteredMessageCount} visible ({stats.messageCount}{' '}
-                                total)
-                            </Text>
-                        </Box>
-
-                        {stats.prunedToolCount > 0 && (
-                            <Text color="yellow">
-                                🗑️ {stats.prunedToolCount} tool output(s) pruned
-                            </Text>
-                        )}
-
-                        {stats.compactionCount > 0 && (
-                            <Text color="blue">
-                                📦 Compacted {stats.compactionCount} time
-                                {stats.compactionCount > 1 ? 's' : ''}
-                            </Text>
-                        )}
-
-                        {stats.usagePercent > 100 && (
-                            <Text color="yellow">
-                                💡 Use /compact to manually compact, or send a message to trigger
-                                auto-compaction
-                            </Text>
-                        )}
-                    </Box>
-                )}
-
-                {/* Tools view */}
-                {viewMode === 'tools' && (
-                    <Box flexDirection="column">
-                        <Text color="white">
-                            🔧 Tool Token Usage ({formatTokens(stats.breakdown.tools.total)} total)
-                        </Text>
-                        <Box marginTop={1} flexDirection="column">
+                    {/* Expanded tools list */}
+                    {isToolsExpanded && (
+                        <Box flexDirection="column" marginLeft={4}>
                             {stats.breakdown.tools.perTool.length === 0 ? (
-                                <Text color="gray">No tools registered</Text>
+                                <Text color="gray" dimColor>
+                                    No tools registered
+                                </Text>
                             ) : (
-                                <>
-                                    {/* Sort by tokens descending and slice for scrolling */}
-                                    {[...stats.breakdown.tools.perTool]
-                                        .sort((a, b) => b.tokens - a.tokens)
-                                        .slice(toolScrollIndex, toolScrollIndex + MAX_VISIBLE_TOOLS)
-                                        .map((tool, idx) => (
-                                            <Text key={tool.name} color="gray">
-                                                {idx === 0 && toolScrollIndex > 0 ? '↑ ' : '  '}
-                                                <Text color="cyan">{tool.name}</Text>:{' '}
-                                                {formatTokens(tool.tokens)} ({pct(tool.tokens)})
+                                [...stats.breakdown.tools.perTool]
+                                    .sort((a, b) => b.tokens - a.tokens)
+                                    .map((tool, idx, arr) => (
+                                        <Text key={tool.name} color="gray" dimColor>
+                                            {idx === arr.length - 1 ? '└─' : '├─'}{' '}
+                                            <Text color="cyan" dimColor>
+                                                {tool.name}
                                             </Text>
-                                        ))}
-                                    {toolScrollIndex + MAX_VISIBLE_TOOLS <
-                                        stats.breakdown.tools.perTool.length && (
-                                        <Text color="gray" dimColor>
-                                            ↓{' '}
-                                            {stats.breakdown.tools.perTool.length -
-                                                toolScrollIndex -
-                                                MAX_VISIBLE_TOOLS}{' '}
-                                            more...
+                                            : {formatTokens(tool.tokens)} ({pct(tool.tokens)})
                                         </Text>
-                                    )}
-                                </>
+                                    ))
                             )}
                         </Box>
-                    </Box>
-                )}
+                    )}
+
+                    {renderRow(2, 'messages', 'Messages', stats.breakdown.messages, false)}
+                    {renderRow(
+                        3,
+                        'outputBuffer',
+                        'Output buffer (reserved)',
+                        stats.breakdown.outputBuffer,
+                        true
+                    )}
+                </Box>
+
+                {/* Additional stats */}
+                <Box marginTop={1} flexDirection="column">
+                    <Text color="gray">
+                        Messages: {stats.filteredMessageCount} visible ({stats.messageCount} total)
+                    </Text>
+
+                    {stats.prunedToolCount > 0 && (
+                        <Text color="yellow">🗑️ {stats.prunedToolCount} tool output(s) pruned</Text>
+                    )}
+
+                    {stats.compactionCount > 0 && (
+                        <Text color="blue">
+                            📦 Compacted {stats.compactionCount} time
+                            {stats.compactionCount > 1 ? 's' : ''}
+                        </Text>
+                    )}
+
+                    {stats.usagePercent > 100 && (
+                        <Text color="yellow">
+                            💡 Use /compact to manually compact, or send a message to trigger
+                            auto-compaction
+                        </Text>
+                    )}
+                </Box>
 
                 {/* Footer with controls */}
                 <Box marginTop={1}>
                     <Text color="gray" dimColor>
-                        Tab: switch view | ↑↓: scroll | Esc: close
+                        ↑↓: navigate | Enter: expand/collapse | Esc: close
                     </Text>
                 </Box>
             </Box>
