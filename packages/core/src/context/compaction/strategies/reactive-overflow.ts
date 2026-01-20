@@ -31,15 +31,36 @@ export interface ReactiveOverflowOptions {
 const DEFAULT_OPTIONS: Required<ReactiveOverflowOptions> = {
     preserveLastNTurns: 2,
     maxSummaryTokens: 2000,
-    summaryPrompt: `You are a conversation summarizer. Summarize the following conversation history concisely, focusing on:
-- What tasks were attempted and their outcomes
-- Current state and context the assistant needs to remember
-- Any important decisions or information discovered
-- What the user was trying to accomplish
+    summaryPrompt: `You are a conversation summarizer creating a structured summary for session continuation.
 
-Be concise but preserve essential context. Output only the summary, no preamble.
+Analyze the conversation and produce a summary in the following XML format:
 
-Conversation:
+<session_compaction>
+  <conversation_history>
+    A concise summary of what happened in the conversation:
+    - Tasks attempted and their outcomes (success/failure/in-progress)
+    - Important decisions made
+    - Key information discovered (file paths, configurations, errors encountered)
+    - Tools used and their results
+  </conversation_history>
+
+  <current_task>
+    The most recent task or instruction the user requested that may still be in progress.
+    Be specific - include the exact request and current status.
+  </current_task>
+
+  <important_context>
+    Critical state that must be preserved:
+    - File paths being worked on
+    - Variable values or configurations
+    - Error messages that need addressing
+    - Any pending actions or next steps
+  </important_context>
+</session_compaction>
+
+IMPORTANT: The assistant will continue working based on this summary. Ensure the current_task section clearly states what needs to be done next.
+
+Conversation to summarize:
 {conversation}`,
 };
 
@@ -93,6 +114,41 @@ export class ReactiveOverflowStrategy implements ICompactionStrategy {
             return [];
         }
 
+        // Check if there's already a summary in history
+        // If so, we need to work with messages AFTER the summary only
+        // Use reverse search to find the MOST RECENT summary (important for re-compaction)
+        let existingSummaryIndex = -1;
+        for (let i = history.length - 1; i >= 0; i--) {
+            const msg = history[i];
+            if (msg?.metadata?.isSummary === true || msg?.metadata?.isSessionSummary === true) {
+                existingSummaryIndex = i;
+                break;
+            }
+        }
+
+        if (existingSummaryIndex !== -1) {
+            // There's already a summary - only consider messages AFTER it
+            const messagesAfterSummary = history.slice(existingSummaryIndex + 1);
+
+            // If there are very few messages after the summary, skip compaction
+            // (nothing meaningful to re-summarize)
+            if (messagesAfterSummary.length <= 4) {
+                this.logger.debug(
+                    `ReactiveOverflowStrategy: Only ${messagesAfterSummary.length} messages after existing summary, skipping re-compaction`
+                );
+                return [];
+            }
+
+            this.logger.info(
+                `ReactiveOverflowStrategy: Found existing summary at index ${existingSummaryIndex}, ` +
+                    `working with ${messagesAfterSummary.length} messages after it`
+            );
+
+            // Re-run compaction on the subset after the summary
+            // This prevents cascading summaries of summaries
+            return this.compactSubset(messagesAfterSummary, history);
+        }
+
         // Split history into messages to summarize and messages to keep
         const { toSummarize, toKeep } = this.splitHistory(history);
 
@@ -102,14 +158,18 @@ export class ReactiveOverflowStrategy implements ICompactionStrategy {
             return [];
         }
 
+        // Find the most recent user message to understand current task
+        const currentTaskMessage = this.findCurrentTaskMessage(history);
+
         this.logger.info(
             `ReactiveOverflowStrategy: Summarizing ${toSummarize.length} messages, keeping ${toKeep.length}`
         );
 
-        // Generate LLM summary of old messages
-        const summary = await this.generateSummary(toSummarize);
+        // Generate LLM summary of old messages with current task context
+        const summary = await this.generateSummary(toSummarize, currentTaskMessage);
 
         // Create summary message (will be ADDED to history, not replace)
+        // originalMessageCount tells filterCompacted() how many messages were summarized
         const summaryMessage: InternalMessage = {
             role: 'assistant',
             content: [{ type: 'text', text: summary }],
@@ -117,7 +177,7 @@ export class ReactiveOverflowStrategy implements ICompactionStrategy {
             metadata: {
                 isSummary: true,
                 summarizedAt: Date.now(),
-                summarizedMessageCount: toSummarize.length,
+                originalMessageCount: toSummarize.length,
                 originalFirstTimestamp: toSummarize[0]?.timestamp,
                 originalLastTimestamp: toSummarize[toSummarize.length - 1]?.timestamp,
             },
@@ -129,8 +189,89 @@ export class ReactiveOverflowStrategy implements ICompactionStrategy {
     }
 
     /**
+     * Handle re-compaction when there's already a summary in history.
+     * Only summarizes messages AFTER the existing summary, preventing
+     * cascading summaries of summaries.
+     *
+     * @param messagesAfterSummary Messages after the existing summary
+     * @param fullHistory The complete history (for current task detection)
+     * @returns Array with single summary message, or empty if nothing to summarize
+     */
+    private async compactSubset(
+        messagesAfterSummary: readonly InternalMessage[],
+        fullHistory: readonly InternalMessage[]
+    ): Promise<InternalMessage[]> {
+        // Split the subset into messages to summarize and keep
+        const { toSummarize, toKeep } = this.splitHistory(messagesAfterSummary);
+
+        if (toSummarize.length === 0) {
+            this.logger.debug('ReactiveOverflowStrategy: No messages to summarize in subset');
+            return [];
+        }
+
+        // Get current task from the full history
+        const currentTaskMessage = this.findCurrentTaskMessage(fullHistory);
+
+        this.logger.info(
+            `ReactiveOverflowStrategy (re-compact): Summarizing ${toSummarize.length} messages after existing summary, keeping ${toKeep.length}`
+        );
+
+        // Generate summary
+        const summary = await this.generateSummary(toSummarize, currentTaskMessage);
+
+        // Create summary message
+        // Note: originalMessageCount here is relative to the messages being summarized,
+        // not the total history. filterCompacted will use this to know how many to skip.
+        const summaryMessage: InternalMessage = {
+            role: 'assistant',
+            content: [{ type: 'text', text: summary }],
+            timestamp: Date.now(),
+            metadata: {
+                isSummary: true,
+                summarizedAt: Date.now(),
+                originalMessageCount: toSummarize.length,
+                isRecompaction: true, // Mark that this is a re-compaction
+                originalFirstTimestamp: toSummarize[0]?.timestamp,
+                originalLastTimestamp: toSummarize[toSummarize.length - 1]?.timestamp,
+            },
+        };
+
+        return [summaryMessage];
+    }
+
+    /**
+     * Find the most recent user message that represents the current task.
+     * This helps preserve context about what the user is currently asking for.
+     */
+    private findCurrentTaskMessage(history: readonly InternalMessage[]): string | null {
+        // Search backwards for the most recent user message
+        for (let i = history.length - 1; i >= 0; i--) {
+            const msg = history[i];
+            if (msg?.role === 'user') {
+                if (typeof msg.content === 'string') {
+                    return msg.content;
+                } else if (Array.isArray(msg.content)) {
+                    const textParts = msg.content
+                        .filter(
+                            (part): part is { type: 'text'; text: string } => part.type === 'text'
+                        )
+                        .map((part) => part.text)
+                        .join('\n');
+                    if (textParts.length > 0) {
+                        return textParts;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
      * Split history into messages to summarize and messages to keep.
      * Keeps the last N turns (user + assistant pairs) intact.
+     *
+     * For long agentic conversations with many tool calls, this also ensures
+     * we don't try to keep too many messages even within preserved turns.
      */
     private splitHistory(history: readonly InternalMessage[]): {
         toSummarize: readonly InternalMessage[];
@@ -152,14 +293,7 @@ export class ReactiveOverflowStrategy implements ICompactionStrategy {
         // If we found turn boundaries, split at the first one
         if (userMessageIndices.length > 0) {
             const splitIndex = userMessageIndices[0];
-            if (splitIndex !== undefined) {
-                // splitIndex === 0 means all messages are in turns to keep, nothing to summarize
-                if (splitIndex === 0) {
-                    return {
-                        toSummarize: [],
-                        toKeep: history,
-                    };
-                }
+            if (splitIndex !== undefined && splitIndex > 0) {
                 return {
                     toSummarize: history.slice(0, splitIndex),
                     toKeep: history.slice(splitIndex),
@@ -167,8 +301,28 @@ export class ReactiveOverflowStrategy implements ICompactionStrategy {
             }
         }
 
-        // Fallback: if we can't identify turns properly, keep last few messages
-        const keepCount = Math.min(4, history.length);
+        // Fallback for agentic conversations: if splitIndex is 0 (few user messages)
+        // or we can't identify turns, use a message-count-based approach.
+        // Keep only the last ~20% of messages or minimum 3 messages
+        // Note: We use a low minKeep because even a few messages can have huge token counts
+        // (e.g., tool outputs with large file contents). Token-based compaction needs to be
+        // aggressive about message counts when tokens are overflowing.
+        const minKeep = 3;
+        const maxKeepPercent = 0.2;
+        const keepCount = Math.max(minKeep, Math.floor(history.length * maxKeepPercent));
+
+        // But don't summarize if we'd keep everything anyway
+        if (keepCount >= history.length) {
+            return {
+                toSummarize: [],
+                toKeep: history,
+            };
+        }
+
+        this.logger.debug(
+            `splitHistory: Using fallback - keeping last ${keepCount} of ${history.length} messages`
+        );
+
         return {
             toSummarize: history.slice(0, -keepCount),
             toKeep: history.slice(-keepCount),
@@ -177,10 +331,26 @@ export class ReactiveOverflowStrategy implements ICompactionStrategy {
 
     /**
      * Generate an LLM summary of the messages.
+     *
+     * @param messages Messages to summarize
+     * @param currentTask The most recent user message (current task context)
      */
-    private async generateSummary(messages: readonly InternalMessage[]): Promise<string> {
+    private async generateSummary(
+        messages: readonly InternalMessage[],
+        currentTask: string | null
+    ): Promise<string> {
         const formattedConversation = this.formatMessagesForSummary(messages);
-        const prompt = this.options.summaryPrompt.replace('{conversation}', formattedConversation);
+
+        // Add current task context to the prompt if available
+        let conversationWithContext = formattedConversation;
+        if (currentTask) {
+            conversationWithContext += `\n\n--- CURRENT TASK (most recent user request) ---\n${currentTask}`;
+        }
+
+        const prompt = this.options.summaryPrompt.replace(
+            '{conversation}',
+            conversationWithContext
+        );
 
         try {
             const result = await generateText({
@@ -189,11 +359,14 @@ export class ReactiveOverflowStrategy implements ICompactionStrategy {
                 maxOutputTokens: this.options.maxSummaryTokens,
             });
 
-            return `[Previous conversation summary]\n${result.text}`;
+            // Return structured summary - the XML format from the LLM
+            return `[Session Compaction Summary]\n${result.text}`;
         } catch (error) {
-            this.logger.error('ReactiveOverflowStrategy: Failed to generate summary', { error });
-            // Fallback: return a simple truncated version
-            return this.createFallbackSummary(messages);
+            this.logger.error(
+                `ReactiveOverflowStrategy: Failed to generate summary - ${error instanceof Error ? error.message : String(error)}`
+            );
+            // Fallback: return a simple truncated version with current task
+            return this.createFallbackSummary(messages, currentTask);
         }
     }
 
@@ -246,7 +419,10 @@ export class ReactiveOverflowStrategy implements ICompactionStrategy {
     /**
      * Create a fallback summary if LLM call fails.
      */
-    private createFallbackSummary(messages: readonly InternalMessage[]): string {
+    private createFallbackSummary(
+        messages: readonly InternalMessage[],
+        currentTask: string | null
+    ): string {
         const userMessages = messages.filter((m) => m.role === 'user');
         const assistantWithTools = messages.filter(
             (m): m is InternalMessage & { role: 'assistant'; toolCalls: ToolCall[] } =>
@@ -277,6 +453,28 @@ export class ReactiveOverflowStrategy implements ICompactionStrategy {
             ),
         ].join(', ');
 
-        return `[Previous conversation summary - fallback]\nUser discussed: ${userTopics || 'various topics'}\nTools used: ${toolsUsed || 'none'}`;
+        // Create XML-structured fallback
+        let fallback = `[Session Compaction Summary - Fallback]
+<session_compaction>
+  <conversation_history>
+    User discussed: ${userTopics || 'various topics'}
+    Tools used: ${toolsUsed || 'none'}
+    Messages summarized: ${messages.length}
+  </conversation_history>`;
+
+        if (currentTask) {
+            fallback += `
+  <current_task>
+    ${currentTask.slice(0, 500)}${currentTask.length > 500 ? '...' : ''}
+  </current_task>`;
+        }
+
+        fallback += `
+  <important_context>
+    Note: This is a fallback summary due to LLM error. Context may be incomplete.
+  </important_context>
+</session_compaction>`;
+
+        return fallback;
     }
 }

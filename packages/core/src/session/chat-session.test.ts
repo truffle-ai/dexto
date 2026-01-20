@@ -293,7 +293,8 @@ describe('ChatSession', () => {
                 sessionId,
                 mockServices.resourceManager,
                 mockLogger,
-                null // compaction strategy
+                null, // compaction strategy
+                undefined // compaction config
             );
         });
 
@@ -319,7 +320,8 @@ describe('ChatSession', () => {
                 sessionId,
                 mockServices.resourceManager,
                 mockLogger,
-                null // compaction strategy
+                null, // compaction strategy
+                undefined // compaction config
             );
         });
 
@@ -395,11 +397,11 @@ describe('ChatSession', () => {
             const userMessage = 'Hello, world!';
             const expectedResponse = 'Hello! How can I help you?';
 
-            mockLLMService.stream.mockResolvedValue(expectedResponse);
+            mockLLMService.stream.mockResolvedValue({ text: expectedResponse, didCompact: false });
 
             const response = await chatSession.stream(userMessage);
 
-            expect(response).toBe(expectedResponse);
+            expect(response).toEqual({ text: expectedResponse, didCompact: false });
             expect(mockLLMService.stream).toHaveBeenCalledWith(
                 [{ type: 'text', text: userMessage }],
                 expect.objectContaining({ signal: expect.any(AbortSignal) })
@@ -436,7 +438,8 @@ describe('ChatSession', () => {
                 sessionId,
                 mockServices.resourceManager, // ResourceManager parameter
                 mockLogger, // Logger parameter
-                null // compaction strategy
+                null, // compaction strategy
+                undefined // compaction config
             );
 
             // Verify session-specific history provider creation

@@ -362,6 +362,7 @@ export interface UIState {
     isProcessing: boolean;
     isCancelling: boolean; // True when cancellation is in progress
     isThinking: boolean; // True when LLM is thinking (before streaming starts)
+    isCompacting: boolean; // True when context is being compacted
     activeOverlay: OverlayType;
     exitWarningShown: boolean; // True when first Ctrl+C was pressed (pending second to exit)
     exitWarningTimestamp: number | null; // Timestamp of first Ctrl+C for timeout
