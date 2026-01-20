@@ -523,4 +523,133 @@ describe('ContextManager', () => {
             expect(count).toBe(0);
         });
     });
+
+    describe('lastActualInputTokens', () => {
+        it('should return null initially and store/update values', () => {
+            expect(contextManager.getLastActualInputTokens()).toBeNull();
+
+            contextManager.setLastActualInputTokens(5000);
+            expect(contextManager.getLastActualInputTokens()).toBe(5000);
+
+            contextManager.setLastActualInputTokens(7500);
+            expect(contextManager.getLastActualInputTokens()).toBe(7500);
+        });
+    });
+
+    describe('prepareHistory', () => {
+        it('should transform pruned tool messages to placeholders', async () => {
+            // Add a tool result with known content
+            const originalContent = 'This is a long tool output that will be pruned';
+            const sanitizedResult: SanitizedToolResult = {
+                content: [{ type: 'text', text: originalContent }],
+                meta: { toolName: 'test', toolCallId: 'call-1', success: true },
+            };
+            await contextManager.addToolResult('call-1', 'test', sanitizedResult);
+
+            // Mark it as compacted (pruned)
+            const history = await contextManager.getHistory();
+            const toolMessageId = history.find((m) => m.role === 'tool')?.id;
+            expect(toolMessageId).toBeDefined();
+            await contextManager.markMessagesAsCompacted([toolMessageId!]);
+
+            const result = await contextManager.prepareHistory();
+
+            // Verify transformation happened
+            expect(result.stats.prunedToolCount).toBe(1);
+            const toolMsg = result.preparedHistory.find((m) => m.role === 'tool');
+            expect(toolMsg?.content).toEqual([
+                { type: 'text', text: '[Old tool result content cleared]' },
+            ]);
+
+            // Verify original content is NOT in prepared history
+            const toolMsgText = (toolMsg?.content as any)?.[0]?.text;
+            expect(toolMsgText).not.toContain(originalContent);
+        });
+
+        it('should not transform non-pruned tool messages', async () => {
+            const originalContent = 'This tool output should remain intact';
+            const sanitizedResult: SanitizedToolResult = {
+                content: [{ type: 'text', text: originalContent }],
+                meta: { toolName: 'test', toolCallId: 'call-1', success: true },
+            };
+            await contextManager.addToolResult('call-1', 'test', sanitizedResult);
+
+            // Don't mark as compacted
+            const result = await contextManager.prepareHistory();
+
+            expect(result.stats.prunedToolCount).toBe(0);
+            const toolMsg = result.preparedHistory.find((m) => m.role === 'tool');
+            expect((toolMsg?.content as any)?.[0]?.text).toBe(originalContent);
+        });
+    });
+
+    describe('getContextTokenEstimate', () => {
+        const mockContributorContext = { mcpManager: {} as any };
+        const mockTools = {
+            'test-tool': {
+                name: 'test-tool',
+                description: 'A test tool',
+                parameters: { type: 'object', properties: {} },
+            },
+        };
+
+        it('should calculate total as sum of breakdown components', async () => {
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+
+            const result = await contextManager.getContextTokenEstimate(
+                mockContributorContext,
+                mockTools
+            );
+
+            const calculatedTotal =
+                result.breakdown.systemPrompt +
+                result.breakdown.tools.total +
+                result.breakdown.messages;
+
+            expect(result.estimated).toBe(calculatedTotal);
+            expect(result.actual).toBeNull(); // No LLM call made
+        });
+
+        it('should return actual tokens when set', async () => {
+            contextManager.setLastActualInputTokens(12500);
+
+            const result = await contextManager.getContextTokenEstimate(
+                mockContributorContext,
+                mockTools
+            );
+
+            expect(result.actual).toBe(12500);
+        });
+
+        it('should reduce estimate when tool messages are pruned', async () => {
+            // Add a tool result with substantial content (~250 tokens)
+            const sanitizedResult: SanitizedToolResult = {
+                content: [{ type: 'text', text: 'A'.repeat(1000) }],
+                meta: { toolName: 'test', toolCallId: 'call-1', success: true },
+            };
+            await contextManager.addToolResult('call-1', 'test', sanitizedResult);
+
+            const beforePrune = await contextManager.getContextTokenEstimate(
+                mockContributorContext,
+                mockTools
+            );
+
+            // Mark the tool message as compacted
+            const history = await contextManager.getHistory();
+            const toolMessageId = history.find((m) => m.role === 'tool')?.id;
+            await contextManager.markMessagesAsCompacted([toolMessageId!]);
+
+            const afterPrune = await contextManager.getContextTokenEstimate(
+                mockContributorContext,
+                mockTools
+            );
+
+            // Estimate should be significantly lower (placeholder ~10 tokens vs ~250)
+            expect(afterPrune.breakdown.messages).toBeLessThan(beforePrune.breakdown.messages);
+            expect(beforePrune.breakdown.messages - afterPrune.breakdown.messages).toBeGreaterThan(
+                200
+            );
+            expect(afterPrune.stats.prunedToolCount).toBe(1);
+        });
+    });
 });

@@ -98,7 +98,7 @@ export class TurnExecutor {
 
     /**
      * Virtual context for remaining iterations after compaction.
-     * When set, the main loop uses this instead of calling getFormattedMessagesWithCompression().
+     * When set, the main loop uses this instead of calling getFormattedMessagesForLLM().
      * This provides reduced context to the LLM without persisting to the original session.
      */
     private virtualContext: {
@@ -238,14 +238,14 @@ export class TurnExecutor {
                 await this.pruneOldToolOutputs();
 
                 // 3. Get formatted messages for this step
-                let prepared = await this.contextManager.getFormattedMessagesWithCompression(
+                let prepared = await this.contextManager.getFormattedMessagesForLLM(
                     contributorContext,
                     this.llmContext
                 );
 
                 // 4. PRE-CHECK: Estimate tokens and compact if over threshold BEFORE LLM call
                 // This ensures we never make an oversized call and avoids unnecessary compaction on stop steps
-                const estimatedTokens = estimateMessagesTokens(prepared.filteredHistory);
+                const estimatedTokens = estimateMessagesTokens(prepared.preparedHistory);
                 if (this.shouldCompact(estimatedTokens)) {
                     this.logger.debug(
                         `Pre-check: estimated ${estimatedTokens} tokens exceeds threshold, compacting`
@@ -317,6 +317,11 @@ export class TurnExecutor {
                     `Step ${stepCount}: Finished with reason="${result.finishReason}", ` +
                         `tokens=${JSON.stringify(result.usage)}`
                 );
+
+                // 7a. Store actual token count for /context reporting
+                if (result.usage?.inputTokens) {
+                    this.contextManager.setLastActualInputTokens(result.usage.inputTokens);
+                }
 
                 // 7b. POST-RESPONSE CHECK: Use actual inputTokens from API to detect overflow
                 // This catches cases where the LLM's response pushed us over the threshold
@@ -799,7 +804,7 @@ export class TurnExecutor {
     /**
      * Prunes old tool outputs by marking them with compactedAt timestamp.
      * Does NOT modify content - transformation happens at format time in
-     * ContextManager.getFormattedMessagesWithCompression().
+     * ContextManager.prepareHistory().
      *
      * Algorithm:
      * 1. Go backwards through history (most recent first)
@@ -1036,7 +1041,7 @@ export class TurnExecutor {
         };
 
         // Store virtual context for remaining iterations
-        // The main loop will use this instead of calling getFormattedMessagesWithCompression()
+        // The main loop will use this instead of calling getFormattedMessagesForLLM()
         this.virtualContext = {
             summaryMessage,
             preservedMessages: [...preservedMessages],
@@ -1090,18 +1095,18 @@ export class TurnExecutor {
      * - Summary message (as first message)
      * - Preserved messages (formatted for LLM)
      *
-     * Uses the same formatting pipeline as getFormattedMessagesWithCompression()
+     * Uses the same formatting pipeline as getFormattedMessagesForLLM()
      * but with our virtual history instead of the stored history.
      *
      * @param contributorContext Context for system prompt contributors
-     * @returns Formatted messages ready for LLM call, matching getFormattedMessagesWithCompression return type
+     * @returns Formatted messages ready for LLM call, matching getFormattedMessagesForLLM return type
      */
     private async buildMessagesFromVirtualContext(
         contributorContext: DynamicContributorContext
     ): Promise<{
         formattedMessages: ModelMessage[];
         systemPrompt: string;
-        filteredHistory: InternalMessage[];
+        preparedHistory: InternalMessage[];
     }> {
         if (!this.virtualContext) {
             throw new Error('buildMessagesFromVirtualContext called without virtual context');
@@ -1127,7 +1132,7 @@ export class TurnExecutor {
         return {
             formattedMessages,
             systemPrompt,
-            filteredHistory: virtualHistory,
+            preparedHistory: virtualHistory,
         };
     }
 

@@ -24,6 +24,8 @@ export const tips: string[] = [
     'Use /copy to copy the previous response…',
     'Use /shortcuts to see all available shortcuts…',
     'Use /sysprompt to see the current system prompt…',
+    'Use /context to see the current token usage…',
+    'Use /compact to summarize the current session…',
 
     // Keyboard shortcut tips
     'Press Escape to cancel the current request…',

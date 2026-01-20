@@ -6,7 +6,13 @@ import { isSystemMessage, isUserMessage, isAssistantMessage, isToolMessage } fro
 import type { IDextoLogger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
 import { eventBus } from '../events/index.js';
-import { expandBlobReferences, isLikelyBase64String, filterCompacted } from './utils.js';
+import {
+    expandBlobReferences,
+    isLikelyBase64String,
+    filterCompacted,
+    estimateStringTokens,
+    estimateMessagesTokens,
+} from './utils.js';
 import type { SanitizedToolResult } from './types.js';
 import { DynamicContributorContext } from '../systemPrompt/types.js';
 import { SystemPromptManager } from '../systemPrompt/manager.js';
@@ -48,6 +54,12 @@ export class ContextManager<TMessage = unknown> {
      * Maximum number of tokens allowed in the conversation (if specified)
      */
     private maxInputTokens: number;
+
+    /**
+     * Last known actual input token count from the LLM API response.
+     * Updated after each LLM call. Used by /context for accurate reporting.
+     */
+    private lastActualInputTokens: number | null = null;
 
     private historyProvider: IConversationHistoryProvider;
     private readonly sessionId: string;
@@ -196,6 +208,101 @@ export class ContextManager<TMessage = unknown> {
      */
     getMaxInputTokens(): number {
         return this.maxInputTokens;
+    }
+
+    /**
+     * Returns the last known actual input token count from the LLM API.
+     * Returns null if no LLM call has been made yet.
+     */
+    getLastActualInputTokens(): number | null {
+        return this.lastActualInputTokens;
+    }
+
+    /**
+     * Updates the last known actual input token count.
+     * Called after each LLM response with the actual usage from the API.
+     */
+    setLastActualInputTokens(tokens: number): void {
+        this.lastActualInputTokens = tokens;
+        this.logger.debug(`Updated lastActualInputTokens: ${tokens}`);
+    }
+
+    // ============= HISTORY PREPARATION =============
+
+    /**
+     * Placeholder text used when tool outputs are pruned.
+     * Shared constant to ensure consistency between preparation and estimation.
+     */
+    private static readonly PRUNED_TOOL_PLACEHOLDER = '[Old tool result content cleared]';
+
+    /**
+     * Prepares conversation history for LLM consumption.
+     * This is the single source of truth for history transformation logic.
+     *
+     * Transformations applied:
+     * 1. filterCompacted - Remove pre-summary messages (messages before the most recent summary)
+     * 2. Transform pruned tool messages - Replace compactedAt messages with placeholder text
+     *
+     * Used by both:
+     * - getFormattedMessagesForLLM() - For actual LLM calls
+     * - getContextTokenEstimate() - For /context command estimation
+     *
+     * @returns Prepared history and statistics about the transformations
+     */
+    async prepareHistory(): Promise<{
+        preparedHistory: InternalMessage[];
+        stats: {
+            /** Total messages in raw history */
+            originalCount: number;
+            /** Messages after filterCompacted (removed pre-summary) */
+            filteredCount: number;
+            /** Messages with compactedAt that were transformed to placeholders */
+            prunedToolCount: number;
+        };
+    }> {
+        const fullHistory = await this.historyProvider.getHistory();
+        const originalCount = fullHistory.length;
+
+        // Step 1: Filter compacted (remove pre-summary messages)
+        let history = filterCompacted(fullHistory);
+        const filteredCount = history.length;
+
+        if (filteredCount < originalCount) {
+            this.logger.debug(
+                `prepareHistory: filterCompacted reduced from ${originalCount} to ${filteredCount} messages`
+            );
+        }
+
+        // Step 2: Transform compacted tool messages to placeholders
+        // Original content is preserved in storage, placeholder sent to LLM
+        let prunedToolCount = 0;
+        history = history.map((msg) => {
+            if (msg.role === 'tool' && msg.compactedAt) {
+                prunedToolCount++;
+                return {
+                    ...msg,
+                    content: [
+                        { type: 'text' as const, text: ContextManager.PRUNED_TOOL_PLACEHOLDER },
+                    ],
+                };
+            }
+            return msg;
+        });
+
+        if (prunedToolCount > 0) {
+            this.logger.debug(
+                `prepareHistory: Transformed ${prunedToolCount} pruned tool messages to placeholders`
+            );
+        }
+
+        return {
+            preparedHistory: history,
+            stats: {
+                originalCount,
+                filteredCount,
+                prunedToolCount,
+            },
+        };
     }
 
     /**
@@ -753,68 +860,128 @@ export class ContextManager<TMessage = unknown> {
     /**
      * Gets the conversation ready for LLM consumption with proper flow:
      * 1. Get system prompt
-     * 2. Get history and filter (exclude pre-summary messages)
-     * 3. Format messages
-     * This method implements the correct ordering to avoid circular dependencies.
+     * 2. Prepare history (filter + transform pruned messages)
+     * 3. Format messages for LLM API
      *
      * @param contributorContext The DynamicContributorContext for system prompt contributors and formatting
      * @param llmContext The llmContext for the formatter to decide which messages to include based on the model's capabilities
-     * @returns Object containing formatted messages and system prompt
+     * @returns Object containing formatted messages, system prompt, and prepared history
      */
-    async getFormattedMessagesWithCompression(
+    async getFormattedMessagesForLLM(
         contributorContext: DynamicContributorContext,
         llmContext: LLMContext
     ): Promise<{
         formattedMessages: TMessage[];
         systemPrompt: string;
-        filteredHistory: InternalMessage[];
+        preparedHistory: InternalMessage[];
     }> {
         // Step 1: Get system prompt
         const systemPrompt = await this.getSystemPrompt(contributorContext);
 
-        // Step 2: Get history and filter (exclude pre-summary messages)
-        const fullHistory = await this.historyProvider.getHistory();
-        let history = filterCompacted(fullHistory);
+        // Step 2: Prepare history (single source of truth for transformations)
+        const { preparedHistory } = await this.prepareHistory();
 
-        // Log if filtering occurred
-        if (history.length < fullHistory.length) {
-            this.logger.debug(
-                `filterCompacted: Reduced history from ${fullHistory.length} to ${history.length} messages (summary present)`
-            );
-        }
-
-        // Step 3: Transform compacted tool messages (respects compactedAt marker)
-        // Original content is preserved in storage, placeholder sent to LLM
-        const compactedCount = history.filter((m) => m.role === 'tool' && m.compactedAt).length;
-        if (compactedCount > 0) {
-            history = history.map((msg) => {
-                if (msg.role === 'tool' && msg.compactedAt) {
-                    return {
-                        ...msg,
-                        content: [
-                            { type: 'text' as const, text: '[Old tool result content cleared]' },
-                        ],
-                    };
-                }
-                return msg;
-            });
-            this.logger.debug(
-                `Transformed ${compactedCount} compacted tool messages to placeholders`
-            );
-        }
-
-        // Step 4: Format messages with filtered and transformed history
+        // Step 3: Format messages with prepared history
         const formattedMessages = await this.getFormattedMessages(
             contributorContext,
             llmContext,
             systemPrompt,
-            history
-        ); // Type cast happens here via TMessage generic
+            preparedHistory
+        );
 
         return {
             formattedMessages,
             systemPrompt,
-            filteredHistory: history,
+            preparedHistory,
+        };
+    }
+
+    /**
+     * Estimates context token usage for the /context command.
+     * Uses the same prepareHistory() logic as getFormattedMessagesForLLM() to ensure consistency.
+     *
+     * @param contributorContext Context for building the system prompt
+     * @param tools Tool definitions to include in the estimate
+     * @returns Token estimates with breakdown and comparison to actual (if available)
+     */
+    async getContextTokenEstimate(
+        contributorContext: DynamicContributorContext,
+        tools: Record<string, { name?: string; description?: string; parameters?: unknown }>
+    ): Promise<{
+        /** Total estimated tokens */
+        estimated: number;
+        /** Last actual token count from LLM API (null if no calls made yet) */
+        actual: number | null;
+        /** Breakdown by category */
+        breakdown: {
+            systemPrompt: number;
+            tools: {
+                total: number;
+                perTool: Array<{ name: string; tokens: number }>;
+            };
+            messages: number;
+        };
+        /** Preparation stats */
+        stats: {
+            originalMessageCount: number;
+            filteredMessageCount: number;
+            prunedToolCount: number;
+        };
+    }> {
+        // Step 1: Get system prompt (same as LLM preparation)
+        const systemPrompt = await this.getSystemPrompt(contributorContext);
+        const systemPromptTokens = estimateStringTokens(systemPrompt);
+
+        // Step 2: Prepare history (same as LLM preparation - single source of truth)
+        const { preparedHistory, stats } = await this.prepareHistory();
+
+        // Step 3: Estimate message tokens from prepared history
+        const messagesTokens = estimateMessagesTokens(preparedHistory);
+
+        // Step 4: Estimate tool tokens
+        const perToolTokens: Array<{ name: string; tokens: number }> = [];
+        let toolsTokensTotal = 0;
+        for (const [key, tool] of Object.entries(tools)) {
+            const toolName = tool.name || key;
+            const toolDescription = tool.description || '';
+            const toolSchema = JSON.stringify(tool.parameters || {});
+            const tokens = estimateStringTokens(toolName + toolDescription + toolSchema);
+            perToolTokens.push({ name: toolName, tokens });
+            toolsTokensTotal += tokens;
+        }
+
+        // Step 5: Calculate total
+        const estimated = systemPromptTokens + toolsTokensTotal + messagesTokens;
+
+        // Step 6: Get actual and log comparison
+        const actual = this.lastActualInputTokens;
+        if (actual !== null) {
+            const diff = estimated - actual;
+            const diffPercent = actual > 0 ? ((diff / actual) * 100).toFixed(1) : '0.0';
+            this.logger.debug(
+                `Context token estimate: estimated=${estimated}, actual=${actual}, ` +
+                    `diff=${diff} (${diffPercent}%), breakdown: sys=${systemPromptTokens}, ` +
+                    `tools=${toolsTokensTotal}, msgs=${messagesTokens}, ` +
+                    `stats: orig=${stats.originalCount}, filtered=${stats.filteredCount}, pruned=${stats.prunedToolCount}`
+            );
+        }
+
+        return {
+            estimated,
+            actual,
+            breakdown: {
+                systemPrompt: systemPromptTokens,
+                tools: {
+                    total: toolsTokensTotal,
+                    perTool: perToolTokens,
+                },
+                messages: messagesTokens,
+            },
+            stats: {
+                originalMessageCount: stats.originalCount,
+                filteredMessageCount: stats.filteredCount,
+                prunedToolCount: stats.prunedToolCount,
+            },
         };
     }
 

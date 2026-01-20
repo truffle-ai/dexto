@@ -1718,10 +1718,13 @@ export class DextoAgent {
      */
     public async getContextStats(sessionId: string): Promise<{
         estimatedTokens: number;
+        /** Last actual token count from LLM API (null if no calls made yet) */
+        actualTokens: number | null;
         maxContextTokens: number;
         usagePercent: number;
         messageCount: number;
         filteredMessageCount: number;
+        prunedToolCount: number;
         hasSummary: boolean;
         /** Current model identifier */
         model: string;
@@ -1754,39 +1757,19 @@ export class DextoAgent {
         }
 
         const contextManager = session.getContextManager();
-        const history = await contextManager.getHistory();
 
-        // Import utilities for token estimation and filtering
-        const { filterCompacted, estimateMessagesTokens, estimateStringTokens } = await import(
-            '../context/utils.js'
-        );
-
-        const filteredHistory = filterCompacted(history);
-        const messagesTokens = estimateMessagesTokens(filteredHistory);
-
-        // Get system prompt tokens
+        // Get token estimate using ContextManager's method (single source of truth)
         const contributorContext = { mcpManager: this.mcpManager };
-        const systemPrompt = await contextManager.getSystemPrompt(contributorContext);
-        const systemPromptTokens = estimateStringTokens(systemPrompt);
-
-        // Get tools tokens - estimate from actual tool definitions
         const llmService = session.getLLMService();
         const tools = await llmService.getAllTools();
-        // Serialize each tool's name, description, and JSON schema to estimate tokens
-        const perToolTokens: Array<{ name: string; tokens: number }> = [];
-        let toolsTokensTotal = 0;
-        for (const [key, tool] of Object.entries(tools)) {
-            const toolName = tool.name || key;
-            const toolDescription = tool.description || '';
-            const toolSchema = JSON.stringify(tool.parameters || {});
-            const tokens = estimateStringTokens(toolName + toolDescription + toolSchema);
-            perToolTokens.push({ name: toolName, tokens });
-            toolsTokensTotal += tokens;
-        }
 
-        // Calculate total estimated tokens (what actually gets sent to the LLM)
-        const estimatedTokens = systemPromptTokens + toolsTokensTotal + messagesTokens;
+        const tokenEstimate = await contextManager.getContextTokenEstimate(
+            contributorContext,
+            tools
+        );
 
+        // Get raw history for hasSummary check
+        const history = await contextManager.getHistory();
         // Get the effective max context tokens (compaction threshold takes priority)
         const runtimeConfig = this.stateManager.getRuntimeConfig(sessionId);
         const compactionConfig = runtimeConfig.compaction;
@@ -1820,23 +1803,25 @@ export class DextoAgent {
         const { getModelDisplayName } = await import('../llm/registry.js');
         const modelDisplayName = getModelDisplayName(llmConfig.model, llmConfig.provider);
 
+        // Use actual tokens if available, otherwise use estimate
+        const estimatedTokens = tokenEstimate.actual ?? tokenEstimate.estimated;
+
         return {
             estimatedTokens,
+            actualTokens: tokenEstimate.actual,
             maxContextTokens,
             usagePercent:
                 maxContextTokens > 0 ? Math.round((estimatedTokens / maxContextTokens) * 100) : 0,
-            messageCount: history.length,
-            filteredMessageCount: filteredHistory.length,
+            messageCount: tokenEstimate.stats.originalMessageCount,
+            filteredMessageCount: tokenEstimate.stats.filteredMessageCount,
+            prunedToolCount: tokenEstimate.stats.prunedToolCount,
             hasSummary,
             model: llmConfig.model,
             modelDisplayName,
             breakdown: {
-                systemPrompt: systemPromptTokens,
-                tools: {
-                    total: toolsTokensTotal,
-                    perTool: perToolTokens,
-                },
-                messages: messagesTokens,
+                systemPrompt: tokenEstimate.breakdown.systemPrompt,
+                tools: tokenEstimate.breakdown.tools,
+                messages: tokenEstimate.breakdown.messages,
                 outputBuffer,
             },
         };

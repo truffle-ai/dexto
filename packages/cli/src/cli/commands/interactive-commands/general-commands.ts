@@ -327,12 +327,18 @@ export const generalCommands: CommandDefinition[] = [
                 const overflowWarning = stats.usagePercent > 100 ? ' ⚠️  OVERFLOW' : '';
                 const { breakdown } = stats;
 
+                // Show actual tokens if available, otherwise estimate with indicator
+                const tokenDisplay =
+                    stats.actualTokens !== null
+                        ? `${formatTokens(stats.actualTokens)}`
+                        : `~${formatTokens(stats.estimatedTokens)}`;
+
                 const lines = [
                     `📊 Context Usage`,
                     `   ${usageColor(progressBar)} ${stats.usagePercent}%${overflowWarning}`,
-                    `   ${chalk.dim(stats.modelDisplayName)} · ${formatTokens(stats.estimatedTokens)} / ${formatTokens(stats.maxContextTokens)} tokens`,
+                    `   ${chalk.dim(stats.modelDisplayName)} · ${tokenDisplay} / ${formatTokens(stats.maxContextTokens)} tokens`,
                     ``,
-                    `   ${chalk.cyan('Breakdown:')}`,
+                    `   ${chalk.cyan('Breakdown:')} ${stats.actualTokens === null ? chalk.dim('(estimated)') : ''}`,
                     `   ├─ System prompt: ${formatTokens(breakdown.systemPrompt)} (${pct(breakdown.systemPrompt)})`,
                     `   ├─ Tools: ${formatTokens(breakdown.tools.total)} (${pct(breakdown.tools.total)})`,
                     `   ├─ Messages: ${formatTokens(breakdown.messages)} (${pct(breakdown.messages)})`,
@@ -340,6 +346,11 @@ export const generalCommands: CommandDefinition[] = [
                     ``,
                     `   Messages: ${stats.filteredMessageCount} visible (${stats.messageCount} total)`,
                 ];
+
+                // Show pruned tool count if any
+                if (stats.prunedToolCount > 0) {
+                    lines.push(`   🗑️  ${stats.prunedToolCount} tool output(s) pruned`);
+                }
 
                 if (stats.hasSummary) {
                     lines.push(`   📦 Context has been compacted`);
