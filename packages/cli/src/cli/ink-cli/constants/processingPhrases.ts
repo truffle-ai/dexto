@@ -53,6 +53,8 @@ export const processingPhrases: string[] = [
     'Zapping…',
     'Braining…',
     'Using all 3 brain cells…',
+    "I'm not lazy, I'm just on energy-saving mode…",
+    'I came. I saw. I made it awkward…',
     //'Installing malware (just kidding)…',
 
     // Vines
