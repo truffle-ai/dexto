@@ -8,9 +8,21 @@ import type { VercelMessageFormatter } from '../llm/formatters/vercel.js';
 import type { SystemPromptManager } from '../systemPrompt/manager.js';
 import type { ResourceManager } from '../resources/manager.js';
 import type { BlobStore } from '../storage/blob/types.js';
+import type { DynamicContributorContext } from '../systemPrompt/types.js';
+import type { MCPManager } from '../mcp/manager.js';
 
 // Create mock dependencies
 const mockLogger = createMockLogger();
+
+/**
+ * Create a typed mock for DynamicContributorContext.
+ * MCPManager is stubbed since tests don't actually use MCP features.
+ */
+function createMockContributorContext(): DynamicContributorContext {
+    return {
+        mcpManager: {} as MCPManager,
+    };
+}
 
 function createMockLLMConfig(): ValidatedLLMConfig {
     return {
@@ -584,7 +596,7 @@ describe('ContextManager', () => {
     });
 
     describe('getContextTokenEstimate', () => {
-        const mockContributorContext = { mcpManager: {} as any };
+        const mockContributorContext = createMockContributorContext();
         const mockTools = {
             'test-tool': {
                 name: 'test-tool',
@@ -765,7 +777,7 @@ describe('ContextManager', () => {
         });
 
         it('should cause estimation to fall back to pure estimation', async () => {
-            const mockContributorContext = { mcpManager: {} as any };
+            const mockContributorContext = createMockContributorContext();
             const mockTools = {};
 
             // Set actuals
@@ -909,7 +921,7 @@ describe('ContextManager', () => {
             contextManager.setLastActualInputTokens(5000);
             // lastOutput is null, lastCallMessageCount is null
 
-            const mockContributorContext = { mcpManager: {} as any };
+            const mockContributorContext = createMockContributorContext();
 
             // Should fall back to pure estimation since not all actuals are set
             const fullEstimate = await contextManager.getContextTokenEstimate(
@@ -934,7 +946,7 @@ describe('ContextManager', () => {
             contextManager.setLastActualOutputTokens(200);
             // Don't call recordLastCallMessageCount()
 
-            const mockContributorContext = { mcpManager: {} as any };
+            const mockContributorContext = createMockContributorContext();
 
             const fullEstimate = await contextManager.getContextTokenEstimate(
                 mockContributorContext,
@@ -953,7 +965,7 @@ describe('ContextManager', () => {
 
             const { preparedHistory } = await contextManager.prepareHistory();
             const systemPrompt = 'You are a helpful assistant.';
-            const mockContributorContext = { mcpManager: {} as any };
+            const mockContributorContext = createMockContributorContext();
 
             const estimatedViaMethod = await contextManager.getEstimatedNextInputTokens(
                 systemPrompt,
@@ -995,7 +1007,7 @@ describe('ContextManager', () => {
             await contextManager.recordLastCallMessageCount(); // boundary = 2 (user1 + assistant1)
 
             // Get estimate after successful call - should have zero newMessagesEstimate
-            const mockContributorContext = { mcpManager: {} as any };
+            const mockContributorContext = createMockContributorContext();
             const estimateAfterSuccess = await contextManager.getContextTokenEstimate(
                 mockContributorContext,
                 mockTools
@@ -1083,7 +1095,7 @@ describe('ContextManager', () => {
             await contextManager.addAssistantMessage('Another partial...', []);
             // No tracking update (cancelled)
 
-            const mockContributorContext = { mcpManager: {} as any };
+            const mockContributorContext = createMockContributorContext();
             const estimate = await contextManager.getContextTokenEstimate(
                 mockContributorContext,
                 mockTools
@@ -1125,7 +1137,7 @@ describe('ContextManager', () => {
             // No tracking update
 
             // Verify we're estimating the cancelled content
-            const mockContributorContext = { mcpManager: {} as any };
+            const mockContributorContext = createMockContributorContext();
             const estimateAfterCancel = await contextManager.getContextTokenEstimate(
                 mockContributorContext,
                 mockTools
@@ -1170,7 +1182,7 @@ describe('ContextManager', () => {
             expect(contextManager.getLastActualOutputTokens()).toBeNull();
             expect(contextManager.getLastCallMessageCount()).toBeNull();
 
-            const mockContributorContext = { mcpManager: {} as any };
+            const mockContributorContext = createMockContributorContext();
             const estimate = await contextManager.getContextTokenEstimate(
                 mockContributorContext,
                 mockTools
@@ -1211,7 +1223,7 @@ describe('ContextManager', () => {
             await contextManager.addToolResult('tool-1', 'get_weather', toolResult);
 
             // Before step 2, estimate should include tool result in newMessagesEstimate
-            const mockContributorContext = { mcpManager: {} as any };
+            const mockContributorContext = createMockContributorContext();
             const estimateBeforeStep2 = await contextManager.getContextTokenEstimate(
                 mockContributorContext,
                 mockTools
@@ -1272,7 +1284,7 @@ describe('ContextManager', () => {
             await contextManager.addToolResult('tool-1', 'get_weather', cancelledResult);
             // No tracking update since overall turn was cancelled
 
-            const mockContributorContext = { mcpManager: {} as any };
+            const mockContributorContext = createMockContributorContext();
             const estimate = await contextManager.getContextTokenEstimate(
                 mockContributorContext,
                 mockTools

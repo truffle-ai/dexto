@@ -29,7 +29,7 @@ import {
     estimateToolsTokens,
     estimateContextTokens,
 } from './utils.js';
-import { InternalMessage, ContentPart } from './types.js';
+import { InternalMessage, ContentPart, FilePart } from './types.js';
 import { LLMContext } from '../llm/types.js';
 import * as registry from '../llm/registry.js';
 import { createMockLogger } from '../logger/v2/test-utils.js';
@@ -1559,13 +1559,13 @@ describe('Token Estimation Functions', () => {
         });
 
         it('should return fallback for file parts with binary data', () => {
-            // Binary data also uses fallback
-            const filePart = {
-                type: 'file' as const,
+            // Binary data also uses fallback (can't easily estimate tokens from bytes)
+            const filePart: FilePart = {
+                type: 'file',
                 data: new Uint8Array([1, 2, 3]),
-                mimeType: 'application/pdf' as const,
+                mimeType: 'application/pdf',
             };
-            expect(estimateContentPartTokens(filePart as any)).toBe(1000);
+            expect(estimateContentPartTokens(filePart)).toBe(1000);
         });
 
         it('should return 0 for unknown part types', () => {

@@ -841,11 +841,18 @@ export class SessionManager {
         };
 
         // Store new session metadata
+        // Wrap everything in try/catch to clean up LLM config if any step fails
         const sessionKey = `session:${newSessionId}`;
-        await this.services.storageManager.getDatabase().set(sessionKey, newSessionData);
-        await this.services.storageManager
-            .getCache()
-            .set(sessionKey, newSessionData, this.sessionTTL / 1000);
+        try {
+            await this.services.storageManager.getDatabase().set(sessionKey, newSessionData);
+            await this.services.storageManager
+                .getCache()
+                .set(sessionKey, newSessionData, this.sessionTTL / 1000);
+        } catch (error) {
+            // Clean up LLM config that was set before storage operations
+            this.services.stateManager.clearSessionOverride(newSessionId);
+            throw error;
+        }
 
         // Create the ChatSession instance
         // Wrap in try/catch to clean up persisted entries if init fails
@@ -862,7 +869,7 @@ export class SessionManager {
             session.dispose();
             await this.services.storageManager.getDatabase().delete(sessionKey);
             await this.services.storageManager.getCache().delete(sessionKey);
-            // Clean up LLM config that was set before init (line 821)
+            // Clean up LLM config that was set before init
             this.services.stateManager.clearSessionOverride(newSessionId);
             throw error;
         }
