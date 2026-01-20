@@ -29,7 +29,7 @@ import {
     estimateToolsTokens,
     estimateContextTokens,
 } from './utils.js';
-import { InternalMessage } from './types.js';
+import { InternalMessage, ContentPart } from './types.js';
 import { LLMContext } from '../llm/types.js';
 import * as registry from '../llm/registry.js';
 import { createMockLogger } from '../logger/v2/test-utils.js';
@@ -1542,7 +1542,7 @@ describe('Token Estimation Functions', () => {
         it('should estimate image parts as 1000 tokens', () => {
             const imagePart = {
                 type: 'image' as const,
-                data: 'base64data',
+                image: 'base64data',
                 mimeType: 'image/png' as const,
             };
             expect(estimateContentPartTokens(imagePart)).toBe(1000);
@@ -1568,7 +1568,7 @@ describe('Token Estimation Functions', () => {
         });
 
         it('should return 0 for unknown part types', () => {
-            const unknownPart = { type: 'unknown' as any };
+            const unknownPart = { type: 'unknown' } as unknown as ContentPart;
             expect(estimateContentPartTokens(unknownPart)).toBe(0);
         });
     });
@@ -1608,7 +1608,7 @@ describe('Token Estimation Functions', () => {
                     role: 'user',
                     content: [
                         { type: 'text', text: 'a'.repeat(100) }, // 25 tokens
-                        { type: 'image', data: 'base64', mimeType: 'image/png' as const }, // 1000 tokens
+                        { type: 'image', image: 'base64', mimeType: 'image/png' as const }, // 1000 tokens
                     ],
                 },
             ];
@@ -1631,7 +1631,7 @@ describe('Token Estimation Functions', () => {
                     role: 'user',
                     content: [
                         { type: 'text', text: 'Hello' }, // ~1-2 tokens
-                        { type: 'image', data: 'base64', mimeType: 'image/png' as const }, // 1000 tokens
+                        { type: 'image', image: 'base64', mimeType: 'image/png' as const }, // 1000 tokens
                         { type: 'file', data: 'base64', mimeType: 'application/pdf' as const }, // 1000 tokens
                     ],
                 },
@@ -1642,21 +1642,9 @@ describe('Token Estimation Functions', () => {
     });
 });
 
-describe('Token Estimation - Overflow Functions', () => {
-    // Note: These tests are for the exported helper function in overflow.ts
-    // We import them separately since they're in a different module
-    it('getOutputBuffer should be importable and return correct value', async () => {
-        const { getOutputBuffer, DEFAULT_OUTPUT_BUFFER } = await import('./compaction/overflow.js');
-
-        // Should return min of provided value and DEFAULT_OUTPUT_BUFFER
-        expect(getOutputBuffer(10000)).toBe(10000);
-        expect(getOutputBuffer(20000)).toBe(DEFAULT_OUTPUT_BUFFER); // 16000
-        expect(getOutputBuffer(16000)).toBe(16000);
-
-        // DEFAULT_OUTPUT_BUFFER should be 16000
-        expect(DEFAULT_OUTPUT_BUFFER).toBe(16000);
-    });
-});
+// Note: getOutputBuffer and DEFAULT_OUTPUT_BUFFER were removed from overflow.ts
+// The output buffer concept was flawed - input and output tokens have separate limits
+// in LLM APIs, so reserving input space for output was unnecessary.
 
 describe('estimateToolsTokens', () => {
     it('should return 0 total for empty tools object', () => {

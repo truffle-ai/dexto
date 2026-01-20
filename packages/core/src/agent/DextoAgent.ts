@@ -1720,7 +1720,12 @@ export class DextoAgent {
         estimatedTokens: number;
         /** Last actual token count from LLM API (null if no calls made yet) */
         actualTokens: number | null;
+        /** Effective max context tokens (after applying maxContextTokens override and thresholdPercent) */
         maxContextTokens: number;
+        /** The model's raw context window before any config overrides */
+        modelContextWindow: number;
+        /** Configured threshold percent (0.0-1.0), defaults to 1.0 */
+        thresholdPercent: number;
         usagePercent: number;
         messageCount: number;
         filteredMessageCount: number;
@@ -1741,8 +1746,6 @@ export class DextoAgent {
                 perTool: Array<{ name: string; tokens: number }>;
             };
             messages: number;
-            /** Reserved space for model output (not counted in usagePercent) */
-            outputBuffer: number;
         };
         /** Calculation basis showing how the estimate was computed */
         calculationBasis?: {
@@ -1786,24 +1789,18 @@ export class DextoAgent {
         // Get the effective max context tokens (compaction threshold takes priority)
         const runtimeConfig = this.stateManager.getRuntimeConfig(sessionId);
         const compactionConfig = runtimeConfig.compaction;
-        let maxContextTokens = contextManager.getMaxInputTokens();
-
-        // Output buffer - reserved space for model response
-        const { getOutputBuffer, DEFAULT_OUTPUT_BUFFER } = await import(
-            '../context/compaction/overflow.js'
-        );
-        const maxOutputTokens = runtimeConfig.llm.maxOutputTokens ?? DEFAULT_OUTPUT_BUFFER;
-        const outputBuffer = getOutputBuffer(maxOutputTokens);
+        const modelContextWindow = contextManager.getMaxInputTokens();
+        let maxContextTokens = modelContextWindow;
 
         // Apply compaction config overrides (same logic as vercel.ts)
+        // 1. maxContextTokens caps the context window (e.g., use 50K even if model supports 200K)
         if (compactionConfig?.maxContextTokens !== undefined) {
             maxContextTokens = Math.min(maxContextTokens, compactionConfig.maxContextTokens);
         }
-        if (
-            compactionConfig?.thresholdPercent !== undefined &&
-            compactionConfig.thresholdPercent < 1.0
-        ) {
-            maxContextTokens = Math.floor(maxContextTokens * compactionConfig.thresholdPercent);
+        // 2. thresholdPercent triggers compaction early (default 90% to avoid context rot)
+        const thresholdPercent = compactionConfig?.thresholdPercent ?? 0.9;
+        if (thresholdPercent < 1.0) {
+            maxContextTokens = Math.floor(maxContextTokens * thresholdPercent);
         }
 
         // Check if there's a summary in history (old isSummary or new isSessionSummary marker)
@@ -1826,6 +1823,8 @@ export class DextoAgent {
             estimatedTokens,
             actualTokens: tokenEstimate.actual,
             maxContextTokens,
+            modelContextWindow,
+            thresholdPercent,
             usagePercent:
                 maxContextTokens > 0 ? Math.round((estimatedTokens / maxContextTokens) * 100) : 0,
             messageCount: tokenEstimate.stats.originalMessageCount,
@@ -1839,7 +1838,6 @@ export class DextoAgent {
                 systemPrompt: tokenEstimate.breakdown.systemPrompt,
                 tools: tokenEstimate.breakdown.tools,
                 messages: tokenEstimate.breakdown.messages,
-                outputBuffer,
             },
             ...(tokenEstimate.calculationBasis && {
                 calculationBasis: tokenEstimate.calculationBasis,

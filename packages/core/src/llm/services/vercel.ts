@@ -86,7 +86,7 @@ export class VercelLLMService {
         this.sessionId = sessionId;
         this.resourceManager = resourceManager;
         this.compactionStrategy = compactionStrategy ?? null;
-        this.compactionThresholdPercent = compactionConfig?.thresholdPercent ?? 1.0;
+        this.compactionThresholdPercent = compactionConfig?.thresholdPercent ?? 0.9;
 
         // Create session-level message queue for mid-task user messages
         this.messageQueue = new MessageQueueService(this.sessionEventBus, this.logger);
@@ -113,7 +113,6 @@ export class VercelLLMService {
 
         this.modelLimits = {
             contextWindow: effectiveContextWindow,
-            maxOutput: config.maxOutputTokens ?? 16_000,
         };
 
         this.contextManager = new ContextManager<ModelMessage>(

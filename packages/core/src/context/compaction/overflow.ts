@@ -5,58 +5,38 @@ import type { TokenUsage } from '../../llm/types.js';
  * These limits define the context window boundaries.
  */
 export interface ModelLimits {
-    /** Maximum context window size in tokens */
+    /** Maximum context window size in tokens (the model's input limit) */
     contextWindow: number;
-    /** Maximum output tokens the model can generate */
-    maxOutput: number;
 }
 
 /**
- * Default maximum output tokens to reserve as a buffer.
- * This ensures we have space for the model's response.
- */
-export const DEFAULT_OUTPUT_BUFFER = 16_000;
-
-/**
- * Calculate the effective output buffer size.
- * Uses the minimum of configured maxOutput and DEFAULT_OUTPUT_BUFFER.
- *
- * @param maxOutput The configured maximum output tokens
- * @returns The effective output buffer size
- */
-export function getOutputBuffer(maxOutput: number): number {
-    return Math.min(maxOutput, DEFAULT_OUTPUT_BUFFER);
-}
-
-/**
- * Determines if the context has overflowed based on actual token usage from the API.
+ * Determines if the context has overflowed based on token usage.
  *
  * Overflow is detected when:
- * used tokens > (contextWindow - outputBuffer) * thresholdPercent
+ *   inputTokens > contextWindow * thresholdPercent
  *
- * The outputBuffer ensures we always have room for the model's response.
  * The thresholdPercent allows triggering compaction before hitting 100% (e.g., at 90%).
+ * This provides a safety margin for estimation errors and prevents hitting hard limits.
  *
- * @param tokens The actual token usage from the last LLM API call
- * @param modelLimits The model's context window and output limits
- * @param thresholdPercent Percentage of usable tokens at which to trigger (default 1.0 = 100%)
+ * Note: We don't reserve space for "output" because input and output have separate limits
+ * in LLM APIs. The model's output doesn't consume from the input context window.
+ *
+ * @param tokens The token usage (actual from API or estimated)
+ * @param modelLimits The model's context window limit
+ * @param thresholdPercent Percentage of context window at which to trigger (default 0.9 = 90%)
  * @returns true if context has overflowed and compaction is needed
  */
 export function isOverflow(
     tokens: TokenUsage,
     modelLimits: ModelLimits,
-    thresholdPercent: number = 1.0
+    thresholdPercent: number = 0.9
 ): boolean {
-    const { contextWindow, maxOutput } = modelLimits;
+    const { contextWindow } = modelLimits;
 
-    // Reserve space for model output
-    const outputBuffer = getOutputBuffer(maxOutput);
-    const usableTokens = contextWindow - outputBuffer;
+    // Apply threshold - trigger compaction at thresholdPercent of context window
+    const effectiveLimit = Math.floor(contextWindow * thresholdPercent);
 
-    // Apply threshold - trigger compaction at thresholdPercent of usable tokens
-    const effectiveLimit = Math.floor(usableTokens * thresholdPercent);
-
-    // Calculate used tokens - inputTokens is the main metric from API response
+    // Calculate used tokens - inputTokens is the main metric
     const inputTokens = tokens.inputTokens ?? 0;
 
     // Check if we've exceeded the effective limit
@@ -66,17 +46,14 @@ export function isOverflow(
 /**
  * Calculate the compaction target - how many tokens we need to reduce to.
  *
- * @param modelLimits The model's context window and output limits
- * @param targetPercentage What percentage of usable context to target (default 70%)
+ * @param modelLimits The model's context window limit
+ * @param targetPercentage What percentage of context to target (default 70%)
  * @returns The target token count after compaction
  */
 export function getCompactionTarget(
     modelLimits: ModelLimits,
     targetPercentage: number = 0.7
 ): number {
-    const { contextWindow, maxOutput } = modelLimits;
-    const outputBuffer = getOutputBuffer(maxOutput);
-    const usableTokens = contextWindow - outputBuffer;
-
-    return Math.floor(usableTokens * targetPercentage);
+    const { contextWindow } = modelLimits;
+    return Math.floor(contextWindow * targetPercentage);
 }

@@ -662,7 +662,7 @@ describe('ContextManager', () => {
             await contextManager.recordLastCallMessageCount();
 
             // Add assistant response (simulating what happens after LLM call)
-            await contextManager.addAssistantMessage([{ type: 'text', text: 'Hi there!' }], []);
+            await contextManager.addAssistantMessage('Hi there!', []);
 
             // Add a "new" message (tool result)
             const toolResult: SanitizedToolResult = {
@@ -724,7 +724,7 @@ describe('ContextManager', () => {
 
         it('should record current history length', async () => {
             await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
-            await contextManager.addAssistantMessage([{ type: 'text', text: 'Hi!' }], []);
+            await contextManager.addAssistantMessage('Hi!', []);
 
             await contextManager.recordLastCallMessageCount();
 
@@ -736,7 +736,7 @@ describe('ContextManager', () => {
             await contextManager.recordLastCallMessageCount();
             expect(contextManager.getLastCallMessageCount()).toBe(1);
 
-            await contextManager.addAssistantMessage([{ type: 'text', text: 'Hi!' }], []);
+            await contextManager.addAssistantMessage('Hi!', []);
             await contextManager.recordLastCallMessageCount();
             expect(contextManager.getLastCallMessageCount()).toBe(2);
         });
@@ -816,7 +816,7 @@ describe('ContextManager', () => {
             // Add NEW messages after the boundary (these are the "new" messages)
             // Use a known string length so we can predict token estimate
             const newMessageText = 'A'.repeat(400); // ~100 tokens with length/4 heuristic
-            await contextManager.addAssistantMessage([{ type: 'text', text: newMessageText }], []);
+            await contextManager.addAssistantMessage(newMessageText, []);
 
             const { preparedHistory } = await contextManager.prepareHistory();
             const systemPrompt = 'System';
@@ -844,7 +844,7 @@ describe('ContextManager', () => {
         it('should only count messages AFTER lastCallMessageCount as new', async () => {
             // Add messages BEFORE recording
             await contextManager.addUserMessage([{ type: 'text', text: 'Message 1' }]);
-            await contextManager.addAssistantMessage([{ type: 'text', text: 'Response 1' }], []);
+            await contextManager.addAssistantMessage('Response 1', []);
 
             // Record boundary at 2 messages
             contextManager.setLastActualInputTokens(10000);
