@@ -1051,7 +1051,7 @@ export class ContextManager<TMessage = unknown> {
                 newMessagesEstimate,
             };
 
-            this.logger.debug(
+            this.logger.info(
                 `Context estimate (actuals-based): lastInput=${lastInput}, lastOutput=${lastOutput}, ` +
                     `newMsgs=${newMessagesEstimate} (${newMessages.length} messages), total=${total}`
             );

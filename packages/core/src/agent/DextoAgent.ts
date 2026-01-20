@@ -1813,8 +1813,8 @@ export class DextoAgent {
         const { getModelDisplayName } = await import('../llm/registry.js');
         const modelDisplayName = getModelDisplayName(llmConfig.model, llmConfig.provider);
 
-        // Use actual tokens if available, otherwise use estimate
-        const estimatedTokens = tokenEstimate.actual ?? tokenEstimate.estimated;
+        // Always use the calculated estimate (which includes lastInput + lastOutput + newMessages when actuals available)
+        const estimatedTokens = tokenEstimate.estimated;
 
         // Get compaction count for this session
         const compactionCount = await this.sessionManager.getCompactionCount(sessionId);

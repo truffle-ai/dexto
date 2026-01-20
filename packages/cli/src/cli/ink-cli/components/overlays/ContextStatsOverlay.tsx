@@ -326,10 +326,7 @@ const ContextStatsOverlay = forwardRef<ContextStatsOverlayHandle, ContextStatsOv
             return `${percent}%`;
         };
 
-        const tokenDisplay =
-            stats.actualTokens !== null
-                ? formatTokens(stats.actualTokens)
-                : `~${formatTokens(stats.estimatedTokens)}`;
+        const tokenDisplay = `~${formatTokens(stats.estimatedTokens)}`;
 
         const isToolsExpanded = expandedSections.has('tools');
 
