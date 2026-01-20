@@ -57,6 +57,7 @@ export const processingPhrases: string[] = [
     'I came. I saw. I made it awkward…',
     'My boss told me to have a good day, so I went home…',
     "I put the 'pro' in procrastination…",
+    'Delulu is the solulu…',
     //'Installing malware (just kidding)…',
 
     // Vines
