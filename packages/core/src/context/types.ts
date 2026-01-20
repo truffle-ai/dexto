@@ -235,6 +235,13 @@ export interface AssistantMessage extends MessageBase {
      */
     reasoning?: string;
 
+    /**
+     * Provider-specific metadata for reasoning, used for round-tripping.
+     * Contains opaque tokens (e.g., OpenAI itemId, Gemini thought signatures)
+     * that must be passed back to the provider on subsequent requests.
+     */
+    reasoningMetadata?: Record<string, unknown>;
+
     /** Token usage accounting for this response */
     tokenUsage?: TokenUsage;
 

@@ -206,9 +206,16 @@ export class CLISubscriber implements EventSubscriber {
      * Capture LLM token usage analytics
      */
     private captureTokenUsage(payload: AgentEventMap['llm:response']): void {
-        const { tokenUsage, provider, model, sessionId } = payload;
+        const { tokenUsage, provider, model, sessionId, estimatedInputTokens } = payload;
         if (!tokenUsage || (!tokenUsage.inputTokens && !tokenUsage.outputTokens)) {
             return;
+        }
+
+        // Calculate estimate accuracy if both estimate and actual are available
+        let estimateAccuracyPercent: number | undefined;
+        if (estimatedInputTokens !== undefined && tokenUsage.inputTokens) {
+            const diff = estimatedInputTokens - tokenUsage.inputTokens;
+            estimateAccuracyPercent = Math.round((diff / tokenUsage.inputTokens) * 100);
         }
 
         capture('dexto_llm_tokens_consumed', {
@@ -222,6 +229,8 @@ export class CLISubscriber implements EventSubscriber {
             totalTokens: tokenUsage.totalTokens,
             cacheReadTokens: tokenUsage.cacheReadTokens,
             cacheWriteTokens: tokenUsage.cacheWriteTokens,
+            estimatedInputTokens,
+            estimateAccuracyPercent,
         });
     }
 

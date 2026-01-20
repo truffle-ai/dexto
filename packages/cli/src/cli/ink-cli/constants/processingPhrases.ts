@@ -34,6 +34,7 @@ export const processingPhrases: string[] = [
     'Elementary, my dear Watson…',
     'Identity theft is not a joke, Jim! …',
     "I'm not superstitious, but I am a little stitious…",
+    'Why waste time say lot word when few word do trick?…',
 
     // Playful
     'Let me cook…',
@@ -52,6 +53,12 @@ export const processingPhrases: string[] = [
     'Zapping…',
     'Braining…',
     'Using all 3 brain cells…',
+    "I'm not lazy, I'm just on energy-saving mode…",
+    'I came. I saw. I made it awkward…',
+    'My boss told me to have a good day, so I went home…',
+    "I put the 'pro' in procrastination…",
+    'Delulu is the solulu…',
+    'Zombies eat brains. You are safe…',
     //'Installing malware (just kidding)…',
 
     // Vines
@@ -59,11 +66,15 @@ export const processingPhrases: string[] = [
     'What are those!!…',
     'He needs some milk…',
     'Something came in the mail today…',
-    'Road work ahead? Sure hope it does…',
+    'Road work ahead? I sure hope it does…',
     'Merry Chrysler…',
-    "I'm in me mum's car. Broom broom…",
-    'I could have dropped my croissant…',
+    "I'm in me mum's car. Vroom vroom…",
+    'Stop! I could have dropped my croissant!…',
     'That was legitness…',
+    'Why are you running?…',
+    'What da dog doin?…',
+    'Can I pet that dawg?…',
+    'And they were roommates!…',
 
     // Nerdy
     'Attention is all I need…',

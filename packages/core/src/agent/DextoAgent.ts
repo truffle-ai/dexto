@@ -1719,11 +1719,46 @@ export class DextoAgent {
      */
     public async getContextStats(sessionId: string): Promise<{
         estimatedTokens: number;
+        /** Last actual token count from LLM API (null if no calls made yet) */
+        actualTokens: number | null;
+        /** Effective max context tokens (after applying maxContextTokens override and thresholdPercent) */
         maxContextTokens: number;
+        /** The model's raw context window before any config overrides */
+        modelContextWindow: number;
+        /** Configured threshold percent (0.0-1.0), defaults to 1.0 */
+        thresholdPercent: number;
         usagePercent: number;
         messageCount: number;
         filteredMessageCount: number;
+        prunedToolCount: number;
         hasSummary: boolean;
+        /** Number of times this session chain has been compacted */
+        compactionCount: number;
+        /** Current model identifier */
+        model: string;
+        /** Display name for the model */
+        modelDisplayName: string;
+        /** Detailed breakdown of context usage by category */
+        breakdown: {
+            systemPrompt: number;
+            tools: {
+                total: number;
+                /** Per-tool token estimates */
+                perTool: Array<{ name: string; tokens: number }>;
+            };
+            messages: number;
+        };
+        /** Calculation basis showing how the estimate was computed */
+        calculationBasis?: {
+            /** 'actuals' = used lastInput + lastOutput + newEstimate, 'estimate' = pure estimation */
+            method: 'actuals' | 'estimate';
+            /** Last actual input tokens from API (if method is 'actuals') */
+            lastInputTokens?: number;
+            /** Last actual output tokens from API (if method is 'actuals') */
+            lastOutputTokens?: number;
+            /** Estimated tokens for new messages since last call (if method is 'actuals') */
+            newMessagesEstimate?: number;
+        };
     }> {
         this.ensureStarted();
 
@@ -1739,28 +1774,34 @@ export class DextoAgent {
         }
 
         const contextManager = session.getContextManager();
+
+        // Get token estimate using ContextManager's method (single source of truth)
+        const contributorContext = { mcpManager: this.mcpManager };
+        const llmService = session.getLLMService();
+        const tools = await llmService.getAllTools();
+
+        const tokenEstimate = await contextManager.getContextTokenEstimate(
+            contributorContext,
+            tools
+        );
+
+        // Get raw history for hasSummary check
         const history = await contextManager.getHistory();
-
-        // Import utilities for token estimation and filtering
-        const { filterCompacted, estimateMessagesTokens } = await import('../context/utils.js');
-
-        const filteredHistory = filterCompacted(history);
-        const estimatedTokens = estimateMessagesTokens(filteredHistory);
-
         // Get the effective max context tokens (compaction threshold takes priority)
         const runtimeConfig = this.stateManager.getRuntimeConfig(sessionId);
         const compactionConfig = runtimeConfig.compaction;
-        let maxContextTokens = contextManager.getMaxInputTokens();
+        const modelContextWindow = contextManager.getMaxInputTokens();
+        let maxContextTokens = modelContextWindow;
 
         // Apply compaction config overrides (same logic as vercel.ts)
+        // 1. maxContextTokens caps the context window (e.g., use 50K even if model supports 200K)
         if (compactionConfig?.maxContextTokens !== undefined) {
             maxContextTokens = Math.min(maxContextTokens, compactionConfig.maxContextTokens);
         }
-        if (
-            compactionConfig?.thresholdPercent !== undefined &&
-            compactionConfig.thresholdPercent < 1.0
-        ) {
-            maxContextTokens = Math.floor(maxContextTokens * compactionConfig.thresholdPercent);
+        // 2. thresholdPercent triggers compaction early (default 90% to avoid context rot)
+        const thresholdPercent = compactionConfig?.thresholdPercent ?? 0.9;
+        if (thresholdPercent < 1.0) {
+            maxContextTokens = Math.floor(maxContextTokens * thresholdPercent);
         }
 
         // Check if there's a summary in history (old isSummary or new isSessionSummary marker)
@@ -1768,14 +1809,40 @@ export class DextoAgent {
             (msg) => msg.metadata?.isSummary === true || msg.metadata?.isSessionSummary === true
         );
 
+        // Get model info for display
+        const llmConfig = runtimeConfig.llm;
+        const { getModelDisplayName } = await import('../llm/registry.js');
+        const modelDisplayName = getModelDisplayName(llmConfig.model, llmConfig.provider);
+
+        // Always use the calculated estimate (which includes lastInput + lastOutput + newMessages when actuals available)
+        const estimatedTokens = tokenEstimate.estimated;
+
+        // Get compaction count for this session
+        const compactionCount = await this.sessionManager.getCompactionCount(sessionId);
+
         return {
             estimatedTokens,
+            actualTokens: tokenEstimate.actual,
             maxContextTokens,
+            modelContextWindow,
+            thresholdPercent,
             usagePercent:
                 maxContextTokens > 0 ? Math.round((estimatedTokens / maxContextTokens) * 100) : 0,
-            messageCount: history.length,
-            filteredMessageCount: filteredHistory.length,
+            messageCount: tokenEstimate.stats.originalMessageCount,
+            filteredMessageCount: tokenEstimate.stats.filteredMessageCount,
+            prunedToolCount: tokenEstimate.stats.prunedToolCount,
             hasSummary,
+            compactionCount,
+            model: llmConfig.model,
+            modelDisplayName,
+            breakdown: {
+                systemPrompt: tokenEstimate.breakdown.systemPrompt,
+                tools: tokenEstimate.breakdown.tools,
+                messages: tokenEstimate.breakdown.messages,
+            },
+            ...(tokenEstimate.calculationBasis && {
+                calculationBasis: tokenEstimate.calculationBasis,
+            }),
         };
     }
 
@@ -1948,6 +2015,14 @@ export class DextoAgent {
             const summaryTokens = estimateMessagesTokens([sessionSummaryMessage]);
             const totalOriginalMessages = summarizedCount + preservedMessages.length;
 
+            // Get model info from the new session's config for UI sync
+            const newSessionLLMConfig = this.stateManager.getRuntimeConfig(newSessionId).llm;
+            const { getModelDisplayName } = await import('../llm/registry.js');
+            const modelDisplayName = getModelDisplayName(
+                newSessionLLMConfig.model,
+                newSessionLLMConfig.provider
+            );
+
             this.logger.info(
                 `Session continuation: ${currentSessionId} → ${newSessionId} ` +
                     `(${totalOriginalMessages} messages → summary + ${preservedMessages.length} preserved)`
@@ -1961,6 +2036,8 @@ export class DextoAgent {
                 originalMessages: totalOriginalMessages,
                 reason: 'overflow',
                 sessionId: newSessionId,
+                model: newSessionLLMConfig.model,
+                modelDisplayName,
             });
         } catch (error) {
             this.logger.error(

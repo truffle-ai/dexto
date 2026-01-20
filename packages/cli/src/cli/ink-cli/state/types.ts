@@ -304,7 +304,8 @@ export type OverlayType =
     | 'prompt-add-choice'
     | 'prompt-add-wizard'
     | 'prompt-delete-selector'
-    | 'session-rename';
+    | 'session-rename'
+    | 'context-stats';
 
 /**
  * MCP server type for custom wizard (null = not yet selected)

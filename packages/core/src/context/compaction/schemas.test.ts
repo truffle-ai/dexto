@@ -18,7 +18,7 @@ describe('CompactionConfigSchema', () => {
             if (result.success) {
                 expect(result.data.type).toBe('reactive-overflow');
                 expect(result.data.enabled).toBe(true);
-                expect(result.data.thresholdPercent).toBe(1.0);
+                expect(result.data.thresholdPercent).toBe(0.9);
             }
         });
 
@@ -99,7 +99,7 @@ describe('CompactionConfigSchema', () => {
     });
 
     describe('thresholdPercent', () => {
-        it('should default thresholdPercent to 1.0', () => {
+        it('should default thresholdPercent to 0.9', () => {
             const input = {
                 type: 'reactive-overflow',
             };
@@ -108,7 +108,7 @@ describe('CompactionConfigSchema', () => {
 
             expect(result.success).toBe(true);
             if (result.success) {
-                expect(result.data.thresholdPercent).toBe(1.0);
+                expect(result.data.thresholdPercent).toBe(0.9);
             }
         });
 
@@ -231,7 +231,7 @@ describe('CompactionConfigSchema', () => {
         it('should have expected default values', () => {
             expect(DEFAULT_COMPACTION_CONFIG.type).toBe('reactive-overflow');
             expect(DEFAULT_COMPACTION_CONFIG.enabled).toBe(true);
-            expect(DEFAULT_COMPACTION_CONFIG.thresholdPercent).toBe(1.0);
+            expect(DEFAULT_COMPACTION_CONFIG.thresholdPercent).toBe(0.9);
         });
 
         it('should validate successfully', () => {

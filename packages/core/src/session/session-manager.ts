@@ -47,6 +47,8 @@ export interface SessionData {
     continuedTo?: string;
     /** Timestamp when this session was compacted (created a continuation) */
     compactedAt?: number;
+    /** Number of times this session chain has been compacted (inherited + 1 on each compaction) */
+    compactionCount?: number;
 }
 
 /**
@@ -812,13 +814,23 @@ export class SessionManager {
         // Generate new session ID
         const newSessionId = randomUUID();
 
+        // Copy LLM config from original session to the new session
+        // This ensures the continuation session uses the same model as the original
+        // Must be done BEFORE session.init() which reads config from stateManager
+        const originalLLMConfig = this.services.stateManager.getRuntimeConfig(fromSessionId).llm;
+        this.services.stateManager.updateLLM(originalLLMConfig, newSessionId);
+
         // Create new session with continuation metadata
+        // Increment compaction count from parent (0 if not set)
+        const parentCompactionCount = fromSessionData.compactionCount ?? 0;
+
         const newSessionData: SessionData = {
             id: newSessionId,
             createdAt: Date.now(),
             lastActivity: Date.now(),
             messageCount: 0,
             continuedFrom: fromSessionId,
+            compactionCount: parentCompactionCount + 1,
             ...(fromSessionData.userId !== undefined && { userId: fromSessionData.userId }),
             ...(fromSessionData.metadata && {
                 metadata: {
@@ -829,11 +841,18 @@ export class SessionManager {
         };
 
         // Store new session metadata
+        // Wrap everything in try/catch to clean up LLM config if any step fails
         const sessionKey = `session:${newSessionId}`;
-        await this.services.storageManager.getDatabase().set(sessionKey, newSessionData);
-        await this.services.storageManager
-            .getCache()
-            .set(sessionKey, newSessionData, this.sessionTTL / 1000);
+        try {
+            await this.services.storageManager.getDatabase().set(sessionKey, newSessionData);
+            await this.services.storageManager
+                .getCache()
+                .set(sessionKey, newSessionData, this.sessionTTL / 1000);
+        } catch (error) {
+            // Clean up LLM config that was set before storage operations
+            this.services.stateManager.clearSessionOverride(newSessionId);
+            throw error;
+        }
 
         // Create the ChatSession instance
         // Wrap in try/catch to clean up persisted entries if init fails
@@ -850,6 +869,8 @@ export class SessionManager {
             session.dispose();
             await this.services.storageManager.getDatabase().delete(sessionKey);
             await this.services.storageManager.getCache().delete(sessionKey);
+            // Clean up LLM config that was set before init
+            this.services.stateManager.clearSessionOverride(newSessionId);
             throw error;
         }
 
@@ -891,6 +912,18 @@ export class SessionManager {
             .set(sessionKey, sessionData, this.sessionTTL / 1000);
 
         this.logger.debug(`Marked session ${sessionId} as compacted → ${continuedToId}`);
+    }
+
+    /**
+     * Gets the compaction count for a session.
+     * Returns 0 if the session has never been compacted.
+     *
+     * @param sessionId The session ID
+     * @returns Number of times this session chain has been compacted
+     */
+    public async getCompactionCount(sessionId: string): Promise<number> {
+        const sessionData = await this.getSessionData(sessionId);
+        return sessionData?.compactionCount ?? 0;
     }
 
     /**
