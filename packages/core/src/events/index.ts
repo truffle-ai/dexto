@@ -246,6 +246,10 @@ export interface AgentEventMap {
         reason: 'overflow' | 'manual';
         /** The new session ID (for consistency with other streaming events) */
         sessionId: string;
+        /** Model name/ID for the new session (for UI sync) */
+        model: string;
+        /** Display name for the model (for UI sync) */
+        modelDisplayName?: string;
     };
 
     /** Fired when a session's human-friendly title is updated */

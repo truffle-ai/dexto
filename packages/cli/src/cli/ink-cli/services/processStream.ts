@@ -848,10 +848,12 @@ export async function processStream(
 
                 case 'session:continued': {
                     // Session-native compaction created a new session
-                    // Update session state to switch to the new session
+                    // Update session state to switch to the new session AND sync model name
+                    // Model name is included in event to ensure UI stays in sync with actual model
                     setSession((prev) => ({
                         ...prev,
                         id: event.newSessionId,
+                        modelName: event.modelDisplayName || event.model,
                     }));
 
                     // Clear compacting state

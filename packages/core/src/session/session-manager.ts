@@ -812,6 +812,12 @@ export class SessionManager {
         // Generate new session ID
         const newSessionId = randomUUID();
 
+        // Copy LLM config from original session to the new session
+        // This ensures the continuation session uses the same model as the original
+        // Must be done BEFORE session.init() which reads config from stateManager
+        const originalLLMConfig = this.services.stateManager.getRuntimeConfig(fromSessionId).llm;
+        this.services.stateManager.updateLLM(originalLLMConfig, newSessionId);
+
         // Create new session with continuation metadata
         const newSessionData: SessionData = {
             id: newSessionId,

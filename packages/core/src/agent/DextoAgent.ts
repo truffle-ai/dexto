@@ -1947,6 +1947,14 @@ export class DextoAgent {
             const summaryTokens = estimateMessagesTokens([sessionSummaryMessage]);
             const totalOriginalMessages = summarizedCount + preservedMessages.length;
 
+            // Get model info from the new session's config for UI sync
+            const newSessionLLMConfig = this.stateManager.getRuntimeConfig(newSessionId).llm;
+            const { getModelDisplayName } = await import('../llm/registry.js');
+            const modelDisplayName = getModelDisplayName(
+                newSessionLLMConfig.model,
+                newSessionLLMConfig.provider
+            );
+
             this.logger.info(
                 `Session continuation: ${currentSessionId} → ${newSessionId} ` +
                     `(${totalOriginalMessages} messages → summary + ${preservedMessages.length} preserved)`
@@ -1960,6 +1968,8 @@ export class DextoAgent {
                 originalMessages: totalOriginalMessages,
                 reason: 'overflow',
                 sessionId: newSessionId,
+                model: newSessionLLMConfig.model,
+                modelDisplayName,
             });
         } catch (error) {
             this.logger.error(
