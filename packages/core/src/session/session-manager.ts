@@ -836,12 +836,23 @@ export class SessionManager {
             .set(sessionKey, newSessionData, this.sessionTTL / 1000);
 
         // Create the ChatSession instance
+        // Wrap in try/catch to clean up persisted entries if init fails
         const session = new ChatSession(
             { ...this.services, sessionManager: this },
             newSessionId,
             this.logger
         );
-        await session.init();
+
+        try {
+            await session.init();
+        } catch (error) {
+            // Clean up persisted entries on init failure
+            session.dispose();
+            await this.services.storageManager.getDatabase().delete(sessionKey);
+            await this.services.storageManager.getCache().delete(sessionKey);
+            throw error;
+        }
+
         this.sessions.set(newSessionId, session);
 
         this.logger.info(
