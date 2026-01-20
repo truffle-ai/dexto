@@ -239,10 +239,13 @@ export class TurnExecutor {
                 await this.pruneOldToolOutputs();
 
                 // 3. Get formatted messages for this step
-                let prepared = await this.contextManager.getFormattedMessagesForLLM(
-                    contributorContext,
-                    this.llmContext
-                );
+                // If virtualContext is set (from prior compaction), use it to avoid rebuilding full history
+                let prepared = this.virtualContext
+                    ? await this.buildMessagesFromVirtualContext(contributorContext)
+                    : await this.contextManager.getFormattedMessagesForLLM(
+                          contributorContext,
+                          this.llmContext
+                      );
 
                 // 4. PRE-CHECK: Estimate tokens and compact if over threshold BEFORE LLM call
                 // This ensures we never make an oversized call and avoids unnecessary compaction on stop steps

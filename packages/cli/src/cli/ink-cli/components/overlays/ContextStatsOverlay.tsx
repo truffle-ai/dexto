@@ -317,12 +317,24 @@ const ContextStatsOverlay = forwardRef<ContextStatsOverlayHandle, ContextStatsOv
 
         if (!stats) return null;
 
-        // Calculate percentage helper (relative to full model context window for bar consistency)
+        // Calculate auto compact buffer early so it's available for pct()
+        // maxContextTokens already has thresholdPercent applied, so we need to derive
+        // the buffer as: maxContextTokens * (1 - thresholdPercent) / thresholdPercent
+        const autoCompactBuffer =
+            stats.thresholdPercent > 0 && stats.thresholdPercent < 1.0
+                ? Math.floor(
+                      (stats.maxContextTokens * (1 - stats.thresholdPercent)) /
+                          stats.thresholdPercent
+                  )
+                : 0;
+
+        // Total token space = effective limit + buffer (matches the visual bar)
+        const totalTokenSpace = stats.maxContextTokens + autoCompactBuffer;
+
+        // Calculate percentage helper (relative to total token space for bar consistency)
         const pct = (tokens: number): string => {
             const percent =
-                stats.modelContextWindow > 0
-                    ? ((tokens / stats.modelContextWindow) * 100).toFixed(1)
-                    : '0.0';
+                totalTokenSpace > 0 ? ((tokens / totalTokenSpace) * 100).toFixed(1) : '0.0';
             return `${percent}%`;
         };
 
@@ -378,16 +390,7 @@ const ContextStatsOverlay = forwardRef<ContextStatsOverlayHandle, ContextStatsOv
         // maxContextTokens is already the effective limit (with threshold applied)
         const freeTokens = Math.max(0, stats.maxContextTokens - stats.estimatedTokens);
 
-        // Calculate auto compact buffer (reserved space before compaction triggers)
-        // maxContextTokens already has thresholdPercent applied, so we need to derive
-        // the buffer as: maxContextTokens * (1 - thresholdPercent) / thresholdPercent
-        const autoCompactBuffer =
-            stats.thresholdPercent > 0 && stats.thresholdPercent < 1.0
-                ? Math.floor(
-                      (stats.maxContextTokens * (1 - stats.thresholdPercent)) /
-                          stats.thresholdPercent
-                  )
-                : 0;
+        // Buffer percent for display (autoCompactBuffer already calculated above)
         const bufferPercent = Math.round((1 - stats.thresholdPercent) * 100);
 
         return (
