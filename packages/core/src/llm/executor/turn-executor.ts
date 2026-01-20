@@ -337,19 +337,27 @@ export class TurnExecutor {
                 // 7a. Store actual token counts for context estimation formula
                 // Formula: estimatedNextInput = lastInput + lastOutput + newMessagesEstimate
                 //
-                // On cancelled calls, the LLM doesn't send a finish event with actual token counts.
-                // We use our pre-call estimate as a fallback to preserve tracking accuracy.
-                // This prevents the formula from using stale values or zeros, which would cause
-                // incorrect compaction decisions. The next successful call will provide real actuals.
+                // Strategy: Only update tracking variables on successful calls with actual token data.
+                // - lastInput/lastOutput: ground truth from API, used as base for next estimate
+                // - lastCallMessageCount: boundary for identifying "new" messages to estimate
+                //
+                // On cancellation: Don't update anything. The partial response is saved to history,
+                // and newMessagesEstimate will include it when calculating from the last successful
+                // call's boundary. This minimizes estimation surface - we only estimate the delta
+                // since the last call that gave us actual token counts. Multiple consecutive
+                // cancellations accumulate in newMessagesEstimate until a successful call self-corrects.
+                //
                 // Tracking issue for AI SDK to support partial usage on cancel:
                 // https://github.com/vercel/ai/issues/7628
                 if (result.finishReason === 'cancelled') {
-                    // Use pre-call estimate as best-available approximation for cancelled calls
+                    // On cancellation, don't update any tracking variables.
+                    // The partial response is saved to history, and newMessagesEstimate will
+                    // include it when calculating from the last successful call's boundary.
+                    // This keeps estimation surface minimal - we only estimate the delta since
+                    // the last call that gave us actual token counts.
                     this.logger.info(
-                        `Context estimation (cancelled): using pre-call estimate ${estimatedTokens} tokens`
+                        `Context estimation (cancelled): keeping last known actuals, partial response (${result.text.length} chars) will be estimated`
                     );
-                    this.contextManager.setLastActualInputTokens(estimatedTokens);
-                    // Don't update output tokens - we don't know how much was generated before cancel
                 } else if (result.usage?.inputTokens !== undefined) {
                     // Log verification metric: compare our estimate vs actual from API
                     const diff = estimatedTokens - result.usage.inputTokens;
@@ -366,9 +374,12 @@ export class TurnExecutor {
                     if (result.usage?.outputTokens !== undefined) {
                         this.contextManager.setLastActualOutputTokens(result.usage.outputTokens);
                     }
+
+                    // Record message count boundary for identifying "new" messages
+                    // Only update on successful calls - cancelled calls leave boundary unchanged
+                    // so their content is included in newMessagesEstimate
+                    await this.contextManager.recordLastCallMessageCount();
                 }
-                // Record message count boundary for identifying "new" messages
-                await this.contextManager.recordLastCallMessageCount();
 
                 // 7b. POST-RESPONSE CHECK: Use actual inputTokens from API to detect overflow
                 // This catches cases where the LLM's response pushed us over the threshold

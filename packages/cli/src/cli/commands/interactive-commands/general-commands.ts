@@ -337,7 +337,7 @@ export const generalCommands: CommandDefinition[] = [
                 // maxContextTokens already has thresholdPercent applied, so we need to derive
                 // the buffer as: maxContextTokens * (1 - thresholdPercent) / thresholdPercent
                 const autoCompactBuffer =
-                    stats.thresholdPercent < 1.0
+                    stats.thresholdPercent > 0 && stats.thresholdPercent < 1.0
                         ? Math.floor(
                               (stats.maxContextTokens * (1 - stats.thresholdPercent)) /
                                   stats.thresholdPercent
