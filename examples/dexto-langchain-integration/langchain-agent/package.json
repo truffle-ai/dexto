@@ -11,7 +11,7 @@
     "dev": "tsc --watch & node --watch dist/mcp-server.js"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.25.2",
+    "@modelcontextprotocol/sdk": "^1.25.3",
     "@langchain/openai": "^0.6.7",
     "@langchain/core": "^0.3.80",
     "langchain": "^0.3.37",
