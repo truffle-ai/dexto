@@ -229,7 +229,7 @@ Platform integrations: [Discord](examples/discord-bot/), [Telegram](examples/tel
 <details>
 <summary><strong>Dexto as an MCP Server</strong></summary>
 
-#### Transport: `stdio`
+**Transport: `stdio`**
 
 Connect your Dexto agent as an MCP server in Claude Code or Cursor:
 
@@ -250,7 +250,7 @@ Example MCP config for Claude Code or Cursor:
 
 `--auto-approve` and `--no-elicitation` are required for MCP mode since it runs non-interactively.
 
-#### Transport: `http/sse`
+**Transport: `http/sse`**
 
 `dexto --mode server` exposes your agent as an MCP server at `/mcp` for remote clients:
 
@@ -275,7 +275,7 @@ npm install @dexto/core
 import { DextoAgent } from '@dexto/core';
 
 const agent = new DextoAgent({
-  llm: { provider: 'openai', model: 'gpt-5-mini', apiKey: process.env.OPENAI_API_KEY }
+  llm: { provider: 'openai', model: 'gpt-5.2', apiKey: process.env.OPENAI_API_KEY }
 });
 await agent.start();
 
@@ -347,11 +347,11 @@ Switch between models and providers dynamically.
 const currentLLM = agent.getCurrentLLMConfig();
 
 // Switch models (provider inferred automatically)
-await agent.switchLLM({ model: 'gpt-5-mini' });
+await agent.switchLLM({ model: 'gpt-5.2' });
 await agent.switchLLM({ model: 'claude-sonnet-4-5-20250929' });
 
 // Switch model for a specific session
-await agent.switchLLM({ model: 'gpt-5-mini' }, 'session-123');
+await agent.switchLLM({ model: 'gpt-5.2' }, 'session-123');
 
 // Get supported providers and models
 const providers = agent.getSupportedProviders();
@@ -567,7 +567,7 @@ Test tools before deploying:
 <details>
 <summary><strong>CLI Reference</strong></summary>
 
-```
+```text
 Usage: dexto [options] [command] [prompt...]
 
 Basic Usage:
@@ -583,6 +583,7 @@ Options:
   -a, --agent <path>       Agent config file or ID
   -m, --model <model>      LLM model to use
   --auto-approve           Skip tool confirmations
+  --no-elicitation         Disable elicitation prompts
   --mode <mode>            web | cli | server | mcp
   --port <port>            Server port
 

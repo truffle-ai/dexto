@@ -41,9 +41,10 @@ systemPrompt: |
 mcpServers:
   openai_image:
     type: stdio
-    command: node
+    command: npx
     args:
-      - /Users/shaun/Desktop/Projects/mcp-servers/src/openai-image/dist/index.js
+      - -y
+      - '@truffle-ai/openai-image-server'
     env:
       OPENAI_API_KEY: $OPENAI_API_KEY
     connectionMode: strict
@@ -54,7 +55,7 @@ toolConfirmation:
 
 llm:
   provider: openai
-  model: gpt-5-mini
+  model: gpt-5.2
   apiKey: $OPENAI_API_KEY
 
 storage:
