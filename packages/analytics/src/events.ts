@@ -20,6 +20,10 @@ export interface LLMTokensConsumedEvent {
     totalTokens?: number | undefined;
     cacheReadTokens?: number | undefined;
     cacheWriteTokens?: number | undefined;
+    /** Estimated input tokens (before LLM call, using length/4 heuristic) */
+    estimatedInputTokens?: number | undefined;
+    /** Accuracy of estimate vs actual: (estimated - actual) / actual * 100 */
+    estimateAccuracyPercent?: number | undefined;
 }
 
 /**

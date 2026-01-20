@@ -453,6 +453,18 @@ export async function processStream(
                         event.tokenUsage &&
                         (event.tokenUsage.inputTokens || event.tokenUsage.outputTokens)
                     ) {
+                        // Calculate estimate accuracy if both estimate and actual are available
+                        let estimateAccuracyPercent: number | undefined;
+                        if (
+                            event.estimatedInputTokens !== undefined &&
+                            event.tokenUsage.inputTokens
+                        ) {
+                            const diff = event.estimatedInputTokens - event.tokenUsage.inputTokens;
+                            estimateAccuracyPercent = Math.round(
+                                (diff / event.tokenUsage.inputTokens) * 100
+                            );
+                        }
+
                         capture('dexto_llm_tokens_consumed', {
                             source: 'cli',
                             sessionId: event.sessionId,
@@ -464,6 +476,8 @@ export async function processStream(
                             totalTokens: event.tokenUsage.totalTokens,
                             cacheReadTokens: event.tokenUsage.cacheReadTokens,
                             cacheWriteTokens: event.tokenUsage.cacheWriteTokens,
+                            estimatedInputTokens: event.estimatedInputTokens,
+                            estimateAccuracyPercent,
                         });
                     }
 

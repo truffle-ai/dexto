@@ -150,11 +150,13 @@ export class TurnExecutor {
 
     /**
      * Get StreamProcessor config from TurnExecutor state.
+     * @param estimatedInputTokens Optional estimated input tokens for analytics
      */
-    private getStreamProcessorConfig(): StreamProcessorConfig {
+    private getStreamProcessorConfig(estimatedInputTokens?: number): StreamProcessorConfig {
         return {
             provider: this.llmContext.provider,
             model: this.llmContext.model,
+            ...(estimatedInputTokens !== undefined && { estimatedInputTokens }),
         };
     }
 
@@ -270,7 +272,7 @@ export class TurnExecutor {
                     this.eventBus,
                     this.resourceManager,
                     this.stepAbortController.signal,
-                    this.getStreamProcessorConfig(),
+                    this.getStreamProcessorConfig(estimatedTokens),
                     this.logger,
                     streaming,
                     this.approvalMetadata

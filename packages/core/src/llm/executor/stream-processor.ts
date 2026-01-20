@@ -13,6 +13,8 @@ import { LLMProvider, TokenUsage } from '../types.js';
 export interface StreamProcessorConfig {
     provider: LLMProvider;
     model: string;
+    /** Estimated input tokens before LLM call (for analytics/calibration) */
+    estimatedInputTokens?: number;
 }
 
 export class StreamProcessor {
@@ -328,6 +330,9 @@ export class StreamProcessor {
                                 provider: this.config.provider,
                                 model: this.config.model,
                                 tokenUsage: usage,
+                                ...(this.config.estimatedInputTokens !== undefined && {
+                                    estimatedInputTokens: this.config.estimatedInputTokens,
+                                }),
                                 finishReason: this.finishReason,
                             });
                         }
@@ -413,6 +418,9 @@ export class StreamProcessor {
                             provider: this.config.provider,
                             model: this.config.model,
                             tokenUsage: this.actualTokens,
+                            ...(this.config.estimatedInputTokens !== undefined && {
+                                estimatedInputTokens: this.config.estimatedInputTokens,
+                            }),
                             finishReason: 'cancelled',
                         });
 
@@ -444,6 +452,9 @@ export class StreamProcessor {
                     provider: this.config.provider,
                     model: this.config.model,
                     tokenUsage: this.actualTokens,
+                    ...(this.config.estimatedInputTokens !== undefined && {
+                        estimatedInputTokens: this.config.estimatedInputTokens,
+                    }),
                     finishReason: 'cancelled',
                 });
 

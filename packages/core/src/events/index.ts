@@ -368,6 +368,8 @@ export interface AgentEventMap {
             cacheReadTokens?: number;
             cacheWriteTokens?: number;
         };
+        /** Estimated input tokens before LLM call (for analytics/calibration) */
+        estimatedInputTokens?: number;
         /** Finish reason: 'tool-calls' means more steps coming, others indicate completion */
         finishReason?: LLMFinishReason;
         sessionId: string;
@@ -583,6 +585,8 @@ export interface SessionEventMap {
             cacheReadTokens?: number;
             cacheWriteTokens?: number;
         };
+        /** Estimated input tokens before LLM call (for analytics/calibration) */
+        estimatedInputTokens?: number;
         /** Finish reason: 'tool-calls' means more steps coming, others indicate completion */
         finishReason?: LLMFinishReason;
     };
