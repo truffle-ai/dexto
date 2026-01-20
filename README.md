@@ -15,7 +15,7 @@
   <a href="https://deepwiki.com/truffle-ai/dexto"><img src="https://deepwiki.com/badge.svg"></a>
 </p>
 
-**An all-in-one toolkit for agentic AI applications.**
+**An open agent harness for AI applications—ships with a powerful coding agent.**
 
 <div align="center">
   <img src="https://github.com/user-attachments/assets/89d30349-0cb1-4160-85db-d99a80a71d7a" alt="Dexto Demo" width="700" />
@@ -44,11 +44,11 @@ Think of it like an operating system for AI agents:
 
 ### What You Can Build
 
+- **Coding Agents** – Build, debug, and refactor code autonomously (default agent included)
 - **Autonomous Agents** – Plan, execute, and adapt to user goals
 - **Digital Companions** – Assistants that remember context and anticipate needs
 - **MCP Clients & Servers** – Connect tools, files, APIs via Model Context Protocol
 - **Multi-Agent Systems** – Agents that collaborate, delegate, and solve complex tasks together
-- **Agent-as-a-Service** – Transform APIs into conversational experiences
 
 ---
 
@@ -78,9 +78,11 @@ dexto
 dexto --mode cli                                   # Terminal mode
 dexto -p "create a landing page for a coffee shop" # One-shot task
 dexto --auto-approve "refactor this codebase"      # Skip confirmations
+dexto -m claude-sonnet-4-5-20250929                # Switch models
 dexto --help                                       # Explore all options
-dexto --mode mcp                                   # Expose agent as a tool (requires auto approvals)
 ```
+
+**Inside the interactive CLI**, type `/` to explore commands—switch models, manage sessions, configure tools, and more.
 
 ### Manage Settings
 
@@ -186,58 +188,40 @@ Each agent becomes a tool that other agents can invoke—no code coupling.
 
 Platform integrations: [Discord](examples/discord-bot/), [Telegram](examples/telegram-bot/)
 
-### Dexto as an MCP Server
+<details>
+<summary><strong>Dexto as an MCP Server</strong></summary>
 
-#### Transport `stdio`
+#### Transport: `stdio`
 
-Use this when you want to connect your Dexto agent as an MCP server over stdio in Claude Code or Cursor (local tool-host workflows without an HTTP server).
+Connect your Dexto agent as an MCP server in Claude Code or Cursor:
 
 ```bash
-# Start the default agent as an MCP server over stdio
-dexto --mode mcp
-
-# Run via npx
-npx dexto --mode mcp
-
-# Select a specific agent by ID
-dexto --mode mcp --agent coding-agent
-
-# Select a specific agent config file
-dexto --mode mcp --agent ./agents/custom-agent.yml
+dexto --mode mcp --auto-approve --no-elicitation                # Default agent
+dexto --mode mcp --agent coding-agent --auto-approve --no-elicitation
+npx dexto --mode mcp --agent coding-agent --auto-approve --no-elicitation
 ```
 
-Example MCP config entries for Claude Code or Cursor (stdio):
+Example MCP config for Claude Code or Cursor:
 
 ```json
 {
   "command": "npx",
-  "args": ["-y", "dexto", "--mode", "mcp", "--agent", "coding-agent"]
+  "args": ["-y", "dexto", "--mode", "mcp", "--agent", "coding-agent", "--auto-approve", "--no-elicitation"]
 }
 ```
 
-`mcp` mode runs without an interactive interface, so manual tool confirmation and elicitation cannot be used. Update your agent config before starting:
+`--auto-approve` and `--no-elicitation` are required for MCP mode since it runs non-interactively.
 
-```yaml
-toolConfirmation:
-  mode: auto-approve  # or auto-deny if you want tool-level restrictions
+#### Transport: `http/sse`
 
-elicitation:
-  enabled: false
-```
+`dexto --mode server` exposes your agent as an MCP server at `/mcp` for remote clients:
 
-### Transport: `http/sse`
-
-
-When you start `dexto --mode server`, the server exposes REST endpoints and also exposes your agent as an MCP server at `/mcp` (HTTP/SSE). Use this when you want remote MCP clients to interact to your agent over the network.
 ```bash
-# Start the server (REST + MCP endpoint)
 dexto --mode server --port 3001
+ngrok http 3001  # Optional: expose publicly
 ```
 
-Optionally, expose the MCP endpoint publicly with ngrok
-```
-ngrok http 3001
-```
+</details>
 
 ---
 
@@ -287,9 +271,11 @@ import { startHonoApiServer } from 'dexto';
 const agent = new DextoAgent(config);
 const { server } = await startHonoApiServer(agent, 3001);
 // POST /api/message, GET /api/sessions, etc.
+// ngrok http 3001  # Optional: expose publicly
+
 ```
 
-This starts an HTTP server with full REST and SSE APIs, enabling integration with web frontends, webhooks, and other services. See the REST API Documentation for available endpoints.
+This starts an HTTP server with full REST and SSE APIs, enabling integration with web frontends, webhooks, and other services. See the [REST API Documentation](https://docs.dexto.ai/api/rest/) for available endpoints.
 
 ---
 

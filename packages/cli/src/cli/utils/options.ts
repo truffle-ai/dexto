@@ -36,6 +36,11 @@ export function validateCliOptions(opts: any): void {
             .optional()
             .default(false)
             .describe('Automatically approve all tool executions when true'),
+        elicitation: z
+            .boolean()
+            .optional()
+            .default(true)
+            .describe('Enable elicitation (set to false with --no-elicitation)'),
         provider: z.string().optional(),
         model: z.string().optional(),
         interactive: z
@@ -95,6 +100,7 @@ export function validateCliOptions(opts: any): void {
         model: opts.model,
         interactive: opts.interactive,
         autoApprove: opts.autoApprove,
+        elicitation: opts.elicitation,
     });
 }
 
