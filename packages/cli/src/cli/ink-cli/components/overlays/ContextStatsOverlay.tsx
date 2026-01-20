@@ -26,7 +26,12 @@ export interface ContextStatsOverlayHandle {
 interface ContextStats {
     estimatedTokens: number;
     actualTokens: number | null;
+    /** Effective max context tokens (after applying maxContextTokens override and thresholdPercent) */
     maxContextTokens: number;
+    /** The model's raw context window before any config overrides */
+    modelContextWindow: number;
+    /** Configured threshold percent (0.0-1.0), defaults to 1.0 */
+    thresholdPercent: number;
     usagePercent: number;
     messageCount: number;
     filteredMessageCount: number;
@@ -42,7 +47,6 @@ interface ContextStats {
             perTool: Array<{ name: string; tokens: number }>;
         };
         messages: number;
-        outputBuffer: number;
     };
     /** Calculation basis showing how the estimate was computed */
     calculationBasis?: {
@@ -54,13 +58,13 @@ interface ContextStats {
 }
 
 // Breakdown items that can be selected
-type BreakdownItem = 'systemPrompt' | 'tools' | 'messages' | 'freeSpace' | 'outputBuffer';
+type BreakdownItem = 'systemPrompt' | 'tools' | 'messages' | 'freeSpace' | 'autoCompactBuffer';
 const BREAKDOWN_ITEMS: BreakdownItem[] = [
     'systemPrompt',
     'tools',
     'messages',
     'freeSpace',
-    'outputBuffer',
+    'autoCompactBuffer',
 ];
 
 // Colors for each breakdown category
@@ -69,7 +73,7 @@ const ITEM_COLORS: Record<BreakdownItem, string> = {
     tools: 'yellow',
     messages: 'blue',
     freeSpace: 'gray',
-    outputBuffer: 'magenta',
+    autoCompactBuffer: 'magenta',
 };
 
 /**
@@ -85,6 +89,11 @@ function formatTokens(tokens: number): string {
 /**
  * Create a stacked colored progress bar
  * Returns an array of {char, color, item} segments to render
+ *
+ * The bar represents the full model context window:
+ * - Used segments (systemPrompt, tools, messages) - solid blocks
+ * - Free space - light blocks (available for use before threshold)
+ * - Threshold buffer - hatched blocks (reserved margin before compaction triggers)
  */
 interface BarSegment {
     char: string;
@@ -95,19 +104,25 @@ interface BarSegment {
 
 function createStackedBar(
     breakdown: ContextStats['breakdown'],
-    maxTokens: number,
+    modelContextWindow: number,
+    thresholdPercent: number,
     totalWidth: number = 40
 ): BarSegment[] {
     const segments: BarSegment[] = [];
 
+    // Calculate auto compact buffer (the reserved margin for early compaction)
+    // e.g., if thresholdPercent=0.9 and modelContextWindow=200K, buffer = 20K
+    const autoCompactBuffer = Math.floor(modelContextWindow * (1 - thresholdPercent));
+    const effectiveLimit = modelContextWindow - autoCompactBuffer;
+
     // Calculate widths for each segment (proportional to token count)
     const usedTokens = breakdown.systemPrompt + breakdown.tools.total + breakdown.messages;
-    const freeTokens = Math.max(0, maxTokens - usedTokens - breakdown.outputBuffer);
+    const freeTokens = Math.max(0, effectiveLimit - usedTokens);
 
     // Helper to calculate width (minimum 1 char if tokens > 0, proportional otherwise)
     const getWidth = (tokens: number): number => {
         if (tokens <= 0) return 0;
-        const proportional = Math.round((tokens / maxTokens) * totalWidth);
+        const proportional = Math.round((tokens / modelContextWindow) * totalWidth);
         return Math.max(1, proportional);
     };
 
@@ -116,7 +131,7 @@ function createStackedBar(
     const toolsWidth = getWidth(breakdown.tools.total);
     const msgsWidth = getWidth(breakdown.messages);
     const freeWidth = getWidth(freeTokens);
-    const reservedWidth = getWidth(breakdown.outputBuffer);
+    const reservedWidth = getWidth(autoCompactBuffer);
 
     // Adjust to fit total width (take from free space)
     const totalUsed = sysWidth + toolsWidth + msgsWidth + freeWidth + reservedWidth;
@@ -150,9 +165,9 @@ function createStackedBar(
     if (reservedWidth > 0) {
         segments.push({
             char: '▒',
-            color: ITEM_COLORS.outputBuffer,
+            color: ITEM_COLORS.autoCompactBuffer,
             width: reservedWidth,
-            item: 'outputBuffer',
+            item: 'autoCompactBuffer',
         });
     }
 
@@ -297,11 +312,11 @@ const ContextStatsOverlay = forwardRef<ContextStatsOverlayHandle, ContextStatsOv
 
         if (!stats) return null;
 
-        // Calculate percentage helper
+        // Calculate percentage helper (relative to full model context window for bar consistency)
         const pct = (tokens: number): string => {
             const percent =
-                stats.maxContextTokens > 0
-                    ? ((tokens / stats.maxContextTokens) * 100).toFixed(1)
+                stats.modelContextWindow > 0
+                    ? ((tokens / stats.modelContextWindow) * 100).toFixed(1)
                     : '0.0';
             return `${percent}%`;
         };
@@ -314,7 +329,12 @@ const ContextStatsOverlay = forwardRef<ContextStatsOverlayHandle, ContextStatsOv
         const isToolsExpanded = expandedSections.has('tools');
 
         // Create stacked bar segments
-        const barSegments = createStackedBar(stats.breakdown, stats.maxContextTokens);
+        // Use modelContextWindow as the full bar, with autoCompactBuffer showing the reserved portion
+        const barSegments = createStackedBar(
+            stats.breakdown,
+            stats.modelContextWindow,
+            stats.thresholdPercent
+        );
 
         // Helper to render a breakdown row with colored indicator
         const renderRow = (
@@ -330,7 +350,7 @@ const ContextStatsOverlay = forwardRef<ContextStatsOverlayHandle, ContextStatsOv
             const expandIcon = expandable ? (isToolsExpanded ? '▼' : '▶') : ' ';
             const itemColor = ITEM_COLORS[item];
             // Use different characters for different types
-            const indicator = item === 'freeSpace' ? '░' : item === 'outputBuffer' ? '▒' : '█';
+            const indicator = item === 'freeSpace' ? '░' : item === 'autoCompactBuffer' ? '▒' : '█';
 
             return (
                 <Box key={item}>
@@ -352,16 +372,15 @@ const ContextStatsOverlay = forwardRef<ContextStatsOverlayHandle, ContextStatsOv
             );
         };
 
-        // Calculate free space using the actual/estimated tokens (not breakdown sum)
-        // This ensures consistency with the total shown at the top
-        const freeTokens = Math.max(
-            0,
-            stats.maxContextTokens - stats.estimatedTokens - stats.breakdown.outputBuffer
+        // Calculate free space using the actual/estimated tokens
+        // maxContextTokens is already the effective limit (with threshold applied)
+        const freeTokens = Math.max(0, stats.maxContextTokens - stats.estimatedTokens);
+
+        // Calculate auto compact buffer (reserved space before compaction triggers)
+        const autoCompactBuffer = Math.floor(
+            stats.modelContextWindow * (1 - stats.thresholdPercent)
         );
-        const freePercent =
-            stats.maxContextTokens > 0
-                ? ((freeTokens / stats.maxContextTokens) * 100).toFixed(1)
-                : '0.0';
+        const bufferPercent = Math.round((1 - stats.thresholdPercent) * 100);
 
         return (
             <Box
@@ -490,9 +509,11 @@ const ContextStatsOverlay = forwardRef<ContextStatsOverlayHandle, ContextStatsOv
                     {renderRow(3, 'freeSpace', 'Free space', freeTokens, false)}
                     {renderRow(
                         4,
-                        'outputBuffer',
-                        'Output buffer (reserved)',
-                        stats.breakdown.outputBuffer,
+                        'autoCompactBuffer',
+                        bufferPercent > 0
+                            ? `Auto compact buffer (${bufferPercent}%)`
+                            : 'Auto compact buffer',
+                        autoCompactBuffer,
                         true
                     )}
                 </Box>

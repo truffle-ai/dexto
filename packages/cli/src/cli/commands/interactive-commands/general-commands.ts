@@ -333,6 +333,16 @@ export const generalCommands: CommandDefinition[] = [
                         ? `${formatTokens(stats.actualTokens)}`
                         : `~${formatTokens(stats.estimatedTokens)}`;
 
+                // Calculate auto compact buffer (reserved space before compaction triggers)
+                const autoCompactBuffer = Math.floor(
+                    stats.modelContextWindow * (1 - stats.thresholdPercent)
+                );
+                const bufferPercent = Math.round((1 - stats.thresholdPercent) * 100);
+                const bufferLabel =
+                    bufferPercent > 0
+                        ? `Auto compact buffer (${bufferPercent}%)`
+                        : 'Auto compact buffer';
+
                 const lines = [
                     `📊 Context Usage`,
                     `   ${usageColor(progressBar)} ${stats.usagePercent}%${overflowWarning}`,
@@ -342,7 +352,7 @@ export const generalCommands: CommandDefinition[] = [
                     `   ├─ System prompt: ${formatTokens(breakdown.systemPrompt)} (${pct(breakdown.systemPrompt)})`,
                     `   ├─ Tools: ${formatTokens(breakdown.tools.total)} (${pct(breakdown.tools.total)})`,
                     `   ├─ Messages: ${formatTokens(breakdown.messages)} (${pct(breakdown.messages)})`,
-                    `   └─ Output buffer: ${formatTokens(breakdown.outputBuffer)} (reserved)`,
+                    `   └─ ${bufferLabel}: ${formatTokens(autoCompactBuffer)} (reserved)`,
                     ``,
                     `   Messages: ${stats.filteredMessageCount} visible (${stats.messageCount} total)`,
                 ];
