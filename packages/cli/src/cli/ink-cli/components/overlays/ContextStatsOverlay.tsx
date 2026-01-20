@@ -437,17 +437,6 @@ const ContextStatsOverlay = forwardRef<ContextStatsOverlayHandle, ContextStatsOv
                     <Text color="gray">
                         {tokenDisplay} / {formatTokens(stats.maxContextTokens)} tokens
                     </Text>
-                    {stats.calculationBasis?.method === 'actuals' ? (
-                        <Text color="green" dimColor>
-                            {' '}
-                            (actuals-based)
-                        </Text>
-                    ) : (
-                        <Text color="gray" dimColor>
-                            {' '}
-                            (estimated)
-                        </Text>
-                    )}
                     <Text color="gray"> • </Text>
                     <Text
                         color={
@@ -461,18 +450,6 @@ const ContextStatsOverlay = forwardRef<ContextStatsOverlayHandle, ContextStatsOv
                         {stats.usagePercent}% used
                     </Text>
                 </Box>
-
-                {/* Show calculation formula when using actuals */}
-                {stats.calculationBasis?.method === 'actuals' && (
-                    <Box marginBottom={1}>
-                        <Text color="gray" dimColor>
-                            Formula: {formatTokens(stats.calculationBasis.lastInputTokens ?? 0)}{' '}
-                            (lastIn) + {formatTokens(stats.calculationBasis.lastOutputTokens ?? 0)}{' '}
-                            (lastOut) +{' '}
-                            {formatTokens(stats.calculationBasis.newMessagesEstimate ?? 0)} (new)
-                        </Text>
-                    </Box>
-                )}
 
                 {/* Breakdown */}
                 <Box flexDirection="column">
