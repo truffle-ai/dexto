@@ -379,14 +379,28 @@ const ContextStatsOverlay = forwardRef<ContextStatsOverlayHandle, ContextStatsOv
                         const isHighlighted = BREAKDOWN_ITEMS[selectedIndex] === segment.item;
                         // Dim non-selected segments when something is selected
                         const dimmed = !isHighlighted;
+                        // Add brackets around selected segment
+                        const leftBorder = isHighlighted ? '[' : '';
+                        const rightBorder = isHighlighted ? ']' : '';
+                        // Reduce width by 2 if highlighted to account for brackets
+                        const displayWidth = isHighlighted
+                            ? Math.max(1, segment.width - 2)
+                            : segment.width;
                         return (
-                            <Text
-                                key={idx}
-                                color={isHighlighted ? segment.color : segment.color}
-                                bold={isHighlighted}
-                                dimColor={dimmed}
-                            >
-                                {segment.char.repeat(segment.width)}
+                            <Text key={idx}>
+                                {isHighlighted && (
+                                    <Text color="white" bold>
+                                        {leftBorder}
+                                    </Text>
+                                )}
+                                <Text color={segment.color} bold={isHighlighted} dimColor={dimmed}>
+                                    {segment.char.repeat(displayWidth)}
+                                </Text>
+                                {isHighlighted && (
+                                    <Text color="white" bold>
+                                        {rightBorder}
+                                    </Text>
+                                )}
                             </Text>
                         );
                     })}
