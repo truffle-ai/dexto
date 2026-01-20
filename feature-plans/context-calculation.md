@@ -336,67 +336,165 @@ if (estimatedTokens > compactionThreshold) {
 3. **Estimate only what we cannot measure**
 4. **Same formula for `/context` AND compaction decisions**
 
-### Token Sources
+---
 
-| Component | Source | Notes |
-|-----------|--------|-------|
-| Total context | `lastMessage.tokenUsage.inputTokens + lastMessage.tokenUsage.outputTokens + newMessagesEstimate` | API actuals + estimate for new |
-| System prompt | Estimate (length/4) | Changes rarely, no API source |
-| Tools | Estimate (length/4) | Changes with MCP servers |
-| Messages | Back-calculated: `Total - SystemPrompt - Tools` | Makes math work |
-| Reasoning | `sum(message.tokenUsage.reasoningTokens)` | Track separately, included in context |
-| Free space | `maxTokens - Total - outputBuffer` | Use actual total |
+## THE FORMULA (Precise Specification)
 
-### The Formula
+### Core Formula
+
+```
+estimatedNextInput = lastInputTokens + lastOutputTokens + newMessagesEstimate
+```
+
+### Variable Definitions
+
+| Variable | Definition | Source | When Updated |
+|----------|------------|--------|--------------|
+| `lastInputTokens` | Tokens we SENT in the most recent LLM call | `tokenUsage.inputTokens` from API response | After EVERY LLM call |
+| `lastOutputTokens` | Tokens the LLM RETURNED in its response | `tokenUsage.outputTokens` from API response | After EVERY LLM call |
+| `newMessagesEstimate` | Estimate for messages added AFTER the last LLM call | `length/4` heuristic | Calculated on demand |
+
+### What Counts as "New Messages"?
+
+Messages added to history AFTER `lastInputTokens` was recorded:
+- **Tool results** (role='tool') from the last assistant's tool calls
+- **New user messages** typed since last LLM call
+- **Any injected system messages** added between calls
+
+### Example Flow
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ Turn 1: User asks "What's the weather in NYC?"                  │
+├─────────────────────────────────────────────────────────────────┤
+│ LLM Call:                                                       │
+│   inputTokens = 5000 (system + tools + user message)            │
+│   outputTokens = 100 (assistant: "I'll check" + tool_call)      │
+│                                                                 │
+│ After call: UPDATE lastInputTokens=5000, lastOutputTokens=100   │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│ Tool executes, result added to history                          │
+│ Tool result: "NYC: 72°F, sunny" (role='tool')                   │
+│                                                                 │
+│ This is a NEW MESSAGE (added after lastInputTokens recorded)    │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│ Before Turn 2: Calculate estimated context                      │
+├─────────────────────────────────────────────────────────────────┤
+│ lastInputTokens = 5000 (from Turn 1)                            │
+│ lastOutputTokens = 100 (from Turn 1)                            │
+│ newMessagesEstimate = estimate(tool_result) ≈ 20                │
+│                                                                 │
+│ estimatedNextInput = 5000 + 100 + 20 = 5120                     │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│ Turn 2: LLM processes tool result                               │
+├─────────────────────────────────────────────────────────────────┤
+│ LLM Call:                                                       │
+│   inputTokens = 5115 (ACTUAL - this is our ground truth!)       │
+│   outputTokens = 50 (assistant: "The weather is 72°F...")       │
+│                                                                 │
+│ VERIFICATION: estimated=5120, actual=5115, error=+5 (+0.1%)     │
+│                                                                 │
+│ After call: UPDATE lastInputTokens=5115, lastOutputTokens=50    │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Verification Metrics
+
+On EVERY LLM call, log the accuracy of our previous estimate:
 
 ```typescript
-interface ContextCalculation {
-  // Step 1: Get actual from last LLM interaction
-  const lastAssistant = getLastAssistantMessageWithTokenUsage();
-  const lastInputTokens = lastAssistant?.tokenUsage?.inputTokens ?? 0;
-  const lastOutputTokens = lastAssistant?.tokenUsage?.outputTokens ?? 0;
-  
-  // Step 2: Estimate new content since last LLM call
-  const newMessages = getMessagesSinceLastLLMCall();
-  const newMessagesEstimate = estimateTokens(newMessages);  // length/4
-  
-  // Step 3: Calculate current context total
-  const currentContextTotal = lastInputTokens + lastOutputTokens + newMessagesEstimate;
-  
-  // Step 4: Breakdown (estimates for fixed parts, back-calculate messages)
-  const systemPromptEstimate = estimateTokens(systemPrompt);
-  const toolsEstimate = estimateTokens(tools);
-  const reasoningTokens = sumReasoningTokensFromHistory();  // From stored tokenUsage
-  const messagesDisplay = currentContextTotal - systemPromptEstimate - toolsEstimate;
-  
-  // Step 5: Free space
-  const freeSpace = maxContextTokens - currentContextTotal - outputBuffer;
-  
-  // Step 6: Calibration logging
-  const messagesEstimate = estimateTokens(allMessages);
-  const calibrationRatio = messagesDisplay / messagesEstimate;
-  logger.info(`Context calibration: actual=${messagesDisplay}, estimate=${messagesEstimate}, ratio=${calibrationRatio.toFixed(2)}`);
-  
-  return {
-    total: currentContextTotal,
-    breakdown: {
-      systemPrompt: systemPromptEstimate,
-      tools: toolsEstimate,
-      messages: messagesDisplay,
-      reasoning: reasoningTokens,  // For display, already included in total
-    },
-    freeSpace,
-    outputBuffer,
-  };
+// Before LLM call
+const estimated = lastInputTokens + lastOutputTokens + newMessagesEstimate;
+
+// After LLM call, compare to actual
+const actual = response.tokenUsage.inputTokens;
+const error = estimated - actual;
+const errorPercent = (error / actual) * 100;
+
+logger.info(`Context estimate: estimated=${estimated}, actual=${actual}, error=${error > 0 ? '+' : ''}${error} (${errorPercent.toFixed(1)}%)`);
+```
+
+### Breakdown for Display (Back-Calculation)
+
+For `/context` overlay, we show a breakdown. Since we only know the TOTAL accurately, we back-calculate messages:
+
+```typescript
+const total = lastInputTokens + lastOutputTokens + newMessagesEstimate;
+
+// These are estimates (we can't measure them directly)
+const systemPromptEstimate = estimateTokens(systemPrompt);  // length/4
+const toolsEstimate = estimateToolsTokens(tools);           // length/4
+
+// Back-calculate messages so the math adds up
+const messagesDisplay = total - systemPromptEstimate - toolsEstimate;
+
+// If negative, our estimates are too high - cap at 0 and log warning
+if (messagesDisplay < 0) {
+    logger.warn(`Back-calculated messages negative (${messagesDisplay}), estimates may be too high`);
+    messagesDisplay = 0;
 }
 ```
 
 ### Edge Cases
 
+| Scenario | Behavior |
+|----------|----------|
+| **No LLM call yet** | `lastInputTokens=null`, fall back to pure estimation, show "(estimated)" label |
+| **After compaction** | History changed significantly, set `lastInputTokens=null`, fall back to estimation until next call |
+| **messagesDisplay negative** | Cap at 0, log warning - indicates system/tools estimates too high |
+| **System prompt changed** | Next estimate may be off, but next actual will correct it |
+| **Tools changed (MCP)** | Same as above - self-correcting after next call |
+
+### What /context Should Display
+
+```
+Context Usage: 52,100 / 200,000 tokens (26%)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Breakdown:
+  System prompt:  4,000 tokens (estimated)
+  Tools:          8,000 tokens (estimated)
+  Messages:      40,100 tokens (back-calculated)
+  ─────────────────────────────
+  Total:         52,100 tokens
+
+Calculation basis:
+  Last actual input:  50,000 tokens
+  Last output:         2,000 tokens
+  New since then:        100 tokens (estimated)
+
+Last estimate accuracy: +0.6% error
+
+Free space: 131,900 tokens (after 16,000 output buffer)
+```
+
+### Implementation Checklist
+
+- [ ] Store `lastInputTokens` and `lastOutputTokens` after each LLM call
+- [ ] Track which messages are "new" since last LLM call (need message timestamp or index tracking)
+- [ ] Calculate `newMessagesEstimate` only for messages added after last call
+- [ ] Log verification metrics on every LLM call
+- [ ] Update `/context` overlay to show this breakdown
+- [ ] Handle edge cases (no call yet, after compaction)
+- [ ] Use SAME formula for compaction decisions
+
+---
+
+### Legacy Edge Cases (keeping for reference)
+
 1. **No LLM call yet (new session)**
    - Fall back to pure estimation
    - All numbers are estimates with "(estimated)" label
-   
+
 2. **messagesDisplay comes out negative**
    - Our estimates for system/tools are too high
    - Cap at 0, log warning
@@ -407,7 +505,7 @@ interface ContextCalculation {
    - `compactionCount` tracks how many times compacted
 
 4. **Reasoning tokens**
-   - Must be sent back to LLM (fix formatter)
+   - Must be sent back to LLM (fix formatter) ✅ DONE
    - Include in context calculation
    - Track separately for display
 
