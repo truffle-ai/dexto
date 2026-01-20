@@ -15,7 +15,7 @@
   <a href="https://deepwiki.com/truffle-ai/dexto"><img src="https://deepwiki.com/badge.svg"></a>
 </p>
 
-**An open agent harness for AI applications—ships with a powerful coding agent.**
+<p align="center"><b>An open agent harness for AI applications—ships with a powerful coding agent.</b></p>
 
 <div align="center">
   <img src="https://github.com/user-attachments/assets/89d30349-0cb1-4160-85db-d99a80a71d7a" alt="Dexto Demo" width="700" />
@@ -44,11 +44,39 @@ Think of it like an operating system for AI agents:
 
 ### What You Can Build
 
-- **Coding Agents** – Build, debug, and refactor code autonomously (default agent included)
+- **Coding Agents** – Build, debug, and refactor code autonomously
 - **Autonomous Agents** – Plan, execute, and adapt to user goals
 - **Digital Companions** – Assistants that remember context and anticipate needs
 - **MCP Clients & Servers** – Connect tools, files, APIs via Model Context Protocol
 - **Multi-Agent Systems** – Agents that collaborate, delegate, and solve complex tasks together
+
+---
+
+## Coding Agent
+
+Dexto ships with a **production-ready coding agent** you can use immediately via the CLI or Web UI.
+
+```bash
+# Launch the coding agent (default)
+dexto
+
+# Or explicitly
+dexto --agent coding-agent
+```
+
+**What it can do:**
+- Build new apps from scratch
+- Read, write, and refactor code across your entire codebase
+- Execute shell commands and run tests
+- Spawn specialized sub-agents for exploration and planning
+- Remember context across sessions with persistent memory
+- Work with any of 50+ LLMs (swap models mid-conversation)
+
+**Ready-to-use interfaces:**
+- **Web UI** – Chat interface with file uploads, syntax highlighting, and MCP tool browser
+- **CLI** – Terminal-native with `/commands`, streaming output, and session management
+
+The coding agent is just one example of what you can build. Create your own agents by defining a YAML config—same architecture, your domain.
 
 ---
 
@@ -164,16 +192,26 @@ dexto -r session-abc123
 dexto search "database schema"
 ```
 
-### Multi-Agent Systems
+### Multi-Agent Systems Using Sub-Agents
 
-Coordinate multiple agents by exposing them as MCP servers:
+Agents can spawn specialized sub-agents to handle complex subtasks. The coding agent uses this to delegate exploration:
 
-```bash
-# Triage agent routes to specialized agents via MCP
-dexto --agent triage-agent
+```yaml
+# In your agent config
+customTools:
+  - type: agent-spawner
+    allowedAgents: ["explore-agent", "plan-agent"]
+    maxConcurrentAgents: 5
+    defaultTimeout: 300000  # 5 minutes
 ```
 
-Each agent becomes a tool that other agents can invoke—no code coupling.
+**Built-in sub-agents:**
+- **explore-agent** – Fast, read-only codebase exploration (uses Haiku for speed)
+- **plan-agent** – Architecture planning and design decisions
+
+Any agent in the [Agent Registry](#agent-registry) can be spawned as a sub-agent—including custom agents you create and register.
+
+Sub-agents run ephemerally, auto-cleanup after completion, and forward tool approvals to the parent—so users see one unified approval flow.
 
 ---
 
@@ -277,6 +315,104 @@ const { server } = await startHonoApiServer(agent, 3001);
 
 This starts an HTTP server with full REST and SSE APIs, enabling integration with web frontends, webhooks, and other services. See the [REST API Documentation](https://docs.dexto.ai/api/rest/) for available endpoints.
 
+<details>
+<summary><strong>Advanced SDK Usage</strong></summary>
+
+### Session Management
+
+Create and manage multiple conversation sessions with persistent storage.
+
+```typescript
+const agent = new DextoAgent(config);
+await agent.start();
+
+// Create and manage sessions
+const session = await agent.createSession('user-123');
+await agent.generate('Hello, how can you help me?', session.id);
+
+// List and manage sessions
+const sessions = await agent.listSessions();
+const history = await agent.getSessionHistory('user-123');
+await agent.deleteSession('user-123');
+
+// Search across conversations
+const results = await agent.searchMessages('bug fix', { limit: 10 });
+```
+
+### LLM Management
+
+Switch between models and providers dynamically.
+
+```typescript
+// Get current configuration
+const currentLLM = agent.getCurrentLLMConfig();
+
+// Switch models (provider inferred automatically)
+await agent.switchLLM({ model: 'gpt-5-mini' });
+await agent.switchLLM({ model: 'claude-sonnet-4-5-20250929' });
+
+// Switch model for a specific session
+await agent.switchLLM({ model: 'gpt-5-mini' }, 'session-123');
+
+// Get supported providers and models
+const providers = agent.getSupportedProviders();
+const models = agent.getSupportedModels();
+```
+
+### MCP Manager
+
+For advanced MCP server management, use the MCPManager directly.
+
+```typescript
+import { MCPManager } from '@dexto/core';
+
+const manager = new MCPManager();
+
+// Connect to MCP servers
+await manager.connectServer('filesystem', {
+  type: 'stdio',
+  command: 'npx',
+  args: ['-y', '@modelcontextprotocol/server-filesystem', '.']
+});
+
+// Access tools, prompts, and resources
+const tools = await manager.getAllTools();
+const prompts = await manager.getAllPrompts();
+const resources = await manager.getAllResources();
+
+// Execute tools
+const result = await manager.executeTool('readFile', { path: './README.md' });
+
+await manager.disconnectAll();
+```
+
+### Storage & Persistence
+
+Configure storage backends for production.
+
+```yaml
+# agents/production-agent.yml
+storage:
+  cache:
+    type: redis
+    url: $REDIS_URL
+  database:
+    type: postgres
+    connectionString: $POSTGRES_CONNECTION_STRING
+
+sessions:
+  maxSessions: 1000
+  sessionTTL: 86400000  # 24 hours
+```
+
+**Supported Backends:**
+- **Cache**: Redis, In-Memory
+- **Database**: PostgreSQL, SQLite, In-Memory
+
+See the [Storage Configuration guide](https://docs.dexto.ai/docs/guides/configuring-dexto/storage) for details.
+
+</details>
+
 ---
 
 ## Agent Registry
@@ -298,9 +434,9 @@ See the full [Agent Registry](https://docs.dexto.ai/docs/guides/agent-registry).
 
 ---
 
-## Configuration
+## Agent Configuration
 
-Define agents in version-controlled YAML:
+Dexto treats each configuration as a unique agent allowing you to define and save combinations of LLMs, servers, storage options, etc. based on your needs for easy portability. Define agents in version-controlled YAML. Change the file, reload, and chat—state, memory, and tools update automatically.
 
 ```yaml
 # agents/production-agent.yml
@@ -329,6 +465,48 @@ storage:
 toolConfirmation:
   mode: manual
 ```
+
+### LLM Providers
+
+Switch between providers instantly—no code changes required.
+
+#### Built-in Providers
+| Provider | Models | Setup |
+|----------|--------|-------|
+| **OpenAI** | `gpt-5.1`, `gpt-5-mini`, `gpt-4o`, `o3`, `o1` | API key |
+| **Anthropic** | `claude-sonnet-4-5-20250929`, `claude-opus-4-5-20250929`, extended thinking | API key |
+| **Google** | `gemini-3-pro`, `gemini-2.5-pro`, `gemini-2.5-flash` | API key |
+| **Groq** | `llama-4-scout`, `qwen-qwq`, `deepseek-r1-distill` | API key |
+| **xAI** | `grok-4`, `grok-3`, `grok-3-fast` | API key |
+| **Cohere** | `command-r-plus`, `command-r` | API key |
+
+#### Local Models (Privacy-First)
+| Provider | Models | Setup |
+|----------|--------|-------|
+| **Ollama** | Llama, Qwen, Mistral, DeepSeek, etc. | Local install |
+| **node-llama-cpp** | Any GGUF model | Bundled (auto GPU detection: Metal, CUDA, Vulkan) |
+
+#### Cloud Platforms
+| Provider | Models | Setup |
+|----------|--------|-------|
+| **AWS Bedrock** | Claude, Llama, Mistral | AWS credentials |
+| **Google Vertex AI** | Gemini, Claude | GCP credentials |
+
+#### Gateway Providers
+| Provider | Access | Setup |
+|----------|--------|-------|
+| **OpenRouter** | 100+ models from multiple providers | API key |
+| **LiteLLM** | Unified API for any provider | Self-hosted or API key |
+| **Glama** | Multi-provider gateway | API key |
+
+```bash
+# Switch models via CLI
+dexto -m claude-sonnet-4-5-20250929
+dexto -m gemini-2.5-pro
+dexto -m llama-4-scout
+```
+
+Switch within interactive CLI (`/model`) or Web UI without config changes.
 
 See the [Configuration Guide](https://docs.dexto.ai/docs/category/agent-configuration-guide).
 
@@ -441,7 +619,17 @@ Full reference: `dexto --help`
 
 ## Telemetry
 
-Anonymous usage data helps improve Dexto. Opt out: `DEXTO_ANALYTICS_DISABLED=1`
+We collect anonymous usage data (no personal/sensitive info) to help improve Dexto. This includes:
+
+- Commands used
+- Command execution time
+- Error occurrences
+- System information (OS, Node version)
+- LLM Models used
+
+To opt-out:
+
+Set env variable `DEXTO_ANALYTICS_DISABLED=1`
 
 ---
 
