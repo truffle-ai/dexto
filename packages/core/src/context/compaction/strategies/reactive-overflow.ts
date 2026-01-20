@@ -116,9 +116,15 @@ export class ReactiveOverflowStrategy implements ICompactionStrategy {
 
         // Check if there's already a summary in history
         // If so, we need to work with messages AFTER the summary only
-        const existingSummaryIndex = history.findIndex(
-            (msg) => msg.metadata?.isSummary === true || msg.metadata?.isSessionSummary === true
-        );
+        // Use reverse search to find the MOST RECENT summary (important for re-compaction)
+        let existingSummaryIndex = -1;
+        for (let i = history.length - 1; i >= 0; i--) {
+            const msg = history[i];
+            if (msg?.metadata?.isSummary === true || msg?.metadata?.isSessionSummary === true) {
+                existingSummaryIndex = i;
+                break;
+            }
+        }
 
         if (existingSummaryIndex !== -1) {
             // There's already a summary - only consider messages AFTER it
@@ -356,7 +362,9 @@ export class ReactiveOverflowStrategy implements ICompactionStrategy {
             // Return structured summary - the XML format from the LLM
             return `[Session Compaction Summary]\n${result.text}`;
         } catch (error) {
-            this.logger.error('ReactiveOverflowStrategy: Failed to generate summary', { error });
+            this.logger.error(
+                `ReactiveOverflowStrategy: Failed to generate summary - ${error instanceof Error ? error.message : String(error)}`
+            );
             // Fallback: return a simple truncated version with current task
             return this.createFallbackSummary(messages, currentTask);
         }

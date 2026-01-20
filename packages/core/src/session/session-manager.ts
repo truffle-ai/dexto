@@ -898,7 +898,12 @@ export class SessionManager {
         // Walk backwards to find the root (oldest ancestor)
         while (currentData?.continuedFrom && !visited.has(currentData.continuedFrom)) {
             visited.add(currentData.id);
-            currentData = await this.getSessionData(currentData.continuedFrom);
+            const parent = await this.getSessionData(currentData.continuedFrom);
+            if (!parent) {
+                // Keep last known node as root if ancestor is missing
+                break;
+            }
+            currentData = parent;
         }
 
         // If we stopped at a valid session, add it as root

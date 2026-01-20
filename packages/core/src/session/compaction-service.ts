@@ -120,6 +120,12 @@ export class SessionCompactionService {
 
         const summaryText = this.extractTextContent(strategySummary.content);
 
+        // Guard: skip compaction if summary text is empty
+        if (!summaryText.trim()) {
+            this.logger.debug('SessionCompactionService: Empty summary text; skipping compaction');
+            return null;
+        }
+
         // Create the session summary message for the new session
         // This is marked as isSessionSummary (not isSummary) to distinguish from
         // the old read-time filtering approach

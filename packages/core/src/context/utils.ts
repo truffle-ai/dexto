@@ -1764,8 +1764,13 @@ export function filterCompacted(history: readonly InternalMessage[]): InternalMe
 
     // Get the count of messages that were summarized (stored in metadata)
     // The preserved messages are between the summarized portion and the summary
+    // Clamp to valid range: 0 <= originalMessageCount <= summaryIndex
+    // For legacy summaries without metadata, default to summaryIndex (no preserved messages)
     const rawCount = summaryMessage.metadata?.originalMessageCount;
-    const originalMessageCount = typeof rawCount === 'number' ? rawCount : 0;
+    const originalMessageCount =
+        typeof rawCount === 'number' && rawCount >= 0 && rawCount <= summaryIndex
+            ? rawCount
+            : summaryIndex;
 
     // Layout after compaction:
     // [summarized..., preserved..., summary, afterSummary...]

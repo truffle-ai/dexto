@@ -1002,7 +1002,23 @@ export class TurnExecutor {
         // originalMessageCount tells us how many messages were summarized
         const summarizedCount =
             (summaryMessage.metadata?.originalMessageCount as number | undefined) ?? 0;
-        const preservedMessages = history.slice(summarizedCount);
+
+        // For re-compaction, we need to find the most recent summary position
+        // and slice preserved messages relative to that, not from index 0
+        let existingSummaryIndex = -1;
+        for (let i = history.length - 1; i >= 0; i--) {
+            const msg = history[i];
+            if (msg?.metadata?.isSummary === true || msg?.metadata?.isSessionSummary === true) {
+                existingSummaryIndex = i;
+                break;
+            }
+        }
+
+        // baseIndex: where to start counting summarizedCount from
+        // - If re-compaction (existing summary found): start after that summary
+        // - If first compaction: start from index 0
+        const baseIndex = existingSummaryIndex >= 0 ? existingSummaryIndex + 1 : 0;
+        const preservedMessages = history.slice(baseIndex + summarizedCount);
 
         // Store compaction data for return value (will be passed up the call chain)
         // Use spread to conditionally include timestamp properties (exactOptionalPropertyTypes)

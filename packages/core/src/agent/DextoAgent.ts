@@ -1760,7 +1760,8 @@ export class DextoAgent {
         return {
             estimatedTokens,
             maxContextTokens,
-            usagePercent: Math.round((estimatedTokens / maxContextTokens) * 100),
+            usagePercent:
+                maxContextTokens > 0 ? Math.round((estimatedTokens / maxContextTokens) * 100) : 0,
             messageCount: history.length,
             filteredMessageCount: filteredHistory.length,
             hasSummary,

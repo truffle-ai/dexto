@@ -618,8 +618,7 @@ function handleMessageDequeued(event: EventByName<'message:dequeued'>): void {
  */
 function handleContextCompacted(event: EventByName<'context:compacted'>): void {
     console.debug(
-        `[handlers] Context compacted: ${event.originalTokens.toLocaleString()} → ${event.compactedTokens.toLocaleString()} tokens`,
-        `(${event.originalMessages} → ${event.compactedMessages} messages) via ${event.strategy}`
+        `[handlers] Context compacted: ${event.originalTokens.toLocaleString()} → ${event.compactedTokens.toLocaleString()} tokens (${event.originalMessages} → ${event.compactedMessages} messages) via ${event.strategy}`
     );
 }
 
@@ -630,8 +629,7 @@ function handleContextCompacted(event: EventByName<'context:compacted'>): void {
 function handleSessionContinued(event: EventByName<'session:continued'>): void {
     const { previousSessionId, newSessionId, summaryTokens, originalMessages, reason } = event;
     console.debug(
-        `[handlers] Session continued: ${previousSessionId.slice(0, 8)}... → ${newSessionId.slice(0, 8)}...`,
-        `(${originalMessages} messages → ~${summaryTokens.toLocaleString()} token summary, reason: ${reason})`
+        `[handlers] Session continued: ${previousSessionId.slice(0, 8)}... → ${newSessionId.slice(0, 8)}... (${originalMessages} messages → ~${summaryTokens.toLocaleString()} token summary, reason: ${reason})`
     );
     // Note: Session switching is handled at the app level via router/context
     // This event can be used by the app to update the active session ID
