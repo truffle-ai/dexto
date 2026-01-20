@@ -512,8 +512,15 @@ See the [Configuration Guide](https://docs.dexto.ai/docs/category/agent-configur
 
 ---
 
+## Demos & Examples
+
+| Image Editor | MCP Store | Portable Agents |
+|:---:|:---:|:---:|
+| <img src=".github/assets/image_editor_demo.gif" alt="Image Editor" width="280"/> | <img src=".github/assets/mcp_store_demo.gif" alt="MCP Store" width="280"/> | <img src=".github/assets/portable_agent_demo.gif" alt="Portable Agents" width="280"/> |
+| Face detection & annotation using OpenCV | Browse and add MCPs | Use agents in Cursor, Claude Code via MCP|
+
 <details>
-<summary><strong>Demos & Examples</strong></summary>
+<summary><strong>More Examples</strong></summary>
 
 ### Coding Agent
 Build applications from natural language:
@@ -530,23 +537,12 @@ dexto --agent podcast-agent
 ```
 <img src="https://github.com/user-attachments/assets/cfd59751-3daa-4ccd-97b2-1b2862c96af1" alt="Podcast Agent Demo" width="600"/>
 
-### Computer Vision
-Face detection and annotation:
-```bash
-dexto --agent image-editor-agent
-```
-<img src="https://github.com/user-attachments/assets/7e4b2043-c39a-47c7-a403-a9665ee762ce" alt="Face Detection Demo" width="600">
-
 ### Multi-Agent Triage
 Coordinate specialized agents:
 ```bash
 dexto --agent triage-agent
 ```
 <img src=".github/assets/triage_agent_demo.gif" alt="Triage Agent Demo" width="600">
-
-### MCP Store
-Browse and add tools instantly:
-<img src=".github/assets/mcp_store_demo.gif" alt="MCP Store Demo" width="600">
 
 ### Memory System
 Persistent context that shapes behavior:
@@ -564,9 +560,6 @@ Agents generate forms for structured input:
 ### MCP Playground
 Test tools before deploying:
 <img src=".github/assets/playground_demo.gif" alt="Playground Demo" width="600">
-
-### Portable Agents (Cursor Integration)
-<img src="https://github.com/user-attachments/assets/fd75a63f-4d29-447a-be24-6943e34c387f" alt="Cursor Integration" width="600">
 
 </details>
 
