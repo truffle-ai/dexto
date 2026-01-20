@@ -446,9 +446,11 @@ export function estimateContentPartTokens(part: ContentPart): number {
         return estimateImageTokens();
     }
     if (part.type === 'file') {
-        // File parts may have content embedded
-        const content = 'content' in part ? (part.content as string) : undefined;
-        return estimateFileTokens(content);
+        // File parts use a simple fallback since:
+        // 1. After first LLM call, we use actual token counts for the bulk of estimation
+        // 2. This only affects the "new messages" delta and /context display
+        // 3. File attachments in tool results are relatively rare
+        return 1000;
     }
     return 0;
 }

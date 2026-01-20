@@ -934,8 +934,6 @@ describe('ContextManager', () => {
             contextManager.setLastActualOutputTokens(200);
             // Don't call recordLastCallMessageCount()
 
-            const { preparedHistory } = await contextManager.prepareHistory();
-            const systemPrompt = 'System';
             const mockContributorContext = { mcpManager: {} as any };
 
             const fullEstimate = await contextManager.getContextTokenEstimate(

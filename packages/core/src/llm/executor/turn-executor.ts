@@ -248,7 +248,7 @@ export class TurnExecutor {
                 // This ensures we never make an oversized call and avoids unnecessary compaction on stop steps
                 // Uses the same formula as /context overlay: lastInput + lastOutput + newMessagesEstimate
                 const toolDefinitions = supportsTools ? await this.toolManager.getAllTools() : {};
-                const estimatedTokens = await this.contextManager.getEstimatedNextInputTokens(
+                let estimatedTokens = await this.contextManager.getEstimatedNextInputTokens(
                     prepared.systemPrompt,
                     prepared.preparedHistory,
                     toolDefinitions
@@ -262,6 +262,15 @@ export class TurnExecutor {
                     // If compaction occurred, rebuild messages using virtual context
                     if (this.virtualContext) {
                         prepared = await this.buildMessagesFromVirtualContext(contributorContext);
+                        // Recompute token estimate after compaction for accurate analytics/metrics
+                        estimatedTokens = await this.contextManager.getEstimatedNextInputTokens(
+                            prepared.systemPrompt,
+                            prepared.preparedHistory,
+                            toolDefinitions
+                        );
+                        this.logger.debug(
+                            `Post-compaction: recomputed estimate is ${estimatedTokens} tokens`
+                        );
                     }
                 }
 
@@ -327,7 +336,21 @@ export class TurnExecutor {
 
                 // 7a. Store actual token counts for context estimation formula
                 // Formula: estimatedNextInput = lastInput + lastOutput + newMessagesEstimate
-                if (result.usage?.inputTokens !== undefined) {
+                //
+                // On cancelled calls, the LLM doesn't send a finish event with actual token counts.
+                // We use our pre-call estimate as a fallback to preserve tracking accuracy.
+                // This prevents the formula from using stale values or zeros, which would cause
+                // incorrect compaction decisions. The next successful call will provide real actuals.
+                // Tracking issue for AI SDK to support partial usage on cancel:
+                // https://github.com/vercel/ai/issues/7628
+                if (result.finishReason === 'cancelled') {
+                    // Use pre-call estimate as best-available approximation for cancelled calls
+                    this.logger.info(
+                        `Context estimation (cancelled): using pre-call estimate ${estimatedTokens} tokens`
+                    );
+                    this.contextManager.setLastActualInputTokens(estimatedTokens);
+                    // Don't update output tokens - we don't know how much was generated before cancel
+                } else if (result.usage?.inputTokens !== undefined) {
                     // Log verification metric: compare our estimate vs actual from API
                     const diff = estimatedTokens - result.usage.inputTokens;
                     const diffPercent =
@@ -339,9 +362,10 @@ export class TurnExecutor {
                             `error=${diff} (${diffPercent}%)`
                     );
                     this.contextManager.setLastActualInputTokens(result.usage.inputTokens);
-                }
-                if (result.usage?.outputTokens !== undefined) {
-                    this.contextManager.setLastActualOutputTokens(result.usage.outputTokens);
+
+                    if (result.usage?.outputTokens !== undefined) {
+                        this.contextManager.setLastActualOutputTokens(result.usage.outputTokens);
+                    }
                 }
                 // Record message count boundary for identifying "new" messages
                 await this.contextManager.recordLastCallMessageCount();

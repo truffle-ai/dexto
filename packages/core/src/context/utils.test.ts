@@ -1548,23 +1548,24 @@ describe('Token Estimation Functions', () => {
             expect(estimateContentPartTokens(imagePart)).toBe(1000);
         });
 
-        it('should estimate file parts with content', () => {
+        it('should return fallback for file parts', () => {
+            // File data could be base64-encoded or binary, so we use a conservative fallback
             const filePart = {
                 type: 'file' as const,
-                data: 'base64data',
+                data: 'some-file-data',
                 mimeType: 'text/plain' as const,
-                content: 'a'.repeat(200), // 200 chars = 50 tokens
-            };
-            expect(estimateContentPartTokens(filePart as any)).toBe(50);
-        });
-
-        it('should return 1000 for file parts without content', () => {
-            const filePart = {
-                type: 'file' as const,
-                data: 'base64data',
-                mimeType: 'application/pdf' as const,
             };
             expect(estimateContentPartTokens(filePart)).toBe(1000);
+        });
+
+        it('should return fallback for file parts with binary data', () => {
+            // Binary data also uses fallback
+            const filePart = {
+                type: 'file' as const,
+                data: new Uint8Array([1, 2, 3]),
+                mimeType: 'application/pdf' as const,
+            };
+            expect(estimateContentPartTokens(filePart as any)).toBe(1000);
         });
 
         it('should return 0 for unknown part types', () => {

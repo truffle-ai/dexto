@@ -862,6 +862,8 @@ export class SessionManager {
             session.dispose();
             await this.services.storageManager.getDatabase().delete(sessionKey);
             await this.services.storageManager.getCache().delete(sessionKey);
+            // Clean up LLM config that was set before init (line 821)
+            this.services.stateManager.clearSessionOverride(newSessionId);
             throw error;
         }
 

@@ -416,6 +416,7 @@ export class ContextManager<TMessage = unknown> {
         };
 
         await this.addMessage(clearMarker);
+        this.resetActualTokenTracking();
         this.logger.debug(`Context cleared for session: ${this.sessionId}`);
     }
 
@@ -1164,6 +1165,7 @@ export class ContextManager<TMessage = unknown> {
     async resetConversation(): Promise<void> {
         // Clear persisted history
         await this.historyProvider.clearHistory();
+        this.resetActualTokenTracking();
         this.logger.debug(
             `ContextManager: Conversation history cleared for session ${this.sessionId}`
         );
