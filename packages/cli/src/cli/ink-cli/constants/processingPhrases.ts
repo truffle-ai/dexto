@@ -55,6 +55,8 @@ export const processingPhrases: string[] = [
     'Using all 3 brain cells…',
     "I'm not lazy, I'm just on energy-saving mode…",
     'I came. I saw. I made it awkward…',
+    'My boss told me to have a good day, so I went home…',
+    "I put the 'pro' in procrastination…",
     //'Installing malware (just kidding)…',
 
     // Vines
