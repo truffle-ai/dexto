@@ -45,14 +45,16 @@ export default defineImage({
                 const { fileSystemToolsProvider } = await import('@dexto/tools-filesystem');
                 const { processToolsProvider } = await import('@dexto/tools-process');
                 const { agentSpawnerToolsProvider } = await import('@dexto/agent-management');
+                const { todoToolsProvider } = await import('@dexto/tools-todo');
                 const { customToolRegistry } = await import('@dexto/core');
 
                 customToolRegistry.register(fileSystemToolsProvider);
                 customToolRegistry.register(processToolsProvider);
                 customToolRegistry.register(agentSpawnerToolsProvider);
+                customToolRegistry.register(todoToolsProvider);
 
                 console.log(
-                    '✓ Registered tool providers: filesystem-tools, process-tools, agent-spawner'
+                    '✓ Registered tool providers: filesystem-tools, process-tools, agent-spawner, todo-tools'
                 );
             },
         },
@@ -90,6 +92,9 @@ export default defineImage({
             {
                 type: 'process-tools',
                 securityLevel: 'moderate',
+            },
+            {
+                type: 'todo-tools',
             },
         ],
     },

@@ -17,6 +17,7 @@ import { useChatStore, generateMessageId } from '../stores/chatStore.js';
 import { useAgentStore } from '../stores/agentStore.js';
 import { useApprovalStore } from '../stores/approvalStore.js';
 import { usePreferenceStore } from '../stores/preferenceStore.js';
+import { useTodoStore } from '../stores/todoStore.js';
 import type { ClientEventBus } from './EventBus.js';
 import { captureTokenUsage } from '../analytics/capture.js';
 
@@ -655,7 +656,7 @@ function handleSessionContinued(event: EventByName<'session:continued'>): void {
 
 /**
  * service:event - Extensible service event for non-core services
- * Currently handles agent-spawner progress events
+ * Handles agent-spawner progress events and todo update events
  */
 function handleServiceEvent(event: EventByName<'service:event'>): void {
     const { service, event: eventType, toolCallId, sessionId, data } = event;
@@ -686,6 +687,26 @@ function handleServiceEvent(event: EventByName<'service:event'>): void {
                 },
             });
         }
+    }
+
+    // Handle todo update events
+    if (service === 'todo' && eventType === 'updated' && sessionId) {
+        const todoData = data as {
+            todos: Array<{
+                id: string;
+                sessionId: string;
+                content: string;
+                activeForm: string;
+                status: 'pending' | 'in_progress' | 'completed';
+                position: number;
+                createdAt: Date | string;
+                updatedAt: Date | string;
+            }>;
+            stats: { created: number; updated: number; deleted: number };
+        };
+
+        // Update todo store with new todos
+        useTodoStore.getState().setTodos(sessionId, todoData.todos);
     }
 }
 
