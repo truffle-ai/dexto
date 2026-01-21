@@ -377,12 +377,13 @@ export const generalCommands: CommandDefinition[] = [
                         ? `Auto compact buffer (${bufferPercent}%)`
                         : 'Auto compact buffer';
 
+                const breakdownLabel = chalk.dim('(estimated)');
                 const lines = [
                     `📊 Context Usage`,
                     `   ${usageColor(progressBar)} ${stats.usagePercent}%${overflowWarning}`,
                     `   ${chalk.dim(stats.modelDisplayName)} · ${tokenDisplay} / ${formatTokens(stats.maxContextTokens)} tokens`,
                     ``,
-                    `   ${chalk.cyan('Breakdown:')} ${stats.actualTokens === null ? chalk.dim('(estimated)') : ''}`,
+                    `   ${chalk.cyan('Breakdown:')} ${breakdownLabel}`,
                     `   ├─ System prompt: ${formatTokens(breakdown.systemPrompt)} (${pct(breakdown.systemPrompt)})`,
                     `   ├─ Tools: ${formatTokens(breakdown.tools.total)} (${pct(breakdown.tools.total)})`,
                     `   ├─ Messages: ${formatTokens(breakdown.messages)} (${pct(breakdown.messages)})`,

@@ -570,8 +570,7 @@ export class ChatSession {
      * @see {@link ContextManager.resetConversation} for the underlying implementation
      */
     public async reset(): Promise<void> {
-        // Reset history via history provider
-        await this.historyProvider.clearHistory();
+        await this.llmService.getContextManager().resetConversation();
 
         // Emit agent-level event with session context
         this.services.agentEventBus.emit('session:reset', {

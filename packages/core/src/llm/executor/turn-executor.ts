@@ -337,17 +337,20 @@ export class TurnExecutor {
                         `Context estimation (cancelled): keeping last known actuals, partial response (${result.text.length} chars) will be estimated`
                     );
                 } else if (result.usage?.inputTokens !== undefined) {
+                    const contextInputTokens = this.getContextInputTokens(result.usage);
+                    const actualInputTokens = contextInputTokens ?? result.usage.inputTokens;
+
                     // Log verification metric: compare our estimate vs actual from API
-                    const diff = estimatedTokens - result.usage.inputTokens;
+                    const diff = estimatedTokens - actualInputTokens;
                     const diffPercent =
-                        result.usage.inputTokens > 0
-                            ? ((diff / result.usage.inputTokens) * 100).toFixed(1)
+                        actualInputTokens > 0
+                            ? ((diff / actualInputTokens) * 100).toFixed(1)
                             : '0.0';
                     this.logger.info(
-                        `Context estimation accuracy: estimated=${estimatedTokens}, actual=${result.usage.inputTokens}, ` +
+                        `Context estimation accuracy: estimated=${estimatedTokens}, actual=${actualInputTokens}, ` +
                             `error=${diff} (${diffPercent}%)`
                     );
-                    this.contextManager.setLastActualInputTokens(result.usage.inputTokens);
+                    this.contextManager.setLastActualInputTokens(actualInputTokens);
 
                     if (result.usage?.outputTokens !== undefined) {
                         this.contextManager.setLastActualOutputTokens(result.usage.outputTokens);
@@ -361,15 +364,15 @@ export class TurnExecutor {
 
                 // 7b. POST-RESPONSE CHECK: Use actual inputTokens from API to detect overflow
                 // This catches cases where the LLM's response pushed us over the threshold
-                if (
-                    result.usage?.inputTokens &&
-                    this.shouldCompactFromActual(result.usage.inputTokens)
-                ) {
+                const contextInputTokens = result.usage
+                    ? this.getContextInputTokens(result.usage)
+                    : null;
+                if (contextInputTokens && this.shouldCompactFromActual(contextInputTokens)) {
                     this.logger.debug(
-                        `Post-response: actual ${result.usage.inputTokens} tokens exceeds threshold, compacting`
+                        `Post-response: actual ${contextInputTokens} tokens exceeds threshold, compacting`
                     );
                     await this.compactContext(
-                        result.usage.inputTokens,
+                        contextInputTokens,
                         contributorContext,
                         toolDefinitions
                     );
@@ -1088,6 +1091,11 @@ export class TurnExecutor {
         if (usage.reasoningTokens !== undefined) {
             activeSpan.setAttribute('gen_ai.usage.reasoning_tokens', usage.reasoningTokens);
         }
+    }
+
+    private getContextInputTokens(usage: TokenUsage): number | null {
+        if (usage.inputTokens === undefined) return null;
+        return usage.inputTokens + (usage.cacheReadTokens ?? 0) + (usage.cacheWriteTokens ?? 0);
     }
 
     /**
