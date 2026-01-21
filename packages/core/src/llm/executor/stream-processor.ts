@@ -276,7 +276,30 @@ export class StreamProcessor {
                         );
                         const usage = this.hasStepUsage ? { ...this.actualTokens } : fallbackUsage;
 
+                        // Backfill usage fields from fallback when step usage reported zeros/undefined.
+                        // This handles edge cases where providers send partial usage in finish-step
+                        // events but complete usage in the final finish event (e.g., Anthropic sends
+                        // cache tokens in providerMetadata rather than usage object).
                         if (this.hasStepUsage) {
+                            // Backfill input/output tokens if step usage was zero but fallback has values.
+                            // This is defensive - most providers report these consistently, but we log
+                            // when backfill occurs to detect any providers with this edge case.
+                            const fallbackInput = fallbackUsage.inputTokens ?? 0;
+                            if ((usage.inputTokens ?? 0) === 0 && fallbackInput > 0) {
+                                this.logger.debug(
+                                    'Backfilling inputTokens from fallback usage (step reported 0)',
+                                    { stepValue: usage.inputTokens, fallbackValue: fallbackInput }
+                                );
+                                usage.inputTokens = fallbackInput;
+                            }
+                            const fallbackOutput = fallbackUsage.outputTokens ?? 0;
+                            if ((usage.outputTokens ?? 0) === 0 && fallbackOutput > 0) {
+                                this.logger.debug(
+                                    'Backfilling outputTokens from fallback usage (step reported 0)',
+                                    { stepValue: usage.outputTokens, fallbackValue: fallbackOutput }
+                                );
+                                usage.outputTokens = fallbackOutput;
+                            }
                             const fallbackCacheRead = fallbackUsage.cacheReadTokens ?? 0;
                             if ((usage.cacheReadTokens ?? 0) === 0 && fallbackCacheRead > 0) {
                                 usage.cacheReadTokens = fallbackCacheRead;
