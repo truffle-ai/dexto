@@ -264,10 +264,9 @@ export const generalCommands: CommandDefinition[] = [
                 }
 
                 return formatForInkCli(
-                    `📦 Context compacted → Continuing in new session\n` +
-                        `   ${result.previousSessionId.slice(0, 8)}... → ${result.newSessionId.slice(0, 8)}...\n` +
-                        `   ${result.originalMessages} messages → ~${result.summaryTokens.toLocaleString()} token summary\n` +
-                        `💡 New session created with conversation summary. Old session preserved.`
+                    `📦 Context compacted\n` +
+                        `   ${result.originalMessages} messages → ${result.compactedMessages} messages (~${result.summaryTokens.toLocaleString()} tokens)\n` +
+                        `💡 Older messages summarized. Conversation continues in same session.`
                 );
             } catch (error) {
                 const errorMsg = `Failed to compact context: ${error instanceof Error ? error.message : String(error)}`;

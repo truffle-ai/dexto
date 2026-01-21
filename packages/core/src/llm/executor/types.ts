@@ -1,24 +1,5 @@
-import type { InternalMessage } from '../../context/types.js';
 import { TokenUsage } from '../types.js';
 import { LLMFinishReason } from '../../events/index.js';
-
-/**
- * Data captured during context compaction for session-native continuation.
- * This is passed through the call chain so the new session can be created
- * with the summary and preserved messages.
- */
-export interface CompactionData {
-    /** The generated summary text */
-    summaryText: string;
-    /** Messages preserved (not summarized) - typically last N turns */
-    preservedMessages: InternalMessage[];
-    /** Number of messages that were summarized */
-    summarizedCount: number;
-    /** Timestamp of first summarized message */
-    originalFirstTimestamp?: number;
-    /** Timestamp of last summarized message */
-    originalLastTimestamp?: number;
-}
 
 export interface ExecutorResult {
     /**
@@ -33,16 +14,6 @@ export interface ExecutorResult {
     usage: TokenUsage | null;
     /** Reason the execution finished */
     finishReason: LLMFinishReason;
-    /**
-     * Set to true if context compaction occurred during this turn.
-     * Caller can use this to trigger session-native continuation (create new session).
-     */
-    didCompact: boolean;
-    /**
-     * Compaction data when didCompact is true.
-     * Contains the summary text and preserved messages for creating the continuation session.
-     */
-    compaction?: CompactionData;
 }
 
 export interface StreamProcessorResult {

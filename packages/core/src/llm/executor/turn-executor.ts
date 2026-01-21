@@ -20,7 +20,7 @@ import type {
 import { ToolManager } from '../../tools/tool-manager.js';
 import { ToolSet } from '../../tools/types.js';
 import { StreamProcessor } from './stream-processor.js';
-import { ExecutorResult, CompactionData } from './types.js';
+import { ExecutorResult } from './types.js';
 import { buildProviderOptions } from './provider-options.js';
 import { TokenUsage } from '../types.js';
 import type { IDextoLogger } from '../../logger/v2/types.js';
@@ -81,29 +81,6 @@ export class TurnExecutor {
         string,
         { requireApproval: boolean; approvalStatus?: 'approved' | 'rejected' }
     >();
-
-    /**
-     * Tracks whether compaction occurred during this turn.
-     * Used to signal to the caller that session continuation may be needed.
-     */
-    private compactionOccurred = false;
-
-    /**
-     * Compaction data captured during this turn.
-     * Contains summary text and preserved messages for session continuation.
-     * This data is passed up the call chain (NOT persisted to original session).
-     */
-    private compactionData: CompactionData | null = null;
-
-    /**
-     * Virtual context for remaining iterations after compaction.
-     * When set, the main loop uses this instead of calling getFormattedMessagesForLLM().
-     * This provides reduced context to the LLM without persisting to the original session.
-     */
-    private virtualContext: {
-        summaryMessage: InternalMessage;
-        preservedMessages: InternalMessage[];
-    } | null = null;
 
     constructor(
         private model: LanguageModel,
@@ -239,13 +216,10 @@ export class TurnExecutor {
                 await this.pruneOldToolOutputs();
 
                 // 3. Get formatted messages for this step
-                // If virtualContext is set (from prior compaction), use it to avoid rebuilding full history
-                let prepared = this.virtualContext
-                    ? await this.buildMessagesFromVirtualContext(contributorContext)
-                    : await this.contextManager.getFormattedMessagesForLLM(
-                          contributorContext,
-                          this.llmContext
-                      );
+                let prepared = await this.contextManager.getFormattedMessagesForLLM(
+                    contributorContext,
+                    this.llmContext
+                );
 
                 // 4. PRE-CHECK: Estimate tokens and compact if over threshold BEFORE LLM call
                 // This ensures we never make an oversized call and avoids unnecessary compaction on stop steps
@@ -260,11 +234,14 @@ export class TurnExecutor {
                     this.logger.debug(
                         `Pre-check: estimated ${estimatedTokens} tokens exceeds threshold, compacting`
                     );
-                    await this.compactToVirtualContext(estimatedTokens);
+                    const didCompact = await this.compactContext(estimatedTokens);
 
-                    // If compaction occurred, rebuild messages using virtual context
-                    if (this.virtualContext) {
-                        prepared = await this.buildMessagesFromVirtualContext(contributorContext);
+                    // If compaction occurred, rebuild messages (filterCompacted will handle it)
+                    if (didCompact) {
+                        prepared = await this.contextManager.getFormattedMessagesForLLM(
+                            contributorContext,
+                            this.llmContext
+                        );
                         // Recompute token estimate after compaction for accurate analytics/metrics
                         estimatedTokens = await this.contextManager.getEstimatedNextInputTokens(
                             prepared.systemPrompt,
@@ -386,16 +363,14 @@ export class TurnExecutor {
 
                 // 7b. POST-RESPONSE CHECK: Use actual inputTokens from API to detect overflow
                 // This catches cases where the LLM's response pushed us over the threshold
-                // Only compact if we haven't already (virtualContext not set)
                 if (
-                    !this.virtualContext &&
                     result.usage?.inputTokens &&
                     this.shouldCompactFromActual(result.usage.inputTokens)
                 ) {
                     this.logger.debug(
                         `Post-response: actual ${result.usage.inputTokens} tokens exceeds threshold, compacting`
                     );
-                    await this.compactToVirtualContext(result.usage.inputTokens);
+                    await this.compactContext(result.usage.inputTokens);
                 }
 
                 // 8. Check termination conditions
@@ -471,13 +446,6 @@ export class TurnExecutor {
             stepCount,
             usage: lastStepTokens,
             finishReason: lastFinishReason,
-            // Signal to caller that compaction occurred during this turn
-            // Caller can use this to trigger session-native continuation
-            didCompact: this.compactionOccurred,
-            // Pass compaction data up the chain (NOT persisted to original session)
-            // Caller uses this to create the continuation session with summary
-            // Use spread to conditionally include only when data exists (exactOptionalPropertyTypes)
-            ...(this.compactionData && { compaction: this.compactionData }),
         };
     }
 
@@ -1002,19 +970,18 @@ export class TurnExecutor {
     }
 
     /**
-     * Compact context using ReactiveOverflowStrategy WITHOUT persisting to original session.
+     * Compact context by generating a summary and adding it to the same session.
      *
-     * Key design: Creates a virtual context (summary + preserved messages) that will be used
-     * for the remaining iterations of this turn. The compaction data is passed up the call chain
-     * so the caller can create a continuation session with the summary.
-     *
-     * The original session remains UNTOUCHED - no messages are added or modified.
+     * The summary message is added to the conversation history with `isSummary: true` metadata.
+     * When the context is loaded via getFormattedMessagesForLLM(), filterCompacted() will
+     * exclude all messages before the summary, effectively compacting the context.
      *
      * @param originalTokens The estimated input token count that triggered overflow
+     * @returns true if compaction occurred, false if skipped
      */
-    private async compactToVirtualContext(originalTokens: number): Promise<void> {
+    private async compactContext(originalTokens: number): Promise<boolean> {
         if (!this.compactionStrategy) {
-            return;
+            return false;
         }
 
         this.logger.info(
@@ -1026,7 +993,7 @@ export class TurnExecutor {
         // Pre-check if history is long enough for compaction (need at least 4 messages for meaningful summary)
         if (history.length < 4) {
             this.logger.debug('Compaction skipped: history too short to summarize');
-            return;
+            return false;
         }
 
         // Emit event BEFORE the LLM summarization call so UI shows indicator during compaction
@@ -1051,154 +1018,39 @@ export class TurnExecutor {
                 strategy: this.compactionStrategy.name,
                 reason: 'overflow',
             });
-            return;
+            return false;
         }
 
-        // Get the summary message (strategy typically returns one summary)
-        const summaryMessage = summaryMessages[0];
-        if (!summaryMessage) {
-            this.logger.warn('Compaction returned empty summary message array');
-            return;
+        // Add summary to history - filterCompacted() will exclude pre-summary messages at read-time
+        for (const summary of summaryMessages) {
+            await this.contextManager.addMessage(summary);
         }
-
-        // Extract summary text from the message
-        const summaryText = this.extractSummaryText(summaryMessage);
-
-        // Determine preserved messages using the metadata from the summary
-        // originalMessageCount tells us how many messages were summarized
-        const summarizedCount =
-            (summaryMessage.metadata?.originalMessageCount as number | undefined) ?? 0;
-
-        // For re-compaction, we need to find the most recent summary position
-        // and slice preserved messages relative to that, not from index 0
-        let existingSummaryIndex = -1;
-        for (let i = history.length - 1; i >= 0; i--) {
-            const msg = history[i];
-            if (msg?.metadata?.isSummary === true || msg?.metadata?.isSessionSummary === true) {
-                existingSummaryIndex = i;
-                break;
-            }
-        }
-
-        // baseIndex: where to start counting summarizedCount from
-        // - If re-compaction (existing summary found): start after that summary
-        // - If first compaction: start from index 0
-        const baseIndex = existingSummaryIndex >= 0 ? existingSummaryIndex + 1 : 0;
-        const preservedMessages = history.slice(baseIndex + summarizedCount);
-
-        // Store compaction data for return value (will be passed up the call chain)
-        // Use spread to conditionally include timestamp properties (exactOptionalPropertyTypes)
-        const firstTimestamp = summaryMessage.metadata?.originalFirstTimestamp as
-            | number
-            | undefined;
-        const lastTimestamp = summaryMessage.metadata?.originalLastTimestamp as number | undefined;
-
-        this.compactionData = {
-            summaryText,
-            preservedMessages: [...preservedMessages], // Copy to avoid mutation
-            summarizedCount,
-            ...(firstTimestamp !== undefined && { originalFirstTimestamp: firstTimestamp }),
-            ...(lastTimestamp !== undefined && { originalLastTimestamp: lastTimestamp }),
-        };
-
-        // Store virtual context for remaining iterations
-        // The main loop will use this instead of calling getFormattedMessagesForLLM()
-        this.virtualContext = {
-            summaryMessage,
-            preservedMessages: [...preservedMessages],
-        };
-
-        // Mark that compaction occurred during this turn
-        this.compactionOccurred = true;
 
         // Reset actual token tracking since context has fundamentally changed
         // The formula (lastInput + lastOutput + newEstimate) is no longer valid after compaction
         this.contextManager.resetActualTokenTracking();
 
-        // Estimate new token count (summary + preserved messages)
-        const { estimateMessagesTokens: estimateTokens } = await import('../../context/utils.js');
-        const virtualMessages = [summaryMessage, ...preservedMessages];
-        const compactedTokens = estimateTokens(virtualMessages);
+        // Get filtered history to report message counts
+        const { filterCompacted, estimateMessagesTokens } = await import('../../context/utils.js');
+        const updatedHistory = await this.contextManager.getHistory();
+        const filteredHistory = filterCompacted(updatedHistory);
+        const compactedTokens = estimateMessagesTokens(filteredHistory);
 
         this.eventBus.emit('context:compacted', {
             originalTokens,
             compactedTokens,
             originalMessages: history.length,
-            compactedMessages: virtualMessages.length,
+            compactedMessages: filteredHistory.length,
             strategy: this.compactionStrategy.name,
             reason: 'overflow',
         });
 
         this.logger.info(
-            `Compaction complete (virtual context): ${originalTokens} → ~${compactedTokens} tokens ` +
-                `(${history.length} → ${virtualMessages.length} messages). ` +
-                `Original session unchanged - summary will be passed to continuation session.`
-        );
-    }
-
-    /**
-     * Extract the summary text from a summary message.
-     */
-    private extractSummaryText(summaryMessage: InternalMessage): string {
-        if (typeof summaryMessage.content === 'string') {
-            return summaryMessage.content;
-        }
-        if (Array.isArray(summaryMessage.content)) {
-            return summaryMessage.content
-                .filter((part): part is { type: 'text'; text: string } => part.type === 'text')
-                .map((part) => part.text)
-                .join('\n');
-        }
-        return '';
-    }
-
-    /**
-     * Build formatted messages from virtual context (after compaction).
-     *
-     * This creates LLM-ready messages using:
-     * - System prompt (same as normal flow)
-     * - Summary message (as first message)
-     * - Preserved messages (formatted for LLM)
-     *
-     * Uses the same formatting pipeline as getFormattedMessagesForLLM()
-     * but with our virtual history instead of the stored history.
-     *
-     * @param contributorContext Context for system prompt contributors
-     * @returns Formatted messages ready for LLM call, matching getFormattedMessagesForLLM return type
-     */
-    private async buildMessagesFromVirtualContext(
-        contributorContext: DynamicContributorContext
-    ): Promise<{
-        formattedMessages: ModelMessage[];
-        systemPrompt: string;
-        preparedHistory: InternalMessage[];
-    }> {
-        if (!this.virtualContext) {
-            throw new Error('buildMessagesFromVirtualContext called without virtual context');
-        }
-
-        const { summaryMessage, preservedMessages } = this.virtualContext;
-
-        // Get system prompt using the same method as normal flow
-        const systemPrompt = await this.contextManager.getSystemPrompt(contributorContext);
-
-        // Build the virtual history: [summaryMessage, ...preservedMessages]
-        const virtualHistory = [summaryMessage, ...preservedMessages];
-
-        // Format messages for LLM using the context manager's formatting pipeline
-        // This handles blob expansion, media type filtering, etc.
-        const formattedMessages = await this.contextManager.getFormattedMessages(
-            contributorContext,
-            this.llmContext,
-            systemPrompt,
-            virtualHistory
+            `Compaction complete: ${originalTokens} → ~${compactedTokens} tokens ` +
+                `(${history.length} → ${filteredHistory.length} messages after filtering)`
         );
 
-        return {
-            formattedMessages,
-            systemPrompt,
-            preparedHistory: virtualHistory,
-        };
+        return true;
     }
 
     /**

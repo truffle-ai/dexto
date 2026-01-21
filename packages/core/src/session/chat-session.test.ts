@@ -397,11 +397,11 @@ describe('ChatSession', () => {
             const userMessage = 'Hello, world!';
             const expectedResponse = 'Hello! How can I help you?';
 
-            mockLLMService.stream.mockResolvedValue({ text: expectedResponse, didCompact: false });
+            mockLLMService.stream.mockResolvedValue({ text: expectedResponse });
 
             const response = await chatSession.stream(userMessage);
 
-            expect(response).toEqual({ text: expectedResponse, didCompact: false });
+            expect(response).toEqual({ text: expectedResponse });
             expect(mockLLMService.stream).toHaveBeenCalledWith(
                 [{ type: 'text', text: userMessage }],
                 expect.objectContaining({ signal: expect.any(AbortSignal) })

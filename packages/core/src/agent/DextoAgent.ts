@@ -55,7 +55,6 @@ import type { SearchOptions, SearchResponse, SessionSearchResponse } from '../se
 import { safeStringify } from '@core/utils/safe-stringify.js';
 import { deriveHeuristicTitle, generateSessionTitle } from '../session/title-generator.js';
 import type { ApprovalHandler } from '../approval/types.js';
-import type { CompactionData } from '../llm/executor/types.js';
 
 const requiredServices: (keyof AgentServices)[] = [
     'mcpManager',
@@ -859,17 +858,6 @@ export class DextoAgent {
         });
         listeners.push({ event: 'context:compacted', listener: contextCompactedListener });
 
-        // Session continuation event - emitted when compaction creates a new session
-        // Use previousSessionId for filtering since this event transitions to a new session
-        const sessionContinuedListener = (data: AgentEventMap['session:continued']) => {
-            if (data.previousSessionId !== sessionId) return;
-            eventQueue.push({ name: 'session:continued', ...data });
-        };
-        this.agentEventBus.on('session:continued', sessionContinuedListener, {
-            signal: cleanupSignal,
-        });
-        listeners.push({ event: 'session:continued', listener: sessionContinuedListener });
-
         // Message queue events (for mid-task user guidance)
         const messageQueuedListener = (data: AgentEventMap['message:queued']) => {
             if (data.sessionId !== sessionId) return;
@@ -1096,11 +1084,6 @@ export class DextoAgent {
                                 `Failed to increment message count: ${error instanceof Error ? error.message : String(error)}`
                             )
                         );
-
-                    // Handle session-native compaction if compaction occurred
-                    if (streamResult.didCompact && streamResult.compaction) {
-                        await this.handleSessionContinuation(session, streamResult.compaction);
-                    }
                 } catch (err) {
                     // Preserve typed errors, wrap unknown values in AgentError.streamFailed
                     const error =
@@ -1565,26 +1548,24 @@ export class DextoAgent {
     }
 
     /**
-     * Manually compact the context using session-native compaction.
+     * Manually compact the context for a session.
      *
-     * Session-native compaction creates a NEW session with the summary as initial context,
-     * providing clean session isolation while maintaining traceability via linking.
-     *
-     * The old session is marked as compacted with `continuedTo` pointing to the new session,
-     * and the new session has `continuedFrom` pointing back to the old session.
+     * Compaction generates a summary of older messages and adds it to the conversation history.
+     * When the context is loaded, filterCompacted() will exclude messages before the summary,
+     * effectively reducing the context window while preserving the full history in storage.
      *
      * @param sessionId Session ID of the session to compact (required)
-     * @returns Compaction result with new session info, or null if compaction was skipped
+     * @returns Compaction result with stats, or null if compaction was skipped
      */
     public async compactContext(sessionId: string): Promise<{
         /** The session that was compacted */
-        previousSessionId: string;
-        /** The new session created for continuation */
-        newSessionId: string;
+        sessionId: string;
         /** Estimated tokens in the summary */
         summaryTokens: number;
         /** Number of messages that were summarized */
         originalMessages: number;
+        /** Number of messages after compaction (summary + preserved) */
+        compactedMessages: number;
     } | null> {
         this.ensureStarted();
 
@@ -1610,102 +1591,71 @@ export class DextoAgent {
             return null;
         }
 
-        // Use SessionCompactionService for session-native compaction
-        const { SessionCompactionService } = await import('../session/compaction-service.js');
-        const compactionService = new SessionCompactionService(
-            this.sessionManager,
-            compactionStrategy,
-            this.logger
-        );
+        // Get history and generate summary
+        const contextManager = session.getContextManager();
+        const history = await contextManager.getHistory();
 
-        const compactionResult = await compactionService.compact(session, {
-            reason: 'manual',
-            eventBus: this.agentEventBus,
-        });
-
-        if (!compactionResult) {
-            this.logger.debug(`Compaction skipped for session ${sessionId} - nothing to compact`);
+        if (history.length < 4) {
+            this.logger.debug(`Compaction skipped for session ${sessionId} - history too short`);
             return null;
         }
 
+        // Emit compacting event
+        const { estimateMessagesTokens } = await import('../context/utils.js');
+        const originalTokens = estimateMessagesTokens(history);
+        this.agentEventBus.emit('context:compacting', {
+            estimatedTokens: originalTokens,
+            sessionId,
+        });
+
+        // Generate summary message(s)
+        const summaryMessages = await compactionStrategy.compact(history);
+
+        if (summaryMessages.length === 0) {
+            this.logger.debug(`Compaction skipped for session ${sessionId} - nothing to compact`);
+            this.agentEventBus.emit('context:compacted', {
+                originalTokens,
+                compactedTokens: originalTokens,
+                originalMessages: history.length,
+                compactedMessages: history.length,
+                strategy: compactionStrategy.name,
+                reason: 'manual',
+                sessionId,
+            });
+            return null;
+        }
+
+        // Add summary to history - filterCompacted() will exclude pre-summary messages at read-time
+        for (const summary of summaryMessages) {
+            await contextManager.addMessage(summary);
+        }
+
+        // Get filtered history to report message counts
+        const { filterCompacted } = await import('../context/utils.js');
+        const updatedHistory = await contextManager.getHistory();
+        const filteredHistory = filterCompacted(updatedHistory);
+        const summaryTokens = estimateMessagesTokens(filteredHistory);
+
+        this.agentEventBus.emit('context:compacted', {
+            originalTokens,
+            compactedTokens: summaryTokens,
+            originalMessages: history.length,
+            compactedMessages: filteredHistory.length,
+            strategy: compactionStrategy.name,
+            reason: 'manual',
+            sessionId,
+        });
+
         this.logger.info(
-            `Session-native compaction complete: ${sessionId} → ${compactionResult.newSessionId}, ` +
-                `${compactionResult.originalMessages} messages → ~${compactionResult.summaryTokens} token summary`
+            `Compaction complete for session ${sessionId}: ` +
+                `${history.length} messages → ${filteredHistory.length} messages (~${summaryTokens} tokens)`
         );
 
         return {
-            previousSessionId: compactionResult.previousSessionId,
-            newSessionId: compactionResult.newSessionId,
-            summaryTokens: compactionResult.summaryTokens,
-            originalMessages: compactionResult.originalMessages,
-        };
-    }
-
-    /**
-     * Get the chain of linked sessions (ancestors and descendants) for a session.
-     * Useful for displaying session history and understanding compaction lineage.
-     *
-     * @param sessionId Any session ID in the chain
-     * @returns Array of session data in the chain, ordered chronologically (oldest first)
-     */
-    public async getSessionLineage(sessionId: string): Promise<{
-        /** All sessions in the chain, ordered chronologically */
-        chain: Array<{
-            id: string;
-            createdAt: number;
-            continuedFrom?: string;
-            continuedTo?: string;
-            compactedAt?: number;
-        }>;
-        /** Index of the requested session in the chain */
-        currentIndex: number;
-    }> {
-        this.ensureStarted();
-
-        if (!sessionId || typeof sessionId !== 'string') {
-            throw AgentError.apiValidationError(
-                'sessionId is required and must be a non-empty string'
-            );
-        }
-
-        const chain = await this.sessionManager.getSessionChain(sessionId);
-
-        // Guard: empty chain means session not found
-        if (chain.length === 0) {
-            throw SessionError.notFound(sessionId);
-        }
-
-        const currentIndex = chain.findIndex((s) => s.id === sessionId);
-
-        // Guard: session not in chain (shouldn't happen but be defensive)
-        if (currentIndex < 0) {
-            throw SessionError.notFound(sessionId);
-        }
-
-        return {
-            chain: chain.map((s) => {
-                const item: {
-                    id: string;
-                    createdAt: number;
-                    continuedFrom?: string;
-                    continuedTo?: string;
-                    compactedAt?: number;
-                } = {
-                    id: s.id,
-                    createdAt: s.createdAt,
-                };
-                if (s.continuedFrom !== undefined) {
-                    item.continuedFrom = s.continuedFrom;
-                }
-                if (s.continuedTo !== undefined) {
-                    item.continuedTo = s.continuedTo;
-                }
-                if (s.compactedAt !== undefined) {
-                    item.compactedAt = s.compactedAt;
-                }
-                return item;
-            }),
-            currentIndex,
+            sessionId,
+            summaryTokens,
+            originalMessages: history.length,
+            compactedMessages: filteredHistory.length,
         };
     }
 
@@ -1731,8 +1681,6 @@ export class DextoAgent {
         filteredMessageCount: number;
         prunedToolCount: number;
         hasSummary: boolean;
-        /** Number of times this session chain has been compacted */
-        compactionCount: number;
         /** Current model identifier */
         model: string;
         /** Display name for the model */
@@ -1816,9 +1764,6 @@ export class DextoAgent {
         // Always use the calculated estimate (which includes lastInput + lastOutput + newMessages when actuals available)
         const estimatedTokens = tokenEstimate.estimated;
 
-        // Get compaction count for this session
-        const compactionCount = await this.sessionManager.getCompactionCount(sessionId);
-
         return {
             estimatedTokens,
             actualTokens: tokenEstimate.actual,
@@ -1831,7 +1776,6 @@ export class DextoAgent {
             filteredMessageCount: tokenEstimate.stats.filteredMessageCount,
             prunedToolCount: tokenEstimate.stats.prunedToolCount,
             hasSummary,
-            compactionCount,
             model: llmConfig.model,
             modelDisplayName,
             breakdown: {
@@ -1938,114 +1882,6 @@ export class DextoAgent {
 
         // Return the validated config directly
         return validatedConfig;
-    }
-
-    /**
-     * Handles session-native continuation after compaction.
-     *
-     * When context compaction occurs, this method:
-     * 1. Receives compaction data directly (summary text + preserved messages)
-     * 2. Creates a new continuation session
-     * 3. Adds the summary as the first message in the new session
-     * 4. Adds preserved messages to the new session
-     * 5. Links the old and new sessions for traceability
-     * 6. Emits session:continued event for UI to handle session switch
-     *
-     * IMPORTANT: The original session is NOT modified. The summary was never added to it.
-     * This is the clean session-native compaction approach where:
-     * - Original session: UNCHANGED (full history preserved)
-     * - New session: [summary, ...preservedMessages]
-     *
-     * @param currentSession The session that triggered compaction
-     * @param compactionData The compaction data with summary text and preserved messages
-     */
-    private async handleSessionContinuation(
-        currentSession: ChatSession,
-        compactionData: CompactionData
-    ): Promise<void> {
-        const currentSessionId = currentSession.id;
-
-        try {
-            const { summaryText, preservedMessages, summarizedCount } = compactionData;
-
-            if (!summaryText) {
-                this.logger.warn(
-                    `Session continuation skipped: empty summary text for session ${currentSessionId}`
-                );
-                return;
-            }
-
-            // Create new continuation session
-            const { sessionId: newSessionId, session: newSession } =
-                await this.sessionManager.createContinuationSession(currentSessionId);
-
-            // Create session summary message for new session
-            const sessionSummaryMessage: InternalMessage = {
-                role: 'assistant',
-                content: [{ type: 'text', text: summaryText }],
-                timestamp: Date.now(),
-                metadata: {
-                    isSessionSummary: true,
-                    continuedFrom: currentSessionId,
-                    summarizedAt: Date.now(),
-                    originalMessageCount: summarizedCount,
-                    originalFirstTimestamp: compactionData.originalFirstTimestamp,
-                    originalLastTimestamp: compactionData.originalLastTimestamp,
-                },
-            };
-
-            // Add summary to new session
-            const newContextManager = newSession.getContextManager();
-            await newContextManager.addMessage(sessionSummaryMessage);
-
-            // Add preserved messages to new session
-            for (const msg of preservedMessages) {
-                await newContextManager.addMessage(msg);
-            }
-
-            // Mark old session as compacted (links sessions in metadata)
-            await this.sessionManager.markSessionCompacted(currentSessionId, newSessionId);
-
-            // NOTE: No need to call removeInlineSummaryMarker() on old session
-            // The original session was never modified - summary was only in virtual context
-
-            // Estimate tokens in summary for the event
-            const { estimateMessagesTokens } = await import('../context/utils.js');
-            const summaryTokens = estimateMessagesTokens([sessionSummaryMessage]);
-            const totalOriginalMessages = summarizedCount + preservedMessages.length;
-
-            // Get model info from the new session's config for UI sync
-            const newSessionLLMConfig = this.stateManager.getRuntimeConfig(newSessionId).llm;
-            const { getModelDisplayName } = await import('../llm/registry.js');
-            const modelDisplayName = getModelDisplayName(
-                newSessionLLMConfig.model,
-                newSessionLLMConfig.provider
-            );
-
-            this.logger.info(
-                `Session continuation: ${currentSessionId} → ${newSessionId} ` +
-                    `(${totalOriginalMessages} messages → summary + ${preservedMessages.length} preserved)`
-            );
-
-            // Emit session:continued event for UI/CLI to handle session switch
-            this.agentEventBus.emit('session:continued', {
-                previousSessionId: currentSessionId,
-                newSessionId,
-                summaryTokens,
-                originalMessages: totalOriginalMessages,
-                reason: 'overflow',
-                sessionId: newSessionId,
-                model: newSessionLLMConfig.model,
-                modelDisplayName,
-            });
-        } catch (error) {
-            this.logger.error(
-                `Failed to handle session continuation for ${currentSessionId}: ` +
-                    `${error instanceof Error ? error.message : String(error)}`
-            );
-            // Don't throw - the main stream already completed successfully
-            // Session continuation is a best-effort operation
-        }
     }
 
     /**

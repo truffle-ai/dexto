@@ -641,19 +641,6 @@ function handleContextCompacted(event: EventByName<'context:compacted'>): void {
 }
 
 /**
- * session:continued - Session-native compaction created a new session
- * The active session should be switched to the new session
- */
-function handleSessionContinued(event: EventByName<'session:continued'>): void {
-    const { previousSessionId, newSessionId, summaryTokens, originalMessages, reason } = event;
-    console.debug(
-        `[handlers] Session continued: ${previousSessionId.slice(0, 8)}... → ${newSessionId.slice(0, 8)}... (${originalMessages} messages → ~${summaryTokens.toLocaleString()} token summary, reason: ${reason})`
-    );
-    // Note: Session switching is handled at the app level via router/context
-    // This event can be used by the app to update the active session ID
-}
-
-/**
  * service:event - Extensible service event for non-core services
  * Currently handles agent-spawner progress events
  */
@@ -714,7 +701,6 @@ export function registerHandlers(): void {
     handlers.set('session:title-updated', handleSessionTitleUpdated);
     handlers.set('message:dequeued', handleMessageDequeued);
     handlers.set('context:compacted', handleContextCompacted);
-    handlers.set('session:continued', handleSessionContinued);
     handlers.set('service:event', handleServiceEvent);
 }
 
