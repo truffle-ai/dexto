@@ -1,6 +1,6 @@
 {
   "name": "dexto",
-  "version": "1.5.3",
+  "version": "1.5.4",
   "type": "module",
   "bin": {
     "dexto": "./dist/index.js"

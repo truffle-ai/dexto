@@ -21,6 +21,8 @@ import type { GlobalPreferences } from '@dexto/agent-management';
 export interface CLIConfigOverrides
     extends Partial<Pick<LLMConfig, 'provider' | 'model' | 'apiKey'>> {
     autoApprove?: boolean;
+    /** When false (via --no-elicitation), disables elicitation */
+    elicitation?: boolean;
 }
 
 /**
@@ -61,6 +63,15 @@ export function applyCLIOverrides(
             mergedConfig.toolConfirmation = { mode: 'auto-approve' };
         } else {
             mergedConfig.toolConfirmation.mode = 'auto-approve';
+        }
+    }
+
+    if (cliOverrides.elicitation === false) {
+        // Ensure elicitation section exists before overriding
+        if (!mergedConfig.elicitation) {
+            mergedConfig.elicitation = { enabled: false };
+        } else {
+            mergedConfig.elicitation.enabled = false;
         }
     }
 

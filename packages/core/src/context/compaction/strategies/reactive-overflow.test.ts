@@ -333,11 +333,13 @@ describe('ReactiveOverflowStrategy', () => {
             expect(result).toHaveLength(1);
             expect(result[0]?.metadata?.isSummary).toBe(true);
             // Fallback summary should still have XML structure
-            expect(result[0]?.content[0]).toMatchObject({
+            const content = result[0]?.content;
+            expect(content).toBeDefined();
+            expect(content![0]).toMatchObject({
                 type: 'text',
                 text: expect.stringContaining('<session_compaction>'),
             });
-            expect(result[0]?.content[0]).toMatchObject({
+            expect(content![0]).toMatchObject({
                 type: 'text',
                 text: expect.stringContaining('Fallback'),
             });
@@ -357,8 +359,11 @@ describe('ReactiveOverflowStrategy', () => {
 
             const result = await strategy.compact(history);
 
-            const summaryText =
-                result[0]?.content[0]?.type === 'text' ? result[0].content[0].text : '';
+            expect(result).toHaveLength(1);
+            const content = result[0]!.content;
+            expect(content).not.toBeNull();
+            const firstContent = content![0];
+            const summaryText = firstContent?.type === 'text' ? firstContent.text : '';
             expect(summaryText).toContain('<current_task>');
         });
     });
@@ -380,8 +385,11 @@ describe('ReactiveOverflowStrategy', () => {
 
             const result = await strategy.compact(history);
 
-            const summaryText =
-                result[0]?.content[0]?.type === 'text' ? result[0].content[0].text : '';
+            expect(result).toHaveLength(1);
+            const content = result[0]!.content;
+            expect(content).not.toBeNull();
+            const firstContent = content![0];
+            const summaryText = firstContent?.type === 'text' ? firstContent.text : '';
             expect(summaryText).toMatch(/^\[Session Compaction Summary\]/);
         });
 

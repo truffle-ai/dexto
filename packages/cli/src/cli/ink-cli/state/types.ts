@@ -189,6 +189,25 @@ export interface SubAgentProgress {
 }
 
 /**
+ * Todo status for workflow tracking
+ */
+export type TodoStatus = 'pending' | 'in_progress' | 'completed';
+
+/**
+ * Todo item for workflow tracking
+ */
+export interface TodoItem {
+    id: string;
+    sessionId: string;
+    content: string;
+    activeForm: string;
+    status: TodoStatus;
+    position: number;
+    createdAt: Date | string;
+    updatedAt: Date | string;
+}
+
+/**
  * Message in the chat interface
  *
  * TODO: Consolidate with InternalMessage from @dexto/core. Currently we have two
