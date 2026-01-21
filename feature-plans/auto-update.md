@@ -28,9 +28,11 @@ This document captures research and design options for implementing auto-update 
 11. [Open Questions](#11-open-questions)
 12. [CI Enforcement for Breaking Schema Changes](#12-ci-enforcement-for-breaking-schema-changes)
 13. [Handling Direct Package Manager Updates](#13-handling-direct-package-manager-updates)
-14. [Utility Commands](#14-utility-commands)
-15. [Implementation Phases](#15-implementation-phases)
-16. [References](#17-references)
+14. [Comprehensive Edge Cases](#14-comprehensive-edge-cases)
+15. [Utility Commands](#15-utility-commands)
+16. [Implementation Phases](#16-implementation-phases)
+17. [AGENTS.md Update](#17-agentsmd-update)
+18. [References](#18-references)
 
 ---
 
@@ -1863,11 +1865,26 @@ Should we show interactive prompts for significant migrations (like Codex)?
 
 **Recommendation:** Silent by default with clear logging. Add `requiresConfirmation` flag to specific migrations if needed in future.
 
+### 11.6 Where Should Migration Code Live?
+
+**Options:**
+- `packages/core` (recommended)
+- Separate `packages/migrations` package
+- Separate repository
+
+**Recommendation:** Keep in `packages/core`. Migrations are tightly coupled to schemas - they transform one schema version to another. Separating them creates versioning nightmares and circular dependency risks.
+
+### 11.7 How to Handle New Features with Defaults?
+
+When we add new fields with defaults (e.g., `sounds` in 1.5.3), should upgrading populate the user's config file?
+
+**Recommendation:** Yes, via "enhancement migrations". See Section 12.11.
+
 ---
 
 ## 12. CI Enforcement for Breaking Schema Changes
 
-Without enforcement, developers will forget to add migrations when making breaking schema changes. CI must catch this before merge.
+Without enforcement, developers will forget to add migrations when making breaking schema changes. CI must catch this before merge - and it must be **impossible to bypass**.
 
 ### 12.1 The Problem
 
@@ -1876,126 +1893,335 @@ Without enforcement, developers will forget to add migrations when making breaki
 3. PR gets merged
 4. Users update and their configs break
 
-### 12.2 Solution: Schema Snapshot Testing
+### 12.2 Why Simple Snapshot Comparison Is Not Enough
 
-We maintain a "snapshot" of the current schema structure and detect when it changes in incompatible ways.
+A naive approach compares current schema against a snapshot file. But this can be bypassed:
 
-#### Schema Snapshot File
+1. Developer changes schema
+2. Developer runs `update-schema-snapshot` (updates the snapshot)
+3. Developer commits both without adding a migration
+4. CI passes because snapshot matches current schema ❌
+
+**We need a source of truth that cannot be manipulated in the same PR.**
+
+### 12.3 Solution: Base Branch Comparison
+
+Instead of comparing against a snapshot file (which can be updated in the same PR), we compare against the **base branch** (main/master). The developer cannot modify the base branch in their PR.
+
+#### How It Works
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        PR Branch (HEAD)                          │
+│  - schemas.ts (modified)                                        │
+│  - schema-shapes.json (regenerated)                             │
+│  - registry.ts (should have new migration)                      │
+└─────────────────────────────────────────────────────────────────┘
+                                │
+                                │ CI compares
+                                ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                        Base Branch (main)                        │
+│  - schema-shapes.json (immutable in this PR)                    │
+│  - registry.ts (immutable in this PR)                           │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Key insight:** The base branch's `schema-shapes.json` cannot be modified by the PR author, so comparing against it is tamper-proof.
+
+#### Two Files That Must Stay In Sync
+
+1. **`schema-shapes.json`** - Generated from Zod schemas. Represents what the schema looks like.
+2. **`registry.ts`** - Migration definitions. Must have new migrations for breaking changes.
+
+### 12.4 Schema Shapes File
+
+This file is **generated** from actual Zod schemas and committed to git:
 
 ```json
-// packages/core/src/migrations/schema-snapshots.json
+// packages/core/src/migrations/schema-shapes.json
 {
+  "_generated": "2026-01-21T10:30:00.000Z",
+  "_warning": "DO NOT EDIT MANUALLY. Run: pnpm run generate-schema-shapes",
   "agentConfig": {
-    "version": "1.5.0",
     "hash": "a1b2c3d4",
     "shape": {
+      "type": "object",
       "required": ["name", "llm"],
       "properties": {
         "name": { "type": "string" },
-        "llm": { "type": "object", "properties": { "model": { "type": "string" } } }
+        "description": { "type": "string", "hasDefault": true },
+        "llm": {
+          "type": "object",
+          "required": ["model"],
+          "properties": {
+            "model": { "type": "string" },
+            "temperature": { "type": "number", "hasDefault": true }
+          }
+        }
       }
     }
   },
   "preferences": {
-    "version": "1.5.0", 
     "hash": "e5f6g7h8",
     "shape": { ... }
   }
 }
 ```
 
-#### CI Test Logic
+### 12.5 CI Verification Script
+
+This script runs in CI and **cannot be bypassed**:
 
 ```typescript
-// packages/core/src/migrations/__tests__/schema-enforcement.test.ts
+// packages/core/src/migrations/scripts/verify-migrations.ts
 
-describe('Schema Migration Enforcement', () => {
-  it('should have migration when schema has breaking changes', () => {
-    const snapshot = loadSchemaSnapshots();
-    const currentShape = zodToJsonSchema(AgentConfigSchema);
-    const currentHash = hashSchema(currentShape);
-    
-    // Case 1: Hash unchanged = no schema changes = PASS
-    if (currentHash === snapshot.agentConfig.hash) {
-      return; // All good, nothing changed
-    }
-    
-    // Case 2: Hash changed = schema modified
-    // Now check if it's a BREAKING change
-    const breakingChanges = detectBreakingChanges(
-      snapshot.agentConfig.shape,
-      currentShape
+/**
+ * Verifies that breaking schema changes have corresponding migrations.
+ * 
+ * This script:
+ * 1. Gets schema shapes from the BASE branch (main) - IMMUTABLE
+ * 2. Generates schema shapes from current Zod schemas - CANNOT BE FAKED
+ * 3. Detects breaking changes between them
+ * 4. Verifies NEW migrations exist for any breaking changes
+ * 
+ * This CANNOT be bypassed because:
+ * - Base branch shapes come from git history (developer can't modify)
+ * - HEAD shapes are generated from actual Zod schemas (can't fake the input)
+ * - We check for NEW migrations (not in base branch)
+ */
+
+import { execSync } from 'child_process';
+import { migrations } from '../registry.js';
+import { detectBreakingChanges, zodToShape, hashShape } from '../schema-utils.js';
+import { AgentConfigSchema } from '../../agent/schemas.js';
+import { GlobalPreferencesSchema } from '../../preferences/schemas.js';
+
+const BASE_REF = process.env.BASE_REF || 'main';
+
+async function main() {
+  console.log(`Comparing schemas: origin/${BASE_REF} → HEAD\n`);
+  
+  // 1. Get schema shapes from BASE branch (immutable)
+  const baseShapes = getShapesFromBranch(`origin/${BASE_REF}`);
+  
+  // 2. Generate HEAD shapes from actual Zod schemas (can't be faked)
+  const headShapes = {
+    agentConfig: {
+      hash: hashShape(zodToShape(AgentConfigSchema)),
+      shape: zodToShape(AgentConfigSchema),
+    },
+    preferences: {
+      hash: hashShape(zodToShape(GlobalPreferencesSchema)),
+      shape: zodToShape(GlobalPreferencesSchema),
+    },
+  };
+  
+  // 3. Check for changes
+  const agentChanged = baseShapes.agentConfig.hash !== headShapes.agentConfig.hash;
+  const prefsChanged = baseShapes.preferences.hash !== headShapes.preferences.hash;
+  
+  if (!agentChanged && !prefsChanged) {
+    console.log('✅ No schema changes detected');
+    return;
+  }
+  
+  // 4. Detect breaking changes
+  const agentBreaking = agentChanged 
+    ? detectBreakingChanges(baseShapes.agentConfig.shape, headShapes.agentConfig.shape)
+    : [];
+  const prefsBreaking = prefsChanged
+    ? detectBreakingChanges(baseShapes.preferences.shape, headShapes.preferences.shape)
+    : [];
+  
+  if (agentBreaking.length === 0 && prefsBreaking.length === 0) {
+    console.log('✅ Schema changes are non-breaking');
+    verifyShapesFileUpdated(headShapes);
+    return;
+  }
+  
+  console.log('⚠️  Breaking changes detected:\n');
+  if (agentBreaking.length > 0) {
+    console.log('AgentConfig:');
+    agentBreaking.forEach(c => console.log(`  • ${formatChange(c)}`));
+  }
+  if (prefsBreaking.length > 0) {
+    console.log('Preferences:');
+    prefsBreaking.forEach(c => console.log(`  • ${formatChange(c)}`));
+  }
+  
+  // 5. Get migrations from BASE branch
+  const baseMigrationVersions = getMigrationVersionsFromBranch(`origin/${BASE_REF}`);
+  
+  // 6. Find NEW migrations (in HEAD but not in BASE)
+  const newMigrations = migrations.filter(m => !baseMigrationVersions.has(m.version));
+  
+  if (newMigrations.length === 0) {
+    fail('Breaking changes detected but no new migrations added');
+  }
+  
+  // 7. Verify new migrations have handlers for changed schemas
+  const errors: string[] = [];
+  
+  if (agentBreaking.length > 0 && !newMigrations.some(m => m.agentConfig)) {
+    errors.push('AgentConfig has breaking changes but no new migration has an `agentConfig` handler');
+  }
+  
+  if (prefsBreaking.length > 0 && !newMigrations.some(m => m.preferences)) {
+    errors.push('Preferences has breaking changes but no new migration has a `preferences` handler');
+  }
+  
+  if (errors.length > 0) {
+    fail(errors.join('\n'));
+  }
+  
+  console.log('\n✅ Breaking changes have corresponding migrations');
+}
+
+function getShapesFromBranch(branch: string) {
+  try {
+    const content = execSync(
+      `git show ${branch}:packages/core/src/migrations/schema-shapes.json`,
+      { encoding: 'utf-8' }
     );
-    
-    if (breakingChanges.length === 0) {
-      // Non-breaking change (e.g., new optional field with default)
-      // Developer should run: pnpm run update-schema-snapshot
-      fail(
-        `Schema changed but snapshot not updated.\n` +
-        `Run 'pnpm run update-schema-snapshot' to update.`
-      );
-    }
-    
-    // Case 3: Breaking changes detected
-    // A migration MUST exist for the current version
-    const currentVersion = getCurrentVersion();
-    const migrationExists = migrations.some(
-      m => m.version === currentVersion && m.agentConfig
+    return JSON.parse(content);
+  } catch {
+    // File doesn't exist in base branch - first time setup
+    console.log('Note: schema-shapes.json not found in base branch (first-time setup)\n');
+    return {
+      agentConfig: { hash: '', shape: {} },
+      preferences: { hash: '', shape: {} },
+    };
+  }
+}
+
+function getMigrationVersionsFromBranch(branch: string): Set<string> {
+  try {
+    const content = execSync(
+      `git show ${branch}:packages/core/src/migrations/registry.ts`,
+      { encoding: 'utf-8' }
     );
-    
-    if (!migrationExists) {
-      fail(
-        `Breaking schema changes detected but no migration found:\n` +
-        breakingChanges.map(c => `  - ${c.type}: ${c.field}`).join('\n') +
-        `\n\nAdd a migration to packages/core/src/migrations/registry.ts`
-      );
-    }
-  });
-});
+    const matches = content.matchAll(/version:\s*['"]([^'"]+)['"]/g);
+    return new Set(Array.from(matches).map(m => m[1]));
+  } catch {
+    return new Set();
+  }
+}
+
+function verifyShapesFileUpdated(expectedShapes: any) {
+  // Verify the committed schema-shapes.json matches what we generated
+  const committed = JSON.parse(readFileSync('packages/core/src/migrations/schema-shapes.json', 'utf-8'));
+  
+  if (committed.agentConfig.hash !== expectedShapes.agentConfig.hash ||
+      committed.preferences.hash !== expectedShapes.preferences.hash) {
+    fail(
+      'schema-shapes.json is out of date.\n' +
+      'Run: pnpm run generate-schema-shapes'
+    );
+  }
+}
+
+function fail(message: string): never {
+  console.error(`\n❌ ${message}\n`);
+  console.error('To fix:');
+  console.error('1. Add a migration to packages/core/src/migrations/registry.ts');
+  console.error('2. Run: pnpm run generate-schema-shapes');
+  console.error('3. Commit both files');
+  process.exit(1);
+}
 ```
 
-#### Breaking Change Detection
+### 12.6 Breaking Change Detection
 
 ```typescript
-function detectBreakingChanges(oldShape: JsonSchema, newShape: JsonSchema): BreakingChange[] {
+// packages/core/src/migrations/schema-utils.ts
+
+export interface BreakingChange {
+  type: 'field-removed' | 'type-changed' | 'field-renamed' | 
+        'new-required-no-default' | 'enum-values-removed';
+  field?: string;
+  from?: string;
+  to?: string;
+  removedValues?: string[];
+}
+
+export function detectBreakingChanges(
+  oldShape: SchemaShape,
+  newShape: SchemaShape,
+  path: string = ''
+): BreakingChange[] {
   const changes: BreakingChange[] = [];
+  const prefix = path ? `${path}.` : '';
   
-  // 1. Removed required fields
-  for (const field of oldShape.required ?? []) {
-    if (!newShape.properties?.[field]) {
-      changes.push({ type: 'field-removed', field });
+  // Handle non-object types
+  if (oldShape.type !== 'object' || newShape.type !== 'object') {
+    if (oldShape.type !== newShape.type) {
+      changes.push({ type: 'type-changed', field: path, from: oldShape.type, to: newShape.type });
+    }
+    return changes;
+  }
+  
+  const oldProps = oldShape.properties ?? {};
+  const newProps = newShape.properties ?? {};
+  const oldRequired = new Set(oldShape.required ?? []);
+  
+  // 1. Removed fields (that were required or commonly used)
+  for (const field of Object.keys(oldProps)) {
+    if (!(field in newProps)) {
+      changes.push({ type: 'field-removed', field: `${prefix}${field}` });
     }
   }
   
-  // 2. Type changes (string → object, etc.)
-  for (const [field, oldDef] of Object.entries(oldShape.properties ?? {})) {
-    const newDef = newShape.properties?.[field];
-    if (newDef && oldDef.type !== newDef.type) {
-      changes.push({ type: 'type-changed', field, from: oldDef.type, to: newDef.type });
+  // 2. Type changes on existing fields
+  for (const [field, oldDef] of Object.entries(oldProps)) {
+    const newDef = newProps[field];
+    if (!newDef) continue;
+    
+    if (oldDef.type !== newDef.type) {
+      changes.push({ 
+        type: 'type-changed', 
+        field: `${prefix}${field}`,
+        from: oldDef.type, 
+        to: newDef.type 
+      });
+    }
+    
+    // Recursively check nested objects
+    if (oldDef.type === 'object' && newDef.type === 'object') {
+      changes.push(...detectBreakingChanges(oldDef, newDef, `${prefix}${field}`));
+    }
+    
+    // Check enum value removal
+    if (oldDef.enum && newDef.enum) {
+      const oldValues = new Set(oldDef.enum);
+      const newValues = new Set(newDef.enum);
+      const removed = [...oldValues].filter(v => !newValues.has(v));
+      if (removed.length > 0) {
+        changes.push({
+          type: 'enum-values-removed',
+          field: `${prefix}${field}`,
+          removedValues: removed,
+        });
+      }
     }
   }
   
-  // 3. Field renamed (heuristic: old field gone + new field appeared)
-  const oldFields = new Set(Object.keys(oldShape.properties ?? {}));
-  const newFields = new Set(Object.keys(newShape.properties ?? {}));
-  const removed = [...oldFields].filter(f => !newFields.has(f));
-  const added = [...newFields].filter(f => !oldFields.has(f));
-  
-  // If exactly one removed and one added with same type, likely a rename
-  if (removed.length === 1 && added.length === 1) {
-    const oldType = oldShape.properties?.[removed[0]]?.type;
-    const newType = newShape.properties?.[added[0]]?.type;
-    if (oldType === newType) {
-      changes.push({ type: 'field-renamed', from: removed[0], to: added[0] });
-    }
-  }
-  
-  // 4. New required field without default
+  // 3. New required fields without defaults
   for (const field of newShape.required ?? []) {
-    if (!oldShape.properties?.[field]) {
-      const hasDefault = newShape.properties?.[field]?.default !== undefined;
-      if (!hasDefault) {
-        changes.push({ type: 'new-required-no-default', field });
+    if (!(field in oldProps) && !newProps[field]?.hasDefault) {
+      changes.push({ type: 'new-required-no-default', field: `${prefix}${field}` });
+    }
+  }
+  
+  // 4. Detect likely renames (heuristic)
+  const removedFields = Object.keys(oldProps).filter(f => !(f in newProps));
+  const addedFields = Object.keys(newProps).filter(f => !(f in oldProps));
+  
+  for (const removed of removedFields) {
+    for (const added of addedFields) {
+      if (oldProps[removed].type === newProps[added].type) {
+        // Same type - might be a rename
+        changes.push({ type: 'field-renamed', from: `${prefix}${removed}`, to: `${prefix}${added}` });
       }
     }
   }
@@ -2004,51 +2230,24 @@ function detectBreakingChanges(oldShape: JsonSchema, newShape: JsonSchema): Brea
 }
 ```
 
-### 12.3 Developer Workflow
-
-#### When Making Non-Breaking Changes
-
-```bash
-# Add a new optional field with a default
-# 1. Modify the schema
-# 2. Run the snapshot update script
-$ pnpm run update-schema-snapshot
-
-# This updates schema-snapshots.json with new hash
-# Commit both the schema change and updated snapshot
-```
-
-#### When Making Breaking Changes
-
-```bash
-# Rename a field, remove a field, change a type, etc.
-# 1. Modify the schema
-# 2. Add a migration to registry.ts
-# 3. Run tests to verify migration handles the change
-# 4. Run snapshot update
-$ pnpm run update-schema-snapshot
-
-# Commit schema change + migration + updated snapshot
-```
-
-### 12.4 GitHub Action for PR Checks
+### 12.7 GitHub Action
 
 ```yaml
-# .github/workflows/schema-check.yml
-name: Schema Change Check
+# .github/workflows/schema-migrations.yml
+name: Schema Migration Verification
 
 on:
   pull_request:
-    paths:
-      - 'packages/core/src/agent/schemas.ts'
-      - 'packages/agent-management/src/preferences/schemas.ts'
-      - 'packages/core/src/migrations/**'
+    branches: [main]
 
 jobs:
-  check-schema:
+  verify-migrations:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history needed for base branch comparison
+      
       - uses: pnpm/action-setup@v2
       - uses: actions/setup-node@v4
         with:
@@ -2056,45 +2255,174 @@ jobs:
           cache: 'pnpm'
       
       - run: pnpm install
-      - run: pnpm run test:schema-migrations
       
-      - name: Comment on PR if schema changed
-        if: failure()
-        uses: actions/github-script@v7
-        with:
-          script: |
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: `## ⚠️ Schema Change Detected
-              
-This PR modifies schema files but CI checks failed.
-
-**If this is a non-breaking change** (new optional field with default):
-\`\`\`bash
-pnpm run update-schema-snapshot
-\`\`\`
-
-**If this is a breaking change** (field removed/renamed/type changed):
-1. Add a migration to \`packages/core/src/migrations/registry.ts\`
-2. Add tests for the migration
-3. Run \`pnpm run update-schema-snapshot\`
-
-See [Auto-Update Feature Plan](../feature-plans/auto-update.md#12-ci-enforcement-for-breaking-schema-changes) for details.`
-            })
+      # Step 1: Generate schema shapes from actual Zod schemas
+      - name: Generate current schema shapes
+        run: pnpm run generate-schema-shapes
+      
+      # Step 2: Verify committed shapes match generated (catches stale commits)
+      - name: Verify schema-shapes.json is up to date
+        run: |
+          if ! git diff --exit-code packages/core/src/migrations/schema-shapes.json; then
+            echo "❌ schema-shapes.json is out of date!"
+            echo "Run 'pnpm run generate-schema-shapes' and commit the result"
+            exit 1
+          fi
+      
+      # Step 3: Compare against base branch and verify migrations
+      - name: Verify migrations for breaking changes
+        run: pnpm run verify-schema-migrations
+        env:
+          BASE_REF: ${{ github.base_ref }}
+      
+      # Step 4: Run migration unit tests
+      - name: Run migration tests
+        run: pnpm run test:migrations
 ```
 
-### 12.5 File Structure for CI Enforcement
+### 12.8 Developer Workflow
+
+#### For Non-Breaking Changes (new optional field with default)
+
+```bash
+# 1. Modify the schema
+vim packages/core/src/agent/schemas.ts
+
+# 2. Regenerate shapes file
+pnpm run generate-schema-shapes
+
+# 3. Commit both
+git add packages/core/src/agent/schemas.ts
+git add packages/core/src/migrations/schema-shapes.json
+git commit -m "feat: add optional newField to agent config"
+```
+
+#### For Breaking Changes (rename, remove, type change)
+
+```bash
+# 1. Modify the schema
+vim packages/core/src/agent/schemas.ts
+
+# 2. Add migration
+vim packages/core/src/migrations/registry.ts
+
+# 3. Add migration tests
+vim packages/core/src/migrations/__tests__/v1.6.0.test.ts
+
+# 4. Regenerate shapes file
+pnpm run generate-schema-shapes
+
+# 5. Run tests
+pnpm run test:migrations
+
+# 6. Commit all
+git add packages/core/src/agent/schemas.ts
+git add packages/core/src/migrations/registry.ts
+git add packages/core/src/migrations/__tests__/v1.6.0.test.ts
+git add packages/core/src/migrations/schema-shapes.json
+git commit -m "feat!: rename model to modelName in agent config
+
+BREAKING CHANGE: llm.model renamed to llm.modelName
+Migration included for existing configs."
+```
+
+### 12.9 Why This Cannot Be Bypassed
+
+| Bypass Attempt | Why It Fails |
+|----------------|--------------|
+| Update schema-shapes.json without migration | CI regenerates shapes from Zod and compares against BASE branch |
+| Modify base branch's schema-shapes.json | Base branch is protected; can't modify in PR |
+| Skip running generate-schema-shapes | CI runs it and checks for diff |
+| Add fake migration without proper handler | CI checks that migrations have handlers for changed schemas |
+| Merge without CI passing | Branch protection rules require CI pass |
+
+### 12.10 File Structure
 
 ```
 packages/core/src/migrations/
-├── schema-snapshots.json        # Tracked in git, updated by script
-├── schema-utils.ts              # Hash generation, comparison logic
-├── __tests__/
-│   └── schema-enforcement.test.ts
-└── scripts/
-    └── update-schema-snapshot.ts
+├── index.ts                     # Public exports
+├── registry.ts                  # Migration definitions
+├── schema-shapes.json           # Generated, committed to git
+├── schema-utils.ts              # zodToShape, detectBreakingChanges
+├── scripts/
+│   ├── generate-shapes.ts       # pnpm run generate-schema-shapes
+│   └── verify-migrations.ts     # pnpm run verify-schema-migrations
+└── __tests__/
+    ├── schema-utils.test.ts
+    ├── registry.test.ts
+    └── v1.6.0.test.ts           # Per-version migration tests
+```
+
+### 12.11 Enhancement Migrations (New Features with Defaults)
+
+When adding new fields with defaults (e.g., `sounds` feature in 1.5.3), we want the upgrade to populate the user's config file - but NOT overwrite values they've already customized.
+
+#### Migration Registry with Enhancements
+
+```typescript
+export interface Migration {
+  version: string;
+  description: string;
+  breaking: boolean;
+  
+  // Breaking changes - transforms old shape to new
+  agentConfig?: (config: unknown) => unknown;
+  preferences?: (config: unknown) => unknown;
+  
+  // Enhancements - adds new fields IF MISSING (doesn't overwrite)
+  enhance?: {
+    agentConfig?: Record<string, unknown>;
+    preferences?: Record<string, unknown>;
+  };
+}
+
+export const migrations: Migration[] = [
+  {
+    version: '1.5.3',
+    description: 'Add sound notifications feature',
+    breaking: false,
+    enhance: {
+      preferences: {
+        sounds: { enabled: true, onComplete: 'bell.mp3' },
+      },
+    },
+  },
+  {
+    version: '1.5.4',
+    description: 'Disable sounds by default',
+    breaking: false,
+    enhance: {
+      preferences: {
+        'sounds.enabled': false,  // Only sets if missing
+      },
+    },
+  },
+];
+```
+
+#### Enhancement Behavior
+
+| Scenario | Field exists? | Action |
+|----------|---------------|--------|
+| New feature added | No | Add field with default value |
+| User already customized | Yes | Preserve user's value |
+| Default value changes | No (user never set it) | Apply new default |
+| Default value changes | Yes (user set it) | Preserve user's value |
+
+#### Executor Logic
+
+```typescript
+function applyEnhancements(config: object, enhancements: Record<string, unknown>): object {
+  const result = { ...config };
+  
+  for (const [path, value] of Object.entries(enhancements)) {
+    if (!hasPath(result, path)) {
+      setPath(result, path, value);  // Only set if missing
+    }
+  }
+  
+  return result;
+}
 ```
 
 ---
@@ -2161,7 +2489,7 @@ $ dexto chat
 Starting chat session...
 ```
 
-### 13.4 Edge Cases
+### 13.4 Simple Edge Cases
 
 | Scenario | Handling |
 |----------|----------|
@@ -2172,7 +2500,436 @@ Starting chat session...
 
 ---
 
-## 14. Utility Commands
+## 14. Comprehensive Edge Cases
+
+This section documents all edge cases and how they are handled.
+
+### 14.1 Edge Case Matrix
+
+| # | Scenario | Risk Level | Mitigation |
+|---|----------|------------|------------|
+| 1 | Developer bypasses migration by updating snapshot | Critical | Base branch comparison (cannot modify base in PR) |
+| 2 | Migration has bug that corrupts configs | High | Automatic backup before migration; `dexto restore-backup` |
+| 3 | User has config from future version (downgrade/shared config) | Medium | Detect config version > CLI version; warn and skip |
+| 4 | User manually edits config with invalid YAML | Medium | Catch parse errors; suggest `dexto doctor` |
+| 5 | Migration interrupted (crash/power loss) | High | Atomic writes; migration status tracking |
+| 6 | Two CLI instances run simultaneously | Medium | File locking on `.cli-version` |
+| 7 | Custom agent has same name as new bundled agent | Medium | Registry tracks custom vs bundled; never overwrite |
+| 8 | Developer adds migration but forgets version bump | Low | CI check: migration version ≤ package.json version |
+| 9 | Schema change in non-core package | Low | Document: only core schemas are migration-protected |
+| 10 | Zod transform changes (same shape, different behavior) | Low | Document as limitation; transforms should be stable |
+| 11 | Default value changes | None | Non-breaking by definition; old configs keep old behavior |
+| 12 | Enum removes a value | High | Detected as breaking change |
+| 13 | Deeply nested field changes | Medium | Recursive shape comparison |
+| 14 | Array item schema changes | Medium | Track array item shapes |
+| 15 | Union/discriminated union changes | Medium | Document as requiring manual migration |
+| 16 | Multiple PRs with schema changes merged in different order | Medium | Semver ordering; version conflicts caught at compile time |
+
+### 14.2 Critical Edge Case: Partial Migration (Crash Recovery)
+
+If the CLI crashes mid-migration, some configs may be migrated and some not.
+
+#### Solution: Migration Status Tracking
+
+```typescript
+// packages/core/src/migrations/executor.ts
+
+interface MigrationStatus {
+  startedAt: string;
+  fromVersion: string;
+  toVersion: string;
+  completedFiles: string[];
+  status: 'in-progress' | 'completed' | 'failed';
+  error?: string;
+}
+
+const STATUS_FILE = '.migration-status.json';
+
+export async function runMigrations(): Promise<MigrationResult> {
+  const statusPath = path.join(getDextoGlobalPath('root'), STATUS_FILE);
+  
+  // Check for incomplete previous migration
+  if (existsSync(statusPath)) {
+    const status: MigrationStatus = JSON.parse(readFileSync(statusPath, 'utf-8'));
+    
+    if (status.status === 'in-progress') {
+      console.warn('⚠️  Previous migration was interrupted.');
+      console.warn(`   Started: ${status.startedAt}`);
+      console.warn(`   Completed: ${status.completedFiles.length} files`);
+      console.warn('');
+      console.warn('Options:');
+      console.warn('  1. Run `dexto restore-backup` to restore from backup');
+      console.warn('  2. Run `dexto migrate --continue` to resume');
+      console.warn('  3. Run `dexto migrate --restart` to restart from backup');
+      process.exit(1);
+    }
+  }
+  
+  // Start new migration
+  const status: MigrationStatus = {
+    startedAt: new Date().toISOString(),
+    fromVersion: getLastRunVersion(),
+    toVersion: getCurrentVersion(),
+    completedFiles: [],
+    status: 'in-progress',
+  };
+  writeFileSync(statusPath, JSON.stringify(status, null, 2));
+  
+  try {
+    // Create backup FIRST
+    const backupPath = await createBackup();
+    
+    // Migrate each file, tracking progress
+    for (const configFile of getConfigFiles()) {
+      await migrateFile(configFile, status.fromVersion, status.toVersion);
+      status.completedFiles.push(configFile);
+      writeFileSync(statusPath, JSON.stringify(status, null, 2)); // Checkpoint
+    }
+    
+    // Success - clean up
+    status.status = 'completed';
+    writeFileSync(statusPath, JSON.stringify(status, null, 2));
+    setLastRunVersion(status.toVersion);
+    rmSync(statusPath);
+    
+    return { success: true, backupPath, migratedFiles: status.completedFiles };
+    
+  } catch (error) {
+    status.status = 'failed';
+    status.error = error.message;
+    writeFileSync(statusPath, JSON.stringify(status, null, 2));
+    throw error;
+  }
+}
+```
+
+### 14.3 Critical Edge Case: Concurrent CLI Instances
+
+Two terminal windows running dexto simultaneously during migration could cause race conditions.
+
+#### Solution: File Locking
+
+```typescript
+// packages/core/src/migrations/lock.ts
+
+import { lockSync, unlockSync } from 'proper-lockfile';
+
+const LOCK_FILE = '.migration.lock';
+
+export async function withMigrationLock<T>(fn: () => Promise<T>): Promise<T> {
+  const lockPath = path.join(getDextoGlobalPath('root'), LOCK_FILE);
+  
+  // Ensure lock file exists
+  if (!existsSync(lockPath)) {
+    writeFileSync(lockPath, '');
+  }
+  
+  let release: (() => void) | null = null;
+  
+  try {
+    // Acquire exclusive lock (blocks if another process has it)
+    release = await lockSync(lockPath, {
+      retries: {
+        retries: 10,
+        factor: 2,
+        minTimeout: 100,
+        maxTimeout: 1000,
+      },
+    });
+    
+    return await fn();
+    
+  } finally {
+    if (release) {
+      release();
+    }
+  }
+}
+
+// Usage
+export async function runStartupMigrations(): Promise<MigrationResult | null> {
+  return withMigrationLock(async () => {
+    const lastVersion = getLastRunVersion();
+    const currentVersion = getCurrentVersion();
+    
+    if (lastVersion === currentVersion) {
+      return null; // Already migrated (possibly by another instance)
+    }
+    
+    return runMigrations();
+  });
+}
+```
+
+### 14.4 Edge Case: Future Config Version
+
+User has a config with `schemaVersion: "2.0.0"` but runs CLI v1.5.0 (downgrade, or shared config from colleague).
+
+#### Solution: Version Check
+
+```typescript
+// packages/core/src/migrations/version-tracker.ts
+
+export interface CompatibilityResult {
+  compatible: boolean;
+  reason?: 'future-version' | 'invalid-version';
+  message?: string;
+  configVersion?: string;
+  cliVersion?: string;
+}
+
+export function checkConfigCompatibility(configPath: string): CompatibilityResult {
+  const content = readFileSync(configPath, 'utf-8');
+  const config = parseYaml(content);
+  
+  // Check optional schemaVersion field
+  if (config.schemaVersion) {
+    const configVersion = config.schemaVersion;
+    const cliVersion = getCurrentVersion();
+    
+    if (!semver.valid(configVersion)) {
+      return {
+        compatible: false,
+        reason: 'invalid-version',
+        message: `Invalid schemaVersion "${configVersion}" in ${configPath}`,
+      };
+    }
+    
+    if (semver.gt(configVersion, cliVersion)) {
+      return {
+        compatible: false,
+        reason: 'future-version',
+        message: 
+          `Config ${configPath} was created with Dexto v${configVersion}, ` +
+          `but you're running v${cliVersion}.\n` +
+          `Options:\n` +
+          `  1. Upgrade Dexto: npm install -g dexto@${configVersion}\n` +
+          `  2. Reset config: dexto agent reset <agent-id>\n` +
+          `  3. Restore backup: dexto restore-backup`,
+        configVersion,
+        cliVersion,
+      };
+    }
+  }
+  
+  return { compatible: true };
+}
+```
+
+### 14.5 Edge Case: Migration Version Validation
+
+Ensure migration versions are valid and in correct order.
+
+```typescript
+// packages/core/src/migrations/__tests__/registry.test.ts
+
+import { describe, it, expect } from 'vitest';
+import semver from 'semver';
+import { migrations } from '../registry.js';
+import { getCurrentVersion } from '../version-tracker.js';
+
+describe('Migration Registry Validation', () => {
+  it('all migration versions should be valid semver', () => {
+    for (const m of migrations) {
+      expect(semver.valid(m.version), `Invalid version: ${m.version}`).not.toBeNull();
+    }
+  });
+  
+  it('migration versions should be in ascending order', () => {
+    for (let i = 1; i < migrations.length; i++) {
+      const prev = migrations[i - 1].version;
+      const curr = migrations[i].version;
+      expect(
+        semver.gt(curr, prev),
+        `Migration ${curr} should be > ${prev}`
+      ).toBe(true);
+    }
+  });
+  
+  it('no duplicate migration versions', () => {
+    const versions = migrations.map(m => m.version);
+    const unique = new Set(versions);
+    expect(versions.length).toBe(unique.size);
+  });
+  
+  it('latest migration version should not exceed package version', () => {
+    if (migrations.length === 0) return;
+    
+    const packageVersion = getCurrentVersion();
+    const latestMigration = migrations[migrations.length - 1];
+    
+    expect(
+      semver.lte(latestMigration.version, packageVersion),
+      `Migration ${latestMigration.version} exceeds package version ${packageVersion}`
+    ).toBe(true);
+  });
+  
+  it('all migrations should have required fields', () => {
+    for (const m of migrations) {
+      expect(m.version).toBeDefined();
+      expect(m.description).toBeTruthy();
+      expect(typeof m.breaking).toBe('boolean');
+      
+      // At least one handler required
+      expect(
+        m.agentConfig || m.preferences,
+        `Migration ${m.version} has no handlers`
+      ).toBeTruthy();
+    }
+  });
+  
+  it('breaking migrations should have meaningful descriptions', () => {
+    for (const m of migrations) {
+      if (m.breaking) {
+        expect(
+          m.description.length > 10,
+          `Breaking migration ${m.version} needs better description`
+        ).toBe(true);
+      }
+    }
+  });
+});
+```
+
+### 14.6 Edge Case: Invalid YAML in User Config
+
+User manually edits config and introduces syntax errors.
+
+```typescript
+// packages/core/src/migrations/executor.ts
+
+async function migrateFile(
+  configPath: string,
+  fromVersion: string,
+  toVersion: string
+): Promise<MigrateFileResult> {
+  // 1. Try to parse YAML
+  let config: unknown;
+  try {
+    const content = readFileSync(configPath, 'utf-8');
+    config = parseYaml(content);
+  } catch (parseError) {
+    return {
+      success: false,
+      path: configPath,
+      error: 'yaml-parse-error',
+      message: `Failed to parse YAML: ${parseError.message}`,
+      suggestion: `Fix syntax errors in ${configPath} or run 'dexto doctor --fix'`,
+    };
+  }
+  
+  // 2. Check compatibility
+  const compat = checkConfigCompatibility(configPath);
+  if (!compat.compatible) {
+    return {
+      success: false,
+      path: configPath,
+      error: compat.reason,
+      message: compat.message,
+    };
+  }
+  
+  // 3. Run migrations
+  // ... rest of migration logic
+}
+```
+
+### 14.7 Edge Case: Enum Value Removal
+
+If a schema enum removes a valid value, existing configs with that value will break.
+
+```typescript
+// In detectBreakingChanges()
+
+// Check for enum value removal
+if (oldDef.enum && newDef.enum) {
+  const oldValues = new Set<string>(oldDef.enum);
+  const newValues = new Set<string>(newDef.enum);
+  
+  const removed = [...oldValues].filter(v => !newValues.has(v));
+  
+  if (removed.length > 0) {
+    changes.push({
+      type: 'enum-values-removed',
+      field: `${prefix}${field}`,
+      removedValues: removed,
+    });
+  }
+}
+```
+
+The migration for this must handle converting old enum values:
+
+```typescript
+// Example migration for enum change
+{
+  version: '1.6.0',
+  description: 'Remove deprecated "legacy" theme value',
+  breaking: true,
+  agentConfig: (config) => {
+    if (config.theme === 'legacy') {
+      config.theme = 'classic'; // Map to replacement value
+    }
+    return config;
+  },
+}
+```
+
+### 14.8 Edge Case: Custom Agent Name Collision
+
+User has custom agent named "code-review-agent". New version bundles an agent with same name.
+
+```typescript
+// packages/agent-management/src/registry.ts
+
+export async function installBundledAgents(): Promise<void> {
+  const registry = await loadRegistry();
+  
+  for (const bundledAgent of BUNDLED_AGENTS) {
+    const existing = registry.agents[bundledAgent.id];
+    
+    if (existing) {
+      if (existing.source === 'custom') {
+        // Never overwrite custom agents
+        logger.warn(
+          `Skipping bundled agent "${bundledAgent.id}" - ` +
+          `you have a custom agent with this name. ` +
+          `Rename your agent if you want the bundled version.`
+        );
+        continue;
+      }
+      
+      if (existing.source === 'bundled') {
+        // Update bundled agent
+        await updateBundledAgent(bundledAgent);
+      }
+    } else {
+      // Install new bundled agent
+      await installBundledAgent(bundledAgent);
+    }
+  }
+}
+```
+
+### 14.9 Documentation: Known Limitations
+
+Some edge cases are documented rather than handled programmatically:
+
+#### Zod Transforms
+
+If a Zod schema has a `.transform()` that changes behavior (without changing shape), this won't be detected as a breaking change. **Guideline:** Transforms should be stable; behavioral changes require a migration.
+
+#### Union Types
+
+Complex discriminated unions are difficult to analyze automatically. **Guideline:** Changes to union variants should include manual migration testing.
+
+#### Default Value Changes
+
+Changing a default value is not detected as breaking. This is correct because existing configs that don't specify the field will get the new default, which is typically desired behavior.
+
+---
+
+## 15. Utility Commands
 
 ### 14.1 `dexto doctor` - Diagnose and Fix Issues
 
@@ -2416,7 +3173,24 @@ Dexto has been reset to a fresh install.
 
 ---
 
-## 17. References
+## 17. AGENTS.md Update
+
+Add to the AGENTS.md file under a new "Schema Migrations" section:
+
+```markdown
+### Schema Migrations
+
+When modifying `packages/core/src/agent/schemas.ts` or `packages/agent-management/src/preferences/schemas.ts`:
+
+1. **Non-breaking changes** (new optional field with default): Run `pnpm run generate-schema-shapes` and commit
+2. **Breaking changes** (remove/rename field, change type): Add migration to `packages/core/src/migrations/registry.ts`, then run `pnpm run generate-schema-shapes`
+
+CI will block PRs with breaking schema changes that lack migrations. See `feature-plans/auto-update.md` for details.
+```
+
+---
+
+## 18. References
 
 ### External Codebases
 - OpenCode: `/packages/opencode/src/cli/upgrade.ts`, `/packages/opencode/src/config/config.ts`
