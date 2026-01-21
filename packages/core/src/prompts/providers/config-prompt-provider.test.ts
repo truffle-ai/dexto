@@ -386,6 +386,29 @@ describe('ConfigPromptProvider', () => {
             });
         });
 
+        test('loads Claude Code SKILL.md format (uses name: instead of id:)', async () => {
+            const config = makeAgentConfig([
+                {
+                    type: 'file',
+                    file: join(FIXTURES_DIR, 'claude-skill.md'),
+                    namespace: 'my-plugin',
+                    showInStarters: false,
+                },
+            ]);
+
+            const provider = new ConfigPromptProvider(config, mockLogger);
+            const result = await provider.listPrompts();
+
+            expect(result.prompts).toHaveLength(1);
+            expect(result.prompts[0]).toMatchObject({
+                // name: field in frontmatter should be used as id
+                name: 'config:my-plugin:test-skill',
+                displayName: 'my-plugin:test-skill',
+                description: 'A test skill using Claude Code SKILL.md format with name field.',
+                source: 'config',
+            });
+        });
+
         test('gets file prompt content', async () => {
             const config = makeAgentConfig([
                 {

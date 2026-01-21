@@ -350,6 +350,11 @@ export class ConfigPromptProvider implements PromptProvider {
                     if (line.includes('id:')) {
                         const val = match('id');
                         if (val) id = val;
+                    } else if (line.includes('name:') && !line.includes('display-name:')) {
+                        // Claude Code SKILL.md uses 'name:' instead of 'id:'
+                        // Only use if id hasn't been explicitly set via 'id:' field
+                        const val = match('name');
+                        if (val && id === fileName) id = val;
                     } else if (line.includes('title:')) {
                         const val = match('title');
                         if (val) title = val;

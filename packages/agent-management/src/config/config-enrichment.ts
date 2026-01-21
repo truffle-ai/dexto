@@ -17,7 +17,11 @@ import { getDextoPath } from '../utils/path.js';
 import type { AgentConfig } from '@dexto/core';
 import * as path from 'path';
 import { discoverCommandPrompts, discoverAgentInstructionFile } from './discover-prompts.js';
-import { discoverClaudeCodePlugins, loadClaudeCodePlugin } from '../plugins/index.js';
+import {
+    discoverClaudeCodePlugins,
+    loadClaudeCodePlugin,
+    discoverStandaloneSkills,
+} from '../plugins/index.js';
 
 // Re-export for backwards compatibility
 export { discoverCommandPrompts, discoverAgentInstructionFile } from './discover-prompts.js';
@@ -239,6 +243,22 @@ export function enrichAgentConfig(
                 ...(loaded.mcpConfig.mcpServers as typeof enriched.mcpServers),
             };
         }
+    }
+
+    // Discover standalone skills from ~/.claude/skills/ and <cwd>/.claude/skills/
+    // These are bare skill directories with SKILL.md files (not full plugins)
+    const standaloneSkills = discoverStandaloneSkills();
+    for (const skill of standaloneSkills) {
+        const promptEntry = {
+            type: 'file' as const,
+            file: skill.skillFile,
+            // Use directory name as namespace for standalone skills
+            namespace: skill.name,
+            // Standalone skills are user-invocable by default (like plugin commands)
+        };
+
+        enriched.prompts = enriched.prompts ?? [];
+        enriched.prompts.push(promptEntry);
     }
 
     // Discover agent instruction file (AGENTS.md, CLAUDE.md, GEMINI.md) in cwd

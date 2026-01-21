@@ -39,5 +39,9 @@ export {
     getInstalledPluginsPath,
 } from './discover-plugins.js';
 
+// Standalone skill discovery
+export { discoverStandaloneSkills, getSkillSearchPaths } from './discover-skills.js';
+export type { DiscoveredSkill } from './discover-skills.js';
+
 // Loading
 export { loadClaudeCodePlugin } from './load-plugin.js';
