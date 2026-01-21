@@ -188,6 +188,7 @@ export function useCLIState({
         setPendingMessages,
         setUi,
         setSession,
+        setInput,
         setApproval,
         setApprovalQueue,
         setQueuedMessages,

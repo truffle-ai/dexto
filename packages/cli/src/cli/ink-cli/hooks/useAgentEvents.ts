@@ -28,7 +28,7 @@ import {
     type QueuedMessage,
     type ContentPart,
 } from '@dexto/core';
-import type { Message, UIState, SessionState } from '../state/types.js';
+import type { Message, UIState, SessionState, InputState } from '../state/types.js';
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
 import { generateMessageId } from '../utils/idGenerator.js';
 
@@ -38,6 +38,7 @@ interface UseAgentEventsProps {
     setPendingMessages: React.Dispatch<React.SetStateAction<Message[]>>;
     setUi: React.Dispatch<React.SetStateAction<UIState>>;
     setSession: React.Dispatch<React.SetStateAction<SessionState>>;
+    setInput: React.Dispatch<React.SetStateAction<InputState>>;
     setApproval: React.Dispatch<React.SetStateAction<ApprovalRequest | null>>;
     setApprovalQueue: React.Dispatch<React.SetStateAction<ApprovalRequest[]>>;
     setQueuedMessages: React.Dispatch<React.SetStateAction<QueuedMessage[]>>;
@@ -67,6 +68,7 @@ export function useAgentEvents({
     setPendingMessages,
     setUi,
     setSession,
+    setInput,
     setApproval,
     setApprovalQueue,
     setQueuedMessages,
@@ -121,15 +123,33 @@ export function useAgentEvents({
             { signal }
         );
 
-        // Handle session creation (e.g., from /new command if we add one)
+        // Handle session creation (e.g., from /new command)
         bus.on(
             'session:created',
             (payload) => {
                 if (payload.switchTo) {
+                    // Clear the terminal screen for a fresh start
+                    // \x1B[2J clears visible screen, \x1B[3J clears scrollback, \x1B[H moves cursor to top
+                    process.stdout.write('\x1B[2J\x1B[3J\x1B[H');
+
+                    // Clear all message state
                     setMessages([]);
+                    setPendingMessages([]);
                     setApproval(null);
                     setApprovalQueue([]);
                     setQueuedMessages([]);
+
+                    // Reset input state including history (up/down arrow) and Ctrl+R search state
+                    setInput((prev) => ({
+                        ...prev,
+                        value: '',
+                        history: [],
+                        historyIndex: -1,
+                        draftBeforeHistory: '',
+                        images: [],
+                        pastedBlocks: [],
+                        pasteCounter: 0,
+                    }));
 
                     if (payload.sessionId === null) {
                         setSession((prev) => ({ ...prev, id: null, hasActiveSession: false }));
@@ -140,7 +160,19 @@ export function useAgentEvents({
                             hasActiveSession: true,
                         }));
                     }
-                    setUi((prev) => ({ ...prev, activeOverlay: 'none' }));
+
+                    // Reset UI state including history search
+                    setUi((prev) => ({
+                        ...prev,
+                        activeOverlay: 'none',
+                        historySearch: {
+                            isActive: false,
+                            query: '',
+                            matchIndex: 0,
+                            originalInput: '',
+                            lastMatch: '',
+                        },
+                    }));
                 }
             },
             { signal }
