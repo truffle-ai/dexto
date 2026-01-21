@@ -41,15 +41,17 @@ function createMockEventBus(): AgentEventBus {
 // Mock logger
 function createMockLogger(): IDextoLogger {
     return {
+        debug: vi.fn(),
+        silly: vi.fn(),
         info: vi.fn(),
         warn: vi.fn(),
         error: vi.fn(),
-        debug: vi.fn(),
-        trace: vi.fn(),
-        fatal: vi.fn(),
-        child: vi.fn(() => createMockLogger()),
-        level: 'info',
-        silent: false,
+        trackException: vi.fn(),
+        createChild: vi.fn(() => createMockLogger()),
+        setLevel: vi.fn(),
+        getLevel: vi.fn().mockReturnValue('info'),
+        getLogFilePath: vi.fn().mockReturnValue(null),
+        destroy: vi.fn().mockResolvedValue(undefined),
     } as unknown as IDextoLogger;
 }
 

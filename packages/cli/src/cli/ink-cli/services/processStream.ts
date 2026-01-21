@@ -1066,7 +1066,7 @@ export async function processStream(
                         const { data, sessionId } = event;
                         if (data && typeof data === 'object' && sessionId) {
                             const todoData = data as {
-                                todos: Array<{
+                                todos?: Array<{
                                     id: string;
                                     sessionId: string;
                                     content: string;
@@ -1076,8 +1076,14 @@ export async function processStream(
                                     createdAt: Date | string;
                                     updatedAt: Date | string;
                                 }>;
-                                stats: { created: number; updated: number; deleted: number };
+                                stats?: { created: number; updated: number; deleted: number };
                             };
+                            if (!Array.isArray(todoData.todos)) {
+                                debug.log('SERVICE-EVENT todo updated: invalid payload', {
+                                    sessionId,
+                                });
+                                break;
+                            }
                             debug.log('SERVICE-EVENT todo updated', {
                                 sessionId,
                                 todoCount: todoData.todos.length,
