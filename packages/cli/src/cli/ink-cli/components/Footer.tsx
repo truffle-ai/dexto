@@ -40,7 +40,6 @@ export function Footer({
     const displayModelName = getModelDisplayName(modelName);
     const [contextLeft, setContextLeft] = useState<{
         percentLeft: number;
-        isEstimated: boolean;
     } | null>(null);
 
     useEffect(() => {
@@ -60,7 +59,6 @@ export function Footer({
                 const percentLeft = Math.max(0, Math.min(100, 100 - stats.usagePercent));
                 setContextLeft({
                     percentLeft,
-                    isEstimated: stats.calculationBasis?.method !== 'actuals',
                 });
             } catch {
                 if (!cancelled) {
@@ -115,10 +113,7 @@ export function Footer({
             {/* Line 2: Context left */}
             {contextLeft && (
                 <Box>
-                    <Text color="gray">
-                        {contextLeft.isEstimated ? '~' : ''}
-                        {contextLeft.percentLeft}% context left
-                    </Text>
+                    <Text color="gray">{contextLeft.percentLeft}% context left</Text>
                 </Box>
             )}
 
