@@ -1867,12 +1867,15 @@ Should we show interactive prompts for significant migrations (like Codex)?
 
 ### 11.6 Where Should Migration Code Live?
 
-**Options:**
-- `packages/core` (recommended)
-- Separate `packages/migrations` package
-- Separate repository
+**Decision:** Split across packages based on responsibility:
 
-**Recommendation:** Keep in `packages/core`. Migrations are tightly coupled to schemas - they transform one schema version to another. Separating them creates versioning nightmares and circular dependency risks.
+| Package | Responsibility | File I/O? |
+|---------|----------------|-----------|
+| `packages/core` | Schema shapes, breaking change detection, transform definitions | No (pure functions) |
+| `packages/agent-management` | Executor, version tracking, backups | Yes |
+| `packages/cli` | Commands (doctor, clean, upgrade) | Yes |
+
+This keeps `core` focused on the agent loop and pure logic, while file operations stay in packages designed for that.
 
 ### 11.7 How to Handle New Features with Defaults?
 
@@ -2338,19 +2341,40 @@ Migration included for existing configs."
 
 ### 12.10 File Structure
 
+Migrations are split across packages to maintain separation of concerns:
+
+- **`packages/core`**: Pure functions only (no file I/O) - schema definitions, shape utils, transform definitions
+- **`packages/agent-management`**: File operations - executor, version tracking, backups
+- **`packages/cli`**: Commands - doctor, clean, upgrade
+
 ```
 packages/core/src/migrations/
 ├── index.ts                     # Public exports
-├── registry.ts                  # Migration definitions
-├── schema-shapes.json           # Generated, committed to git
-├── schema-utils.ts              # zodToShape, detectBreakingChanges
+├── registry.ts                  # Migration definitions (pure transform functions)
+├── schema-shapes.json           # Generated, committed to git (for CI)
+├── schema-utils.ts              # zodToShape, detectBreakingChanges (pure)
+└── __tests__/
+    ├── schema-utils.test.ts
+    └── registry.test.ts
+
+packages/agent-management/src/migrations/
+├── index.ts                     # Public exports
+├── executor.ts                  # Runs migrations (file I/O)
+├── version-tracker.ts           # .cli-version read/write
+├── backup.ts                    # Backup/restore operations
 ├── scripts/
 │   ├── generate-shapes.ts       # pnpm run generate-schema-shapes
 │   └── verify-migrations.ts     # pnpm run verify-schema-migrations
 └── __tests__/
-    ├── schema-utils.test.ts
-    ├── registry.test.ts
+    ├── executor.test.ts
+    ├── version-tracker.test.ts
     └── v1.6.0.test.ts           # Per-version migration tests
+
+packages/cli/src/cli/commands/
+├── doctor.ts                    # dexto doctor
+├── clean.ts                     # dexto clean
+├── upgrade.ts                   # dexto upgrade
+└── restore-backup.ts            # dexto restore-backup
 ```
 
 ### 12.11 Enhancement Migrations (New Features with Defaults)
@@ -3204,8 +3228,19 @@ CI will block PRs with breaking schema changes that lack migrations. See `featur
 - Path utilities: `packages/agent-management/src/utils/path.ts`
 
 ### New Files (To Be Created)
-- Migration registry: `packages/core/src/migrations/registry.ts`
-- Schema snapshots: `packages/core/src/migrations/schema-snapshots.json`
-- Version tracker: `packages/core/src/migrations/version-tracker.ts`
-- Doctor command: `packages/cli/src/cli/commands/doctor.ts`
-- Clean command: `packages/cli/src/cli/commands/clean.ts`
+
+**packages/core/src/migrations/**
+- `registry.ts` - Migration definitions (pure transforms)
+- `schema-shapes.json` - Generated schema shapes for CI
+- `schema-utils.ts` - Shape generation, breaking change detection
+
+**packages/agent-management/src/migrations/**
+- `executor.ts` - Runs migrations (file I/O)
+- `version-tracker.ts` - .cli-version management
+- `backup.ts` - Backup/restore operations
+
+**packages/cli/src/cli/commands/**
+- `doctor.ts` - dexto doctor
+- `clean.ts` - dexto clean
+- `upgrade.ts` - dexto upgrade
+- `restore-backup.ts` - dexto restore-backup
