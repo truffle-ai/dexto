@@ -1221,33 +1221,40 @@ async function loadAgentConfig(path: string): Promise<AgentConfig | null> {
 ### Core Components
 
 1. **Version Tracking**
-   - Store last-run CLI version in `~/.dexto/.cli-version`
-   - Optional `schemaVersion` field in config files (fallback to .cli-version)
+   - Store last-run CLI version in `~/.dexto/.cli-version` (bootstrap only)
+   - Add **required** `schemaVersion` field in config files and always write it back after migration
 
-2. **Migration Registry**
+2. **Unknown Field Handling**
+   - Refuse migration if config contains unknown fields and report them clearly
+   - Never silently drop user data
+3. **Migration Registry**
    - Sequential migrations defined per breaking version
    - Each migration is a transform function
    - Migrations applied in order
 
-3. **Automatic Backup**
+4. **Automatic Backup**
    - Before any migration, backup to `~/.dexto-backup-{timestamp}`
    - Keep last N backups (configurable, default 3)
 
-4. **Upgrade Command**
+5. **Upgrade Command**
    - `dexto upgrade [version]` - check, show changes, perform upgrade
    - Show pending migrations before upgrade
    - Migration happens on next startup (new version)
 
-5. **Recovery Commands**
+6. **Recovery Commands**
    - `dexto restore-backup` - restore from backup
    - `dexto agent reset <id>` - reset single agent to defaults
+
+7. **Image Compatibility Check**
+   - Validate the loaded image package against the running core version
+   - Warn or block if the image was built for an incompatible core
 
 ### Why This Approach
 
 | Requirement | How It's Met |
 |-------------|--------------|
 | Don't change user workflows | Configs stay in same location, same format |
-| Know what version config was for | .cli-version tracking + optional schemaVersion |
+| Know what version config was for | Per-file required schemaVersion + .cli-version bootstrap |
 | Handle breaking changes | Sequential migrations with validation |
 | Protect user data | Automatic backups before migration |
 | Clear recovery path | restore-backup and agent reset commands |
@@ -1259,9 +1266,14 @@ async function loadAgentConfig(path: string): Promise<AgentConfig | null> {
 ### 8.1 Version Tracking
 
 ```typescript
-// packages/core/src/migrations/version-tracker.ts
+// packages/agent-management/src/migrations/version-tracker.ts
 
 const VERSION_FILE = '.cli-version';
+
+/**
+ * Per-file schema version is the source of truth.
+ * .cli-version is only used to bootstrap legacy configs that are missing it.
+ */
 
 export function getLastRunVersion(): string {
   const versionPath = path.join(getDextoGlobalPath('root'), VERSION_FILE);
@@ -1284,6 +1296,12 @@ export function getCurrentVersion(): string {
   return pkg.version;  // From package.json
 }
 ```
+
+**Required per-file schemaVersion**
+
+- Add a required `schemaVersion` field to agent configs and preferences.
+- On first load (no schemaVersion), infer from `.cli-version`, migrate, and write `schemaVersion` back.
+- After bootstrapping, always use the per-file `schemaVersion`.
 
 ### 8.2 Migration Registry
 
@@ -1322,13 +1340,14 @@ export function hasBreakingChanges(from: string, to: string): boolean {
 ### 8.3 Migration Executor
 
 ```typescript
-// packages/core/src/migrations/executor.ts
+// packages/agent-management/src/migrations/executor.ts
 
 export interface MigrationResult {
   ok: boolean;
   path: string;
   error?: string;
   zodErrors?: z.ZodFormattedError<unknown>;
+  unknownFields?: string[];
 }
 
 export async function migrateConfig(
@@ -1346,6 +1365,21 @@ export async function migrateConfig(
   try {
     // Load raw YAML
     let config = await loadYaml(configPath);
+
+    // Reject unknown fields early (do NOT silently drop user data)
+    const strictSchema = type === 'agentConfig' ? AgentConfigSchema : GlobalPreferencesSchema;
+    const strictParse = strictSchema.safeParse(config);
+    if (!strictParse.success) {
+      const unknown = extractUnknownFields(strictParse.error);
+      if (unknown.length > 0) {
+        return {
+          ok: false,
+          path: configPath,
+          error: `Unknown fields in config: ${unknown.join(', ')}`,
+          unknownFields: unknown,
+        };
+      }
+    }
 
     // Apply migrations sequentially
     for (const migration of migrations) {
@@ -1368,6 +1402,11 @@ export async function migrateConfig(
       };
     }
 
+    // Always write back schemaVersion
+    if (typeof config === 'object' && config !== null) {
+      (config as { schemaVersion?: string }).schemaVersion = toVersion;
+    }
+
     // Write back (preserving comments if possible)
     await writeYamlPreservingFormat(configPath, config);
 
@@ -1383,80 +1422,39 @@ export async function migrateConfig(
 }
 ```
 
+`extractUnknownFields` should read Zod issues with `code: 'unrecognized_keys'` and return the list.
+
+Note: migration writes will not preserve YAML comments.
+
 ### 8.4 Startup Migration Flow
 
 ```typescript
-// packages/core/src/migrations/startup.ts
+// packages/agent-management/src/migrations/startup.ts
 
-export async function runStartupMigrations(): Promise<void> {
-  const lastVersion = getLastRunVersion();
-  const currentVersion = getCurrentVersion();
+export async function runStartupMigrations(): Promise<MigrationSummary | null> {
+  return withMigrationLock(async () => {
+    const lastVersion = getLastRunVersion();
+    const currentVersion = getCurrentVersion();
 
-  if (lastVersion === currentVersion) {
-    return;  // No migration needed
-  }
-
-  const pendingMigrations = getMigrationsBetween(lastVersion, currentVersion);
-
-  if (pendingMigrations.length === 0) {
-    // Version changed but no migrations needed
-    setLastRunVersion(currentVersion);
-    return;
-  }
-
-  // Log what we're doing
-  logger.info(`Migrating configs from v${lastVersion} to v${currentVersion}`);
-  for (const m of pendingMigrations) {
-    logger.info(`  ${m.version}: ${m.description}`);
-  }
-
-  // Backup if any breaking changes
-  if (hasBreakingChanges(lastVersion, currentVersion)) {
-    const backupPath = await createBackup();
-    logger.info(`Backup created at: ${backupPath}`);
-  }
-
-  // Migrate preferences
-  const prefsPath = path.join(getDextoGlobalPath('root'), 'preferences.yml');
-  if (existsSync(prefsPath)) {
-    const result = await migrateConfig(prefsPath, 'preferences', lastVersion, currentVersion);
-    if (!result.ok) {
-      logger.warn(`Failed to migrate preferences: ${result.error}`);
+    if (lastVersion === currentVersion) {
+      return null; // No migration needed
     }
-  }
 
-  // Migrate all agents
-  const agentsDir = getDextoGlobalPath('agents');
-  const agentDirs = await readdir(agentsDir);
-
-  const results: MigrationResult[] = [];
-  for (const agentId of agentDirs) {
-    const configPath = path.join(agentsDir, agentId, `${agentId}.yml`);
-    if (existsSync(configPath)) {
-      const result = await migrateConfig(configPath, 'agentConfig', lastVersion, currentVersion);
-      results.push(result);
-    }
-  }
-
-  // Report failures
-  const failures = results.filter(r => !r.ok);
-  if (failures.length > 0) {
-    logger.warn(`\nFailed to migrate ${failures.length} config(s):`);
-    for (const f of failures) {
-      logger.warn(`  ${f.path}: ${f.error}`);
-    }
-    logger.warn(`\nBackup available for recovery.`);
-  }
-
-  // Update version tracker
-  setLastRunVersion(currentVersion);
+    return runMigrations({
+      fromVersion: lastVersion,
+      toVersion: currentVersion,
+      log: true,
+    });
+  });
 }
 ```
+
+`runMigrations` owns the end-to-end flow (status file, backups, atomic writes, per-file schemaVersion write-back, and `.cli-version` update on success).
 
 ### 8.5 Backup System
 
 ```typescript
-// packages/core/src/migrations/backup.ts
+// packages/agent-management/src/migrations/backup.ts
 
 const MAX_BACKUPS = 3;
 
@@ -1507,6 +1505,7 @@ export async function restoreBackup(backupPath?: string): Promise<void> {
   }
 
   const targetPath = getDextoGlobalPath('root');
+  await assertSafeDextoPath(targetPath);
 
   // Remove current
   await rm(targetPath, { recursive: true });
@@ -1514,7 +1513,20 @@ export async function restoreBackup(backupPath?: string): Promise<void> {
   // Restore from backup
   await cp(backupPath, targetPath, { recursive: true });
 }
+
+async function assertSafeDextoPath(targetPath: string): Promise<void> {
+  const real = await realpath(targetPath);
+  if (!real.endsWith('/.dexto')) {
+    throw new Error(`Refusing to delete unexpected path: ${real}`);
+  }
+  const stat = await lstat(real);
+  if (stat.isSymbolicLink()) {
+    throw new Error(`Refusing to delete symlink: ${real}`);
+  }
+}
 ```
+
+Backups only cover `~/.dexto` (configs, logs, sessions). Image packages are external dependencies and must be updated/rebuilt separately.
 
 ### 8.6 Upgrade Command
 
@@ -1662,6 +1674,31 @@ export async function agentResetCommand(agentId: string): Promise<void> {
 }
 ```
 
+### 8.8 Image Compatibility Check
+
+Images are versioned separately and can be built against older core versions. After loading an image, compare its `coreVersion` to the running core.
+
+```typescript
+// packages/cli/src/index.ts (after image import)
+
+import semver from 'semver';
+
+const { imageMetadata } = await import(imageName);
+const runningCore = getCurrentVersion(); // core version
+
+if (semver.valid(imageMetadata.coreVersion) && semver.valid(runningCore)) {
+  if (semver.major(imageMetadata.coreVersion) !== semver.major(runningCore)) {
+    console.warn(
+      `⚠️  Image '${imageMetadata.name}' was built for core v${imageMetadata.coreVersion}, ` +
+      `but you're running v${runningCore}.`
+    );
+    console.warn('💡 Rebuild or update the image package to match this core version.');
+  }
+}
+```
+
+This check should also surface in `dexto doctor` and during upgrades.
+
 ---
 
 ## 9. Edge Cases & Recovery
@@ -1687,21 +1724,21 @@ User copies a config from a friend on v1.5.0, but they're on v1.7.0.
 
 **Solutions:**
 1. **Validation catches it** - Zod fails if schema is incompatible
-2. **Optional schemaVersion field** - If present, use it for migration
+2. **Required schemaVersion field** - If missing, treat as legacy, infer version, migrate, and write schemaVersion back
 
 ```yaml
-# Optional field in config files
-schemaVersion: "1.5.0"  # If present, use this for migration
+# Required field in config files
+schemaVersion: "1.5.0"
 name: my-agent
 # ...
 ```
 
 ```typescript
-function getConfigVersion(config: unknown, fallback: string): string {
+function getConfigVersion(config: unknown, fallback: string): { version: string; needsWriteBack: boolean } {
   if (typeof config === 'object' && config !== null && 'schemaVersion' in config) {
-    return config.schemaVersion as string;
+    return { version: config.schemaVersion as string, needsWriteBack: false };
   }
-  return fallback;  // Use .cli-version
+  return { version: fallback, needsWriteBack: true };  // Legacy config; write schemaVersion back
 }
 ```
 
@@ -1776,6 +1813,17 @@ export async function upgradeCommand(options: { dryRun?: boolean }): Promise<voi
 }
 ```
 
+### 9.7 Unknown Fields in Config
+
+**Problem:** User adds custom fields or experimental keys that are not part of the schema.
+
+**Solution:** Abort migration and report the exact keys. Do not rewrite the file.
+
+```
+⚠️  Unknown fields in config: ['myCustomField', 'experimental']
+Remove these fields before retrying migration.
+```
+
 ---
 
 ## 10. File Structure
@@ -1784,19 +1832,26 @@ export async function upgradeCommand(options: { dryRun?: boolean }): Promise<voi
 packages/core/src/migrations/
 ├── index.ts              # Public exports
 ├── registry.ts           # Migration definitions
-├── executor.ts           # Migration execution logic
-├── version-tracker.ts    # .cli-version management
-├── backup.ts             # Backup/restore logic
+├── schema-shapes.json    # Generated schema shapes for CI
+├── schema-utils.ts       # Shape generation + breaking change detection
 ├── transforms/           # Individual migration transforms
 │   ├── v1.6.0.ts
 │   ├── v1.7.0.ts
 │   └── v2.0.0.ts
 └── __tests__/
     ├── registry.test.ts
-    ├── executor.test.ts
+    ├── schema-utils.test.ts
     └── transforms/
         ├── v1.6.0.test.ts
         └── ...
+packages/agent-management/src/migrations/
+├── index.ts              # Public exports
+├── executor.ts           # Migration execution logic (file I/O)
+├── version-tracker.ts    # .cli-version management
+├── backup.ts             # Backup/restore logic
+└── __tests__/
+    ├── executor.test.ts
+    └── version-tracker.test.ts
 
 packages/cli/src/cli/commands/
 ├── upgrade.ts            # dexto upgrade command
@@ -1808,21 +1863,17 @@ packages/cli/src/cli/commands/
 
 ## 11. Open Questions
 
-### 11.1 Schema Version in Config Files?
+### 11.1 Schema Version in Config Files
 
-Should we add an optional `schemaVersion` field to config files?
+**Decision:** Add a **required** `schemaVersion` field to agent configs and preferences.
 
-**Pros:**
-- Explicit version tracking per file
+**Rationale:**
+- Explicit per-file version tracking
 - Handles configs copied from elsewhere
-- Self-documenting
+- Avoids ambiguity from global `.cli-version`
 
-**Cons:**
-- Adds clutter
-- Users might delete it
-- Most cases work fine with .cli-version
-
-**Recommendation:** Add as optional field. Use if present, fall back to .cli-version.
+**Behavior:**
+- Missing `schemaVersion` = legacy config. Infer version from `.cli-version`, migrate, then write `schemaVersion` back.
 
 ### 11.2 Auto-Update Behavior?
 
@@ -1882,6 +1933,10 @@ This keeps `core` focused on the agent loop and pure logic, while file operation
 When we add new fields with defaults (e.g., `sounds` in 1.5.3), should upgrading populate the user's config file?
 
 **Recommendation:** Yes, via "enhancement migrations". See Section 12.11.
+
+### 11.8 YAML Comment Preservation
+
+**Decision:** Accept comment loss during migration writes. Document clearly that migrations rewrite YAML files and comments will not be preserved.
 
 ---
 
@@ -2020,7 +2075,14 @@ async function main() {
     },
   };
   
-  // 3. Check for changes
+  // 3. Bootstrap: if base branch has no shapes file, establish baseline
+  if (baseShapes.missing) {
+    console.log('✅ No base schema-shapes.json found (baseline established)');
+    verifyShapesFileUpdated(headShapes);
+    return;
+  }
+
+  // 4. Check for changes
   const agentChanged = baseShapes.agentConfig.hash !== headShapes.agentConfig.hash;
   const prefsChanged = baseShapes.preferences.hash !== headShapes.preferences.hash;
   
@@ -2029,7 +2091,7 @@ async function main() {
     return;
   }
   
-  // 4. Detect breaking changes
+  // 5. Detect breaking changes
   const agentBreaking = agentChanged 
     ? detectBreakingChanges(baseShapes.agentConfig.shape, headShapes.agentConfig.shape)
     : [];
@@ -2053,17 +2115,17 @@ async function main() {
     prefsBreaking.forEach(c => console.log(`  • ${formatChange(c)}`));
   }
   
-  // 5. Get migrations from BASE branch
+  // 6. Get migrations from BASE branch
   const baseMigrationVersions = getMigrationVersionsFromBranch(`origin/${BASE_REF}`);
   
-  // 6. Find NEW migrations (in HEAD but not in BASE)
+  // 7. Find NEW migrations (in HEAD but not in BASE)
   const newMigrations = migrations.filter(m => !baseMigrationVersions.has(m.version));
   
   if (newMigrations.length === 0) {
     fail('Breaking changes detected but no new migrations added');
   }
   
-  // 7. Verify new migrations have handlers for changed schemas
+  // 8. Verify new migrations have handlers for changed schemas
   const errors: string[] = [];
   
   if (agentBreaking.length > 0 && !newMigrations.some(m => m.agentConfig)) {
@@ -2087,13 +2149,14 @@ function getShapesFromBranch(branch: string) {
       `git show ${branch}:packages/core/src/migrations/schema-shapes.json`,
       { encoding: 'utf-8' }
     );
-    return JSON.parse(content);
+    return { ...JSON.parse(content), missing: false };
   } catch {
     // File doesn't exist in base branch - first time setup
     console.log('Note: schema-shapes.json not found in base branch (first-time setup)\n');
     return {
       agentConfig: { hash: '', shape: {} },
       preferences: { hash: '', shape: {} },
+      missing: true,
     };
   }
 }
@@ -2471,6 +2534,8 @@ The migration system runs on **CLI startup**, not during the upgrade command:
 6. Command executes with migrated configs
 ```
 
+Note: Image packages are separate dependencies; updating the CLI does not update images. The CLI should warn when an image was built against an incompatible core version.
+
 ### 13.2 Implementation: Startup Hook
 
 ```typescript
@@ -2521,6 +2586,7 @@ Starting chat session...
 | User runs multiple terminals | Use file locking on .cli-version during migration |
 | User downgrades version | Log warning, don't run reverse migrations (backups exist) |
 | First-time install | No .cli-version exists, skip migrations entirely |
+| Image built for different core version | Warn after image load and suggest rebuilding/updating the image package |
 
 ---
 
@@ -2548,6 +2614,7 @@ This section documents all edge cases and how they are handled.
 | 14 | Array item schema changes | Medium | Track array item shapes |
 | 15 | Union/discriminated union changes | Medium | Document as requiring manual migration |
 | 16 | Multiple PRs with schema changes merged in different order | Medium | Semver ordering; version conflicts caught at compile time |
+| 17 | Image package built against incompatible core version | Medium | Warn after image load; require rebuild/update for major mismatch |
 
 ### 14.2 Critical Edge Case: Partial Migration (Crash Recovery)
 
@@ -2556,7 +2623,7 @@ If the CLI crashes mid-migration, some configs may be migrated and some not.
 #### Solution: Migration Status Tracking
 
 ```typescript
-// packages/core/src/migrations/executor.ts
+// packages/agent-management/src/migrations/executor.ts
 
 interface MigrationStatus {
   startedAt: string;
@@ -2602,10 +2669,10 @@ export async function runMigrations(): Promise<MigrationResult> {
   try {
     // Create backup FIRST
     const backupPath = await createBackup();
-    
+
     // Migrate each file, tracking progress
     for (const configFile of getConfigFiles()) {
-      await migrateFile(configFile, status.fromVersion, status.toVersion);
+      await migrateFile(configFile, status.fromVersion, status.toVersion); // writes schemaVersion back
       status.completedFiles.push(configFile);
       writeFileSync(statusPath, JSON.stringify(status, null, 2)); // Checkpoint
     }
@@ -2634,9 +2701,9 @@ Two terminal windows running dexto simultaneously during migration could cause r
 #### Solution: File Locking
 
 ```typescript
-// packages/core/src/migrations/lock.ts
+// packages/agent-management/src/migrations/lock.ts
 
-import { lockSync, unlockSync } from 'proper-lockfile';
+import { lock } from 'proper-lockfile';
 
 const LOCK_FILE = '.migration.lock';
 
@@ -2648,24 +2715,25 @@ export async function withMigrationLock<T>(fn: () => Promise<T>): Promise<T> {
     writeFileSync(lockPath, '');
   }
   
-  let release: (() => void) | null = null;
+  let release: (() => Promise<void>) | null = null;
   
   try {
     // Acquire exclusive lock (blocks if another process has it)
-    release = await lockSync(lockPath, {
+    release = await lock(lockPath, {
       retries: {
         retries: 10,
         factor: 2,
         minTimeout: 100,
         maxTimeout: 1000,
       },
+      stale: 30_000,
     });
     
     return await fn();
     
   } finally {
     if (release) {
-      release();
+      await release();
     }
   }
 }
@@ -2692,7 +2760,7 @@ User has a config with `schemaVersion: "2.0.0"` but runs CLI v1.5.0 (downgrade, 
 #### Solution: Version Check
 
 ```typescript
-// packages/core/src/migrations/version-tracker.ts
+// packages/agent-management/src/migrations/version-tracker.ts
 
 export interface CompatibilityResult {
   compatible: boolean;
@@ -2706,7 +2774,7 @@ export function checkConfigCompatibility(configPath: string): CompatibilityResul
   const content = readFileSync(configPath, 'utf-8');
   const config = parseYaml(content);
   
-  // Check optional schemaVersion field
+  // Check required schemaVersion field
   if (config.schemaVersion) {
     const configVersion = config.schemaVersion;
     const cliVersion = getCurrentVersion();
@@ -2820,7 +2888,7 @@ describe('Migration Registry Validation', () => {
 User manually edits config and introduces syntax errors.
 
 ```typescript
-// packages/core/src/migrations/executor.ts
+// packages/agent-management/src/migrations/executor.ts
 
 async function migrateFile(
   configPath: string,
@@ -3187,11 +3255,12 @@ Dexto has been reset to a fresh install.
 - [ ] Implement `dexto doctor`
 - [ ] Implement `dexto clean`
 - [ ] Implement `dexto reset`
-- [ ] Add optional `schemaVersion` field support
+- [ ] Add required `schemaVersion` field support (with legacy bootstrap)
 
 ### Phase 5: Polish
 - [ ] Implement notification system for available updates
 - [ ] Add migration testing utilities
+- [ ] Add image compatibility warnings (core version mismatch)
 - [ ] Documentation
 - [ ] User guide for migration troubleshooting
 
