@@ -1780,6 +1780,13 @@ export class DextoAgent {
         // Always use the calculated estimate (which includes lastInput + lastOutput + newMessages when actuals available)
         const estimatedTokens = tokenEstimate.estimated;
 
+        const autoCompactBuffer =
+            thresholdPercent > 0 && thresholdPercent < 1.0
+                ? Math.floor((maxContextTokens * (1 - thresholdPercent)) / thresholdPercent)
+                : 0;
+        const totalTokenSpace = maxContextTokens + autoCompactBuffer;
+        const usedTokens = estimatedTokens + autoCompactBuffer;
+
         return {
             estimatedTokens,
             actualTokens: tokenEstimate.actual,
@@ -1787,7 +1794,7 @@ export class DextoAgent {
             modelContextWindow,
             thresholdPercent,
             usagePercent:
-                maxContextTokens > 0 ? Math.round((estimatedTokens / maxContextTokens) * 100) : 0,
+                totalTokenSpace > 0 ? Math.round((usedTokens / totalTokenSpace) * 100) : 0,
             messageCount: tokenEstimate.stats.originalMessageCount,
             filteredMessageCount: tokenEstimate.stats.filteredMessageCount,
             prunedToolCount: tokenEstimate.stats.prunedToolCount,

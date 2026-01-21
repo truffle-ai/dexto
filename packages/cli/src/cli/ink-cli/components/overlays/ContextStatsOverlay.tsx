@@ -337,7 +337,8 @@ const ContextStatsOverlay = forwardRef<ContextStatsOverlayHandle, ContextStatsOv
             return `${percent}%`;
         };
 
-        const tokenDisplay = `~${formatTokens(stats.estimatedTokens)}`;
+        const usedTokens = stats.estimatedTokens + autoCompactBuffer;
+        const tokenDisplay = `~${formatTokens(usedTokens)}`;
 
         const isToolsExpanded = expandedSections.has('tools');
 
@@ -434,7 +435,7 @@ const ContextStatsOverlay = forwardRef<ContextStatsOverlayHandle, ContextStatsOv
                 {/* Token summary */}
                 <Box marginBottom={1}>
                     <Text color="gray">
-                        {tokenDisplay} / {formatTokens(stats.maxContextTokens)} tokens
+                        {tokenDisplay} / {formatTokens(totalTokenSpace)} tokens
                     </Text>
                     <Text color="gray"> • </Text>
                     <Text

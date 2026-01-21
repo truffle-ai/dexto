@@ -343,24 +343,6 @@ export const generalCommands: CommandDefinition[] = [
                     return tokens.toLocaleString();
                 };
 
-                // Helper to calculate percentage of max
-                const pct = (tokens: number): string => {
-                    const percent =
-                        stats.maxContextTokens > 0
-                            ? ((tokens / stats.maxContextTokens) * 100).toFixed(1)
-                            : '0.0';
-                    return `${percent}%`;
-                };
-
-                const overflowWarning = stats.usagePercent > 100 ? ' ⚠️  OVERFLOW' : '';
-                const { breakdown } = stats;
-
-                // Show actual tokens if available, otherwise estimate with indicator
-                const tokenDisplay =
-                    stats.actualTokens !== null
-                        ? `${formatTokens(stats.actualTokens)}`
-                        : `~${formatTokens(stats.estimatedTokens)}`;
-
                 // Calculate auto compact buffer (reserved space before compaction triggers)
                 // maxContextTokens already has thresholdPercent applied, so we need to derive
                 // the buffer as: maxContextTokens * (1 - thresholdPercent) / thresholdPercent
@@ -377,17 +359,32 @@ export const generalCommands: CommandDefinition[] = [
                         ? `Auto compact buffer (${bufferPercent}%)`
                         : 'Auto compact buffer';
 
+                const totalTokenSpace = stats.maxContextTokens + autoCompactBuffer;
+                const usedTokens = stats.estimatedTokens + autoCompactBuffer;
+
+                // Helper to calculate percentage of total token space
+                const pct = (tokens: number): string => {
+                    const percent =
+                        totalTokenSpace > 0 ? ((tokens / totalTokenSpace) * 100).toFixed(1) : '0.0';
+                    return `${percent}%`;
+                };
+
+                const overflowWarning = stats.usagePercent > 100 ? ' ⚠️  OVERFLOW' : '';
+                const { breakdown } = stats;
+
+                const tokenDisplay = `~${formatTokens(usedTokens)}`;
+
                 const breakdownLabel = chalk.dim('(estimated)');
                 const lines = [
                     `📊 Context Usage`,
                     `   ${usageColor(progressBar)} ${stats.usagePercent}%${overflowWarning}`,
-                    `   ${chalk.dim(stats.modelDisplayName)} · ${tokenDisplay} / ${formatTokens(stats.maxContextTokens)} tokens`,
+                    `   ${chalk.dim(stats.modelDisplayName)} · ${tokenDisplay} / ${formatTokens(totalTokenSpace)} tokens`,
                     ``,
                     `   ${chalk.cyan('Breakdown:')} ${breakdownLabel}`,
                     `   ├─ System prompt: ${formatTokens(breakdown.systemPrompt)} (${pct(breakdown.systemPrompt)})`,
                     `   ├─ Tools: ${formatTokens(breakdown.tools.total)} (${pct(breakdown.tools.total)})`,
                     `   ├─ Messages: ${formatTokens(breakdown.messages)} (${pct(breakdown.messages)})`,
-                    `   └─ ${bufferLabel}: ${formatTokens(autoCompactBuffer)} (reserved)`,
+                    `   └─ ${bufferLabel}: ${formatTokens(autoCompactBuffer)} (${pct(autoCompactBuffer)})`,
                     ``,
                     `   Messages: ${stats.filteredMessageCount} visible (${stats.messageCount} total)`,
                 ];
