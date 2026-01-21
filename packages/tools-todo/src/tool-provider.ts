@@ -75,9 +75,7 @@ export const todoToolsProvider: CustomToolProvider<'todo-tools', TodoToolsConfig
         // Start initialization in background
         todoService.initialize().catch((error) => {
             const message = error instanceof Error ? error.message : String(error);
-            logger.error(`TodoToolsProvider.create: Failed to initialize TodoService: ${message}`, {
-                color: 'red',
-            });
+            logger.error(`TodoToolsProvider.create: Failed to initialize TodoService: ${message}`);
         });
 
         logger.debug('TodoService created - initialization will complete on first tool use');
