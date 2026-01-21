@@ -207,11 +207,41 @@ export const generalCommands: CommandDefinition[] = [
         },
     },
     {
+        name: 'new',
+        description: 'Start a new conversation',
+        usage: '/new',
+        category: 'General',
+        handler: async (
+            _args: string[],
+            agent: DextoAgent,
+            ctx: CommandContext
+        ): Promise<boolean | string> => {
+            try {
+                // Create a new session
+                const newSession = await agent.createSession();
+                const newSessionId = newSession.id;
+
+                // Emit session:created to switch the CLI to the new session
+                agent.agentEventBus.emit('session:created', {
+                    sessionId: newSessionId,
+                    switchTo: true,
+                });
+
+                return formatForInkCli(
+                    `✨ New conversation started\n💡 Use /resume to see previous conversations`
+                );
+            } catch (error) {
+                const errorMsg = `Failed to create new session: ${error instanceof Error ? error.message : String(error)}`;
+                agent.logger.error(errorMsg);
+                return formatForInkCli(`❌ ${errorMsg}`);
+            }
+        },
+    },
+    {
         name: 'clear',
-        description: 'Clear context window (history preserved in DB, not sent to LLM)',
+        description: 'Continue conversation, free up AI context window',
         usage: '/clear',
         category: 'General',
-        aliases: ['new'],
         handler: async (
             _args: string[],
             agent: DextoAgent,
@@ -228,7 +258,7 @@ export const generalCommands: CommandDefinition[] = [
                 await agent.clearContext(sessionId);
 
                 return formatForInkCli(
-                    '🔄 Context cleared\n💡 Previous messages preserved in history but not sent to LLM.'
+                    '🧹 Context window cleared\n💡 Conversation continues - AI will not see older messages'
                 );
             } catch (error) {
                 const errorMsg = `Failed to clear context: ${error instanceof Error ? error.message : String(error)}`;
