@@ -147,7 +147,7 @@ describe('Context Compaction Integration Tests', () => {
     /**
      * Helper to add a batch of messages to the context
      */
-    async function addMessages(count: number, timestampBase: number): Promise<void> {
+    async function addMessages(count: number): Promise<void> {
         for (let i = 0; i < count; i++) {
             await contextManager.addUserMessage([{ type: 'text', text: `Question ${i}` }]);
             await contextManager.addAssistantMessage(`Answer ${i}`);
@@ -173,7 +173,7 @@ describe('Context Compaction Integration Tests', () => {
     describe('Single Compaction', () => {
         it('should compact history and filterCompacted should return correct messages', async () => {
             // Add 20 messages (10 turns)
-            await addMessages(10, 1000);
+            await addMessages(10);
 
             const historyBefore = await contextManager.getHistory();
             expect(historyBefore).toHaveLength(20);
@@ -202,16 +202,18 @@ describe('Context Compaction Integration Tests', () => {
     describe('Multiple Sequential Compactions', () => {
         it('should handle two compactions correctly', async () => {
             // === FIRST COMPACTION ===
-            await addMessages(10, 1000);
+            await addMessages(10);
             const summary1 = await runCompaction();
             expect(summary1).not.toBeNull();
             expect(summary1?.metadata?.isRecompaction).toBeUndefined();
 
             const historyAfter1 = await contextManager.getHistory();
+            // Verify first compaction produced fewer filtered messages
             const filtered1 = filterCompacted(historyAfter1);
+            expect(filtered1.length).toBeLessThan(historyAfter1.length);
 
             // === ADD MORE MESSAGES ===
-            await addMessages(10, 2000);
+            await addMessages(10);
 
             const historyBefore2 = await contextManager.getHistory();
             // 21 (after first compaction) + 20 new = 41
@@ -242,18 +244,18 @@ describe('Context Compaction Integration Tests', () => {
 
         it('should handle three compactions correctly', async () => {
             // === FIRST COMPACTION ===
-            await addMessages(10, 1000);
+            await addMessages(10);
             const summary1 = await runCompaction();
             expect(summary1).not.toBeNull();
 
             // === SECOND COMPACTION ===
-            await addMessages(10, 2000);
+            await addMessages(10);
             const summary2 = await runCompaction();
             expect(summary2).not.toBeNull();
             expect(summary2?.metadata?.isRecompaction).toBe(true);
 
             // === THIRD COMPACTION ===
-            await addMessages(10, 3000);
+            await addMessages(10);
             const summary3 = await runCompaction();
             expect(summary3).not.toBeNull();
             expect(summary3?.metadata?.isRecompaction).toBe(true);
@@ -286,7 +288,7 @@ describe('Context Compaction Integration Tests', () => {
 
         it('should correctly calculate originalMessageCount for each compaction', async () => {
             // === FIRST COMPACTION ===
-            await addMessages(10, 1000);
+            await addMessages(10);
             const summary1 = await runCompaction();
             expect(summary1).not.toBeNull();
 
@@ -296,7 +298,7 @@ describe('Context Compaction Integration Tests', () => {
             expect(originalCount1).toBeLessThan(20); // Less than total, some were preserved
 
             // === SECOND COMPACTION ===
-            await addMessages(10, 2000);
+            await addMessages(10);
             const historyBefore2 = await contextManager.getHistory();
             const summary1Index = historyBefore2.findIndex((m) => m === summary1);
 
@@ -323,7 +325,7 @@ describe('Context Compaction Integration Tests', () => {
 
     describe('Edge Cases', () => {
         it('should not compact if history is too short', async () => {
-            await addMessages(1, 1000); // Only 2 messages
+            await addMessages(1); // Only 2 messages
 
             const summary = await runCompaction();
             expect(summary).toBeNull();
@@ -331,11 +333,11 @@ describe('Context Compaction Integration Tests', () => {
 
         it('should not re-compact if few messages after existing summary', async () => {
             // First compaction
-            await addMessages(10, 1000);
+            await addMessages(10);
             await runCompaction();
 
             // Add only 2 messages (4 messages = 2 turns, below threshold)
-            await addMessages(2, 2000);
+            await addMessages(2);
 
             // Should skip re-compaction
             const summary2 = await runCompaction();
@@ -346,9 +348,9 @@ describe('Context Compaction Integration Tests', () => {
             // This tests the real integration with ContextManager.prepareHistory()
             // which is what's used when formatting messages for LLM
 
-            await addMessages(10, 1000);
+            await addMessages(10);
             await runCompaction();
-            await addMessages(10, 2000);
+            await addMessages(10);
             await runCompaction();
 
             // prepareHistory uses filterCompacted internally
@@ -365,7 +367,7 @@ describe('Context Compaction Integration Tests', () => {
 
     describe('Token Estimation After Compaction', () => {
         it('should provide accurate token estimates after compaction', async () => {
-            await addMessages(10, 1000);
+            await addMessages(10);
 
             // Get estimate before compaction
             const estimateBefore = await contextManager.getContextTokenEstimate({ mcpManager }, {});
@@ -384,9 +386,9 @@ describe('Context Compaction Integration Tests', () => {
         });
 
         it('should maintain consistency between /context and compaction stats', async () => {
-            await addMessages(10, 1000);
+            await addMessages(10);
             await runCompaction();
-            await addMessages(10, 2000);
+            await addMessages(10);
             await runCompaction();
 
             // This is what /context command uses

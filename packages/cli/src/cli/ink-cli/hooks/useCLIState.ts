@@ -193,6 +193,7 @@ export function useCLIState({
         setApprovalQueue,
         setQueuedMessages,
         currentSessionId: session.id,
+        buffer,
     });
 
     // Create input handlers for the orchestrator

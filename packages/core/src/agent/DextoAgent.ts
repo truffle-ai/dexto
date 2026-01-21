@@ -1560,9 +1560,9 @@ export class DextoAgent {
     public async compactContext(sessionId: string): Promise<{
         /** The session that was compacted */
         sessionId: string;
-        /** Estimated tokens in the summary */
-        summaryTokens: number;
-        /** Number of messages that were summarized */
+        /** Estimated tokens in context after compaction (includes system prompt, tools, and messages) */
+        compactedContextTokens: number;
+        /** Number of messages before compaction */
         originalMessages: number;
         /** Number of messages after compaction (summary + preserved) */
         compactedMessages: number;
@@ -1669,7 +1669,7 @@ export class DextoAgent {
 
         return {
             sessionId,
-            summaryTokens: compactedTokens,
+            compactedContextTokens: compactedTokens,
             originalMessages,
             compactedMessages,
         };

@@ -31,6 +31,7 @@ import {
 import type { Message, UIState, SessionState, InputState } from '../state/types.js';
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
 import { generateMessageId } from '../utils/idGenerator.js';
+import type { TextBuffer } from '../components/shared/text-buffer.js';
 
 interface UseAgentEventsProps {
     agent: DextoAgent;
@@ -44,6 +45,8 @@ interface UseAgentEventsProps {
     setQueuedMessages: React.Dispatch<React.SetStateAction<QueuedMessage[]>>;
     /** Current session ID for filtering events */
     currentSessionId: string | null;
+    /** Text buffer for input (source of truth) - needed to clear on session reset */
+    buffer: TextBuffer;
 }
 
 /**
@@ -73,6 +76,7 @@ export function useAgentEvents({
     setApprovalQueue,
     setQueuedMessages,
     currentSessionId,
+    buffer,
 }: UseAgentEventsProps): void {
     // Track if an external trigger is active (scheduler, A2A, etc.)
     const externalTriggerRef = useRef<{
@@ -128,9 +132,11 @@ export function useAgentEvents({
             'session:created',
             (payload) => {
                 if (payload.switchTo) {
-                    // Clear the terminal screen for a fresh start
+                    // Clear the terminal screen for a fresh start (only in TTY environments)
                     // \x1B[2J clears visible screen, \x1B[3J clears scrollback, \x1B[H moves cursor to top
-                    process.stdout.write('\x1B[2J\x1B[3J\x1B[H');
+                    if (process.stdout.isTTY) {
+                        process.stdout.write('\x1B[2J\x1B[3J\x1B[H');
+                    }
 
                     // Clear all message state
                     setMessages([]);
@@ -140,6 +146,8 @@ export function useAgentEvents({
                     setQueuedMessages([]);
 
                     // Reset input state including history (up/down arrow) and Ctrl+R search state
+                    // Clear TextBuffer first (source of truth), then sync React state
+                    buffer.setText('');
                     setInput((prev) => ({
                         ...prev,
                         value: '',
