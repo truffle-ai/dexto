@@ -131,7 +131,7 @@ export async function processStream(
         setPendingMessages,
         setDequeuedBuffer,
         setUi,
-        setSession,
+        setSession: _setSession,
         setQueuedMessages,
         setApproval,
         setApprovalQueue,

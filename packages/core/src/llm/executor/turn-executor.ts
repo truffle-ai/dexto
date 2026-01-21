@@ -10,13 +10,7 @@ import {
 } from 'ai';
 import { trace } from '@opentelemetry/api';
 import { ContextManager } from '../../context/manager.js';
-import type {
-    TextPart,
-    ImagePart,
-    FilePart,
-    UIResourcePart,
-    InternalMessage,
-} from '../../context/types.js';
+import type { TextPart, ImagePart, FilePart, UIResourcePart } from '../../context/types.js';
 import { ToolManager } from '../../tools/tool-manager.js';
 import { ToolSet } from '../../tools/types.js';
 import { StreamProcessor } from './stream-processor.js';

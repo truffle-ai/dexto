@@ -214,7 +214,7 @@ export const generalCommands: CommandDefinition[] = [
         handler: async (
             _args: string[],
             agent: DextoAgent,
-            ctx: CommandContext
+            _ctx: CommandContext
         ): Promise<boolean | string> => {
             try {
                 // Create a new session

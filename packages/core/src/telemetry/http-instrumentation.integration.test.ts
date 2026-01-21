@@ -34,7 +34,7 @@ describe('HTTP Instrumentation', () => {
             resource: new Resource({
                 [ATTR_SERVICE_NAME]: 'http-instrumentation-test',
             }),
-            spanProcessor: new SimpleSpanProcessor(memoryExporter),
+            spanProcessor: new SimpleSpanProcessor(memoryExporter) as any,
             instrumentations: [new HttpInstrumentation(), new UndiciInstrumentation()],
         });
 
@@ -105,7 +105,7 @@ describe('HTTP Instrumentation', () => {
         expect(httpSpans.length).toBeGreaterThan(0);
 
         // Verify the span has expected HTTP attributes
-        const httpSpan = httpSpans[0];
+        const httpSpan = httpSpans[0]!;
         const attrs = httpSpan.attributes;
 
         // Should have URL-related attributes

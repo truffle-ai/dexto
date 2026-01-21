@@ -1071,7 +1071,7 @@ export class DextoAgent {
                         (await this.sessionManager.createSession(sessionId));
 
                     // Call session.stream() directly with ALL content parts
-                    const streamResult = await session.stream(
+                    const _streamResult = await session.stream(
                         contentParts,
                         signal ? { signal } : undefined
                     );
