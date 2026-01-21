@@ -37,7 +37,7 @@ export const processingPhrases: string[] = [
     'Why waste time say lot word when few word do trick?…',
     "You're a wizard, Harry…",
     "I'll be back…",
-    'Houstons, we have a problem…',
+    'Houston, we have a problem…',
     'Are you not entertained?…',
     'To infinity and beyond…',
     'Snakes. Why did it have to be snakes?…',
