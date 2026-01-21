@@ -3,6 +3,7 @@ import { ReactiveOverflowStrategy } from './reactive-overflow.js';
 import type { InternalMessage } from '../../types.js';
 import type { LanguageModel } from 'ai';
 import { createMockLogger } from '../../../logger/v2/test-utils.js';
+import { filterCompacted } from '../../utils.js';
 
 // Mock the ai module
 vi.mock('ai', async (importOriginal) => {
@@ -263,6 +264,241 @@ describe('ReactiveOverflowStrategy', () => {
             // Should have re-compaction metadata
             expect(result).toHaveLength(1);
             expect(result[0]?.metadata?.isRecompaction).toBe(true);
+        });
+
+        it('should set originalMessageCount as absolute index for filterCompacted compatibility', async () => {
+            mockGenerateText.mockResolvedValue({
+                text: '<session_compaction>Re-compacted summary</session_compaction>',
+            } as Awaited<ReturnType<typeof generateText>>);
+
+            // History with existing summary at index 2
+            // - Indices 0-1: old messages (summarized by old summary)
+            // - Index 2: old summary with originalMessageCount=2
+            // - Indices 3-8: 6 messages after old summary
+            const history: InternalMessage[] = [
+                createUserMessage('Very old question', 1000),
+                createAssistantMessage('Very old answer', 1001),
+                createSummaryMessage('Previous summary', 2, 1002),
+                // 6 messages after the summary
+                createUserMessage('Q1', 2000),
+                createAssistantMessage('A1', 2001),
+                createUserMessage('Q2', 2002),
+                createAssistantMessage('A2', 2003),
+                createUserMessage('Q3', 2004),
+                createAssistantMessage('A3', 2005),
+            ];
+
+            // Run re-compaction
+            const result = await strategy.compact(history);
+            expect(result).toHaveLength(1);
+
+            const newSummary = result[0]!;
+            expect(newSummary.metadata?.isRecompaction).toBe(true);
+
+            // The existing summary is at index 2, and messagesAfterSummary has 6 messages
+            // With default preserveLastNTurns=2, we split: toSummarize=2, toKeep=4
+            // So originalMessageCount should be: (2 + 1) + 2 = 5 (absolute index)
+            // NOT 2 (relative count of summarized messages)
+            expect(newSummary.metadata?.originalMessageCount).toBe(5);
+
+            // Simulate adding the new summary to history
+            const historyAfterCompaction = [...history, newSummary];
+
+            // Verify filterCompacted works correctly with the new summary
+            const filtered = filterCompacted(historyAfterCompaction);
+
+            // Should return: [newSummary, 4 preserved messages]
+            // NOT: [newSummary, everything from index 2 onwards]
+            expect(filtered).toHaveLength(5); // 1 summary + 4 preserved
+            expect(filtered[0]?.metadata?.isRecompaction).toBe(true);
+            // The preserved messages should be the last 4 (indices 5-8 in original)
+            expect(filtered[1]?.role).toBe('user');
+            expect(filtered[4]?.role).toBe('assistant');
+        });
+
+        it('should ensure filterCompacted does not return old summary or pre-summary messages after re-compaction', async () => {
+            mockGenerateText.mockResolvedValue({
+                text: '<session_compaction>New summary</session_compaction>',
+            } as Awaited<ReturnType<typeof generateText>>);
+
+            // Large history to make the bug more obvious
+            const history: InternalMessage[] = [];
+            // 50 old messages (indices 0-49)
+            for (let i = 0; i < 50; i++) {
+                history.push(createUserMessage(`Old Q${i}`, 1000 + i * 2));
+                history.push(createAssistantMessage(`Old A${i}`, 1001 + i * 2));
+            }
+            // Old summary at index 100 with originalMessageCount=90
+            history.push(createSummaryMessage('Old summary', 90, 2000));
+            // 30 more messages after the old summary (indices 101-130)
+            for (let i = 0; i < 15; i++) {
+                history.push(createUserMessage(`New Q${i}`, 3000 + i * 2));
+                history.push(createAssistantMessage(`New A${i}`, 3001 + i * 2));
+            }
+
+            expect(history).toHaveLength(131);
+
+            // Re-compaction should happen
+            const result = await strategy.compact(history);
+            expect(result).toHaveLength(1);
+
+            const newSummary = result[0]!;
+            expect(newSummary.metadata?.isRecompaction).toBe(true);
+
+            // Add new summary to history
+            const historyAfterCompaction = [...history, newSummary];
+
+            // filterCompacted should NOT return the old summary or pre-old-summary messages
+            const filtered = filterCompacted(historyAfterCompaction);
+
+            // Check that the old summary is NOT in the filtered result
+            const hasOldSummary = filtered.some(
+                (msg) => msg.metadata?.isSummary && !msg.metadata?.isRecompaction
+            );
+            expect(hasOldSummary).toBe(false);
+
+            // The filtered result should be much smaller than the original
+            // With 30 messages after old summary, keeping ~20%, we should have:
+            // ~6 preserved messages + 1 new summary = ~7 messages
+            expect(filtered.length).toBeLessThan(20);
+        });
+
+        it('should handle three sequential compactions correctly', async () => {
+            mockGenerateText.mockResolvedValue({
+                text: '<session_compaction>Summary content</session_compaction>',
+            } as Awaited<ReturnType<typeof generateText>>);
+
+            // Helper to simulate adding messages and compacting
+            let history: InternalMessage[] = [];
+
+            // === PHASE 1: First compaction ===
+            // Add 20 messages (10 turns)
+            for (let i = 0; i < 10; i++) {
+                history.push(createUserMessage(`Q${i}`, 1000 + i * 2));
+                history.push(createAssistantMessage(`A${i}`, 1001 + i * 2));
+            }
+            expect(history).toHaveLength(20);
+
+            // First compaction - no existing summary
+            const result1 = await strategy.compact(history);
+            expect(result1).toHaveLength(1);
+            const summary1 = result1[0]!;
+            expect(summary1.metadata?.isRecompaction).toBeUndefined();
+
+            // Add summary1 to history
+            history.push(summary1);
+            expect(history).toHaveLength(21);
+
+            // Verify filterCompacted after first compaction
+            let filtered = filterCompacted(history);
+            expect(filtered.length).toBeLessThan(15); // Should be summary + few preserved
+
+            // === PHASE 2: Add more messages, then second compaction ===
+            // Add 20 more messages after summary1
+            for (let i = 10; i < 20; i++) {
+                history.push(createUserMessage(`Q${i}`, 2000 + i * 2));
+                history.push(createAssistantMessage(`A${i}`, 2001 + i * 2));
+            }
+            expect(history).toHaveLength(41);
+
+            // Second compaction - should detect summary1
+            const result2 = await strategy.compact(history);
+            expect(result2).toHaveLength(1);
+            const summary2 = result2[0]!;
+            expect(summary2.metadata?.isRecompaction).toBe(true);
+
+            // Add summary2 to history
+            history.push(summary2);
+            expect(history).toHaveLength(42);
+
+            // Verify filterCompacted after second compaction
+            filtered = filterCompacted(history);
+            // Should return summary2 + preserved, NOT summary1
+            expect(filtered[0]?.metadata?.isRecompaction).toBe(true);
+            const hasSummary1 = filtered.some(
+                (m) => m.metadata?.isSummary && !m.metadata?.isRecompaction
+            );
+            expect(hasSummary1).toBe(false);
+
+            // === PHASE 3: Add more messages, then third compaction ===
+            // Add 20 more messages after summary2
+            for (let i = 20; i < 30; i++) {
+                history.push(createUserMessage(`Q${i}`, 3000 + i * 2));
+                history.push(createAssistantMessage(`A${i}`, 3001 + i * 2));
+            }
+            expect(history).toHaveLength(62);
+
+            // Third compaction - should detect summary2 (most recent)
+            const result3 = await strategy.compact(history);
+            expect(result3).toHaveLength(1);
+            const summary3 = result3[0]!;
+            expect(summary3.metadata?.isRecompaction).toBe(true);
+
+            // Add summary3 to history
+            history.push(summary3);
+            expect(history).toHaveLength(63);
+
+            // Verify filterCompacted after third compaction
+            filtered = filterCompacted(history);
+
+            // Critical assertions:
+            // 1. Most recent summary (summary3) should be first
+            expect(filtered[0]?.metadata?.isRecompaction).toBe(true);
+            expect(filtered[0]).toBe(summary3);
+
+            // 2. Neither summary1 nor summary2 should be in the result
+            const oldSummaries = filtered.filter((m) => m.metadata?.isSummary && m !== summary3);
+            expect(oldSummaries).toHaveLength(0);
+
+            // 3. Result should be much smaller than total history
+            expect(filtered.length).toBeLessThan(20);
+
+            // 4. All messages in filtered result should be either:
+            //    - summary3, or
+            //    - messages with timestamps from the most recent batch (3000+)
+            for (const msg of filtered) {
+                if (msg === summary3) continue;
+                // Recent messages should have timestamps >= 3000
+                expect(msg.timestamp).toBeGreaterThanOrEqual(3000);
+            }
+        });
+
+        it('should work correctly with manual compaction followed by automatic compaction', async () => {
+            mockGenerateText.mockResolvedValue({
+                text: '<session_compaction>Summary</session_compaction>',
+            } as Awaited<ReturnType<typeof generateText>>);
+
+            // Simulate manual compaction first
+            let history: InternalMessage[] = [];
+            for (let i = 0; i < 10; i++) {
+                history.push(createUserMessage(`Q${i}`, 1000 + i));
+                history.push(createAssistantMessage(`A${i}`, 1000 + i));
+            }
+
+            // Manual compaction (uses same compact() method)
+            const manualResult = await strategy.compact(history);
+            expect(manualResult).toHaveLength(1);
+            history.push(manualResult[0]!);
+
+            // Add more messages
+            for (let i = 10; i < 20; i++) {
+                history.push(createUserMessage(`Q${i}`, 2000 + i));
+                history.push(createAssistantMessage(`A${i}`, 2000 + i));
+            }
+
+            // Automatic compaction (also uses same compact() method)
+            const autoResult = await strategy.compact(history);
+            expect(autoResult).toHaveLength(1);
+            expect(autoResult[0]?.metadata?.isRecompaction).toBe(true);
+            history.push(autoResult[0]!);
+
+            // Verify final state
+            const filtered = filterCompacted(history);
+            expect(filtered[0]?.metadata?.isRecompaction).toBe(true);
+
+            // Only the most recent summary should be visible
+            const summaryCount = filtered.filter((m) => m.metadata?.isSummary).length;
+            expect(summaryCount).toBe(1);
         });
     });
 
