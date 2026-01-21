@@ -428,7 +428,7 @@ export interface AgentEventMap {
         originalMessages: number;
         compactedMessages: number;
         strategy: string;
-        reason: 'overflow' | 'token_limit' | 'message_limit' | 'manual';
+        reason: 'overflow' | 'manual';
         sessionId: string;
     };
 
@@ -637,7 +637,7 @@ export interface SessionEventMap {
         originalMessages: number;
         compactedMessages: number;
         strategy: string;
-        reason: 'overflow' | 'token_limit' | 'message_limit' | 'manual';
+        reason: 'overflow' | 'manual';
     };
 
     /** Old tool outputs were pruned (marked with compactedAt) to save tokens */

@@ -825,42 +825,8 @@ export async function processStream(
                     break;
                 }
 
-                case 'context:compacting': {
-                    // Context compaction starting - show compacting indicator
-                    setUi((prev) => ({ ...prev, isCompacting: true }));
-                    break;
-                }
-
-                case 'context:compacted': {
-                    // Context was compacted - clear compacting state and show notification
-                    setUi((prev) => ({ ...prev, isCompacting: false }));
-
-                    const reductionPercent =
-                        event.originalTokens > 0
-                            ? Math.round(
-                                  ((event.originalTokens - event.compactedTokens) /
-                                      event.originalTokens) *
-                                      100
-                              )
-                            : 0;
-
-                    // Show compaction notification
-                    const compactionContent =
-                        `📦 Context compacted (${event.reason})\n` +
-                        `   Tokens: ${event.originalTokens.toLocaleString()} → ~${event.compactedTokens.toLocaleString()} (${reductionPercent}% reduction)\n` +
-                        `   Messages: ${event.originalMessages} → ${event.compactedMessages}`;
-
-                    setMessages((prev) => [
-                        ...prev,
-                        {
-                            id: generateMessageId('system'),
-                            role: 'system',
-                            content: compactionContent,
-                            timestamp: new Date(),
-                        },
-                    ]);
-                    break;
-                }
+                // Note: context:compacting and context:compacted are handled in useAgentEvents.ts
+                // as the single source of truth for both manual /compact and auto-compaction
 
                 case 'approval:request': {
                     // Handle approval requests in processStream (NOT useAgentEvents) to ensure

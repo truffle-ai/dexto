@@ -285,6 +285,8 @@ export const generalCommands: CommandDefinition[] = [
                 }
 
                 // Compact context - generates summary and hides older messages
+                // The context:compacting and context:compacted events are handled by useAgentEvents
+                // which shows the compacting indicator and notification message
                 const result = await agent.compactContext(sessionId);
 
                 if (!result) {
@@ -293,11 +295,8 @@ export const generalCommands: CommandDefinition[] = [
                     );
                 }
 
-                return formatForInkCli(
-                    `📦 Context compacted\n` +
-                        `   ${result.originalMessages} messages → ${result.compactedMessages} messages (~${result.summaryTokens.toLocaleString()} tokens)\n` +
-                        `💡 Older messages summarized. Conversation continues in same session.`
-                );
+                // Return true - notification is shown via context:compacted event handler
+                return true;
             } catch (error) {
                 const errorMsg = `Failed to compact context: ${error instanceof Error ? error.message : String(error)}`;
                 agent.logger.error(errorMsg);

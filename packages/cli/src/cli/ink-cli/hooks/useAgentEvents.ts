@@ -9,6 +9,8 @@
  * - llm:switched - Model change notifications
  * - session:reset - Conversation reset
  * - session:created - New session creation (e.g., from /clear)
+ * - context:compacting - Context compaction starting (from /compact or auto)
+ * - context:compacted - Context compaction finished
  * - message:queued - New message added to queue
  * - message:removed - Message removed from queue (e.g., up arrow edit)
  * - run:invoke - External trigger (scheduler, A2A, API) starting a run
@@ -154,6 +156,52 @@ export function useAgentEvents({
                 setApprovalQueue([]);
                 setQueuedMessages([]);
                 setUi((prev) => ({ ...prev, activeOverlay: 'none' }));
+            },
+            { signal }
+        );
+
+        // Handle context compacting (from /compact command or auto-compaction)
+        // Single source of truth - handles both manual /compact and auto-compaction during streaming
+        bus.on(
+            'context:compacting',
+            (payload) => {
+                if (payload.sessionId !== currentSessionId) return;
+                setUi((prev) => ({ ...prev, isCompacting: true }));
+            },
+            { signal }
+        );
+
+        // Handle context compacted
+        // Single source of truth - shows notification for all compaction (manual and auto)
+        bus.on(
+            'context:compacted',
+            (payload) => {
+                if (payload.sessionId !== currentSessionId) return;
+                setUi((prev) => ({ ...prev, isCompacting: false }));
+
+                const reductionPercent =
+                    payload.originalTokens > 0
+                        ? Math.round(
+                              ((payload.originalTokens - payload.compactedTokens) /
+                                  payload.originalTokens) *
+                                  100
+                          )
+                        : 0;
+
+                const compactionContent =
+                    `📦 Context compacted\n` +
+                    `   ${payload.originalMessages} messages → ${payload.compactedMessages} messages\n` +
+                    `   ~${payload.originalTokens.toLocaleString()} → ~${payload.compactedTokens.toLocaleString()} tokens (${reductionPercent}% reduction)`;
+
+                setMessages((prev) => [
+                    ...prev,
+                    {
+                        id: generateMessageId('system'),
+                        role: 'system' as const,
+                        content: compactionContent,
+                        timestamp: new Date(),
+                    },
+                ]);
             },
             { signal }
         );
