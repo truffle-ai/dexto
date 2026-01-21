@@ -207,11 +207,41 @@ export const generalCommands: CommandDefinition[] = [
         },
     },
     {
+        name: 'new',
+        description: 'Start a new conversation',
+        usage: '/new',
+        category: 'General',
+        handler: async (
+            _args: string[],
+            agent: DextoAgent,
+            _ctx: CommandContext
+        ): Promise<boolean | string> => {
+            try {
+                // Create a new session
+                const newSession = await agent.createSession();
+                const newSessionId = newSession.id;
+
+                // Emit session:created to switch the CLI to the new session
+                agent.agentEventBus.emit('session:created', {
+                    sessionId: newSessionId,
+                    switchTo: true,
+                });
+
+                return formatForInkCli(
+                    `✨ New conversation started\n💡 Use /resume to see previous conversations`
+                );
+            } catch (error) {
+                const errorMsg = `Failed to create new session: ${error instanceof Error ? error.message : String(error)}`;
+                agent.logger.error(errorMsg);
+                return formatForInkCli(`❌ ${errorMsg}`);
+            }
+        },
+    },
+    {
         name: 'clear',
-        description: 'Clear context window (history preserved in DB, not sent to LLM)',
+        description: 'Continue conversation, free up AI context window',
         usage: '/clear',
         category: 'General',
-        aliases: ['new'],
         handler: async (
             _args: string[],
             agent: DextoAgent,
@@ -228,7 +258,7 @@ export const generalCommands: CommandDefinition[] = [
                 await agent.clearContext(sessionId);
 
                 return formatForInkCli(
-                    '🔄 Context cleared\n💡 Previous messages preserved in history but not sent to LLM.'
+                    '🧹 Context window cleared\n💡 Conversation continues - AI will not see older messages'
                 );
             } catch (error) {
                 const errorMsg = `Failed to clear context: ${error instanceof Error ? error.message : String(error)}`;
@@ -255,6 +285,8 @@ export const generalCommands: CommandDefinition[] = [
                 }
 
                 // Compact context - generates summary and hides older messages
+                // The context:compacting and context:compacted events are handled by useAgentEvents
+                // which shows the compacting indicator and notification message
                 const result = await agent.compactContext(sessionId);
 
                 if (!result) {
@@ -263,12 +295,8 @@ export const generalCommands: CommandDefinition[] = [
                     );
                 }
 
-                return formatForInkCli(
-                    `📦 Context compacted → Continuing in new session\n` +
-                        `   ${result.previousSessionId.slice(0, 8)}... → ${result.newSessionId.slice(0, 8)}...\n` +
-                        `   ${result.originalMessages} messages → ~${result.summaryTokens.toLocaleString()} token summary\n` +
-                        `💡 New session created with conversation summary. Old session preserved.`
-                );
+                // Return true - notification is shown via context:compacted event handler
+                return true;
             } catch (error) {
                 const errorMsg = `Failed to compact context: ${error instanceof Error ? error.message : String(error)}`;
                 agent.logger.error(errorMsg);
@@ -315,24 +343,6 @@ export const generalCommands: CommandDefinition[] = [
                     return tokens.toLocaleString();
                 };
 
-                // Helper to calculate percentage of max
-                const pct = (tokens: number): string => {
-                    const percent =
-                        stats.maxContextTokens > 0
-                            ? ((tokens / stats.maxContextTokens) * 100).toFixed(1)
-                            : '0.0';
-                    return `${percent}%`;
-                };
-
-                const overflowWarning = stats.usagePercent > 100 ? ' ⚠️  OVERFLOW' : '';
-                const { breakdown } = stats;
-
-                // Show actual tokens if available, otherwise estimate with indicator
-                const tokenDisplay =
-                    stats.actualTokens !== null
-                        ? `${formatTokens(stats.actualTokens)}`
-                        : `~${formatTokens(stats.estimatedTokens)}`;
-
                 // Calculate auto compact buffer (reserved space before compaction triggers)
                 // maxContextTokens already has thresholdPercent applied, so we need to derive
                 // the buffer as: maxContextTokens * (1 - thresholdPercent) / thresholdPercent
@@ -349,16 +359,32 @@ export const generalCommands: CommandDefinition[] = [
                         ? `Auto compact buffer (${bufferPercent}%)`
                         : 'Auto compact buffer';
 
+                const totalTokenSpace = stats.maxContextTokens + autoCompactBuffer;
+                const usedTokens = stats.estimatedTokens + autoCompactBuffer;
+
+                // Helper to calculate percentage of total token space
+                const pct = (tokens: number): string => {
+                    const percent =
+                        totalTokenSpace > 0 ? ((tokens / totalTokenSpace) * 100).toFixed(1) : '0.0';
+                    return `${percent}%`;
+                };
+
+                const overflowWarning = stats.usagePercent > 100 ? ' ⚠️  OVERFLOW' : '';
+                const { breakdown } = stats;
+
+                const tokenDisplay = `~${formatTokens(usedTokens)}`;
+
+                const breakdownLabel = chalk.dim('(estimated)');
                 const lines = [
                     `📊 Context Usage`,
                     `   ${usageColor(progressBar)} ${stats.usagePercent}%${overflowWarning}`,
-                    `   ${chalk.dim(stats.modelDisplayName)} · ${tokenDisplay} / ${formatTokens(stats.maxContextTokens)} tokens`,
+                    `   ${chalk.dim(stats.modelDisplayName)} · ${tokenDisplay} / ${formatTokens(totalTokenSpace)} tokens`,
                     ``,
-                    `   ${chalk.cyan('Breakdown:')} ${stats.actualTokens === null ? chalk.dim('(estimated)') : ''}`,
+                    `   ${chalk.cyan('Breakdown:')} ${breakdownLabel}`,
                     `   ├─ System prompt: ${formatTokens(breakdown.systemPrompt)} (${pct(breakdown.systemPrompt)})`,
                     `   ├─ Tools: ${formatTokens(breakdown.tools.total)} (${pct(breakdown.tools.total)})`,
                     `   ├─ Messages: ${formatTokens(breakdown.messages)} (${pct(breakdown.messages)})`,
-                    `   └─ ${bufferLabel}: ${formatTokens(autoCompactBuffer)} (reserved)`,
+                    `   └─ ${bufferLabel}: ${formatTokens(autoCompactBuffer)} (${pct(autoCompactBuffer)})`,
                     ``,
                     `   Messages: ${stats.filteredMessageCount} visible (${stats.messageCount} total)`,
                 ];

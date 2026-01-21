@@ -37,7 +37,6 @@ interface ContextStats {
     filteredMessageCount: number;
     prunedToolCount: number;
     hasSummary: boolean;
-    compactionCount: number;
     model: string;
     modelDisplayName: string;
     breakdown: {
@@ -338,7 +337,8 @@ const ContextStatsOverlay = forwardRef<ContextStatsOverlayHandle, ContextStatsOv
             return `${percent}%`;
         };
 
-        const tokenDisplay = `~${formatTokens(stats.estimatedTokens)}`;
+        const usedTokens = stats.estimatedTokens + autoCompactBuffer;
+        const tokenDisplay = `~${formatTokens(usedTokens)}`;
 
         const isToolsExpanded = expandedSections.has('tools');
 
@@ -435,7 +435,7 @@ const ContextStatsOverlay = forwardRef<ContextStatsOverlayHandle, ContextStatsOv
                 {/* Token summary */}
                 <Box marginBottom={1}>
                     <Text color="gray">
-                        {tokenDisplay} / {formatTokens(stats.maxContextTokens)} tokens
+                        {tokenDisplay} / {formatTokens(totalTokenSpace)} tokens
                     </Text>
                     <Text color="gray"> • </Text>
                     <Text
@@ -516,11 +516,8 @@ const ContextStatsOverlay = forwardRef<ContextStatsOverlayHandle, ContextStatsOv
                         <Text color="yellow">🗑️ {stats.prunedToolCount} tool output(s) pruned</Text>
                     )}
 
-                    {stats.compactionCount > 0 && (
-                        <Text color="blue">
-                            📦 Compacted {stats.compactionCount} time
-                            {stats.compactionCount > 1 ? 's' : ''}
-                        </Text>
+                    {stats.hasSummary && (
+                        <Text color="blue">📦 Context has been compacted (summary present)</Text>
                     )}
 
                     {stats.usagePercent > 100 && (

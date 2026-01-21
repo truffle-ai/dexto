@@ -28,7 +28,6 @@ export type LLMFinishReason =
 export const AGENT_EVENT_NAMES = [
     'session:reset',
     'session:created',
-    'session:continued',
     'session:title-updated',
     'session:override-set',
     'session:override-cleared',
@@ -121,7 +120,6 @@ export const STREAMING_EVENTS = [
 
     // Session metadata
     'session:title-updated',
-    'session:continued',
 
     // Approval events (needed for tool confirmation in streaming UIs)
     'approval:request',
@@ -230,26 +228,6 @@ export interface AgentEventMap {
     'session:created': {
         sessionId: string | null; // null means clear without creating (deferred creation)
         switchTo: boolean; // Whether UI should switch to this session
-    };
-
-    /** Fired when context compaction creates a new session (session-native compaction) */
-    'session:continued': {
-        /** The session that was compacted */
-        previousSessionId: string;
-        /** The new session to continue in */
-        newSessionId: string;
-        /** Number of tokens in the summary */
-        summaryTokens: number;
-        /** Original message count that was summarized */
-        originalMessages: number;
-        /** Why the compaction occurred */
-        reason: 'overflow' | 'manual';
-        /** The new session ID (for consistency with other streaming events) */
-        sessionId: string;
-        /** Model name/ID for the new session (for UI sync) */
-        model: string;
-        /** Display name for the model (for UI sync) */
-        modelDisplayName?: string;
     };
 
     /** Fired when a session's human-friendly title is updated */
@@ -450,7 +428,7 @@ export interface AgentEventMap {
         originalMessages: number;
         compactedMessages: number;
         strategy: string;
-        reason: 'overflow' | 'token_limit' | 'message_limit' | 'manual';
+        reason: 'overflow' | 'manual';
         sessionId: string;
     };
 
@@ -659,7 +637,7 @@ export interface SessionEventMap {
         originalMessages: number;
         compactedMessages: number;
         strategy: string;
-        reason: 'overflow' | 'token_limit' | 'message_limit' | 'manual';
+        reason: 'overflow' | 'manual';
     };
 
     /** Old tool outputs were pruned (marked with compactedAt) to save tokens */

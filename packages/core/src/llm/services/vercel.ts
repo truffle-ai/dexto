@@ -17,7 +17,6 @@ import type { ValidatedLLMConfig } from '../schemas.js';
 import { InstrumentClass } from '../../telemetry/decorators.js';
 import { trace, context, propagation } from '@opentelemetry/api';
 import { TurnExecutor } from '../executor/turn-executor.js';
-import type { CompactionData } from '../executor/types.js';
 import { MessageQueueService } from '../../session/message-queue.js';
 import type { ResourceManager } from '../../resources/index.js';
 import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
@@ -167,7 +166,7 @@ export class VercelLLMService {
     /**
      * Result from streaming a response.
      */
-    public static StreamResult: { text: string; didCompact: boolean; compaction?: CompactionData };
+    public static StreamResult: { text: string };
 
     /**
      * Stream a response for the given content.
@@ -175,12 +174,12 @@ export class VercelLLMService {
      *
      * @param content - String or ContentPart[] (text, images, files)
      * @param options - { signal?: AbortSignal }
-     * @returns Object with text response, whether compaction occurred, and compaction data if applicable
+     * @returns Object with text response
      */
     async stream(
         content: ContentInput,
         options?: { signal?: AbortSignal }
-    ): Promise<{ text: string; didCompact: boolean; compaction?: CompactionData }> {
+    ): Promise<{ text: string }> {
         // Get active span and context for telemetry
         const activeSpan = trace.getActiveSpan();
         const currentContext = context.active();
@@ -232,9 +231,6 @@ export class VercelLLMService {
 
             return {
                 text: result.text ?? '',
-                didCompact: result.didCompact,
-                // Use spread to conditionally include compaction (exactOptionalPropertyTypes)
-                ...(result.compaction && { compaction: result.compaction }),
             };
         });
     }

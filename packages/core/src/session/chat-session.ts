@@ -27,7 +27,6 @@ import type { InternalMessage, ContentPart } from '../context/types.js';
 import type { UserMessageInput } from './message-queue.js';
 import type { ContentInput } from '../agent/types.js';
 import { getModelPricing, calculateCost } from '../llm/registry.js';
-import type { CompactionData } from '../llm/executor/types.js';
 
 /**
  * Represents an isolated conversation session within a Dexto agent.
@@ -326,15 +325,15 @@ export class ChatSession {
      *
      * @param content - String or ContentPart[] (text, images, files)
      * @param options - { signal?: AbortSignal }
-     * @returns Promise that resolves to object with text and compaction status
+     * @returns Promise that resolves to object with text response
      *
      * @example
      * ```typescript
      * // Text only
-     * const { text, didCompact } = await session.stream('What is the weather?');
+     * const { text } = await session.stream('What is the weather?');
      *
      * // Multiple images
-     * const { text, didCompact } = await session.stream([
+     * const { text } = await session.stream([
      *     { type: 'text', text: 'Compare these images' },
      *     { type: 'image', image: base64Data1, mimeType: 'image/png' },
      *     { type: 'image', image: base64Data2, mimeType: 'image/png' }
@@ -344,7 +343,7 @@ export class ChatSession {
     public async stream(
         content: ContentInput,
         options?: { signal?: AbortSignal }
-    ): Promise<{ text: string; didCompact: boolean; compaction?: CompactionData }> {
+    ): Promise<{ text: string }> {
         // Normalize content to ContentPart[]
         const parts: ContentPart[] =
             typeof content === 'string' ? [{ type: 'text', text: content }] : content;
@@ -443,9 +442,6 @@ export class ChatSession {
 
             return {
                 text: modifiedResponsePayload.content,
-                didCompact: streamResult.didCompact,
-                // Use spread to conditionally include compaction (exactOptionalPropertyTypes)
-                ...(streamResult.compaction && { compaction: streamResult.compaction }),
             };
         } catch (error) {
             // If this was an intentional cancellation, return partial response from history
@@ -463,13 +459,28 @@ export class ChatSession {
                 try {
                     const history = await this.getHistory();
                     const lastAssistant = history.filter((m) => m.role === 'assistant').pop();
-                    if (lastAssistant && typeof lastAssistant.content === 'string') {
-                        return { text: lastAssistant.content, didCompact: false };
+                    if (lastAssistant) {
+                        if (typeof lastAssistant.content === 'string') {
+                            return { text: lastAssistant.content };
+                        }
+                        // Handle multimodal content (ContentPart[]) - extract text parts
+                        if (Array.isArray(lastAssistant.content)) {
+                            const text = lastAssistant.content
+                                .filter(
+                                    (part): part is { type: 'text'; text: string } =>
+                                        part.type === 'text'
+                                )
+                                .map((part) => part.text)
+                                .join('');
+                            if (text) {
+                                return { text };
+                            }
+                        }
                     }
                 } catch {
                     this.logger.debug('Failed to retrieve partial response from history on cancel');
                 }
-                return { text: '', didCompact: false };
+                return { text: '' };
             }
 
             // Check if this is a plugin blocking error
@@ -497,7 +508,7 @@ export class ChatSession {
                     );
                 }
 
-                return { text: error.message, didCompact: false };
+                return { text: error.message };
             }
 
             this.logger.error(
@@ -574,8 +585,7 @@ export class ChatSession {
      * @see {@link ContextManager.resetConversation} for the underlying implementation
      */
     public async reset(): Promise<void> {
-        // Reset history via history provider
-        await this.historyProvider.clearHistory();
+        await this.llmService.getContextManager().resetConversation();
 
         // Emit agent-level event with session context
         this.services.agentEventBus.emit('session:reset', {

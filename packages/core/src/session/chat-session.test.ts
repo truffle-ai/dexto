@@ -59,6 +59,7 @@ describe('ChatSession', () => {
     let mockCache: any;
     let mockDatabase: any;
     let mockBlobStore: any;
+    let mockContextManager: any;
     const mockLogger = createMockLogger();
 
     const sessionId = 'test-session-123';
@@ -82,9 +83,13 @@ describe('ChatSession', () => {
         };
 
         // Mock LLM service
+        mockContextManager = {
+            resetConversation: vi.fn().mockResolvedValue(undefined),
+        };
         mockLLMService = {
             stream: vi.fn().mockResolvedValue('Mock response'),
             switchLLM: vi.fn().mockResolvedValue(undefined),
+            getContextManager: vi.fn().mockReturnValue(mockContextManager),
             eventBus: {
                 emit: vi.fn(),
                 on: vi.fn(),
@@ -257,8 +262,8 @@ describe('ChatSession', () => {
 
             await chatSession.reset();
 
-            // Should call clearHistory on history provider
-            expect(mockHistoryProvider.clearHistory).toHaveBeenCalled();
+            // Should reset conversation via ContextManager
+            expect(mockContextManager.resetConversation).toHaveBeenCalled();
 
             // Should emit dexto:conversationReset event with session context
             expect(mockServices.agentEventBus.emit).toHaveBeenCalledWith('session:reset', {
@@ -397,11 +402,11 @@ describe('ChatSession', () => {
             const userMessage = 'Hello, world!';
             const expectedResponse = 'Hello! How can I help you?';
 
-            mockLLMService.stream.mockResolvedValue({ text: expectedResponse, didCompact: false });
+            mockLLMService.stream.mockResolvedValue({ text: expectedResponse });
 
             const response = await chatSession.stream(userMessage);
 
-            expect(response).toEqual({ text: expectedResponse, didCompact: false });
+            expect(response).toEqual({ text: expectedResponse });
             expect(mockLLMService.stream).toHaveBeenCalledWith(
                 [{ type: 'text', text: userMessage }],
                 expect.objectContaining({ signal: expect.any(AbortSignal) })
