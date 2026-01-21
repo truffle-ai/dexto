@@ -188,10 +188,12 @@ export function useCLIState({
         setPendingMessages,
         setUi,
         setSession,
+        setInput,
         setApproval,
         setApprovalQueue,
         setQueuedMessages,
         currentSessionId: session.id,
+        buffer,
     });
 
     // Create input handlers for the orchestrator

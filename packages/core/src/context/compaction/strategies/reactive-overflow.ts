@@ -146,7 +146,7 @@ export class ReactiveOverflowStrategy implements ICompactionStrategy {
 
             // Re-run compaction on the subset after the summary
             // This prevents cascading summaries of summaries
-            return this.compactSubset(messagesAfterSummary, history);
+            return this.compactSubset(messagesAfterSummary, history, existingSummaryIndex);
         }
 
         // Split history into messages to summarize and messages to keep
@@ -195,11 +195,13 @@ export class ReactiveOverflowStrategy implements ICompactionStrategy {
      *
      * @param messagesAfterSummary Messages after the existing summary
      * @param fullHistory The complete history (for current task detection)
+     * @param existingSummaryIndex Index of the existing summary in fullHistory
      * @returns Array with single summary message, or empty if nothing to summarize
      */
     private async compactSubset(
         messagesAfterSummary: readonly InternalMessage[],
-        fullHistory: readonly InternalMessage[]
+        fullHistory: readonly InternalMessage[],
+        existingSummaryIndex: number
     ): Promise<InternalMessage[]> {
         // Split the subset into messages to summarize and keep
         const { toSummarize, toKeep } = this.splitHistory(messagesAfterSummary);
@@ -220,8 +222,15 @@ export class ReactiveOverflowStrategy implements ICompactionStrategy {
         const summary = await this.generateSummary(toSummarize, currentTaskMessage);
 
         // Create summary message
-        // Note: originalMessageCount here is relative to the messages being summarized,
-        // not the total history. filterCompacted will use this to know how many to skip.
+        // originalMessageCount must be an ABSOLUTE index for filterCompacted() to work correctly.
+        // filterCompacted() uses this as: history.slice(originalMessageCount, summaryIndex)
+        // to get the preserved messages. For re-compaction:
+        // - Messages 0 to existingSummaryIndex are the old summarized + preserved + old summary
+        // - Messages (existingSummaryIndex + 1) onwards are what we're re-compacting
+        // - We summarize toSummarize.length of those, so preserved starts at:
+        //   (existingSummaryIndex + 1) + toSummarize.length
+        const absoluteOriginalMessageCount = existingSummaryIndex + 1 + toSummarize.length;
+
         const summaryMessage: InternalMessage = {
             role: 'assistant',
             content: [{ type: 'text', text: summary }],
@@ -229,7 +238,7 @@ export class ReactiveOverflowStrategy implements ICompactionStrategy {
             metadata: {
                 isSummary: true,
                 summarizedAt: Date.now(),
-                originalMessageCount: toSummarize.length,
+                originalMessageCount: absoluteOriginalMessageCount,
                 isRecompaction: true, // Mark that this is a re-compaction
                 originalFirstTimestamp: toSummarize[0]?.timestamp,
                 originalLastTimestamp: toSummarize[toSummarize.length - 1]?.timestamp,

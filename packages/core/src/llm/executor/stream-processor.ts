@@ -10,6 +10,19 @@ import { IDextoLogger } from '../../logger/v2/types.js';
 import { DextoLogComponent } from '../../logger/v2/types.js';
 import { LLMProvider, TokenUsage } from '../types.js';
 
+type UsageLike = {
+    inputTokens?: number | undefined;
+    outputTokens?: number | undefined;
+    totalTokens?: number | undefined;
+    reasoningTokens?: number | undefined;
+    cachedInputTokens?: number | undefined;
+    inputTokenDetails?: {
+        noCacheTokens?: number | undefined;
+        cacheReadTokens?: number | undefined;
+        cacheWriteTokens?: number | undefined;
+    };
+};
+
 export interface StreamProcessorConfig {
     provider: LLMProvider;
     model: string;
@@ -25,6 +38,7 @@ export class StreamProcessor {
     private reasoningMetadata: Record<string, unknown> | undefined;
     private accumulatedText: string = '';
     private logger: IDextoLogger;
+    private hasStepUsage = false;
     /**
      * Track pending tool calls (added to context but no result yet).
      * On cancel/abort, we add synthetic "cancelled" results to maintain tool_use/tool_result pairing.
@@ -221,86 +235,91 @@ export class StreamProcessor {
                         // If we abort mid-stream, that chunk never arrives. The tokens are
                         // still billed by the provider, but we can't report them.
                         if (event.usage) {
-                            // Extract cache tokens from provider metadata (provider-specific)
-                            // Anthropic returns cache tokens in providerMetadata, not in usage
-                            // Bedrock follows similar pattern for Claude models
-                            const anthropicMeta = event.providerMetadata?.['anthropic'] as
-                                | Record<string, number>
-                                | undefined;
-                            const bedrockMeta = event.providerMetadata?.['bedrock'] as
-                                | { usage?: Record<string, number> }
-                                | undefined;
-
-                            const cacheWriteTokens =
-                                anthropicMeta?.['cacheCreationInputTokens'] ??
-                                bedrockMeta?.usage?.['cacheWriteInputTokens'] ??
-                                0;
-
-                            // Cache read tokens: Anthropic uses providerMetadata, others use usage.cachedInputTokens
-                            const cacheReadTokens =
-                                anthropicMeta?.['cacheReadInputTokens'] ??
-                                bedrockMeta?.usage?.['cacheReadInputTokens'] ??
-                                event.usage.cachedInputTokens ??
-                                0;
+                            const providerMetadata = this.getProviderMetadata(event);
+                            const stepUsage = this.normalizeUsage(event.usage, providerMetadata);
 
                             // Accumulate usage across steps
                             this.actualTokens = {
                                 inputTokens:
                                     (this.actualTokens.inputTokens ?? 0) +
-                                    (event.usage.inputTokens ?? 0),
+                                    (stepUsage.inputTokens ?? 0),
                                 outputTokens:
                                     (this.actualTokens.outputTokens ?? 0) +
-                                    (event.usage.outputTokens ?? 0),
+                                    (stepUsage.outputTokens ?? 0),
                                 totalTokens:
                                     (this.actualTokens.totalTokens ?? 0) +
-                                    (event.usage.totalTokens ?? 0),
-                                ...(event.usage.reasoningTokens !== undefined && {
+                                    (stepUsage.totalTokens ?? 0),
+                                ...(stepUsage.reasoningTokens !== undefined && {
                                     reasoningTokens:
                                         (this.actualTokens.reasoningTokens ?? 0) +
-                                        event.usage.reasoningTokens,
+                                        stepUsage.reasoningTokens,
                                 }),
                                 // Cache tokens
                                 cacheReadTokens:
-                                    (this.actualTokens.cacheReadTokens ?? 0) + cacheReadTokens,
+                                    (this.actualTokens.cacheReadTokens ?? 0) +
+                                    (stepUsage.cacheReadTokens ?? 0),
                                 cacheWriteTokens:
-                                    (this.actualTokens.cacheWriteTokens ?? 0) + cacheWriteTokens,
+                                    (this.actualTokens.cacheWriteTokens ?? 0) +
+                                    (stepUsage.cacheWriteTokens ?? 0),
                             };
+                            this.hasStepUsage = true;
                         }
                         break;
 
                     case 'finish': {
                         this.finishReason = event.finishReason;
 
-                        // Use cache tokens accumulated from finish-step events (provider metadata)
-                        // For providers without finish-step events, fall back to totalUsage.cachedInputTokens
-                        const cacheReadTokens =
-                            this.actualTokens.cacheReadTokens ??
-                            event.totalUsage.cachedInputTokens ??
-                            0;
-                        const cacheWriteTokens = this.actualTokens.cacheWriteTokens ?? 0;
+                        const providerMetadata = this.getProviderMetadata(event);
+                        const fallbackUsage = this.normalizeUsage(
+                            event.totalUsage,
+                            providerMetadata
+                        );
+                        const usage = this.hasStepUsage ? { ...this.actualTokens } : fallbackUsage;
 
-                        // Adjust input tokens based on provider
-                        // Anthropic/Bedrock: inputTokens already excludes cached tokens
-                        // Other providers: inputTokens includes cached, need to subtract
-                        const providerExcludesCached =
-                            this.config.provider === 'anthropic' ||
-                            (this.config.provider as string) === 'bedrock';
-                        const adjustedInputTokens = providerExcludesCached
-                            ? (event.totalUsage.inputTokens ?? 0)
-                            : (event.totalUsage.inputTokens ?? 0) - cacheReadTokens;
+                        // Backfill usage fields from fallback when step usage reported zeros/undefined.
+                        // This handles edge cases where providers send partial usage in finish-step
+                        // events but complete usage in the final finish event (e.g., Anthropic sends
+                        // cache tokens in providerMetadata rather than usage object).
+                        if (this.hasStepUsage) {
+                            // Backfill input/output tokens if step usage was zero but fallback has values.
+                            // This is defensive - most providers report these consistently, but we log
+                            // when backfill occurs to detect any providers with this edge case.
+                            const fallbackInput = fallbackUsage.inputTokens ?? 0;
+                            if ((usage.inputTokens ?? 0) === 0 && fallbackInput > 0) {
+                                this.logger.debug(
+                                    'Backfilling inputTokens from fallback usage (step reported 0)',
+                                    { stepValue: usage.inputTokens, fallbackValue: fallbackInput }
+                                );
+                                usage.inputTokens = fallbackInput;
+                            }
+                            const fallbackOutput = fallbackUsage.outputTokens ?? 0;
+                            if ((usage.outputTokens ?? 0) === 0 && fallbackOutput > 0) {
+                                this.logger.debug(
+                                    'Backfilling outputTokens from fallback usage (step reported 0)',
+                                    { stepValue: usage.outputTokens, fallbackValue: fallbackOutput }
+                                );
+                                usage.outputTokens = fallbackOutput;
+                            }
+                            const fallbackCacheRead = fallbackUsage.cacheReadTokens ?? 0;
+                            if ((usage.cacheReadTokens ?? 0) === 0 && fallbackCacheRead > 0) {
+                                usage.cacheReadTokens = fallbackCacheRead;
+                            }
+                            const fallbackCacheWrite = fallbackUsage.cacheWriteTokens ?? 0;
+                            if ((usage.cacheWriteTokens ?? 0) === 0 && fallbackCacheWrite > 0) {
+                                usage.cacheWriteTokens = fallbackCacheWrite;
+                            }
+                            const fallbackTotalTokens = fallbackUsage.totalTokens ?? 0;
+                            if ((usage.totalTokens ?? 0) === 0 && fallbackTotalTokens > 0) {
+                                usage.totalTokens = fallbackTotalTokens;
+                            }
+                            if (
+                                usage.reasoningTokens === undefined &&
+                                fallbackUsage.reasoningTokens !== undefined
+                            ) {
+                                usage.reasoningTokens = fallbackUsage.reasoningTokens;
+                            }
+                        }
 
-                        const usage = {
-                            inputTokens: adjustedInputTokens,
-                            outputTokens: event.totalUsage.outputTokens ?? 0,
-                            totalTokens: event.totalUsage.totalTokens ?? 0,
-                            // Capture reasoning tokens if available (from Claude extended thinking, etc.)
-                            ...(event.totalUsage.reasoningTokens !== undefined && {
-                                reasoningTokens: event.totalUsage.reasoningTokens,
-                            }),
-                            // Cache tokens from accumulated finish-step events or totalUsage fallback
-                            cacheReadTokens,
-                            cacheWriteTokens,
-                        };
                         this.actualTokens = usage;
 
                         // Log complete LLM response for debugging
@@ -496,6 +515,81 @@ export class StreamProcessor {
             finishReason: this.finishReason,
             usage: this.actualTokens,
         };
+    }
+
+    private getCacheTokensFromProviderMetadata(
+        providerMetadata: Record<string, unknown> | undefined
+    ): { cacheReadTokens: number; cacheWriteTokens: number } {
+        const anthropicMeta = providerMetadata?.['anthropic'] as Record<string, number> | undefined;
+        const bedrockMeta = providerMetadata?.['bedrock'] as
+            | { usage?: Record<string, number> }
+            | undefined;
+
+        const cacheWriteTokens =
+            anthropicMeta?.['cacheCreationInputTokens'] ??
+            bedrockMeta?.usage?.['cacheWriteInputTokens'] ??
+            0;
+        const cacheReadTokens =
+            anthropicMeta?.['cacheReadInputTokens'] ??
+            bedrockMeta?.usage?.['cacheReadInputTokens'] ??
+            0;
+
+        return { cacheReadTokens, cacheWriteTokens };
+    }
+
+    private normalizeUsage(
+        usage: UsageLike | undefined,
+        providerMetadata?: Record<string, unknown>
+    ): TokenUsage {
+        const inputTokensRaw = usage?.inputTokens ?? 0;
+        const outputTokens = usage?.outputTokens ?? 0;
+        const totalTokens = usage?.totalTokens ?? 0;
+        const reasoningTokens = usage?.reasoningTokens;
+        const cachedInputTokens = usage?.cachedInputTokens;
+        const inputTokenDetails = usage?.inputTokenDetails;
+
+        const providerCache = this.getCacheTokensFromProviderMetadata(providerMetadata);
+        const cacheReadTokens =
+            inputTokenDetails?.cacheReadTokens ??
+            cachedInputTokens ??
+            providerCache.cacheReadTokens ??
+            0;
+        const cacheWriteTokens =
+            inputTokenDetails?.cacheWriteTokens ?? providerCache.cacheWriteTokens ?? 0;
+
+        const needsCacheWriteAdjustment =
+            inputTokenDetails === undefined &&
+            cachedInputTokens !== undefined &&
+            providerCache.cacheWriteTokens > 0;
+        const noCacheTokens =
+            inputTokenDetails?.noCacheTokens ??
+            (cachedInputTokens !== undefined
+                ? inputTokensRaw -
+                  cachedInputTokens -
+                  (needsCacheWriteAdjustment ? providerCache.cacheWriteTokens : 0)
+                : inputTokensRaw);
+
+        return {
+            inputTokens: Math.max(0, noCacheTokens),
+            outputTokens,
+            totalTokens,
+            ...(reasoningTokens !== undefined && { reasoningTokens }),
+            cacheReadTokens,
+            cacheWriteTokens,
+        };
+    }
+
+    private getProviderMetadata(
+        event: Record<string, unknown>
+    ): Record<string, unknown> | undefined {
+        const metadata =
+            'providerMetadata' in event
+                ? (event as { providerMetadata?: Record<string, unknown> }).providerMetadata
+                : undefined;
+        if (!metadata || typeof metadata !== 'object') {
+            return undefined;
+        }
+        return metadata;
     }
 
     private async createAssistantMessage(): Promise<string> {

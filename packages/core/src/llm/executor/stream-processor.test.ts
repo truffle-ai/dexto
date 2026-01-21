@@ -839,6 +839,86 @@ describe('StreamProcessor', () => {
             });
         });
 
+        test('subtracts cached input tokens from inputTokens when cachedInputTokens is present', async () => {
+            const mocks = createMocks();
+            const processor = new StreamProcessor(
+                mocks.contextManager,
+                mocks.eventBus,
+                mocks.resourceManager,
+                mocks.abortController.signal,
+                mocks.config,
+                mocks.logger,
+                true
+            );
+
+            const events = [
+                { type: 'text-delta', text: 'Response' },
+                {
+                    type: 'finish',
+                    finishReason: 'stop',
+                    totalUsage: {
+                        inputTokens: 1000,
+                        outputTokens: 50,
+                        totalTokens: 1050,
+                        cachedInputTokens: 900,
+                    },
+                },
+            ];
+
+            const result = await processor.process(() => createMockStream(events) as never);
+
+            expect(result.usage).toEqual({
+                inputTokens: 100,
+                outputTokens: 50,
+                totalTokens: 1050,
+                cacheReadTokens: 900,
+                cacheWriteTokens: 0,
+            });
+        });
+
+        test('avoids double-counting cache write tokens when only cachedInputTokens are present', async () => {
+            const mocks = createMocks();
+            const processor = new StreamProcessor(
+                mocks.contextManager,
+                mocks.eventBus,
+                mocks.resourceManager,
+                mocks.abortController.signal,
+                mocks.config,
+                mocks.logger,
+                true
+            );
+
+            const events = [
+                { type: 'text-delta', text: 'Response' },
+                {
+                    type: 'finish',
+                    finishReason: 'stop',
+                    providerMetadata: {
+                        anthropic: {
+                            cacheCreationInputTokens: 100,
+                            cacheReadInputTokens: 900,
+                        },
+                    },
+                    totalUsage: {
+                        inputTokens: 1100,
+                        outputTokens: 50,
+                        totalTokens: 1150,
+                        cachedInputTokens: 900,
+                    },
+                },
+            ];
+
+            const result = await processor.process(() => createMockStream(events) as never);
+
+            expect(result.usage).toEqual({
+                inputTokens: 100,
+                outputTokens: 50,
+                totalTokens: 1150,
+                cacheReadTokens: 900,
+                cacheWriteTokens: 100,
+            });
+        });
+
         test('updates assistant message with usage', async () => {
             const mocks = createMocks();
             const processor = new StreamProcessor(

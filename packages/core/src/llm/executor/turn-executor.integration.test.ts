@@ -50,6 +50,7 @@ function createMockStream(options: {
     text?: string;
     finishReason?: string;
     usage?: { inputTokens: number; outputTokens: number; totalTokens: number };
+    providerMetadata?: Record<string, unknown>;
     toolCalls?: Array<{ toolCallId: string; toolName: string; args: Record<string, unknown> }>;
     reasoning?: string;
 }) {
@@ -86,6 +87,7 @@ function createMockStream(options: {
         type: 'finish',
         finishReason: options.finishReason ?? 'stop',
         totalUsage: options.usage ?? { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
+        ...(options.providerMetadata && { providerMetadata: options.providerMetadata }),
     });
 
     return {
@@ -865,6 +867,35 @@ describe('TurnExecutor Integration Tests', () => {
             // getContextTokenEstimate should return the actual value
             const estimate = await contextManager.getContextTokenEstimate({ mcpManager }, {});
             expect(estimate.actual).toBe(expectedInputTokens);
+        });
+
+        it('should include cached tokens in actual context input tracking', async () => {
+            const noCacheTokens = 200;
+            const cacheReadTokens = 800;
+
+            vi.mocked(streamText).mockImplementation(
+                () =>
+                    createMockStream({
+                        text: 'Response',
+                        finishReason: 'stop',
+                        usage: {
+                            inputTokens: noCacheTokens,
+                            outputTokens: 10,
+                            totalTokens: noCacheTokens + 10,
+                        },
+                        providerMetadata: {
+                            anthropic: {
+                                cacheReadInputTokens: cacheReadTokens,
+                                cacheCreationInputTokens: 0,
+                            },
+                        },
+                    }) as unknown as ReturnType<typeof streamText>
+            );
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+            await executor.execute({ mcpManager }, true);
+
+            expect(contextManager.getLastActualInputTokens()).toBe(noCacheTokens + cacheReadTokens);
         });
     });
 });

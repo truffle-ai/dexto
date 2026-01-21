@@ -9,6 +9,8 @@
  * - llm:switched - Model change notifications
  * - session:reset - Conversation reset
  * - session:created - New session creation (e.g., from /clear)
+ * - context:compacting - Context compaction starting (from /compact or auto)
+ * - context:compacted - Context compaction finished
  * - message:queued - New message added to queue
  * - message:removed - Message removed from queue (e.g., up arrow edit)
  * - run:invoke - External trigger (scheduler, A2A, API) starting a run
@@ -26,9 +28,10 @@ import {
     type QueuedMessage,
     type ContentPart,
 } from '@dexto/core';
-import type { Message, UIState, SessionState } from '../state/types.js';
+import type { Message, UIState, SessionState, InputState } from '../state/types.js';
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
 import { generateMessageId } from '../utils/idGenerator.js';
+import type { TextBuffer } from '../components/shared/text-buffer.js';
 
 interface UseAgentEventsProps {
     agent: DextoAgent;
@@ -36,11 +39,14 @@ interface UseAgentEventsProps {
     setPendingMessages: React.Dispatch<React.SetStateAction<Message[]>>;
     setUi: React.Dispatch<React.SetStateAction<UIState>>;
     setSession: React.Dispatch<React.SetStateAction<SessionState>>;
+    setInput: React.Dispatch<React.SetStateAction<InputState>>;
     setApproval: React.Dispatch<React.SetStateAction<ApprovalRequest | null>>;
     setApprovalQueue: React.Dispatch<React.SetStateAction<ApprovalRequest[]>>;
     setQueuedMessages: React.Dispatch<React.SetStateAction<QueuedMessage[]>>;
     /** Current session ID for filtering events */
     currentSessionId: string | null;
+    /** Text buffer for input (source of truth) - needed to clear on session reset */
+    buffer: TextBuffer;
 }
 
 /**
@@ -65,10 +71,12 @@ export function useAgentEvents({
     setPendingMessages,
     setUi,
     setSession,
+    setInput,
     setApproval,
     setApprovalQueue,
     setQueuedMessages,
     currentSessionId,
+    buffer,
 }: UseAgentEventsProps): void {
     // Track if an external trigger is active (scheduler, A2A, etc.)
     const externalTriggerRef = useRef<{
@@ -119,15 +127,37 @@ export function useAgentEvents({
             { signal }
         );
 
-        // Handle session creation (e.g., from /new command if we add one)
+        // Handle session creation (e.g., from /new command)
         bus.on(
             'session:created',
             (payload) => {
                 if (payload.switchTo) {
+                    // Clear the terminal screen for a fresh start (only in TTY environments)
+                    // \x1B[2J clears visible screen, \x1B[3J clears scrollback, \x1B[H moves cursor to top
+                    if (process.stdout.isTTY) {
+                        process.stdout.write('\x1B[2J\x1B[3J\x1B[H');
+                    }
+
+                    // Clear all message state
                     setMessages([]);
+                    setPendingMessages([]);
                     setApproval(null);
                     setApprovalQueue([]);
                     setQueuedMessages([]);
+
+                    // Reset input state including history (up/down arrow) and Ctrl+R search state
+                    // Clear TextBuffer first (source of truth), then sync React state
+                    buffer.setText('');
+                    setInput((prev) => ({
+                        ...prev,
+                        value: '',
+                        history: [],
+                        historyIndex: -1,
+                        draftBeforeHistory: '',
+                        images: [],
+                        pastedBlocks: [],
+                        pasteCounter: 0,
+                    }));
 
                     if (payload.sessionId === null) {
                         setSession((prev) => ({ ...prev, id: null, hasActiveSession: false }));
@@ -138,7 +168,19 @@ export function useAgentEvents({
                             hasActiveSession: true,
                         }));
                     }
-                    setUi((prev) => ({ ...prev, activeOverlay: 'none' }));
+
+                    // Reset UI state including history search
+                    setUi((prev) => ({
+                        ...prev,
+                        activeOverlay: 'none',
+                        historySearch: {
+                            isActive: false,
+                            query: '',
+                            matchIndex: 0,
+                            originalInput: '',
+                            lastMatch: '',
+                        },
+                    }));
                 }
             },
             { signal }
@@ -154,6 +196,52 @@ export function useAgentEvents({
                 setApprovalQueue([]);
                 setQueuedMessages([]);
                 setUi((prev) => ({ ...prev, activeOverlay: 'none' }));
+            },
+            { signal }
+        );
+
+        // Handle context compacting (from /compact command or auto-compaction)
+        // Single source of truth - handles both manual /compact and auto-compaction during streaming
+        bus.on(
+            'context:compacting',
+            (payload) => {
+                if (payload.sessionId !== currentSessionId) return;
+                setUi((prev) => ({ ...prev, isCompacting: true }));
+            },
+            { signal }
+        );
+
+        // Handle context compacted
+        // Single source of truth - shows notification for all compaction (manual and auto)
+        bus.on(
+            'context:compacted',
+            (payload) => {
+                if (payload.sessionId !== currentSessionId) return;
+                setUi((prev) => ({ ...prev, isCompacting: false }));
+
+                const reductionPercent =
+                    payload.originalTokens > 0
+                        ? Math.round(
+                              ((payload.originalTokens - payload.compactedTokens) /
+                                  payload.originalTokens) *
+                                  100
+                          )
+                        : 0;
+
+                const compactionContent =
+                    `📦 Context compacted\n` +
+                    `   ${payload.originalMessages} messages → ${payload.compactedMessages} messages\n` +
+                    `   ~${payload.originalTokens.toLocaleString()} → ~${payload.compactedTokens.toLocaleString()} tokens (${reductionPercent}% reduction)`;
+
+                setMessages((prev) => [
+                    ...prev,
+                    {
+                        id: generateMessageId('system'),
+                        role: 'system' as const,
+                        content: compactionContent,
+                        timestamp: new Date(),
+                    },
+                ]);
             },
             { signal }
         );
@@ -357,9 +445,11 @@ export function useAgentEvents({
         setPendingMessages,
         setUi,
         setSession,
+        setInput,
         setApproval,
         setApprovalQueue,
         setQueuedMessages,
         currentSessionId,
+        buffer,
     ]);
 }

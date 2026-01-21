@@ -14,6 +14,7 @@ import { Text, Box, useStdout } from 'ink';
 import chalk from 'chalk';
 import wrapAnsi from 'wrap-ansi';
 import stringWidth from 'string-width';
+import { highlight, supportsLanguage } from 'cli-highlight';
 
 // ============================================================================
 // Inline Markdown Parsing
@@ -583,15 +584,39 @@ const RenderCodeBlockInternal: React.FC<RenderCodeBlockProps> = ({
     language,
     isPending,
 }) => {
+    // Memoize the highlighted code to avoid re-highlighting on every render
+    const highlightedCode = useMemo(() => {
+        const code = lines.join('\n');
+
+        // If we have a language and it's supported, use syntax highlighting
+        if (language && supportsLanguage(language)) {
+            try {
+                return highlight(code, { language, ignoreIllegals: true });
+            } catch {
+                // Fall back to plain cyan if highlighting fails
+                return chalk.cyan(code);
+            }
+        }
+
+        // If no language specified, try auto-detection
+        if (!language && code.trim()) {
+            try {
+                return highlight(code, { ignoreIllegals: true });
+            } catch {
+                // Fall back to plain cyan if auto-detection fails
+                return chalk.cyan(code);
+            }
+        }
+
+        // Fallback: plain cyan text
+        return chalk.cyan(code);
+    }, [lines, language]);
+
     return (
         <Box flexDirection="column" marginTop={1} marginBottom={1}>
             {language && <Text color="gray">{language}</Text>}
             <Box flexDirection="column" paddingLeft={1}>
-                {lines.map((line, i) => (
-                    <Text key={i} color="cyan">
-                        {line}
-                    </Text>
-                ))}
+                <Text>{highlightedCode}</Text>
                 {isPending && <Text color="gray">...</Text>}
             </Box>
         </Box>
