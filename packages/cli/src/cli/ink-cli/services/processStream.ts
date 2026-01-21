@@ -82,6 +82,8 @@ export interface ProcessStreamOptions {
     eventBus: import('@dexto/core').AgentEventBus;
     /** Sound notification service for playing sounds on events */
     soundService?: import('../utils/soundNotification.js').SoundNotificationService;
+    /** Optional setter for todos (from service:event todo updates) */
+    setTodos?: React.Dispatch<React.SetStateAction<import('../state/types.js').TodoItem[]>>;
 }
 
 /**
@@ -1016,6 +1018,8 @@ export async function processStream(
                         toolCallId: event.toolCallId,
                         sessionId: event.sessionId,
                     });
+
+                    // Handle agent-spawner progress events
                     if (event.service === 'agent-spawner' && event.event === 'progress') {
                         const { toolCallId, data } = event;
                         // Guard against null/non-object data payloads
@@ -1054,6 +1058,35 @@ export async function processStream(
                                     }),
                                 },
                             });
+                        }
+                    }
+
+                    // Handle todo update events
+                    if (event.service === 'todo' && event.event === 'updated') {
+                        const { data, sessionId } = event;
+                        if (data && typeof data === 'object' && sessionId) {
+                            const todoData = data as {
+                                todos: Array<{
+                                    id: string;
+                                    sessionId: string;
+                                    content: string;
+                                    activeForm: string;
+                                    status: 'pending' | 'in_progress' | 'completed';
+                                    position: number;
+                                    createdAt: Date | string;
+                                    updatedAt: Date | string;
+                                }>;
+                                stats: { created: number; updated: number; deleted: number };
+                            };
+                            debug.log('SERVICE-EVENT todo updated', {
+                                sessionId,
+                                todoCount: todoData.todos.length,
+                                stats: todoData.stats,
+                            });
+                            // Update todos state via the setter passed in options
+                            if (options.setTodos) {
+                                options.setTodos(todoData.todos);
+                            }
                         }
                     }
                     break;

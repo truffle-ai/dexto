@@ -51,8 +51,14 @@ const TodoWriteInputSchema = z
 export function createTodoWriteTool(todoService: TodoService): InternalTool {
     return {
         id: 'todo_write',
-        description:
-            'Manage task list for tracking agent progress. Use this to create, update, or track todo items during complex workflows. The tool replaces the entire todo list, so always include all current tasks (pending, in_progress, and completed). Mark tasks as in_progress when starting them, and completed when done. Only one task should be in_progress at a time.',
+        description: `Track progress on multi-step tasks. Use for:
+- Implementation tasks with 3+ steps (features, refactors, bug fixes)
+- Tasks where the user asks for a plan or breakdown
+- Complex workflows where progress visibility helps
+
+Do NOT use for simple single-file edits, quick questions, or explanations.
+
+IMPORTANT: This replaces the entire todo list. Always include ALL tasks (pending, in_progress, completed). Only ONE task should be in_progress at a time. Update status as you work: pending → in_progress → completed.`,
         inputSchema: TodoWriteInputSchema,
 
         execute: async (input: unknown, context?: ToolExecutionContext): Promise<unknown> => {
@@ -65,16 +71,13 @@ export function createTodoWriteTool(todoService: TodoService): InternalTool {
             // Update todos in todo service
             const result = await todoService.updateTodos(sessionId, validatedInput.todos);
 
-            return {
-                todos: result.todos,
-                session_id: sessionId,
-                stats: {
-                    created: result.created,
-                    updated: result.updated,
-                    deleted: result.deleted,
-                    total: result.todos.length,
-                },
-            };
+            // Count by status for summary
+            const completed = result.todos.filter((t) => t.status === 'completed').length;
+            const inProgress = result.todos.filter((t) => t.status === 'in_progress').length;
+            const pending = result.todos.filter((t) => t.status === 'pending').length;
+
+            // Return simple summary - TodoPanel shows full state
+            return `Updated tasks: ${completed}/${result.todos.length} completed${inProgress > 0 ? `, 1 in progress` : ''}${pending > 0 ? `, ${pending} pending` : ''}`;
         },
     };
 }

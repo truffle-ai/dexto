@@ -13,7 +13,14 @@ import {
     type DextoAgent,
     type QueuedMessage,
 } from '@dexto/core';
-import type { Message, StartupInfo, UIState, InputState, SessionState } from '../state/types.js';
+import type {
+    Message,
+    StartupInfo,
+    UIState,
+    InputState,
+    SessionState,
+    TodoItem,
+} from '../state/types.js';
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
 import { useAgentEvents } from './useAgentEvents.js';
 import { useInputOrchestrator, type Key } from './useInputOrchestrator.js';
@@ -23,7 +30,7 @@ import type { OverlayContainerHandle } from '../containers/OverlayContainer.js';
 import { useTextBuffer, type TextBuffer } from '../components/shared/text-buffer.js';
 
 // Re-export types for backwards compatibility
-export type { UIState, InputState, SessionState } from '../state/types.js';
+export type { UIState, InputState, SessionState, TodoItem } from '../state/types.js';
 
 export interface UseCLIStateProps {
     agent: DextoAgent;
@@ -47,6 +54,9 @@ export interface CLIStateReturn {
     // Queued messages (messages waiting to be processed)
     queuedMessages: QueuedMessage[];
     setQueuedMessages: React.Dispatch<React.SetStateAction<QueuedMessage[]>>;
+    // Todo items for workflow tracking
+    todos: TodoItem[];
+    setTodos: React.Dispatch<React.SetStateAction<TodoItem[]>>;
     ui: UIState;
     setUi: React.Dispatch<React.SetStateAction<UIState>>;
     input: InputState;
@@ -90,6 +100,8 @@ export function useCLIState({
     const [dequeuedBuffer, setDequeuedBuffer] = useState<Message[]>([]);
     // Queued messages - messages waiting to be processed (uses core type)
     const [queuedMessages, setQueuedMessages] = useState<QueuedMessage[]>([]);
+    // Todo items for workflow tracking (populated via service:event from todo tools)
+    const [todos, setTodos] = useState<TodoItem[]>([]);
 
     // UI state
     const [ui, setUi] = useState<UIState>({
@@ -212,6 +224,11 @@ export function useCLIState({
         },
     });
 
+    // Clear todos when session changes (todos are per-session)
+    useEffect(() => {
+        setTodos([]);
+    }, [session.id]);
+
     // Hydrate conversation history when resuming a session
     useEffect(() => {
         if (!initialSessionId || !session.hasActiveSession || messages.length > 0) {
@@ -279,6 +296,8 @@ export function useCLIState({
         setDequeuedBuffer,
         queuedMessages,
         setQueuedMessages,
+        todos,
+        setTodos,
         ui,
         setUi,
         input,
