@@ -15,12 +15,16 @@ interface TodoPanelProps {
     sessionId: string;
 }
 
+// Stable empty array to avoid infinite re-render loop
+const EMPTY_TODOS: Todo[] = [];
+
 /**
  * Compact todo panel showing task progress
  * Shows up to 10 tasks with minimal spacing
  */
 export function TodoPanel({ sessionId }: TodoPanelProps) {
-    const todos = useTodoStore((state) => state.getTodos(sessionId));
+    // Select directly from state, use stable empty array fallback outside selector
+    const todos = useTodoStore((state) => state.sessions.get(sessionId)?.todos) ?? EMPTY_TODOS;
 
     if (todos.length === 0) {
         return null;
