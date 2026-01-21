@@ -645,14 +645,14 @@ async function selectDefaultModeWithBack(): Promise<
         message: 'How do you want to use Dexto by default?',
         options: [
             {
-                value: 'web' as const,
-                label: `${chalk.blue('●')} Web UI`,
-                hint: 'Opens in browser at localhost:3000 (recommended)',
-            },
-            {
                 value: 'cli' as const,
                 label: `${chalk.green('●')} Terminal CLI`,
-                hint: 'Interactive command-line interface',
+                hint: 'Interactive command-line interface (recommended)',
+            },
+            {
+                value: 'web' as const,
+                label: `${chalk.blue('●')} Web UI`,
+                hint: 'Opens in browser at localhost:3000',
             },
             {
                 value: 'server' as const,
@@ -1125,14 +1125,14 @@ async function selectDefaultMode(): Promise<
         message: 'How do you want to use Dexto by default?',
         options: [
             {
-                value: 'web' as const,
-                label: `${chalk.blue('●')} Web UI`,
-                hint: 'Opens in browser at localhost:3000 (recommended)',
-            },
-            {
                 value: 'cli' as const,
                 label: `${chalk.green('●')} Terminal CLI`,
-                hint: 'Interactive command-line interface',
+                hint: 'Interactive command-line interface (recommended)',
+            },
+            {
+                value: 'web' as const,
+                label: `${chalk.blue('●')} Web UI`,
+                hint: 'Opens in browser at localhost:3000',
             },
             {
                 value: 'server' as const,
