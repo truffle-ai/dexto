@@ -445,9 +445,11 @@ export function useAgentEvents({
         setPendingMessages,
         setUi,
         setSession,
+        setInput,
         setApproval,
         setApprovalQueue,
         setQueuedMessages,
         currentSessionId,
+        buffer,
     ]);
 }
