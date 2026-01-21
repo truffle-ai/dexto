@@ -125,6 +125,11 @@ function readFileSafe(filePath: string): string | null {
 
 /**
  * Loads MCP configuration from .mcp.json if it exists.
+ *
+ * Claude Code's .mcp.json format puts servers directly at the root level:
+ * { "serverName": { "type": "http", "url": "..." } }
+ *
+ * We normalize this to: { mcpServers: { "serverName": { ... } } }
  */
 function loadMcpConfig(
     pluginPath: string,
@@ -140,6 +145,25 @@ function loadMcpConfig(
     try {
         const content = readFileSync(mcpPath, 'utf-8');
         const parsed = JSON.parse(content);
+
+        // Claude Code format: servers directly at root level
+        // Check if this looks like the Claude Code format (no mcpServers key, has server-like objects)
+        if (!parsed.mcpServers && typeof parsed === 'object' && parsed !== null) {
+            // Check if any root key looks like a server config (has 'type' or 'command' or 'url')
+            const hasServerConfig = Object.values(parsed).some(
+                (val) =>
+                    typeof val === 'object' &&
+                    val !== null &&
+                    ('type' in val || 'command' in val || 'url' in val)
+            );
+
+            if (hasServerConfig) {
+                // Normalize to our expected format
+                return { mcpServers: parsed as Record<string, unknown> };
+            }
+        }
+
+        // Try standard schema validation
         const result = PluginMCPConfigSchema.safeParse(parsed);
 
         if (!result.success) {
@@ -152,6 +176,8 @@ function loadMcpConfig(
     } catch (error) {
         if (error instanceof SyntaxError) {
             warnings.push(`[${pluginName}] Failed to parse .mcp.json: invalid JSON`);
+        } else {
+            warnings.push(`[${pluginName}] Failed to load .mcp.json: ${String(error)}`);
         }
         return undefined;
     }

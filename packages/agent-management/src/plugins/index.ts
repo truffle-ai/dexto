@@ -15,15 +15,29 @@ export type {
 } from './types.js';
 
 // Schemas
-export { PluginManifestSchema, PluginMCPConfigSchema } from './schemas.js';
-export type { ValidatedPluginManifest, ValidatedPluginMCPConfig } from './schemas.js';
+export {
+    PluginManifestSchema,
+    PluginMCPConfigSchema,
+    InstalledPluginEntrySchema,
+    InstalledPluginsFileSchema,
+} from './schemas.js';
+export type {
+    ValidatedPluginManifest,
+    ValidatedPluginMCPConfig,
+    ValidatedInstalledPluginsFile,
+    ValidatedInstalledPluginEntry,
+} from './schemas.js';
 
 // Error handling
 export { PluginErrorCode } from './error-codes.js';
 export { PluginError } from './errors.js';
 
 // Discovery
-export { discoverClaudeCodePlugins, getPluginSearchPaths } from './discover-plugins.js';
+export {
+    discoverClaudeCodePlugins,
+    getPluginSearchPaths,
+    getInstalledPluginsPath,
+} from './discover-plugins.js';
 
 // Loading
 export { loadClaudeCodePlugin } from './load-plugin.js';

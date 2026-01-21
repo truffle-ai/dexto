@@ -18,13 +18,18 @@
  */
 
 /**
+ * Author can be a string or an object with name/email
+ */
+export type PluginAuthor = string | { name: string; email?: string | undefined };
+
+/**
  * Plugin manifest from .claude-plugin/plugin.json
  */
 export interface PluginManifest {
     name: string;
     description?: string | undefined;
     version?: string | undefined;
-    author?: string | undefined;
+    author?: PluginAuthor | undefined;
 }
 
 /**

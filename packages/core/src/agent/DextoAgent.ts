@@ -1320,6 +1320,8 @@ export class DextoAgent {
      */
     public async endSession(sessionId: string): Promise<void> {
         this.ensureStarted();
+        // Clear session-level tool restrictions to prevent memory leak
+        this.toolManager.clearSessionToolRestrictions(sessionId);
         return this.sessionManager.endSession(sessionId);
     }
 
@@ -1330,6 +1332,8 @@ export class DextoAgent {
      */
     public async deleteSession(sessionId: string): Promise<void> {
         this.ensureStarted();
+        // Clear session-level tool restrictions to prevent memory leak
+        this.toolManager.clearSessionToolRestrictions(sessionId);
         return this.sessionManager.deleteSession(sessionId);
     }
 

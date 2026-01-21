@@ -415,6 +415,212 @@ describe('discoverClaudeCodePlugins', () => {
             expect(result).toHaveLength(1);
         });
     });
+
+    describe('installed_plugins.json reading', () => {
+        it('should discover plugins from installed_plugins.json', () => {
+            const installedPluginsJson = JSON.stringify({
+                version: 2,
+                plugins: {
+                    'code-review@claude-code-plugins': [
+                        {
+                            scope: 'user',
+                            installPath:
+                                '/home/user/.claude/plugins/cache/claude-code-plugins/code-review/1.0.0',
+                            version: '1.0.0',
+                        },
+                    ],
+                },
+            });
+
+            const manifestContent = JSON.stringify({
+                name: 'code-review',
+                version: '1.0.0',
+                description: 'Code review plugin',
+            });
+
+            vi.mocked(fs.existsSync).mockImplementation((p) => {
+                if (p === '/home/user/.claude/plugins/installed_plugins.json') return true;
+                if (p === '/home/user/.claude/plugins/cache/claude-code-plugins/code-review/1.0.0')
+                    return true;
+                if (
+                    p ===
+                    '/home/user/.claude/plugins/cache/claude-code-plugins/code-review/1.0.0/.claude-plugin/plugin.json'
+                )
+                    return true;
+                return false;
+            });
+
+            vi.mocked(fs.readFileSync).mockImplementation((p) => {
+                if (p === '/home/user/.claude/plugins/installed_plugins.json') {
+                    return installedPluginsJson;
+                }
+                return manifestContent;
+            });
+
+            vi.mocked(fs.readdirSync).mockReturnValue([]);
+
+            const result = discoverClaudeCodePlugins();
+
+            expect(result).toHaveLength(1);
+            expect(result[0]).toMatchObject({
+                path: '/home/user/.claude/plugins/cache/claude-code-plugins/code-review/1.0.0',
+                manifest: {
+                    name: 'code-review',
+                    version: '1.0.0',
+                },
+                source: 'user',
+            });
+        });
+
+        it('should filter project-scoped plugins by current project path', () => {
+            const installedPluginsJson = JSON.stringify({
+                version: 2,
+                plugins: {
+                    'my-plugin@marketplace': [
+                        {
+                            scope: 'project',
+                            installPath:
+                                '/home/user/.claude/plugins/cache/marketplace/my-plugin/1.0.0',
+                            version: '1.0.0',
+                            projectPath: '/test/project', // Matches current project
+                        },
+                        {
+                            scope: 'project',
+                            installPath:
+                                '/home/user/.claude/plugins/cache/marketplace/my-plugin/1.0.0',
+                            version: '1.0.0',
+                            projectPath: '/other/project', // Different project
+                        },
+                    ],
+                },
+            });
+
+            const manifestContent = JSON.stringify({
+                name: 'my-plugin',
+                version: '1.0.0',
+            });
+
+            vi.mocked(fs.existsSync).mockImplementation((p) => {
+                if (p === '/home/user/.claude/plugins/installed_plugins.json') return true;
+                if (p === '/home/user/.claude/plugins/cache/marketplace/my-plugin/1.0.0')
+                    return true;
+                if (
+                    p ===
+                    '/home/user/.claude/plugins/cache/marketplace/my-plugin/1.0.0/.claude-plugin/plugin.json'
+                )
+                    return true;
+                return false;
+            });
+
+            vi.mocked(fs.readFileSync).mockImplementation((p) => {
+                if (p === '/home/user/.claude/plugins/installed_plugins.json') {
+                    return installedPluginsJson;
+                }
+                return manifestContent;
+            });
+
+            vi.mocked(fs.readdirSync).mockReturnValue([]);
+
+            const result = discoverClaudeCodePlugins();
+
+            // Should only include the plugin for the current project
+            expect(result).toHaveLength(1);
+            expect(result[0]!.source).toBe('project');
+        });
+
+        it('should filter local-scoped plugins by current project path', () => {
+            const installedPluginsJson = JSON.stringify({
+                version: 2,
+                plugins: {
+                    'local-plugin@marketplace': [
+                        {
+                            scope: 'local',
+                            installPath:
+                                '/home/user/.claude/plugins/cache/marketplace/local-plugin/1.0.0',
+                            version: '1.0.0',
+                            projectPath: '/other/project', // Different project - should be filtered out
+                        },
+                    ],
+                    'user-plugin@marketplace': [
+                        {
+                            scope: 'user',
+                            installPath:
+                                '/home/user/.claude/plugins/cache/marketplace/user-plugin/1.0.0',
+                            version: '1.0.0',
+                            // No projectPath - user scope applies everywhere
+                        },
+                    ],
+                },
+            });
+
+            vi.mocked(fs.existsSync).mockImplementation((p) => {
+                if (p === '/home/user/.claude/plugins/installed_plugins.json') return true;
+                if (p === '/home/user/.claude/plugins/cache/marketplace/local-plugin/1.0.0')
+                    return true;
+                if (p === '/home/user/.claude/plugins/cache/marketplace/user-plugin/1.0.0')
+                    return true;
+                if (
+                    p ===
+                    '/home/user/.claude/plugins/cache/marketplace/local-plugin/1.0.0/.claude-plugin/plugin.json'
+                )
+                    return true;
+                if (
+                    p ===
+                    '/home/user/.claude/plugins/cache/marketplace/user-plugin/1.0.0/.claude-plugin/plugin.json'
+                )
+                    return true;
+                return false;
+            });
+
+            vi.mocked(fs.readFileSync).mockImplementation((p) => {
+                if (p === '/home/user/.claude/plugins/installed_plugins.json') {
+                    return installedPluginsJson;
+                }
+                if (String(p).includes('local-plugin')) {
+                    return JSON.stringify({ name: 'local-plugin', version: '1.0.0' });
+                }
+                return JSON.stringify({ name: 'user-plugin', version: '1.0.0' });
+            });
+
+            vi.mocked(fs.readdirSync).mockReturnValue([]);
+
+            const result = discoverClaudeCodePlugins();
+
+            // Should only include the user-scoped plugin, not the local-scoped one for a different project
+            expect(result).toHaveLength(1);
+            expect(result[0]!.manifest.name).toBe('user-plugin');
+            expect(result[0]!.source).toBe('user');
+        });
+
+        it('should skip cache and marketplaces directories in directory scan', () => {
+            const manifestContent = JSON.stringify({ name: 'direct-plugin' });
+
+            vi.mocked(fs.existsSync).mockImplementation((p) => {
+                if (p === '/home/user/.claude/plugins') return true;
+                if (p === '/home/user/.claude/plugins/direct-plugin/.claude-plugin/plugin.json')
+                    return true;
+                return false;
+            });
+
+            vi.mocked(fs.readdirSync).mockImplementation((dir) => {
+                if (dir === '/home/user/.claude/plugins') {
+                    return [
+                        createDirent('cache', true), // Should be skipped
+                        createDirent('marketplaces', true), // Should be skipped
+                        createDirent('direct-plugin', true), // Should be scanned
+                    ] as any;
+                }
+                return [];
+            });
+
+            vi.mocked(fs.readFileSync).mockReturnValue(manifestContent);
+
+            const result = discoverClaudeCodePlugins();
+
+            expect(result).toHaveLength(1);
+            expect(result[0]!.manifest.name).toBe('direct-plugin');
+        });
+    });
 });
 
 describe('getPluginSearchPaths', () => {
@@ -438,6 +644,9 @@ describe('getPluginSearchPaths', () => {
         const paths = getPluginSearchPaths();
 
         expect(paths).toEqual([
+            // installed_plugins.json location (primary source for Claude Code installed plugins)
+            '/home/user/.claude/plugins/installed_plugins.json',
+            // Directory scan locations
             '/test/project/.dexto/plugins',
             '/test/project/.claude/plugins',
             '/home/user/.dexto/plugins',

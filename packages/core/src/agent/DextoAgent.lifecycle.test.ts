@@ -305,6 +305,62 @@ describe('DextoAgent Lifecycle Management', () => {
         });
     });
 
+    describe('Session Tool Restrictions Cleanup (Memory Leak Fix)', () => {
+        test('endSession should call clearSessionToolRestrictions', async () => {
+            const agent = new DextoAgent(mockConfig);
+
+            // Add clearSessionToolRestrictions mock to toolManager
+            mockServices.toolManager.clearSessionToolRestrictions = vi.fn();
+            mockServices.sessionManager.endSession = vi.fn().mockResolvedValue(undefined);
+
+            await agent.start();
+
+            await agent.endSession('test-session-123');
+
+            expect(mockServices.toolManager.clearSessionToolRestrictions).toHaveBeenCalledWith(
+                'test-session-123'
+            );
+            expect(mockServices.sessionManager.endSession).toHaveBeenCalledWith('test-session-123');
+        });
+
+        test('deleteSession should call clearSessionToolRestrictions', async () => {
+            const agent = new DextoAgent(mockConfig);
+
+            // Add clearSessionToolRestrictions mock to toolManager
+            mockServices.toolManager.clearSessionToolRestrictions = vi.fn();
+            mockServices.sessionManager.deleteSession = vi.fn().mockResolvedValue(undefined);
+
+            await agent.start();
+
+            await agent.deleteSession('test-session-456');
+
+            expect(mockServices.toolManager.clearSessionToolRestrictions).toHaveBeenCalledWith(
+                'test-session-456'
+            );
+            expect(mockServices.sessionManager.deleteSession).toHaveBeenCalledWith(
+                'test-session-456'
+            );
+        });
+
+        test('clearSessionToolRestrictions should be called before session cleanup', async () => {
+            const agent = new DextoAgent(mockConfig);
+            const callOrder: string[] = [];
+
+            mockServices.toolManager.clearSessionToolRestrictions = vi.fn(() => {
+                callOrder.push('clearSessionToolRestrictions');
+            });
+            mockServices.sessionManager.endSession = vi.fn().mockImplementation(() => {
+                callOrder.push('endSession');
+                return Promise.resolve();
+            });
+
+            await agent.start();
+            await agent.endSession('test-session');
+
+            expect(callOrder).toEqual(['clearSessionToolRestrictions', 'endSession']);
+        });
+    });
+
     describe('Integration Tests', () => {
         test('should handle complete lifecycle without errors', async () => {
             const agent = new DextoAgent(mockConfig);

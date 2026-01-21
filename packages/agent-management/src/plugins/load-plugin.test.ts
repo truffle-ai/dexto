@@ -221,6 +221,64 @@ describe('loadClaudeCodePlugin', () => {
                 expect.stringContaining('Failed to parse .mcp.json')
             );
         });
+
+        it('should normalize Claude Code format (servers at root level) to mcpServers', () => {
+            const plugin = createPlugin('linear', '/plugins/linear');
+            // Claude Code format: servers directly at root, not under mcpServers
+            const claudeCodeFormat = {
+                linear: {
+                    type: 'http',
+                    url: 'https://mcp.linear.app/mcp',
+                },
+            };
+
+            vi.mocked(fs.existsSync).mockImplementation((p) => {
+                if (p === '/plugins/linear/.mcp.json') return true;
+                return false;
+            });
+
+            vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify(claudeCodeFormat));
+
+            const result = loadClaudeCodePlugin(plugin);
+
+            // Should be normalized to have mcpServers key
+            expect(result.mcpConfig).toEqual({
+                mcpServers: {
+                    linear: {
+                        type: 'http',
+                        url: 'https://mcp.linear.app/mcp',
+                    },
+                },
+            });
+        });
+
+        it('should handle Claude Code stdio format', () => {
+            const plugin = createPlugin('filesystem', '/plugins/filesystem');
+            const claudeCodeFormat = {
+                filesystem: {
+                    command: 'npx',
+                    args: ['@modelcontextprotocol/server-filesystem'],
+                },
+            };
+
+            vi.mocked(fs.existsSync).mockImplementation((p) => {
+                if (p === '/plugins/filesystem/.mcp.json') return true;
+                return false;
+            });
+
+            vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify(claudeCodeFormat));
+
+            const result = loadClaudeCodePlugin(plugin);
+
+            expect(result.mcpConfig).toEqual({
+                mcpServers: {
+                    filesystem: {
+                        command: 'npx',
+                        args: ['@modelcontextprotocol/server-filesystem'],
+                    },
+                },
+            });
+        });
     });
 
     describe('unsupported feature warnings', () => {

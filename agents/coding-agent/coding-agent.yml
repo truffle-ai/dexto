@@ -232,7 +232,7 @@ internalResources:
 prompts:
   # Skills - can be invoked by the LLM via invoke_skill tool
   - type: file
-    file: ./skills/code-review.md
+    file: "{{dexto.agent_dir}}/skills/code-review.md"
     # user-invocable: true (default) - appears as /code-review slash command
     # disable-model-invocation: false (default) - LLM can invoke via invoke_skill
   - type: inline
