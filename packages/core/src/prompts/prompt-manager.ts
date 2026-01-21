@@ -1,5 +1,5 @@
 import type { MCPManager } from '../mcp/manager.js';
-import type { PromptSet, PromptProvider, PromptInfo } from './types.js';
+import type { PromptSet, PromptProvider, PromptInfo, ResolvedPromptResult } from './types.js';
 import type { GetPromptResult } from '@modelcontextprotocol/sdk/types.js';
 import type { ValidatedAgentConfig } from '../agent/schemas.js';
 import type { PromptsConfig } from './schemas.js';
@@ -108,7 +108,50 @@ export class PromptManager {
             ...(info.title && { title: info.title }),
             ...(info.description && { description: info.description }),
             ...(info.arguments && { arguments: info.arguments }),
+            // Claude Code compatibility fields
+            ...(info.disableModelInvocation !== undefined && {
+                disableModelInvocation: info.disableModelInvocation,
+            }),
+            ...(info.userInvocable !== undefined && { userInvocable: info.userInvocable }),
+            ...(info.allowedTools !== undefined && { allowedTools: info.allowedTools }),
+            ...(info.model !== undefined && { model: info.model }),
         };
+    }
+
+    /**
+     * List prompts that should appear in the CLI slash command menu.
+     * Filters out prompts with `userInvocable: false`.
+     * These prompts are intended for user invocation via `/` commands.
+     */
+    async listUserInvocablePrompts(): Promise<PromptSet> {
+        await this.ensureCache();
+        const index = this.promptIndex ?? new Map();
+        const result: PromptSet = {};
+        for (const [key, entry] of index.entries()) {
+            // Include prompt if userInvocable is not explicitly set to false
+            if (entry.info.userInvocable !== false) {
+                result[key] = entry.info;
+            }
+        }
+        return result;
+    }
+
+    /**
+     * List prompts that can be auto-invoked by the LLM.
+     * Filters out prompts with `disableModelInvocation: true`.
+     * These prompts should appear in the system prompt as available skills.
+     */
+    async listAutoInvocablePrompts(): Promise<PromptSet> {
+        await this.ensureCache();
+        const index = this.promptIndex ?? new Map();
+        const result: PromptSet = {};
+        for (const [key, entry] of index.entries()) {
+            // Include prompt if disableModelInvocation is not explicitly set to true
+            if (entry.info.disableModelInvocation !== true) {
+                result[key] = entry.info;
+            }
+        }
+        return result;
     }
 
     /**
@@ -215,10 +258,11 @@ export class PromptManager {
      * - Passing `_context` through to providers so they can decide whether to append it
      *   (e.g., file prompts without placeholders will append `Context: ...`)
      * - Prompt execution and flattening
+     * - Returning per-prompt overrides (allowedTools, model) for the invoker to apply
      *
      * @param name The prompt name or alias
      * @param options Optional configuration for prompt resolution
-     * @returns Promise resolving to the resolved text and resource URIs
+     * @returns Promise resolving to the resolved text, resource URIs, and optional overrides
      */
     async resolvePrompt(
         name: string,
@@ -226,7 +270,7 @@ export class PromptManager {
             context?: string;
             args?: Record<string, unknown>;
         } = {}
-    ): Promise<{ text: string; resources: string[] }> {
+    ): Promise<ResolvedPromptResult> {
         // Build args from options
         const args: Record<string, unknown> = { ...options.args };
         // Preserve `_context` on args for providers that need to decide whether to append it
@@ -234,6 +278,9 @@ export class PromptManager {
 
         // Resolve provided name to a valid prompt key using promptManager
         const resolvedName = (await this.resolvePromptKey(name)) ?? name;
+
+        // Get prompt definition to extract per-prompt overrides
+        const promptDef = await this.getPromptDefinition(resolvedName);
 
         // Normalize args (converts to strings, extracts context)
         const normalized = normalizePromptArgs(args);
@@ -256,7 +303,13 @@ export class PromptManager {
             throw PromptError.emptyResolvedContent(resolvedName);
         }
 
-        return { text: flattened.text, resources: flattened.resourceUris };
+        return {
+            text: flattened.text,
+            resources: flattened.resourceUris,
+            // Include per-prompt overrides from prompt definition
+            ...(promptDef?.allowedTools && { allowedTools: promptDef.allowedTools }),
+            ...(promptDef?.model && { model: promptDef.model }),
+        };
     }
 
     async refresh(): Promise<void> {

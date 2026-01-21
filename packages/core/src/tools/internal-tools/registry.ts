@@ -2,11 +2,13 @@ import { InternalTool } from '../types.js';
 import { SearchService } from '../../search/index.js';
 import { ApprovalManager } from '../../approval/manager.js';
 import { ResourceManager } from '../../resources/manager.js';
+import type { PromptManager } from '../../prompts/prompt-manager.js';
 import { createSearchHistoryTool } from './implementations/search-history-tool.js';
 import { createAskUserTool } from './implementations/ask-user-tool.js';
 import { createDelegateToUrlTool } from './implementations/delegate-to-url-tool.js';
 import { createListResourcesTool } from './implementations/list-resources-tool.js';
 import { createGetResourceTool } from './implementations/get-resource-tool.js';
+import { createInvokeSkillTool } from './implementations/invoke-skill-tool.js';
 import type { KnownInternalTool } from './constants.js';
 
 /**
@@ -37,6 +39,7 @@ export interface InternalToolsServices {
     searchService?: SearchService;
     approvalManager?: ApprovalManager;
     resourceManager?: ResourceManager;
+    promptManager?: PromptManager;
 }
 
 /**
@@ -87,6 +90,12 @@ export const INTERNAL_TOOL_REGISTRY: Record<KnownInternalTool, InternalToolRegis
             createGetResourceTool(services.resourceManager!),
         requiredServices: ['resourceManager'] as const,
         description: 'Access a stored resource to get URLs or metadata',
+    },
+    invoke_skill: {
+        factory: (services: InternalToolsServices) =>
+            createInvokeSkillTool(services.promptManager!),
+        requiredServices: ['promptManager'] as const,
+        description: 'Invoke a skill to load specialized instructions for a task',
     },
 };
 

@@ -11,14 +11,24 @@ export interface PromptArgument {
 }
 
 /**
- * MCP-compliant prompt definition
- * Matches the MCP SDK's Prompt structure
+ * MCP-compliant prompt definition with Dexto extensions
+ * Base structure matches MCP SDK's Prompt, extended with Claude Code compatibility fields
  */
 export interface PromptDefinition {
     name: string;
     title?: string | undefined;
     description?: string | undefined;
     arguments?: PromptArgument[] | undefined;
+    // Claude Code compatibility fields (Phase 1)
+    /** Exclude from auto-invocation list in system prompt */
+    disableModelInvocation?: boolean | undefined;
+    /** Show in slash command menu (false = hidden but auto-invocable by LLM) */
+    userInvocable?: boolean | undefined;
+    // Per-prompt overrides (Phase 2)
+    /** Tools allowed when this prompt is active (overrides global policies) */
+    allowedTools?: string[] | undefined;
+    /** Model to use when this prompt is invoked */
+    model?: string | undefined;
 }
 
 /**
@@ -42,6 +52,20 @@ export type PromptSet = Record<string, PromptInfo>;
 export interface PromptListResult {
     prompts: PromptInfo[];
     nextCursor?: string | undefined;
+}
+
+/**
+ * Result type for resolvePrompt including optional per-prompt overrides
+ */
+export interface ResolvedPromptResult {
+    /** The resolved prompt text with arguments applied */
+    text: string;
+    /** Resource URIs referenced by the prompt */
+    resources: string[];
+    /** Tools allowed when this prompt is active (overrides global policies) */
+    allowedTools?: string[] | undefined;
+    /** Model to use when this prompt is invoked */
+    model?: string | undefined;
 }
 
 /**

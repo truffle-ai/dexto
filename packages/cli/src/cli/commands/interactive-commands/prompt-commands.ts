@@ -232,7 +232,7 @@ function createPromptCommand(promptInfo: PromptInfo, hasCollision: boolean): Com
         handler: async (
             args: string[],
             agent: DextoAgent,
-            _ctx: CommandContext
+            ctx: CommandContext
         ): Promise<CommandHandlerResult> => {
             try {
                 const { argMap, context: contextString } = splitPromptArguments(args);
@@ -268,6 +268,37 @@ function createPromptCommand(promptInfo: PromptInfo, hasCollision: boolean): Com
                 // Use internal name for resolution (includes prefix like "config:")
                 const result = await agent.resolvePrompt(internalName, resolveOptions);
 
+                // Apply per-prompt overrides (Phase 2 Claude Code compatibility)
+                // These overrides persist for the session until explicitly cleared
+                if (ctx.sessionId) {
+                    // Apply model override if specified
+                    if (result.model) {
+                        console.log(
+                            chalk.gray(`🔄 Switching model to '${result.model}' for this prompt`)
+                        );
+                        try {
+                            await agent.switchLLM({ model: result.model }, ctx.sessionId);
+                        } catch (modelError) {
+                            console.log(
+                                chalk.yellow(
+                                    `⚠️  Failed to switch model: ${modelError instanceof Error ? modelError.message : String(modelError)}`
+                                )
+                            );
+                        }
+                    }
+
+                    // Apply tool restrictions if specified
+                    if (result.allowedTools && result.allowedTools.length > 0) {
+                        console.log(
+                            chalk.gray(`🔒 Restricting tools to: ${result.allowedTools.join(', ')}`)
+                        );
+                        agent.toolManager.setSessionToolRestrictions(
+                            ctx.sessionId,
+                            result.allowedTools
+                        );
+                    }
+                }
+
                 // Convert resource URIs to @resource mentions so agent.run() can expand them
                 let finalText = result.text;
                 if (result.resources.length > 0) {
@@ -301,11 +332,17 @@ function createPromptCommand(promptInfo: PromptInfo, hasCollision: boolean): Com
 /**
  * Get all dynamic prompt commands based on available prompts.
  * Handles displayName collisions by prefixing with source (e.g., config:review).
+ * Filters out prompts with `userInvocable: false` as these are not intended
+ * for direct user invocation via slash commands.
  */
 export async function getDynamicPromptCommands(agent: DextoAgent): Promise<CommandDefinition[]> {
     try {
         const prompts = await agent.listPrompts();
-        const promptEntries = Object.entries(prompts);
+        // Filter out prompts that are not user-invocable (userInvocable: false)
+        // These prompts are intended for LLM auto-invocation only, not CLI slash commands
+        const promptEntries = Object.entries(prompts).filter(
+            ([, info]) => info.userInvocable !== false
+        );
 
         // Build frequency map of displayNames to detect collisions
         const displayNameCounts = new Map<string, number>();

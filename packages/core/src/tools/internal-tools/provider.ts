@@ -4,6 +4,7 @@ import type { DextoAgent } from '../../agent/DextoAgent.js';
 import { ToolError } from '../errors.js';
 import { convertZodSchemaToJsonSchema } from '../../utils/schema.js';
 import { InternalToolsServices, getInternalToolInfo, type AgentFeature } from './registry.js';
+import type { PromptManager } from '../../prompts/prompt-manager.js';
 import type { InternalToolsConfig, CustomToolsConfig } from '../schemas.js';
 import { customToolRegistry, type ToolCreationContext } from '../custom-tool-registry.js';
 import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
@@ -54,6 +55,14 @@ export class InternalToolsProvider {
      */
     setAgent(agent: DextoAgent): void {
         this.agent = agent;
+    }
+
+    /**
+     * Set prompt manager after construction (avoids circular dependency)
+     * Must be called before initialize() if invoke_skill tool is enabled
+     */
+    setPromptManager(promptManager: PromptManager): void {
+        this.services.promptManager = promptManager;
     }
 
     /**
