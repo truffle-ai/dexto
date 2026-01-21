@@ -42,6 +42,7 @@ import type { ResourceMetadata } from '@dexto/core';
 import { parseResourceReferences, resolveResourceReferences } from '@dexto/core';
 import { type ApprovalEvent } from './ToolConfirmationHandler';
 import { ToolCallTimeline } from './ToolCallTimeline';
+import { TodoPanel } from './TodoPanel';
 
 interface MessageListProps {
     messages: Message[];
@@ -59,6 +60,8 @@ interface MessageListProps {
      * top-level wrapping div around the list content.
      */
     outerRef?: React.Ref<HTMLDivElement>;
+    /** Session ID for todo panel */
+    sessionId?: string | null;
 }
 
 // Helper to format timestamp from createdAt
@@ -320,6 +323,7 @@ export default function MessageList({
     pendingApproval: _pendingApproval,
     onApprovalApprove,
     onApprovalDeny,
+    sessionId,
 }: MessageListProps) {
     const endRef = useRef<HTMLDivElement>(null);
     const [manuallyExpanded, setManuallyExpanded] = useState<Record<string, boolean>>({});
@@ -1291,6 +1295,9 @@ export default function MessageList({
                     </React.Fragment>
                 );
             })}
+
+            {/* Render todo panel when there are todos */}
+            {sessionId && <TodoPanel sessionId={sessionId} />}
 
             {/* Show thinking indicator while processing */}
             {processing && <ThinkingIndicator toolName={currentToolName} />}
