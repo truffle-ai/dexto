@@ -258,6 +258,8 @@ export function StaticCLI({
 
                 {/* Footer status line */}
                 <Footer
+                    agent={agent}
+                    sessionId={session.id}
                     modelName={session.modelName}
                     cwd={process.cwd()}
                     autoApproveEdits={ui.autoApproveEdits}
