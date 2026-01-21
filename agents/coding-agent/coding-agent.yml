@@ -140,6 +140,7 @@ elicitation:
 # Internal tools - core tools that are always available
 internalTools:
   - ask_user       # Ask questions and collect input
+  - invoke_skill   # Invoke skills/prompts during execution
 
 # Custom tools - filesystem and process tools from image-local
 customTools:
@@ -229,6 +230,11 @@ internalResources:
 
 # Prompts - coding-focused examples shown as clickable buttons in WebUI
 prompts:
+  # Skills - can be invoked by the LLM via invoke_skill tool
+  - type: file
+    file: ./skills/code-review.md
+    # user-invocable: true (default) - appears as /code-review slash command
+    # disable-model-invocation: false (default) - LLM can invoke via invoke_skill
   - type: inline
     id: analyze-codebase
     title: "🔍 Analyze Codebase"

@@ -4,6 +4,7 @@ import { setMaxListeners } from 'events';
 import { MCPManager } from '../mcp/manager.js';
 import { ToolManager } from '../tools/tool-manager.js';
 import { SystemPromptManager } from '../systemPrompt/manager.js';
+import { SkillsContributor } from '../systemPrompt/contributors.js';
 import { ResourceManager, expandMessageReferences } from '../resources/index.js';
 import { expandBlobReferences } from '../context/utils.js';
 import type { InternalMessage } from '../context/types.js';
@@ -308,6 +309,19 @@ export class DextoAgent {
 
             // Set prompt manager for invoke_skill tool (must be done before tool initialization)
             services.toolManager.setPromptManager(promptManager);
+
+            // Add skills contributor to system prompt if invoke_skill is enabled
+            // This lists available skills so the LLM knows what it can invoke
+            if (this.config.internalTools?.includes('invoke_skill')) {
+                const skillsContributor = new SkillsContributor(
+                    'skills',
+                    50, // Priority after memories (40) but before most other content
+                    promptManager,
+                    this.logger
+                );
+                services.systemPromptManager.addContributor(skillsContributor);
+                this.logger.debug('Added SkillsContributor to system prompt');
+            }
 
             // Initialize toolManager now that agent and promptManager references are set
             // Custom tools need agent access for bidirectional communication
