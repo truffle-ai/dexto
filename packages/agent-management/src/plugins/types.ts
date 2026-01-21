@@ -9,8 +9,8 @@
  * my-plugin/
  * ├── .claude-plugin/
  * │   └── plugin.json          # {name, description, version, author?}
- * ├── commands/*.md            # User-invoked commands (→ prompts)
- * ├── skills/* /SKILL.md       # Model-invoked skills (→ prompts with userInvocable: false)
+ * ├── commands/*.md            # Commands (→ prompts, user-invocable by default)
+ * ├── skills/* /SKILL.md       # Skills (→ prompts, user-invocable by default)
  * ├── hooks/hooks.json         # UNSUPPORTED - shell injection
  * ├── .mcp.json                # MCP servers to merge into config
  * └── .lsp.json                # UNSUPPORTED - language servers
@@ -52,7 +52,8 @@ export interface PluginCommand {
     file: string;
     /** Plugin name for prefixing (namespace) */
     namespace: string;
-    /** true = skills/, false = commands/ */
+    /** true = from skills/ directory, false = from commands/ directory.
+     *  Note: This is metadata only; both are user-invocable by default. */
     isSkill: boolean;
 }
 

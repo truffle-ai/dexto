@@ -221,13 +221,13 @@ export function enrichAgentConfig(
         }
 
         // Add commands/skills as prompts with namespace
+        // Note: Both commands and skills are user-invocable by default (per schema).
+        // SKILL.md frontmatter can override with `user-invocable: false` if needed.
         for (const cmd of loaded.commands) {
             const promptEntry = {
                 type: 'file' as const,
                 file: cmd.file,
                 namespace: cmd.namespace,
-                // Skills are not user-invocable (only LLM can invoke them)
-                ...(cmd.isSkill ? { 'user-invocable': false } : {}),
             };
 
             // Add to enriched prompts
