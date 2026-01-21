@@ -459,8 +459,23 @@ export class ChatSession {
                 try {
                     const history = await this.getHistory();
                     const lastAssistant = history.filter((m) => m.role === 'assistant').pop();
-                    if (lastAssistant && typeof lastAssistant.content === 'string') {
-                        return { text: lastAssistant.content };
+                    if (lastAssistant) {
+                        if (typeof lastAssistant.content === 'string') {
+                            return { text: lastAssistant.content };
+                        }
+                        // Handle multimodal content (ContentPart[]) - extract text parts
+                        if (Array.isArray(lastAssistant.content)) {
+                            const text = lastAssistant.content
+                                .filter(
+                                    (part): part is { type: 'text'; text: string } =>
+                                        part.type === 'text'
+                                )
+                                .map((part) => part.text)
+                                .join('');
+                            if (text) {
+                                return { text };
+                            }
+                        }
                     }
                 } catch {
                     this.logger.debug('Failed to retrieve partial response from history on cancel');

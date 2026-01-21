@@ -14,8 +14,20 @@ export interface ICompactionStrategy {
     /**
      * Compacts the provided message history.
      *
+     * The returned summary messages MUST include specific metadata fields for
+     * `filterCompacted()` to correctly exclude pre-summary messages at read-time:
+     *
+     * Required metadata:
+     * - `isSummary: true` - Marks the message as a compaction summary
+     * - `originalMessageCount: number` - Count of messages that were summarized
+     *   (used by filterCompacted to determine which messages to exclude)
+     *
+     * Optional metadata:
+     * - `isRecompaction: true` - Set when re-compacting after a previous summary
+     * - `isSessionSummary: true` - Alternative to isSummary for session-level summaries
+     *
      * @param history The current conversation history.
-     * @returns Summary messages to add to history (filterCompacted handles the rest).
+     * @returns Summary messages to add to history. Empty array if nothing to compact.
      */
     compact(history: readonly InternalMessage[]): Promise<InternalMessage[]> | InternalMessage[];
 }
