@@ -17,6 +17,7 @@ import { getDextoPath } from '../utils/path.js';
 import type { AgentConfig } from '@dexto/core';
 import * as path from 'path';
 import { discoverCommandPrompts, discoverAgentInstructionFile } from './discover-prompts.js';
+import { discoverClaudeCodePlugins, loadClaudeCodePlugin } from '../plugins/index.js';
 
 // Re-export for backwards compatibility
 export { discoverCommandPrompts, discoverAgentInstructionFile } from './discover-prompts.js';
@@ -200,6 +201,44 @@ export function enrichAgentConfig(
         );
 
         enriched.prompts = [...existingPrompts, ...filteredDiscovered];
+    }
+
+    // Discover and load Claude Code plugins
+    const discoveredPlugins = discoverClaudeCodePlugins();
+    for (const plugin of discoveredPlugins) {
+        const loaded = loadClaudeCodePlugin(plugin);
+
+        // Log warnings for unsupported features
+        // Note: Logging happens at enrichment time since we don't have a logger instance
+        // Warnings are stored in the loaded plugin and can be accessed by callers
+        for (const warning of loaded.warnings) {
+            // eslint-disable-next-line no-console
+            console.warn(`[plugin] ${warning}`);
+        }
+
+        // Add commands/skills as prompts with namespace
+        for (const cmd of loaded.commands) {
+            const promptEntry = {
+                type: 'file' as const,
+                file: cmd.file,
+                namespace: cmd.namespace,
+                // Skills are not user-invocable (only LLM can invoke them)
+                ...(cmd.isSkill ? { 'user-invocable': false } : {}),
+            };
+
+            // Add to enriched prompts
+            enriched.prompts = enriched.prompts ?? [];
+            enriched.prompts.push(promptEntry);
+        }
+
+        // Merge MCP config into mcpServers
+        // Note: Plugin MCP config is loosely typed; users are responsible for valid server configs
+        if (loaded.mcpConfig?.mcpServers) {
+            enriched.mcpServers = {
+                ...enriched.mcpServers,
+                ...(loaded.mcpConfig.mcpServers as typeof enriched.mcpServers),
+            };
+        }
     }
 
     // Discover agent instruction file (AGENTS.md, CLAUDE.md, GEMINI.md) in cwd

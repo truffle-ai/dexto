@@ -114,6 +114,17 @@ export class ConfigPromptProvider implements PromptProvider {
             ...(promptInfo.title && { title: promptInfo.title }),
             ...(promptInfo.description && { description: promptInfo.description }),
             ...(promptInfo.arguments && { arguments: promptInfo.arguments }),
+            // Claude Code compatibility fields
+            ...(promptInfo.disableModelInvocation !== undefined && {
+                disableModelInvocation: promptInfo.disableModelInvocation,
+            }),
+            ...(promptInfo.userInvocable !== undefined && {
+                userInvocable: promptInfo.userInvocable,
+            }),
+            ...(promptInfo.allowedTools !== undefined && {
+                allowedTools: promptInfo.allowedTools,
+            }),
+            ...(promptInfo.model !== undefined && { model: promptInfo.model }),
         };
     }
 
@@ -166,6 +177,11 @@ export class ConfigPromptProvider implements PromptProvider {
             title: prompt.title,
             description: prompt.description,
             source: 'config',
+            // Claude Code compatibility fields
+            disableModelInvocation: prompt['disable-model-invocation'],
+            userInvocable: prompt['user-invocable'],
+            allowedTools: prompt['allowed-tools'],
+            model: prompt.model,
             metadata: {
                 type: 'inline',
                 category: prompt.category,
@@ -225,13 +241,31 @@ export class ConfigPromptProvider implements PromptProvider {
                 return null;
             }
 
+            // Config-level fields override frontmatter values
+            const disableModelInvocation =
+                prompt['disable-model-invocation'] ?? parsed.disableModelInvocation;
+            const userInvocable = prompt['user-invocable'] ?? parsed.userInvocable;
+            const allowedTools = prompt['allowed-tools'] ?? parsed.allowedTools;
+            const model = prompt.model ?? parsed.model;
+
+            // Handle namespace prefixing for plugin commands
+            const displayName = prompt.namespace ? `${prompt.namespace}:${parsed.id}` : parsed.id;
+            const promptName = prompt.namespace
+                ? `config:${prompt.namespace}:${parsed.id}`
+                : `config:${parsed.id}`;
+
             const promptInfo: PromptInfo = {
-                name: `config:${parsed.id}`,
-                displayName: parsed.id,
+                name: promptName,
+                displayName,
                 title: parsed.title,
                 description: parsed.description,
                 source: 'config',
                 ...(parsed.arguments && { arguments: parsed.arguments }),
+                // Claude Code compatibility fields
+                ...(disableModelInvocation !== undefined && { disableModelInvocation }),
+                ...(userInvocable !== undefined && { userInvocable }),
+                ...(allowedTools !== undefined && { allowedTools }),
+                ...(model !== undefined && { model }),
                 metadata: {
                     type: 'file',
                     filePath: filePath,
@@ -239,6 +273,7 @@ export class ConfigPromptProvider implements PromptProvider {
                     priority: parsed.priority,
                     showInStarters: prompt.showInStarters,
                     originalId: parsed.id,
+                    ...(prompt.namespace && { namespace: prompt.namespace }),
                 },
             };
 
@@ -262,6 +297,11 @@ export class ConfigPromptProvider implements PromptProvider {
         category?: string;
         priority?: number;
         arguments?: Array<{ name: string; required: boolean; description?: string }>;
+        // Claude Code compatibility fields
+        disableModelInvocation?: boolean;
+        userInvocable?: boolean;
+        allowedTools?: string[];
+        model?: string;
     } {
         const lines = rawContent.trim().split('\n');
         const fileName = filePath.split('/').pop()?.replace(/\.md$/, '') ?? 'unknown';
@@ -272,6 +312,11 @@ export class ConfigPromptProvider implements PromptProvider {
         let category: string | undefined;
         let priority: number | undefined;
         let argumentHint: string | undefined;
+        // Claude Code compatibility fields
+        let disableModelInvocation: boolean | undefined;
+        let userInvocable: boolean | undefined;
+        let allowedTools: string[] | undefined;
+        let model: string | undefined;
         let contentBody: string;
 
         // Parse frontmatter if present
@@ -295,6 +340,13 @@ export class ConfigPromptProvider implements PromptProvider {
                         return m ? (m[1] || m[2] || '').trim() : null;
                     };
 
+                    const matchBool = (key: string): boolean | undefined => {
+                        const val = match(key);
+                        if (val === 'true') return true;
+                        if (val === 'false') return false;
+                        return undefined;
+                    };
+
                     if (line.includes('id:')) {
                         const val = match('id');
                         if (val) id = val;
@@ -313,7 +365,26 @@ export class ConfigPromptProvider implements PromptProvider {
                     } else if (line.includes('argument-hint:')) {
                         const val = match('argument-hint');
                         if (val) argumentHint = val;
+                    } else if (line.includes('disable-model-invocation:')) {
+                        disableModelInvocation = matchBool('disable-model-invocation');
+                    } else if (line.includes('user-invocable:')) {
+                        userInvocable = matchBool('user-invocable');
+                    } else if (line.includes('model:')) {
+                        const val = match('model');
+                        if (val) model = val;
                     }
+                    // Note: allowed-tools parsing requires special handling for arrays
+                    // Will be parsed as YAML array in a separate pass below
+                }
+
+                // Parse allowed-tools as YAML array (simple format: [item1, item2] or multiline)
+                const frontmatterText = frontmatterLines.join('\n');
+                const allowedToolsMatch = frontmatterText.match(/allowed-tools:\s*\[([^\]]+)\]/);
+                if (allowedToolsMatch?.[1]) {
+                    allowedTools = allowedToolsMatch[1]
+                        .split(',')
+                        .map((s) => s.trim().replace(/^['"]|['"]$/g, ''))
+                        .filter((s) => s.length > 0);
                 }
             } else {
                 contentBody = rawContent;
@@ -343,6 +414,10 @@ export class ConfigPromptProvider implements PromptProvider {
             ...(category !== undefined && { category }),
             ...(priority !== undefined && { priority }),
             ...(parsedArguments !== undefined && { arguments: parsedArguments }),
+            ...(disableModelInvocation !== undefined && { disableModelInvocation }),
+            ...(userInvocable !== undefined && { userInvocable }),
+            ...(allowedTools !== undefined && { allowedTools }),
+            ...(model !== undefined && { model }),
         };
     }
 

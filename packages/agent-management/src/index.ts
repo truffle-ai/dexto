@@ -159,3 +159,26 @@ export * from './runtime/index.js';
 
 // Agent Spawner Tool Provider
 export * from './tool-provider/index.js';
+
+// Claude Code Plugin Loader
+export {
+    // Discovery
+    discoverClaudeCodePlugins,
+    getPluginSearchPaths,
+    // Loading
+    loadClaudeCodePlugin,
+    // Schemas
+    PluginManifestSchema,
+    PluginMCPConfigSchema,
+    // Error handling
+    PluginErrorCode,
+    PluginError,
+    // Types
+    type PluginManifest,
+    type DiscoveredPlugin,
+    type PluginCommand,
+    type PluginMCPConfig,
+    type LoadedPlugin,
+    type ValidatedPluginManifest,
+    type ValidatedPluginMCPConfig,
+} from './plugins/index.js';
