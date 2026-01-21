@@ -33,6 +33,10 @@ export type { PendingApproval } from './approvalStore.js';
 export { usePreferenceStore } from './preferenceStore.js';
 export type { PreferenceState } from './preferenceStore.js';
 
+// Todo store - agent task tracking
+export { useTodoStore } from './todoStore.js';
+export type { Todo, TodoStatus } from './todoStore.js';
+
 // Selectors - shared selector hooks for common patterns
 export {
     // Constants

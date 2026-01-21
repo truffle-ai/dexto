@@ -29,6 +29,7 @@ import { QueuedMessagesDisplay } from '../chat/QueuedMessagesDisplay.js';
 import { StatusBar } from '../StatusBar.js';
 import { HistorySearchBar } from '../HistorySearchBar.js';
 import { Footer } from '../Footer.js';
+import { TodoPanel } from '../TodoPanel.js';
 import {
     VirtualizedList,
     SCROLL_TO_ITEM_END,
@@ -85,6 +86,8 @@ export function AlternateBufferCLI({
         setDequeuedBuffer,
         queuedMessages,
         setQueuedMessages,
+        todos,
+        setTodos,
         ui,
         setUi,
         input,
@@ -272,6 +275,9 @@ export function AlternateBufferCLI({
 
             {/* Controls area - fixed at bottom */}
             <Box flexDirection="column" flexShrink={0}>
+                {/* Todo panel (shown when todos are present) */}
+                <TodoPanel todos={todos} />
+
                 <StatusBar
                     agent={agent}
                     isProcessing={ui.isProcessing}
@@ -312,6 +318,7 @@ export function AlternateBufferCLI({
                     setQueuedMessages={setQueuedMessages}
                     setApproval={setApproval}
                     setApprovalQueue={setApprovalQueue}
+                    setTodos={setTodos}
                     agent={agent}
                     inputService={inputService}
                     onKeyboardScroll={handleKeyboardScroll}

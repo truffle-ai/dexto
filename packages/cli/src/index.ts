@@ -141,6 +141,7 @@ program
     .option('--skip-setup', 'Skip global setup validation (useful for MCP mode, automation)')
     .option('-m, --model <model>', 'Specify the LLM model to use')
     .option('--auto-approve', 'Always approve tool executions without confirmation prompts')
+    .option('--no-elicitation', 'Disable elicitation (agent cannot prompt user for input)')
     .option('-c, --continue', 'Continue most recent session (requires -p/prompt)')
     .option('-r, --resume <sessionId>', 'Resume specific session (requires -p/prompt)')
     .option(
@@ -1300,11 +1301,13 @@ program
                         console.error(
                             '❌ Manual approval and elicitation are not supported in headless CLI mode (pipes/scripts).'
                         );
-                        console.error('💡 Use interactive CLI mode, or update your config:');
                         console.error(
-                            '   - Set toolConfirmation.mode to "auto-approve" or "auto-deny"'
+                            '💡 Use interactive CLI mode, or skip approvals by running `dexto --auto-approve` and disabling elicitation in your config.'
                         );
-                        console.error('   - Set elicitation.enabled to false');
+                        console.error(
+                            '   - toolConfirmation.mode: auto-approve (or auto-deny for strict denial policies)'
+                        );
+                        console.error('   - elicitation.enabled: false');
                         safeExit('main', 1, 'approval-unsupported-headless');
                     }
 
@@ -1319,13 +1322,17 @@ program
                             `❌ Manual approval and elicitation are not supported in "${opts.mode}" mode.`
                         );
                         console.error(
-                            `💡 These features require interactive UI and are only supported in: ${supportedModes.join(', ')}`
+                            `💡 These features require interactive UI and are only supported in: ${supportedModes.join(
+                                ', '
+                            )}`
                         );
-                        console.error('   Update your config:');
                         console.error(
-                            '   - Set toolConfirmation.mode to "auto-approve" or "auto-deny"'
+                            '💡 Run `dexto --auto-approve` or configure your agent to skip approvals when running headlessly.'
                         );
-                        console.error('   - Set elicitation.enabled to false');
+                        console.error(
+                            '   toolConfirmation.mode: auto-approve (or auto-deny if you want to deny certain tools)'
+                        );
+                        console.error('   elicitation.enabled: false');
                         safeExit('main', 1, 'approval-unsupported-mode');
                     }
                 }

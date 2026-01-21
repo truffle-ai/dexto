@@ -18,6 +18,7 @@ import type {
     SessionState,
     PendingImage,
     PastedBlock,
+    TodoItem,
 } from '../state/types.js';
 import { createUserMessage } from '../utils/messageFormatting.js';
 import { generateMessageId } from '../utils/idGenerator.js';
@@ -58,6 +59,8 @@ interface InputContainerProps {
     setApproval: React.Dispatch<React.SetStateAction<ApprovalRequest | null>>;
     /** Setter for approval queue (for queued approvals via processStream) */
     setApprovalQueue: React.Dispatch<React.SetStateAction<ApprovalRequest[]>>;
+    /** Setter for todo items (for todo tool updates via processStream) */
+    setTodos: React.Dispatch<React.SetStateAction<TodoItem[]>>;
     agent: DextoAgent;
     inputService: InputService;
     /** Optional keyboard scroll handler (for alternate buffer mode) */
@@ -88,6 +91,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
             setQueuedMessages,
             setApproval,
             setApprovalQueue,
+            setTodos,
             agent,
             inputService,
             onKeyboardScroll,
@@ -545,6 +549,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                                     useStreaming,
                                     autoApproveEditsRef,
                                     eventBus: agent.agentEventBus,
+                                    setTodos,
                                     ...(soundService && { soundService }),
                                 }
                             );
@@ -664,6 +669,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                                 useStreaming,
                                 autoApproveEditsRef,
                                 eventBus: agent.agentEventBus,
+                                setTodos,
                                 ...(soundService && { soundService }),
                             }
                         );

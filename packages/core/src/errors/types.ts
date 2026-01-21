@@ -13,8 +13,6 @@ import type { PromptErrorCode } from '@core/prompts/error-codes.js';
 import type { ApprovalErrorCode } from '@core/approval/error-codes.js';
 import type { MemoryErrorCode } from '@core/memory/error-codes.js';
 import type { PluginErrorCode } from '@core/plugins/error-codes.js';
-import type { FileSystemErrorCode } from '@core/filesystem/error-codes.js';
-import type { ProcessErrorCode } from '@core/process/error-codes.js';
 import type { TelemetryErrorCode } from '@core/telemetry/error-codes.js';
 
 /**
@@ -36,8 +34,6 @@ export enum ErrorScope {
     PROMPT = 'prompt', // Prompt management, resolution, and providers
     MEMORY = 'memory', // Memory management and storage
     PLUGIN = 'plugin', // Plugin loading, validation, and execution
-    FILESYSTEM = 'filesystem', // File system operations and path validation
-    PROCESS = 'process', // Process execution and command validation
     TELEMETRY = 'telemetry', // Telemetry initialization and export operations
 }
 
@@ -76,8 +72,6 @@ export type DextoErrorCode =
     | ApprovalErrorCode
     | MemoryErrorCode
     | PluginErrorCode
-    | FileSystemErrorCode
-    | ProcessErrorCode
     | TelemetryErrorCode;
 
 /** Severity of an issue */
