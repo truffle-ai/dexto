@@ -228,7 +228,11 @@ export class TurnExecutor {
                     this.logger.debug(
                         `Pre-check: estimated ${estimatedTokens} tokens exceeds threshold, compacting`
                     );
-                    const didCompact = await this.compactContext(estimatedTokens);
+                    const didCompact = await this.compactContext(
+                        estimatedTokens,
+                        contributorContext,
+                        toolDefinitions
+                    );
 
                     // If compaction occurred, rebuild messages (filterCompacted will handle it)
                     if (didCompact) {
@@ -364,7 +368,11 @@ export class TurnExecutor {
                     this.logger.debug(
                         `Post-response: actual ${result.usage.inputTokens} tokens exceeds threshold, compacting`
                     );
-                    await this.compactContext(result.usage.inputTokens);
+                    await this.compactContext(
+                        result.usage.inputTokens,
+                        contributorContext,
+                        toolDefinitions
+                    );
                 }
 
                 // 8. Check termination conditions
@@ -971,9 +979,15 @@ export class TurnExecutor {
      * exclude all messages before the summary, effectively compacting the context.
      *
      * @param originalTokens The estimated input token count that triggered overflow
+     * @param contributorContext Context for system prompt contributors (needed for accurate token estimation)
+     * @param tools Tool definitions (needed for accurate token estimation)
      * @returns true if compaction occurred, false if skipped
      */
-    private async compactContext(originalTokens: number): Promise<boolean> {
+    private async compactContext(
+        originalTokens: number,
+        contributorContext: DynamicContributorContext,
+        tools: Record<string, { name?: string; description?: string; parameters?: unknown }>
+    ): Promise<boolean> {
         if (!this.compactionStrategy) {
             return false;
         }
@@ -983,6 +997,9 @@ export class TurnExecutor {
         );
 
         const history = await this.contextManager.getHistory();
+        const { filterCompacted } = await import('../../context/utils.js');
+        const originalFiltered = filterCompacted(history);
+        const originalMessages = originalFiltered.length;
 
         // Pre-check if history is long enough for compaction (need at least 4 messages for meaningful summary)
         if (history.length < 4) {
@@ -1007,8 +1024,8 @@ export class TurnExecutor {
             this.eventBus.emit('context:compacted', {
                 originalTokens,
                 compactedTokens: originalTokens, // No change
-                originalMessages: history.length,
-                compactedMessages: history.length, // No change
+                originalMessages,
+                compactedMessages: originalMessages, // No change
                 strategy: this.compactionStrategy.name,
                 reason: 'overflow',
             });
@@ -1024,24 +1041,27 @@ export class TurnExecutor {
         // The formula (lastInput + lastOutput + newEstimate) is no longer valid after compaction
         this.contextManager.resetActualTokenTracking();
 
-        // Get filtered history to report message counts
-        const { filterCompacted, estimateMessagesTokens } = await import('../../context/utils.js');
-        const updatedHistory = await this.contextManager.getHistory();
-        const filteredHistory = filterCompacted(updatedHistory);
-        const compactedTokens = estimateMessagesTokens(filteredHistory);
+        // Get accurate token estimate after compaction using the same method as /context command
+        // This ensures consistency between what we report and what /context shows
+        const afterEstimate = await this.contextManager.getContextTokenEstimate(
+            contributorContext,
+            tools
+        );
+        const compactedTokens = afterEstimate.estimated;
+        const compactedMessages = afterEstimate.stats.filteredMessageCount;
 
         this.eventBus.emit('context:compacted', {
             originalTokens,
             compactedTokens,
-            originalMessages: history.length,
-            compactedMessages: filteredHistory.length,
+            originalMessages,
+            compactedMessages,
             strategy: this.compactionStrategy.name,
             reason: 'overflow',
         });
 
         this.logger.info(
             `Compaction complete: ${originalTokens} → ~${compactedTokens} tokens ` +
-                `(${history.length} → ${filteredHistory.length} messages after filtering)`
+                `(${originalMessages} → ${compactedMessages} messages after filtering)`
         );
 
         return true;

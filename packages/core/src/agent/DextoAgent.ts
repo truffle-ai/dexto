@@ -1600,9 +1600,18 @@ export class DextoAgent {
             return null;
         }
 
+        // Get full context estimate BEFORE compaction (includes system prompt, tools, messages)
+        // This uses the same calculation as /context command for consistency
+        const contributorContext = { mcpManager: this.mcpManager };
+        const tools = await llmService.getAllTools();
+        const beforeEstimate = await contextManager.getContextTokenEstimate(
+            contributorContext,
+            tools
+        );
+        const originalTokens = beforeEstimate.estimated;
+        const originalMessages = beforeEstimate.stats.filteredMessageCount;
+
         // Emit compacting event
-        const { estimateMessagesTokens } = await import('../context/utils.js');
-        const originalTokens = estimateMessagesTokens(history);
         this.agentEventBus.emit('context:compacting', {
             estimatedTokens: originalTokens,
             sessionId,
@@ -1616,8 +1625,8 @@ export class DextoAgent {
             this.agentEventBus.emit('context:compacted', {
                 originalTokens,
                 compactedTokens: originalTokens,
-                originalMessages: history.length,
-                compactedMessages: history.length,
+                originalMessages,
+                compactedMessages: originalMessages,
                 strategy: compactionStrategy.name,
                 reason: 'manual',
                 sessionId,
@@ -1630,17 +1639,24 @@ export class DextoAgent {
             await contextManager.addMessage(summary);
         }
 
-        // Get filtered history to report message counts
-        const { filterCompacted } = await import('../context/utils.js');
-        const updatedHistory = await contextManager.getHistory();
-        const filteredHistory = filterCompacted(updatedHistory);
-        const summaryTokens = estimateMessagesTokens(filteredHistory);
+        // Reset actual token tracking since context has fundamentally changed
+        // The formula (lastInput + lastOutput + newEstimate) is no longer valid after compaction
+        contextManager.resetActualTokenTracking();
+
+        // Get full context estimate AFTER compaction (uses pure estimation since actuals were reset)
+        // This ensures /context will show the same value
+        const afterEstimate = await contextManager.getContextTokenEstimate(
+            contributorContext,
+            tools
+        );
+        const compactedTokens = afterEstimate.estimated;
+        const compactedMessages = afterEstimate.stats.filteredMessageCount;
 
         this.agentEventBus.emit('context:compacted', {
             originalTokens,
-            compactedTokens: summaryTokens,
-            originalMessages: history.length,
-            compactedMessages: filteredHistory.length,
+            compactedTokens,
+            originalMessages,
+            compactedMessages,
             strategy: compactionStrategy.name,
             reason: 'manual',
             sessionId,
@@ -1648,14 +1664,14 @@ export class DextoAgent {
 
         this.logger.info(
             `Compaction complete for session ${sessionId}: ` +
-                `${history.length} messages → ${filteredHistory.length} messages (~${summaryTokens} tokens)`
+                `${originalMessages} messages → ${compactedMessages} messages (~${compactedTokens} tokens)`
         );
 
         return {
             sessionId,
-            summaryTokens,
-            originalMessages: history.length,
-            compactedMessages: filteredHistory.length,
+            summaryTokens: compactedTokens,
+            originalMessages,
+            compactedMessages,
         };
     }
 
