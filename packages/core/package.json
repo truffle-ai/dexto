@@ -43,15 +43,22 @@
     "zod-to-json-schema": "^3.24.6"
   },
   "devDependencies": {
+    "@opentelemetry/instrumentation-http": "^0.210.0",
+    "@opentelemetry/instrumentation-undici": "^0.20.0",
+    "@opentelemetry/resources": "^1.28.0",
+    "@opentelemetry/sdk-node": "^0.55.0",
+    "@opentelemetry/sdk-trace-base": "^1.28.0",
+    "@opentelemetry/semantic-conventions": "^1.28.0",
     "@types/diff": "^8.0.0",
     "@types/json-schema": "^7.0.15",
     "zod": "^3.25.0"
   },
   "peerDependencies": {
-    "@opentelemetry/auto-instrumentations-node": "^0.52.1",
     "@opentelemetry/core": "^1.28.0",
     "@opentelemetry/exporter-trace-otlp-grpc": "^0.55.0",
     "@opentelemetry/exporter-trace-otlp-http": "^0.55.0",
+    "@opentelemetry/instrumentation-http": "^0.210.0",
+    "@opentelemetry/instrumentation-undici": "^0.20.0",
     "@opentelemetry/resources": "^1.28.0",
     "@opentelemetry/sdk-node": "^0.55.0",
     "@opentelemetry/sdk-trace-base": "^1.28.0",
@@ -63,9 +70,6 @@
     "zod": "^3.25.0"
   },
   "peerDependenciesMeta": {
-    "@opentelemetry/auto-instrumentations-node": {
-      "optional": true
-    },
     "@opentelemetry/core": {
       "optional": true
     },
@@ -73,6 +77,12 @@
       "optional": true
     },
     "@opentelemetry/exporter-trace-otlp-http": {
+      "optional": true
+    },
+    "@opentelemetry/instrumentation-http": {
+      "optional": true
+    },
+    "@opentelemetry/instrumentation-undici": {
       "optional": true
     },
     "@opentelemetry/resources": {

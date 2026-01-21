@@ -131,7 +131,8 @@ export class Telemetry {
                         // Dynamic imports for optional OpenTelemetry dependencies
                         let NodeSDK: typeof import('@opentelemetry/sdk-node').NodeSDK;
                         let Resource: typeof import('@opentelemetry/resources').Resource;
-                        let getNodeAutoInstrumentations: typeof import('@opentelemetry/auto-instrumentations-node').getNodeAutoInstrumentations;
+                        let HttpInstrumentation: typeof import('@opentelemetry/instrumentation-http').HttpInstrumentation;
+                        let UndiciInstrumentation: typeof import('@opentelemetry/instrumentation-undici').UndiciInstrumentation;
                         let ATTR_SERVICE_NAME: string;
 
                         try {
@@ -141,11 +142,17 @@ export class Telemetry {
                             const resourcesModule = await import('@opentelemetry/resources');
                             Resource = resourcesModule.Resource;
 
-                            const autoInstModule = await import(
-                                '@opentelemetry/auto-instrumentations-node'
+                            // Import specific instrumentations instead of auto-instrumentations-node
+                            // This reduces install size by ~130MB while maintaining HTTP tracing for LLM API calls
+                            const httpInstModule = await import(
+                                '@opentelemetry/instrumentation-http'
                             );
-                            getNodeAutoInstrumentations =
-                                autoInstModule.getNodeAutoInstrumentations;
+                            HttpInstrumentation = httpInstModule.HttpInstrumentation;
+
+                            const undiciInstModule = await import(
+                                '@opentelemetry/instrumentation-undici'
+                            );
+                            UndiciInstrumentation = undiciInstModule.UndiciInstrumentation;
 
                             const semanticModule = await import(
                                 '@opentelemetry/semantic-conventions'
@@ -156,7 +163,8 @@ export class Telemetry {
                             if (err.code === 'ERR_MODULE_NOT_FOUND') {
                                 throw TelemetryError.dependencyNotInstalled([
                                     '@opentelemetry/sdk-node',
-                                    '@opentelemetry/auto-instrumentations-node',
+                                    '@opentelemetry/instrumentation-http',
+                                    '@opentelemetry/instrumentation-undici',
                                     '@opentelemetry/resources',
                                     '@opentelemetry/semantic-conventions',
                                     '@opentelemetry/sdk-trace-base',
@@ -182,10 +190,16 @@ export class Telemetry {
                                 ? spanExporter
                                 : new CompositeExporter([spanExporter]);
 
+                        // Use specific instrumentations for HTTP tracing:
+                        // - HttpInstrumentation: traces http/https module calls
+                        // - UndiciInstrumentation: traces fetch() calls (Node.js 18+ uses undici internally)
                         sdk = new NodeSDK({
                             resource,
                             traceExporter,
-                            instrumentations: [getNodeAutoInstrumentations()],
+                            instrumentations: [
+                                new HttpInstrumentation(),
+                                new UndiciInstrumentation(),
+                            ],
                         });
 
                         await sdk.start(); // registers the global provider → no ProxyTracer
