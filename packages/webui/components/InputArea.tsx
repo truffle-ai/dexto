@@ -863,10 +863,10 @@ export default function InputArea({
     };
 
     const handlePdfChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
+        const files = Array.from(e.target.files || []);
+        if (files.length === 0) return;
 
-        await handleFilesAdded([file], 'button');
+        await handleFilesAdded(files, 'button');
         e.target.value = '';
     };
 
@@ -943,10 +943,10 @@ export default function InputArea({
     };
 
     const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
+        const files = Array.from(e.target.files || []);
+        if (files.length === 0) return;
 
-        await handleFilesAdded([file], 'button');
+        await handleFilesAdded(files, 'button');
         e.target.value = '';
     };
 
@@ -965,10 +965,10 @@ export default function InputArea({
     }, [text, modelSwitchError, fileUploadError]);
 
     const handleAudioFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
+        const files = Array.from(e.target.files || []);
+        if (files.length === 0) return;
 
-        await handleFilesAdded([file], 'button');
+        await handleFilesAdded(files, 'button');
         e.target.value = '';
     };
 
@@ -1300,6 +1300,7 @@ export default function InputArea({
                     type="file"
                     id="image-upload"
                     accept="image/*"
+                    multiple
                     className="hidden"
                     onChange={handleImageChange}
                 />
@@ -1308,6 +1309,7 @@ export default function InputArea({
                     type="file"
                     id="pdf-upload"
                     accept="application/pdf"
+                    multiple
                     className="hidden"
                     onChange={handlePdfChange}
                 />
@@ -1316,6 +1318,7 @@ export default function InputArea({
                     type="file"
                     id="audio-upload"
                     accept="audio/*"
+                    multiple
                     className="hidden"
                     onChange={handleAudioFileChange}
                 />

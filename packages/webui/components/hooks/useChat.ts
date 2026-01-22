@@ -265,66 +265,52 @@ export function useChat(
             lastUserMessageIdRef.current = userId;
             lastMessageIdRef.current = userId; // Track for error anchoring
 
-            // Convert attachments to legacy format for chatStore (temporary compatibility)
-            const imageData = attachments?.find((a) => a.type === 'image');
-            const fileData = attachments?.find((a) => a.type === 'file');
+            // Build content parts array from text and attachments
+            const contentParts: Array<
+                | { type: 'text'; text: string }
+                | { type: 'image'; image: string; mimeType?: string }
+                | { type: 'file'; data: string; mimeType: string; filename?: string }
+            > = [];
 
+            if (content) {
+                contentParts.push({ type: 'text', text: content });
+            }
+
+            if (attachments) {
+                for (const attachment of attachments) {
+                    if (attachment.type === 'image') {
+                        contentParts.push({
+                            type: 'image',
+                            image: attachment.data,
+                            mimeType: attachment.mimeType,
+                        });
+                    } else {
+                        contentParts.push({
+                            type: 'file',
+                            data: attachment.data,
+                            mimeType: attachment.mimeType,
+                            filename: attachment.filename,
+                        });
+                    }
+                }
+            }
+
+            // Store message with full content array if multimodal, otherwise just text
             useChatStore.getState().addMessage(sessionId, {
                 id: userId,
                 role: 'user',
-                content,
+                content:
+                    contentParts.length === 1 && contentParts[0]?.type === 'text'
+                        ? content // Simple text-only case
+                        : contentParts, // Multimodal: store full array
                 createdAt: Date.now(),
                 sessionId,
-                // Temporary: Store first image and first file for backward compatibility
-                ...(imageData && {
-                    imageData: {
-                        image: imageData.data,
-                        mimeType: imageData.mimeType,
-                    },
-                }),
-                ...(fileData && {
-                    fileData: {
-                        data: fileData.data,
-                        mimeType: fileData.mimeType,
-                        filename: fileData.filename,
-                    },
-                }),
             });
 
             // Update sessions cache (user message sent)
             updateSessionActivity(sessionId);
 
             try {
-                // Build content parts array from text and attachments
-                const contentParts: Array<
-                    | { type: 'text'; text: string }
-                    | { type: 'image'; image: string; mimeType?: string }
-                    | { type: 'file'; data: string; mimeType: string; filename?: string }
-                > = [];
-
-                if (content) {
-                    contentParts.push({ type: 'text', text: content });
-                }
-
-                if (attachments) {
-                    for (const attachment of attachments) {
-                        if (attachment.type === 'image') {
-                            contentParts.push({
-                                type: 'image',
-                                image: attachment.data,
-                                mimeType: attachment.mimeType,
-                            });
-                        } else {
-                            contentParts.push({
-                                type: 'file',
-                                data: attachment.data,
-                                mimeType: attachment.mimeType,
-                                filename: attachment.filename,
-                            });
-                        }
-                    }
-                }
-
                 // Always use SSE for all events (tool calls, approvals, responses)
                 // The 'stream' flag only controls whether chunks update UI incrementally
                 const responsePromise = client.api['message-stream'].$post({
