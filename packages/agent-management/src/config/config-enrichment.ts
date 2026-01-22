@@ -211,6 +211,15 @@ export function enrichAgentConfig(
 
     // Discover and load Claude Code plugins (skip for subagents to avoid duplicate warnings)
     if (!skipPluginDiscovery) {
+        // Build set of existing file paths for deduplication
+        // This prevents duplicate prompts when same file appears in config and plugins/skills
+        const existingPromptPaths = new Set<string>();
+        for (const prompt of enriched.prompts ?? []) {
+            if (prompt.type === 'file') {
+                existingPromptPaths.add(path.resolve(prompt.file));
+            }
+        }
+
         const discoveredPlugins = discoverClaudeCodePlugins();
         for (const plugin of discoveredPlugins) {
             const loaded = loadClaudeCodePlugin(plugin);
@@ -227,6 +236,12 @@ export function enrichAgentConfig(
             // Note: Both commands and skills are user-invocable by default (per schema).
             // SKILL.md frontmatter can override with `user-invocable: false` if needed.
             for (const cmd of loaded.commands) {
+                const resolvedPath = path.resolve(cmd.file);
+                if (existingPromptPaths.has(resolvedPath)) {
+                    continue; // Skip duplicate
+                }
+                existingPromptPaths.add(resolvedPath);
+
                 const promptEntry = {
                     type: 'file' as const,
                     file: cmd.file,
@@ -254,6 +269,12 @@ export function enrichAgentConfig(
         // the id from frontmatter or directory name is used directly.
         const standaloneSkills = discoverStandaloneSkills();
         for (const skill of standaloneSkills) {
+            const resolvedPath = path.resolve(skill.skillFile);
+            if (existingPromptPaths.has(resolvedPath)) {
+                continue; // Skip duplicate
+            }
+            existingPromptPaths.add(resolvedPath);
+
             const promptEntry = {
                 type: 'file' as const,
                 file: skill.skillFile,

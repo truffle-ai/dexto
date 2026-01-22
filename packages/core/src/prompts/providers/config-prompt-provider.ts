@@ -406,7 +406,8 @@ export class ConfigPromptProvider implements PromptProvider {
                     // Will be parsed as YAML array in a separate pass below
                 }
 
-                // Parse allowed-tools as YAML array (simple format: [item1, item2] or multiline)
+                // Parse allowed-tools as inline YAML array format: [item1, item2]
+                // Note: Multiline YAML array format (- item) is not supported
                 const frontmatterText = frontmatterLines.join('\n');
                 const allowedToolsMatch = frontmatterText.match(/allowed-tools:\s*\[([^\]]+)\]/);
                 if (allowedToolsMatch?.[1]) {

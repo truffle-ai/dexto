@@ -34,7 +34,13 @@ export function loadClaudeCodePlugin(plugin: DiscoveredPlugin): LoadedPlugin {
         for (const file of commandFiles) {
             // Check for shell injection in command content
             const content = readFileSafe(file);
-            if (content && SHELL_INJECTION_PATTERN.test(content)) {
+            if (!content) {
+                warnings.push(
+                    `[${pluginName}] Command '${path.basename(file)}' could not be read and will be skipped`
+                );
+                continue;
+            }
+            if (SHELL_INJECTION_PATTERN.test(content)) {
                 warnings.push(
                     `[${pluginName}] Command '${path.basename(file)}' contains shell injection syntax which is not supported`
                 );
@@ -60,7 +66,13 @@ export function loadClaudeCodePlugin(plugin: DiscoveredPlugin): LoadedPlugin {
                 if (existsSync(skillFile)) {
                     // Check for shell injection in skill content
                     const content = readFileSafe(skillFile);
-                    if (content && SHELL_INJECTION_PATTERN.test(content)) {
+                    if (!content) {
+                        warnings.push(
+                            `[${pluginName}] Skill '${entry.name}' could not be read and will be skipped`
+                        );
+                        continue;
+                    }
+                    if (SHELL_INJECTION_PATTERN.test(content)) {
                         warnings.push(
                             `[${pluginName}] Skill '${entry.name}' contains shell injection syntax which is not supported`
                         );

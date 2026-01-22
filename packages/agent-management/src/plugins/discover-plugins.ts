@@ -155,7 +155,7 @@ function readInstalledPluginsFile(
         const installedPlugins = result.data;
 
         // Iterate over all plugin entries
-        for (const [pluginId, installations] of Object.entries(installedPlugins.plugins)) {
+        for (const installations of Object.values(installedPlugins.plugins)) {
             // Each plugin can have multiple installations (different scopes/projects)
             for (const installation of installations) {
                 const { scope, installPath, projectPath } = installation;
