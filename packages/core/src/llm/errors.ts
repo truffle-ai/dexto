@@ -101,6 +101,22 @@ export class LLMError {
         );
     }
 
+    /**
+     * Error when Dexto account has insufficient credits.
+     * Returned as 402 from the gateway with code INSUFFICIENT_CREDITS.
+     */
+    static insufficientCredits(balance?: number) {
+        const balanceStr = balance !== undefined ? `$${balance.toFixed(2)}` : 'low';
+        return new DextoRuntimeError(
+            LLMErrorCode.INSUFFICIENT_CREDITS,
+            ErrorScope.LLM,
+            ErrorType.FORBIDDEN,
+            `Insufficient Dexto credits. Balance: ${balanceStr}`,
+            { balance },
+            'Top up your balance at https://dexto.ai/billing'
+        );
+    }
+
     // Runtime operation errors
     static generationFailed(error: string, provider: LLMProvider, model: string) {
         return new DextoRuntimeError(

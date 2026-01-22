@@ -24,3 +24,6 @@ export {
     handleStatusCommand,
     handleWhoamiCommand,
 } from './auth/index.js';
+
+// Billing commands
+export { handleBillingStatusCommand } from './billing/index.js';

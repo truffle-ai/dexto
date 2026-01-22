@@ -1111,6 +1111,37 @@ export class TurnExecutor {
                     ? err.responseBody
                     : JSON.stringify(err.responseBody ?? '');
 
+            if (status === 402) {
+                // Dexto gateway returns 402 with INSUFFICIENT_CREDITS when balance is low
+                // Try to extract balance from response body
+                let balance: number | undefined;
+                try {
+                    const parsed = JSON.parse(body);
+                    // Format: { error: { code: 'INSUFFICIENT_CREDITS', message: '...Balance: $X.XX...' } }
+                    const msg = parsed?.error?.message || '';
+                    const match = msg.match(/Balance:\s*\$?([\d.]+)/i);
+                    if (match) {
+                        balance = parseFloat(match[1]);
+                    }
+                } catch {
+                    // Ignore parse errors
+                }
+                return new DextoRuntimeError(
+                    LLMErrorCode.INSUFFICIENT_CREDITS,
+                    ErrorScope.LLM,
+                    ErrorType.FORBIDDEN,
+                    `Insufficient Dexto credits${balance !== undefined ? `. Balance: $${balance.toFixed(2)}` : ''}`,
+                    {
+                        sessionId: this.sessionId,
+                        provider: this.llmContext.provider,
+                        model: this.llmContext.model,
+                        status,
+                        balance,
+                        body,
+                    },
+                    'Top up your balance at https://dexto.ai/billing'
+                );
+            }
             if (status === 429) {
                 return new DextoRuntimeError(
                     LLMErrorCode.RATE_LIMIT_EXCEEDED,

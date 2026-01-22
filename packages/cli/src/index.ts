@@ -79,6 +79,7 @@ import {
     handleLogoutCommand,
     handleStatusCommand,
     handleWhoamiCommand,
+    handleBillingStatusCommand,
 } from './cli/commands/index.js';
 import {
     handleSessionListCommand,
@@ -723,7 +724,40 @@ program
         })
     );
 
-// 13) `mcp` SUB-COMMAND
+// 13) `billing` SUB-COMMAND GROUP
+const billingCommand = program.command('billing').description('Manage Dexto billing and credits');
+
+billingCommand
+    .command('status')
+    .description('Show billing status and balance information')
+    .action(
+        withAnalytics('billing status', async () => {
+            try {
+                await handleBillingStatusCommand();
+                safeExit('billing status', 0);
+            } catch (err) {
+                if (err instanceof ExitSignal) throw err;
+                console.error(`❌ dexto billing status command failed: ${err}`);
+                safeExit('billing status', 1, 'error');
+            }
+        })
+    );
+
+// Also add `dexto billing` as default to show status
+billingCommand.action(
+    withAnalytics('billing', async () => {
+        try {
+            await handleBillingStatusCommand();
+            safeExit('billing', 0);
+        } catch (err) {
+            if (err instanceof ExitSignal) throw err;
+            console.error(`❌ dexto billing command failed: ${err}`);
+            safeExit('billing', 1, 'error');
+        }
+    })
+);
+
+// 14) `mcp` SUB-COMMAND
 // For now, this mode simply aggregates and re-expose tools from configured MCP servers (no agent)
 // dexto --mode mcp will be moved to this sub-command in the future
 program
