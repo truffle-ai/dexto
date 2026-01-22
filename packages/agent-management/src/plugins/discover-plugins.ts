@@ -168,8 +168,9 @@ function readInstalledPluginsFile(
                 // For project-scoped and local-scoped plugins, only include if projectPath matches current project
                 if ((scope === 'project' || scope === 'local') && projectPath) {
                     // Normalize paths for comparison
-                    const normalizedProjectPath = path.resolve(projectPath);
-                    const normalizedCurrentPath = path.resolve(currentProjectPath);
+                    // Use case-insensitive comparison for Windows/macOS compatibility
+                    const normalizedProjectPath = path.resolve(projectPath).toLowerCase();
+                    const normalizedCurrentPath = path.resolve(currentProjectPath).toLowerCase();
                     if (normalizedProjectPath !== normalizedCurrentPath) {
                         continue;
                     }

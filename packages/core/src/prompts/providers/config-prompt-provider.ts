@@ -10,7 +10,7 @@ import { expandPlaceholders } from '../utils.js';
 import { assertValidPromptName } from '../name-validation.js';
 import { readFile, realpath } from 'fs/promises';
 import { existsSync } from 'fs';
-import { dirname, relative, sep } from 'path';
+import { basename, dirname, relative, sep } from 'path';
 
 /**
  * Config Prompt Provider - Unified provider for prompts from agent configuration
@@ -312,15 +312,13 @@ export class ConfigPromptProvider implements PromptProvider {
         agent?: string;
     } {
         const lines = rawContent.trim().split('\n');
-        const pathParts = filePath.split('/');
-        const fileName = pathParts.pop()?.replace(/\.md$/, '') ?? 'unknown';
+        // Use path utilities for cross-platform compatibility (Windows uses backslashes)
+        const fileName = basename(filePath, '.md') || 'unknown';
+        const parentDir = basename(dirname(filePath)) || 'unknown';
 
         // For SKILL.md files, use parent directory name as the id (Claude Code convention)
         // e.g., .claude/skills/my-skill/SKILL.md -> id = "my-skill"
-        const defaultId =
-            fileName.toUpperCase() === 'SKILL'
-                ? (pathParts[pathParts.length - 1] ?? fileName)
-                : fileName;
+        const defaultId = fileName.toUpperCase() === 'SKILL' ? parentDir : fileName;
 
         let id = defaultId;
         let title = defaultId;
