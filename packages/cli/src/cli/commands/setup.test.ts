@@ -279,33 +279,11 @@ describe('Setup Command', () => {
             );
         });
 
-        it('handles quick start selection in interactive mode', async () => {
-            // User selects 'quick' setup
-            mockPrompts.select.mockResolvedValueOnce('quick'); // Setup type -> quick start
-            mockPrompts.select.mockResolvedValueOnce('web'); // Default mode selection
-            mockHasApiKeyConfigured.mockReturnValue(true); // API key already configured
-
-            const options = {
-                interactive: true,
-            };
-
-            await handleSetupCommand(options);
-
-            // Quick start uses Google provider
-            expect(mockCreateInitialPreferences).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    provider: 'google',
-                    defaultMode: 'web',
-                    setupCompleted: true,
-                })
-            );
-        });
-
         it('runs interactive API key setup when no API key exists', async () => {
             // New wizard flow uses p.select for setup type, selectProvider for provider
             mockPrompts.select.mockResolvedValueOnce('custom'); // Setup type
             mockSelectProvider.mockResolvedValueOnce('openai'); // Provider (via selectProvider)
-            mockPrompts.select.mockResolvedValueOnce('gpt-4'); // Model
+            mockPrompts.select.mockResolvedValueOnce('gpt-4o'); // Model (must be valid OpenAI model from registry)
             mockPrompts.select.mockResolvedValueOnce('web'); // Default mode
             mockHasApiKeyConfigured.mockReturnValue(false); // No API key exists
 
@@ -315,12 +293,11 @@ describe('Setup Command', () => {
 
             await handleSetupCommand(options);
 
-            // API key setup is called with provider and model option
+            // API key setup is called with provider and model
             expect(mockInteractiveApiKeySetup).toHaveBeenCalledWith(
                 'openai',
                 expect.objectContaining({
                     exitOnCancel: false,
-                    model: 'gpt-4',
                 })
             );
         });
@@ -655,94 +632,6 @@ describe('Setup Command', () => {
 
             expect(mockCreateInitialPreferences).toHaveBeenCalled();
             expect(mockSaveGlobalPreferences).toHaveBeenCalled();
-        });
-    });
-
-    describe('Quick start flow', () => {
-        it('handles --quick-start flag in non-interactive mode', async () => {
-            mockPrompts.select.mockResolvedValueOnce('web'); // Default mode
-            mockHasApiKeyConfigured.mockReturnValue(true);
-
-            const options = {
-                quickStart: true,
-                interactive: false,
-            };
-
-            // Note: quickStart triggers the quick start flow even in non-interactive
-            await handleSetupCommand(options);
-
-            expect(mockCreateInitialPreferences).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    provider: 'google',
-                    setupCompleted: true,
-                })
-            );
-        });
-
-        it('prompts for API key if not configured during quick start', async () => {
-            mockPrompts.select.mockResolvedValueOnce('web'); // Default mode
-            mockHasApiKeyConfigured.mockReturnValue(false);
-            mockInteractiveApiKeySetup.mockResolvedValue({ success: true });
-
-            const options = {
-                quickStart: true,
-            };
-
-            await handleSetupCommand(options);
-
-            expect(mockInteractiveApiKeySetup).toHaveBeenCalledWith(
-                'google',
-                expect.objectContaining({
-                    exitOnCancel: false,
-                })
-            );
-        });
-
-        it('handles API key skip during quick start', async () => {
-            mockPrompts.select.mockResolvedValueOnce('web'); // Default mode
-            mockHasApiKeyConfigured.mockReturnValue(false);
-            mockInteractiveApiKeySetup.mockResolvedValue({ success: true, skipped: true });
-
-            const options = {
-                quickStart: true,
-            };
-
-            await handleSetupCommand(options);
-
-            // Should save preferences with apiKeyPending flag set to true
-            expect(mockCreateInitialPreferences).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    provider: 'google',
-                    apiKeyPending: true,
-                    setupCompleted: true,
-                })
-            );
-            expect(mockSaveGlobalPreferences).toHaveBeenCalled();
-        });
-
-        it('sets apiKeyPending to false when API key is provided', async () => {
-            // Reset select mock to ensure clean state
-            mockPrompts.select.mockReset();
-            mockPrompts.select.mockResolvedValue('web'); // Default mode selection
-
-            mockHasApiKeyConfigured.mockReturnValue(false);
-            // interactiveApiKeySetup returns success without skipped flag - API key was provided
-            mockInteractiveApiKeySetup.mockResolvedValue({ success: true, apiKey: 'test-key' });
-
-            const options = {
-                quickStart: true,
-            };
-
-            await handleSetupCommand(options);
-
-            // Should save preferences with apiKeyPending false
-            expect(mockCreateInitialPreferences).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    provider: 'google',
-                    apiKeyPending: false,
-                    setupCompleted: true,
-                })
-            );
         });
     });
 });

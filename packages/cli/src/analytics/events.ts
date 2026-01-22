@@ -73,7 +73,7 @@ export interface SetupEvent {
     model: string;
     hadApiKeyBefore?: boolean;
     setupMode: 'interactive' | 'non-interactive';
-    setupVariant?: 'quick-start' | 'custom' | 'dexto-credits';
+    setupVariant?: 'quick-start' | 'custom' | 'dexto';
     defaultMode?: string;
     hasBaseURL?: boolean;
     apiKeySkipped?: boolean;

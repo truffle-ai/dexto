@@ -38,7 +38,7 @@ import {
     getModelFromResult,
 } from '../utils/local-model-setup.js';
 import { requiresSetup } from '../utils/setup-utils.js';
-import { canUseDextoProvider, getDefaultDextoModel } from '../utils/dexto-setup.js';
+import { canUseDextoProvider } from '../utils/dexto-setup.js';
 import { handleBrowserLogin } from './auth/login.js';
 import * as p from '@clack/prompts';
 import { logger } from '@dexto/core';
@@ -327,19 +327,22 @@ async function handleQuickStart(): Promise<void> {
 }
 
 /**
- * Dexto Credits setup flow - login if needed, select model, save preferences
+ * Dexto setup flow - login if needed, select model, save preferences
+ *
+ * Per the transparent gateway design (feature-plans/dexto-unified-model-provider.md):
+ * - Config stores native provider/model (e.g., provider: anthropic, model: claude-sonnet-4-5-20250929)
+ * - Runtime routing handles transformation when user is logged into Dexto
+ * - User never sees "dexto" as provider - they see the actual provider (Anthropic, OpenAI, etc.)
  */
 async function handleDextoProviderSetup(): Promise<void> {
-    console.log(chalk.magenta('\n★ Dexto Credits Setup\n'));
-
-    const provider: LLMProvider = 'dexto';
+    console.log(chalk.magenta('\n★ Dexto Setup\n'));
 
     // Check if user already has DEXTO_API_KEY
     const hasKey = await canUseDextoProvider();
 
     if (!hasKey) {
         p.note(
-            `Dexto Credits gives you instant access to ${chalk.cyan('all AI models')} with a single account.\n\n` +
+            `Dexto gives you instant access to ${chalk.cyan('all AI models')} with a single account.\n\n` +
                 `We'll open your browser to sign in or create an account.`,
             'Login Required'
         );
@@ -360,31 +363,57 @@ async function handleDextoProviderSetup(): Promise<void> {
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);
             p.log.error(`Login failed: ${errorMessage}`);
-            p.cancel('Setup cancelled - login required for Dexto Credits');
+            p.cancel('Setup cancelled - login required for Dexto');
             process.exit(1);
         }
     } else {
         p.log.success('Already logged in to Dexto');
     }
 
-    // Model selection for dexto - default to recommended model
-    const defaultModel = getDefaultDextoModel();
-
-    p.note(
-        `Dexto supports any OpenRouter model.\n\n` +
-            `Recommended: ${chalk.cyan(defaultModel)}\n` +
-            `Browse models: ${chalk.dim('https://openrouter.ai/models')}`,
-        'Model Selection'
-    );
-
-    const modelChoice = await p.text({
-        message: 'Enter model name',
-        placeholder: defaultModel,
-        initialValue: defaultModel,
-        validate: (value) => {
-            if (!value.trim()) return 'Model name is required';
-            return undefined;
-        },
+    // Model selection - show popular models with their NATIVE provider/model IDs
+    // Config stores native format; runtime routing transforms when needed
+    const modelChoice = await p.select({
+        message: 'Select a model to start with',
+        options: [
+            // Claude models - native Anthropic format
+            {
+                value: 'anthropic:claude-haiku-4-5-20251001',
+                label: 'Claude 4.5 Haiku',
+                hint: 'Fast & affordable (recommended)',
+            },
+            {
+                value: 'anthropic:claude-sonnet-4-5-20250929',
+                label: 'Claude 4.5 Sonnet',
+                hint: 'Balanced performance and cost',
+            },
+            {
+                value: 'anthropic:claude-opus-4-5-20251101',
+                label: 'Claude 4.5 Opus',
+                hint: 'Most capable Claude model',
+            },
+            // OpenAI models - native OpenAI format
+            {
+                value: 'openai:gpt-4o',
+                label: 'GPT-4o',
+                hint: 'OpenAI flagship model',
+            },
+            {
+                value: 'openai:gpt-4o-mini',
+                label: 'GPT-4o Mini',
+                hint: 'Fast and affordable',
+            },
+            // Google models - native Google format
+            {
+                value: 'google:gemini-2.5-pro',
+                label: 'Gemini 2.5 Pro',
+                hint: 'Google flagship model',
+            },
+            {
+                value: 'google:gemini-2.5-flash',
+                label: 'Gemini 2.5 Flash',
+                hint: 'Fast and efficient',
+            },
+        ],
     });
 
     if (p.isCancel(modelChoice)) {
@@ -392,7 +421,10 @@ async function handleDextoProviderSetup(): Promise<void> {
         process.exit(0);
     }
 
-    const model = (modelChoice as string).trim() || defaultModel;
+    // Parse the selection into provider and model
+    const [provider, model] = (modelChoice as string).split(':') as [LLMProvider, string];
+
+    p.log.info(`${chalk.dim('Tip:')} You can switch models anytime with ${chalk.cyan('/model')}`);
 
     // Ask about default mode
     const defaultMode = await selectDefaultMode();
@@ -402,14 +434,15 @@ async function handleDextoProviderSetup(): Promise<void> {
         process.exit(0);
     }
 
-    // Save preferences
+    // Save preferences with NATIVE provider/model format
+    // Runtime routing (resolveRouting) handles transformation to OpenRouter format when logged in
     const preferences = createInitialPreferences({
         provider,
         model,
         defaultMode,
         setupCompleted: true,
         apiKeyPending: false,
-        apiKeyVar: 'DEXTO_API_KEY',
+        // No apiKeyVar - user is logged into Dexto, routing handles auth at runtime
     });
 
     await saveGlobalPreferences(preferences);
@@ -418,7 +451,7 @@ async function handleDextoProviderSetup(): Promise<void> {
         provider,
         model,
         setupMode: 'interactive',
-        setupVariant: 'dexto-credits',
+        setupVariant: 'dexto',
         defaultMode,
     });
 

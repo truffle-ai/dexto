@@ -3218,10 +3218,24 @@
                       ],
                       "additionalProperties": false,
                       "description": "LLM configuration (apiKey omitted for security)"
+                    },
+                    "routing": {
+                      "type": "object",
+                      "properties": {
+                        "viaDexto": {
+                          "type": "boolean",
+                          "description": "Whether requests route through Dexto gateway"
+                        }
+                      },
+                      "required": [
+                        "viaDexto"
+                      ],
+                      "description": "Routing information for the current LLM configuration"
                     }
                   },
                   "required": [
-                    "config"
+                    "config",
+                    "routing"
                   ],
                   "description": "Response containing current LLM configuration"
                 }
