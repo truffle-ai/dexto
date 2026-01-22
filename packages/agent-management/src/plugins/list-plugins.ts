@@ -12,8 +12,9 @@
 import * as path from 'path';
 import { existsSync, readFileSync, readdirSync } from 'fs';
 import { getDextoGlobalPath } from '../utils/path.js';
-import { PluginManifestSchema, InstalledPluginsFileSchema } from './schemas.js';
-import type { ListedPlugin, PluginInstallScope, PluginManifest } from './types.js';
+import { InstalledPluginsFileSchema } from './schemas.js';
+import { tryLoadManifest } from './validate-plugin.js';
+import type { ListedPlugin, PluginInstallScope } from './types.js';
 
 /**
  * Path to Dexto's installed_plugins.json
@@ -108,6 +109,50 @@ export function listInstalledPlugins(projectPath?: string): ListedPlugin[] {
         }
     };
 
+    /**
+     * Scans Claude Code's cache directory structure: cache/<namespace>/<plugin>/<version>/
+     */
+    const scanClaudeCodeCache = (rootDir: string): void => {
+        const cacheDir = path.join(rootDir, 'cache');
+        if (!existsSync(cacheDir)) return;
+
+        try {
+            // Iterate namespaces (e.g., 'claude-code-plugins')
+            for (const namespaceEntry of readdirSync(cacheDir, { withFileTypes: true })) {
+                if (!namespaceEntry.isDirectory()) continue;
+
+                const namespacePath = path.join(cacheDir, namespaceEntry.name);
+
+                // Iterate plugins within namespace
+                for (const pluginEntry of readdirSync(namespacePath, { withFileTypes: true })) {
+                    if (!pluginEntry.isDirectory()) continue;
+
+                    const pluginPath = path.join(namespacePath, pluginEntry.name);
+
+                    // Iterate versions within plugin
+                    for (const versionEntry of readdirSync(pluginPath, { withFileTypes: true })) {
+                        if (!versionEntry.isDirectory()) continue;
+
+                        const versionPath = path.join(pluginPath, versionEntry.name);
+                        const manifest = tryLoadManifest(versionPath);
+
+                        if (manifest) {
+                            addPlugin({
+                                name: manifest.name,
+                                description: manifest.description,
+                                version: manifest.version,
+                                path: versionPath,
+                                source: 'claude-code',
+                            });
+                        }
+                    }
+                }
+            }
+        } catch {
+            // Directory read error - silently skip
+        }
+    };
+
     // Scan project plugins
     scanPluginsDir(path.join(cwd, '.dexto', 'plugins'), 'dexto');
     scanPluginsDir(path.join(cwd, '.claude', 'plugins'), 'claude-code');
@@ -116,6 +161,8 @@ export function listInstalledPlugins(projectPath?: string): ListedPlugin[] {
     scanPluginsDir(getDextoGlobalPath('plugins'), 'dexto');
     if (homeDir) {
         scanPluginsDir(path.join(homeDir, '.claude', 'plugins'), 'claude-code');
+        // Also scan Claude Code's cache directory structure
+        scanClaudeCodeCache(path.join(homeDir, '.claude', 'plugins'));
     }
 
     return plugins;
@@ -240,29 +287,4 @@ function readClaudeCodeInstalledPlugins(
     }
 
     return plugins;
-}
-
-/**
- * Attempts to load and validate a plugin manifest from a directory.
- */
-function tryLoadManifest(pluginPath: string): PluginManifest | null {
-    const manifestPath = path.join(pluginPath, '.claude-plugin', 'plugin.json');
-
-    if (!existsSync(manifestPath)) {
-        return null;
-    }
-
-    try {
-        const content = readFileSync(manifestPath, 'utf-8');
-        const parsed = JSON.parse(content);
-        const result = PluginManifestSchema.safeParse(parsed);
-
-        if (!result.success) {
-            return null;
-        }
-
-        return result.data;
-    } catch {
-        return null;
-    }
 }

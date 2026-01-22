@@ -76,7 +76,6 @@ import {
     handlePluginImportCommand,
     type PluginListCommandOptionsInput,
     type PluginInstallCommandOptionsInput,
-    type PluginImportCommandOptionsInput,
 } from './cli/commands/index.js';
 import {
     handleSessionListCommand,

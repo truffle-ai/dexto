@@ -153,3 +153,34 @@ function checkDirectoryHasSkills(skillsDir: string): boolean {
         return false;
     }
 }
+
+/**
+ * Attempts to load and validate a plugin manifest from a directory.
+ * Returns null if the manifest doesn't exist, is invalid JSON, or fails schema validation.
+ *
+ * This is a shared utility used by discover-plugins, list-plugins, and import-plugin.
+ *
+ * @param pluginPath Absolute path to the plugin directory
+ * @returns Validated manifest or null if not a valid plugin
+ */
+export function tryLoadManifest(pluginPath: string): PluginManifest | null {
+    const manifestPath = path.join(pluginPath, '.claude-plugin', 'plugin.json');
+
+    if (!existsSync(manifestPath)) {
+        return null;
+    }
+
+    try {
+        const content = readFileSync(manifestPath, 'utf-8');
+        const parsed = JSON.parse(content);
+        const result = PluginManifestSchema.safeParse(parsed);
+
+        if (!result.success) {
+            return null;
+        }
+
+        return result.data;
+    } catch {
+        return null;
+    }
+}

@@ -119,9 +119,13 @@ const pluginInstallCommand: CommandDefinition = {
                 ? pluginPath
                 : path.resolve(pluginPath);
 
+            // For project/local scope, use agent's directory as projectPath
             const result = await installPluginFromPath(absolutePath, {
                 scope,
                 force,
+                ...(scope !== 'user' && {
+                    projectPath: path.dirname(_agent.getAgentFilePath()),
+                }),
             });
 
             const lines: string[] = [];

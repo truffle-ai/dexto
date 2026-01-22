@@ -21,8 +21,8 @@
 import * as path from 'path';
 import { existsSync, readdirSync, readFileSync } from 'fs';
 import { getDextoGlobalPath } from '../utils/path.js';
-import { PluginManifestSchema, InstalledPluginsFileSchema } from './schemas.js';
-import { PluginError } from './errors.js';
+import { InstalledPluginsFileSchema } from './schemas.js';
+import { tryLoadManifest } from './validate-plugin.js';
 import type { DiscoveredPlugin, PluginManifest } from './types.js';
 
 /**
@@ -215,41 +215,6 @@ function readInstalledPluginsFile(
     }
 
     return plugins;
-}
-
-/**
- * Attempts to load and validate a plugin manifest from a directory.
- *
- * @param pluginPath Absolute path to the plugin directory
- * @returns Validated manifest or null if not a valid plugin
- */
-function tryLoadManifest(pluginPath: string): PluginManifest | null {
-    const manifestPath = path.join(pluginPath, '.claude-plugin', 'plugin.json');
-
-    if (!existsSync(manifestPath)) {
-        return null;
-    }
-
-    try {
-        const content = readFileSync(manifestPath, 'utf-8');
-        const parsed = JSON.parse(content);
-        const result = PluginManifestSchema.safeParse(parsed);
-
-        if (!result.success) {
-            // Invalid manifest - log error and skip
-            const issues = result.error.issues.map((i) => i.message).join(', ');
-            throw PluginError.manifestInvalid(pluginPath, issues);
-        }
-
-        return result.data;
-    } catch (error) {
-        if (error instanceof SyntaxError) {
-            // JSON parse error - skip silently (plugin may be incomplete)
-            return null;
-        }
-        // Re-throw other errors (validation errors)
-        throw error;
-    }
 }
 
 /**

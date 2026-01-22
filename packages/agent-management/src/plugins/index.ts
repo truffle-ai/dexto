@@ -56,7 +56,7 @@ export type { DiscoveredSkill } from './discover-skills.js';
 export { loadClaudeCodePlugin } from './load-plugin.js';
 
 // Validation
-export { validatePluginDirectory } from './validate-plugin.js';
+export { validatePluginDirectory, tryLoadManifest } from './validate-plugin.js';
 
 // Listing
 export {

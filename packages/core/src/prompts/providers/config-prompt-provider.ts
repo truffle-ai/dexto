@@ -406,15 +406,19 @@ export class ConfigPromptProvider implements PromptProvider {
                     // Will be parsed as YAML array in a separate pass below
                 }
 
-                // Parse allowed-tools as inline YAML array format: [item1, item2]
+                // Parse allowed-tools as inline YAML array format: [item1, item2] or []
                 // Note: Multiline YAML array format (- item) is not supported
                 const frontmatterText = frontmatterLines.join('\n');
-                const allowedToolsMatch = frontmatterText.match(/allowed-tools:\s*\[([^\]]+)\]/);
-                if (allowedToolsMatch?.[1]) {
-                    allowedTools = allowedToolsMatch[1]
-                        .split(',')
-                        .map((s) => s.trim().replace(/^['"]|['"]$/g, ''))
-                        .filter((s) => s.length > 0);
+                const allowedToolsMatch = frontmatterText.match(/allowed-tools:\s*\[([^\]]*)\]/);
+                if (allowedToolsMatch) {
+                    const rawContent = allowedToolsMatch[1]?.trim() ?? '';
+                    allowedTools =
+                        rawContent.length === 0
+                            ? []
+                            : rawContent
+                                  .split(',')
+                                  .map((s) => s.trim().replace(/^['"]|['"]$/g, ''))
+                                  .filter((s) => s.length > 0);
                 }
             } else {
                 contentBody = rawContent;
