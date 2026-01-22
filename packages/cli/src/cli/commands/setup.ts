@@ -393,24 +393,24 @@ async function handleDextoProviderSetup(): Promise<void> {
             },
             // OpenAI models - native OpenAI format
             {
-                value: 'openai:gpt-4o',
-                label: 'GPT-4o',
+                value: 'openai:gpt-5.2',
+                label: 'GPT-5.2',
                 hint: 'OpenAI flagship model',
             },
             {
-                value: 'openai:gpt-4o-mini',
-                label: 'GPT-4o Mini',
-                hint: 'Fast and affordable',
+                value: 'openai:gpt-5.2-codex',
+                label: 'GPT-5.2 Codex',
+                hint: 'Optimized for coding',
             },
             // Google models - native Google format
             {
-                value: 'google:gemini-2.5-pro',
-                label: 'Gemini 2.5 Pro',
+                value: 'google:gemini-3-pro',
+                label: 'Gemini 3 Pro',
                 hint: 'Google flagship model',
             },
             {
-                value: 'google:gemini-2.5-flash',
-                label: 'Gemini 2.5 Flash',
+                value: 'google:gemini-3-flash',
+                label: 'Gemini 3 Flash',
                 hint: 'Fast and efficient',
             },
         ],
