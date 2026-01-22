@@ -126,6 +126,7 @@ export class ConfigPromptProvider implements PromptProvider {
             }),
             ...(promptInfo.model !== undefined && { model: promptInfo.model }),
             ...(promptInfo.context !== undefined && { context: promptInfo.context }),
+            ...(promptInfo.agent !== undefined && { agent: promptInfo.agent }),
         };
     }
 
@@ -184,6 +185,7 @@ export class ConfigPromptProvider implements PromptProvider {
             allowedTools: prompt['allowed-tools'],
             model: prompt.model,
             context: prompt.context,
+            agent: prompt.agent,
             metadata: {
                 type: 'inline',
                 category: prompt.category,

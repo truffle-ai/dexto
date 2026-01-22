@@ -188,7 +188,15 @@ function readInstalledPluginsFile(
                 }
 
                 // Try to load the manifest from the installPath
-                const manifest = tryLoadManifest(installPath);
+                // Wrap in try/catch so one invalid plugin doesn't abort the entire scan
+                let manifest: PluginManifest | null;
+                try {
+                    manifest = tryLoadManifest(installPath);
+                } catch {
+                    // Skip invalid plugin without aborting the scan
+                    continue;
+                }
+
                 if (manifest) {
                     // Map Claude Code scope to our source type
                     const source: 'project' | 'user' =
