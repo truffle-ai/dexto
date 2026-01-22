@@ -237,23 +237,6 @@ function createPromptCommand(promptInfo: PromptInfo, hasCollision: boolean): Com
             try {
                 const { argMap, context: contextString } = splitPromptArguments(args);
 
-                if (Object.keys(argMap).length > 0) {
-                    console.log(chalk.cyan(`🤖 Executing prompt: ${commandName}`));
-                    console.log(chalk.gray(`Explicit arguments: ${JSON.stringify(argMap)}`));
-                } else if (contextString) {
-                    console.log(chalk.cyan(`🤖 Executing prompt: ${commandName}`));
-                    console.log(
-                        chalk.gray(
-                            `Context: ${contextString} (LLM will extrapolate template variables)`
-                        )
-                    );
-                } else {
-                    console.log(chalk.cyan(`🤖 Executing prompt: ${commandName}`));
-                    console.log(
-                        chalk.gray('No arguments provided - LLM will extrapolate from context')
-                    );
-                }
-
                 // Use resolvePrompt instead of getPrompt + flattenPromptResult (matches WebUI approach)
                 const resolveOptions: {
                     args?: Record<string, unknown>;
@@ -299,39 +282,28 @@ function createPromptCommand(promptInfo: PromptInfo, hasCollision: boolean): Com
                     }
                 }
 
-                // Handle fork execution context - spawn isolated subagent
+                // Fork skills: route through LLM to call invoke_skill
+                // This ensures approval flow and context management work naturally through
+                // processStream, rather than bypassing it with direct tool execution.
                 if (result.context === 'fork') {
-                    console.log(chalk.cyan('🔀 Forking to isolated subagent...'));
+                    const skillName = internalName;
+                    const taskContext = contextString || '';
 
-                    // Build task context from user-provided args/context
-                    const taskContext = contextString || 'Execute the skill instructions.';
+                    // Build instruction message for the LLM
+                    // The <skill-invocation> tags help the LLM recognize this is a structured request
+                    const instructionText = `<skill-invocation>
+Execute the fork skill: ${commandName}
+${taskContext ? `Task context: ${taskContext}` : ''}
 
-                    try {
-                        // Generate a unique tool call ID for this fork execution
-                        const toolCallId = `fork-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-                        const forkResult = (await agent.toolManager.executeTool(
-                            'invoke_skill',
-                            { skill: internalName, taskContext },
-                            toolCallId,
-                            ctx.sessionId ?? undefined
-                        )) as { forked?: boolean; result?: string; error?: string };
+Call the internal--invoke_skill tool immediately with:
+- skill: "${skillName}"
+${taskContext ? `- taskContext: "${taskContext}"` : ''}
+</skill-invocation>`;
 
-                        if (forkResult.error) {
-                            const errorMsg = `❌ Fork execution failed: ${forkResult.error}`;
-                            console.log(chalk.red(errorMsg));
-                            return formatForInkCli(errorMsg);
-                        }
-
-                        const successMsg = forkResult.result || 'Fork execution completed.';
-                        console.log(chalk.green(`\n✅ ${successMsg}`));
-                        return formatForInkCli(successMsg);
-                    } catch (forkError) {
-                        const errorMsg = `❌ Fork execution error: ${forkError instanceof Error ? forkError.message : String(forkError)}`;
-                        console.log(chalk.red(errorMsg));
-                        return formatForInkCli(errorMsg);
-                    }
+                    return createSendMessageMarker(instructionText);
                 }
 
+                // Inline skills: wrap content in <skill-invocation> for clean history display
                 // Convert resource URIs to @resource mentions so agent.run() can expand them
                 let finalText = result.text;
                 if (result.resources.length > 0) {
@@ -341,9 +313,19 @@ function createPromptCommand(promptInfo: PromptInfo, hasCollision: boolean): Com
                 }
 
                 if (finalText.trim()) {
-                    // Return the resolved text so CLI can send it through normal streaming flow
-                    // This matches WebUI behavior: resolvePrompt() -> handleSend(text)
-                    return createSendMessageMarker(finalText.trim());
+                    // Wrap in <skill-invocation> tags for clean display in history
+                    // The tags help formatSkillInvocationMessage() detect and format these
+                    const taskContext = contextString || '';
+                    const wrappedText = `<skill-invocation>
+Execute the inline skill: ${commandName}
+${taskContext ? `Task context: ${taskContext}` : ''}
+
+skill: "${internalName}"
+</skill-invocation>
+
+${finalText.trim()}`;
+
+                    return createSendMessageMarker(wrappedText);
                 } else {
                     const warningMsg = `⚠️  Prompt '${commandName}' returned no content`;
                     console.log(chalk.rgb(255, 165, 0)(warningMsg));

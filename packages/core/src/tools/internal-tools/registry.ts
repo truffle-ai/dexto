@@ -42,6 +42,8 @@ export interface TaskForker {
      *
      * @param options.task - Short description for UI/logs
      * @param options.instructions - Full instructions for the subagent
+     * @param options.agentId - Optional agent ID from registry to use for execution
+     * @param options.autoApprove - Auto-approve tool calls (default: true for fork skills)
      * @param options.toolCallId - Optional tool call ID for progress events
      * @param options.sessionId - Optional session ID for progress events
      * @returns Result with success status and response/error
@@ -49,6 +51,8 @@ export interface TaskForker {
     fork(options: {
         task: string;
         instructions: string;
+        agentId?: string;
+        autoApprove?: boolean;
         toolCallId?: string;
         sessionId?: string;
     }): Promise<{

@@ -250,6 +250,7 @@ export class ConfigPromptProvider implements PromptProvider {
             const allowedTools = prompt['allowed-tools'] ?? parsed.allowedTools;
             const model = prompt.model ?? parsed.model;
             const context = prompt.context ?? parsed.context;
+            const agent = prompt.agent ?? parsed.agent;
 
             // Handle namespace prefixing for plugin commands
             const displayName = prompt.namespace ? `${prompt.namespace}:${parsed.id}` : parsed.id;
@@ -270,6 +271,7 @@ export class ConfigPromptProvider implements PromptProvider {
                 ...(allowedTools !== undefined && { allowedTools }),
                 ...(model !== undefined && { model }),
                 ...(context !== undefined && { context }),
+                ...(agent !== undefined && { agent }),
                 metadata: {
                     type: 'file',
                     filePath: filePath,
@@ -307,6 +309,7 @@ export class ConfigPromptProvider implements PromptProvider {
         allowedTools?: string[];
         model?: string;
         context?: 'inline' | 'fork';
+        agent?: string;
     } {
         const lines = rawContent.trim().split('\n');
         const pathParts = filePath.split('/');
@@ -331,6 +334,7 @@ export class ConfigPromptProvider implements PromptProvider {
         let allowedTools: string[] | undefined;
         let model: string | undefined;
         let context: 'inline' | 'fork' | undefined;
+        let agent: string | undefined;
         let contentBody: string;
 
         // Parse frontmatter if present
@@ -394,6 +398,9 @@ export class ConfigPromptProvider implements PromptProvider {
                     } else if (line.includes('context:')) {
                         const val = match('context');
                         if (val === 'fork' || val === 'inline') context = val;
+                    } else if (line.includes('agent:')) {
+                        const val = match('agent');
+                        if (val) agent = val;
                     }
                     // Note: allowed-tools parsing requires special handling for arrays
                     // Will be parsed as YAML array in a separate pass below
@@ -441,6 +448,7 @@ export class ConfigPromptProvider implements PromptProvider {
             ...(allowedTools !== undefined && { allowedTools }),
             ...(model !== undefined && { model }),
             ...(context !== undefined && { context }),
+            ...(agent !== undefined && { agent }),
         };
     }
 

@@ -115,6 +115,8 @@ export class PromptManager {
             ...(info.userInvocable !== undefined && { userInvocable: info.userInvocable }),
             ...(info.allowedTools !== undefined && { allowedTools: info.allowedTools }),
             ...(info.model !== undefined && { model: info.model }),
+            ...(info.context !== undefined && { context: info.context }),
+            ...(info.agent !== undefined && { agent: info.agent }),
         };
     }
 
@@ -310,6 +312,7 @@ export class PromptManager {
             ...(promptDef?.allowedTools && { allowedTools: promptDef.allowedTools }),
             ...(promptDef?.model && { model: promptDef.model }),
             ...(promptDef?.context && { context: promptDef.context }),
+            ...(promptDef?.agent && { agent: promptDef.agent }),
         };
     }
 

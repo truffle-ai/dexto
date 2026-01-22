@@ -218,6 +218,7 @@ describe('invoke_skill tool', () => {
     });
 
     describe('Context: Fork Execution', () => {
+        // Fork skills call taskForker.fork() directly - no additional tool calls needed
         let mockTaskForker: TaskForker;
 
         beforeEach(() => {
@@ -229,19 +230,18 @@ describe('invoke_skill tool', () => {
             };
         });
 
-        it('should fork execution when context is fork', async () => {
-            // Set up skill with context: fork
+        it('should execute fork via taskForker when context is fork', async () => {
             mockPromptManager.getPromptDefinition = vi.fn().mockResolvedValue({
                 context: 'fork',
             });
             services.taskForker = mockTaskForker;
 
-            const result = (await tool.execute({
+            const result = await tool.execute({
                 skill: 'simple-skill',
-            })) as any;
+            });
 
-            expect(result.forked).toBe(true);
-            expect(result.result).toBe('Forked task completed successfully');
+            // Fork skills return just the result text (not JSON)
+            expect(result).toBe('Forked task completed successfully');
             expect(mockTaskForker.fork).toHaveBeenCalledWith(
                 expect.objectContaining({
                     task: 'Skill: simple-skill',
@@ -271,9 +271,22 @@ describe('invoke_skill tool', () => {
                     instructions: expect.stringContaining('User wants to analyze code quality'),
                 })
             );
+        });
+
+        it('should pass agentId from skill definition to fork', async () => {
+            mockPromptManager.getPromptDefinition = vi.fn().mockResolvedValue({
+                context: 'fork',
+                agent: 'explore-agent',
+            });
+            services.taskForker = mockTaskForker;
+
+            await tool.execute({
+                skill: 'simple-skill',
+            });
+
             expect(mockTaskForker.fork).toHaveBeenCalledWith(
                 expect.objectContaining({
-                    instructions: expect.stringContaining('## Skill Instructions'),
+                    agentId: 'explore-agent',
                 })
             );
         });
@@ -303,12 +316,12 @@ describe('invoke_skill tool', () => {
                 }),
             };
 
-            const result = (await tool.execute({
+            const result = await tool.execute({
                 skill: 'simple-skill',
-            })) as any;
+            });
 
-            expect(result.forked).toBe(true);
-            expect(result.error).toBe('Subagent timed out');
+            // Fork errors return error message as text
+            expect(result).toBe('Error: Subagent timed out');
         });
 
         it('should use inline execution when context is inline', async () => {

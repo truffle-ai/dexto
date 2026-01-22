@@ -74,6 +74,7 @@ export class RuntimeService implements TaskForker {
      * @param input.task - Short task description (for logging/UI)
      * @param input.instructions - Full prompt sent to sub-agent
      * @param input.agentId - Optional agent ID from registry
+     * @param input.autoApprove - Optional override for auto-approve (used by fork skills)
      * @param input.timeout - Optional task timeout in milliseconds
      * @param input.toolCallId - Optional tool call ID for progress events
      * @param input.sessionId - Optional session ID for progress events
@@ -82,6 +83,7 @@ export class RuntimeService implements TaskForker {
         task: string;
         instructions: string;
         agentId?: string;
+        autoApprove?: boolean;
         timeout?: number;
         toolCallId?: string;
         sessionId?: string;
@@ -114,9 +116,9 @@ export class RuntimeService implements TaskForker {
 
         const timeout = input.timeout ?? this.config.defaultTimeout;
 
-        // Check config-level autoApproveAgents
-        let autoApprove = false;
-        if (input.agentId && this.config.autoApproveAgents) {
+        // Determine autoApprove: explicit input > config-level autoApproveAgents > false
+        let autoApprove = input.autoApprove ?? false;
+        if (!autoApprove && input.agentId && this.config.autoApproveAgents) {
             autoApprove = this.config.autoApproveAgents.includes(input.agentId);
         }
 
@@ -137,26 +139,38 @@ export class RuntimeService implements TaskForker {
      *
      * @param options.task - Short description for UI/logs
      * @param options.instructions - Full instructions for the subagent
+     * @param options.agentId - Optional agent ID from registry to use for execution
+     * @param options.autoApprove - Auto-approve tool calls (default: true for fork skills)
      * @param options.toolCallId - Optional tool call ID for progress events
      * @param options.sessionId - Optional session ID for progress events
      */
     async fork(options: {
         task: string;
         instructions: string;
+        agentId?: string;
+        autoApprove?: boolean;
         toolCallId?: string;
         sessionId?: string;
     }): Promise<{ success: boolean; response?: string; error?: string }> {
-        // Delegate to spawnAndExecute with no agentId (uses parent's LLM config)
+        // Delegate to spawnAndExecute, passing options
         // Only include optional properties when they have values (exactOptionalPropertyTypes)
         const spawnOptions: {
             task: string;
             instructions: string;
+            agentId?: string;
+            autoApprove?: boolean;
             toolCallId?: string;
             sessionId?: string;
         } = {
             task: options.task,
             instructions: options.instructions,
         };
+        if (options.agentId) {
+            spawnOptions.agentId = options.agentId;
+        }
+        if (options.autoApprove !== undefined) {
+            spawnOptions.autoApprove = options.autoApprove;
+        }
         if (options.toolCallId) {
             spawnOptions.toolCallId = options.toolCallId;
         }
@@ -504,7 +518,7 @@ export class RuntimeService implements TaskForker {
             }
         }
 
-        // Start with a minimal config inheriting LLM settings from parent
+        // Start with a config inheriting LLM and tools from parent
         const config: AgentConfig = {
             llm: { ...parentConfig.llm },
 
@@ -515,6 +529,21 @@ export class RuntimeService implements TaskForker {
             toolConfirmation: {
                 mode: toolConfirmationMode,
             },
+
+            // Inherit MCP servers from parent so subagent has tool access
+            mcpServers: parentConfig.mcpServers ? { ...parentConfig.mcpServers } : {},
+
+            // Inherit internal tools from parent, excluding tools that don't work in subagent context
+            // - ask_user: Subagents can't interact with the user directly
+            // - invoke_skill: Avoid nested skill invocations for simplicity
+            internalTools: parentConfig.internalTools
+                ? parentConfig.internalTools.filter(
+                      (tool) => tool !== 'ask_user' && tool !== 'invoke_skill'
+                  )
+                : [],
+
+            // Inherit custom tools from parent
+            customTools: parentConfig.customTools ? [...parentConfig.customTools] : [],
 
             // Suppress sub-agent console logs entirely using silent transport
             logger: {

@@ -70,6 +70,11 @@ export const InlinePromptSchema = z
             .describe(
                 "Execution context: 'inline' runs in current session (default), 'fork' spawns isolated subagent"
             ),
+        // Agent for fork execution
+        agent: z
+            .string()
+            .optional()
+            .describe('Agent ID from registry to use for fork execution (e.g., "explore-agent")'),
     })
     .strict()
     .describe('Inline prompt with text defined directly in config');
@@ -112,6 +117,11 @@ export const FilePromptSchema = z
             .describe(
                 "Execution context: 'inline' runs in current session (default), 'fork' spawns isolated subagent"
             ),
+        // Agent for fork execution - can override frontmatter
+        agent: z
+            .string()
+            .optional()
+            .describe('Agent ID from registry to use for fork execution (e.g., "explore-agent")'),
         // Plugin namespace (Phase 3) - for prefixing command names
         namespace: z
             .string()

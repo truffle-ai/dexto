@@ -31,6 +31,8 @@ export interface PromptDefinition {
     model?: string | undefined;
     /** Execution context: 'inline' runs in current session, 'fork' spawns isolated subagent */
     context?: 'inline' | 'fork' | undefined;
+    /** Agent ID from registry to use for fork execution */
+    agent?: string | undefined;
 }
 
 /**
@@ -42,6 +44,8 @@ export interface PromptInfo extends PromptDefinition {
     displayName?: string | undefined;
     /** Execution context: 'inline' runs in current session, 'fork' spawns isolated subagent */
     context?: 'inline' | 'fork' | undefined;
+    /** Agent ID from registry to use for fork execution */
+    agent?: string | undefined;
     metadata?: Record<string, unknown>;
 }
 
@@ -72,6 +76,8 @@ export interface ResolvedPromptResult {
     model?: string | undefined;
     /** Execution context: 'inline' runs in current session, 'fork' spawns isolated subagent */
     context?: 'inline' | 'fork' | undefined;
+    /** Agent ID from registry to use for fork execution */
+    agent?: string | undefined;
 }
 
 /**

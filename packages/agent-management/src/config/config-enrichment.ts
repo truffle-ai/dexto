@@ -76,6 +76,8 @@ export interface EnrichAgentConfigOptions {
     isInteractiveCli?: boolean;
     /** Override log level (defaults to 'error' for SDK, CLI/server can override to 'info') */
     logLevel?: 'error' | 'warn' | 'info' | 'debug';
+    /** Skip Claude Code plugin discovery (useful for subagents that don't need plugins) */
+    skipPluginDiscovery?: boolean;
 }
 
 /**
@@ -101,7 +103,7 @@ export function enrichAgentConfig(
     // Handle backward compatibility: boolean arg was isInteractiveCli
     const opts: EnrichAgentConfigOptions =
         typeof options === 'boolean' ? { isInteractiveCli: options } : options;
-    const { isInteractiveCli = false, logLevel = 'error' } = opts;
+    const { isInteractiveCli = false, logLevel = 'error', skipPluginDiscovery = false } = opts;
     const agentId = deriveAgentId(config, configPath);
 
     // Generate per-agent paths
@@ -207,59 +209,61 @@ export function enrichAgentConfig(
         enriched.prompts = [...existingPrompts, ...filteredDiscovered];
     }
 
-    // Discover and load Claude Code plugins
-    const discoveredPlugins = discoverClaudeCodePlugins();
-    for (const plugin of discoveredPlugins) {
-        const loaded = loadClaudeCodePlugin(plugin);
+    // Discover and load Claude Code plugins (skip for subagents to avoid duplicate warnings)
+    if (!skipPluginDiscovery) {
+        const discoveredPlugins = discoverClaudeCodePlugins();
+        for (const plugin of discoveredPlugins) {
+            const loaded = loadClaudeCodePlugin(plugin);
 
-        // Log warnings for unsupported features
-        // Note: Logging happens at enrichment time since we don't have a logger instance
-        // Warnings are stored in the loaded plugin and can be accessed by callers
-        for (const warning of loaded.warnings) {
-            // eslint-disable-next-line no-console
-            console.warn(`[plugin] ${warning}`);
+            // Log warnings for unsupported features
+            // Note: Logging happens at enrichment time since we don't have a logger instance
+            // Warnings are stored in the loaded plugin and can be accessed by callers
+            for (const warning of loaded.warnings) {
+                // eslint-disable-next-line no-console
+                console.warn(`[plugin] ${warning}`);
+            }
+
+            // Add commands/skills as prompts with namespace
+            // Note: Both commands and skills are user-invocable by default (per schema).
+            // SKILL.md frontmatter can override with `user-invocable: false` if needed.
+            for (const cmd of loaded.commands) {
+                const promptEntry = {
+                    type: 'file' as const,
+                    file: cmd.file,
+                    namespace: cmd.namespace,
+                };
+
+                // Add to enriched prompts
+                enriched.prompts = enriched.prompts ?? [];
+                enriched.prompts.push(promptEntry);
+            }
+
+            // Merge MCP config into mcpServers
+            // Note: Plugin MCP config is loosely typed; users are responsible for valid server configs
+            if (loaded.mcpConfig?.mcpServers) {
+                enriched.mcpServers = {
+                    ...enriched.mcpServers,
+                    ...(loaded.mcpConfig.mcpServers as typeof enriched.mcpServers),
+                };
+            }
         }
 
-        // Add commands/skills as prompts with namespace
-        // Note: Both commands and skills are user-invocable by default (per schema).
-        // SKILL.md frontmatter can override with `user-invocable: false` if needed.
-        for (const cmd of loaded.commands) {
+        // Discover standalone skills from ~/.claude/skills/ and <cwd>/.claude/skills/
+        // These are bare skill directories with SKILL.md files (not full plugins)
+        // Unlike plugin commands, standalone skills don't need namespace prefixing -
+        // the id from frontmatter or directory name is used directly.
+        const standaloneSkills = discoverStandaloneSkills();
+        for (const skill of standaloneSkills) {
             const promptEntry = {
                 type: 'file' as const,
-                file: cmd.file,
-                namespace: cmd.namespace,
+                file: skill.skillFile,
+                // No namespace for standalone skills - they use id directly
+                // (unlike plugin commands which need plugin:command naming)
             };
 
-            // Add to enriched prompts
             enriched.prompts = enriched.prompts ?? [];
             enriched.prompts.push(promptEntry);
         }
-
-        // Merge MCP config into mcpServers
-        // Note: Plugin MCP config is loosely typed; users are responsible for valid server configs
-        if (loaded.mcpConfig?.mcpServers) {
-            enriched.mcpServers = {
-                ...enriched.mcpServers,
-                ...(loaded.mcpConfig.mcpServers as typeof enriched.mcpServers),
-            };
-        }
-    }
-
-    // Discover standalone skills from ~/.claude/skills/ and <cwd>/.claude/skills/
-    // These are bare skill directories with SKILL.md files (not full plugins)
-    // Unlike plugin commands, standalone skills don't need namespace prefixing -
-    // the id from frontmatter or directory name is used directly.
-    const standaloneSkills = discoverStandaloneSkills();
-    for (const skill of standaloneSkills) {
-        const promptEntry = {
-            type: 'file' as const,
-            file: skill.skillFile,
-            // No namespace for standalone skills - they use id directly
-            // (unlike plugin commands which need plugin:command naming)
-        };
-
-        enriched.prompts = enriched.prompts ?? [];
-        enriched.prompts.push(promptEntry);
     }
 
     // Discover agent instruction file (AGENTS.md, CLAUDE.md, GEMINI.md) in cwd

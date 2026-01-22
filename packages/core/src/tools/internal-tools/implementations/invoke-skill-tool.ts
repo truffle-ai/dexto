@@ -94,20 +94,19 @@ export function createInvokeSkillTool(services: InternalToolsServices): Internal
             const flattened = flattenPromptResult(promptResult);
             const content = flattened.text;
 
-            // Check if this skill should be forked
+            // Check if this skill should be forked (executed in isolated subagent)
             if (promptDef?.context === 'fork') {
-                // Fork execution - run in isolated subagent
+                // Fork execution - run in isolated subagent via taskForker
                 // taskForker is looked up lazily to support late-binding (set after tool creation)
                 const taskForker = services.taskForker;
                 if (!taskForker) {
                     return {
-                        error: `Skill '${skill}' requires fork execution (context: fork), but agent spawning is not available. Configure agent-spawner custom tool to use forked skills.`,
+                        error: `Skill '${skill}' requires fork execution (context: fork), but agent spawning is not available. Configure agent-spawner custom tool to enable forked skills.`,
                         skill: skillKey,
                     };
                 }
 
                 // Build instructions for the forked agent
-                // Include task context if provided, then skill content
                 let instructions: string;
                 if (taskContext) {
                     instructions = `## Task Context\n${taskContext}\n\n## Skill Instructions\n${content}`;
@@ -115,36 +114,40 @@ export function createInvokeSkillTool(services: InternalToolsServices): Internal
                     instructions = content;
                 }
 
-                // Execute in isolated context
+                // Execute in isolated context via taskForker
                 const forkOptions: {
                     task: string;
                     instructions: string;
+                    agentId?: string;
+                    autoApprove?: boolean;
                     toolCallId?: string;
                     sessionId?: string;
                 } = {
                     task: `Skill: ${skill}`,
                     instructions,
+                    // Fork skills auto-approve by default since they run in isolation
+                    autoApprove: true,
                 };
+                // Pass agent from skill definition if specified
+                if (promptDef.agent) {
+                    forkOptions.agentId = promptDef.agent;
+                }
                 if (context?.toolCallId) {
                     forkOptions.toolCallId = context.toolCallId;
                 }
                 if (context?.sessionId) {
                     forkOptions.sessionId = context.sessionId;
                 }
+
                 const result = await taskForker.fork(forkOptions);
 
                 if (result.success) {
-                    return {
-                        skill: skillKey,
-                        forked: true,
-                        result: result.response ?? 'Task completed successfully.',
-                    };
+                    // Return just the result text - no JSON wrapping
+                    // This gives cleaner display in CLI and WebUI
+                    return result.response ?? 'Task completed successfully.';
                 } else {
-                    return {
-                        skill: skillKey,
-                        forked: true,
-                        error: result.error ?? 'Unknown error during forked execution',
-                    };
+                    // For errors, return a simple error message
+                    return `Error: ${result.error ?? 'Unknown error during forked execution'}`;
                 }
             }
 
@@ -163,7 +166,7 @@ export function createInvokeSkillTool(services: InternalToolsServices): Internal
  * Builds the tool description.
  */
 function buildToolDescription(): string {
-    return `Invoke a skill to load specialized instructions for a task. Skills are predefined prompts that guide how to handle specific scenarios.
+    return `Invoke a skill to load and execute specialized instructions for a task. Skills are predefined prompts that guide how to handle specific scenarios.
 
 When to use:
 - When you recognize a task that matches an available skill
@@ -176,8 +179,10 @@ Parameters:
 - taskContext: Context about what you're trying to accomplish (important for forked skills that run in isolation)
 
 Execution modes:
-- Most skills run inline and return instructions for you to follow
-- Some skills are "forked" and execute in an isolated context, returning only the result
+- **Inline skills**: Return instructions for you to follow in the current conversation
+- **Fork skills**: Automatically execute in an isolated subagent and return the result (no additional tool calls needed)
+
+Fork skills run in complete isolation without access to conversation history. They're useful for tasks that should run independently.
 
 Available skills are listed in your system prompt. Use the skill name exactly as shown.`;
 }
