@@ -336,8 +336,12 @@ export function createLlmRouter(getAgent: GetAgentFn) {
             const queryParams = ctx.req.valid('query');
 
             const providers: Record<string, ProviderCatalog> = {};
+
             for (const provider of LLM_PROVIDERS) {
                 const info = LLM_REGISTRY[provider];
+
+                // Skip hidden providers (like dexto which is a transparent routing layer)
+                if (info.hidden) continue;
                 const displayName = provider.charAt(0).toUpperCase() + provider.slice(1);
                 const keyStatus = getProviderKeyStatus(provider);
 

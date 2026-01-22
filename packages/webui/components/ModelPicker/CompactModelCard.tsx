@@ -55,8 +55,10 @@ export function CompactModelCard({
     const priceLines = formatPricingLines(model.pricing || undefined);
     const descriptionLines = [
         `Provider: ${providerInfo.name}`,
-        `Max tokens: ${model.maxInputTokens.toLocaleString()}`,
-        model.supportedFileTypes.length > 0 && `Supports: ${model.supportedFileTypes.join(', ')}`,
+        model.maxInputTokens && `Max tokens: ${model.maxInputTokens.toLocaleString()}`,
+        Array.isArray(model.supportedFileTypes) &&
+            model.supportedFileTypes.length > 0 &&
+            `Supports: ${model.supportedFileTypes.join(', ')}`,
         !hasApiKey && 'API key required',
         ...priceLines,
     ].filter(Boolean) as string[];

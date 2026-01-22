@@ -90,6 +90,12 @@ export interface ProviderInfo {
      * Model names are transformed to the gateway's format (e.g., 'gpt-5-mini' → 'openai/gpt-5-mini').
      */
     supportsAllRegistryModels?: boolean;
+    /**
+     * When true, this provider is hidden from user-facing UIs (model picker, provider selection).
+     * Used for transparent infrastructure providers like 'dexto' that route requests behind the scenes.
+     * The provider can still be used programmatically and in setup flows.
+     */
+    hidden?: boolean;
 }
 
 /** Fallback when we cannot determine the model's input-token limit */
@@ -1341,13 +1347,15 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
     // Dexto Gateway - OpenAI-compatible proxy through api.dexto.ai
     // Routes to OpenRouter with per-request billing (balance decrement)
     // Requires DEXTO_API_KEY from `dexto login`
-    // With supportsAllRegistryModels, users can select any model from any provider
+    // Hidden from model picker - users see original providers (Anthropic, OpenAI, etc.)
+    // Dexto routing is transparent infrastructure, not a user-selectable provider
     dexto: {
         models: [], // Empty - models come from other providers via supportsAllRegistryModels
         baseURLSupport: 'none', // Fixed endpoint: https://api.dexto.ai/v1
         supportedFileTypes: ['pdf', 'image', 'audio'], // Same as OpenRouter
         supportsCustomModels: true, // Also accept arbitrary OpenRouter model names
         supportsAllRegistryModels: true, // Access all models from all providers in the registry
+        hidden: true, // Don't show in model picker - transparent routing layer
     },
 };
 

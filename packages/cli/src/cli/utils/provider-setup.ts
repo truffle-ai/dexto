@@ -35,17 +35,12 @@ interface ProviderOption {
 /**
  * Provider configuration registry
  * Organized by category for better UX
+ *
+ * Note: dexto is NOT included here - it's a transparent routing layer,
+ * not a user-selectable provider. When logged into Dexto, requests are
+ * automatically routed through the Dexto gateway.
  */
 export const PROVIDER_REGISTRY: Partial<Record<LLMProvider, ProviderOption>> = {
-    // Dexto - recommended for all users, triggers login if needed
-    dexto: {
-        value: 'dexto',
-        label: 'Dexto Credits',
-        hint: 'All models, one account - login to get started',
-        category: 'recommended',
-        envVar: 'DEXTO_API_KEY',
-        free: false, // Uses credits
-    },
     google: {
         value: 'google',
         label: 'Google Gemini',
@@ -202,21 +197,9 @@ function buildProviderOptions(): Array<{ value: LLMProvider; label: string; hint
     const categories = getProvidersByCategory();
     const options: Array<{ value: LLMProvider; label: string; hint: string }> = [];
 
-    // Dexto first - the recommended default
-    const dextoOption = PROVIDER_REGISTRY['dexto'];
-    if (dextoOption) {
-        options.push({
-            value: 'dexto',
-            label: `${chalk.magenta('★')} ${dextoOption.label}`,
-            hint: `${dextoOption.hint} ${chalk.magenta('(recommended)')}`,
-        });
-    }
-
-    // Other recommended (free) providers
+    // Recommended (free) providers first
     if (categories.recommended.length > 0) {
         for (const p of categories.recommended) {
-            // Skip dexto since we already added it at the top
-            if (p.value === 'dexto') continue;
             options.push({
                 value: p.value,
                 label: `${chalk.green('●')} ${p.label}`,

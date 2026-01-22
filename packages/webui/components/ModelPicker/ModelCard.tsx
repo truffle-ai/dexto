@@ -110,8 +110,10 @@ export function ModelCard({
               : provider === 'openai-compatible'
                 ? 'Custom Model'
                 : `Provider: ${providerInfo?.name}`,
-        `Max tokens: ${model.maxInputTokens.toLocaleString()}`,
-        model.supportedFileTypes.length > 0 && `Supports: ${model.supportedFileTypes.join(', ')}`,
+        model.maxInputTokens && `Max tokens: ${model.maxInputTokens.toLocaleString()}`,
+        Array.isArray(model.supportedFileTypes) &&
+            model.supportedFileTypes.length > 0 &&
+            `Supports: ${model.supportedFileTypes.join(', ')}`,
         !hasApiKey && 'API key required (click to add)',
         ...priceLines,
     ].filter(Boolean) as string[];

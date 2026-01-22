@@ -990,7 +990,7 @@ export default function ModelPickerModal() {
                                                                 )}
                                                             </div>
                                                             <div className="flex items-center gap-1 flex-shrink-0">
-                                                                {model.supportedFileTypes.includes(
+                                                                {model.supportedFileTypes?.includes(
                                                                     'image'
                                                                 ) && (
                                                                     <span
@@ -1018,7 +1018,7 @@ export default function ModelPickerModal() {
                                                                         </svg>
                                                                     </span>
                                                                 )}
-                                                                {model.supportedFileTypes.includes(
+                                                                {model.supportedFileTypes?.includes(
                                                                     'pdf'
                                                                 ) && (
                                                                     <span
