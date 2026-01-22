@@ -42,7 +42,7 @@ This triggers the first-time setup wizard with two options:
 | Category | Providers |
 |----------|-----------|
 | **Free Cloud** | Google Gemini, Groq |
-| **Local (No API key)** | Local Models (Llama, Qwen, Mistral), Ollama |
+| **Local (No API key)** | Local Models (uses node-llama-cpp), Ollama (requires [Ollama](https://ollama.com) installed) |
 | **Cloud** | OpenAI, Anthropic, xAI, Cohere |
 | **Gateways** | OpenRouter, Glama, LiteLLM, OpenAI-Compatible |
 | **Enterprise** | Google Vertex AI, AWS Bedrock |
