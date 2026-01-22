@@ -7,6 +7,7 @@ import {
     SUPPORTED_FILE_TYPES,
     supportsBaseURL,
     getAllModelsForProvider,
+    shouldRouteThroughDexto,
     type ProviderInfo,
     type LLMProvider,
     LLMUpdatesSchema,
@@ -114,6 +115,17 @@ export function createLlmRouter(getAgent: GetAgentFn) {
                                         .optional()
                                         .describe('Human-readable model display name'),
                                 }),
+                                routing: z
+                                    .object({
+                                        viaDexto: z
+                                            .boolean()
+                                            .describe(
+                                                'Whether requests route through Dexto gateway'
+                                            ),
+                                    })
+                                    .describe(
+                                        'Routing information for the current LLM configuration'
+                                    ),
                             })
                             .describe('Response containing current LLM configuration'),
                     },
@@ -315,11 +327,21 @@ export function createLlmRouter(getAgent: GetAgentFn) {
 
             // Omit apiKey from response for security
             const { apiKey, ...configWithoutKey } = currentConfig;
+
+            // Determine if routing through Dexto
+            // Logged in (DEXTO_API_KEY set) AND provider is routeable = via Dexto
+            const viaDexto = !!(
+                process.env.DEXTO_API_KEY && shouldRouteThroughDexto(currentConfig.provider)
+            );
+
             return ctx.json({
                 config: {
                     ...configWithoutKey,
                     hasApiKey: !!apiKey,
                     ...(displayName && { displayName }),
+                },
+                routing: {
+                    viaDexto,
                 },
             });
         })

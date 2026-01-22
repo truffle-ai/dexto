@@ -107,7 +107,10 @@ export function Footer({
                     <Text color={pathColor}>{displayPath}</Text>
                     {branchName && <Text color="gray"> ({branchName})</Text>}
                 </Box>
-                <Text color="cyan">{displayModelName}</Text>
+                <Box>
+                    <Text color="cyan">{displayModelName}</Text>
+                    {process.env.DEXTO_API_KEY && <Text color="gray"> via Dexto</Text>}
+                </Box>
             </Box>
 
             {/* Line 2: Context left */}

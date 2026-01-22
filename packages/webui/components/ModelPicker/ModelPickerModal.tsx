@@ -741,6 +741,9 @@ export default function ModelPickerModal() {
                             <Bot className="h-4 w-4" />
                         )}
                         <span className="text-sm">{triggerLabel}</span>
+                        {currentLLM?.viaDexto && (
+                            <span className="text-xs text-muted-foreground">via Dexto</span>
+                        )}
                         <ChevronDown
                             className={cn('h-3 w-3 transition-transform', open && 'rotate-180')}
                         />
