@@ -13,6 +13,7 @@ import {
     FileAudio,
     File,
     Brain,
+    Upload,
 } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
 import { useChatContext } from './hooks/ChatContext';
@@ -772,13 +773,7 @@ export default function InputArea({
         setIsRecording(false);
     };
 
-    const handlePasteImageFile = async (file: File) => {
-        // Validate file type
-        if (!file.type.startsWith('image/')) {
-            console.error('Invalid file type');
-            return;
-        }
-
+    const handlePasteImageFile = (file: File) => {
         if (file.size > MAX_FILE_SIZE) {
             showUserError('Image file too large. Maximum size is 64MB.');
             return;
@@ -883,15 +878,7 @@ export default function InputArea({
         e.target.value = '';
     };
 
-    const handleFile = async (file: File) => {
-        const isImage = file.type.startsWith('image/');
-        const isPDF = file.type === 'application/pdf';
-
-        if (!isImage && !isPDF) {
-            console.error('Invalid file type. Only images and PDFs are supported.');
-            return;
-        }
-
+    const handleFile = (file: File) => {
         // File size validation
         if (file.size > MAX_FILE_SIZE) {
             showUserError('PDF file too large. Maximum size is 64MB.');
@@ -1022,7 +1009,7 @@ export default function InputArea({
         }
     };
 
-    const handleDrop = async (e: React.DragEvent) => {
+    const handleDrop = (e: React.DragEvent) => {
         e.preventDefault();
         e.stopPropagation();
         setIsDragging(false);
@@ -1034,11 +1021,11 @@ export default function InputArea({
         for (let i = 0; i < files.length; i++) {
             const file = files[i];
             if (file.type.startsWith('image/')) {
-                await handlePasteImageFile(file);
+                handlePasteImageFile(file);
             }
 
             if (file.type === 'application/pdf') {
-                await handleFile(file);
+                handleFile(file);
             }
         }
     };
@@ -1177,19 +1164,7 @@ export default function InputArea({
                                 <div className="absolute inset-0 bg-accent/10 border-2 border-accent/40 border-dashed rounded-lg z-10 flex items-center justify-center pointer-events-none">
                                     <div className="bg-card px-4 py-2 rounded-lg shadow-lg border border-border">
                                         <p className="text-card-foreground font-medium flex items-center gap-2">
-                                            <svg
-                                                className="w-5 h-5"
-                                                fill="none"
-                                                stroke="currentColor"
-                                                viewBox="0 0 24 24"
-                                            >
-                                                <path
-                                                    strokeLinecap="round"
-                                                    strokeLinejoin="round"
-                                                    strokeWidth={2}
-                                                    d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-                                                />
-                                            </svg>
+                                            <Upload className="w-5 h-5" />
                                             Drop images or PDFs here
                                         </p>
                                     </div>
