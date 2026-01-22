@@ -309,11 +309,19 @@ export class ConfigPromptProvider implements PromptProvider {
         context?: 'inline' | 'fork';
     } {
         const lines = rawContent.trim().split('\n');
-        const fileName = filePath.split('/').pop()?.replace(/\.md$/, '') ?? 'unknown';
+        const pathParts = filePath.split('/');
+        const fileName = pathParts.pop()?.replace(/\.md$/, '') ?? 'unknown';
 
-        let id = fileName;
-        let title = fileName;
-        let description = `File prompt: ${fileName}`;
+        // For SKILL.md files, use parent directory name as the id (Claude Code convention)
+        // e.g., .claude/skills/my-skill/SKILL.md -> id = "my-skill"
+        const defaultId =
+            fileName.toUpperCase() === 'SKILL'
+                ? (pathParts[pathParts.length - 1] ?? fileName)
+                : fileName;
+
+        let id = defaultId;
+        let title = defaultId;
+        let description = `File prompt: ${defaultId}`;
         let category: string | undefined;
         let priority: number | undefined;
         let argumentHint: string | undefined;
@@ -360,7 +368,7 @@ export class ConfigPromptProvider implements PromptProvider {
                         // Claude Code SKILL.md uses 'name:' instead of 'id:'
                         // Only use if id hasn't been explicitly set via 'id:' field
                         const val = match('name');
-                        if (val && id === fileName) id = val;
+                        if (val && id === defaultId) id = val;
                     } else if (line.includes('title:')) {
                         const val = match('title');
                         if (val) title = val;
@@ -408,7 +416,7 @@ export class ConfigPromptProvider implements PromptProvider {
         }
 
         // Extract title from first heading if not in frontmatter
-        if (title === fileName) {
+        if (title === defaultId) {
             for (const line of contentBody.trim().split('\n')) {
                 if (line.trim().startsWith('#')) {
                     title = line.trim().replace(/^#+\s*/, '');

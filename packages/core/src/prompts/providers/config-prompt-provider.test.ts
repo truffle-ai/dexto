@@ -524,5 +524,62 @@ describe('ConfigPromptProvider', () => {
             // $ARGUMENTS should be expanded
             expect(text).toContain('detailed style');
         });
+
+        test('SKILL.md uses parent directory name as id (Claude Code convention)', async () => {
+            const config = makeAgentConfig([
+                {
+                    type: 'file',
+                    file: join(FIXTURES_DIR, 'my-test-skill', 'SKILL.md'),
+                    showInStarters: false,
+                },
+            ]);
+
+            const provider = new ConfigPromptProvider(config, mockLogger);
+            const result = await provider.listPrompts();
+
+            expect(result.prompts).toHaveLength(1);
+            expect(result.prompts[0]).toMatchObject({
+                // Should use directory name "my-test-skill" as id, not "SKILL"
+                name: 'config:my-test-skill',
+                displayName: 'my-test-skill',
+                description: 'Test skill using directory name as id',
+                source: 'config',
+            });
+        });
+
+        test('parses context: fork from SKILL.md frontmatter', async () => {
+            const config = makeAgentConfig([
+                {
+                    type: 'file',
+                    file: join(FIXTURES_DIR, 'my-test-skill', 'SKILL.md'),
+                    showInStarters: false,
+                },
+            ]);
+
+            const provider = new ConfigPromptProvider(config, mockLogger);
+            const result = await provider.listPrompts();
+
+            expect(result.prompts).toHaveLength(1);
+            // context should be parsed from frontmatter
+            expect(result.prompts[0]?.context).toBe('fork');
+        });
+
+        test('getPromptDefinition includes context field', async () => {
+            const config = makeAgentConfig([
+                {
+                    type: 'file',
+                    file: join(FIXTURES_DIR, 'my-test-skill', 'SKILL.md'),
+                    showInStarters: false,
+                },
+            ]);
+
+            const provider = new ConfigPromptProvider(config, mockLogger);
+            const def = await provider.getPromptDefinition('config:my-test-skill');
+
+            expect(def).toMatchObject({
+                name: 'config:my-test-skill',
+                context: 'fork',
+            });
+        });
     });
 });

@@ -299,6 +299,39 @@ function createPromptCommand(promptInfo: PromptInfo, hasCollision: boolean): Com
                     }
                 }
 
+                // Handle fork execution context - spawn isolated subagent
+                if (result.context === 'fork') {
+                    console.log(chalk.cyan('🔀 Forking to isolated subagent...'));
+
+                    // Build task context from user-provided args/context
+                    const taskContext = contextString || 'Execute the skill instructions.';
+
+                    try {
+                        // Generate a unique tool call ID for this fork execution
+                        const toolCallId = `fork-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+                        const forkResult = (await agent.toolManager.executeTool(
+                            'invoke_skill',
+                            { skill: internalName, taskContext },
+                            toolCallId,
+                            ctx.sessionId ?? undefined
+                        )) as { forked?: boolean; result?: string; error?: string };
+
+                        if (forkResult.error) {
+                            const errorMsg = `❌ Fork execution failed: ${forkResult.error}`;
+                            console.log(chalk.red(errorMsg));
+                            return formatForInkCli(errorMsg);
+                        }
+
+                        const successMsg = forkResult.result || 'Fork execution completed.';
+                        console.log(chalk.green(`\n✅ ${successMsg}`));
+                        return formatForInkCli(successMsg);
+                    } catch (forkError) {
+                        const errorMsg = `❌ Fork execution error: ${forkError instanceof Error ? forkError.message : String(forkError)}`;
+                        console.log(chalk.red(errorMsg));
+                        return formatForInkCli(errorMsg);
+                    }
+                }
+
                 // Convert resource URIs to @resource mentions so agent.run() can expand them
                 let finalText = result.text;
                 if (result.resources.length > 0) {

@@ -247,14 +247,15 @@ export function enrichAgentConfig(
 
     // Discover standalone skills from ~/.claude/skills/ and <cwd>/.claude/skills/
     // These are bare skill directories with SKILL.md files (not full plugins)
+    // Unlike plugin commands, standalone skills don't need namespace prefixing -
+    // the id from frontmatter or directory name is used directly.
     const standaloneSkills = discoverStandaloneSkills();
     for (const skill of standaloneSkills) {
         const promptEntry = {
             type: 'file' as const,
             file: skill.skillFile,
-            // Use directory name as namespace for standalone skills
-            namespace: skill.name,
-            // Standalone skills are user-invocable by default (like plugin commands)
+            // No namespace for standalone skills - they use id directly
+            // (unlike plugin commands which need plugin:command naming)
         };
 
         enriched.prompts = enriched.prompts ?? [];
