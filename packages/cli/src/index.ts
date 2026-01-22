@@ -69,6 +69,14 @@ import {
     markSyncDismissed,
     clearSyncDismissed,
     type SyncAgentsCommandOptions,
+    handlePluginListCommand,
+    handlePluginInstallCommand,
+    handlePluginUninstallCommand,
+    handlePluginValidateCommand,
+    handlePluginImportCommand,
+    type PluginListCommandOptionsInput,
+    type PluginInstallCommandOptionsInput,
+    type PluginImportCommandOptionsInput,
 } from './cli/commands/index.js';
 import {
     handleSessionListCommand,
@@ -392,6 +400,93 @@ program
                 if (err instanceof ExitSignal) throw err;
                 console.error(`❌ dexto sync-agents command failed: ${err}`);
                 safeExit('sync-agents', 1, 'error');
+            }
+        })
+    );
+
+// 11) `plugin` SUB-COMMAND
+const pluginCommand = program.command('plugin').description('Manage plugins');
+
+pluginCommand
+    .command('list')
+    .description('List installed plugins')
+    .option('--verbose', 'Show detailed plugin information')
+    .action(
+        withAnalytics('plugin list', async (options: PluginListCommandOptionsInput) => {
+            try {
+                await handlePluginListCommand(options);
+                safeExit('plugin list', 0);
+            } catch (err) {
+                if (err instanceof ExitSignal) throw err;
+                console.error(`❌ dexto plugin list command failed: ${err}`);
+                safeExit('plugin list', 1, 'error');
+            }
+        })
+    );
+
+pluginCommand
+    .command('install')
+    .description('Install a plugin from a local directory')
+    .requiredOption('--path <path>', 'Path to the plugin directory')
+    .option('--scope <scope>', 'Installation scope: user, project, or local', 'user')
+    .option('--force', 'Force overwrite if already installed')
+    .action(
+        withAnalytics('plugin install', async (options: PluginInstallCommandOptionsInput) => {
+            try {
+                await handlePluginInstallCommand(options);
+                safeExit('plugin install', 0);
+            } catch (err) {
+                if (err instanceof ExitSignal) throw err;
+                console.error(`❌ dexto plugin install command failed: ${err}`);
+                safeExit('plugin install', 1, 'error');
+            }
+        })
+    );
+
+pluginCommand
+    .command('uninstall <name>')
+    .description('Uninstall a plugin by name')
+    .action(
+        withAnalytics('plugin uninstall', async (name: string) => {
+            try {
+                await handlePluginUninstallCommand({ name });
+                safeExit('plugin uninstall', 0);
+            } catch (err) {
+                if (err instanceof ExitSignal) throw err;
+                console.error(`❌ dexto plugin uninstall command failed: ${err}`);
+                safeExit('plugin uninstall', 1, 'error');
+            }
+        })
+    );
+
+pluginCommand
+    .command('validate [path]')
+    .description('Validate a plugin directory structure')
+    .action(
+        withAnalytics('plugin validate', async (path?: string) => {
+            try {
+                await handlePluginValidateCommand({ path: path || '.' });
+                safeExit('plugin validate', 0);
+            } catch (err) {
+                if (err instanceof ExitSignal) throw err;
+                console.error(`❌ dexto plugin validate command failed: ${err}`);
+                safeExit('plugin validate', 1, 'error');
+            }
+        })
+    );
+
+pluginCommand
+    .command('import [name]')
+    .description('Import a Claude Code plugin into Dexto (list available if no name)')
+    .action(
+        withAnalytics('plugin import', async (name?: string) => {
+            try {
+                await handlePluginImportCommand({ name });
+                safeExit('plugin import', 0);
+            } catch (err) {
+                if (err instanceof ExitSignal) throw err;
+                console.error(`❌ dexto plugin import command failed: ${err}`);
+                safeExit('plugin import', 1, 'error');
             }
         })
     );

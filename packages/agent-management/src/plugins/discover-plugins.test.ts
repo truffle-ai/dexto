@@ -14,7 +14,9 @@ vi.mock('fs', async () => {
 
 // Mock path utilities
 vi.mock('../utils/path.js', () => ({
-    getDextoGlobalPath: vi.fn((subpath: string) => `/home/user/.dexto/${subpath}`),
+    getDextoGlobalPath: vi.fn((type: string, filename?: string) =>
+        filename ? `/home/user/.dexto/${type}/${filename}` : `/home/user/.dexto/${type}`
+    ),
 }));
 
 import { discoverClaudeCodePlugins, getPluginSearchPaths } from './discover-plugins.js';
@@ -47,8 +49,8 @@ describe('discoverClaudeCodePlugins', () => {
         // Default mocks
         process.cwd = vi.fn(() => '/test/project');
         process.env.HOME = '/home/user';
-        vi.mocked(getDextoGlobalPath).mockImplementation(
-            (subpath: string) => `/home/user/.dexto/${subpath}`
+        vi.mocked(getDextoGlobalPath).mockImplementation((type: string, filename?: string) =>
+            filename ? `/home/user/.dexto/${type}/${filename}` : `/home/user/.dexto/${type}`
         );
         vi.mocked(fs.existsSync).mockReturnValue(false);
     });
@@ -630,8 +632,8 @@ describe('getPluginSearchPaths', () => {
     beforeEach(() => {
         process.cwd = vi.fn(() => '/test/project');
         process.env.HOME = '/home/user';
-        vi.mocked(getDextoGlobalPath).mockImplementation(
-            (subpath: string) => `/home/user/.dexto/${subpath}`
+        vi.mocked(getDextoGlobalPath).mockImplementation((type: string, filename?: string) =>
+            filename ? `/home/user/.dexto/${type}/${filename}` : `/home/user/.dexto/${type}`
         );
     });
 
@@ -644,7 +646,9 @@ describe('getPluginSearchPaths', () => {
         const paths = getPluginSearchPaths();
 
         expect(paths).toEqual([
-            // installed_plugins.json location (primary source for Claude Code installed plugins)
+            // Dexto's installed_plugins.json (highest priority)
+            '/home/user/.dexto/plugins/installed_plugins.json',
+            // Claude Code's installed_plugins.json
             '/home/user/.claude/plugins/installed_plugins.json',
             // Directory scan locations
             '/test/project/.dexto/plugins',

@@ -181,6 +181,7 @@ export function displayAllCommands(commands: CommandDefinition[]): void {
         'Session Management',
         'Model Management',
         'MCP Management',
+        'Plugin Management',
         'Tool Management',
         'Prompt Management',
         'System',

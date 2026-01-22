@@ -62,4 +62,106 @@ export class PluginError {
             'Check the .mcp.json file contains valid JSON'
         );
     }
+
+    // Installation errors
+    static installSourceNotFound(sourcePath: string) {
+        return new DextoRuntimeError(
+            PluginErrorCode.INSTALL_SOURCE_NOT_FOUND,
+            ErrorScope.CONFIG,
+            ErrorType.USER,
+            `Plugin source not found: ${sourcePath}`,
+            { sourcePath },
+            'Ensure the path points to a valid plugin directory with .claude-plugin/plugin.json'
+        );
+    }
+
+    static installAlreadyExists(pluginName: string, existingPath: string) {
+        return new DextoRuntimeError(
+            PluginErrorCode.INSTALL_ALREADY_EXISTS,
+            ErrorScope.CONFIG,
+            ErrorType.USER,
+            `Plugin '${pluginName}' is already installed at ${existingPath}`,
+            { pluginName, existingPath },
+            'Use --force to overwrite the existing installation'
+        );
+    }
+
+    static installCopyFailed(sourcePath: string, destPath: string, cause: string) {
+        return new DextoRuntimeError(
+            PluginErrorCode.INSTALL_COPY_FAILED,
+            ErrorScope.CONFIG,
+            ErrorType.SYSTEM,
+            `Failed to copy plugin from ${sourcePath} to ${destPath}: ${cause}`,
+            { sourcePath, destPath, cause },
+            'Check file permissions and disk space'
+        );
+    }
+
+    static installManifestWriteFailed(manifestPath: string, cause: string) {
+        return new DextoRuntimeError(
+            PluginErrorCode.INSTALL_MANIFEST_WRITE_FAILED,
+            ErrorScope.CONFIG,
+            ErrorType.SYSTEM,
+            `Failed to update installed plugins manifest at ${manifestPath}: ${cause}`,
+            { manifestPath, cause },
+            'Check file permissions and ensure the directory exists'
+        );
+    }
+
+    // Uninstallation errors
+    static uninstallNotFound(pluginName: string, hint?: string) {
+        return new DextoRuntimeError(
+            PluginErrorCode.UNINSTALL_NOT_FOUND,
+            ErrorScope.CONFIG,
+            ErrorType.USER,
+            `Plugin '${pluginName}' is not installed`,
+            { pluginName },
+            hint || 'Use `dexto plugin list` to see installed plugins'
+        );
+    }
+
+    static uninstallDeleteFailed(pluginPath: string, cause: string) {
+        return new DextoRuntimeError(
+            PluginErrorCode.UNINSTALL_DELETE_FAILED,
+            ErrorScope.CONFIG,
+            ErrorType.SYSTEM,
+            `Failed to delete plugin at ${pluginPath}: ${cause}`,
+            { pluginPath, cause },
+            'Check file permissions and ensure the plugin is not in use'
+        );
+    }
+
+    static uninstallManifestUpdateFailed(manifestPath: string, cause: string) {
+        return new DextoRuntimeError(
+            PluginErrorCode.UNINSTALL_MANIFEST_UPDATE_FAILED,
+            ErrorScope.CONFIG,
+            ErrorType.SYSTEM,
+            `Failed to update installed plugins manifest at ${manifestPath}: ${cause}`,
+            { manifestPath, cause },
+            'Check file permissions'
+        );
+    }
+
+    // Validation errors
+    static validationInvalidStructure(pluginPath: string, details: string) {
+        return new DextoRuntimeError(
+            PluginErrorCode.VALIDATION_INVALID_STRUCTURE,
+            ErrorScope.CONFIG,
+            ErrorType.USER,
+            `Invalid plugin structure at ${pluginPath}: ${details}`,
+            { pluginPath, details },
+            'Ensure the plugin has a .claude-plugin/plugin.json file'
+        );
+    }
+
+    static validationMissingRequired(pluginPath: string, missing: string[]) {
+        return new DextoRuntimeError(
+            PluginErrorCode.VALIDATION_MISSING_REQUIRED,
+            ErrorScope.CONFIG,
+            ErrorType.USER,
+            `Plugin at ${pluginPath} is missing required fields: ${missing.join(', ')}`,
+            { pluginPath, missing },
+            'Add the missing fields to .claude-plugin/plugin.json'
+        );
+    }
 }

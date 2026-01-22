@@ -23,3 +23,20 @@ export {
     clearSyncDismissed,
     type SyncAgentsCommandOptions,
 } from './sync-agents.js';
+export {
+    handlePluginListCommand,
+    handlePluginInstallCommand,
+    handlePluginUninstallCommand,
+    handlePluginValidateCommand,
+    handlePluginImportCommand,
+    type PluginListCommandOptions,
+    type PluginListCommandOptionsInput,
+    type PluginInstallCommandOptions,
+    type PluginInstallCommandOptionsInput,
+    type PluginUninstallCommandOptions,
+    type PluginUninstallCommandOptionsInput,
+    type PluginValidateCommandOptions,
+    type PluginValidateCommandOptionsInput,
+    type PluginImportCommandOptions,
+    type PluginImportCommandOptionsInput,
+} from './plugin.js';

@@ -5,8 +5,9 @@
  * Plugins must have a .claude-plugin/plugin.json manifest file.
  *
  * Discovery Methods (Priority Order):
- * 1. Read ~/.claude/plugins/installed_plugins.json for Claude Code installed plugins
- * 2. Scan directories for plugins with .claude-plugin/plugin.json manifests
+ * 1. Read ~/.dexto/plugins/installed_plugins.json for Dexto installed plugins
+ * 2. Read ~/.claude/plugins/installed_plugins.json for Claude Code installed plugins
+ * 3. Scan directories for plugins with .claude-plugin/plugin.json manifests
  *
  * Search Locations for Directory Scanning:
  * 1. <cwd>/.dexto/plugins/*     (project)
@@ -49,16 +50,26 @@ export function discoverClaudeCodePlugins(projectPath?: string): DiscoveredPlugi
         return true;
     };
 
-    // === Method 1: Read installed_plugins.json (Claude Code installed plugins) ===
+    // === Method 1: Read Dexto's installed_plugins.json (Dexto installed plugins - highest priority) ===
+    const dextoInstalledPluginsPath = getDextoGlobalPath('plugins', 'installed_plugins.json');
+    const dextoInstalledPlugins = readInstalledPluginsFile(dextoInstalledPluginsPath, cwd);
+    for (const plugin of dextoInstalledPlugins) {
+        addPlugin(plugin);
+    }
+
+    // === Method 2: Read Claude Code's installed_plugins.json (Claude Code installed plugins) ===
     if (homeDir) {
-        const installedPluginsPath = path.join(
+        const claudeCodeInstalledPluginsPath = path.join(
             homeDir,
             '.claude',
             'plugins',
             'installed_plugins.json'
         );
-        const installedPlugins = readInstalledPluginsFile(installedPluginsPath, cwd);
-        for (const plugin of installedPlugins) {
+        const claudeCodeInstalledPlugins = readInstalledPluginsFile(
+            claudeCodeInstalledPluginsPath,
+            cwd
+        );
+        for (const plugin of claudeCodeInstalledPlugins) {
             addPlugin(plugin);
         }
     }
@@ -100,7 +111,7 @@ export function discoverClaudeCodePlugins(projectPath?: string): DiscoveredPlugi
         }
     };
 
-    // === Method 2: Scan directories (legacy and local plugins) ===
+    // === Method 3: Scan directories (legacy and local plugins) ===
 
     // === Project plugins ===
     // 1. Dexto project plugins: <cwd>/.dexto/plugins/
@@ -244,7 +255,9 @@ export function getPluginSearchPaths(): string[] {
     const cwd = process.cwd();
 
     return [
-        // installed_plugins.json location
+        // Dexto's installed_plugins.json (highest priority)
+        getDextoGlobalPath('plugins', 'installed_plugins.json'),
+        // Claude Code's installed_plugins.json
         homeDir ? path.join(homeDir, '.claude', 'plugins', 'installed_plugins.json') : '',
         // Directory scan locations
         path.join(cwd, '.dexto', 'plugins'),

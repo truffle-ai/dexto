@@ -167,6 +167,24 @@ export {
     getPluginSearchPaths,
     // Loading
     loadClaudeCodePlugin,
+    // Validation
+    validatePluginDirectory,
+    // Listing
+    listInstalledPlugins,
+    getDextoInstalledPluginsPath,
+    getClaudeCodeInstalledPluginsPath,
+    // Installation
+    installPluginFromPath,
+    loadDextoInstalledPlugins,
+    saveDextoInstalledPlugins,
+    isPluginInstalled,
+    // Uninstallation
+    uninstallPlugin,
+    // Import from Claude Code
+    listClaudeCodePlugins,
+    importClaudeCodePlugin,
+    getClaudeCodePluginsDir,
+    getClaudeCodeInstalledPluginsJsonPath,
     // Schemas
     PluginManifestSchema,
     PluginMCPConfigSchema,
@@ -179,6 +197,17 @@ export {
     type PluginCommand,
     type PluginMCPConfig,
     type LoadedPlugin,
+    type PluginInstallScope,
+    type InstalledPluginEntry,
+    type InstalledPluginsFile,
+    type ListedPlugin,
+    type PluginValidationResult,
+    type PluginInstallResult,
+    type PluginUninstallResult,
+    type PluginImportResult,
+    type ClaudeCodePlugin,
     type ValidatedPluginManifest,
     type ValidatedPluginMCPConfig,
+    type InstallPluginOptions,
+    type UninstallPluginOptions,
 } from './plugins/index.js';

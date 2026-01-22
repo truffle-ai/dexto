@@ -77,3 +77,131 @@ export interface LoadedPlugin {
     /** Warnings for unsupported features found */
     warnings: string[];
 }
+
+/**
+ * Installation scope for plugins
+ * - user: Installed to ~/.dexto/plugins/<name>/
+ * - project: Installed to <cwd>/.dexto/plugins/<name>/
+ * - local: Registered in-place (no copy)
+ */
+export type PluginInstallScope = 'user' | 'project' | 'local';
+
+/**
+ * Entry in installed_plugins.json for Dexto's plugin tracking
+ */
+export interface InstalledPluginEntry {
+    /** Installation scope */
+    scope: PluginInstallScope;
+    /** Absolute path to the installed plugin */
+    installPath: string;
+    /** Plugin version from manifest */
+    version?: string | undefined;
+    /** ISO timestamp of installation */
+    installedAt: string;
+    /** ISO timestamp of last update */
+    lastUpdated?: string | undefined;
+    /** Project path for project-scoped plugins */
+    projectPath?: string | undefined;
+    /** Whether this is a local plugin (registered in-place) */
+    isLocal?: boolean | undefined;
+    /** Whether this plugin is imported from Claude Code (not copied, just referenced) */
+    isImported?: boolean | undefined;
+}
+
+/**
+ * Structure of installed_plugins.json
+ */
+export interface InstalledPluginsFile {
+    /** Schema version for future compatibility */
+    version: number;
+    /** Map of plugin names to installation entries */
+    plugins: Record<string, InstalledPluginEntry[]>;
+}
+
+/**
+ * Plugin with source tracking for listing
+ */
+export interface ListedPlugin {
+    /** Plugin name from manifest */
+    name: string;
+    /** Plugin description */
+    description?: string | undefined;
+    /** Plugin version */
+    version?: string | undefined;
+    /** Absolute path to plugin directory */
+    path: string;
+    /** Source of plugin discovery */
+    source: 'dexto' | 'claude-code' | 'directory';
+    /** Installation scope if installed via Dexto */
+    scope?: PluginInstallScope | undefined;
+    /** ISO timestamp of installation */
+    installedAt?: string | undefined;
+    /** Whether this plugin is imported from Claude Code */
+    isImported?: boolean | undefined;
+}
+
+/**
+ * Result of plugin validation
+ */
+export interface PluginValidationResult {
+    /** Whether the plugin is valid */
+    valid: boolean;
+    /** Validated manifest if valid */
+    manifest?: PluginManifest | undefined;
+    /** Validation errors */
+    errors: string[];
+    /** Validation warnings */
+    warnings: string[];
+}
+
+/**
+ * Result of plugin installation
+ */
+export interface PluginInstallResult {
+    /** Whether installation succeeded */
+    success: boolean;
+    /** Plugin name from manifest */
+    pluginName: string;
+    /** Path where plugin was installed */
+    installPath: string;
+    /** Installation warnings */
+    warnings: string[];
+}
+
+/**
+ * Result of plugin uninstallation
+ */
+export interface PluginUninstallResult {
+    /** Whether uninstallation succeeded */
+    success: boolean;
+    /** Path that was removed */
+    removedPath?: string | undefined;
+}
+
+/**
+ * Result of plugin import from Claude Code
+ */
+export interface PluginImportResult {
+    /** Whether import succeeded */
+    success: boolean;
+    /** Plugin name from manifest */
+    pluginName: string;
+    /** Path to the Claude Code plugin (not copied) */
+    pluginPath: string;
+}
+
+/**
+ * A Claude Code plugin available for import
+ */
+export interface ClaudeCodePlugin {
+    /** Plugin name from manifest */
+    name: string;
+    /** Plugin description */
+    description?: string | undefined;
+    /** Plugin version */
+    version?: string | undefined;
+    /** Absolute path to plugin directory */
+    path: string;
+    /** Whether already imported into Dexto */
+    isImported: boolean;
+}
