@@ -1,5 +1,11 @@
 # @dexto/registry
 
+## 1.5.5
+
+### Patch Changes
+
+- 6df3ca9: Updated readme. Removed stale filesystem and process tool from dexto/core.
+
 ## 1.5.4
 
 ## 1.5.3

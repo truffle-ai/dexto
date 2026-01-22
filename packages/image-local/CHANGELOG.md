@@ -1,5 +1,19 @@
 # @dexto/image-local
 
+## 1.5.5
+
+### Patch Changes
+
+- 9ab3eac: Added todo tools.
+- Updated dependencies [9ab3eac]
+- Updated dependencies [63fa083]
+- Updated dependencies [6df3ca9]
+    - @dexto/tools-todo@0.1.1
+    - @dexto/core@1.5.5
+    - @dexto/tools-filesystem@1.5.5
+    - @dexto/tools-process@1.5.5
+    - @dexto/agent-management@1.5.5
+
 ## 1.5.4
 
 ### Patch Changes

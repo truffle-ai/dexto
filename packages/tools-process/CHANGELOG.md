@@ -1,5 +1,14 @@
 # @dexto/tools-process
 
+## 1.5.5
+
+### Patch Changes
+
+- 6df3ca9: Updated readme. Removed stale filesystem and process tool from dexto/core.
+- Updated dependencies [63fa083]
+- Updated dependencies [6df3ca9]
+    - @dexto/core@1.5.5
+
 ## 1.5.4
 
 ### Patch Changes
