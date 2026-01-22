@@ -2,6 +2,18 @@ import { ToolManager } from '../../tools/tool-manager.js';
 import { ValidatedLLMConfig } from '../schemas.js';
 import { LLMError } from '../errors.js';
 import { createOpenAI } from '@ai-sdk/openai';
+
+// Dexto Gateway headers for usage tracking
+const DEXTO_GATEWAY_HEADERS = {
+    SESSION_ID: 'X-Dexto-Session-ID',
+    CLIENT_SOURCE: 'X-Dexto-Source',
+    CLIENT_VERSION: 'X-Dexto-Version',
+} as const;
+
+/** Context for Dexto provider to enable usage tracking */
+export interface DextoProviderContext {
+    sessionId?: string;
+}
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { createGroq } from '@ai-sdk/groq';
@@ -21,7 +33,10 @@ import { requiresApiKey, resolveModelOrigin, transformModelNameForProvider } fro
 import { getPrimaryApiKeyEnvVar } from '../../utils/api-key-resolver.js';
 import type { CompactionConfigInput } from '../../context/compaction/schemas.js';
 
-export function createVercelModel(llmConfig: ValidatedLLMConfig): LanguageModel {
+export function createVercelModel(
+    llmConfig: ValidatedLLMConfig,
+    context?: DextoProviderContext
+): LanguageModel {
     const provider = llmConfig.provider;
     const model = llmConfig.model;
     // apiKey can be undefined for providers that don't require it (openai-compatible, litellm, etc.)
@@ -88,7 +103,18 @@ export function createVercelModel(llmConfig: ValidatedLLMConfig): LanguageModel 
                 ? transformModelNameForProvider(model, origin.provider, 'dexto')
                 : model; // If not found in registry, use as-is (custom model)
 
-            return createOpenAI({ apiKey: apiKey ?? '', baseURL: dextoBaseURL }).chat(
+            // Build headers for usage tracking
+            const headers: Record<string, string> = {
+                [DEXTO_GATEWAY_HEADERS.CLIENT_SOURCE]: 'cli',
+            };
+            if (context?.sessionId) {
+                headers[DEXTO_GATEWAY_HEADERS.SESSION_ID] = context.sessionId;
+            }
+            if (process.env.DEXTO_CLI_VERSION) {
+                headers[DEXTO_GATEWAY_HEADERS.CLIENT_VERSION] = process.env.DEXTO_CLI_VERSION;
+            }
+
+            return createOpenAI({ apiKey: apiKey ?? '', baseURL: dextoBaseURL, headers }).chat(
                 transformedModel
             );
         }
@@ -236,7 +262,7 @@ export function createLLMService(
     compactionStrategy?: import('../../context/compaction/types.js').ICompactionStrategy | null,
     compactionConfig?: CompactionConfigInput
 ): VercelLLMService {
-    const model = createVercelModel(config);
+    const model = createVercelModel(config, { sessionId });
 
     return new VercelLLMService(
         toolManager,

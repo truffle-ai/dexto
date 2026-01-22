@@ -18,6 +18,9 @@ import { withAnalytics, safeExit, ExitSignal } from './analytics/wrapper.js';
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json');
 
+// Set CLI version for Dexto Gateway usage tracking
+process.env.DEXTO_CLI_VERSION = pkg.version;
+
 import {
     logger,
     getProviderFromModel,
