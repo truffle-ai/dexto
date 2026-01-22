@@ -2,6 +2,7 @@ import { ToolManager } from '../../tools/tool-manager.js';
 import { ValidatedLLMConfig } from '../schemas.js';
 import { LLMError } from '../errors.js';
 import { createOpenAI } from '@ai-sdk/openai';
+import { resolveRouting } from '../routing.js';
 
 // Dexto Gateway headers for usage tracking
 const DEXTO_GATEWAY_HEADERS = {
@@ -10,8 +11,16 @@ const DEXTO_GATEWAY_HEADERS = {
     CLIENT_VERSION: 'X-Dexto-Version',
 } as const;
 
-/** Context for Dexto provider to enable usage tracking */
+/**
+ * Context for model creation, including session info for usage tracking.
+ *
+ * Dexto routing is handled automatically by the routing module, which reads
+ * DEXTO_API_KEY from the environment (set by CLI from auth.json if logged in).
+ *
+ * @see packages/core/src/llm/routing.ts for routing logic
+ */
 export interface DextoProviderContext {
+    /** Session ID for usage tracking */
     sessionId?: string;
 }
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
@@ -37,10 +46,21 @@ export function createVercelModel(
     llmConfig: ValidatedLLMConfig,
     context?: DextoProviderContext
 ): LanguageModel {
-    const provider = llmConfig.provider;
-    const model = llmConfig.model;
-    // apiKey can be undefined for providers that don't require it (openai-compatible, litellm, etc.)
-    const apiKey = llmConfig.apiKey;
+    // Resolve routing: if user is logged into Dexto (DEXTO_API_KEY env var set)
+    // and provider is routeable, automatically route through api.dexto.ai
+    const routingDecision = resolveRouting({
+        provider: llmConfig.provider,
+        model: llmConfig.model,
+        directApiKey: llmConfig.apiKey,
+        baseURL: llmConfig.baseURL,
+        // dextoApiKey read from process.env.DEXTO_API_KEY by routing module
+    });
+
+    // Use effective values from routing decision
+    const provider = routingDecision.effectiveProvider;
+    const model = routingDecision.effectiveModel;
+    const apiKey = routingDecision.apiKey;
+    const baseURL = routingDecision.baseURL;
 
     // Runtime check: if provider requires API key but none is configured, fail with helpful message
     // This catches cases where relaxed validation allowed app to start without API key
@@ -59,23 +79,24 @@ export function createVercelModel(
             // OpenAI-compatible - requires baseURL, uses chat completions endpoint
             // Must use .chat() as most compatible endpoints (like Ollama) don't support Responses API
             // API key is optional - local providers like Ollama don't need one
-            const baseURL = getOpenAICompatibleBaseURL(llmConfig);
-            if (!baseURL) {
+            // Strip trailing slashes from config baseURL, fallback to env var
+            const compatibleBaseURL =
+                baseURL?.replace(/\/$/, '') || process.env.OPENAI_BASE_URL?.replace(/\/$/, '');
+            if (!compatibleBaseURL) {
                 throw LLMError.baseUrlMissing('openai-compatible');
             }
-            return createOpenAI({ apiKey: apiKey ?? '', baseURL }).chat(model);
+            return createOpenAI({ apiKey: apiKey ?? '', baseURL: compatibleBaseURL }).chat(model);
         }
         case 'openrouter': {
             // OpenRouter - unified API gateway for 100+ models
             // baseURL is auto-injected by resolver, but we validate it here as well
-            const baseURL = llmConfig.baseURL || 'https://openrouter.ai/api/v1';
-            return createOpenAI({ apiKey: apiKey ?? '', baseURL }).chat(model);
+            const orBaseURL = baseURL || 'https://openrouter.ai/api/v1';
+            return createOpenAI({ apiKey: apiKey ?? '', baseURL: orBaseURL }).chat(model);
         }
         case 'litellm': {
             // LiteLLM - OpenAI-compatible proxy for 100+ LLM providers
             // User must provide their own LiteLLM proxy URL
             // API key is optional - proxy handles auth internally
-            const baseURL = llmConfig.baseURL;
             if (!baseURL) {
                 throw LLMError.baseUrlMissing('litellm');
             }
@@ -84,8 +105,8 @@ export function createVercelModel(
         case 'glama': {
             // Glama - OpenAI-compatible gateway for multiple LLM providers
             // Fixed endpoint, no user configuration needed
-            const baseURL = 'https://glama.ai/api/gateway/openai/v1';
-            return createOpenAI({ apiKey: apiKey ?? '', baseURL }).chat(model);
+            const glamaBaseURL = 'https://glama.ai/api/gateway/openai/v1';
+            return createOpenAI({ apiKey: apiKey ?? '', baseURL: glamaBaseURL }).chat(model);
         }
         case 'dexto': {
             // Dexto Gateway - OpenAI-compatible proxy with per-request billing
@@ -200,9 +221,9 @@ export function createVercelModel(
             // Ollama - local model server with OpenAI-compatible API
             // Uses the /v1 endpoint for AI SDK compatibility
             // Default URL: http://localhost:11434
-            const baseURL = llmConfig.baseURL || 'http://localhost:11434/v1';
+            const ollamaBaseURL = baseURL || 'http://localhost:11434/v1';
             // Ollama doesn't require an API key, but the SDK needs a non-empty string
-            return createOpenAI({ apiKey: 'ollama', baseURL }).chat(model);
+            return createOpenAI({ apiKey: 'ollama', baseURL: ollamaBaseURL }).chat(model);
         }
         case 'local': {
             // Native node-llama-cpp execution via AI SDK adapter.
@@ -215,25 +236,6 @@ export function createVercelModel(
             throw LLMError.unsupportedProvider(provider);
     }
 }
-
-/**
- * Overrides a default base URL for OpenAI compatible models - this allows adding openai compatibles
- * Hierarchy: we first check the config file, then the environment variable
- * Regex checks for trailing slashes and removes them
- * @param llmConfig LLM configuration from the config file
- * @returns Base URL or empty string if not found
- */
-function getOpenAICompatibleBaseURL(llmConfig: ValidatedLLMConfig): string {
-    if (llmConfig.baseURL) {
-        return llmConfig.baseURL.replace(/\/$/, '');
-    }
-    // Check for environment variable as fallback
-    if (process.env.OPENAI_BASE_URL) {
-        return process.env.OPENAI_BASE_URL.replace(/\/$/, '');
-    }
-    return '';
-}
-
 /**
  * Create an LLM service instance using the Vercel AI SDK.
  * All providers are routed through the unified Vercel service.

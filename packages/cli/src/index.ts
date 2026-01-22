@@ -21,6 +21,14 @@ const pkg = require('../package.json');
 // Set CLI version for Dexto Gateway usage tracking
 process.env.DEXTO_CLI_VERSION = pkg.version;
 
+// Set DEXTO_API_KEY from auth.json if user is logged in
+// This enables transparent routing through Dexto gateway for supported providers
+import { getDextoApiKey } from './cli/auth/index.js';
+const dextoApiKey = await getDextoApiKey();
+if (dextoApiKey) {
+    process.env.DEXTO_API_KEY = dextoApiKey;
+}
+
 import {
     logger,
     getProviderFromModel,
