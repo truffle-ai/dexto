@@ -309,6 +309,7 @@ export class PromptManager {
             // Include per-prompt overrides from prompt definition
             ...(promptDef?.allowedTools && { allowedTools: promptDef.allowedTools }),
             ...(promptDef?.model && { model: promptDef.model }),
+            ...(promptDef?.context && { context: promptDef.context }),
         };
     }
 

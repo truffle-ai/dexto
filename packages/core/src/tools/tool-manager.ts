@@ -185,6 +185,20 @@ export class ToolManager {
         }
     }
 
+    /**
+     * Set task forker for context:fork skill execution (late-binding)
+     * Called by agent-spawner custom tool provider after RuntimeService is created.
+     * This enables invoke_skill to fork execution to an isolated subagent.
+     */
+    setTaskForker(taskForker: import('./internal-tools/registry.js').TaskForker): void {
+        if (this.internalToolsProvider) {
+            this.internalToolsProvider.setTaskForker(taskForker);
+            this.logger.debug(
+                'TaskForker reference configured for invoke_skill (context:fork support)'
+            );
+        }
+    }
+
     // ============= SESSION TOOL RESTRICTIONS (Phase 2 Claude Code compatibility) =============
 
     /**

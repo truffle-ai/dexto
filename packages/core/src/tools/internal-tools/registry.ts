@@ -32,6 +32,33 @@ import type { KnownInternalTool } from './constants.js';
 export type AgentFeature = 'elicitation';
 
 /**
+ * Interface for forking skill execution to an isolated subagent.
+ * Implemented by RuntimeService in @dexto/agent-management.
+ */
+export interface TaskForker {
+    /**
+     * Execute a task in an isolated subagent context.
+     * The subagent has no access to the parent's conversation history.
+     *
+     * @param options.task - Short description for UI/logs
+     * @param options.instructions - Full instructions for the subagent
+     * @param options.toolCallId - Optional tool call ID for progress events
+     * @param options.sessionId - Optional session ID for progress events
+     * @returns Result with success status and response/error
+     */
+    fork(options: {
+        task: string;
+        instructions: string;
+        toolCallId?: string;
+        sessionId?: string;
+    }): Promise<{
+        success: boolean;
+        response?: string;
+        error?: string;
+    }>;
+}
+
+/**
  * Services available to internal tools
  * Add new services here as needed for internal tools
  */
@@ -40,6 +67,8 @@ export interface InternalToolsServices {
     approvalManager?: ApprovalManager;
     resourceManager?: ResourceManager;
     promptManager?: PromptManager;
+    /** Optional forker for executing skills in isolated context (context: fork) */
+    taskForker?: TaskForker;
 }
 
 /**
@@ -92,8 +121,7 @@ export const INTERNAL_TOOL_REGISTRY: Record<KnownInternalTool, InternalToolRegis
         description: 'Access a stored resource to get URLs or metadata',
     },
     invoke_skill: {
-        factory: (services: InternalToolsServices) =>
-            createInvokeSkillTool(services.promptManager!),
+        factory: (services: InternalToolsServices) => createInvokeSkillTool(services),
         requiredServices: ['promptManager'] as const,
         description: 'Invoke a skill to load specialized instructions for a task',
     },

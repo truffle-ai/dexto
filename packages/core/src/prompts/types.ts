@@ -29,6 +29,8 @@ export interface PromptDefinition {
     allowedTools?: string[] | undefined;
     /** Model to use when this prompt is invoked */
     model?: string | undefined;
+    /** Execution context: 'inline' runs in current session, 'fork' spawns isolated subagent */
+    context?: 'inline' | 'fork' | undefined;
 }
 
 /**
@@ -38,6 +40,8 @@ export interface PromptInfo extends PromptDefinition {
     source: 'mcp' | 'config' | 'custom';
     /** User-friendly display name without namespace prefix (e.g., "quick-start" instead of "config:quick-start") */
     displayName?: string | undefined;
+    /** Execution context: 'inline' runs in current session, 'fork' spawns isolated subagent */
+    context?: 'inline' | 'fork' | undefined;
     metadata?: Record<string, unknown>;
 }
 
@@ -66,6 +70,8 @@ export interface ResolvedPromptResult {
     allowedTools?: string[] | undefined;
     /** Model to use when this prompt is invoked */
     model?: string | undefined;
+    /** Execution context: 'inline' runs in current session, 'fork' spawns isolated subagent */
+    context?: 'inline' | 'fork' | undefined;
 }
 
 /**

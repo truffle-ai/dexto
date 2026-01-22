@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import type { InternalTool } from '../../types.js';
-import type { PromptManager } from '../../../prompts/prompt-manager.js';
+import type { InternalTool, ToolExecutionContext } from '../../types.js';
+import type { InternalToolsServices } from '../registry.js';
 import { flattenPromptResult } from '../../../prompts/utils.js';
 
 const InvokeSkillInputSchema = z
@@ -12,6 +12,12 @@ const InvokeSkillInputSchema = z
                 'The name of the skill to invoke (e.g., "plugin-name:skill-name" or "skill-name")'
             ),
         args: z.record(z.string()).optional().describe('Optional arguments to pass to the skill'),
+        taskContext: z
+            .string()
+            .optional()
+            .describe(
+                'Context about what task this skill should accomplish. Required for forked skills to provide context since they run in isolation without conversation history.'
+            ),
     })
     .strict();
 
@@ -24,21 +30,34 @@ type InvokeSkillInput = z.input<typeof InvokeSkillInputSchema>;
  * with the PromptManager. Skills are prompts that can be auto-invoked by
  * the model (not disabled via `disableModelInvocation`).
  *
- * When invoked, the skill's content is returned and should be used to
- * guide the agent's next actions.
+ * Execution modes:
+ * - **inline** (default): Skill content is returned for the LLM to follow in the current session
+ * - **fork**: Skill is executed in an isolated subagent with no conversation history access
  *
  * Usage:
  * - The LLM sees available skills in its system prompt
  * - When a skill is relevant, the LLM calls this tool with the skill name
- * - The tool returns the skill's content for the LLM to follow
+ * - For inline skills: content is returned for the LLM to follow
+ * - For forked skills: execution happens in isolation and result is returned
+ *
+ * Note: Takes services object (not individual deps) to support late-binding of taskForker.
+ * The taskForker may be set after tool creation when agent-spawner custom tool is registered.
  */
-export function createInvokeSkillTool(promptManager: PromptManager): InternalTool {
+export function createInvokeSkillTool(services: InternalToolsServices): InternalTool {
     return {
         id: 'invoke_skill',
-        description: buildToolDescription(promptManager),
+        description: buildToolDescription(),
         inputSchema: InvokeSkillInputSchema,
-        execute: async (input: unknown) => {
-            const { skill, args } = input as InvokeSkillInput;
+        execute: async (input: unknown, context?: ToolExecutionContext) => {
+            const { skill, args, taskContext } = input as InvokeSkillInput;
+
+            // Get promptManager from services (set via setPromptManager before initialize)
+            const promptManager = services.promptManager;
+            if (!promptManager) {
+                return {
+                    error: 'PromptManager not available. This is a configuration error.',
+                };
+            }
 
             // Check if the prompt exists and is auto-invocable
             const autoInvocable = await promptManager.listAutoInvocablePrompts();
@@ -67,12 +86,69 @@ export function createInvokeSkillTool(promptManager: PromptManager): InternalToo
                 };
             }
 
-            // Get the prompt content
+            // Get the prompt definition to check execution context
+            const promptDef = await promptManager.getPromptDefinition(skillKey);
+
+            // Get the prompt content with arguments applied
             const promptResult = await promptManager.getPrompt(skillKey, args);
+            const flattened = flattenPromptResult(promptResult);
+            const content = flattened.text;
 
-            // Flatten the prompt result to get the text content
-            const content = flattenPromptResult(promptResult);
+            // Check if this skill should be forked
+            if (promptDef?.context === 'fork') {
+                // Fork execution - run in isolated subagent
+                // taskForker is looked up lazily to support late-binding (set after tool creation)
+                const taskForker = services.taskForker;
+                if (!taskForker) {
+                    return {
+                        error: `Skill '${skill}' requires fork execution (context: fork), but agent spawning is not available. Configure agent-spawner custom tool to use forked skills.`,
+                        skill: skillKey,
+                    };
+                }
 
+                // Build instructions for the forked agent
+                // Include task context if provided, then skill content
+                let instructions: string;
+                if (taskContext) {
+                    instructions = `## Task Context\n${taskContext}\n\n## Skill Instructions\n${content}`;
+                } else {
+                    instructions = content;
+                }
+
+                // Execute in isolated context
+                const forkOptions: {
+                    task: string;
+                    instructions: string;
+                    toolCallId?: string;
+                    sessionId?: string;
+                } = {
+                    task: `Skill: ${skill}`,
+                    instructions,
+                };
+                if (context?.toolCallId) {
+                    forkOptions.toolCallId = context.toolCallId;
+                }
+                if (context?.sessionId) {
+                    forkOptions.sessionId = context.sessionId;
+                }
+                const result = await taskForker.fork(forkOptions);
+
+                if (result.success) {
+                    return {
+                        skill: skillKey,
+                        forked: true,
+                        result: result.response ?? 'Task completed successfully.',
+                    };
+                } else {
+                    return {
+                        skill: skillKey,
+                        forked: true,
+                        error: result.error ?? 'Unknown error during forked execution',
+                    };
+                }
+            }
+
+            // Inline execution (default) - return content for LLM to follow
             return {
                 skill: skillKey,
                 content,
@@ -84,12 +160,9 @@ export function createInvokeSkillTool(promptManager: PromptManager): InternalToo
 }
 
 /**
- * Builds the tool description with the list of available skills.
- * This is called at registration time, so skills list may update.
+ * Builds the tool description.
  */
-function buildToolDescription(promptManager: PromptManager): string {
-    // Note: Description is static at registration time.
-    // For dynamic skill listing, the system prompt should include available skills.
+function buildToolDescription(): string {
     return `Invoke a skill to load specialized instructions for a task. Skills are predefined prompts that guide how to handle specific scenarios.
 
 When to use:
@@ -97,7 +170,14 @@ When to use:
 - When you need specialized guidance for a complex operation
 - When the user references a skill by name
 
-The skill's content will be returned with instructions to follow.
+Parameters:
+- skill: The name of the skill to invoke
+- args: Optional arguments to pass to the skill (e.g., for $ARGUMENTS substitution)
+- taskContext: Context about what you're trying to accomplish (important for forked skills that run in isolation)
+
+Execution modes:
+- Most skills run inline and return instructions for you to follow
+- Some skills are "forked" and execute in an isolated context, returning only the result
 
 Available skills are listed in your system prompt. Use the skill name exactly as shown.`;
 }

@@ -62,6 +62,14 @@ export const InlinePromptSchema = z
             .optional()
             .describe('Tools allowed when this prompt is active (overrides global policies)'),
         model: z.string().optional().describe('Model to use when this prompt is invoked'),
+        // Execution context (Phase 2)
+        context: z
+            .enum(['inline', 'fork'])
+            .optional()
+            .default('inline')
+            .describe(
+                "Execution context: 'inline' runs in current session (default), 'fork' spawns isolated subagent"
+            ),
     })
     .strict()
     .describe('Inline prompt with text defined directly in config');
@@ -97,6 +105,13 @@ export const FilePromptSchema = z
             .optional()
             .describe('Tools allowed when this prompt is active (overrides global policies)'),
         model: z.string().optional().describe('Model to use when this prompt is invoked'),
+        // Execution context (Phase 2) - can override frontmatter
+        context: z
+            .enum(['inline', 'fork'])
+            .optional()
+            .describe(
+                "Execution context: 'inline' runs in current session (default), 'fork' spawns isolated subagent"
+            ),
         // Plugin namespace (Phase 3) - for prefixing command names
         namespace: z
             .string()

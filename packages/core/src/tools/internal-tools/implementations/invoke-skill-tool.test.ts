@@ -1,10 +1,12 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { createInvokeSkillTool } from './invoke-skill-tool.js';
 import type { PromptManager } from '../../../prompts/prompt-manager.js';
+import type { InternalToolsServices, TaskForker } from '../registry.js';
 
 describe('invoke_skill tool', () => {
     let tool: ReturnType<typeof createInvokeSkillTool>;
     let mockPromptManager: Partial<PromptManager>;
+    let services: InternalToolsServices;
 
     const mockAutoInvocablePrompts = {
         'config:plugin:skill-one': {
@@ -26,9 +28,12 @@ describe('invoke_skill tool', () => {
             getPrompt: vi.fn().mockResolvedValue({
                 messages: [{ content: { type: 'text', text: 'Skill instructions here' } }],
             }),
+            // Return undefined for context (inline execution is default)
+            getPromptDefinition: vi.fn().mockResolvedValue(undefined),
         };
 
-        tool = createInvokeSkillTool(mockPromptManager as PromptManager);
+        services = { promptManager: mockPromptManager as PromptManager };
+        tool = createInvokeSkillTool(services);
     });
 
     describe('Tool Definition', () => {
@@ -71,6 +76,16 @@ describe('invoke_skill tool', () => {
             expect(result.success).toBe(true);
         });
 
+        it('should accept valid input with taskContext', () => {
+            const validInput = {
+                skill: 'skill-one',
+                taskContext: 'User wants to accomplish X',
+            };
+
+            const result = tool.inputSchema.safeParse(validInput);
+            expect(result.success).toBe(true);
+        });
+
         it('should reject empty skill name', () => {
             const invalidInput = {
                 skill: '',
@@ -95,7 +110,7 @@ describe('invoke_skill tool', () => {
             })) as any;
 
             expect(result.skill).toBe('config:plugin:skill-one');
-            expect(result.content.text).toContain('Skill instructions here');
+            expect(result.content).toContain('Skill instructions here');
             expect(mockPromptManager.getPrompt).toHaveBeenCalledWith(
                 'config:plugin:skill-one',
                 undefined
@@ -108,7 +123,7 @@ describe('invoke_skill tool', () => {
             })) as any;
 
             expect(result.skill).toBe('config:plugin:skill-one');
-            expect(result.content.text).toContain('Skill instructions here');
+            expect(result.content).toContain('Skill instructions here');
         });
 
         it('should find skill by name', async () => {
@@ -184,8 +199,8 @@ describe('invoke_skill tool', () => {
                 skill: 'simple-skill',
             })) as any;
 
-            expect(result.content.text).toContain('Part 1');
-            expect(result.content.text).toContain('Part 2');
+            expect(result.content).toContain('Part 1');
+            expect(result.content).toContain('Part 2');
         });
     });
 
@@ -199,6 +214,162 @@ describe('invoke_skill tool', () => {
 
             expect(result.error).toContain('not found');
             expect(result.availableSkills).toEqual([]);
+        });
+    });
+
+    describe('Context: Fork Execution', () => {
+        let mockTaskForker: TaskForker;
+
+        beforeEach(() => {
+            mockTaskForker = {
+                fork: vi.fn().mockResolvedValue({
+                    success: true,
+                    response: 'Forked task completed successfully',
+                }),
+            };
+        });
+
+        it('should fork execution when context is fork', async () => {
+            // Set up skill with context: fork
+            mockPromptManager.getPromptDefinition = vi.fn().mockResolvedValue({
+                context: 'fork',
+            });
+            services.taskForker = mockTaskForker;
+
+            const result = (await tool.execute({
+                skill: 'simple-skill',
+            })) as any;
+
+            expect(result.forked).toBe(true);
+            expect(result.result).toBe('Forked task completed successfully');
+            expect(mockTaskForker.fork).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    task: 'Skill: simple-skill',
+                    instructions: 'Skill instructions here',
+                })
+            );
+        });
+
+        it('should include taskContext in forked instructions', async () => {
+            mockPromptManager.getPromptDefinition = vi.fn().mockResolvedValue({
+                context: 'fork',
+            });
+            services.taskForker = mockTaskForker;
+
+            await tool.execute({
+                skill: 'simple-skill',
+                taskContext: 'User wants to analyze code quality',
+            });
+
+            expect(mockTaskForker.fork).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    instructions: expect.stringContaining('## Task Context'),
+                })
+            );
+            expect(mockTaskForker.fork).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    instructions: expect.stringContaining('User wants to analyze code quality'),
+                })
+            );
+            expect(mockTaskForker.fork).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    instructions: expect.stringContaining('## Skill Instructions'),
+                })
+            );
+        });
+
+        it('should return error when fork required but taskForker not available', async () => {
+            mockPromptManager.getPromptDefinition = vi.fn().mockResolvedValue({
+                context: 'fork',
+            });
+            // Don't set taskForker on services
+
+            const result = (await tool.execute({
+                skill: 'simple-skill',
+            })) as any;
+
+            expect(result.error).toContain('requires fork execution');
+            expect(result.error).toContain('agent spawning is not available');
+        });
+
+        it('should handle fork execution failure', async () => {
+            mockPromptManager.getPromptDefinition = vi.fn().mockResolvedValue({
+                context: 'fork',
+            });
+            services.taskForker = {
+                fork: vi.fn().mockResolvedValue({
+                    success: false,
+                    error: 'Subagent timed out',
+                }),
+            };
+
+            const result = (await tool.execute({
+                skill: 'simple-skill',
+            })) as any;
+
+            expect(result.forked).toBe(true);
+            expect(result.error).toBe('Subagent timed out');
+        });
+
+        it('should use inline execution when context is inline', async () => {
+            mockPromptManager.getPromptDefinition = vi.fn().mockResolvedValue({
+                context: 'inline',
+            });
+            services.taskForker = mockTaskForker;
+
+            const result = (await tool.execute({
+                skill: 'simple-skill',
+            })) as any;
+
+            // Should NOT call fork
+            expect(mockTaskForker.fork).not.toHaveBeenCalled();
+            // Should return inline content
+            expect(result.content).toContain('Skill instructions here');
+            expect(result.forked).toBeUndefined();
+        });
+
+        it('should use inline execution when context is undefined', async () => {
+            mockPromptManager.getPromptDefinition = vi.fn().mockResolvedValue({});
+            services.taskForker = mockTaskForker;
+
+            const result = (await tool.execute({
+                skill: 'simple-skill',
+            })) as any;
+
+            expect(mockTaskForker.fork).not.toHaveBeenCalled();
+            expect(result.content).toContain('Skill instructions here');
+        });
+
+        it('should pass toolCallId and sessionId to fork when provided', async () => {
+            mockPromptManager.getPromptDefinition = vi.fn().mockResolvedValue({
+                context: 'fork',
+            });
+            services.taskForker = mockTaskForker;
+
+            await tool.execute(
+                { skill: 'simple-skill' },
+                { toolCallId: 'call-123', sessionId: 'session-456' }
+            );
+
+            expect(mockTaskForker.fork).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    toolCallId: 'call-123',
+                    sessionId: 'session-456',
+                })
+            );
+        });
+    });
+
+    describe('PromptManager not available', () => {
+        it('should return error when promptManager is not set', async () => {
+            const emptyServices: InternalToolsServices = {};
+            const toolWithoutManager = createInvokeSkillTool(emptyServices);
+
+            const result = (await toolWithoutManager.execute({
+                skill: 'any-skill',
+            })) as any;
+
+            expect(result.error).toContain('PromptManager not available');
         });
     });
 });

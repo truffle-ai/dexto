@@ -11,7 +11,7 @@
  * - Always cleans up agents after task completion (synchronous model)
  */
 
-import type { DextoAgent, IDextoLogger, AgentConfig } from '@dexto/core';
+import type { DextoAgent, IDextoLogger, AgentConfig, TaskForker } from '@dexto/core';
 import { AgentRuntime } from '../runtime/AgentRuntime.js';
 import { createDelegatingApprovalHandler } from '../runtime/approval-delegation.js';
 import { loadAgentConfig } from '../config/loader.js';
@@ -20,7 +20,7 @@ import type { AgentRegistryEntry } from '../registry/types.js';
 import type { AgentSpawnerConfig } from './schemas.js';
 import type { SpawnAgentOutput } from './types.js';
 
-export class RuntimeService {
+export class RuntimeService implements TaskForker {
     private runtime: AgentRuntime;
     private parentId: string;
     private parentAgent: DextoAgent;
@@ -129,6 +129,41 @@ export class RuntimeService {
             input.sessionId
         );
         return result;
+    }
+
+    /**
+     * Fork execution to an isolated subagent.
+     * Implements TaskForker interface for use by invoke_skill when context: fork is set.
+     *
+     * @param options.task - Short description for UI/logs
+     * @param options.instructions - Full instructions for the subagent
+     * @param options.toolCallId - Optional tool call ID for progress events
+     * @param options.sessionId - Optional session ID for progress events
+     */
+    async fork(options: {
+        task: string;
+        instructions: string;
+        toolCallId?: string;
+        sessionId?: string;
+    }): Promise<{ success: boolean; response?: string; error?: string }> {
+        // Delegate to spawnAndExecute with no agentId (uses parent's LLM config)
+        // Only include optional properties when they have values (exactOptionalPropertyTypes)
+        const spawnOptions: {
+            task: string;
+            instructions: string;
+            toolCallId?: string;
+            sessionId?: string;
+        } = {
+            task: options.task,
+            instructions: options.instructions,
+        };
+        if (options.toolCallId) {
+            spawnOptions.toolCallId = options.toolCallId;
+        }
+        if (options.sessionId) {
+            spawnOptions.sessionId = options.sessionId;
+        }
+        return this.spawnAndExecute(spawnOptions);
     }
 
     /**

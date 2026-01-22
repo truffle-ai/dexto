@@ -66,6 +66,15 @@ export class InternalToolsProvider {
     }
 
     /**
+     * Set task forker for context:fork skill execution (late-binding)
+     * Called by agent-spawner custom tool provider after RuntimeService is created.
+     * This enables invoke_skill to fork execution to an isolated subagent.
+     */
+    setTaskForker(taskForker: import('./registry.js').TaskForker): void {
+        this.services.taskForker = taskForker;
+    }
+
+    /**
      * Initialize the internal tools provider by registering all available internal tools
      * and custom tools from the registry
      */

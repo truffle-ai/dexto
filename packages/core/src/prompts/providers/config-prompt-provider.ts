@@ -125,6 +125,7 @@ export class ConfigPromptProvider implements PromptProvider {
                 allowedTools: promptInfo.allowedTools,
             }),
             ...(promptInfo.model !== undefined && { model: promptInfo.model }),
+            ...(promptInfo.context !== undefined && { context: promptInfo.context }),
         };
     }
 
@@ -182,6 +183,7 @@ export class ConfigPromptProvider implements PromptProvider {
             userInvocable: prompt['user-invocable'],
             allowedTools: prompt['allowed-tools'],
             model: prompt.model,
+            context: prompt.context,
             metadata: {
                 type: 'inline',
                 category: prompt.category,
@@ -247,6 +249,7 @@ export class ConfigPromptProvider implements PromptProvider {
             const userInvocable = prompt['user-invocable'] ?? parsed.userInvocable;
             const allowedTools = prompt['allowed-tools'] ?? parsed.allowedTools;
             const model = prompt.model ?? parsed.model;
+            const context = prompt.context ?? parsed.context;
 
             // Handle namespace prefixing for plugin commands
             const displayName = prompt.namespace ? `${prompt.namespace}:${parsed.id}` : parsed.id;
@@ -266,6 +269,7 @@ export class ConfigPromptProvider implements PromptProvider {
                 ...(userInvocable !== undefined && { userInvocable }),
                 ...(allowedTools !== undefined && { allowedTools }),
                 ...(model !== undefined && { model }),
+                ...(context !== undefined && { context }),
                 metadata: {
                     type: 'file',
                     filePath: filePath,
@@ -302,6 +306,7 @@ export class ConfigPromptProvider implements PromptProvider {
         userInvocable?: boolean;
         allowedTools?: string[];
         model?: string;
+        context?: 'inline' | 'fork';
     } {
         const lines = rawContent.trim().split('\n');
         const fileName = filePath.split('/').pop()?.replace(/\.md$/, '') ?? 'unknown';
@@ -317,6 +322,7 @@ export class ConfigPromptProvider implements PromptProvider {
         let userInvocable: boolean | undefined;
         let allowedTools: string[] | undefined;
         let model: string | undefined;
+        let context: 'inline' | 'fork' | undefined;
         let contentBody: string;
 
         // Parse frontmatter if present
@@ -377,6 +383,9 @@ export class ConfigPromptProvider implements PromptProvider {
                     } else if (line.includes('model:')) {
                         const val = match('model');
                         if (val) model = val;
+                    } else if (line.includes('context:')) {
+                        const val = match('context');
+                        if (val === 'fork' || val === 'inline') context = val;
                     }
                     // Note: allowed-tools parsing requires special handling for arrays
                     // Will be parsed as YAML array in a separate pass below
@@ -423,6 +432,7 @@ export class ConfigPromptProvider implements PromptProvider {
             ...(userInvocable !== undefined && { userInvocable }),
             ...(allowedTools !== undefined && { allowedTools }),
             ...(model !== undefined && { model }),
+            ...(context !== undefined && { context }),
         };
     }
 
