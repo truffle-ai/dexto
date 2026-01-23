@@ -1,6 +1,6 @@
 # OpenCode Auth + Provider UX (What’s Worth Copying)
 
-This is relevant because OpenCode had to solve the same “switch auth methods without rewriting model selection” problem.
+This is relevant because OpenCode’s UX matches the “explicit backend provider” direction.
 
 ## Auth storage is decoupled from model selection
 
@@ -45,20 +45,19 @@ Key pattern:
 
 This is relevant to Dexto as “don’t show things that will fail” rather than “let users pick and error”.
 
-## How their “provider” concept differs from Dexto’s transparent routing
+## How their “provider” concept maps to Dexto (explicit providers)
 
 OpenCode’s “providers” are explicit execution backends / billing endpoints:
 - `anthropic` provider → Anthropic auth + Anthropic model IDs
 - `openrouter` provider → OpenRouter auth + OpenRouter model IDs
 - `opencode` provider → OpenCode Zen auth + curated model IDs (gateway product)
 
-This is why OpenCode avoids model-ID mapping across backends: the backend is part of the model identity.
+This is why OpenCode avoids runtime model-ID mapping across backends: the backend is part of the model identity.
 
-Dexto’s transparent gateway intentionally inverts that:
-- User picks a semantic provider/model (Anthropic/OpenAI/etc.)
-- Execution backend can be “direct” or “via Dexto” depending on credentials + routing policy
-
-That transparency yields better “auth switching without rewriting model selection”, but it requires a correct model-ID mapping layer when the gateway expects a different ID namespace.
+For Dexto, we’re taking the same approach:
+- `dexto` is a first-class provider (gateway product)
+- `openrouter` stays a first-class provider (advanced BYOK)
+- direct providers stay first-class (BYOK / OAuth)
 
 ## Takeaways for Dexto
 

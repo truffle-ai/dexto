@@ -26,18 +26,19 @@ They did not attempt to hide the dependency.
 
 ## If Dexto wants to hide OpenRouter, do it at the UX layer (not config)
 
-Recommendation:
-- Keep internal provider ID as `openrouter` for “marketplace namespace” models.
-- Rename UI/labels to “Dexto Marketplace” (or similar).
-- Ensure key gating uses “effective credentials” so users aren’t pushed to create OpenRouter keys when logged into Dexto.
+With explicit providers, we don’t need to “hide OpenRouter” via config tricks.
+We can keep the UX simple:
 
-What to avoid:
-- Making users set `provider: dexto` in config to “hide openrouter”.
-  - That couples selection to billing, makes auth switching harder, and creates future migration risk.
+- Default recommendation: `provider: dexto`
+- Advanced BYOK option: `provider: openrouter`
+
+If you still want to minimize OpenRouter branding:
+- Keep OpenRouter provider discoverable but not prominent (“Advanced”).
+- Show friendly display names in pickers; avoid over-emphasizing raw OpenRouter IDs.
+- Use “Dexto Marketplace” phrasing in UI while keeping internal IDs stable.
 
 ## Suggested UX semantics
 
 1. “Marketplace models” are described as “available through Dexto Credits”.
 2. Users can still “Bring your own OpenRouter key” as an advanced option, but it’s not the default onboarding path.
 3. The model ID field can be called “Model ID” (not “OpenRouter model ID”), and the validation link can point to Dexto docs or a Dexto-hosted catalog page (even if it’s backed by OpenRouter).
-

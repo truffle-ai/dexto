@@ -79,3 +79,5 @@ OpenCode treats “OpenRouter” as an explicit provider:
 
 Because of that explicitness, they do not need a transparent mapping layer between native IDs and OpenRouter IDs.
 
+This is the same direction we’re choosing for Dexto (`provider: dexto` is explicit).
+The remaining “mapping layer” is a UX concern (grouping models across backends), not runtime routing.

@@ -1,33 +1,25 @@
 # Future OAuth + Multi-Auth (Design Notes)
 
-Long term, “how to pay” may include multiple credential types:
-- Dexto Credits (Dexto API key)
-- Direct provider keys (BYOK)
-- Subscription OAuth (ChatGPT Plus/Claude Pro, etc.)
+Long term, each provider may support multiple auth methods:
+- Dexto (`dexto` provider): credits API key, OAuth subscriptions, enterprise auth, …
+- Direct providers: API key, OAuth subscription, work SSO, …
 
-Key principle:
-- Keep *selection* (provider/model) separate from *credential sources* and *routing policy*.
+With explicit providers, the contract becomes:
+- config chooses the backend (`llm.provider`)
+- auth store decides how that backend is authenticated (within that provider)
 
-## Suggested mental model
+## Practical implication
 
-1. Semantic selection:
-   - `provider` + `model`
-2. Available credentials:
-   - One or more credential sources, each with a scope (global/user, per-agent, per-model)
-3. Routing policy:
-   - Which credential to prefer, plus fallback behavior
+“Switching payment method” can mean two different actions:
 
-## Why this matters now
+1. Switch auth method within a provider (no config change)
+   - Example: Anthropic API key ↔ Anthropic OAuth
 
-If we bake “dexto” as a provider into user configs, OAuth and BYOK flows get harder:
-- Every auth method becomes a “provider” rather than a credential source.
-- Switching methods requires rewriting provider/model identifiers.
+2. Switch execution backend (config change, but UI-assisted)
+   - Example: `dexto` ↔ `anthropic`
+   - Example: `dexto` ↔ `openrouter` (advanced)
 
-Keeping Dexto as infrastructure avoids that trap.
+## Design guardrails
 
-## Open questions to resolve later
-
-- Do we want per-agent routing policies (platform-friendly) in addition to global preferences?
-- How do we represent subscription OAuth in a way that is portable but secure?
-- How do we expose “available credentials” to the WebUI without leaking secrets?
-
+- Keep secrets out of YAML; put them into the auth store / platform secret injection.
+- Ensure the UI can show “available backends” for a model and which auth methods are configured.

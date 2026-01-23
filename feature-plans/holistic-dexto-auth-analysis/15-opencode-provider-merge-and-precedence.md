@@ -55,5 +55,4 @@ OpenCode’s “merge logic” is a concrete, repeatable pattern:
 - **Registry → overlay → credential sources → filter**
 
 For Dexto, the analogous problem is:
-- “catalog → custom models → effective credentials (Dexto vs direct) → what the UI should allow”
-
+- “catalog → custom models → per-provider auth availability → what the UI should allow”

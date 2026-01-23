@@ -1,52 +1,58 @@
-# User-Facing Config and “No Escape Hatches”
+# User-Facing Config (Explicit Backend Providers)
 
-## Decision: no `provider: dexto` in user config
+## Decision: `provider: dexto` is user-facing
 
-This feature is unreleased, so we should not introduce a user-facing “escape hatch” where users can directly configure `llm.provider: dexto`.
+We’re adopting an OpenCode-like explicitness model:
+- `llm.provider` is the execution backend (billing/auth endpoint).
+- Switching “Dexto Credits → BYOK” is switching providers (`dexto → anthropic/openai/...`), not changing auth state.
 
-**Rationale**
-- It couples “what model” to “how to pay” and becomes technical debt immediately.
-- It complicates UX and documentation (“when should I use dexto vs anthropic?”).
-- It creates long-term migration/compat concerns once configs are deployed/shared.
-- We already have a cleaner conceptual split: provider/model is the semantic selection; auth/routing is how we execute it.
+This is intentionally deterministic and platform-friendly:
+- A deployed agent config expresses exactly what backend it will call.
+- No auth-dependent runtime rerouting/magic.
 
-**Implementation implication**
-- Treat “dexto” as an internal *effective provider* only (routing target), not a valid provider in user-authored configs.
+## Recommended config patterns
 
-## What user config should mean
+### Default (recommended): use Dexto gateway
 
-User config should express “what you want to talk to”, not “how it gets billed”.
+`dexto` is OpenRouter-backed, so models are OpenRouter IDs:
 
-Examples (conceptual):
+```yaml
+llm:
+  provider: dexto
+  model: anthropic/claude-sonnet-4.5
+```
+
+OpenRouter-only models are also first-class here:
+
+```yaml
+llm:
+  provider: dexto
+  model: z-ai/glm-4.5-air:free
+```
+
+### Direct provider (BYOK)
+
+Direct providers use their native model namespace:
 
 ```yaml
 llm:
   provider: anthropic
-  model: claude-sonnet-4-5-20250929
+  model: claude-sonnet-4-5
 ```
 
-OpenRouter-only models are expressed explicitly as OpenRouter IDs:
+### Advanced: direct OpenRouter (BYOK)
+
+Keep OpenRouter explicit and “advanced”:
 
 ```yaml
 llm:
   provider: openrouter
-  model: z-ai/glm-4.5-air:free
+  model: anthropic/claude-sonnet-4.5
 ```
 
-## Gateway reality: Dexto == OpenRouter
+## “No legacy escape hatches” stance (how it applies now)
 
-Routing to the Dexto gateway means the *actual* request is OpenRouter-style:
-- Dexto base URL: `https://api.dexto.ai/v1`
-- Model IDs: OpenRouter format (typically `vendor/model`), or vendor-prefixed IDs where applicable.
-
-Therefore:
-- Any time we route “via Dexto”, we must ensure the model ID is in OpenRouter-compatible format.
-- Any time we show UX labels, we should show the *semantic* provider (Anthropic/OpenAI/etc.), not “dexto”.
-
-## Practical guardrails (recommended)
-
-1. **Validation boundary**: reject user configs that set `provider: dexto`.
-2. **API boundary**: catalog should never list `dexto` as a selectable provider.
-3. **UI boundary**: model picker should never show “dexto” as a provider option.
-4. **Internal boundary**: routing may still produce `effectiveProvider: 'dexto'` for execution.
-
+The “escape hatch” we avoid is **implicit routing policy** that changes behavior based on auth state.
+With explicit providers:
+- There is no hidden “prefer Dexto” runtime switch.
+- The only switching is intentional (via CLI/WebUI actions that update provider/model).

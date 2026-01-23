@@ -1,14 +1,19 @@
-# Holistic Dexto Auth + Routing Analysis
+# Holistic Dexto Auth + Model Selection (Explicit Providers)
 
-This folder is a working set of notes/design decisions for the “transparent Dexto gateway” feature.
-The goal is to keep all the auth/routing/model-ID concerns in one place so we can iterate without losing context.
+This folder is a working set of notes/design decisions for Dexto auth + model selection.
+We’re aligning with an “explicit backend provider” approach (similar to OpenCode):
+
+- `llm.provider` is the execution backend (`dexto`, `anthropic`, `openai`, `openrouter`, …).
+- Dexto gateway (`provider: dexto`) is user-facing and OpenRouter-backed.
+- “Seamless switching” is primarily a UX concern (picker groups models and offers “Run via …”),
+  not auth-dependent runtime routing.
 
 **Key framing**
 - Dexto gateway is an OpenRouter proxy with Dexto billing on top.
-- Users select “real” providers/models (Anthropic/OpenAI/etc.) in UX; Dexto is infrastructure.
-- We want seamless switching between Dexto Credits and BYOK (provider API keys), including “run out of credits”.
-- We want OpenRouter-only models to be first-class (via custom models) and also route through Dexto when logged in.
-- This feature is unreleased: we should avoid introducing “legacy escape hatches” that we don’t intend to support long-term.
+- `dexto` provider uses OpenRouter model IDs (e.g., `anthropic/claude-sonnet-4.5`).
+- Direct providers use their native IDs (Anthropic IDs, OpenAI IDs, …).
+- OpenRouter remains supported as BYOK/advanced; Dexto is the default recommendation.
+- Custom models must work for `dexto` (OpenRouter IDs) and for other “custom endpoint” providers.
 
 ## Documents
 
@@ -27,13 +32,13 @@ The goal is to keep all the auth/routing/model-ID concerns in one place so we ca
 13. `13-model-id-namespaces-and-mapping.md`
 14. `14-webui-effective-credentials-and-routing-awareness.md`
 15. `15-opencode-provider-merge-and-precedence.md`
+16. `16-featured-models-and-catalog-sources.md`
 
 ## Current implementation references (for context)
 
-- Runtime routing module: `packages/core/src/llm/routing.ts`
 - Registry-based OpenRouter prefix transform: `packages/core/src/llm/registry.ts` (`transformModelNameForProvider`)
 - Vercel AI SDK provider factory (where routing is applied): `packages/core/src/llm/services/factory.ts`
-- CLI setup “Dexto Credits” flow (stores native provider/model): `packages/cli/src/cli/commands/setup.ts`
+- CLI setup wizard: `packages/cli/src/cli/commands/setup.ts`
 - WebUI model picker + custom model form: `packages/webui/components/ModelPicker/ModelPickerModal.tsx`
 - Server catalog + custom-model endpoints: `packages/server/src/hono/routes/llm.ts`
 - Custom models persistence: `packages/agent-management/src/models/custom-models.ts`

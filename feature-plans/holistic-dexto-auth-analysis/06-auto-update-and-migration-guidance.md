@@ -1,6 +1,6 @@
-# Auto-Update and Migration Guidance (Auth/Routing)
+# Auto-Update and Migration Guidance (Explicit Provider)
 
-This section is focused on keeping the auto-update + schema migration story clean while we iterate on auth/routing.
+This section is focused on keeping the auto-update + schema migration story clean while we iterate on auth/model selection.
 
 Reference: `~/Projects/dexto-cli-fixes-2/feature-plans/auto-update.md`
 
@@ -18,7 +18,7 @@ Therefore, any change that requires rewriting those files must be treated as hig
 
 ## Recommendation: prefer additive defaults over migrations
 
-For auth/routing features, prefer:
+For auth/model-selection features, prefer:
 - Adding optional fields with `.default()` in Zod schemas
 - Implementing behavior changes in runtime resolution
 
@@ -40,18 +40,15 @@ Auth/routing additions should be designed so that:
 ## Pre-release “breaking” changes
 
 Because this feature is unreleased:
-- It is reasonable to remove unsupported config shapes (e.g. `provider: dexto`) without migration.
-
-Post-release, that becomes a real migration problem. If we ever ship `provider: dexto` publicly, we own that shape forever.
+- It is reasonable to change the default bundled agent from a direct provider to `provider: dexto`.
+- It is reasonable to remove the transparent-routing behavior (auth-dependent rerouting) without a complex migration.
 
 ## Suggestion for future schema evolution
-
-If we add routing policy to agent config:
-- Make it optional with a default (prefer Dexto).
-- Keep it stable and avoid renames.
-- Avoid nesting under multiple layers unless we’re committed to it (nesting increases migration friction).
 
 If we add more auth modes (OAuth, BYOK, enterprise):
 - Keep secrets out of YAML; put them into the auth store / platform secret injection.
 - Keep YAML as “desired behavior”, not “token storage”.
-
+ 
+If we want better UX defaults without rewriting YAML:
+- Add defaults in preferences (e.g., “default backend for new agents is dexto”)
+- Only rewrite agent YAML when the agent is unmodified (bundledHash strategy)

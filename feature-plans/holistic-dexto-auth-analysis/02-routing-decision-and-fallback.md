@@ -1,60 +1,39 @@
-# Routing Decision, Credential Precedence, and Fallback
+# Execution Backend Selection and “Out of Credits” Handling
 
-## Goals
+With explicit providers, “routing” is no longer a runtime decision: it’s the config.
 
-1. **Seamless auth switching**
-   - User starts on Dexto Credits.
-   - Balance hits 0 → agent should be able to continue using BYOK automatically if configured.
-2. **Correct model ID transformation**
-   - When routing to Dexto (OpenRouter proxy), transform model IDs correctly (including vendor-prefix mapping like `xai` → `x-ai`).
-3. **Avoid UI/key confusion**
-   - “Missing API key” should not block if Dexto auth can satisfy the call.
+## Goal
 
-## Credential inputs
+Make switching between backends easy (Dexto ↔ direct ↔ OpenRouter), without hidden behavior.
 
-- `DEXTO_API_KEY` (from `dexto login`)
-- Direct provider API key (e.g. `ANTHROPIC_API_KEY`)
-- OpenRouter API key (`OPENROUTER_API_KEY`) for direct OpenRouter usage
+## Credential inputs (by provider)
 
-## Recommended routing algorithm (high level)
+- `dexto` provider → `DEXTO_API_KEY` (from `dexto login`)
+- `openrouter` provider → `OPENROUTER_API_KEY` (BYOK)
+- direct providers (`anthropic`, `openai`, `google`, …) → their native env vars / auth store
 
-Given semantic `(provider, model)` from config:
+## Execution semantics
 
-1. If provider is **direct-only** (bedrock/vertex/local/etc.) → always direct.
-2. Otherwise, compute:
-   - `hasDextoKey`
-   - `hasDirectKeyForProvider`
-   - `preferDextoCredits` (defaults true)
-3. Choose primary route:
-   - If `hasDextoKey` and (`!hasDirectKeyForProvider` or `preferDextoCredits`) → route via Dexto.
-   - Else if `hasDirectKeyForProvider` → route direct.
-   - Else → error: no credentials.
-4. Transform model ID *only* if routing via Dexto and the semantic provider is not already OpenRouter-native.
+Given `(provider, model)` from config:
 
-## 402 fallback for “ran out of credits”
+- If `provider === 'dexto'`:
+  - Call `https://api.dexto.ai/v1`
+  - Pass `model` as an OpenRouter model ID (no rewriting)
+- If `provider === 'openrouter'`:
+  - Call OpenRouter
+  - Pass `model` as an OpenRouter model ID (no rewriting)
+- If `provider` is a direct provider:
+  - Call the native provider SDK/API
+  - Pass `model` in that provider’s native namespace
 
-To make switching truly seamless, implement a controlled retry:
+## “Ran out of credits” (402) behavior
 
-- If the primary route is Dexto **and** the gateway returns `402 INSUFFICIENT_CREDITS`,
-  then **retry once** using the direct provider route *if* a direct provider API key exists.
+Do **not** silently fall back to another provider at runtime.
 
-This avoids forcing `dexto logout` (which is global state and a bad UX for multi-agent and platform scenarios).
+Instead:
+- surface a typed `INSUFFICIENT_CREDITS` error
+- include a recovery hint that the UI/CLI can act on:
+  - “Switch to Direct Anthropic (key is configured)”
+  - “Switch to OpenRouter (key is configured)”
 
-## Model ID transformation (don’t duplicate logic)
-
-The codebase already has a provider-prefix mapping for OpenRouter targets:
-- `packages/core/src/llm/registry.ts` (`OPENROUTER_PROVIDER_PREFIX`, `transformModelNameForProvider`)
-
-**Recommendation**
-- Routing should reuse `transformModelNameForProvider()` (or an extracted helper), rather than implementing its own `${provider}/${model}` prefixing.
-- This avoids incorrect IDs (notably `xai` → `x-ai`) and avoids future drift.
-
-## Observable routing state
-
-Expose routing in a way that UI can make correct decisions:
-- Whether Dexto auth is available (`hasDextoKey`)
-- Whether the semantic provider is routeable (`canRouteViaDexto`)
-- Which route would be chosen given current settings (`effectiveRoute`)
-
-This is required to prevent WebUI/CLI from prompting users for provider API keys unnecessarily.
-
+This keeps execution deterministic and makes the “switch” a deliberate UX action.

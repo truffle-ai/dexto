@@ -12,6 +12,7 @@ Dexto has an explicit “custom models” subsystem:
 
 This is good for:
 - adding arbitrary OpenRouter model IDs
+- adding arbitrary Dexto-gateway model IDs (same namespace; different credential)
 - adding self-hosted endpoints (openai-compatible / litellm)
 - per-model overrides (apiKey/baseURL/token caps)
 
@@ -38,4 +39,3 @@ This is powerful but less discoverable:
 If we care about platform deployment portability:
 - consider whether custom models should also be representable in agent YAML (not only in `~/.dexto/models/custom-models.json`).
   - Today, Dexto custom models are a local-user concept; that’s a mismatch for deployed agents.
-

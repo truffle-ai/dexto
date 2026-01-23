@@ -12,14 +12,13 @@ But long term, a vendor may introduce:
 
 We need a config+UX representation that doesn’t paint us into a corner.
 
-## Recommended representation: keep selection stable, treat auth as pluggable
+## Recommended representation (explicit-provider world)
 
-Store the model in the “marketplace namespace” (currently OpenRouter IDs), but keep auth/routing independent:
+Treat OpenRouter IDs as the “marketplace namespace” and use them under `provider: dexto` (default) or `provider: openrouter` (advanced BYOK).
 
-- Selection: “this model ID”
-- Execution: “use Dexto Credits / use direct provider / use vendor OAuth”
-
-This avoids forcing migrations when a vendor becomes first-class later.
+When a vendor becomes first-class later (native API/OAuth), the UI can offer a switch:
+- same model family
+- different provider/model pair
 
 ## UX implication
 
@@ -30,15 +29,6 @@ When we eventually add a native `zai` provider + OAuth:
 
 ## Technical implication
 
-We need a consistent internal model identity that can map to multiple backends over time:
-- `modelRef = { namespace: 'marketplace', id: 'z-ai/glm-...' }`
-  - later, also support `namespace: 'zai'`
-
-If we keep using `llm.provider: openrouter` for marketplace models:
-- That is fine as long as the UI doesn’t treat it as “you must have an OpenRouter account”.
-- It becomes an implementation detail.
-
-If we instead invent a new `marketplace` provider:
-- That reduces OpenRouter branding exposure but introduces a new provider ID in configs (which we then have to support forever).
-  - If you do this, do it once, early, before release.
-
+We likely need an internal “model group” identity for UX (not config):
+- group together variants across providers (Dexto/OpenRouter/direct)
+- allow future “native provider” backends to join the same group
