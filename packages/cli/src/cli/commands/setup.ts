@@ -370,59 +370,73 @@ async function handleDextoProviderSetup(): Promise<void> {
         p.log.success('Already logged in to Dexto');
     }
 
-    // Model selection - show popular models with their NATIVE provider/model IDs
-    // Config stores native format; runtime routing transforms when needed
-    const modelChoice = await p.select({
+    // Model selection - show popular models in OpenRouter format
+    // With explicit providers, Dexto uses OpenRouter model IDs directly
+    const model = await p.select({
         message: 'Select a model to start with',
         options: [
-            // Claude models - native Anthropic format
+            // Claude models (Anthropic via Dexto gateway)
             {
-                value: 'anthropic:claude-haiku-4-5-20251001',
+                value: 'anthropic/claude-haiku-4.5',
                 label: 'Claude 4.5 Haiku',
                 hint: 'Fast & affordable (recommended)',
             },
             {
-                value: 'anthropic:claude-sonnet-4-5-20250929',
+                value: 'anthropic/claude-sonnet-4.5',
                 label: 'Claude 4.5 Sonnet',
                 hint: 'Balanced performance and cost',
             },
             {
-                value: 'anthropic:claude-opus-4-5-20251101',
+                value: 'anthropic/claude-opus-4.5',
                 label: 'Claude 4.5 Opus',
                 hint: 'Most capable Claude model',
             },
-            // OpenAI models - native OpenAI format
+            // OpenAI models (via Dexto gateway)
             {
-                value: 'openai:gpt-5.2',
+                value: 'openai/gpt-5.2',
                 label: 'GPT-5.2',
                 hint: 'OpenAI flagship model',
             },
             {
-                value: 'openai:gpt-5.2-codex',
+                value: 'openai/gpt-5.2-codex',
                 label: 'GPT-5.2 Codex',
                 hint: 'Optimized for coding',
             },
-            // Google models - native Google format
+            // Google models (via Dexto gateway)
             {
-                value: 'google:gemini-3-pro',
+                value: 'google/gemini-3-pro-preview',
                 label: 'Gemini 3 Pro',
                 hint: 'Google flagship model',
             },
             {
-                value: 'google:gemini-3-flash',
+                value: 'google/gemini-3-flash-preview',
                 label: 'Gemini 3 Flash',
                 hint: 'Fast and efficient',
+            },
+            // Free models (via Dexto gateway)
+            {
+                value: 'qwen/qwen3-coder:free',
+                label: 'Qwen3 Coder (Free)',
+                hint: 'Free coding model, 262k context',
+            },
+            {
+                value: 'deepseek/deepseek-r1-0528:free',
+                label: 'DeepSeek R1 (Free)',
+                hint: 'Free reasoning model, 163k context',
             },
         ],
     });
 
-    if (p.isCancel(modelChoice)) {
+    if (p.isCancel(model)) {
         p.cancel('Setup cancelled');
         process.exit(0);
     }
 
-    // Parse the selection into provider and model
-    const [provider, model] = (modelChoice as string).split(':') as [LLMProvider, string];
+    // Dexto setup always uses 'dexto' provider with OpenRouter model IDs
+    const provider: LLMProvider = 'dexto';
+
+    // Cast model to string (prompts library typing)
+    const selectedModel = model as string;
 
     p.log.info(`${chalk.dim('Tip:')} You can switch models anytime with ${chalk.cyan('/model')}`);
 
@@ -434,28 +448,27 @@ async function handleDextoProviderSetup(): Promise<void> {
         process.exit(0);
     }
 
-    // Save preferences with NATIVE provider/model format
-    // Runtime routing (resolveRouting) handles transformation to OpenRouter format when logged in
+    // Save preferences with explicit dexto provider and OpenRouter model ID
     const preferences = createInitialPreferences({
         provider,
-        model,
+        model: selectedModel,
         defaultMode,
         setupCompleted: true,
         apiKeyPending: false,
-        // No apiKeyVar - user is logged into Dexto, routing handles auth at runtime
+        // No apiKeyVar - user is logged into Dexto, DEXTO_API_KEY is used
     });
 
     await saveGlobalPreferences(preferences);
 
     capture('dexto_setup', {
         provider,
-        model,
+        model: selectedModel,
         setupMode: 'interactive',
         setupVariant: 'dexto',
         defaultMode,
     });
 
-    showSetupComplete(provider, model, defaultMode, false);
+    showSetupComplete(provider, selectedModel, defaultMode, false);
 }
 
 /**

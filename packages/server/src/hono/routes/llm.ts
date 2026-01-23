@@ -7,7 +7,6 @@ import {
     SUPPORTED_FILE_TYPES,
     supportsBaseURL,
     getAllModelsForProvider,
-    shouldRouteThroughDexto,
     type ProviderInfo,
     type LLMProvider,
     LLMUpdatesSchema,
@@ -328,11 +327,8 @@ export function createLlmRouter(getAgent: GetAgentFn) {
             // Omit apiKey from response for security
             const { apiKey, ...configWithoutKey } = currentConfig;
 
-            // Determine if routing through Dexto
-            // Logged in (DEXTO_API_KEY set) AND provider is routeable = via Dexto
-            const viaDexto = !!(
-                process.env.DEXTO_API_KEY && shouldRouteThroughDexto(currentConfig.provider)
-            );
+            // With explicit providers, viaDexto is simply whether the provider is 'dexto'
+            const viaDexto = currentConfig.provider === 'dexto';
 
             return ctx.json({
                 config: {
@@ -361,9 +357,6 @@ export function createLlmRouter(getAgent: GetAgentFn) {
 
             for (const provider of LLM_PROVIDERS) {
                 const info = LLM_REGISTRY[provider];
-
-                // Skip hidden providers (like dexto which is a transparent routing layer)
-                if (info.hidden) continue;
                 const displayName = provider.charAt(0).toUpperCase() + provider.slice(1);
                 const keyStatus = getProviderKeyStatus(provider);
 

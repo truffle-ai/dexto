@@ -1347,15 +1347,128 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
     // Dexto Gateway - OpenAI-compatible proxy through api.dexto.ai
     // Routes to OpenRouter with per-request billing (balance decrement)
     // Requires DEXTO_API_KEY from `dexto login`
-    // Hidden from model picker - users see original providers (Anthropic, OpenAI, etc.)
-    // Dexto routing is transparent infrastructure, not a user-selectable provider
+    //
+    // This is a first-class provider that users explicitly select.
+    // Model IDs are in OpenRouter format (e.g., 'anthropic/claude-sonnet-4.5')
     dexto: {
-        models: [], // Empty - models come from other providers via supportsAllRegistryModels
+        models: [
+            // Claude models (Anthropic via OpenRouter)
+            {
+                name: 'anthropic/claude-haiku-4.5',
+                displayName: 'Claude 4.5 Haiku',
+                maxInputTokens: 200000,
+                default: true,
+                supportedFileTypes: ['pdf', 'image'],
+                pricing: {
+                    inputPerM: 1.0,
+                    outputPerM: 5.0,
+                    cacheWritePerM: 1.25,
+                    cacheReadPerM: 0.1,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
+                name: 'anthropic/claude-sonnet-4.5',
+                displayName: 'Claude 4.5 Sonnet',
+                maxInputTokens: 200000,
+                supportedFileTypes: ['pdf', 'image'],
+                pricing: {
+                    inputPerM: 3.0,
+                    outputPerM: 15.0,
+                    cacheWritePerM: 3.75,
+                    cacheReadPerM: 0.3,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
+                name: 'anthropic/claude-opus-4.5',
+                displayName: 'Claude 4.5 Opus',
+                maxInputTokens: 200000,
+                supportedFileTypes: ['pdf', 'image'],
+                pricing: {
+                    inputPerM: 5.0,
+                    outputPerM: 25.0,
+                    cacheWritePerM: 6.25,
+                    cacheReadPerM: 0.5,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            // OpenAI models (via OpenRouter)
+            {
+                name: 'openai/gpt-5.2',
+                displayName: 'GPT-5.2',
+                maxInputTokens: 400000,
+                supportedFileTypes: ['pdf', 'image'],
+                pricing: {
+                    inputPerM: 1.75,
+                    outputPerM: 14.0,
+                    cacheReadPerM: 0.175,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
+                name: 'openai/gpt-5.2-codex',
+                displayName: 'GPT-5.2 Codex',
+                maxInputTokens: 400000,
+                supportedFileTypes: ['pdf', 'image'],
+                pricing: {
+                    inputPerM: 1.75,
+                    outputPerM: 14.0,
+                    cacheReadPerM: 0.175,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            // Google models (via OpenRouter)
+            {
+                name: 'google/gemini-3-pro-preview',
+                displayName: 'Gemini 3 Pro',
+                maxInputTokens: 1048576,
+                supportedFileTypes: ['pdf', 'image', 'audio'],
+                pricing: {
+                    inputPerM: 2.0,
+                    outputPerM: 12.0,
+                    cacheReadPerM: 0.2,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
+                name: 'google/gemini-3-flash-preview',
+                displayName: 'Gemini 3 Flash',
+                maxInputTokens: 1048576,
+                supportedFileTypes: ['pdf', 'image', 'audio'],
+                pricing: {
+                    inputPerM: 0.5,
+                    outputPerM: 3.0,
+                    cacheReadPerM: 0.05,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            // Free models (via OpenRouter)
+            {
+                name: 'qwen/qwen3-coder:free',
+                displayName: 'Qwen3 Coder (Free)',
+                maxInputTokens: 262000,
+                supportedFileTypes: [],
+                // Free - no pricing
+            },
+            {
+                name: 'deepseek/deepseek-r1-0528:free',
+                displayName: 'DeepSeek R1 (Free)',
+                maxInputTokens: 163840,
+                supportedFileTypes: [],
+                // Free - no pricing
+            },
+        ],
         baseURLSupport: 'none', // Fixed endpoint: https://api.dexto.ai/v1
         supportedFileTypes: ['pdf', 'image', 'audio'], // Same as OpenRouter
-        supportsCustomModels: true, // Also accept arbitrary OpenRouter model names
-        supportsAllRegistryModels: true, // Access all models from all providers in the registry
-        hidden: true, // Don't show in model picker - transparent routing layer
+        supportsCustomModels: true, // Accept any OpenRouter model ID beyond the preset list
     },
 };
 
