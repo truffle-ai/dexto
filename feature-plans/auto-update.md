@@ -1160,26 +1160,104 @@ function getMigrationsBetween(from: string, to: string): Migration[] {
 
 ---
 
-### Option D: Separate User Configs (Split Approach)
+### Option D: Layered Config with Local Overrides (RECOMMENDED)
 
-Separate bundled agent configs from user customizations.
+Separate bundled agent configs from user customizations using a layered approach.
 
 ```
 ~/.dexto/agents/coding-agent/
-├── coding-agent.yml           # Bundled, replaced on update
-└── coding-agent.local.yml     # User overrides, migrated
+├── coding-agent.yml           # Bundled, ALWAYS replaced on update
+└── coding-agent.local.yml     # User overrides (optional), migrated but never replaced
+```
+
+**How it works:**
+
+1. **Bundled file** (`coding-agent.yml`):
+   - Owned by dexto, always replaced on CLI update
+   - User A (90%) never touches it → seamless updates
+   - Contains full valid config with all defaults
+
+2. **Local file** (`coding-agent.local.yml`):
+   - Created by user ONLY when they want to customize
+   - Contains ONLY the fields user wants to override (partial config)
+   - Smart-merged over bundled config at load time
+   - NEVER modified by updates, but IS migrated when schema changes
+   - Supports `_remove: true` pattern to remove bundled items
+
+3. **Merge rules** (field-aware):
+   - Objects: deep merge (local overrides bundled)
+   - Arrays: strategy per field (union, union-by-key, concat, replace)
+   - Scalars: replace
+
+**User Scenarios:**
+
+| User | Behavior | Experience |
+|------|----------|------------|
+| **A (90%)** | Never customizes | No `.local.yml` → bundled updates just work |
+| **B (8%)** | Overrides model, temperature | `.local.yml` with partial overrides → bundled updates + their overrides preserved |
+| **B'** | Adds custom tools | `.local.yml` with tool additions → new bundled tools + their tools (union merge) |
+| **C (2%)** | Creates custom agents | Custom agents unchanged; bundled agents work as above |
+
+**Example - User B customizes model:**
+
+```yaml
+# Bundled coding-agent.yml (v1.0)
+llm:
+  provider: anthropic
+  model: claude-sonnet-4-20250514
+  temperature: 0.7
+customTools:
+  - type: filesystem-tools
+  - type: process-tools
+```
+
+```yaml
+# User's coding-agent.local.yml (partial!)
+llm:
+  model: claude-sonnet-4-20250514
+  temperature: 0.5
+```
+
+```yaml
+# After update - Bundled coding-agent.yml (v1.1)
+llm:
+  provider: anthropic
+  model: claude-sonnet-4-20250514
+  temperature: 0.7
+customTools:
+  - type: filesystem-tools
+  - type: process-tools
+  - type: web-search-tools  # NEW!
+```
+
+```yaml
+# Effective merged config (what loads at runtime)
+llm:
+  provider: anthropic           # From bundled
+  model: claude-sonnet-4-20250514  # User's override
+  temperature: 0.5              # User's override
+customTools:
+  - type: filesystem-tools      # From bundled
+  - type: process-tools         # From bundled
+  - type: web-search-tools      # NEW from bundled - user gets it!
 ```
 
 **Pros:**
-- Bundled configs always current
-- User data clearly separated
-- Can nuke bundled without losing customizations
+- User A: Zero friction, seamless updates
+- User B: Partial customization preserved through updates, gets new features automatically
+- User C: Custom agents work as before
+- Bundled configs always current (no hash checking needed)
+- User data clearly separated and explicit
+- Supports both additions AND removals
 
 **Cons:**
-- Changes user workflow significantly
-- Two files to manage
-- Merge logic complexity
-- **User rejected this approach**
+- Two files to understand (but `.local.yml` is optional)
+- Smart merge logic adds complexity
+- Local files need migration (but they're partial, so simpler)
+
+**Why this works better than hash-based detection:**
+- Hash approach: user loses ALL customizations on update OR gets no updates
+- Layered approach: user keeps their specific overrides AND gets bundled updates
 
 ---
 
@@ -1216,36 +1294,50 @@ async function loadAgentConfig(path: string): Promise<AgentConfig | null> {
 
 ## 7. Recommended Approach
 
-**Recommendation: Option C (Sequential Version Migrations) with elements from A and B**
+**Recommendation: Option D (Layered Config) + Option C (Sequential Migrations)**
+
+The approach combines:
+- **Option D**: Layered config with `.local.yml` for user overrides (bundled vs user separation)
+- **Option C**: Sequential version migrations for schema changes
+- **Elements from A & B**: Zod transforms for simple cases, explicit migration registry for complex ones
 
 ### Core Components
 
-1. **Version Tracking**
+1. **Layered Config (Option D)**
+   - Bundled agent configs: always replaced on CLI update
+   - Local override files (`.local.yml`): user-owned, never replaced, but migrated
+   - Smart merge at load time with field-aware strategies
+   - See Section 8.9 and 8.10 for details
+
+2. **Version Tracking**
    - Store last-run CLI version in `~/.dexto/.cli-version` (bootstrap only)
    - Add **required** `schemaVersion` field in config files and always write it back after migration
+   - Both bundled AND local files have schemaVersion
 
-2. **Unknown Field Handling**
+3. **Unknown Field Handling**
    - Refuse migration if config contains unknown fields and report them clearly
    - Never silently drop user data
-3. **Migration Registry**
+   - Local files are partial - unknown fields in local are flagged before merge
+
+4. **Migration Registry**
    - Sequential migrations defined per breaking version
-   - Each migration is a transform function
+   - Each migration has TWO transforms: full (bundled) and partial (local)
    - Migrations applied in order
 
-4. **Automatic Backup**
+5. **Automatic Backup**
    - Before any migration, backup to `~/.dexto-backup-{timestamp}`
    - Keep last N backups (configurable, default 3)
 
-5. **Upgrade Command**
+6. **Upgrade Command**
    - `dexto upgrade [version]` - check, show changes, perform upgrade
    - Show pending migrations before upgrade
    - Migration happens on next startup (new version)
 
-6. **Recovery Commands**
+7. **Recovery Commands**
    - `dexto restore-backup` - restore from backup
-   - `dexto agent reset <id>` - reset single agent to defaults
+   - `dexto agent reset <id>` - deletes `.local.yml`, reverting to bundled defaults
 
-7. **Image Compatibility Check**
+8. **Image Compatibility Check**
    - Validate the loaded image package against the running core version
    - Warn on minor/patch mismatches, block on major mismatches (override flag if needed)
 
@@ -1253,11 +1345,13 @@ async function loadAgentConfig(path: string): Promise<AgentConfig | null> {
 
 | Requirement | How It's Met |
 |-------------|--------------|
-| Don't change user workflows | Configs stay in same location, same format |
-| Know what version config was for | Per-file required schemaVersion + .cli-version bootstrap |
-| Handle breaking changes | Sequential migrations with validation |
-| Protect user data | Automatic backups before migration |
-| Clear recovery path | restore-backup and agent reset commands |
+| Seamless updates for User A (90%) | Bundled configs always replaced, no `.local.yml` = pure bundled |
+| Preserve customizations for User B | `.local.yml` with partial overrides merged over new bundled |
+| Support additions for User B' | Smart merge (union-by-key) combines bundled + user tools |
+| Handle breaking changes | Sequential migrations for both bundled and local files |
+| Protect user data | Automatic backups + local files never replaced |
+| Clear recovery path | `restore-backup` and `agent reset` (deletes `.local.yml`) |
+| Explicit customization | Two files = user knows exactly what they've changed |
 
 ---
 
@@ -1721,26 +1815,327 @@ This check should also surface in `dexto doctor` and during upgrades.
 
 ---
 
-### 8.9 Bundled Agent Update Policy (Simplified)
+### 8.9 Bundled Agent Update Policy (Layered Config Approach)
 
-Goal: minimize risk and maintenance while keeping a good user experience.
+Goal: Seamless updates for all users while preserving customizations.
 
 **Scope**
 - Applies only to bundled agents.
-- Custom agents are never auto-updated.
+- Custom agents are never auto-updated (only migrated if schema changes).
+
+**File Structure**
+```
+~/.dexto/agents/coding-agent/
+├── coding-agent.yml           # Bundled config - ALWAYS replaced on update
+└── coding-agent.local.yml     # User overrides (optional) - NEVER replaced, but migrated
+```
 
 **Policy**
-- Bundled agents are only auto-updated when the user has not edited the file.
-- If the user has edited a bundled agent, leave it untouched and notify that an update is available.
-- Users can explicitly apply the latest bundled config with `dexto agent reset <id>`.
+1. **Bundled file**: Always replaced with new version on CLI update. No hash checking needed.
+2. **Local file**: Never touched by updates. Migrated when schema changes (see 8.10).
+3. **Load time**: Smart merge of bundled + local produces effective config.
 
-**Detection (no per-field merge)**
-- Store a single `bundledHash` per bundled agent in `~/.dexto/agents/registry.json`.
-- On upgrade/startup:
-  - If `hash(currentFile) === bundledHash`, replace the file with the new bundled config and update `bundledHash`.
-  - If not, do not modify the file; show a non-blocking notice with the reset command.
+**Update Flow**
+```typescript
+async function updateBundledAgents(): Promise<void> {
+  for (const agentId of BUNDLED_AGENT_IDS) {
+    const agentDir = path.join(getDextoGlobalPath('agents'), agentId);
+    const bundledPath = `${agentDir}/${agentId}.yml`;
+    
+    // Always replace bundled file with new version from package
+    const newBundled = await getBundledAgentFromPackage(agentId);
+    await writeYaml(bundledPath, newBundled);
+    
+    // Local file is NOT touched during update
+    // It will be migrated on next load if schema version differs
+  }
+}
+```
 
-Unknown fields are still rejected during migration (strict schema); this policy does not allow custom keys in bundled agent configs.
+**Load Flow**
+```typescript
+async function loadAgentConfig(agentDir: string): Promise<ValidatedAgentConfig> {
+  const agentId = path.basename(agentDir);
+  const bundledPath = `${agentDir}/${agentId}.yml`;
+  const localPath = `${agentDir}/${agentId}.local.yml`;
+  
+  // 1. Load bundled (always valid, always current schema)
+  const bundled = await loadYaml(bundledPath);
+  
+  // 2. Load and migrate local if exists
+  let local: Partial<AgentConfig> = {};
+  if (existsSync(localPath)) {
+    const rawLocal = await loadYaml(localPath);
+    local = await migrateLocalIfNeeded(rawLocal, localPath);
+  }
+  
+  // 3. Smart merge with field-aware strategies (see 8.10)
+  const merged = smartMerge(bundled, local, AGENT_CONFIG_MERGE_STRATEGIES);
+  
+  // 4. Final validation
+  return AgentConfigSchema.parse(merged);
+}
+```
+
+**User Experience by Profile**
+
+| User | Has `.local.yml`? | On CLI Update | On Next Launch |
+|------|-------------------|---------------|----------------|
+| **A (90%)** | No | Bundled replaced | New config loads, new tools/features available |
+| **B (8%)** | Yes (model override) | Bundled replaced, local untouched | Merged: new bundled + their overrides |
+| **B'** | Yes (added custom tool) | Bundled replaced, local untouched | Merged: new bundled tools + their tools (union) |
+| **C (2%)** | N/A (custom agent) | Not touched | Migrated if schema changed |
+
+**Reset Command**
+`dexto agent reset <id>` now simply deletes the `.local.yml` file:
+```typescript
+async function resetAgent(agentId: string): Promise<void> {
+  const localPath = path.join(getDextoGlobalPath('agents'), agentId, `${agentId}.local.yml`);
+  if (existsSync(localPath)) {
+    await rm(localPath);
+    console.log(`Removed customizations. Agent will use bundled defaults.`);
+  } else {
+    console.log(`No customizations found. Agent already using bundled defaults.`);
+  }
+}
+```
+
+### 8.10 Config Merge Strategies
+
+The `.local.yml` file contains partial overrides that are smart-merged with the bundled config. Different fields require different merge strategies.
+
+#### Merge Strategy Types
+
+```typescript
+type MergeStrategy = 
+  | 'replace'        // Local value completely replaces bundled
+  | 'deep-merge'     // Recursively merge objects
+  | 'union'          // Arrays: deduplicated concatenation
+  | 'union-by-key'   // Arrays of objects: merge by discriminator field
+  | 'concat'         // Arrays: append local to bundled (with duplicates)
+  ;
+```
+
+#### Field-Specific Strategies
+
+| Field Path | Type | Strategy | Rationale |
+|------------|------|----------|-----------|
+| `llm` | object | `deep-merge` | User overrides specific subfields (model, temperature) |
+| `llm.model` | string/object | `replace` | Leaf value |
+| `systemPrompt` | object | `deep-merge` | User can override contributors |
+| `systemPrompt.contributors` | array | `union-by-key` (by `id`) | User can override/add specific contributors |
+| `internalTools` | array | `union` | User adds tools to bundled set |
+| `customTools` | array | `union-by-key` (by `type`) | User can override tool configs or add new tools |
+| `mcpServers` | object | `deep-merge` | Keys are server names |
+| `toolConfirmation` | object | `deep-merge` | User overrides specific settings |
+| `toolConfirmation.toolPolicies.alwaysAllow` | array | `union` | Additive permissions |
+| `toolConfirmation.toolPolicies.alwaysDeny` | array | `union` | Additive restrictions |
+| `storage` | object | `deep-merge` | User overrides specific stores |
+| `prompts` | array | `concat` | User's prompts added after bundled |
+| `internalResources.resources` | array | `union-by-key` (by `type`) | User can override/add resources |
+| `memories` | object | `deep-merge` | User overrides specific settings |
+| `plugins` | object | `deep-merge` | User overrides specific plugins |
+| All other fields | varies | `replace` | Default for scalars and unknown fields |
+
+#### Implementation
+
+```typescript
+// packages/agent-management/src/config/merge.ts
+
+const AGENT_CONFIG_MERGE_STRATEGIES: Record<string, MergeStrategy> = {
+  // Object fields - deep merge
+  'llm': 'deep-merge',
+  'systemPrompt': 'deep-merge',
+  'mcpServers': 'deep-merge',
+  'toolConfirmation': 'deep-merge',
+  'storage': 'deep-merge',
+  'memories': 'deep-merge',
+  'plugins': 'deep-merge',
+  'elicitation': 'deep-merge',
+  'compaction': 'deep-merge',
+  
+  // Array fields - various strategies
+  'internalTools': 'union',
+  'customTools': 'union-by-key:type',           // Merge by 'type' discriminator
+  'systemPrompt.contributors': 'union-by-key:id',
+  'toolConfirmation.toolPolicies.alwaysAllow': 'union',
+  'toolConfirmation.toolPolicies.alwaysDeny': 'union',
+  'internalResources.resources': 'union-by-key:type',
+  'prompts': 'concat',
+};
+
+function smartMerge(
+  bundled: Record<string, unknown>,
+  local: Record<string, unknown>,
+  strategies: Record<string, MergeStrategy>,
+  path: string = ''
+): Record<string, unknown> {
+  const result = { ...bundled };
+  
+  for (const [key, localValue] of Object.entries(local)) {
+    if (key === 'schemaVersion' || key === '_remove') continue; // Meta fields
+    
+    const fullPath = path ? `${path}.${key}` : key;
+    const strategy = strategies[fullPath] ?? inferStrategy(localValue, bundled[key]);
+    const bundledValue = bundled[key];
+    
+    result[key] = applyStrategy(bundledValue, localValue, strategy, strategies, fullPath);
+  }
+  
+  return result;
+}
+
+function applyStrategy(
+  bundled: unknown,
+  local: unknown,
+  strategy: MergeStrategy,
+  strategies: Record<string, MergeStrategy>,
+  path: string
+): unknown {
+  // Handle removal marker
+  if (isObject(local) && local._remove === true) {
+    return undefined; // Remove from result
+  }
+  
+  switch (strategy) {
+    case 'replace':
+      return local;
+      
+    case 'deep-merge':
+      if (isObject(bundled) && isObject(local)) {
+        return smartMerge(bundled, local, strategies, path);
+      }
+      return local;
+      
+    case 'union':
+      if (Array.isArray(bundled) && Array.isArray(local)) {
+        return [...new Set([...bundled, ...local])];
+      }
+      return local;
+      
+    case 'concat':
+      if (Array.isArray(bundled) && Array.isArray(local)) {
+        return [...bundled, ...local];
+      }
+      return local;
+      
+    default:
+      // Handle 'union-by-key:fieldName' pattern
+      if (strategy.startsWith('union-by-key:')) {
+        const keyField = strategy.split(':')[1];
+        return unionByKey(bundled, local, keyField);
+      }
+      return local;
+  }
+}
+```
+
+#### Union-by-Key Merge Example
+
+For arrays of objects with a discriminator field (like `customTools` with `type`):
+
+```yaml
+# Bundled customTools
+customTools:
+  - type: filesystem-tools
+    allowedPaths: ["."]
+    blockedPaths: [".git"]
+  - type: process-tools
+    securityLevel: moderate
+  - type: todo-tools
+
+# User's .local.yml customTools
+customTools:
+  - type: filesystem-tools      # Same type → OVERRIDE bundled entry
+    allowedPaths: [".", "/tmp"]
+    blockedPaths: []            # User wants fewer restrictions
+  - type: my-custom-tool        # New type → ADD to array
+    endpoint: http://localhost:3000
+  - type: todo-tools
+    _remove: true               # REMOVE from bundled
+
+# Merged result
+customTools:
+  - type: filesystem-tools
+    allowedPaths: [".", "/tmp"]  # User's override
+    blockedPaths: []             # User's override
+  - type: process-tools
+    securityLevel: moderate      # Unchanged from bundled
+  - type: my-custom-tool
+    endpoint: http://localhost:3000  # User's addition
+  # todo-tools removed per user request
+```
+
+#### Removal Syntax
+
+To remove a bundled item, use the `_remove: true` marker:
+
+```yaml
+# Remove a tool by type
+customTools:
+  - type: todo-tools
+    _remove: true
+
+# Remove an internal tool
+internalTools:
+  - ask_user
+  - _remove: spawn_agent  # Alternative syntax for simple arrays
+
+# Remove an MCP server
+mcpServers:
+  github:
+    _remove: true
+```
+
+#### Local File Migration
+
+Local files are partial configs and need special migration handling:
+
+```typescript
+// Only migrate fields that exist in the partial config
+function migratePartialConfig(
+  config: Record<string, unknown>,
+  fromVersion: string,
+  toVersion: string
+): Record<string, unknown> {
+  const migrations = getMigrationsBetween(fromVersion, toVersion);
+  
+  for (const migration of migrations) {
+    if (migration.partialTransform) {
+      // Partial transform only touches fields that exist
+      config = migration.partialTransform(config);
+    }
+  }
+  
+  return config;
+}
+
+// Example migration with partial support
+{
+  version: '2.0.0',
+  description: 'llm.model changed from string to object',
+  breaking: true,
+  
+  // Full config transform (for bundled files)
+  agentConfig: (config) => {
+    if (typeof config.llm?.model === 'string') {
+      config.llm.model = { name: config.llm.model };
+    }
+    return config;
+  },
+  
+  // Partial config transform (for local files)
+  partialTransform: (config) => {
+    // Only transform if llm.model exists in the partial
+    if (config.llm && typeof config.llm.model === 'string') {
+      config.llm.model = { name: config.llm.model };
+    }
+    return config;
+  },
+}
+```
+
+---
 
 ## 9. Edge Cases & Recovery
 
@@ -1818,17 +2213,40 @@ User installs dexto for the first time on v2.0.0.
 
 ### 9.5 Bundled Agent Has New Features
 
-New version adds fields to bundled agents that user's migrated version won't have.
+New version adds fields or tools to bundled agents.
 
-**Solution:** If the bundled agent is untouched, it is replaced with the new bundled config. If the user has modified it, the file is left as-is and defaults apply at runtime:
-```typescript
-const AgentConfigSchema = z.object({
-  // New field with default
-  newFeature: z.boolean().default(false),
-});
+**Solution (with layered config):** Bundled file is always replaced, so new features are always available. User's `.local.yml` only contains their overrides.
+
+**Scenario A: New optional field with default**
+```yaml
+# New bundled config has: reasoning: 'none' (with default)
+# User's .local.yml doesn't mention it
+# Result: User gets reasoning: 'none' automatically
 ```
 
-User's config file doesn't have `newFeature`, but parsed config will have `newFeature: false` until they run `dexto agent reset <id>` to apply bundled updates.
+**Scenario B: New tool added**
+```yaml
+# New bundled customTools includes web-search-tools
+# User's .local.yml doesn't override customTools
+# Result: User gets web-search-tools automatically (bundled wins)
+
+# User's .local.yml DOES override customTools (added their own tool)
+# Result: Union merge - user gets BOTH bundled tools AND their tool
+```
+
+**Scenario C: User explicitly removed a tool, new version has it**
+```yaml
+# User's .local.yml:
+customTools:
+  - type: todo-tools
+    _remove: true
+
+# New bundled adds web-search-tools
+# Result: User still has todo-tools removed, but DOES get web-search-tools
+# (removal is specific to the item, not blocking new additions)
+```
+
+**No action needed** - the layered approach handles this automatically.
 
 ### 9.6 User Wants to See Pending Migrations Before Update
 
@@ -1864,6 +2282,88 @@ export async function upgradeCommand(options: { dryRun?: boolean }): Promise<voi
 ⚠️  Unknown fields in config: ['myCustomField', 'experimental']
 Remove these fields before retrying migration.
 ```
+
+**With layered config:** This applies to BOTH bundled and local files. Local files are partial but still validated against the schema (partial validation).
+
+### 9.8 Local File Migration Fails
+
+**Problem:** User's `.local.yml` has fields from old schema that can't be migrated.
+
+**Scenario:** Schema changed `llm.model` from string to object, user's `.local.yml` has:
+```yaml
+llm:
+  model: gpt-4  # Old format
+```
+
+**Solution:** 
+1. Run partial migration on `.local.yml`
+2. If migration succeeds, write back with new schemaVersion
+3. If migration fails, report error and keep backup
+
+```
+⚠️  Migration failed for local overrides: ~/.dexto/agents/coding-agent/coding-agent.local.yml
+
+Error: Cannot migrate llm.model from string to object format
+  Found: "gpt-4"
+  Expected: { name: string, reasoning?: string }
+
+Your backup is at: ~/.dexto/agents/coding-agent/coding-agent.local.yml.bak
+
+Options:
+  • Fix manually: edit coding-agent.local.yml
+  • Reset customizations: dexto agent reset coding-agent
+```
+
+**Important:** Bundled file is NOT affected - it's already been replaced with the new version. Only the local file needs attention.
+
+### 9.9 User Wants to See Effective Merged Config
+
+**Problem:** User has `.local.yml` and wants to see what the actual runtime config will be.
+
+**Solution:** Add `dexto agent show <id>` command:
+
+```bash
+$ dexto agent show coding-agent
+
+# Effective configuration (bundled + local overrides merged)
+# Fields marked with [LOCAL] come from coding-agent.local.yml
+
+llm:
+  provider: anthropic                    # bundled
+  model: claude-sonnet-4-20250514                    # [LOCAL]
+  temperature: 0.5                       # [LOCAL]
+  
+customTools:
+  - type: filesystem-tools               # bundled
+  - type: process-tools                  # bundled
+  - type: my-custom-tool                 # [LOCAL]
+    endpoint: http://localhost:3000
+```
+
+### 9.10 User Edits Bundled File Directly (Mistake)
+
+**Problem:** User edits `coding-agent.yml` directly instead of creating `.local.yml`. On next update, their changes are lost.
+
+**Prevention:**
+1. Add header comment to bundled files:
+   ```yaml
+   # AUTO-GENERATED - DO NOT EDIT
+   # Your customizations will be lost on CLI updates.
+   # To customize, create: coding-agent.local.yml
+   # See: dexto agent edit coding-agent
+   ```
+
+2. `dexto agent edit <id>` command opens/creates `.local.yml`:
+   ```bash
+   $ dexto agent edit coding-agent
+   # Opens ~/.dexto/agents/coding-agent/coding-agent.local.yml in $EDITOR
+   # Creates file with helpful template if it doesn't exist
+   ```
+
+**Recovery:** If user already edited bundled file:
+- Their edits exist until next CLI update
+- On update, bundled is replaced (edits lost)
+- Recommend: copy edits to `.local.yml` before updating
 
 ---
 
