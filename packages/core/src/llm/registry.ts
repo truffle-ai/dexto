@@ -1465,6 +1465,19 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 supportedFileTypes: [],
                 // Free - no pricing
             },
+            // Other models (via OpenRouter)
+            {
+                name: 'z-ai/glm-4.7',
+                displayName: 'GLM 4.7',
+                maxInputTokens: 202752,
+                supportedFileTypes: [],
+                pricing: {
+                    inputPerM: 0.4,
+                    outputPerM: 1.5,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
         ],
         baseURLSupport: 'none', // Fixed endpoint: https://api.dexto.ai/v1
         supportedFileTypes: ['pdf', 'image', 'audio'], // Same as OpenRouter

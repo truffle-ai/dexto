@@ -35,6 +35,7 @@ export const PROVIDER_PRICING_URLS: Partial<Record<LLMProvider, string>> = {
     glama: 'https://glama.ai/',
     vertex: 'https://cloud.google.com/vertex-ai/generative-ai/pricing',
     bedrock: 'https://aws.amazon.com/bedrock/pricing/',
+    dexto: 'https://dexto.ai/pricing',
     // 'openai-compatible' intentionally omitted (varies by vendor)
 };
 

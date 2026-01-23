@@ -37,6 +37,7 @@ const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
     glama: 'Glama',
     local: 'Local',
     ollama: 'Ollama',
+    dexto: 'Dexto',
 };
 
 // Parse display name into provider and model parts
@@ -49,6 +50,7 @@ function parseModelName(
     // For multi-vendor or custom model providers, show the full display name without parsing
     if (
         provider === 'openrouter' ||
+        provider === 'dexto' ||
         provider === 'openai-compatible' ||
         provider === 'litellm' ||
         provider === 'glama' ||

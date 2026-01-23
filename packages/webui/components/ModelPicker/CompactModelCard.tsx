@@ -26,11 +26,13 @@ const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
     xai: 'Grok',
     cohere: 'Cohere',
     'openai-compatible': 'Custom',
+    dexto: 'Dexto',
 };
 
 // Providers that have multi-vendor models (don't strip provider prefixes from display name)
 const MULTI_VENDOR_PROVIDERS = new Set([
     'openrouter',
+    'dexto',
     'openai-compatible',
     'litellm',
     'glama',
