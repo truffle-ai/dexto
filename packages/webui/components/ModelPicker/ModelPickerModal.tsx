@@ -1,3 +1,17 @@
+/**
+ * Model Picker Modal
+ *
+ * Allows users to browse and switch between LLM models across providers.
+ *
+ * TODO: Implement "Run via" toggle for featured models
+ * - Show a single model card with toggle buttons: "Dexto / Direct / OpenRouter"
+ * - Toggle changes both provider AND model ID (e.g., dexto uses OpenRouter IDs,
+ *   direct uses native IDs like claude-sonnet-4-5 vs anthropic/claude-sonnet-4.5)
+ * - Disable toggles when credentials are missing (e.g., no ANTHROPIC_API_KEY)
+ * - Requires a curated mapping table for featured models (provider/model pairs per backend)
+ * - See feature-plans/holistic-dexto-auth-analysis/13-model-id-namespaces-and-mapping.md
+ * - See feature-plans/holistic-dexto-auth-analysis/14-webui-effective-credentials-and-routing-awareness.md
+ */
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import {
     useLLMCatalog,
