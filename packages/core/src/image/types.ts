@@ -138,6 +138,20 @@ export interface ImageDefinition {
      * Optional: enables creating specialized images from base images.
      */
     extends?: string;
+
+    /**
+     * Bundled plugin paths.
+     * Absolute paths to plugin directories containing .dexto-plugin or .claude-plugin manifests.
+     * These plugins are automatically discovered alongside user/project plugins.
+     *
+     * Example:
+     * ```typescript
+     * import { PLUGIN_PATH as planToolsPluginPath } from '@dexto/tools-plan';
+     *
+     * bundledPlugins: [planToolsPluginPath]
+     * ```
+     */
+    bundledPlugins?: string[];
 }
 
 /**

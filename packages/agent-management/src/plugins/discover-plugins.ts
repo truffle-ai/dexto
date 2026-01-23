@@ -23,15 +23,24 @@ import { existsSync, readdirSync, readFileSync } from 'fs';
 import { getDextoGlobalPath } from '../utils/path.js';
 import { InstalledPluginsFileSchema } from './schemas.js';
 import { tryLoadManifest } from './validate-plugin.js';
-import type { DiscoveredPlugin, PluginManifest } from './types.js';
+import type {
+    DiscoveredPlugin,
+    PluginManifest,
+    DextoPluginManifest,
+    PluginFormat,
+} from './types.js';
 
 /**
  * Discovers Claude Code plugins from standard locations.
  *
  * @param projectPath Optional project path for filtering project-scoped plugins
+ * @param bundledPluginPaths Optional array of absolute paths to bundled plugins from image definition
  * @returns Array of discovered plugins, deduplicated by name (first found wins)
  */
-export function discoverClaudeCodePlugins(projectPath?: string): DiscoveredPlugin[] {
+export function discoverClaudeCodePlugins(
+    projectPath?: string,
+    bundledPluginPaths?: string[]
+): DiscoveredPlugin[] {
     const plugins: DiscoveredPlugin[] = [];
     const seenNames = new Set<string>();
     const homeDir = process.env.HOME || process.env.USERPROFILE || '';
@@ -90,19 +99,23 @@ export function discoverClaudeCodePlugins(projectPath?: string): DiscoveredPlugi
                 if (entry.name === 'cache' || entry.name === 'marketplaces') continue;
 
                 const pluginPath = path.join(dir, entry.name);
-                let manifest: PluginManifest | null;
+                let loadResult: {
+                    manifest: PluginManifest | DextoPluginManifest;
+                    format: PluginFormat;
+                } | null;
                 try {
-                    manifest = tryLoadManifest(pluginPath);
+                    loadResult = tryLoadManifest(pluginPath, true);
                 } catch {
                     // Skip invalid plugin without aborting the directory scan
                     continue;
                 }
 
-                if (manifest) {
+                if (loadResult) {
                     addPlugin({
                         path: pluginPath,
-                        manifest,
+                        manifest: loadResult.manifest,
                         source,
+                        format: loadResult.format,
                     });
                 }
             }
@@ -127,6 +140,36 @@ export function discoverClaudeCodePlugins(projectPath?: string): DiscoveredPlugi
     // 4. Claude Code user plugins: ~/.claude/plugins/ (legacy direct placement)
     if (homeDir) {
         scanPluginsDir(path.join(homeDir, '.claude', 'plugins'), 'user');
+    }
+
+    // === Method 4: Bundled plugins from image definition ===
+    // These have lowest priority so users can override bundled plugins
+    if (bundledPluginPaths && bundledPluginPaths.length > 0) {
+        for (const pluginPath of bundledPluginPaths) {
+            if (!existsSync(pluginPath)) {
+                continue;
+            }
+
+            let loadResult: {
+                manifest: PluginManifest | DextoPluginManifest;
+                format: PluginFormat;
+            } | null;
+            try {
+                loadResult = tryLoadManifest(pluginPath, true);
+            } catch {
+                // Skip invalid bundled plugin
+                continue;
+            }
+
+            if (loadResult) {
+                addPlugin({
+                    path: pluginPath,
+                    manifest: loadResult.manifest,
+                    source: 'user', // Treat as user-level since they come from image
+                    format: loadResult.format,
+                });
+            }
+        }
     }
 
     return plugins;
@@ -189,23 +232,27 @@ function readInstalledPluginsFile(
 
                 // Try to load the manifest from the installPath
                 // Wrap in try/catch so one invalid plugin doesn't abort the entire scan
-                let manifest: PluginManifest | null;
+                let loadResult: {
+                    manifest: PluginManifest | DextoPluginManifest;
+                    format: PluginFormat;
+                } | null;
                 try {
-                    manifest = tryLoadManifest(installPath);
+                    loadResult = tryLoadManifest(installPath, true);
                 } catch {
                     // Skip invalid plugin without aborting the scan
                     continue;
                 }
 
-                if (manifest) {
+                if (loadResult) {
                     // Map Claude Code scope to our source type
                     const source: 'project' | 'user' =
                         scope === 'project' || scope === 'local' ? 'project' : 'user';
 
                     plugins.push({
                         path: installPath,
-                        manifest,
+                        manifest: loadResult.manifest,
                         source,
+                        format: loadResult.format,
                     });
                 }
             }

@@ -1,13 +1,17 @@
 /**
- * Claude Code Plugin Loader
+ * Plugin Loader
  *
  * Discovers and loads bundled plugins from community sources.
- * Supports compatible features and emits warnings for unsupported features.
+ * Supports two formats:
+ * - .claude-plugin: Claude Code compatible format
+ * - .dexto-plugin: Dexto-native format with extended features (customToolProviders)
  */
 
 // Types
 export type {
     PluginManifest,
+    DextoPluginManifest,
+    PluginFormat,
     DiscoveredPlugin,
     PluginCommand,
     PluginMCPConfig,
@@ -26,12 +30,14 @@ export type {
 // Schemas
 export {
     PluginManifestSchema,
+    DextoPluginManifestSchema,
     PluginMCPConfigSchema,
     InstalledPluginEntrySchema,
     InstalledPluginsFileSchema,
 } from './schemas.js';
 export type {
     ValidatedPluginManifest,
+    ValidatedDextoPluginManifest,
     ValidatedPluginMCPConfig,
     ValidatedInstalledPluginsFile,
     ValidatedInstalledPluginEntry,

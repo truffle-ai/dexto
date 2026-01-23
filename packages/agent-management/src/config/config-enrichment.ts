@@ -78,6 +78,12 @@ export interface EnrichAgentConfigOptions {
     logLevel?: 'error' | 'warn' | 'info' | 'debug';
     /** Skip Claude Code plugin discovery (useful for subagents that don't need plugins) */
     skipPluginDiscovery?: boolean;
+    /**
+     * Bundled plugin paths from image definition.
+     * These are absolute paths to plugin directories that are discovered alongside
+     * user/project plugins.
+     */
+    bundledPlugins?: string[];
 }
 
 /**
@@ -103,7 +109,12 @@ export function enrichAgentConfig(
     // Handle backward compatibility: boolean arg was isInteractiveCli
     const opts: EnrichAgentConfigOptions =
         typeof options === 'boolean' ? { isInteractiveCli: options } : options;
-    const { isInteractiveCli = false, logLevel = 'error', skipPluginDiscovery = false } = opts;
+    const {
+        isInteractiveCli = false,
+        logLevel = 'error',
+        skipPluginDiscovery = false,
+        bundledPlugins = [],
+    } = opts;
     const agentId = deriveAgentId(config, configPath);
 
     // Generate per-agent paths
@@ -220,7 +231,7 @@ export function enrichAgentConfig(
             }
         }
 
-        const discoveredPlugins = discoverClaudeCodePlugins();
+        const discoveredPlugins = discoverClaudeCodePlugins(undefined, bundledPlugins);
         for (const plugin of discoveredPlugins) {
             const loaded = loadClaudeCodePlugin(plugin);
 
@@ -260,6 +271,27 @@ export function enrichAgentConfig(
                     ...enriched.mcpServers,
                     ...(loaded.mcpConfig.mcpServers as typeof enriched.mcpServers),
                 };
+            }
+
+            // Auto-add custom tool providers declared by Dexto-native plugins
+            // These are added to customTools config if not already explicitly configured
+            if (loaded.customToolProviders.length > 0) {
+                for (const providerType of loaded.customToolProviders) {
+                    // Check if already configured in customTools
+                    const alreadyConfigured = enriched.customTools?.some(
+                        (tool) =>
+                            typeof tool === 'object' && tool !== null && tool.type === providerType
+                    );
+
+                    if (!alreadyConfigured) {
+                        enriched.customTools = enriched.customTools ?? [];
+                        // Add with default config (just the type)
+                        enriched.customTools.push({ type: providerType } as Record<
+                            string,
+                            unknown
+                        >);
+                    }
+                }
             }
         }
 

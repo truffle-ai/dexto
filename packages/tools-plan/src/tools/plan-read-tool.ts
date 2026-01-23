@@ -1,0 +1,51 @@
+/**
+ * Plan Read Tool
+ *
+ * Reads the current implementation plan for the session.
+ * No approval needed - read-only operation.
+ */
+
+import { z } from 'zod';
+import type { InternalTool, ToolExecutionContext } from '@dexto/core';
+import type { PlanService } from '../plan-service.js';
+import { PlanError } from '../errors.js';
+
+const PlanReadInputSchema = z.object({}).strict();
+
+/**
+ * Creates the plan_read tool
+ */
+export function createPlanReadTool(planService: PlanService): InternalTool {
+    return {
+        id: 'plan_read',
+        description:
+            'Read the current implementation plan for this session. Returns the plan content and metadata including status and checkpoints.',
+        inputSchema: PlanReadInputSchema,
+
+        execute: async (_input: unknown, context?: ToolExecutionContext) => {
+            if (!context?.sessionId) {
+                throw PlanError.sessionIdRequired();
+            }
+
+            const plan = await planService.read(context.sessionId);
+
+            if (!plan) {
+                return {
+                    exists: false,
+                    message: `No plan found for this session. Use plan_create to create one.`,
+                };
+            }
+
+            return {
+                exists: true,
+                path: `.dexto/plans/${context.sessionId}/plan.md`,
+                content: plan.content,
+                status: plan.meta.status,
+                title: plan.meta.title,
+                checkpoints: plan.meta.checkpoints,
+                createdAt: new Date(plan.meta.createdAt).toISOString(),
+                updatedAt: new Date(plan.meta.updatedAt).toISOString(),
+            };
+        },
+    };
+}

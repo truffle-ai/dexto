@@ -14,12 +14,16 @@
  */
 
 import { defineImage } from '@dexto/core';
+import { PLUGIN_PATH as planToolsPluginPath } from '@dexto/tools-plan';
 
 export default defineImage({
     name: 'image-local',
     version: '1.0.0',
     description: 'Local development image with filesystem and process tools',
     target: 'local-development',
+
+    // Bundled plugins - automatically discovered alongside user/project plugins
+    bundledPlugins: [planToolsPluginPath],
 
     // Provider registration
     // These providers are registered as side-effects when the image is imported
@@ -44,12 +48,14 @@ export default defineImage({
                 const { processToolsProvider } = await import('@dexto/tools-process');
                 const { agentSpawnerToolsProvider } = await import('@dexto/agent-management');
                 const { todoToolsProvider } = await import('@dexto/tools-todo');
+                const { planToolsProvider } = await import('@dexto/tools-plan');
                 const { customToolRegistry } = await import('@dexto/core');
 
                 customToolRegistry.register(fileSystemToolsProvider);
                 customToolRegistry.register(processToolsProvider);
                 customToolRegistry.register(agentSpawnerToolsProvider);
                 customToolRegistry.register(todoToolsProvider);
+                customToolRegistry.register(planToolsProvider);
             },
         },
     },

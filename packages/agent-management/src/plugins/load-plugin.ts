@@ -1,14 +1,25 @@
 /**
- * Claude Code Plugin Loader
+ * Plugin Loader
  *
- * Loads plugin contents including commands, skills, and MCP configuration.
+ * Loads plugin contents including commands, skills, MCP configuration,
+ * and custom tool providers (Dexto-native plugins).
  * Detects and warns about unsupported features (hooks, LSP, shell injection).
+ *
+ * Supports two plugin formats:
+ * - .claude-plugin: Claude Code compatible format
+ * - .dexto-plugin: Dexto-native format with extended features (customToolProviders)
  */
 
 import * as path from 'path';
 import { existsSync, readdirSync, readFileSync } from 'fs';
 import { PluginMCPConfigSchema } from './schemas.js';
-import type { DiscoveredPlugin, LoadedPlugin, PluginCommand, PluginMCPConfig } from './types.js';
+import type {
+    DiscoveredPlugin,
+    LoadedPlugin,
+    PluginCommand,
+    PluginMCPConfig,
+    DextoPluginManifest,
+} from './types.js';
 
 /**
  * Regex to detect shell injection patterns like $(command) or `command`
@@ -16,16 +27,29 @@ import type { DiscoveredPlugin, LoadedPlugin, PluginCommand, PluginMCPConfig } f
 const SHELL_INJECTION_PATTERN = /\$\([^)]+\)|`[^`]+`/;
 
 /**
+ * Type guard to check if manifest is a Dexto-native manifest
+ */
+function isDextoManifest(manifest: unknown): manifest is DextoPluginManifest {
+    return (
+        typeof manifest === 'object' &&
+        manifest !== null &&
+        'customToolProviders' in manifest &&
+        Array.isArray((manifest as DextoPluginManifest).customToolProviders)
+    );
+}
+
+/**
  * Loads a discovered plugin's contents.
  *
  * @param plugin The discovered plugin to load
- * @returns Loaded plugin with commands, MCP config, and warnings
+ * @returns Loaded plugin with commands, MCP config, custom tool providers, and warnings
  */
 export function loadClaudeCodePlugin(plugin: DiscoveredPlugin): LoadedPlugin {
     const warnings: string[] = [];
     const commands: PluginCommand[] = [];
     const pluginName = plugin.manifest.name;
     const pluginPath = plugin.path;
+    const format = plugin.format;
 
     // 1. Scan commands/*.md
     const commandsDir = path.join(pluginPath, 'commands');
@@ -96,10 +120,21 @@ export function loadClaudeCodePlugin(plugin: DiscoveredPlugin): LoadedPlugin {
     // 4. Check for unsupported features
     checkUnsupportedFeatures(pluginPath, pluginName, warnings);
 
+    // Extract custom tool providers from Dexto-native plugins
+    const customToolProviders: string[] = [];
+    if (format === 'dexto' && isDextoManifest(plugin.manifest)) {
+        const providers = plugin.manifest.customToolProviders;
+        if (providers && providers.length > 0) {
+            customToolProviders.push(...providers);
+        }
+    }
+
     return {
         manifest: plugin.manifest,
+        format,
         commands,
         mcpConfig,
+        customToolProviders,
         warnings,
     };
 }

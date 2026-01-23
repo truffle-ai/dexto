@@ -1,0 +1,43 @@
+{
+  "name": "@dexto/tools-plan",
+  "version": "0.1.0",
+  "description": "Implementation planning tools with session-linked plans",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    ".dexto-plugin",
+    "skills"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@dexto/core": "workspace:*",
+    "diff": "^7.0.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/diff": "^7.0.0",
+    "@types/node": "^22.10.5",
+    "dotenv": "^17.2.3",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  },
+  "peerDependencies": {
+    "@dexto/core": "workspace:*"
+  },
+  "author": "Dexto",
+  "license": "MIT"
+}

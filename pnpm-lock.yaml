@@ -458,6 +458,9 @@ importers:
       '@dexto/tools-filesystem':
         specifier: workspace:*
         version: link:../tools-filesystem
+      '@dexto/tools-plan':
+        specifier: workspace:*
+        version: link:../tools-plan
       '@dexto/tools-process':
         specifier: workspace:*
         version: link:../tools-process
@@ -470,6 +473,31 @@ importers:
         version: link:../image-bundler
       typescript:
         specifier: ^5.3.3
+        version: 5.9.2
+
+  packages/launch-video:
+    dependencies:
+      '@remotion/transitions':
+        specifier: 4.0.251
+        version: 4.0.251(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+      remotion:
+        specifier: 4.0.251
+        version: 4.0.251(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+    devDependencies:
+      '@types/node':
+        specifier: ^20
+        version: 20.19.11
+      '@types/react':
+        specifier: ^19
+        version: 19.1.12
+      react:
+        specifier: ^19
+        version: 19.1.1
+      react-dom:
+        specifier: ^19
+        version: 19.1.1(react@19.1.1)
+      typescript:
+        specifier: ^5
         version: 5.9.2
 
   packages/registry:
@@ -548,6 +576,34 @@ importers:
       typescript:
         specifier: ^5.3.3
         version: 5.9.2
+
+  packages/tools-plan:
+    dependencies:
+      '@dexto/core':
+        specifier: workspace:*
+        version: link:../core
+      diff:
+        specifier: ^7.0.0
+        version: 7.0.0
+      zod:
+        specifier: ^3.24.1
+        version: 3.25.76
+    devDependencies:
+      '@types/diff':
+        specifier: ^7.0.0
+        version: 7.0.2
+      '@types/node':
+        specifier: ^22.10.5
+        version: 22.19.0
+      dotenv:
+        specifier: ^17.2.3
+        version: 17.2.3
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.2
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@edge-runtime/vm@3.2.0)(@types/node@22.19.0)(lightningcss@1.30.1)
 
   packages/tools-process:
     dependencies:
@@ -2336,6 +2392,21 @@ packages:
       react:
         optional: true
 
+  '@remotion/paths@4.0.251':
+    resolution: {integrity: sha512-K1tmbswB+kX4gV+mvy1mdMfc4JKaJavWJTpP/i2d2JCPnVVJfT6C9ZlH0W6trOXiuteq0B65BUKQ+S3PAvLRzw==}
+
+  '@remotion/shapes@4.0.251':
+    resolution: {integrity: sha512-0+7tOEttl+T2E3NootRXlPdtxo1J/8jmbom2OzKo9WQ7lXuHObStjx9gf40jo3HoWaK+Co8wj0QFUSnSw4ktXQ==}
+    peerDependencies:
+      react: '>=16.8.0'
+      react-dom: '>=16.8.0'
+
+  '@remotion/transitions@4.0.251':
+    resolution: {integrity: sha512-UBzOYh5WBpAgA/1057DyOWjtoUe6WjoBL6TPWCqE0TB74UeSvqrRIOIOuPY32mlRcxn1ZN+10yuCWHpwX0fDnQ==}
+    peerDependencies:
+      react: '>=16.8.0'
+      react-dom: '>=16.8.0'
+
   '@rolldown/pluginutils@1.0.0-beta.27':
     resolution: {integrity: sha512-+d0F4MKMCbeVUJwG96uQ4SgAznZNSq93I3V+9NHA4OpvqG8mRCpGdKmK8l/dl02h2CCDHwW2FqilnTyDcAnqjA==}
 
@@ -2666,6 +2737,9 @@ packages:
 
   '@types/diff@5.2.3':
     resolution: {integrity: sha512-K0Oqlrq3kQMaO2RhfrNQX5trmt+XLyom88zS0u84nnIcLvFnRUMRRHmrGny5GSM+kNO9IZLARsdQHDzkhAgmrQ==}
+
+  '@types/diff@7.0.2':
+    resolution: {integrity: sha512-JSWRMozjFKsGlEjiiKajUjIJVKuKdE3oVy2DNtK+fUo8q82nhFZ2CPQwicAIkXrofahDXrWJ7mjelvZphMS98Q==}
 
   '@types/diff@8.0.0':
     resolution: {integrity: sha512-o7jqJM04gfaYrdCecCVMbZhNdG6T1MHg/oQoRFdERLV+4d+V7FijhiEAbFu0Usww84Yijk9yH58U4Jk4HbtzZw==}
@@ -3712,6 +3786,10 @@ packages:
 
   dotenv@16.6.1:
     resolution: {integrity: sha512-uBq4egWHTcTt33a72vpSG0z3HnPuIl6NqYcTrKEg2azoEyl2hpW0zqlxysq2pK9HlDIHyHyakeYaYnSAwd8bow==}
+    engines: {node: '>=12'}
+
+  dotenv@17.2.3:
+    resolution: {integrity: sha512-JVUnt+DUIzu87TABbhPmNfVdBDt18BLOWjMUFJMSi/Qqg7NTYtabbvSNJGOJ7afbRuv9D/lngizHtP7QyLQ+9w==}
     engines: {node: '>=12'}
 
   dunder-proto@1.0.1:
@@ -5753,6 +5831,12 @@ packages:
 
   remark-stringify@11.0.0:
     resolution: {integrity: sha512-1OSmLd3awB/t8qdoEOMazZkNsfVTeY4fTsgzcQFdXNq8ToTN4ZGwrMnlda4K6smTFKD+GRV6O48i6Z4iKgPPpw==}
+
+  remotion@4.0.251:
+    resolution: {integrity: sha512-xi5d/uLl3wLDV7Hk5oTSc2oV6zYTwM5bGGyDNUV9p6CLbeHTMvC76zm6bzsBJNs0NeiTinzZmyxZnXoVzPTltg==}
+    peerDependencies:
+      react: '>=16.8.0'
+      react-dom: '>=16.8.0'
 
   require-directory@2.1.1:
     resolution: {integrity: sha512-fGxEI7+wsG9xrvdjsrlmL22OMTTiHRwAMroiEeMgq8gzoLC/PQr7RsRDSTLUg/bZAZtF+TVIkHc6/4RIKrui+Q==}
@@ -8527,6 +8611,22 @@ snapshots:
       - '@preact/signals-core'
       - preact
 
+  '@remotion/paths@4.0.251': {}
+
+  '@remotion/shapes@4.0.251(react-dom@19.1.1(react@19.1.1))(react@19.1.1)':
+    dependencies:
+      '@remotion/paths': 4.0.251
+      react: 19.1.1
+      react-dom: 19.1.1(react@19.1.1)
+
+  '@remotion/transitions@4.0.251(react-dom@19.1.1(react@19.1.1))(react@19.1.1)':
+    dependencies:
+      '@remotion/paths': 4.0.251
+      '@remotion/shapes': 4.0.251(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+      react: 19.1.1
+      react-dom: 19.1.1(react@19.1.1)
+      remotion: 4.0.251(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+
   '@rolldown/pluginutils@1.0.0-beta.27': {}
 
   '@rollup/rollup-android-arm-eabi@4.50.0':
@@ -8816,6 +8916,8 @@ snapshots:
   '@types/deep-eql@4.0.2': {}
 
   '@types/diff@5.2.3': {}
+
+  '@types/diff@7.0.2': {}
 
   '@types/diff@8.0.0':
     dependencies:
@@ -9978,6 +10080,8 @@ snapshots:
       path-type: 4.0.0
 
   dotenv@16.6.1: {}
+
+  dotenv@17.2.3: {}
 
   dunder-proto@1.0.1:
     dependencies:
@@ -12376,6 +12480,11 @@ snapshots:
       '@types/mdast': 4.0.4
       mdast-util-to-markdown: 2.1.2
       unified: 11.0.5
+
+  remotion@4.0.251(react-dom@19.1.1(react@19.1.1))(react@19.1.1):
+    dependencies:
+      react: 19.1.1
+      react-dom: 19.1.1(react@19.1.1)
 
   require-directory@2.1.1: {}
 
