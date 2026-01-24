@@ -50,11 +50,7 @@ import type { ValidatedAgentConfig } from '@dexto/core';
 import { startHonoApiServer } from './api/server-hono.js';
 import { validateCliOptions, handleCliOptionsError } from './cli/utils/options.js';
 import { validateAgentConfig } from './cli/utils/config-validation.js';
-import {
-    applyCLIOverrides,
-    applyUserPreferences,
-    checkAgentCompatibility,
-} from './config/cli-overrides.js';
+import { applyCLIOverrides, applyUserPreferences } from './config/cli-overrides.js';
 import { enrichAgentConfig } from '@dexto/agent-management';
 import { getPort } from './utils/port-utils.js';
 import {
@@ -1105,9 +1101,9 @@ program
                     let mergedConfig = applyCLIOverrides(rawConfig, opts as CLIConfigOverrides);
 
                     // ——— PREFERENCE-AWARE CONFIG HANDLING ———
-                    // For coding-agent (no explicit agent specified): Apply user preferences
-                    // For specific agents: Check compatibility and warn if needed
-                    const isDefaultAgent = !opts.agent;
+                    // User's LLM preferences from preferences.yml apply to ALL agents
+                    // See feature-plans/auto-update.md section 8.11 - Three-Layer LLM Resolution
+                    const agentId = opts.agent ?? 'coding-agent';
                     let preferences: Awaited<ReturnType<typeof loadGlobalPreferences>> | null =
                         null;
 
@@ -1122,13 +1118,14 @@ program
 
                     // Check if user is configured for Dexto credits but not authenticated
                     // This can happen if user logged out after setting up with Dexto
-                    if (preferences?.llm?.provider === 'dexto') {
+                    // Now that preferences apply to ALL agents, we check for any agent
+                    {
                         const { checkDextoAuthState } = await import(
                             './cli/utils/dexto-auth-check.js'
                         );
                         const authCheck = await checkDextoAuthState(
-                            preferences,
-                            opts.interactive !== false
+                            opts.interactive !== false,
+                            agentId
                         );
 
                         if (!authCheck.shouldContinue) {
@@ -1155,11 +1152,8 @@ program
                     }
 
                     // Check for pending API key setup (user skipped during initial setup)
-                    if (
-                        isDefaultAgent &&
-                        preferences?.setup?.apiKeyPending &&
-                        opts.interactive !== false
-                    ) {
+                    // Since preferences now apply to ALL agents, this check runs for any agent
+                    if (preferences?.setup?.apiKeyPending && opts.interactive !== false) {
                         // Check if API key is still missing (user may have set it manually)
                         const configuredApiKey = resolveApiKeyForProvider(preferences.llm.provider);
                         if (!configuredApiKey) {
@@ -1201,87 +1195,16 @@ program
                         }
                     }
 
-                    if (isDefaultAgent && preferences) {
-                        // Default-agent: Apply user's LLM preferences at runtime
-                        // This ensures the base agent always uses user's preferred model/provider
+                    // Apply user's LLM preferences to ALL agents (not just the default)
+                    // See feature-plans/auto-update.md section 8.11 - Three-Layer LLM Resolution:
+                    //   local.llm ?? preferences.llm ?? bundled.llm
+                    // The preferences.llm acts as a "global .local.yml" for LLM settings
+                    if (preferences?.llm?.provider && preferences?.llm?.model) {
                         mergedConfig = applyUserPreferences(mergedConfig, preferences);
-                        logger.debug('Applied user preferences to coding-agent', {
+                        logger.debug(`Applied user preferences to ${agentId}`, {
                             provider: preferences.llm.provider,
                             model: preferences.llm.model,
                         });
-                    } else if (!isDefaultAgent && mergedConfig.llm) {
-                        // Specific agent: Check if user has the required provider configured
-                        const agentProvider = mergedConfig.llm.provider;
-                        const resolvedApiKey = resolveApiKeyForProvider(agentProvider);
-                        const compatibility = checkAgentCompatibility(
-                            mergedConfig,
-                            preferences,
-                            resolvedApiKey
-                        );
-
-                        if (!compatibility.compatible && opts.interactive !== false) {
-                            // User is missing API key for the agent's provider
-                            if (
-                                !compatibility.userHasApiKey &&
-                                preferences?.llm?.provider &&
-                                preferences?.llm?.model
-                            ) {
-                                // User has a default LLM configured - offer choice
-                                const { promptForMissingAgentApiKey } = await import(
-                                    './cli/utils/api-key-setup.js'
-                                );
-
-                                const result = await promptForMissingAgentApiKey(
-                                    compatibility.agentProvider,
-                                    compatibility.agentModel,
-                                    preferences.llm.provider,
-                                    preferences.llm.model
-                                );
-
-                                if (result.action === 'cancel') {
-                                    safeExit('main', 0, 'agent-api-key-cancelled');
-                                }
-
-                                if (result.action === 'use-default') {
-                                    // Apply user's default LLM to the agent config
-                                    mergedConfig = applyUserPreferences(mergedConfig, preferences);
-                                    // Also resolve the actual API key from environment
-                                    // (preferences store env var reference like $GOOGLE_API_KEY, not the actual key)
-                                    const userApiKey = resolveApiKeyForProvider(
-                                        preferences.llm.provider
-                                    );
-                                    if (userApiKey) {
-                                        mergedConfig.llm.apiKey = userApiKey;
-                                    }
-                                    logger.debug(
-                                        'Applied user preferences to agent (user chose default)',
-                                        {
-                                            provider: preferences.llm.provider,
-                                            model: preferences.llm.model,
-                                        }
-                                    );
-                                }
-
-                                if (result.action === 'add-key' && result.apiKey) {
-                                    // User added the API key - update the config
-                                    mergedConfig.llm.apiKey = result.apiKey;
-                                    logger.debug('Applied new API key to agent config');
-                                }
-                            } else {
-                                // No default LLM to fall back to - show warnings only
-                                console.log(chalk.yellow('\n⚠️  Agent Compatibility Notice:'));
-                                for (const warning of compatibility.warnings) {
-                                    console.log(chalk.yellow(`   ${warning}`));
-                                }
-                                if (compatibility.instructions.length > 0) {
-                                    console.log(chalk.dim('\n   To fix:'));
-                                    for (const instruction of compatibility.instructions) {
-                                        console.log(chalk.dim(`   ${instruction}`));
-                                    }
-                                }
-                                console.log(''); // Empty line for spacing
-                            }
-                        }
                     }
 
                     // Clean up null values from config (can happen from YAML files with explicit nulls)

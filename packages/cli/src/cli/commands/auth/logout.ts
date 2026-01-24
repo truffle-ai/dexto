@@ -3,7 +3,7 @@
 import chalk from 'chalk';
 import * as p from '@clack/prompts';
 import { isAuthenticated, removeAuth } from '../../auth/index.js';
-import { loadGlobalPreferences } from '@dexto/agent-management';
+import { isUsingDextoCredits } from '../../../config/effective-llm.js';
 import { logger } from '@dexto/core';
 
 export async function handleLogoutCommand(
@@ -19,8 +19,8 @@ export async function handleLogoutCommand(
         }
 
         // Check if user is configured to use Dexto credits
-        const preferences = await loadGlobalPreferences();
-        const usingDextoCredits = preferences?.llm?.provider === 'dexto';
+        // Uses getEffectiveLLMConfig() to check all config layers
+        const usingDextoCredits = await isUsingDextoCredits();
 
         if (options.interactive !== false && !options.force) {
             p.intro(chalk.inverse(' Logout '));

@@ -1,10 +1,33 @@
 // packages/cli/src/cli/utils/dexto-auth-check.ts
-// Check if user is configured for Dexto credits but not authenticated
+/**
+ * Dexto Authentication Check
+ *
+ * Validates that users configured to use Dexto credits are properly authenticated.
+ * This prevents the confusing state where user is logged out but still has
+ * Dexto credits configured (which would fail at runtime).
+ *
+ * ## When This Check Runs
+ *
+ * - On CLI startup, after loading preferences
+ * - Before attempting to use the LLM
+ *
+ * ## Why This Exists
+ *
+ * When a user runs `dexto logout` while configured with `provider: dexto`,
+ * their preferences.yml still points to Dexto. Without this check, the CLI
+ * would attempt to use Dexto credits and fail with "Invalid API key" errors.
+ *
+ * Instead, we catch this state early and offer clear options:
+ * - Log back in to continue using Dexto credits
+ * - Run setup to configure a different provider (BYOK)
+ *
+ * @module dexto-auth-check
+ */
 
 import chalk from 'chalk';
 import * as p from '@clack/prompts';
 import { isAuthenticated } from '../auth/index.js';
-import type { GlobalPreferences } from '@dexto/agent-management';
+import { getEffectiveLLMConfig, type EffectiveLLMConfig } from '../../config/effective-llm.js';
 
 export interface DextoAuthCheckResult {
     shouldContinue: boolean;
@@ -15,16 +38,34 @@ export interface DextoAuthCheckResult {
  * Check if user is configured to use Dexto credits but is not authenticated.
  * This can happen if user logged out after setting up with Dexto credits.
  *
- * @param preferences User's global preferences
+ * Uses getEffectiveLLMConfig() to determine the actual LLM that will be used,
+ * considering all config layers (local, preferences, bundled).
+ *
  * @param interactive Whether to show interactive prompts
+ * @param agentId Agent to check config for (default: 'coding-agent')
  * @returns Whether to continue startup and what action was taken
+ *
+ * @example
+ * ```typescript
+ * const result = await checkDextoAuthState(true, 'coding-agent');
+ * if (!result.shouldContinue) {
+ *   if (result.action === 'login') {
+ *     await handleLoginCommand();
+ *   } else if (result.action === 'setup') {
+ *     await handleSetupCommand();
+ *   }
+ * }
+ * ```
  */
 export async function checkDextoAuthState(
-    preferences: GlobalPreferences | null,
-    interactive: boolean = true
+    interactive: boolean = true,
+    agentId: string = 'coding-agent'
 ): Promise<DextoAuthCheckResult> {
-    // No preferences or not using dexto provider - nothing to check
-    if (!preferences?.llm || preferences.llm.provider !== 'dexto') {
+    // Get the effective LLM config considering all layers
+    const effectiveLLM = await getEffectiveLLMConfig({ agentId });
+
+    // Not using dexto provider - nothing to check
+    if (!effectiveLLM || effectiveLLM.provider !== 'dexto') {
         return { shouldContinue: true };
     }
 
