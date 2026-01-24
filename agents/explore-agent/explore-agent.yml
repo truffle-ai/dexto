@@ -57,13 +57,12 @@ systemPrompt:
         4. **Notes** - Any caveats or areas that need further exploration
 
 # LLM configuration - Haiku for speed and cost efficiency
-# modelLocked: true keeps this agent using Haiku regardless of user's model preference
-# but allows provider switching (e.g., user with Dexto credits will use dexto + haiku)
+# When spawned as a sub-agent, this config may be overridden by parent's LLM
+# if the API key is not available (with a warning to use 'dexto login')
 llm:
   provider: anthropic
   model: claude-haiku-4-5-20251001
   apiKey: $ANTHROPIC_API_KEY
-  modelLocked: true
 
 # Minimal storage - in-memory only for ephemeral use
 storage:

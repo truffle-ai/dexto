@@ -2,7 +2,6 @@ import { describe, test, expect } from 'vitest';
 import {
     applyCLIOverrides,
     applyUserPreferences,
-    resolveLockedModel,
     type CLIConfigOverrides,
 } from './cli-overrides.js';
 import type { AgentConfig } from '@dexto/core';
@@ -132,44 +131,6 @@ describe('CLI Overrides', () => {
     });
 });
 
-describe('resolveLockedModel', () => {
-    test('user with dexto provider + agent with anthropic locked model -> uses dexto + transformed model', () => {
-        const result = resolveLockedModel('anthropic', 'claude-haiku-4-5-20251001', 'dexto');
-
-        expect(result.provider).toBe('dexto');
-        expect(result.model).toBe('anthropic/claude-haiku-4.5');
-        expect(result.providerSwitched).toBe(true);
-        expect(result.lockedModelUsed).toBe(true);
-    });
-
-    test('user with same provider as agent -> uses locked model with user credentials', () => {
-        const result = resolveLockedModel('anthropic', 'claude-haiku-4-5-20251001', 'anthropic');
-
-        expect(result.provider).toBe('anthropic');
-        expect(result.model).toBe('claude-haiku-4-5-20251001');
-        expect(result.providerSwitched).toBe(false);
-        expect(result.lockedModelUsed).toBe(true);
-    });
-
-    test('incompatible providers -> returns agent config, lockedModelUsed is false', () => {
-        const result = resolveLockedModel('anthropic', 'claude-haiku-4-5-20251001', 'openai');
-
-        expect(result.provider).toBe('anthropic');
-        expect(result.model).toBe('claude-haiku-4-5-20251001');
-        expect(result.providerSwitched).toBe(false);
-        expect(result.lockedModelUsed).toBe(false);
-    });
-
-    test('user with openrouter provider + agent with openai locked model -> uses openrouter + transformed model', () => {
-        const result = resolveLockedModel('openai', 'gpt-5-mini', 'openrouter');
-
-        expect(result.provider).toBe('openrouter');
-        expect(result.model).toBe('openai/gpt-5-mini');
-        expect(result.providerSwitched).toBe(true);
-        expect(result.lockedModelUsed).toBe(true);
-    });
-});
-
 describe('applyUserPreferences', () => {
     const baseAgentConfig: AgentConfig = {
         systemPrompt: 'test agent',
@@ -180,17 +141,7 @@ describe('applyUserPreferences', () => {
         },
     };
 
-    const baseAgentConfigLocked: AgentConfig = {
-        systemPrompt: 'test agent',
-        llm: {
-            provider: 'anthropic',
-            model: 'claude-haiku-4-5-20251001',
-            apiKey: '$ANTHROPIC_API_KEY',
-            modelLocked: true,
-        },
-    };
-
-    test('without modelLocked -> applies user preferences fully', () => {
+    test('applies user preferences fully (provider, model, apiKey)', () => {
         const preferences: GlobalPreferences = {
             llm: {
                 provider: 'openai',
@@ -206,53 +157,20 @@ describe('applyUserPreferences', () => {
         expect(result.llm.apiKey).toBe('$OPENAI_API_KEY');
     });
 
-    test('with modelLocked + dexto user -> switches provider, keeps locked model', () => {
+    test('applies dexto provider preferences', () => {
         const preferences: GlobalPreferences = {
             llm: {
                 provider: 'dexto',
-                model: 'claude-sonnet-4-5-20250929', // User's preferred model is ignored
+                model: 'anthropic/claude-sonnet-4',
                 apiKey: '$DEXTO_API_KEY',
             },
         };
 
-        const result = applyUserPreferences(clone(baseAgentConfigLocked), preferences);
+        const result = applyUserPreferences(clone(baseAgentConfig), preferences);
 
         expect(result.llm.provider).toBe('dexto');
-        expect(result.llm.model).toBe('anthropic/claude-haiku-4.5'); // Transformed locked model
+        expect(result.llm.model).toBe('anthropic/claude-sonnet-4');
         expect(result.llm.apiKey).toBe('$DEXTO_API_KEY');
-    });
-
-    test('with modelLocked + same provider user -> keeps locked model, uses user apiKey', () => {
-        const preferences: GlobalPreferences = {
-            llm: {
-                provider: 'anthropic',
-                model: 'claude-opus-4-5-20251101', // User's preferred model is ignored
-                apiKey: '$MY_ANTHROPIC_KEY',
-            },
-        };
-
-        const result = applyUserPreferences(clone(baseAgentConfigLocked), preferences);
-
-        expect(result.llm.provider).toBe('anthropic');
-        expect(result.llm.model).toBe('claude-haiku-4-5-20251001'); // Locked model kept
-        expect(result.llm.apiKey).toBe('$MY_ANTHROPIC_KEY');
-    });
-
-    test('with modelLocked + incompatible provider -> keeps agent original config', () => {
-        const preferences: GlobalPreferences = {
-            llm: {
-                provider: 'openai',
-                model: 'gpt-5-mini',
-                apiKey: '$OPENAI_API_KEY',
-            },
-        };
-
-        const result = applyUserPreferences(clone(baseAgentConfigLocked), preferences);
-
-        // Can't use OpenAI to serve Anthropic model - keep original
-        expect(result.llm.provider).toBe('anthropic');
-        expect(result.llm.model).toBe('claude-haiku-4-5-20251001');
-        expect(result.llm.apiKey).toBe('$ANTHROPIC_API_KEY'); // Original apiKey kept
     });
 
     test('without llm preferences -> returns config unchanged', () => {
@@ -263,6 +181,38 @@ describe('applyUserPreferences', () => {
         expect(result.llm.provider).toBe('anthropic');
         expect(result.llm.model).toBe('claude-haiku-4-5-20251001');
         expect(result.llm.apiKey).toBe('$ANTHROPIC_API_KEY');
+    });
+
+    test('preserves agent apiKey if user has no apiKey configured', () => {
+        const preferences: GlobalPreferences = {
+            llm: {
+                provider: 'anthropic',
+                model: 'claude-sonnet-4-5-20250929',
+                // No apiKey specified
+            },
+        };
+
+        const result = applyUserPreferences(clone(baseAgentConfig), preferences);
+
+        expect(result.llm.provider).toBe('anthropic');
+        expect(result.llm.model).toBe('claude-sonnet-4-5-20250929');
+        expect(result.llm.apiKey).toBe('$ANTHROPIC_API_KEY'); // Original preserved
+    });
+
+    test('applies baseURL if provided in preferences', () => {
+        const preferences: GlobalPreferences = {
+            llm: {
+                provider: 'openai-compatible',
+                model: 'local-model',
+                apiKey: 'test-key',
+                baseURL: 'http://localhost:8080/v1',
+            },
+        };
+
+        const result = applyUserPreferences(clone(baseAgentConfig), preferences);
+
+        expect(result.llm.provider).toBe('openai-compatible');
+        expect(result.llm.baseURL).toBe('http://localhost:8080/v1');
     });
 
     test('does not mutate original config', () => {

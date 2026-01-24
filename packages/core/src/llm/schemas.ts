@@ -108,29 +108,6 @@ const LLMConfigFields = {
             'OpenAI reasoning effort level for reasoning models (o1, o3, codex). ' +
                 "Options: 'none', 'minimal', 'low', 'medium' (recommended), 'high', 'xhigh'"
         ),
-
-    /**
-     * When true, the model is locked and user preferences won't override it.
-     * The provider can still be switched if compatible (e.g., anthropic -> dexto).
-     *
-     * Use case: Agents optimized for specific models (e.g., explore-agent uses Haiku
-     * for speed/cost, not user's expensive Opus preference).
-     *
-     * Behavior when modelLocked is true:
-     * 1. If user's provider can serve this model (dexto can serve anthropic models) ->
-     *    Use user's provider + agent's locked model
-     * 2. If user's provider is the same as agent's provider ->
-     *    Use agent's locked model (ignore user's model preference)
-     * 3. If incompatible (user has openai, agent needs anthropic model) ->
-     *    Fall back to user's full preference (can't use the locked model)
-     */
-    modelLocked: z
-        .boolean()
-        .optional()
-        .describe(
-            'When true, the model is locked to this specific model. ' +
-                'Provider can be switched if compatible, but model preference is ignored.'
-        ),
 } as const;
 /** Business rules + compatibility checks */
 
@@ -150,8 +127,6 @@ export const LLMConfigBaseSchema = z
         allowedMediaTypes: LLMConfigFields.allowedMediaTypes,
         // Provider-specific options
         reasoningEffort: LLMConfigFields.reasoningEffort,
-        // Model locking for agents with specific model requirements
-        modelLocked: LLMConfigFields.modelLocked,
     })
     .strict();
 
