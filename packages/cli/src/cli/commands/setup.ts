@@ -455,7 +455,7 @@ async function handleDextoProviderSetup(): Promise<void> {
         defaultMode,
         setupCompleted: true,
         apiKeyPending: false,
-        // No apiKeyVar - user is logged into Dexto, DEXTO_API_KEY is used
+        apiKeyVar: 'DEXTO_API_KEY',
     });
 
     await saveGlobalPreferences(preferences);
