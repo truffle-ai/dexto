@@ -13,7 +13,6 @@ import {
     openApiKeyUrl,
     getProviderInfo,
     getProviderEnvVar,
-    PROVIDER_REGISTRY,
 } from './provider-setup.js';
 import { verifyApiKey } from './api-key-verification.js';
 
@@ -65,25 +64,20 @@ export async function interactiveApiKeySetup(
                 ? [
                       {
                           value: 'open-browser' as const,
-                          label: 'Open browser & set up now',
-                          hint: 'Opens the API key page in your browser (recommended)',
+                          label: `${chalk.green('→')} Get API key (opens browser)`,
+                          hint: "We'll wait while you grab one",
                       },
                   ]
                 : []),
             {
                 value: 'setup' as const,
-                label: hasApiKeyUrl ? 'I already have a key' : 'Enter API key now',
-                hint: 'Paste an existing API key',
+                label: `${chalk.cyan('●')} Paste existing key`,
+                hint: 'I already have an API key',
             },
             {
                 value: 'skip' as const,
-                label: 'Skip for now',
-                hint: 'Continue without API key - configure later in settings',
-            },
-            {
-                value: 'manual' as const,
-                label: 'View manual instructions',
-                hint: 'See how to set up manually',
+                label: `${chalk.gray('○')} Set up later`,
+                hint: 'Continue without key for now',
             },
         ];
 
@@ -99,14 +93,15 @@ export async function interactiveApiKeySetup(
         }
 
         if (action === 'skip') {
-            p.log.warn('Skipping API key setup. You can configure it later with: dexto setup');
-            return { success: true, skipped: true };
-        }
-
-        if (action === 'manual') {
-            showManualSetupInstructions(provider);
-            // Don't exit - let them continue
-            p.log.info('You can configure your API key later with: dexto setup');
+            const envVar = getProviderEnvVar(provider);
+            p.note(
+                `You can configure your API key later:\n\n` +
+                    `${chalk.cyan('Option 1:')} Run ${chalk.bold('dexto setup')}\n\n` +
+                    `${chalk.cyan('Option 2:')} Set environment variable manually:\n` +
+                    `  ${chalk.dim(`export ${envVar}=your-key-here`)}\n` +
+                    `  ${chalk.dim('Add to ~/.bashrc or ~/.zshrc to persist')}`,
+                'Setup Later'
+            );
             return { success: true, skipped: true };
         }
 
@@ -315,94 +310,6 @@ function showManualSaveInstructions(provider: LLMProvider, apiKey: string): void
               ];
 
     p.note(instructions.join('\n'), chalk.rgb(255, 165, 0)('Manual Setup Required'));
-}
-
-/**
- * Shows manual setup instructions to the user
- */
-function showManualSetupInstructions(provider: LLMProvider): void {
-    const envVar = getProviderEnvVar(provider);
-    const providerInfo = getProviderInfo(provider);
-
-    const envInstructions =
-        getExecutionContext() === 'global-cli'
-            ? [
-                  `${chalk.bold('2. Save your API key:')}`,
-                  `   ${chalk.gray('Option A:')} Run ${chalk.cyan('dexto setup')} (interactive)`,
-                  `   ${chalk.gray('Option B:')} Create ${chalk.cyan('~/.dexto/.env')} with:`,
-                  `            ${chalk.rgb(255, 165, 0)(`${envVar}=your_api_key_here`)}`,
-              ]
-            : [
-                  `${chalk.bold('2. Save your API key:')}`,
-                  `   Create ${chalk.cyan('.env')} in your project with:`,
-                  `   ${chalk.rgb(255, 165, 0)(`${envVar}=your_api_key_here`)}`,
-              ];
-
-    // Build provider URLs list dynamically from registry
-    const providerUrls: string[] = [];
-
-    // Add current provider first if it has an API key URL
-    if (providerInfo?.apiKeyUrl) {
-        providerUrls.push(
-            `   ${chalk.cyan('→')} ${chalk.cyan(getProviderDisplayName(provider))}: ${providerInfo.apiKeyUrl}`
-        );
-        providerUrls.push(''); // Add spacing
-    }
-
-    // Add recommended/popular providers with API keys
-    const popularProviders: Array<{ provider: LLMProvider; color: typeof chalk.green }> = [
-        { provider: 'google', color: chalk.green }, // Free
-        { provider: 'groq', color: chalk.green }, // Free
-        { provider: 'openai', color: chalk.blue },
-        { provider: 'anthropic', color: chalk.blue },
-        { provider: 'xai', color: chalk.blue },
-        { provider: 'cohere', color: chalk.blue },
-    ];
-
-    for (const { provider: p, color } of popularProviders) {
-        const info = PROVIDER_REGISTRY[p];
-        if (info?.apiKeyUrl && p !== provider) {
-            // Don't duplicate current provider
-            const freeTag = info.free ? ' (Free)' : '';
-            providerUrls.push(`   ${color('●')} ${color(info.label + freeTag)}: ${info.apiKeyUrl}`);
-        }
-    }
-
-    // Add gateway providers
-    const gatewayProviders: LLMProvider[] = ['openrouter', 'glama'];
-    for (const p of gatewayProviders) {
-        const info = PROVIDER_REGISTRY[p];
-        if (info?.apiKeyUrl && p !== provider) {
-            providerUrls.push(
-                `   ${chalk.rgb(255, 165, 0)('●')} ${chalk.rgb(255, 165, 0)(info.label)} (Gateway): ${info.apiKeyUrl}`
-            );
-        }
-    }
-
-    // Add enterprise providers
-    const enterpriseProviders: LLMProvider[] = ['vertex', 'bedrock'];
-    for (const p of enterpriseProviders) {
-        const info = PROVIDER_REGISTRY[p];
-        if (info?.apiKeyUrl && p !== provider) {
-            providerUrls.push(
-                `   ${chalk.cyan('●')} ${chalk.cyan(info.label)} (Enterprise): ${info.apiKeyUrl}`
-            );
-        }
-    }
-
-    const instructions = [
-        `${chalk.bold('1. Get an API key from your provider:')}`,
-        ...providerUrls,
-        ``,
-        ...envInstructions,
-        ``,
-        `${chalk.bold('3. Run dexto again:')}`,
-        `   ${chalk.cyan('dexto')} or ${chalk.cyan('npx dexto')}`,
-        ``,
-        `${chalk.gray('💡 Tip: Start with Google Gemini or Groq for a free experience!')}`,
-    ].join('\n');
-
-    p.note(instructions, chalk.bold('Manual Setup Instructions'));
 }
 
 /**

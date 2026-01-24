@@ -158,6 +158,27 @@ dexto uninstall --all
 - `--all` - Uninstall all installed agents
 - `--force` - Force uninstall even if agent is protected (e.g., coding-agent)
 
+### `sync-agents` - Sync Agent Configs
+
+Sync installed agents with bundled versions after Dexto updates.
+
+```bash
+# Check status and prompt for updates
+dexto sync-agents
+
+# List what would change (dry run)
+dexto sync-agents --list
+
+# Force update all without prompts
+dexto sync-agents --force
+```
+
+**Options:**
+- `--list` - Show status without making changes
+- `--force` - Update all agents without confirmation
+
+**When to use:** When Dexto shows "Agent updates available" notification after an update, or when you want to reset agents to their default configurations.
+
 ### `list-agents` - List Available Agents
 
 List agents from the registry and locally installed agents.

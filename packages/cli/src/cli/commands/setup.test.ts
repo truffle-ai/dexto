@@ -282,7 +282,8 @@ describe('Setup Command', () => {
         it('handles quick start selection in interactive mode', async () => {
             // User selects 'quick' setup
             mockPrompts.select.mockResolvedValueOnce('quick'); // Setup type -> quick start
-            mockPrompts.select.mockResolvedValueOnce('web'); // Default mode selection
+            mockPrompts.select.mockResolvedValueOnce('google'); // Provider picker -> google
+            mockPrompts.confirm.mockResolvedValueOnce(true); // CLI mode confirmation -> yes
             mockHasApiKeyConfigured.mockReturnValue(true); // API key already configured
 
             const options = {
@@ -291,11 +292,11 @@ describe('Setup Command', () => {
 
             await handleSetupCommand(options);
 
-            // Quick start uses Google provider
+            // Quick start uses Google provider with CLI mode
             expect(mockCreateInitialPreferences).toHaveBeenCalledWith(
                 expect.objectContaining({
                     provider: 'google',
-                    defaultMode: 'web',
+                    defaultMode: 'cli',
                     setupCompleted: true,
                 })
             );
@@ -660,7 +661,8 @@ describe('Setup Command', () => {
 
     describe('Quick start flow', () => {
         it('handles --quick-start flag in non-interactive mode', async () => {
-            mockPrompts.select.mockResolvedValueOnce('web'); // Default mode
+            mockPrompts.select.mockResolvedValueOnce('google'); // Provider picker
+            mockPrompts.confirm.mockResolvedValueOnce(true); // CLI mode confirmation
             mockHasApiKeyConfigured.mockReturnValue(true);
 
             const options = {
@@ -674,13 +676,15 @@ describe('Setup Command', () => {
             expect(mockCreateInitialPreferences).toHaveBeenCalledWith(
                 expect.objectContaining({
                     provider: 'google',
+                    defaultMode: 'cli',
                     setupCompleted: true,
                 })
             );
         });
 
         it('prompts for API key if not configured during quick start', async () => {
-            mockPrompts.select.mockResolvedValueOnce('web'); // Default mode
+            mockPrompts.select.mockResolvedValueOnce('google'); // Provider picker
+            mockPrompts.confirm.mockResolvedValueOnce(true); // CLI mode confirmation
             mockHasApiKeyConfigured.mockReturnValue(false);
             mockInteractiveApiKeySetup.mockResolvedValue({ success: true });
 
@@ -699,7 +703,8 @@ describe('Setup Command', () => {
         });
 
         it('handles API key skip during quick start', async () => {
-            mockPrompts.select.mockResolvedValueOnce('web'); // Default mode
+            mockPrompts.select.mockResolvedValueOnce('google'); // Provider picker
+            mockPrompts.confirm.mockResolvedValueOnce(true); // CLI mode confirmation
             mockHasApiKeyConfigured.mockReturnValue(false);
             mockInteractiveApiKeySetup.mockResolvedValue({ success: true, skipped: true });
 
@@ -721,9 +726,11 @@ describe('Setup Command', () => {
         });
 
         it('sets apiKeyPending to false when API key is provided', async () => {
-            // Reset select mock to ensure clean state
+            // Reset mocks to ensure clean state
             mockPrompts.select.mockReset();
-            mockPrompts.select.mockResolvedValue('web'); // Default mode selection
+            mockPrompts.confirm.mockReset();
+            mockPrompts.select.mockResolvedValueOnce('google'); // Provider picker
+            mockPrompts.confirm.mockResolvedValueOnce(true); // CLI mode confirmation
 
             mockHasApiKeyConfigured.mockReturnValue(false);
             // interactiveApiKeySetup returns success without skipped flag - API key was provided
