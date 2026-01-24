@@ -159,7 +159,20 @@ function formatAsJson(
 ): string {
     const filteredMessages = includeToolCalls
         ? messages
-        : messages.filter((m) => m.role !== 'tool');
+        : messages
+              .filter((m) => m.role !== 'tool')
+              .map((m) => ({
+                  ...m,
+                  content: Array.isArray(m.content)
+                      ? m.content.filter((part) => {
+                            if (!part || typeof part !== 'object') return true;
+                            return !(
+                                'type' in part &&
+                                (part.type === 'tool-call' || part.type === 'tool-result')
+                            );
+                        })
+                      : m.content,
+              }));
 
     return JSON.stringify(
         {
