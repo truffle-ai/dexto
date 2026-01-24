@@ -346,6 +346,7 @@ const ExportWizard = forwardRef<ExportWizardHandle, ExportWizardProps>(function 
                             return true;
                         }
                         setOptions((prev) => ({ ...prev, filename: finalFilename }));
+                        setSelectedIndex(0); // Reset to "Export" option
                         setStep('confirm');
                         return true;
                     }
