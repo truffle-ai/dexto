@@ -1120,6 +1120,40 @@ program
                         }
                     }
 
+                    // Check if user is configured for Dexto credits but not authenticated
+                    // This can happen if user logged out after setting up with Dexto
+                    if (preferences?.llm?.provider === 'dexto') {
+                        const { checkDextoAuthState } = await import(
+                            './cli/utils/dexto-auth-check.js'
+                        );
+                        const authCheck = await checkDextoAuthState(
+                            preferences,
+                            opts.interactive !== false
+                        );
+
+                        if (!authCheck.shouldContinue) {
+                            if (authCheck.action === 'login') {
+                                // User wants to log in - run login flow then restart
+                                const { handleLoginCommand } = await import(
+                                    './cli/commands/auth/login.js'
+                                );
+                                await handleLoginCommand({ interactive: true });
+                                // After login, continue with startup (preferences unchanged, now authenticated)
+                            } else if (authCheck.action === 'setup') {
+                                // User wants to configure different provider - run setup
+                                const { handleSetupCommand } = await import(
+                                    './cli/commands/setup.js'
+                                );
+                                await handleSetupCommand({ interactive: true, force: true });
+                                // Reload preferences after setup
+                                preferences = await loadGlobalPreferences();
+                            } else {
+                                // User cancelled
+                                safeExit('main', 0, 'dexto-auth-check-cancelled');
+                            }
+                        }
+                    }
+
                     // Check for pending API key setup (user skipped during initial setup)
                     if (
                         isDefaultAgent &&

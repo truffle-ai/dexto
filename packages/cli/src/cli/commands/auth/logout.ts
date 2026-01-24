@@ -3,6 +3,7 @@
 import chalk from 'chalk';
 import * as p from '@clack/prompts';
 import { isAuthenticated, removeAuth } from '../../auth/index.js';
+import { loadGlobalPreferences } from '@dexto/agent-management';
 import { logger } from '@dexto/core';
 
 export async function handleLogoutCommand(
@@ -17,11 +18,32 @@ export async function handleLogoutCommand(
             return;
         }
 
+        // Check if user is configured to use Dexto credits
+        const preferences = await loadGlobalPreferences();
+        const usingDextoCredits = preferences?.llm?.provider === 'dexto';
+
         if (options.interactive !== false && !options.force) {
             p.intro(chalk.inverse(' Logout '));
 
+            // Warn if using Dexto credits
+            if (usingDextoCredits) {
+                console.log(
+                    chalk.yellow(
+                        '\n⚠️  You are currently configured to use Dexto credits (provider: dexto)'
+                    )
+                );
+                console.log(
+                    chalk.dim('   After logout, you will need to run `dexto setup` to configure')
+                );
+                console.log(
+                    chalk.dim('   a different provider, or `dexto login` to log back in.\n')
+                );
+            }
+
             const shouldLogout = await p.confirm({
-                message: 'Are you sure you want to logout?',
+                message: usingDextoCredits
+                    ? 'Logout will disable Dexto credits. Continue?'
+                    : 'Are you sure you want to logout?',
                 initialValue: false,
             });
 
@@ -33,6 +55,14 @@ export async function handleLogoutCommand(
 
         await removeAuth();
         console.log(chalk.green('✅ Successfully logged out'));
+
+        if (usingDextoCredits) {
+            console.log();
+            console.log(chalk.cyan('Next steps:'));
+            console.log(chalk.dim('  • Run `dexto login` to log back in'));
+            console.log(chalk.dim('  • Or run `dexto setup` to configure a different provider'));
+        }
+
         logger.info('User logged out');
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
