@@ -340,7 +340,12 @@ const ExportWizard = forwardRef<ExportWizardHandle, ExportWizardProps>(function 
                 // Filename input step
                 if (step === 'filename') {
                     if (key.return) {
-                        setOptions((prev) => ({ ...prev, filename: filenameInput }));
+                        const finalFilename = filenameInput.trim();
+                        if (!finalFilename) {
+                            // Don't proceed with empty filename
+                            return true;
+                        }
+                        setOptions((prev) => ({ ...prev, filename: finalFilename }));
                         setStep('confirm');
                         return true;
                     }
