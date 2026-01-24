@@ -137,10 +137,12 @@ async function main(): Promise<void> {
     try {
         await cleanPackages();
         await cleanRoot();
-        await cleanStorage();
+        // NOTE: cleanStorage() is NOT called here to preserve conversation history
+        // Use `pnpm clean:storage` explicitly if you need to wipe .dexto
 
         console.log('\n✨ Cleanup completed successfully!');
         console.log('Run "pnpm install" if you need to reinstall dependencies.');
+        console.log('Note: .dexto storage was preserved. Use "pnpm clean:storage" to wipe it.');
     } catch (err) {
         console.error('\n❌ Cleanup failed:', err);
         process.exit(1);
