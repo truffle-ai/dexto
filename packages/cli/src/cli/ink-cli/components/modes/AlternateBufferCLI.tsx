@@ -173,19 +173,29 @@ export function AlternateBufferCLI({
     // Build list data: header as first item, then finalized + pending + dequeued buffer
     // In alternate buffer mode, everything is re-rendered anyway, so we combine all
     // Order: finalized messages → pending/streaming → dequeued user messages (guarantees order)
+    // IMPORTANT: Deduplicate by ID to prevent race condition where a message appears in both
+    // finalized (messages) and pending during the brief window between setState calls
     const listData = useMemo<ListItem[]>(() => {
         const items: ListItem[] = [{ type: 'header' }];
+        const seenIds = new Set<string>();
+
         for (const msg of visibleMessages) {
             items.push({ type: 'message', message: msg });
+            seenIds.add(msg.id);
         }
-        // Add pending/streaming messages
+        // Add pending/streaming messages (skip if already in finalized - race condition guard)
         for (const msg of pendingMessages) {
-            items.push({ type: 'message', message: msg });
+            if (!seenIds.has(msg.id)) {
+                items.push({ type: 'message', message: msg });
+                seenIds.add(msg.id);
+            }
         }
         // Add dequeued buffer (user messages waiting to be flushed to finalized)
         // These render AFTER pending to guarantee correct visual order
         for (const msg of dequeuedBuffer) {
-            items.push({ type: 'message', message: msg });
+            if (!seenIds.has(msg.id)) {
+                items.push({ type: 'message', message: msg });
+            }
         }
         return items;
     }, [visibleMessages, pendingMessages, dequeuedBuffer]);
@@ -275,9 +285,6 @@ export function AlternateBufferCLI({
 
             {/* Controls area - fixed at bottom */}
             <Box flexDirection="column" flexShrink={0}>
-                {/* Todo panel (shown when todos are present) */}
-                <TodoPanel todos={todos} />
-
                 <StatusBar
                     agent={agent}
                     isProcessing={ui.isProcessing}
@@ -286,6 +293,15 @@ export function AlternateBufferCLI({
                     approvalQueueCount={approvalQueue.length}
                     copyModeEnabled={ui.copyModeEnabled}
                     isAwaitingApproval={approval !== null}
+                    todoExpanded={ui.todoExpanded}
+                    hasTodos={todos.some((t) => t.status !== 'completed')}
+                />
+
+                {/* Todo panel - shown below status bar */}
+                <TodoPanel
+                    todos={todos}
+                    isExpanded={ui.todoExpanded}
+                    isProcessing={ui.isProcessing}
                 />
 
                 {/* Selection hint when user tries to select without Option key */}

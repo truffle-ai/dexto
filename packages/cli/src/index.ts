@@ -152,10 +152,6 @@ program
         'Image package to load (e.g., @dexto/image-local). Overrides config image field.'
     )
     .option(
-        '--privacy-mode',
-        'Hide full file paths from display (useful for screen recording/sharing). Can also set DEXTO_PRIVACY_MODE=true'
-    )
-    .option(
         '--dev',
         '[maintainers] Use local ./agents instead of ~/.dexto (for dexto repo development)'
     )
@@ -271,15 +267,9 @@ program
                 safeExit('setup', 0);
             } catch (err) {
                 if (err instanceof ExitSignal) throw err;
-                if (process.env.DEXTO_PRIVACY_MODE === 'true') {
-                    console.error(
-                        `❌ dexto setup command failed: ${err}. Check logs for more information`
-                    );
-                } else {
-                    console.error(
-                        `❌ dexto setup command failed: ${err}. Check logs in ~/.dexto/logs/dexto.log for more information`
-                    );
-                }
+                console.error(
+                    `❌ dexto setup command failed: ${err}. Check logs in ~/.dexto/logs/dexto.log for more information`
+                );
                 safeExit('setup', 1, 'error');
             }
         })
@@ -636,11 +626,7 @@ program
                         nameOrPath,
                         globalOpts.autoInstall !== false
                     );
-                    if (process.env.DEXTO_PRIVACY_MODE === 'true') {
-                        console.log(`📄 Loading Dexto config...`);
-                    } else {
-                        console.log(`📄 Loading Dexto config from: ${configPath}`);
-                    }
+                    console.log(`📄 Loading Dexto config from: ${configPath}`);
                     const config = await loadAgentConfig(configPath);
 
                     logger.info(`Validating MCP servers...`);
@@ -740,11 +726,6 @@ program
                 }
 
                 const opts = program.opts();
-
-                // Set privacy mode early to gate all path-related output
-                if (opts.privacyMode) {
-                    process.env.DEXTO_PRIVACY_MODE = 'true';
-                }
 
                 // Set dev mode early to use local repo agents instead of ~/.dexto
                 if (opts.dev) {
@@ -1226,13 +1207,6 @@ program
                 let agent: DextoAgent;
                 let derivedAgentId: string;
                 try {
-                    // Show startup message (respecting privacy mode)
-                    if (process.env.DEXTO_PRIVACY_MODE === 'true') {
-                        console.error(`🚀 Initializing Dexto...`);
-                    } else {
-                        console.error(`🚀 Initializing Dexto with config: ${resolvedPath}`);
-                    }
-
                     // Set run mode for tool confirmation provider
                     process.env.DEXTO_RUN_MODE = opts.mode;
 

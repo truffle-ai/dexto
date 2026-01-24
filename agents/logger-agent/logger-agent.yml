@@ -69,13 +69,13 @@ storage:
 # Tool confirmation settings
 toolConfirmation:
   mode: manual
-  timeout: 120000
+  # timeout: omitted = infinite wait
   allowedToolsStorage: memory
 
 # Elicitation configuration - required for ask_user tool
 elicitation:
   enabled: true
-  timeout: 120000
+  # timeout: omitted = infinite wait
 
 # Internal tools
 internalTools:

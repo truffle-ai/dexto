@@ -125,6 +125,7 @@ export function useCLIState({
         },
         promptAddWizard: null,
         autoApproveEdits: false,
+        todoExpanded: true, // Default to expanded to show full todo list
     });
 
     // Input state

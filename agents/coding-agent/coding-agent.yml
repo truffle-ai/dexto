@@ -103,7 +103,7 @@ storage:
 
 toolConfirmation:
   mode: manual
-  timeout: 120000
+  # timeout: omitted = infinite wait (no timeout for CLI)
   allowedToolsStorage: storage  # Persist allowed tools across sessions
 
   # Tool policies optimized for coding workflows
@@ -135,7 +135,7 @@ compaction:
 # Elicitation configuration - required for ask_user tool
 elicitation:
   enabled: true
-  timeout: 120000
+  # timeout: omitted = infinite wait (no timeout for CLI)
 
 # Internal tools - core tools that are always available
 internalTools:
