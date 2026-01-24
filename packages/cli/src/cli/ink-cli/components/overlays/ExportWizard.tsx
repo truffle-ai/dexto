@@ -265,8 +265,10 @@ const ExportWizard = forwardRef<ExportWizardHandle, ExportWizardProps>(function 
                     ? formatAsMarkdown(formattedHistory, exportMetadata, options.includeToolCalls)
                     : formatAsJson(formattedHistory, exportMetadata, options.includeToolCalls);
 
-            // Write file
-            const outputPath = path.resolve(process.cwd(), options.filename || filenameInput);
+            // Write file - use path.basename to prevent path traversal attacks
+            const rawFilename = options.filename || filenameInput;
+            const safeFilename = path.basename(rawFilename);
+            const outputPath = path.resolve(process.cwd(), safeFilename);
             await fs.writeFile(outputPath, content, 'utf-8');
 
             setExportResult({ success: true, path: outputPath });
