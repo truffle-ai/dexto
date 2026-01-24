@@ -2135,6 +2135,108 @@ function migratePartialConfig(
 }
 ```
 
+### 8.11 LLM Configuration and Preferences Interaction
+
+The LLM configuration has special handling because users frequently change their preferred model/provider, and this should work seamlessly with the layered config approach.
+
+#### The Problem
+
+With explicit providers (see `feature-plans/holistic-dexto-auth-analysis/`), the LLM config looks like:
+
+```yaml
+# Bundled agent config
+llm:
+  provider: anthropic
+  model: claude-sonnet-4-5-20250929
+  apiKey: $ANTHROPIC_API_KEY
+```
+
+But different users have different preferences:
+- User A: Uses Dexto credits (`provider: dexto, model: anthropic/claude-haiku-4.5`)
+- User B: Uses BYOK Anthropic (`provider: anthropic, model: claude-sonnet-4-5-20250929`)
+- User C: Uses OpenAI (`provider: openai, model: gpt-5.2`)
+
+If we put user's LLM preference in the bundled file, detecting "did user modify this" becomes painful for updates.
+
+#### Solution: Three-Layer LLM Resolution
+
+```
+Priority (highest to lowest):
+1. agent.local.yml llm section     → Agent-specific override (rare)
+2. preferences.yml llm section     → User's global default (common)
+3. agent.yml llm section           → Bundled fallback (if user skips setup)
+```
+
+**Key insight:** `preferences.yml` acts as a "global .local.yml" specifically for LLM settings.
+
+#### How It Works
+
+**Setup wizard** writes to `preferences.yml`:
+```yaml
+# ~/.dexto/preferences.yml
+llm:
+  provider: dexto
+  model: anthropic/claude-haiku-4.5
+```
+
+**Bundled agent** stays as shipped (BYOK default):
+```yaml
+# ~/.dexto/agents/coding-agent/coding-agent.yml
+llm:
+  provider: anthropic
+  model: claude-sonnet-4-5-20250929
+  apiKey: $ANTHROPIC_API_KEY
+```
+
+**At runtime (for default agent):**
+```typescript
+function loadEffectiveConfig(agentId: string): AgentConfig {
+  const bundled = loadYaml(`${agentId}.yml`);
+  const local = loadYamlIfExists(`${agentId}.local.yml`);
+  const preferences = loadPreferences();
+
+  // Smart merge bundled + local
+  let config = smartMerge(bundled, local);
+
+  // LLM comes from: local.llm ?? preferences.llm ?? bundled.llm
+  config.llm = local?.llm ?? preferences.llm ?? bundled.llm;
+
+  return config;
+}
+```
+
+#### User Scenarios
+
+| Scenario | preferences.yml | .local.yml | Effective LLM |
+|----------|-----------------|------------|---------------|
+| Fresh install + Dexto setup | `provider: dexto` | (none) | Dexto |
+| Fresh install + BYOK setup | `provider: anthropic` | (none) | Anthropic |
+| User skips setup entirely | (none) | (none) | Bundled fallback |
+| User wants agent-specific LLM | `provider: dexto` | `llm: { provider: openai }` | OpenAI (local wins) |
+| User changes global via `/model` | Updated | (unchanged) | New preference |
+
+#### `/model` Command Behavior
+
+**Current behavior:** `/model` only updates runtime state (session-scoped, ephemeral).
+
+**On next session restart:** Loads from preferences → back to previous default.
+
+**Optional enhancement (future):** Add "Save as default?" prompt after `/model` switch to persist to `preferences.yml`.
+
+#### Why This Works
+
+1. **Bundled file stays clean** - Always BYOK format, can be replaced on updates
+2. **User's LLM choice is in preferences** - Separate file, never touched by updates
+3. **Agent-specific overrides possible** - Via `.local.yml` (rare but supported)
+4. **No hash checking needed** - Bundled file is always replaced; user data in separate files
+5. **Backward compatible** - Existing `applyUserPreferences()` logic continues to work
+
+#### Migration Considerations
+
+When migrating from old CLI versions:
+- If user has `preferences.yml` with old format (`provider: anthropic` but expects Dexto routing), they need to update to explicit `provider: dexto`
+- Migration should detect this and offer to update preferences
+
 ---
 
 ## 9. Edge Cases & Recovery
@@ -2478,6 +2580,22 @@ When we add new fields with defaults (e.g., `sounds` in 1.5.3), should upgrading
 ### 11.8 YAML Comment Preservation
 
 **Decision:** Accept comment loss during migration writes. Document clearly that migrations rewrite YAML files and comments will not be preserved.
+
+### 11.9 `/model` Command Persistence (Optional Enhancement)
+
+**Current behavior:** The `/model` slash command only updates runtime state. Changes are session-scoped and ephemeral - on next CLI restart, the previous default from `preferences.yml` is loaded.
+
+**User expectation:** Some users may expect `/model` to persist their choice.
+
+**Optional enhancement:** After switching models via `/model`, prompt:
+```
+Model switched to Claude 4.5 Sonnet for this session.
+Save as your default? [y/N]
+```
+
+If yes, update `preferences.yml` with the new LLM config.
+
+**Recommendation:** Keep current ephemeral behavior for now. Add persistence prompt as optional future enhancement. Users who want to change their default can run `dexto setup` or manually edit `preferences.yml`.
 
 ---
 
