@@ -78,6 +78,26 @@ export function Header({ modelName, sessionId, hasActiveSession, startupInfo }: 
                 </Box>
             )}
 
+            {/* Update available notification */}
+            {startupInfo.updateInfo && (
+                <Box marginTop={1} flexDirection="row">
+                    <Text color="yellow">
+                        ⬆️ Update available: {startupInfo.updateInfo.current} →{' '}
+                        {startupInfo.updateInfo.latest}
+                    </Text>
+                    <Text color="gray"> • Run: </Text>
+                    <Text color="cyan">{startupInfo.updateInfo.updateCommand}</Text>
+                </Box>
+            )}
+
+            {/* Agent sync notification */}
+            {startupInfo.needsAgentSync && (
+                <Box marginTop={startupInfo.updateInfo ? 0 : 1} flexDirection="row">
+                    <Text color="yellow">🔄 Agent configs have updates available. Run: </Text>
+                    <Text color="cyan">dexto sync-agents</Text>
+                </Box>
+            )}
+
             <Box marginBottom={1}>
                 <Text> </Text>
             </Box>
