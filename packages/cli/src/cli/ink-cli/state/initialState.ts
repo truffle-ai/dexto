@@ -42,6 +42,7 @@ export function createInitialState(initialModelName: string = ''): CLIState {
             },
             promptAddWizard: null,
             autoApproveEdits: false,
+            todoExpanded: true,
         },
         session: {
             id: null,

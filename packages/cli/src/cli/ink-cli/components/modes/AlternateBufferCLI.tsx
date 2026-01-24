@@ -275,9 +275,6 @@ export function AlternateBufferCLI({
 
             {/* Controls area - fixed at bottom */}
             <Box flexDirection="column" flexShrink={0}>
-                {/* Todo panel (shown when todos are present) */}
-                <TodoPanel todos={todos} />
-
                 <StatusBar
                     agent={agent}
                     isProcessing={ui.isProcessing}
@@ -286,6 +283,15 @@ export function AlternateBufferCLI({
                     approvalQueueCount={approvalQueue.length}
                     copyModeEnabled={ui.copyModeEnabled}
                     isAwaitingApproval={approval !== null}
+                    todoExpanded={ui.todoExpanded}
+                    hasTodos={todos.some((t) => t.status !== 'completed')}
+                />
+
+                {/* Todo panel - shown below status bar */}
+                <TodoPanel
+                    todos={todos}
+                    isExpanded={ui.todoExpanded}
+                    isProcessing={ui.isProcessing}
                 />
 
                 {/* Selection hint when user tries to select without Option key */}

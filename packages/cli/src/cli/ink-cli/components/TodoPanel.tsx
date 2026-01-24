@@ -3,6 +3,12 @@
  *
  * Displays the current todo list for workflow tracking.
  * Shows todos with their status indicators (pending, in progress, completed).
+ *
+ * Display modes:
+ * - Processing + Collapsed: Shows "Next:" with the next pending/in-progress task
+ * - Processing + Expanded: Shows simple checklist with ☐/☑ indicators below status bar
+ * - Idle + Expanded: Shows boxed format with header
+ * - Idle + Collapsed: Hidden
  */
 
 import React from 'react';
@@ -11,10 +17,14 @@ import type { TodoItem, TodoStatus } from '../state/types.js';
 
 interface TodoPanelProps {
     todos: TodoItem[];
+    /** Whether to show the full list or just the next task */
+    isExpanded: boolean;
+    /** Whether the agent is currently processing (affects display style) */
+    isProcessing?: boolean;
 }
 
 /**
- * Get status indicator for a todo item
+ * Get status indicator for a todo item (used in boxed mode)
  */
 function getStatusIndicator(status: TodoStatus): { icon: string; color: string } {
     switch (status) {
@@ -29,58 +39,9 @@ function getStatusIndicator(status: TodoStatus): { icon: string; color: string }
 }
 
 /**
- * Get status label for a todo item
- */
-function getStatusLabel(status: TodoStatus): string {
-    switch (status) {
-        case 'completed':
-            return 'done';
-        case 'in_progress':
-            return 'working';
-        case 'pending':
-        default:
-            return 'todo';
-    }
-}
-
-/**
- * Individual todo item display
- */
-function TodoItemRow({ todo }: { todo: TodoItem }) {
-    const { icon, color } = getStatusIndicator(todo.status);
-    const isCompleted = todo.status === 'completed';
-    const isInProgress = todo.status === 'in_progress';
-
-    return (
-        <Box>
-            <Text color={color}>{icon} </Text>
-            <Text
-                color={isCompleted ? 'gray' : isInProgress ? 'yellowBright' : 'white'}
-                strikethrough={isCompleted}
-            >
-                {isInProgress ? todo.activeForm : todo.content}
-            </Text>
-            {isInProgress && (
-                <Text color="gray" dimColor>
-                    {' '}
-                    ({getStatusLabel(todo.status)})
-                </Text>
-            )}
-        </Box>
-    );
-}
-
-/**
  * TodoPanel - Shows current todos for workflow tracking
- *
- * Design decisions:
- * - Only shown when there are todos to display
- * - Compact display that doesn't take too much vertical space
- * - Status indicators: ○ pending, ● in progress, ✓ completed
- * - In-progress items show activeForm (what's being worked on)
- * - Completed items are dimmed with strikethrough
  */
-export function TodoPanel({ todos }: TodoPanelProps) {
+export function TodoPanel({ todos, isExpanded, isProcessing = false }: TodoPanelProps) {
     if (todos.length === 0) {
         return null;
     }
@@ -88,34 +49,110 @@ export function TodoPanel({ todos }: TodoPanelProps) {
     // Sort todos by position
     const sortedTodos = [...todos].sort((a, b) => a.position - b.position);
 
-    // Count by status
-    const completed = todos.filter((t) => t.status === 'completed').length;
-    const total = todos.length;
+    // Find the next task to work on (in_progress first, then first pending)
+    const currentTask = sortedTodos.find((t) => t.status === 'in_progress');
+    const nextPendingTask = sortedTodos.find((t) => t.status === 'pending');
+    const nextTask = currentTask || nextPendingTask;
 
+    // When idle (not processing)
+    if (!isProcessing) {
+        // Collapsed + idle = hidden
+        if (!isExpanded) {
+            return null;
+        }
+
+        // Expanded + idle = boxed format
+        const completedCount = todos.filter((t) => t.status === 'completed').length;
+        const totalCount = todos.length;
+
+        return (
+            <Box
+                flexDirection="column"
+                borderStyle="round"
+                borderColor="gray"
+                paddingX={1}
+                marginX={1}
+                marginBottom={1}
+            >
+                {/* Header */}
+                <Box>
+                    <Text bold color="cyan">
+                        📋 Tasks{' '}
+                    </Text>
+                    <Text color="gray">
+                        ({completedCount}/{totalCount})
+                    </Text>
+                    <Text color="gray" dimColor>
+                        {' '}
+                        · ctrl+t to hide tasks
+                    </Text>
+                </Box>
+
+                {/* Todo items */}
+                <Box flexDirection="column">
+                    {sortedTodos.map((todo) => {
+                        const { icon, color } = getStatusIndicator(todo.status);
+                        const isCompleted = todo.status === 'completed';
+                        const isInProgress = todo.status === 'in_progress';
+
+                        return (
+                            <Box key={todo.id}>
+                                <Text color={color}>{icon} </Text>
+                                <Text
+                                    color={isCompleted ? 'gray' : isInProgress ? 'white' : 'gray'}
+                                    strikethrough={isCompleted}
+                                    dimColor={!isInProgress && !isCompleted}
+                                >
+                                    {isInProgress ? todo.activeForm : todo.content}
+                                </Text>
+                            </Box>
+                        );
+                    })}
+                </Box>
+            </Box>
+        );
+    }
+
+    // When processing - use minimal style
+
+    // Collapsed: show current task being worked on
+    if (!isExpanded) {
+        if (!currentTask) {
+            return null; // No active task
+        }
+
+        return (
+            <Box paddingX={1} marginBottom={1}>
+                <Box marginLeft={2}>
+                    <Text color="gray">⎿ </Text>
+                    <Text color="gray">{currentTask.activeForm}</Text>
+                </Box>
+            </Box>
+        );
+    }
+
+    // Expanded: show simple checklist
     return (
-        <Box
-            flexDirection="column"
-            borderStyle="round"
-            borderColor="gray"
-            paddingX={1}
-            marginBottom={1}
-        >
-            {/* Header */}
-            <Box marginBottom={0}>
-                <Text bold color="cyan">
-                    📋 Tasks{' '}
-                </Text>
-                <Text color="gray">
-                    ({completed}/{total})
-                </Text>
-            </Box>
+        <Box flexDirection="column" paddingX={1} marginBottom={1}>
+            {sortedTodos.map((todo, index) => {
+                const isFirst = index === 0;
+                const isCompleted = todo.status === 'completed';
+                const isInProgress = todo.status === 'in_progress';
+                const checkbox = isCompleted ? '☑' : '☐';
 
-            {/* Todo items */}
-            <Box flexDirection="column">
-                {sortedTodos.map((todo) => (
-                    <TodoItemRow key={todo.id} todo={todo} />
-                ))}
-            </Box>
+                return (
+                    <Box key={todo.id} marginLeft={2}>
+                        {/* Tree connector for first item, space for others */}
+                        <Text color="gray">{isFirst ? '⎿  ' : '   '}</Text>
+                        <Text color={isCompleted ? 'green' : isInProgress ? 'yellow' : 'white'}>
+                            {checkbox}{' '}
+                        </Text>
+                        <Text color={isCompleted ? 'gray' : 'white'} dimColor={isCompleted}>
+                            {todo.content}
+                        </Text>
+                    </Box>
+                );
+            })}
         </Box>
     );
 }

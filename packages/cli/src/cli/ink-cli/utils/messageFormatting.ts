@@ -155,7 +155,7 @@ const TOOL_CONFIGS: Record<string, ToolDisplayConfig> = {
     // Agent spawning - handled specially in getToolDisplayName for dynamic agentId
     spawn_agent: { displayName: 'Agent', argsToShow: ['task'], primaryArg: 'task' },
 
-    todo_write: { displayName: 'ToDo', argsToShow: [] },
+    todo_write: { displayName: 'UpdateTasks', argsToShow: [] },
 };
 
 /**

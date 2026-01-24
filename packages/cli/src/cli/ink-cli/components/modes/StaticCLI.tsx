@@ -188,9 +188,6 @@ export function StaticCLI({
 
             {/* Controls area */}
             <Box flexDirection="column" flexShrink={0}>
-                {/* Todo panel (shown when todos are present) */}
-                <TodoPanel todos={todos} />
-
                 <StatusBar
                     agent={agent}
                     isProcessing={ui.isProcessing}
@@ -199,6 +196,15 @@ export function StaticCLI({
                     approvalQueueCount={approvalQueue.length}
                     copyModeEnabled={ui.copyModeEnabled}
                     isAwaitingApproval={approval !== null}
+                    todoExpanded={ui.todoExpanded}
+                    hasTodos={todos.length > 0}
+                />
+
+                {/* Todo panel - shown below status bar */}
+                <TodoPanel
+                    todos={todos}
+                    isExpanded={ui.todoExpanded}
+                    isProcessing={ui.isProcessing}
                 />
 
                 {/* Queued messages display (shows when messages are pending) */}
