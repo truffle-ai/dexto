@@ -49,7 +49,7 @@ interface FormattedMessage {
 
 interface ExportMetadata {
     sessionId: string;
-    model?: string | undefined;
+    title?: string | undefined;
     createdAt?: string | undefined;
 }
 
@@ -67,8 +67,8 @@ function formatAsMarkdown(
     lines.push('# Conversation Export');
     lines.push('');
     lines.push(`- **Session**: ${metadata.sessionId}`);
-    if (metadata.model) {
-        lines.push(`- **Model**: ${metadata.model}`);
+    if (metadata.title) {
+        lines.push(`- **Title**: ${metadata.title}`);
     }
     if (metadata.createdAt) {
         lines.push(`- **Created**: ${metadata.createdAt}`);
@@ -83,7 +83,7 @@ function formatAsMarkdown(
         const role = msg.role.charAt(0).toUpperCase() + msg.role.slice(1);
 
         // Skip tool messages if not including tool calls
-        if (!includeToolCalls && (msg.role === 'tool' || role === 'Tool')) {
+        if (!includeToolCalls && msg.role === 'tool') {
             continue;
         }
 
@@ -231,7 +231,7 @@ const ExportWizard = forwardRef<ExportWizardHandle, ExportWizardProps>(function 
 
             const exportMetadata = {
                 sessionId,
-                model: metadata?.title, // Use title as a fallback identifier
+                title: metadata?.title,
                 createdAt: metadata?.createdAt
                     ? new Date(metadata.createdAt).toISOString()
                     : undefined,
@@ -280,13 +280,12 @@ const ExportWizard = forwardRef<ExportWizardHandle, ExportWizardProps>(function 
                     return true;
                 }
 
-                // Done/error state - any key closes
+                // Done/error state - Enter/Esc closes, consume all other input
                 if (step === 'done' || step === 'error') {
                     if (key.return || key.escape) {
                         onClose();
-                        return true;
                     }
-                    return false;
+                    return true; // Consume all input in terminal states
                 }
 
                 // Format selection step

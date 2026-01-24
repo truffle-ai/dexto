@@ -197,7 +197,7 @@ export function StaticCLI({
                     copyModeEnabled={ui.copyModeEnabled}
                     isAwaitingApproval={approval !== null}
                     todoExpanded={ui.todoExpanded}
-                    hasTodos={todos.length > 0}
+                    hasTodos={todos.some((t) => t.status !== 'completed')}
                 />
 
                 {/* Todo panel - shown below status bar */}
