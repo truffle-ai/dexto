@@ -2188,17 +2188,23 @@ llm:
   apiKey: $ANTHROPIC_API_KEY
 ```
 
-**At runtime (for default agent):**
+**At runtime (for ALL agents):**
+
+> **Note:** This resolution applies to every agent, not just the default. When a user runs
+> `dexto --agent explore-agent` or switches agents in the WebUI, their `preferences.llm`
+> is applied unless that specific agent has a `.local.yml` override.
+
 ```typescript
 function loadEffectiveConfig(agentId: string): AgentConfig {
   const bundled = loadYaml(`${agentId}.yml`);
   const local = loadYamlIfExists(`${agentId}.local.yml`);
   const preferences = loadPreferences();
 
-  // Smart merge bundled + local
+  // Smart merge bundled + local (for non-LLM settings)
   let config = smartMerge(bundled, local);
 
   // LLM comes from: local.llm ?? preferences.llm ?? bundled.llm
+  // This applies to ALL agents - user's global preference is the default
   config.llm = local?.llm ?? preferences.llm ?? bundled.llm;
 
   return config;
