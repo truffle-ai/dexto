@@ -339,7 +339,7 @@ const PATH_ARGS = new Set(['file_path', 'path']);
  * Note: 'command' is handled specially - single-line commands are not truncated,
  * but multi-line commands (heredocs) are truncated to first line only.
  */
-const NEVER_TRUNCATE_ARGS = new Set(['url', 'task']);
+const NEVER_TRUNCATE_ARGS = new Set(['url', 'task', 'pattern', 'question']);
 
 /**
  * Formats tool arguments for display.
