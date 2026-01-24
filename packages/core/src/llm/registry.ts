@@ -47,7 +47,13 @@ export interface ModelInfo {
     displayName?: string;
     // Pricing metadata (USD per 1M tokens). Optional; when omitted, pricing is unknown.
     pricing?: ModelPricing;
-    // Add other relevant metadata if needed, e.g., supported features, cost tier
+    /**
+     * OpenRouter model ID for use with gateway providers (dexto, openrouter).
+     * Only needed when the OpenRouter ID differs from the native model ID.
+     * For most OpenAI/Google/xAI models, the ID is just `{provider}/{name}`.
+     * For Anthropic, the IDs differ significantly (e.g., `claude-haiku-4-5-20251001` → `anthropic/claude-haiku-4.5`).
+     */
+    openrouterId?: string;
 }
 
 // Central list of supported file type identifiers used across server/UI
@@ -119,6 +125,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'gpt-5.2-chat-latest',
                 displayName: 'GPT-5.2 Instant',
+                openrouterId: 'openai/gpt-5.2-chat',
                 maxInputTokens: 400000,
                 supportedFileTypes: ['pdf', 'image'],
                 pricing: {
@@ -172,6 +179,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'gpt-5.1-chat-latest',
                 displayName: 'GPT-5.1 Instant',
+                openrouterId: 'openai/gpt-5.1-chat',
                 maxInputTokens: 400000,
                 supportedFileTypes: ['pdf', 'image'],
                 pricing: {
@@ -445,6 +453,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'claude-haiku-4-5-20251001',
                 displayName: 'Claude 4.5 Haiku',
+                openrouterId: 'anthropic/claude-haiku-4.5',
                 maxInputTokens: 200000,
                 default: true,
                 supportedFileTypes: ['pdf', 'image'],
@@ -460,6 +469,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'claude-sonnet-4-5-20250929',
                 displayName: 'Claude 4.5 Sonnet',
+                openrouterId: 'anthropic/claude-sonnet-4.5',
                 maxInputTokens: 200000,
                 supportedFileTypes: ['pdf', 'image'],
                 pricing: {
@@ -474,6 +484,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'claude-opus-4-5-20251101',
                 displayName: 'Claude 4.5 Opus',
+                openrouterId: 'anthropic/claude-opus-4.5',
                 maxInputTokens: 200000,
                 supportedFileTypes: ['pdf', 'image'],
                 pricing: {
@@ -488,6 +499,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'claude-opus-4-1-20250805',
                 displayName: 'Claude 4.1 Opus',
+                openrouterId: 'anthropic/claude-opus-4.1',
                 maxInputTokens: 200000,
                 supportedFileTypes: ['pdf', 'image'],
                 pricing: {
@@ -502,6 +514,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'claude-4-opus-20250514',
                 displayName: 'Claude 4 Opus',
+                openrouterId: 'anthropic/claude-opus-4',
                 maxInputTokens: 200000,
                 supportedFileTypes: ['pdf', 'image'],
                 pricing: {
@@ -516,6 +529,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'claude-4-sonnet-20250514',
                 displayName: 'Claude 4 Sonnet',
+                openrouterId: 'anthropic/claude-sonnet-4',
                 maxInputTokens: 200000,
                 supportedFileTypes: ['pdf', 'image'],
                 pricing: {
@@ -530,6 +544,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'claude-3-7-sonnet-20250219',
                 displayName: 'Claude 3.7 Sonnet',
+                openrouterId: 'anthropic/claude-3.7-sonnet',
                 maxInputTokens: 200000,
                 supportedFileTypes: ['pdf', 'image'],
                 pricing: {
@@ -544,6 +559,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'claude-3-5-sonnet-20240620',
                 displayName: 'Claude 3.5 Sonnet',
+                openrouterId: 'anthropic/claude-3.5-sonnet',
                 maxInputTokens: 200000,
                 supportedFileTypes: ['pdf', 'image'],
                 pricing: {
@@ -558,6 +574,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'claude-3-5-haiku-20241022',
                 displayName: 'Claude 3.5 Haiku',
+                openrouterId: 'anthropic/claude-3.5-haiku',
                 maxInputTokens: 200000,
                 supportedFileTypes: ['pdf', 'image'],
                 pricing: {
@@ -657,6 +674,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'gemini-2.0-flash',
                 displayName: 'Gemini 2.0 Flash',
+                openrouterId: 'google/gemini-2.0-flash-001',
                 maxInputTokens: 1048576,
                 supportedFileTypes: ['pdf', 'image', 'audio'],
                 pricing: {
@@ -671,6 +689,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'gemini-2.0-flash-lite',
                 displayName: 'Gemini 2.0 Flash Lite',
+                openrouterId: 'google/gemini-2.0-flash-lite-001',
                 maxInputTokens: 1048576,
                 supportedFileTypes: ['pdf', 'image', 'audio'],
                 pricing: {
@@ -869,6 +888,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'command-a-03-2025',
                 displayName: 'Command A (03-2025)',
+                openrouterId: 'cohere/command-a',
                 maxInputTokens: 256000,
                 default: true,
                 supportedFileTypes: [],
@@ -882,6 +902,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'command-r-plus',
                 displayName: 'Command R+',
+                openrouterId: 'cohere/command-r-plus-08-2024',
                 maxInputTokens: 128000,
                 supportedFileTypes: [],
                 pricing: {
@@ -894,6 +915,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'command-r',
                 displayName: 'Command R',
+                openrouterId: 'cohere/command-r-08-2024',
                 maxInputTokens: 128000,
                 supportedFileTypes: [],
                 pricing: {
@@ -906,6 +928,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'command-r7b',
                 displayName: 'Command R7B',
+                openrouterId: 'cohere/command-r7b-12-2024',
                 maxInputTokens: 128000,
                 supportedFileTypes: [],
                 pricing: {
@@ -1719,7 +1742,12 @@ export function getAllModelsForProvider(
 
 /**
  * Transforms a model name to the format required by a target provider.
- * For dexto/openrouter, adds provider prefix (e.g., 'gpt-5-mini' → 'openai/gpt-5-mini').
+ * For dexto/openrouter, uses openrouterId if available, otherwise adds provider prefix.
+ *
+ * Examples:
+ * - `claude-haiku-4-5-20251001` (anthropic) → `anthropic/claude-haiku-4.5` (uses openrouterId)
+ * - `gpt-5-mini` (openai) → `openai/gpt-5-mini` (adds prefix, IDs match)
+ *
  * @param model The model name to transform.
  * @param originalProvider The provider the model originally belongs to.
  * @param targetProvider The provider to transform the model name for.
@@ -1738,6 +1766,15 @@ export function transformModelNameForProvider(
     // If model already has a slash, assume it's already in the correct format
     if (model.includes('/')) {
         return model;
+    }
+
+    // Check if model has an explicit openrouterId mapping
+    const providerInfo = LLM_REGISTRY[originalProvider];
+    if (providerInfo) {
+        const modelInfo = providerInfo.models.find((m) => m.name === model);
+        if (modelInfo?.openrouterId) {
+            return modelInfo.openrouterId;
+        }
     }
 
     const prefix = OPENROUTER_PROVIDER_PREFIX[originalProvider];
