@@ -33,14 +33,14 @@ export const tips: string[] = [
     'Press Escape to close overlays and menus…',
     'Use Up/Down arrows to navigate command history…',
     'Press Enter to submit your message…',
-    'Press Ctrl+T to collapse/expand large pastes…',
+    'Press Ctrl+T to show/hide the task list…',
     'Press Ctrl+R to search previous prompts…',
     'Press Shift+Enter to insert a new line…',
 
     // Feature tips
     'Start with ! to run bash commands directly…',
     'Paste copied images with Ctrl+V…',
-    'Large pastes are automatically collapsed - press Ctrl+T to toggle…',
+    'Large pastes are automatically collapsed - press Ctrl+P to toggle…',
     'Use @ to reference files and resources…',
     'Type / to see available slash commands…',
     'MCP servers extend dexto with custom tools…',
