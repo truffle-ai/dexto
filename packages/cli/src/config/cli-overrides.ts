@@ -12,7 +12,78 @@
  */
 
 import type { AgentConfig, LLMConfig, LLMProvider } from '@dexto/core';
+import { hasAllRegistryModelsSupport, transformModelNameForProvider } from '@dexto/core';
 import type { GlobalPreferences } from '@dexto/agent-management';
+
+/**
+ * Result of resolving a locked model with user preferences
+ */
+export interface LockedModelResolution {
+    /** The provider to use */
+    provider: LLMProvider;
+    /** The model ID to use (may be transformed for gateway providers) */
+    model: string;
+    /** Whether provider was switched from agent's original */
+    providerSwitched: boolean;
+    /** Whether the locked model could be used (false if incompatible) */
+    lockedModelUsed: boolean;
+}
+
+/**
+ * Resolves how to apply user preferences when an agent has a locked model.
+ *
+ * Logic:
+ * 1. If user's provider can serve all registry models (dexto, openrouter) →
+ *    Use user's provider + transform agent's model to gateway format
+ * 2. If user's provider matches agent's provider →
+ *    Keep agent's locked model, just use user's credentials
+ * 3. If incompatible (different providers, user can't serve agent's model) →
+ *    Return agent's original config (can't honor the lock)
+ *
+ * @param agentProvider The agent's configured provider
+ * @param agentModel The agent's locked model
+ * @param userProvider The user's preferred provider
+ * @returns Resolution with provider/model to use and metadata
+ */
+export function resolveLockedModel(
+    agentProvider: LLMProvider,
+    agentModel: string,
+    userProvider: LLMProvider
+): LockedModelResolution {
+    // Case 1: User's provider is a gateway that can serve all models
+    if (hasAllRegistryModelsSupport(userProvider)) {
+        const transformedModel = transformModelNameForProvider(
+            agentModel,
+            agentProvider,
+            userProvider
+        );
+        return {
+            provider: userProvider,
+            model: transformedModel,
+            providerSwitched: true,
+            lockedModelUsed: true,
+        };
+    }
+
+    // Case 2: Same provider family - use locked model with user's credentials
+    if (userProvider === agentProvider) {
+        return {
+            provider: agentProvider,
+            model: agentModel,
+            providerSwitched: false,
+            lockedModelUsed: true,
+        };
+    }
+
+    // Case 3: Incompatible - can't use locked model with user's provider
+    // Return agent's original config
+    return {
+        provider: agentProvider,
+        model: agentModel,
+        providerSwitched: false,
+        lockedModelUsed: false, // Indicates we couldn't honor the lock with user's provider
+    };
+}
 
 /**
  * CLI config override type for fields that can be overridden via CLI
@@ -81,9 +152,13 @@ export function applyCLIOverrides(
 
 /**
  * Applies global user preferences to an agent configuration at runtime.
- * This is used for the coding-agent to ensure user's LLM preferences are applied.
+ * This is used to ensure user's LLM preferences are applied to all agents.
  *
  * Unlike writeLLMPreferences() which modifies files, this performs an in-memory merge.
+ *
+ * Respects the `modelLocked` flag in agent config:
+ * - If NOT locked: user preferences fully override agent defaults
+ * - If locked: keeps agent's model, but may switch provider if compatible
  *
  * @param baseConfig The configuration loaded from agent file
  * @param preferences Global user preferences
@@ -96,12 +171,38 @@ export function applyUserPreferences(
     // Create a deep copy to avoid mutating the original
     const mergedConfig = JSON.parse(JSON.stringify(baseConfig)) as AgentConfig;
 
-    // Apply LLM preferences (user preferences override agent defaults)
-    if (preferences.llm) {
+    // No LLM preferences to apply
+    if (!preferences.llm) {
+        return mergedConfig;
+    }
+
+    const userProvider = preferences.llm.provider;
+    const userModel = preferences.llm.model;
+    const agentProvider = baseConfig.llm.provider;
+    const agentModel = baseConfig.llm.model;
+    const isModelLocked = baseConfig.llm.modelLocked === true;
+
+    if (isModelLocked) {
+        // Model is locked - use the resolution logic to determine provider/model
+        const resolution = resolveLockedModel(agentProvider, agentModel, userProvider);
+
         mergedConfig.llm = {
             ...mergedConfig.llm,
-            provider: preferences.llm.provider,
-            model: preferences.llm.model,
+            provider: resolution.provider,
+            model: resolution.model,
+        };
+
+        // Use user's API key if provider was switched or same provider
+        if (resolution.lockedModelUsed && preferences.llm.apiKey) {
+            mergedConfig.llm.apiKey = preferences.llm.apiKey;
+        }
+        // If lockedModelUsed is false, keep agent's original apiKey (incompatible case)
+    } else {
+        // Model is NOT locked - apply user preferences fully (original behavior)
+        mergedConfig.llm = {
+            ...mergedConfig.llm,
+            provider: userProvider,
+            model: userModel,
         };
 
         // Only override apiKey if user has one configured
