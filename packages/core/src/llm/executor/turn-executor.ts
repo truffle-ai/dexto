@@ -1139,7 +1139,7 @@ export class TurnExecutor {
                         balance,
                         body,
                     },
-                    'Top up your balance at https://dexto.ai/billing'
+                    'Run `dexto billing` to check your balance'
                 );
             }
             if (status === 429) {

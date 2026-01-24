@@ -113,7 +113,7 @@ export class LLMError {
             ErrorType.FORBIDDEN,
             `Insufficient Dexto credits. Balance: ${balanceStr}`,
             { balance },
-            'Top up your balance at https://dexto.ai/billing'
+            'Run `dexto billing` to check your balance'
         );
     }
 
