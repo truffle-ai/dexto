@@ -107,8 +107,11 @@ export function resolveSubAgentLLM(options: ResolveSubAgentLLMOptions): SubAgent
     // Case 3: Incompatible providers - fall back to parent's full LLM config
     // This means sub-agent won't use its intended cheap/fast model, but it will work
     //
-    // TODO: Future enhancement - map to equivalent "fast" model from parent's provider
-    // (e.g., if parent has openai, use gpt-4o-mini instead of haiku)
+    // TODO: Future enhancement - add model tier system (fast/standard/flagship) to registry.
+    // Instead of falling back to parent's full config, find the "fast" tier model for
+    // parent's provider (e.g., openai->gpt-4o-mini, google->gemini-flash). This preserves
+    // the intent (cheap/fast) rather than the specific model. Low priority since most
+    // users will use dexto/openrouter which already handles this via gateway transform.
     return {
         llm: parentLLM,
         resolution: 'parent-fallback',
