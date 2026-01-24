@@ -25,6 +25,7 @@ import type { CommandDefinition, CommandHandlerResult } from './command-parser.j
 // Import modular command definitions
 import { generalCommands, createHelpCommand } from './general-commands.js';
 import { searchCommand, resumeCommand, renameCommand } from './session/index.js';
+import { exportCommand } from './export/index.js';
 import { modelCommands } from './model/index.js';
 import { mcpCommands } from './mcp/index.js';
 import { systemCommands } from './system/index.js';
@@ -59,6 +60,7 @@ const baseCommands: CommandDefinition[] = [
     searchCommand, // /search - opens search overlay
     resumeCommand, // /resume - opens session selector overlay
     renameCommand, // /rename <title> - rename current session
+    exportCommand, // /export - opens export wizard overlay
 
     // Model management
     modelCommands, // /model - opens model selector overlay
