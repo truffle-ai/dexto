@@ -63,11 +63,11 @@ Done! You're ready to chat.
 
 ### Modes Explained
 
-| Mode | Description | Best For |
-|------|-------------|----------|
-| **Terminal** | Interactive CLI in your terminal | Quick tasks, coding |
-| **Browser** | Web UI at localhost:3000 | Long conversations |
-| **API Server** | REST API on port 3001 | Integrations, apps |
+| Mode | Flag | Description | Best For |
+|------|------|-------------|----------|
+| **Terminal** | `--mode cli` | Interactive CLI in your terminal | Quick tasks, coding |
+| **Browser** | `--mode web` | Web UI at localhost:3000 | Long conversations |
+| **API Server** | `--mode server` | REST API on port 3001 | Integrations, apps |
 
 ## 3. Start Using Dexto
 
