@@ -54,9 +54,10 @@ export function createPlanCreateTool(planService: PlanService): InternalTool {
 
             // Return preview for approval UI
             const lineCount = content.split('\n').length;
+            const planPath = planService.getPlanPath(context.sessionId);
             return {
                 type: 'file',
-                path: `.dexto/plans/${context.sessionId}/plan.md`,
+                path: planPath,
                 operation: 'create',
                 content,
                 size: content.length,
@@ -72,15 +73,16 @@ export function createPlanCreateTool(planService: PlanService): InternalTool {
             }
 
             const plan = await planService.create(context.sessionId, content, { title });
+            const planPath = planService.getPlanPath(context.sessionId);
 
             return {
                 success: true,
-                path: `.dexto/plans/${context.sessionId}/plan.md`,
+                path: planPath,
                 status: plan.meta.status,
                 title: plan.meta.title,
                 _display: {
                     type: 'file',
-                    path: `.dexto/plans/${context.sessionId}/plan.md`,
+                    path: planPath,
                     operation: 'create',
                     size: content.length,
                     lineCount: content.split('\n').length,

@@ -119,6 +119,18 @@ export class PluginError {
         );
     }
 
+    // Import errors
+    static importNotFound(pluginName: string) {
+        return new DextoRuntimeError(
+            PluginErrorCode.IMPORT_NOT_FOUND,
+            ErrorScope.CONFIG,
+            ErrorType.USER,
+            `Plugin '${pluginName}' not found`,
+            { pluginName },
+            'Use `dexto plugin list` to see available plugins'
+        );
+    }
+
     // Uninstallation errors
     static uninstallNotFound(pluginName: string, hint?: string) {
         return new DextoRuntimeError(

@@ -67,12 +67,13 @@ export function createPlanReviewTool(planService: PlanService): InternalTool {
             }
 
             const lineCount = displayContent.split('\n').length;
+            const planPath = planService.getPlanPath(context.sessionId);
             return {
                 type: 'file',
-                path: `.dexto/plans/${context.sessionId}/plan.md`,
+                path: planPath,
                 operation: 'read', // 'read' indicates this is for viewing, not creating/modifying
                 content: displayContent,
-                size: displayContent.length,
+                size: Buffer.byteLength(displayContent, 'utf8'),
                 lineCount,
             };
         },

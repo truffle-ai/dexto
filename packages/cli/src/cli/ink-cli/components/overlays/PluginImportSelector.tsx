@@ -48,11 +48,13 @@ const PluginImportSelector = forwardRef<PluginImportSelectorHandle, PluginImport
         const [plugins, setPlugins] = useState<LocalPluginItem[]>([]);
         const [selectedIndex, setSelectedIndex] = useState(0);
         const [isLoading, setIsLoading] = useState(true);
+        const [loadError, setLoadError] = useState<string | null>(null);
 
         // Load Claude Code plugins when visible
         useEffect(() => {
             if (isVisible) {
                 setIsLoading(true);
+                setLoadError(null);
                 try {
                     const claudePlugins = listClaudeCodePlugins();
                     // Filter to only show non-imported plugins and map to our local type
@@ -70,6 +72,9 @@ const PluginImportSelector = forwardRef<PluginImportSelectorHandle, PluginImport
                     setPlugins(notImported);
                 } catch (error) {
                     setPlugins([]);
+                    setLoadError(
+                        `Failed to load plugins: ${error instanceof Error ? error.message : String(error)}`
+                    );
                 } finally {
                     setIsLoading(false);
                     setSelectedIndex(0);
@@ -132,7 +137,7 @@ const PluginImportSelector = forwardRef<PluginImportSelectorHandle, PluginImport
                 formatItem={formatItem}
                 title="Import Claude Code Plugin"
                 borderColor="green"
-                emptyMessage="No Claude Code plugins available to import"
+                emptyMessage={loadError || 'No Claude Code plugins available to import'}
             />
         );
     }

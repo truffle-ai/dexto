@@ -16,7 +16,7 @@ const InvokeSkillInputSchema = z
             .string()
             .optional()
             .describe(
-                'Context about what task this skill should accomplish. Required for forked skills to provide context since they run in isolation without conversation history.'
+                'Context about what task this skill should accomplish. Recommended for forked skills to provide context since they run in isolation without conversation history.'
             ),
     })
     .strict();

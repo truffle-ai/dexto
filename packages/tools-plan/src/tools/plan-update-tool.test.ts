@@ -62,7 +62,9 @@ describe('plan_update tool', () => {
             )) as DiffDisplayData;
 
             expect(preview.type).toBe('diff');
-            expect(preview.filename).toBe(`.dexto/plans/${sessionId}/plan.md`);
+            // Path is now absolute, check it ends with the expected suffix
+            expect(preview.filename).toContain(sessionId);
+            expect(preview.filename).toMatch(/plan\.md$/);
             expect(preview.unified).toContain('-1. First step');
             expect(preview.unified).toContain('+1. First step');
             expect(preview.unified).toContain('+2. Second step');
@@ -128,7 +130,9 @@ describe('plan_update tool', () => {
             };
 
             expect(result.success).toBe(true);
-            expect(result.path).toBe(`.dexto/plans/${sessionId}/plan.md`);
+            // Path is now absolute, check it ends with the expected suffix
+            expect(result.path).toContain(sessionId);
+            expect(result.path).toMatch(/plan\.md$/);
 
             // Verify content was updated
             const plan = await planService.read(sessionId);

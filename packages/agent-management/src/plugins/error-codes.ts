@@ -22,6 +22,9 @@ export enum PluginErrorCode {
     INSTALL_MANIFEST_WRITE_FAILED = 'plugin_install_manifest_write_failed',
     INSTALL_INVALID_SCOPE = 'plugin_install_invalid_scope',
 
+    // Import errors
+    IMPORT_NOT_FOUND = 'plugin_import_not_found',
+
     // Uninstallation errors
     UNINSTALL_NOT_FOUND = 'plugin_uninstall_not_found',
     UNINSTALL_DELETE_FAILED = 'plugin_uninstall_delete_failed',

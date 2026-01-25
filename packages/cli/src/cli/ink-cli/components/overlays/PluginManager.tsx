@@ -5,7 +5,6 @@
 
 import React, { useState, useEffect, forwardRef, useRef, useImperativeHandle } from 'react';
 import { Box, Text } from 'ink';
-import { listInstalledPlugins, listClaudeCodePlugins } from '@dexto/agent-management';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
 import { BaseSelector, type BaseSelectorHandle } from '../base/BaseSelector.js';
 

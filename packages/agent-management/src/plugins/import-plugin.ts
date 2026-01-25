@@ -149,7 +149,7 @@ export async function importClaudeCodePlugin(pluginName: string): Promise<Plugin
     }
 
     if (!plugin) {
-        throw PluginError.uninstallNotFound(pluginName);
+        throw PluginError.importNotFound(pluginName);
     }
 
     if (plugin.isImported) {

@@ -31,16 +31,32 @@ export class PlanService {
     }
 
     /**
-     * Gets the directory path for a session's plan
+     * Resolves and validates a session directory path.
+     * Prevents path traversal attacks by ensuring the resolved path stays within basePath.
      */
-    private getPlanDir(sessionId: string): string {
-        return path.join(this.basePath, sessionId);
+    private resolveSessionDir(sessionId: string): string {
+        const base = path.resolve(this.basePath);
+        const resolved = path.resolve(base, sessionId);
+        const rel = path.relative(base, resolved);
+        // Check for path traversal (upward traversal)
+        if (rel.startsWith('..') || path.isAbsolute(rel)) {
+            throw PlanError.invalidSessionId(sessionId);
+        }
+        return resolved;
     }
 
     /**
-     * Gets the path to the plan content file
+     * Gets the directory path for a session's plan
      */
-    private getPlanPath(sessionId: string): string {
+    private getPlanDir(sessionId: string): string {
+        return this.resolveSessionDir(sessionId);
+    }
+
+    /**
+     * Gets the path to the plan content file.
+     * Public accessor for tools that need to display the path.
+     */
+    public getPlanPath(sessionId: string): string {
         return path.join(this.getPlanDir(sessionId), PLAN_FILENAME);
     }
 

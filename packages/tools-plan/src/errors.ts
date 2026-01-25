@@ -18,6 +18,8 @@ export const PlanErrorCode = {
     INVALID_PLAN_CONTENT: 'INVALID_PLAN_CONTENT',
     /** Session ID required */
     SESSION_ID_REQUIRED: 'SESSION_ID_REQUIRED',
+    /** Invalid session ID (path traversal attempt) */
+    INVALID_SESSION_ID: 'INVALID_SESSION_ID',
     /** Checkpoint not found */
     CHECKPOINT_NOT_FOUND: 'CHECKPOINT_NOT_FOUND',
     /** Storage operation failed */
@@ -69,6 +71,20 @@ export const PlanError = {
             'Session ID is required for plan operations.',
             {},
             'Ensure the tool is called within a valid session context.'
+        );
+    },
+
+    /**
+     * Invalid session ID (path traversal attempt)
+     */
+    invalidSessionId(sessionId: string): DextoRuntimeError {
+        return new DextoRuntimeError(
+            PlanErrorCode.INVALID_SESSION_ID,
+            'plan',
+            ErrorType.USER,
+            `Invalid session ID: '${sessionId}' contains invalid path characters.`,
+            { sessionId },
+            'Session IDs must not contain path traversal characters like "..".'
         );
     },
 

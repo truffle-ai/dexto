@@ -276,10 +276,18 @@ function createPromptCommand(promptInfo: PromptInfo): CommandDefinition {
                         console.log(
                             chalk.gray(`🔒 Restricting tools to: ${result.allowedTools.join(', ')}`)
                         );
-                        agent.toolManager.setSessionToolRestrictions(
-                            ctx.sessionId,
-                            result.allowedTools
-                        );
+                        try {
+                            agent.toolManager.setSessionToolRestrictions(
+                                ctx.sessionId,
+                                result.allowedTools
+                            );
+                        } catch (toolError) {
+                            console.log(
+                                chalk.yellow(
+                                    `⚠️  Failed to apply tool restrictions: ${toolError instanceof Error ? toolError.message : String(toolError)}`
+                                )
+                            );
+                        }
                     }
                 }
 

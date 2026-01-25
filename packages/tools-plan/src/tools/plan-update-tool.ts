@@ -23,11 +23,10 @@ type PlanUpdateInput = z.input<typeof PlanUpdateInputSchema>;
  * Generate diff preview for plan update
  */
 function generateDiffPreview(
-    sessionId: string,
+    filePath: string,
     originalContent: string,
     newContent: string
 ): DiffDisplayData {
-    const filePath = `.dexto/plans/${sessionId}/plan.md`;
     const unified = createPatch(filePath, originalContent, newContent, 'before', 'after', {
         context: 3,
     });
@@ -73,7 +72,8 @@ export function createPlanUpdateTool(planService: PlanService): InternalTool {
             }
 
             // Generate diff preview
-            return generateDiffPreview(context.sessionId, existing.content, newContent);
+            const planPath = planService.getPlanPath(context.sessionId);
+            return generateDiffPreview(planPath, existing.content, newContent);
         },
 
         execute: async (input: unknown, context?: ToolExecutionContext) => {
@@ -84,16 +84,13 @@ export function createPlanUpdateTool(planService: PlanService): InternalTool {
             }
 
             const result = await planService.update(context.sessionId, content);
+            const planPath = planService.getPlanPath(context.sessionId);
 
             return {
                 success: true,
-                path: `.dexto/plans/${context.sessionId}/plan.md`,
+                path: planPath,
                 status: result.meta.status,
-                _display: generateDiffPreview(
-                    context.sessionId,
-                    result.oldContent,
-                    result.newContent
-                ),
+                _display: generateDiffPreview(planPath, result.oldContent, result.newContent),
             };
         },
     };

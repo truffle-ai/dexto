@@ -104,9 +104,13 @@ export async function uninstallPlugin(
     const { projectPath } = options || {};
 
     // Strip @version suffix if present (user may copy from list output)
-    const nameWithoutVersion = pluginName.includes('@')
-        ? pluginName.substring(0, pluginName.lastIndexOf('@'))
-        : pluginName;
+    // Only strip when the suffix is actually a version (semver pattern), not a namespace
+    const atIndex = pluginName.lastIndexOf('@');
+    const SEMVER_SUFFIX = /^(?:v)?\d+\.\d+\.\d+(?:-[\w.-]+)?$/;
+    const nameWithoutVersion =
+        atIndex > 0 && SEMVER_SUFFIX.test(pluginName.slice(atIndex + 1))
+            ? pluginName.slice(0, atIndex)
+            : pluginName;
 
     // Find the plugin installation
     const found = findPluginInstallation(nameWithoutVersion, projectPath);

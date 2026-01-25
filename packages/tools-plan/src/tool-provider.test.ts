@@ -37,16 +37,16 @@ describe('planToolsProvider', () => {
         const rawTempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'dexto-provider-test-'));
         tempDir = await fs.realpath(rawTempDir);
 
-        // Store original cwd and change to temp dir
+        // Store original cwd and mock process.cwd to return temp dir
         originalCwd = process.cwd();
-        process.chdir(tempDir);
+        vi.spyOn(process, 'cwd').mockReturnValue(tempDir);
 
         vi.clearAllMocks();
     });
 
     afterEach(async () => {
-        // Restore original cwd
-        process.chdir(originalCwd);
+        // Restore mocked process.cwd
+        vi.mocked(process.cwd).mockRestore();
 
         try {
             await fs.rm(tempDir, { recursive: true, force: true });

@@ -61,7 +61,9 @@ describe('plan_create tool', () => {
 
             expect(preview.type).toBe('file');
             expect(preview.operation).toBe('create');
-            expect(preview.path).toBe(`.dexto/plans/${sessionId}/plan.md`);
+            // Path is now absolute, check it ends with the expected suffix
+            expect(preview.path).toContain(sessionId);
+            expect(preview.path).toMatch(/plan\.md$/);
             expect(preview.content).toBe(content);
             expect(preview.lineCount).toBe(4);
         });
@@ -113,7 +115,9 @@ describe('plan_create tool', () => {
             };
 
             expect(result.success).toBe(true);
-            expect(result.path).toBe(`.dexto/plans/${sessionId}/plan.md`);
+            // Path is now absolute, check it ends with the expected suffix
+            expect(result.path).toContain(sessionId);
+            expect(result.path).toMatch(/plan\.md$/);
             expect(result.status).toBe('draft');
             expect(result.title).toBe(title);
         });

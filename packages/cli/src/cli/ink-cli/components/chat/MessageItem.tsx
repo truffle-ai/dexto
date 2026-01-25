@@ -36,10 +36,13 @@ import { ToolIcon } from './ToolIcon.js';
 /**
  * Strip <plan-mode>...</plan-mode> tags from content.
  * Plan mode instructions are injected for the LLM but should not be shown in the UI.
+ * Only trims when a tag was actually removed to preserve user-intended formatting.
  */
 function stripPlanModeTags(content: string): string {
-    // Remove <plan-mode>...</plan-mode> including any surrounding whitespace
-    return content.replace(/<plan-mode>[\s\S]*?<\/plan-mode>\s*/g, '').trim();
+    // Remove <plan-mode>...</plan-mode> including any trailing whitespace
+    const stripped = content.replace(/<plan-mode>[\s\S]*?<\/plan-mode>\s*/g, '');
+    // Only trim if a tag was actually removed
+    return stripped === content ? content : stripped.trim();
 }
 
 /**
