@@ -13,16 +13,11 @@ import { PlanError } from '../errors.js';
 const PlanCreateInputSchema = z
     .object({
         title: z.string().describe('Plan title (e.g., "Add User Authentication")'),
-        content: z.string().describe('Plan content in markdown format'),
-        checkpoints: z
-            .array(
-                z.object({
-                    id: z.string().describe('Unique checkpoint identifier'),
-                    description: z.string().describe('What this checkpoint represents'),
-                })
-            )
-            .optional()
-            .describe('Optional checkpoints to track progress'),
+        content: z
+            .string()
+            .describe(
+                'Plan content in markdown format. Use - [ ] and - [x] for checkboxes to track progress.'
+            ),
     })
     .strict();
 
@@ -70,24 +65,19 @@ export function createPlanCreateTool(planService: PlanService): InternalTool {
         },
 
         execute: async (input: unknown, context?: ToolExecutionContext) => {
-            const { title, content, checkpoints } = input as PlanCreateInput;
+            const { title, content } = input as PlanCreateInput;
 
             if (!context?.sessionId) {
                 throw PlanError.sessionIdRequired();
             }
 
-            const plan = await planService.create(
-                context.sessionId,
-                content,
-                checkpoints ? { title, checkpoints } : { title }
-            );
+            const plan = await planService.create(context.sessionId, content, { title });
 
             return {
                 success: true,
                 path: `.dexto/plans/${context.sessionId}/plan.md`,
                 status: plan.meta.status,
                 title: plan.meta.title,
-                checkpoints: plan.meta.checkpoints?.length ?? 0,
                 _display: {
                     type: 'file',
                     path: `.dexto/plans/${context.sessionId}/plan.md`,

@@ -496,21 +496,19 @@ async function bootstrapAgentFromGlobalOpts() {
     const resolvedPath = await resolveAgentPath(globalOpts.agent, globalOpts.autoInstall !== false);
     const rawConfig = await loadAgentConfig(resolvedPath);
     const mergedConfig = applyCLIOverrides(rawConfig, globalOpts);
-    const enrichedConfig = enrichAgentConfig(mergedConfig, resolvedPath, {
-        logLevel: 'info', // CLI uses info-level logging for visibility
-    });
 
-    // Load image dynamically if specified (same priority as main command)
+    // Load image first to get bundled plugins
     // Priority: CLI flag > Agent config > Environment variable > Default
-    // Images are optional, but default to image-local for convenience
     const imageName =
         globalOpts.image || // --image flag
-        enrichedConfig.image || // image field in agent config
+        mergedConfig.image || // image field in agent config
         process.env.DEXTO_IMAGE || // DEXTO_IMAGE env var
         '@dexto/image-local'; // Default for convenience
 
+    let imageMetadata: { bundledPlugins?: string[] } | null = null;
     try {
-        await import(imageName);
+        const imageModule = await import(imageName);
+        imageMetadata = imageModule.imageMetadata || null;
     } catch (_err) {
         console.error(`❌ Failed to load image '${imageName}'`);
         console.error(
@@ -520,6 +518,12 @@ async function bootstrapAgentFromGlobalOpts() {
         );
         safeExit('bootstrap', 1, 'image-load-failed');
     }
+
+    // Enrich config with bundled plugins from image
+    const enrichedConfig = enrichAgentConfig(mergedConfig, resolvedPath, {
+        logLevel: 'info', // CLI uses info-level logging for visibility
+        bundledPlugins: imageMetadata?.bundledPlugins || [],
+    });
 
     // Override approval config for read-only commands (never run conversations)
     // This avoids needing to set up unused approval handlers
@@ -1198,13 +1202,35 @@ program
                     // This prevents "Expected string, received null" errors for optional fields
                     const cleanedConfig = cleanNullValues(mergedConfig);
 
-                    // Enrich config with per-agent paths BEFORE validation
+                    // Load image first to get bundled plugins
+                    // Priority: CLI flag > Agent config > Environment variable > Default
+                    const imageNameForEnrichment =
+                        opts.image || // --image flag
+                        cleanedConfig.image || // image field in agent config
+                        process.env.DEXTO_IMAGE || // DEXTO_IMAGE env var
+                        '@dexto/image-local'; // Default for convenience
+
+                    let imageMetadataForEnrichment: { bundledPlugins?: string[] } | null = null;
+                    try {
+                        const imageModule = await import(imageNameForEnrichment);
+                        imageMetadataForEnrichment = imageModule.imageMetadata || null;
+                        logger.debug(`Loaded image for enrichment: ${imageNameForEnrichment}`);
+                    } catch (err) {
+                        console.error(`❌ Failed to load image '${imageNameForEnrichment}'`);
+                        if (err instanceof Error) {
+                            logger.debug(`Image load error: ${err.message}`);
+                        }
+                        safeExit('main', 1, 'image-load-failed');
+                    }
+
+                    // Enrich config with per-agent paths and bundled plugins BEFORE validation
                     // Enrichment adds filesystem paths to storage (schema has in-memory defaults)
                     // Interactive CLI mode: only log to file (console would interfere with chat UI)
                     const isInteractiveCli = opts.mode === 'cli' && !headlessInput;
                     const enrichedConfig = enrichAgentConfig(cleanedConfig, resolvedPath, {
                         isInteractiveCli,
                         logLevel: 'info', // CLI uses info-level logging for visibility
+                        bundledPlugins: imageMetadataForEnrichment?.bundledPlugins || [],
                     });
 
                     // Validate enriched config with interactive setup if needed (for API key issues)
@@ -1231,40 +1257,16 @@ program
                         safeExit('main', 1, 'config-validation-failed');
                     }
 
-                    // ——— LOAD IMAGE DYNAMICALLY (if specified) ———
-                    // Priority: CLI flag > Agent config > Environment variable > Default
-                    // Images are optional, but default to image-local for convenience
-                    const imageName =
-                        opts.image || // --image flag
-                        validatedConfig.image || // image field in agent config
-                        process.env.DEXTO_IMAGE || // DEXTO_IMAGE env var
-                        '@dexto/image-local'; // Default for convenience
-
-                    try {
-                        await import(imageName);
-                        logger.debug(`Loaded image: ${imageName}`);
-                    } catch (err) {
-                        console.error(`❌ Failed to load image '${imageName}'`);
-                        console.error(
-                            `💡 Install it with: ${
-                                existsSync('package.json') ? 'npm install' : 'npm install -g'
-                            } ${imageName}`
-                        );
-                        if (err instanceof Error) {
-                            logger.debug(`Image load error: ${err.message}`);
-                        }
-                        safeExit('main', 1, 'image-load-failed');
-                    }
-
                     // Validate that if config specifies an image, it matches what was loaded
                     // Skip this check if user explicitly provided --image flag (intentional override)
+                    // Note: Image was already loaded earlier before enrichment
                     if (
                         !opts.image &&
                         validatedConfig.image &&
-                        validatedConfig.image !== imageName
+                        validatedConfig.image !== imageNameForEnrichment
                     ) {
                         console.error(
-                            `❌ Config specifies image '${validatedConfig.image}' but '${imageName}' was loaded instead`
+                            `❌ Config specifies image '${validatedConfig.image}' but '${imageNameForEnrichment}' was loaded instead`
                         );
                         console.error(
                             `💡 Either remove 'image' from config or ensure it matches the loaded image`

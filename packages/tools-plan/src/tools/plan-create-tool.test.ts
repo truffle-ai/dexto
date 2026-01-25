@@ -110,30 +110,12 @@ describe('plan_create tool', () => {
                 path: string;
                 status: string;
                 title: string;
-                checkpoints: number;
             };
 
             expect(result.success).toBe(true);
             expect(result.path).toBe(`.dexto/plans/${sessionId}/plan.md`);
             expect(result.status).toBe('draft');
             expect(result.title).toBe(title);
-            expect(result.checkpoints).toBe(0);
-        });
-
-        it('should create plan with checkpoints', async () => {
-            const tool = createPlanCreateTool(planService);
-            const sessionId = 'test-session';
-            const checkpoints = [
-                { id: 'cp1', description: 'Setup' },
-                { id: 'cp2', description: 'Implement' },
-            ];
-
-            const result = (await tool.execute(
-                { title: 'Plan', content: '# Plan', checkpoints },
-                { sessionId }
-            )) as { checkpoints: number };
-
-            expect(result.checkpoints).toBe(2);
         });
 
         it('should throw error when sessionId is missing', async () => {

@@ -15,12 +15,11 @@ import { PlanService } from './plan-service.js';
 import { createPlanCreateTool } from './tools/plan-create-tool.js';
 import { createPlanReadTool } from './tools/plan-read-tool.js';
 import { createPlanUpdateTool } from './tools/plan-update-tool.js';
-import { createPlanStatusTool } from './tools/plan-status-tool.js';
 
 /**
  * Available plan tool names for enabledTools configuration
  */
-const PLAN_TOOL_NAMES = ['plan_create', 'plan_read', 'plan_update', 'plan_status'] as const;
+const PLAN_TOOL_NAMES = ['plan_create', 'plan_read', 'plan_update'] as const;
 type PlanToolName = (typeof PLAN_TOOL_NAMES)[number];
 
 /**
@@ -47,8 +46,14 @@ type PlanToolsConfig = z.output<typeof PlanToolsConfigSchema>;
 /**
  * Plan tools provider
  *
- * Provides implementation planning tools for creating and managing
- * session-linked plans with approval workflows.
+ * Provides implementation planning tools:
+ * - plan_create: Create a new plan with markdown content
+ * - plan_read: Read the current plan
+ * - plan_update: Update existing plan (shows diff preview)
+ *
+ * Plans are stored in .dexto/plans/{sessionId}/ with:
+ * - plan.md: Markdown content with checkboxes (- [ ] and - [x])
+ * - plan-meta.json: Metadata (status, title, timestamps)
  */
 export const planToolsProvider: CustomToolProvider<'plan-tools', PlanToolsConfig> = {
     type: 'plan-tools',
@@ -71,7 +76,6 @@ export const planToolsProvider: CustomToolProvider<'plan-tools', PlanToolsConfig
             plan_create: () => createPlanCreateTool(planService),
             plan_read: () => createPlanReadTool(planService),
             plan_update: () => createPlanUpdateTool(planService),
-            plan_status: () => createPlanStatusTool(planService),
         };
 
         // Determine which tools to create

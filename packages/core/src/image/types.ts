@@ -242,6 +242,8 @@ export interface ImageMetadata {
     coreVersion: string;
     /** Base image this extends (if any) */
     extends?: string;
+    /** Bundled plugin paths (absolute paths to plugin directories) */
+    bundledPlugins?: string[];
 }
 
 /**

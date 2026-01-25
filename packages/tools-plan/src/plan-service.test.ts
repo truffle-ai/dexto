@@ -78,28 +78,6 @@ describe('PlanService', () => {
             expect(plan.meta.updatedAt).toBeGreaterThan(0);
         });
 
-        it('should create a plan with checkpoints', async () => {
-            const sessionId = 'test-session';
-            const checkpoints = [
-                { id: 'cp1', description: 'Setup database' },
-                { id: 'cp2', description: 'Implement API' },
-            ];
-
-            const plan = await planService.create(sessionId, '# Plan', { checkpoints });
-
-            expect(plan.meta.checkpoints).toHaveLength(2);
-            expect(plan.meta.checkpoints![0]).toEqual({
-                id: 'cp1',
-                description: 'Setup database',
-                status: 'pending',
-            });
-            expect(plan.meta.checkpoints![1]).toEqual({
-                id: 'cp2',
-                description: 'Implement API',
-                status: 'pending',
-            });
-        });
-
         it('should throw error when plan already exists', async () => {
             const sessionId = 'test-session';
             await planService.create(sessionId, '# First Plan');
@@ -245,45 +223,6 @@ describe('PlanService', () => {
             } catch (error) {
                 expect(error).toBeInstanceOf(DextoRuntimeError);
                 expect((error as DextoRuntimeError).code).toBe(PlanErrorCode.PLAN_NOT_FOUND);
-            }
-        });
-    });
-
-    describe('updateCheckpoint', () => {
-        it('should update checkpoint status', async () => {
-            const sessionId = 'test-session';
-            const checkpoints = [{ id: 'cp1', description: 'First' }];
-            await planService.create(sessionId, '# Plan', { checkpoints });
-
-            const meta = await planService.updateCheckpoint(sessionId, 'cp1', 'done');
-
-            expect(meta.checkpoints![0]!.status).toBe('done');
-        });
-
-        it('should throw error when checkpoint does not exist', async () => {
-            const sessionId = 'test-session';
-            const checkpoints = [{ id: 'cp1', description: 'First' }];
-            await planService.create(sessionId, '# Plan', { checkpoints });
-
-            try {
-                await planService.updateCheckpoint(sessionId, 'non-existent', 'done');
-                expect.fail('Should have thrown an error');
-            } catch (error) {
-                expect(error).toBeInstanceOf(DextoRuntimeError);
-                expect((error as DextoRuntimeError).code).toBe(PlanErrorCode.CHECKPOINT_NOT_FOUND);
-            }
-        });
-
-        it('should throw error when plan has no checkpoints', async () => {
-            const sessionId = 'test-session';
-            await planService.create(sessionId, '# Plan');
-
-            try {
-                await planService.updateCheckpoint(sessionId, 'cp1', 'done');
-                expect.fail('Should have thrown an error');
-            } catch (error) {
-                expect(error).toBeInstanceOf(DextoRuntimeError);
-                expect((error as DextoRuntimeError).code).toBe(PlanErrorCode.CHECKPOINT_NOT_FOUND);
             }
         });
     });

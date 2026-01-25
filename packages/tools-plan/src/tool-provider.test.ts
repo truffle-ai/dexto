@@ -130,12 +130,11 @@ describe('planToolsProvider', () => {
 
             const tools = planToolsProvider.create(config, createMockContext(mockLogger));
 
-            expect(tools).toHaveLength(4);
+            expect(tools).toHaveLength(3);
             const toolIds = tools.map((t) => t.id);
             expect(toolIds).toContain('plan_create');
             expect(toolIds).toContain('plan_read');
             expect(toolIds).toContain('plan_update');
-            expect(toolIds).toContain('plan_status');
         });
 
         it('should create only enabled tools', () => {
@@ -151,19 +150,18 @@ describe('planToolsProvider', () => {
             expect(toolIds).toContain('plan_create');
             expect(toolIds).toContain('plan_read');
             expect(toolIds).not.toContain('plan_update');
-            expect(toolIds).not.toContain('plan_status');
         });
 
         it('should create single tool', () => {
             const config = planToolsProvider.configSchema.parse({
                 type: 'plan-tools',
-                enabledTools: ['plan_status'],
+                enabledTools: ['plan_update'],
             });
 
             const tools = planToolsProvider.create(config, createMockContext(mockLogger));
 
             expect(tools).toHaveLength(1);
-            expect(tools[0]!.id).toBe('plan_status');
+            expect(tools[0]!.id).toBe('plan_update');
         });
 
         it('should use relative basePath from cwd', () => {

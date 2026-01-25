@@ -19,7 +19,7 @@ export function createPlanReadTool(planService: PlanService): InternalTool {
     return {
         id: 'plan_read',
         description:
-            'Read the current implementation plan for this session. Returns the plan content and metadata including status and checkpoints.',
+            'Read the current implementation plan for this session. Returns the plan content and metadata including status. Use markdown checkboxes (- [ ] and - [x]) in the content to track progress.',
         inputSchema: PlanReadInputSchema,
 
         execute: async (_input: unknown, context?: ToolExecutionContext) => {
@@ -42,7 +42,6 @@ export function createPlanReadTool(planService: PlanService): InternalTool {
                 content: plan.content,
                 status: plan.meta.status,
                 title: plan.meta.title,
-                checkpoints: plan.meta.checkpoints,
                 createdAt: new Date(plan.meta.createdAt).toISOString(),
                 updatedAt: new Date(plan.meta.updatedAt).toISOString(),
             };

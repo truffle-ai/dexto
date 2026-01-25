@@ -12,13 +12,7 @@ import * as path from 'node:path';
 import { existsSync } from 'node:fs';
 import type { IDextoLogger } from '@dexto/core';
 import { PlanMetaSchema } from './types.js';
-import type {
-    Plan,
-    PlanMeta,
-    PlanServiceOptions,
-    PlanUpdateResult,
-    CheckpointStatus,
-} from './types.js';
+import type { Plan, PlanMeta, PlanServiceOptions, PlanUpdateResult } from './types.js';
 import { PlanError } from './errors.js';
 
 const PLAN_FILENAME = 'plan.md';
@@ -71,11 +65,7 @@ export class PlanService {
      * @throws PlanError.planAlreadyExists if plan already exists
      * @throws PlanError.storageError on filesystem errors
      */
-    async create(
-        sessionId: string,
-        content: string,
-        options?: { title?: string; checkpoints?: Array<{ id: string; description: string }> }
-    ): Promise<Plan> {
+    async create(sessionId: string, content: string, options?: { title?: string }): Promise<Plan> {
         // Check if plan already exists
         if (await this.exists(sessionId)) {
             throw PlanError.planAlreadyExists(sessionId);
@@ -91,11 +81,6 @@ export class PlanService {
             title: options?.title,
             createdAt: now,
             updatedAt: now,
-            checkpoints: options?.checkpoints?.map((cp) => ({
-                id: cp.id,
-                description: cp.description,
-                status: 'pending' as const,
-            })),
         };
 
         try {
@@ -200,14 +185,14 @@ export class PlanService {
     }
 
     /**
-     * Updates the plan metadata (status, checkpoints, etc.)
+     * Updates the plan metadata (status, title)
      *
      * @throws PlanError.planNotFound if plan doesn't exist
      * @throws PlanError.storageError on filesystem errors
      */
     async updateMeta(
         sessionId: string,
-        updates: Partial<Pick<PlanMeta, 'status' | 'title' | 'checkpoints'>>
+        updates: Partial<Pick<PlanMeta, 'status' | 'title'>>
     ): Promise<PlanMeta> {
         const existing = await this.read(sessionId);
         if (!existing) {
@@ -233,44 +218,6 @@ export class PlanService {
         } catch (error) {
             throw PlanError.storageError('update metadata', sessionId, error as Error);
         }
-    }
-
-    /**
-     * Updates a specific checkpoint's status
-     *
-     * @throws PlanError.planNotFound if plan doesn't exist
-     * @throws PlanError.checkpointNotFound if checkpoint doesn't exist
-     * @throws PlanError.storageError on filesystem errors
-     */
-    async updateCheckpoint(
-        sessionId: string,
-        checkpointId: string,
-        status: CheckpointStatus
-    ): Promise<PlanMeta> {
-        const existing = await this.read(sessionId);
-        if (!existing) {
-            throw PlanError.planNotFound(sessionId);
-        }
-
-        const checkpoints = existing.meta.checkpoints;
-        if (!checkpoints) {
-            throw PlanError.checkpointNotFound(checkpointId, sessionId);
-        }
-
-        const checkpointIndex = checkpoints.findIndex((cp) => cp.id === checkpointId);
-        if (checkpointIndex === -1) {
-            throw PlanError.checkpointNotFound(checkpointId, sessionId);
-        }
-
-        // Update the checkpoint - existingCheckpoint is guaranteed to exist since we found its index
-        const existingCheckpoint = checkpoints[checkpointIndex]!;
-        const updatedCheckpoints: typeof checkpoints = checkpoints.map((cp, index) =>
-            index === checkpointIndex
-                ? { id: existingCheckpoint.id, description: existingCheckpoint.description, status }
-                : cp
-        );
-
-        return this.updateMeta(sessionId, { checkpoints: updatedCheckpoints });
     }
 
     /**

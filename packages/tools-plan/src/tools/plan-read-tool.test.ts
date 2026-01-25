@@ -83,28 +83,6 @@ describe('plan_read tool', () => {
             expect(result.path).toBe(`.dexto/plans/${sessionId}/plan.md`);
         });
 
-        it('should return checkpoints when present', async () => {
-            const tool = createPlanReadTool(planService);
-            const sessionId = 'test-session';
-            const checkpoints = [
-                { id: 'cp1', description: 'First checkpoint' },
-                { id: 'cp2', description: 'Second checkpoint' },
-            ];
-
-            await planService.create(sessionId, '# Plan', { checkpoints });
-
-            const result = (await tool.execute({}, { sessionId })) as {
-                checkpoints: Array<{ id: string; description: string; status: string }>;
-            };
-
-            expect(result.checkpoints).toHaveLength(2);
-            expect(result.checkpoints[0]).toEqual({
-                id: 'cp1',
-                description: 'First checkpoint',
-                status: 'pending',
-            });
-        });
-
         it('should return ISO timestamps', async () => {
             const tool = createPlanReadTool(planService);
             const sessionId = 'test-session';

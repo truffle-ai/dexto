@@ -42,15 +42,7 @@ export { planToolsProvider } from './tool-provider.js';
 export { PlanService } from './plan-service.js';
 
 // Types
-export type {
-    Plan,
-    PlanMeta,
-    PlanStatus,
-    Checkpoint,
-    CheckpointStatus,
-    PlanServiceOptions,
-    PlanUpdateResult,
-} from './types.js';
+export type { Plan, PlanMeta, PlanStatus, PlanServiceOptions, PlanUpdateResult } from './types.js';
 
 // Error utilities
 export { PlanError, PlanErrorCode } from './errors.js';

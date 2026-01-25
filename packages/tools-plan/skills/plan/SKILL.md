@@ -13,14 +13,13 @@ You are now in planning mode. You have access to plan management tools for creat
 - **plan_create**: Create a new implementation plan for this session (requires approval)
 - **plan_read**: Read the current plan for this session
 - **plan_update**: Update the existing plan (requires approval, shows diff)
-- **plan_status**: Update plan status or mark checkpoints complete
 
 ## Planning Workflow
 
 1. **Check existing plan**: First use `plan_read` to see if a plan already exists for this session
 2. **Create or update**: Based on the task, create a new plan or update the existing one
 3. **Get approval**: Plans are shown for user approval before saving
-4. **Track progress**: Update checkpoint status as you implement
+4. **Track progress**: Update the plan markdown to check off completed tasks (`- [ ]` → `- [x]`)
 
 ## Plan Structure
 
@@ -60,6 +59,14 @@ Files: `path/to/file.ts`
 - **Consider edge cases** and error handling scenarios
 - **Keep plans concise** but complete enough to follow
 
+## Tracking Progress
+
+Use markdown checkboxes to track implementation progress:
+- `- [ ]` for incomplete tasks
+- `- [x]` for completed tasks
+
+When you complete a task, use `plan_update` to check off the box. The diff preview will show your progress clearly.
+
 ## Example Usage
 
 ```
@@ -68,10 +75,10 @@ User: "Add user authentication to the app"
 1. Use plan_read to check for existing plan
 2. If no plan exists, use plan_create with:
    - Title: "Add User Authentication"
-   - Steps for: database schema, auth routes, middleware, UI components
-   - Checkpoints for each major milestone
+   - Content with clear steps using markdown checkboxes
+   - File paths for each step
 3. After approval, begin implementation
-4. Use plan_status to update checkpoints as you complete them
+4. As you complete tasks, use plan_update to check off boxes
 ```
 
 ---
