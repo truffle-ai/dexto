@@ -403,7 +403,9 @@ describe('ConfigPromptProvider', () => {
             expect(result.prompts[0]).toMatchObject({
                 // name: field in frontmatter should be used as id
                 name: 'config:my-plugin:test-skill',
-                displayName: 'my-plugin:test-skill',
+                // displayName is now just the skill id (without namespace prefix)
+                // commandName (computed by PromptManager) handles collision resolution
+                displayName: 'test-skill',
                 description: 'A test skill using Claude Code SKILL.md format with name field.',
                 source: 'config',
             });

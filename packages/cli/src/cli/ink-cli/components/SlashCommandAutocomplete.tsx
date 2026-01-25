@@ -426,11 +426,10 @@ const SlashCommandAutocompleteInner = forwardRef<
                         // Load system command into input
                         onLoadIntoInput?.(`/${item.command.name}`);
                     } else {
-                        // Load prompt command into input
-                        // Use displayName only if it's command-safe (no spaces/special chars)
-                        const promptDisplayName = item.prompt.displayName || item.prompt.name;
-                        const isCommandSafe = /^[A-Za-z0-9_-]+$/.test(promptDisplayName);
-                        const commandName = isCommandSafe ? promptDisplayName : item.prompt.name;
+                        // Load prompt command into input using pre-computed commandName
+                        // commandName is collision-resolved by PromptManager (e.g., "plan" or "config:plan")
+                        const cmdName =
+                            item.prompt.commandName || item.prompt.displayName || item.prompt.name;
                         const argsString =
                             item.prompt.arguments && item.prompt.arguments.length > 0
                                 ? ' ' +
@@ -438,7 +437,7 @@ const SlashCommandAutocompleteInner = forwardRef<
                                       .map((arg) => `<${arg.name}${arg.required ? '' : '?'}>`)
                                       .join(' ')
                                 : '';
-                        onLoadIntoInput?.(`/${commandName}${argsString}`);
+                        onLoadIntoInput?.(`/${cmdName}${argsString}`);
                     }
                     return true;
                 }
@@ -538,6 +537,8 @@ const SlashCommandAutocompleteInner = forwardRef<
                 const prompt = item.prompt;
                 // Use displayName for user-friendly display, fall back to full name
                 const displayName = prompt.displayName || prompt.name;
+                // Check if there's a collision (commandName includes source prefix)
+                const hasCollision = prompt.commandName && prompt.commandName !== displayName;
                 const nameText = `/${displayName}`;
                 const argsString =
                     prompt.arguments && prompt.arguments.length > 0
@@ -552,7 +553,10 @@ const SlashCommandAutocompleteInner = forwardRef<
                 // Line 1: /command-name <args>
                 // Line 2:     Description text (source)
                 const commandText = nameText + argsString;
-                const sourceLabel = prompt.source || 'prompt';
+                // Show source as label, with collision indicator if needed
+                const sourceLabel = hasCollision
+                    ? `${prompt.source} - use /${prompt.commandName}`
+                    : prompt.source || 'prompt';
 
                 return (
                     <Box key={`prompt-${prompt.name}`} flexDirection="column" paddingX={0}>

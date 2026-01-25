@@ -360,7 +360,30 @@ export class PromptManager {
                         p.metadata.serverName === serverName
                 );
 
+                // Compute displayName counts including existing prompts for collision detection
+                const displayNameCounts = new Map<string, number>();
+                for (const entry of this.promptIndex.values()) {
+                    const displayName = entry.info.displayName || entry.info.name;
+                    displayNameCounts.set(
+                        displayName,
+                        (displayNameCounts.get(displayName) || 0) + 1
+                    );
+                }
                 for (const prompt of serverPrompts) {
+                    const displayName = prompt.displayName || prompt.name;
+                    displayNameCounts.set(
+                        displayName,
+                        (displayNameCounts.get(displayName) || 0) + 1
+                    );
+                }
+
+                // Compute commandName and insert each new prompt
+                for (const prompt of serverPrompts) {
+                    const displayName = prompt.displayName || prompt.name;
+                    const hasCollision = (displayNameCounts.get(displayName) || 0) > 1;
+                    prompt.commandName = hasCollision
+                        ? `${prompt.source}:${displayName}`
+                        : displayName;
                     this.insertPrompt(this.promptIndex, this.aliasMap, 'mcp', prompt);
                 }
             } catch (error) {
@@ -446,17 +469,41 @@ export class PromptManager {
         const index = new Map<string, PromptCacheEntry>();
         const aliases = new Map<string, string>();
 
+        // Phase 1: Collect all prompts from providers
+        const collectedPrompts: Array<{ providerName: string; prompt: PromptInfo }> = [];
+
         for (const [providerName, provider] of this.providers) {
             try {
                 const { prompts } = await provider.listPrompts();
                 for (const prompt of prompts) {
-                    this.insertPrompt(index, aliases, providerName, prompt);
+                    collectedPrompts.push({ providerName, prompt });
                 }
             } catch (error) {
                 this.logger.error(
                     `Failed to get prompts from ${providerName} provider: ${error instanceof Error ? error.message : String(error)}`
                 );
             }
+        }
+
+        // Phase 2: Detect displayName collisions
+        const displayNameCounts = new Map<string, number>();
+        for (const { prompt } of collectedPrompts) {
+            const displayName = prompt.displayName || prompt.name;
+            displayNameCounts.set(displayName, (displayNameCounts.get(displayName) || 0) + 1);
+        }
+
+        // Phase 3: Compute commandName for each prompt (collision-resolved)
+        for (const { prompt } of collectedPrompts) {
+            const displayName = prompt.displayName || prompt.name;
+            const hasCollision = (displayNameCounts.get(displayName) || 0) > 1;
+
+            // Compute unique command name: use source prefix only when collision exists
+            prompt.commandName = hasCollision ? `${prompt.source}:${displayName}` : displayName;
+        }
+
+        // Phase 4: Build index and aliases
+        for (const { providerName, prompt } of collectedPrompts) {
+            this.insertPrompt(index, aliases, providerName, prompt);
         }
 
         this.promptIndex = index;
@@ -529,6 +576,11 @@ export class PromptManager {
                     aliases.set(candidate, key);
                 }
             }
+        }
+
+        // Add commandName as alias for resolution (allows resolving by user-facing command)
+        if (entryInfo.commandName && !aliases.has(entryInfo.commandName)) {
+            aliases.set(entryInfo.commandName, key);
         }
     }
 

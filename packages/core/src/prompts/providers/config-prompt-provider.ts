@@ -254,8 +254,7 @@ export class ConfigPromptProvider implements PromptProvider {
             const context = prompt.context ?? parsed.context;
             const agent = prompt.agent ?? parsed.agent;
 
-            // Handle namespace prefixing for plugin commands
-            const displayName = prompt.namespace ? `${prompt.namespace}:${parsed.id}` : parsed.id;
+            const displayName = parsed.id;
             const promptName = prompt.namespace
                 ? `config:${prompt.namespace}:${parsed.id}`
                 : `config:${parsed.id}`;
