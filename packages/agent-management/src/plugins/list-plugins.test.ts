@@ -157,7 +157,7 @@ describe('listInstalledPlugins', () => {
 
             // Should be included because it's user-scoped
             expect(result).toHaveLength(1);
-            expect(result[0].name).toBe('test-plugin');
+            expect(result[0]!.name).toBe('test-plugin');
         });
 
         it('should NOT re-add filtered plugins via cache scanning', () => {
@@ -290,7 +290,7 @@ describe('listInstalledPlugins', () => {
 
             // Should be 1 because it's in cache but not tracked in installed_plugins.json
             expect(result).toHaveLength(1);
-            expect(result[0].name).toBe('legacy-plugin');
+            expect(result[0]!.name).toBe('legacy-plugin');
         });
     });
 });

@@ -117,10 +117,10 @@ export class RuntimeService implements TaskForker {
         const timeout = input.timeout ?? this.config.defaultTimeout;
 
         // Determine autoApprove: explicit input > config-level autoApproveAgents > false
-        let autoApprove = input.autoApprove ?? false;
-        if (!autoApprove && input.agentId && this.config.autoApproveAgents) {
-            autoApprove = this.config.autoApproveAgents.includes(input.agentId);
-        }
+        const autoApprove =
+            input.autoApprove !== undefined
+                ? input.autoApprove
+                : !!(input.agentId && this.config.autoApproveAgents?.includes(input.agentId));
 
         // Try with sub-agent's config first, fall back to parent's LLM if it fails
         const result = await this.trySpawnWithFallback(

@@ -108,6 +108,17 @@ export class PluginError {
         );
     }
 
+    static invalidScope(scope: unknown) {
+        return new DextoRuntimeError(
+            PluginErrorCode.INSTALL_INVALID_SCOPE,
+            ErrorScope.CONFIG,
+            ErrorType.USER,
+            `Invalid installation scope: ${scope}. Must be 'user', 'project', or 'local'.`,
+            { scope },
+            "Check the scope parameter is one of: 'user', 'project', 'local'"
+        );
+    }
+
     // Uninstallation errors
     static uninstallNotFound(pluginName: string, hint?: string) {
         return new DextoRuntimeError(

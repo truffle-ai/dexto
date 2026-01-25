@@ -201,7 +201,7 @@ export async function installPluginFromPath(
             isLocal = true;
             break;
         default:
-            throw new Error(`Unknown scope: ${scope}`);
+            throw PluginError.invalidScope(scope);
     }
 
     // Copy plugin files (unless local scope)

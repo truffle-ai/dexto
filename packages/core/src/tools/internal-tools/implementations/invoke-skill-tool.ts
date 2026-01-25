@@ -67,10 +67,11 @@ export function createInvokeSkillTool(services: InternalToolsServices): Internal
             for (const key of Object.keys(autoInvocable)) {
                 const info = autoInvocable[key];
                 if (!info) continue;
-                // Match by full key, displayName, or name
+                // Match by full key, displayName, commandName, or name
                 if (
                     key === skill ||
                     info.displayName === skill ||
+                    info.commandName === skill ||
                     info.name === skill ||
                     info.name === `config:${skill}`
                 ) {

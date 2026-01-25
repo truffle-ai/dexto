@@ -20,6 +20,7 @@ export enum PluginErrorCode {
     INSTALL_ALREADY_EXISTS = 'plugin_install_already_exists',
     INSTALL_COPY_FAILED = 'plugin_install_copy_failed',
     INSTALL_MANIFEST_WRITE_FAILED = 'plugin_install_manifest_write_failed',
+    INSTALL_INVALID_SCOPE = 'plugin_install_invalid_scope',
 
     // Uninstallation errors
     UNINSTALL_NOT_FOUND = 'plugin_uninstall_not_found',
