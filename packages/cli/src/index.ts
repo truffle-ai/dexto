@@ -1490,7 +1490,7 @@ program
                                 if (p.isCancel(shouldSync) || !shouldSync) {
                                     await markSyncDismissed(pkg.version);
                                 } else {
-                                    await handleSyncAgentsCommand({ force: true });
+                                    await handleSyncAgentsCommand({ force: true, quiet: true });
                                     await clearSyncDismissed();
                                 }
                             }

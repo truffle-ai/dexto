@@ -22,6 +22,8 @@ export interface SyncAgentsCommandOptions {
     list?: boolean;
     /** Update all without prompting */
     force?: boolean;
+    /** Minimal output - used when called from startup prompt */
+    quiet?: boolean;
 }
 
 /**
@@ -365,9 +367,11 @@ function formatStatus(status: AgentStatus): string {
  * ```
  */
 export async function handleSyncAgentsCommand(options: SyncAgentsCommandOptions): Promise<void> {
-    const { list = false, force = false } = options;
+    const { list = false, force = false, quiet = false } = options;
 
-    p.intro(chalk.cyan('Agent Sync'));
+    if (!quiet) {
+        p.intro(chalk.cyan('Agent Sync'));
+    }
 
     const spinner = p.spinner();
     spinner.start('Checking agent configs...');
@@ -403,18 +407,52 @@ export async function handleSyncAgentsCommand(options: SyncAgentsCommandOptions)
             });
         }
 
-        spinner.stop('Agent check complete');
-
-        // Display status
-        console.log('');
-        console.log(chalk.bold('Agent Status:'));
-        console.log('');
-
         const updatableAgents = agentInfos.filter((a) => a.status === 'changes_available');
         const upToDateAgents = agentInfos.filter((a) => a.status === 'up_to_date');
         const notInstalledAgents = agentInfos.filter((a) => a.status === 'not_installed');
         const customAgents = agentInfos.filter((a) => a.status === 'custom');
         const errorAgents = agentInfos.filter((a) => a.status === 'error');
+
+        spinner.stop('Agent check complete');
+
+        // Quiet mode with force - minimal output for startup prompt
+        if (quiet && force) {
+            if (updatableAgents.length === 0) {
+                p.log.success('All agents up to date');
+                return;
+            }
+
+            const updatedNames: string[] = [];
+            const failedNames: string[] = [];
+
+            for (const agent of updatableAgents) {
+                const entry = bundledAgents[agent.id];
+                if (entry) {
+                    try {
+                        await updateAgent(agent.id, entry);
+                        updatedNames.push(agent.id);
+                    } catch (error) {
+                        failedNames.push(agent.id);
+                        logger.debug(
+                            `Failed to update ${agent.id}: ${error instanceof Error ? error.message : String(error)}`
+                        );
+                    }
+                }
+            }
+
+            if (updatedNames.length > 0) {
+                p.log.success(`Updated: ${updatedNames.join(', ')}`);
+            }
+            if (failedNames.length > 0) {
+                p.log.warn(`Failed to update: ${failedNames.join(', ')}`);
+            }
+            return;
+        }
+
+        // Display full status (non-quiet mode)
+        console.log('');
+        console.log(chalk.bold('Agent Status:'));
+        console.log('');
 
         // Show updatable first
         for (const agent of updatableAgents) {
