@@ -411,6 +411,9 @@ export interface UIState {
     promptAddWizard: PromptAddWizardState | null; // Prompt add wizard state
     autoApproveEdits: boolean; // True when edit mode is on (auto-approve edit_file/write_file)
     todoExpanded: boolean; // True when todo list is expanded (shows all tasks), false when collapsed (shows current task only)
+    // Plan mode state (Shift+Tab toggle)
+    planModeActive: boolean; // True when plan mode indicator is shown
+    planModeInitialized: boolean; // True after first message sent in plan mode (prevents re-injection)
 }
 
 /**

@@ -34,6 +34,15 @@ import { MarkdownText } from '../shared/MarkdownText.js';
 import { ToolIcon } from './ToolIcon.js';
 
 /**
+ * Strip <plan-mode>...</plan-mode> tags from content.
+ * Plan mode instructions are injected for the LLM but should not be shown in the UI.
+ */
+function stripPlanModeTags(content: string): string {
+    // Remove <plan-mode>...</plan-mode> including any surrounding whitespace
+    return content.replace(/<plan-mode>[\s\S]*?<\/plan-mode>\s*/g, '').trim();
+}
+
+/**
  * Format milliseconds into a compact human-readable string
  * Examples: "1.2s", "1m 23s", "1h 2m"
  */
@@ -114,12 +123,14 @@ export const MessageItem = memo(
         }
 
         // User message: '>' prefix with gray background
+        // Strip plan-mode tags before display (plan instructions are for LLM, not user)
         // Properly wrap text accounting for prefix "> " (2 chars) and paddingX={1} (2 chars total)
         if (message.role === 'user') {
             const prefix = '> ';
             const paddingChars = 2; // paddingX={1} = 1 char on each side
             const availableWidth = Math.max(20, terminalWidth - prefix.length - paddingChars);
-            const wrappedContent = wrapAnsi(message.content, availableWidth, {
+            const displayContent = stripPlanModeTags(message.content);
+            const wrappedContent = wrapAnsi(displayContent, availableWidth, {
                 hard: true,
                 wordWrap: true,
                 trim: false,

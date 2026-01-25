@@ -519,10 +519,35 @@ export function useInputOrchestrator({
                 return;
             }
 
-            // Shift+Tab: Toggle "accept all edits" mode (when not in approval modal)
-            // Note: When in approval modal for edit/write tools, ApprovalPrompt handles this
+            // Shift+Tab: Cycle through modes (when not in approval modal)
+            // Modes: Normal → Plan Mode → Accept All Edits → Normal
+            // Note: When in approval modal for edit/write tools, ApprovalPrompt handles Shift+Tab differently
             if (key.shift && key.tab && currentApproval === null) {
-                setUi((prev) => ({ ...prev, autoApproveEdits: !prev.autoApproveEdits }));
+                setUi((prev) => {
+                    // Determine current mode and cycle to next
+                    if (!prev.planModeActive && !prev.autoApproveEdits) {
+                        // Normal → Plan Mode
+                        return {
+                            ...prev,
+                            planModeActive: true,
+                            planModeInitialized: false,
+                        };
+                    } else if (prev.planModeActive) {
+                        // Plan Mode → Accept All Edits
+                        return {
+                            ...prev,
+                            planModeActive: false,
+                            planModeInitialized: false,
+                            autoApproveEdits: true,
+                        };
+                    } else {
+                        // Accept All Edits → Normal
+                        return {
+                            ...prev,
+                            autoApproveEdits: false,
+                        };
+                    }
+                });
                 return;
             }
 
