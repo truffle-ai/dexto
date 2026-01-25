@@ -22,7 +22,7 @@ export default function AttachmentPreview({ attachment, onRemove }: AttachmentPr
                     variant="destructive"
                     size="icon"
                     onClick={onRemove}
-                    className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-destructive text-destructive-foreground opacity-0 group-hover:opacity-100 transition-opacity duration-150 shadow-md"
+                    className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-destructive text-destructive-foreground opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity duration-150 shadow-md"
                     aria-label="Remove attachment"
                 >
                     <X className="h-3 w-3" />
@@ -32,7 +32,7 @@ export default function AttachmentPreview({ attachment, onRemove }: AttachmentPr
     }
 
     // File attachment (PDF, audio, etc.)
-    if (attachment.mimeType.startsWith('audio')) {
+    if (attachment.mimeType?.startsWith('audio')) {
         return (
             <div className="relative border border-border rounded-lg p-2 bg-muted/50 flex items-center gap-2 group min-w-[200px]">
                 <FileAudio className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
@@ -53,7 +53,7 @@ export default function AttachmentPreview({ attachment, onRemove }: AttachmentPr
                     variant="destructive"
                     size="icon"
                     onClick={onRemove}
-                    className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-destructive text-destructive-foreground opacity-0 group-hover:opacity-100 transition-opacity duration-150 shadow-md flex-shrink-0"
+                    className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-destructive text-destructive-foreground opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity duration-150 shadow-md flex-shrink-0"
                     aria-label="Remove attachment"
                 >
                     <X className="h-3 w-3" />
@@ -78,7 +78,7 @@ export default function AttachmentPreview({ attachment, onRemove }: AttachmentPr
                 variant="destructive"
                 size="icon"
                 onClick={onRemove}
-                className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-destructive text-destructive-foreground opacity-0 group-hover:opacity-100 transition-opacity duration-150 shadow-md"
+                className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-destructive text-destructive-foreground opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity duration-150 shadow-md"
                 aria-label="Remove attachment"
             >
                 <X className="h-3 w-3" />

@@ -653,16 +653,12 @@ export default function InputArea({
                 (att) => att.filename === file.name && att.size === file.size
             );
             if (isDuplicate) {
-                const proceed = files.length === 1; // Auto-proceed for single file paste
-                if (!proceed) {
-                    rejectedFiles.push({ file, reason: 'duplicate' });
-                    errors.push({
-                        filename: file.name,
-                        reason: 'File already attached (duplicate name and size).',
-                    });
-                    continue;
-                }
-                // Allow duplicate for single file (user explicitly pasted/dropped it)
+                rejectedFiles.push({ file, reason: 'duplicate' });
+                errors.push({
+                    filename: file.name,
+                    reason: 'File already attached (duplicate name and size).',
+                });
+                continue;
             }
 
             // Check file type against supported types
