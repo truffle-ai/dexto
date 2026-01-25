@@ -5,17 +5,24 @@ title: "Overview"
 
 # CLI Overview
 
-This guide helps you get started with the Dexto CLI and includes a comprehensive list of commands you can run with Dexto CLI.
+The Dexto CLI provides two ways to interact with AI agents:
 
-Dexto CLI is the easiest way to get started with AI agents.
+| Mode | What It Is | How to Use |
+|------|------------|------------|
+| **CLI Tool** | Terminal commands for managing agents, sessions, and configuration | `dexto install`, `dexto setup`, `dexto list-agents` |
+| **Interactive Mode** | Chat session with slash commands for real-time control | `/model switch`, `/mcp add`, `/search` |
 
-Some of the cool things you can do with Dexto CLI:
+This guide covers the **CLI Tool** commands. For slash commands available during chat, see [Interactive Commands](./interactive-commands.md).
 
-- Talk to any LLM in your terminal
-- Create long-lived AI agents with tools, knowledge and memories. Example: a productivity agent that integrates with your linear and github.
-- Deploy these agents either locally or on the cloud
-- Talk to these agents on any application - build custom integrations with discord, telegram, slack, etc.
-- Start building your own AI applications - get started with building your own Cursor! `dexto create-app`
+## What You Can Do
+
+- Talk to any LLM in your terminal or browser
+- Create long-lived AI agents with tools, knowledge, and memories
+- Deploy agents locally or on the cloud
+- Build custom integrations with Discord, Telegram, Slack, etc.
+- Scaffold new AI applications with `dexto create-app`
+
+---
 
 ## Main Command
 
@@ -288,92 +295,7 @@ dexto mcp --group-servers --strict
 
 **Note:** In the future, `dexto --mode mcp` will be moved to this subcommand to expose the agent as an MCP server by default.
 
-## Interactive CLI Commands
-
-Once in interactive mode (`dexto`), use these slash commands:
-
-### Help & Navigation
-
-| Command | Description |
-|---------|-------------|
-| `/help [command]` | Show help information for commands |
-| `/docs, /doc` | Open Dexto documentation in browser |
-| `/exit, /quit, /q` | Exit the CLI |
-
-### Conversation Management
-
-| Command | Description |
-|---------|-------------|
-| `/clear, /reset` | Clear current conversation history |
-| `/history` | Show current session history |
-
-### Session Management
-
-| Command | Description |
-|---------|-------------|
-| `/session list` | List all available sessions |
-| `/session history [sessionId]` | Show history for a session |
-| `/session delete <sessionId>` | Delete a specific session |
-
-### Search
-
-| Command | Description |
-|---------|-------------|
-| `/search <query>` | Search across conversation history |
-
-### Model Management
-
-| Command | Description |
-|---------|-------------|
-| `/model list` | List all available LLM models |
-| `/model switch <model>` | Switch to a different LLM model |
-| `/model current` | Show currently active model |
-
-### MCP Server Management
-
-| Command | Description |
-|---------|-------------|
-| `/mcp list` | List connected MCP servers |
-| `/mcp add stdio <name> <cmd> [args...]` | Add stdio MCP server |
-| `/mcp add http <name> <url>` | Add HTTP MCP server |
-| `/mcp add sse <name> <url>` | Add SSE MCP server |
-| `/mcp remove <name>` | Remove MCP server |
-
-### Tool Management
-
-| Command | Description |
-|---------|-------------|
-| `/tools list` | List all available tools from MCP servers |
-| `/tools search <query>` | Search for specific tools |
-
-### Prompts
-
-| Command | Description |
-|---------|-------------|
-| `/prompts` | List all available prompts (custom + MCP) |
-| `/use <prompt> [args]` | Execute a specific prompt template |
-| `/<prompt-name> [args]` | Direct prompt execution shorthand |
-
-### Configuration
-
-| Command | Description |
-|---------|-------------|
-| `/sysprompt` | Display current system prompt |
-| `/config validate` | Validate current configuration |
-| `/config reload` | Reload configuration from file |
-
-### Logging
-
-| Command | Description |
-|---------|-------------|
-| `/log level <level>` | Set log level (debug, info, warn, error) |
-| `/log tail [lines]` | Show recent log entries (default: 20 lines) |
-
-### Statistics
-
-| Command | Description |
-|---------|-------------|
-| `/stats` | Show system statistics (token usage, sessions, etc.) |
+---
 
 ## Common Usage Patterns
 
@@ -542,7 +464,8 @@ dexto session history my-session-id
 
 ## Next Steps
 
-- **[Global Preferences](./global-preferences)** - Configure default settings
+- **[Interactive Commands](./interactive-commands)** - Slash commands for chat sessions
 - **[Agent Registry](/docs/guides/agent-registry)** - Browse available agents
 - **[Agent Configuration](/docs/guides/configuring-dexto/overview)** - Create custom agents
 - **[MCP Integration](/docs/mcp/overview)** - Connect external tools and services
+- **[Global Preferences](./global-preferences)** - Configure system-wide defaults
