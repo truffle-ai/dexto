@@ -79,7 +79,7 @@ Your provider requires an API key that isn't set up yet.
 3. Install the agent: `dexto install <agent-name>`
 4. For custom agents, verify the path exists: `dexto --agent ./path/to/agent.yml`
 
-### Rate limiting errors
+### Rate-limiting errors
 
 You've hit the provider's rate limits.
 

@@ -56,7 +56,7 @@ Done! You're ready to chat.
 | Category | Providers |
 |----------|-----------|
 | **Free Cloud** | Google Gemini, Groq |
-| **Local (No API key)** | Local Models (uses node-llama-cpp), Ollama (requires [Ollama](https://ollama.com) installed) |
+| **Local (No API key)** | Local Models, Ollama (requires [Ollama](https://ollama.com) installed) |
 | **Cloud** | OpenAI, Anthropic, xAI, Cohere |
 | **Gateways** | OpenRouter, Glama, LiteLLM, OpenAI-Compatible |
 | **Enterprise** | Google Vertex AI, AWS Bedrock |

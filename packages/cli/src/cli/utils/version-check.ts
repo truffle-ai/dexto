@@ -95,18 +95,16 @@ async function saveCache(cache: VersionCache): Promise<void> {
  * Fetch latest version from npm registry
  */
 async function fetchLatestVersion(): Promise<string | null> {
-    try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
 
+    try {
         const response = await fetch(NPM_REGISTRY_URL, {
             signal: controller.signal,
             headers: {
                 Accept: 'application/json',
             },
         });
-
-        clearTimeout(timeoutId);
 
         if (!response.ok) {
             logger.debug(`npm registry returned status ${response.status}`);
@@ -121,6 +119,8 @@ async function fetchLatestVersion(): Promise<string | null> {
             `Failed to fetch latest version: ${error instanceof Error ? error.message : String(error)}`
         );
         return null;
+    } finally {
+        clearTimeout(timeoutId);
     }
 }
 
