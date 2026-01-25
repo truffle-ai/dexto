@@ -1247,7 +1247,8 @@ export class ToolManager {
                     `Tool confirmation denied for ${toolName}, sessionId: ${sessionId ?? 'global'}, reason: ${response.reason ?? 'unknown'}`
                 );
                 this.logger.debug(`🚫 Tool execution denied: ${toolName}`);
-                throw ToolError.executionDenied(toolName, sessionId);
+                // Pass through user message (e.g., feedback for plan review)
+                throw ToolError.executionDenied(toolName, sessionId, response.message);
             }
 
             this.logger.info(

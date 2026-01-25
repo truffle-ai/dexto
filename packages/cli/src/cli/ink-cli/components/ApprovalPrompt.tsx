@@ -46,7 +46,7 @@ export interface ApprovalOptions {
 interface ApprovalPromptProps {
     approval: ApprovalRequest;
     onApprove: (options: ApprovalOptions) => void;
-    onDeny: () => void;
+    onDeny: (feedback?: string) => void;
     onCancel: () => void;
 }
 
@@ -62,8 +62,7 @@ type SelectionOption =
     // Plan review specific options
     | 'plan-approve'
     | 'plan-approve-accept-edits'
-    | 'plan-iterate'
-    | 'plan-reject';
+    | 'plan-reject'; // Single reject option with feedback input
 
 /**
  * Compact approval prompt component that displays above the input area
@@ -104,6 +103,10 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
 
         const [selectedIndex, setSelectedIndex] = useState(0);
 
+        // State for plan review feedback input
+        const [showFeedbackInput, setShowFeedbackInput] = useState(false);
+        const [feedbackText, setFeedbackText] = useState('');
+
         // Ref for elicitation form
         const elicitationFormRef = useRef<ElicitationFormHandle>(null);
 
@@ -114,11 +117,10 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
         const options: Array<{ id: SelectionOption; label: string }> = [];
 
         if (isPlanReview) {
-            // Plan review - show plan-specific options
+            // Plan review - show plan-specific options (2 options + feedback input)
             options.push({ id: 'plan-approve', label: 'Approve' });
             options.push({ id: 'plan-approve-accept-edits', label: 'Approve + Accept All Edits' });
-            options.push({ id: 'plan-iterate', label: 'Request Changes' });
-            options.push({ id: 'plan-reject', label: 'Reject' });
+            // Third "option" is the feedback input (handled specially in render)
         } else if (hasBashPatterns) {
             // Bash tool with pattern suggestions
             options.push({ id: 'yes', label: 'Yes (once)' });
@@ -171,14 +173,47 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
                         return elicitationFormRef.current.handleInput(input, key);
                     }
 
+                    // For plan review, calculate total options including feedback input
+                    const totalOptions = isPlanReview ? options.length + 1 : options.length;
+                    const isFeedbackSelected =
+                        isPlanReview && selectedIndexRef.current === options.length;
+
+                    // Handle typing when feedback input is selected
+                    if (isFeedbackSelected) {
+                        if (key.return) {
+                            // Submit rejection with feedback
+                            onDeny(feedbackText || undefined);
+                            return true;
+                        } else if (key.backspace || key.delete) {
+                            setFeedbackText((prev) => prev.slice(0, -1));
+                            return true;
+                        } else if (key.upArrow) {
+                            // Navigate up from feedback input
+                            setSelectedIndex(options.length - 1);
+                            return true;
+                        } else if (key.downArrow) {
+                            // Wrap to first option
+                            setSelectedIndex(0);
+                            return true;
+                        } else if (key.escape) {
+                            onCancel();
+                            return true;
+                        } else if (input && !key.ctrl && !key.meta) {
+                            // Add typed character to feedback
+                            setFeedbackText((prev) => prev + input);
+                            return true;
+                        }
+                        return true; // Consume all input when feedback is selected
+                    }
+
                     if (key.upArrow) {
                         setSelectedIndex((current) =>
-                            current === 0 ? options.length - 1 : current - 1
+                            current === 0 ? totalOptions - 1 : current - 1
                         );
                         return true;
                     } else if (key.downArrow) {
                         setSelectedIndex((current) =>
-                            current === options.length - 1 ? 0 : current + 1
+                            current === totalOptions - 1 ? 0 : current + 1
                         );
                         return true;
                     } else if (key.return) {
@@ -190,11 +225,6 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
                             onApprove({});
                         } else if (option.id === 'plan-approve-accept-edits') {
                             onApprove({ enableAcceptEditsMode: true });
-                        } else if (option.id === 'plan-iterate') {
-                            // Deny the tool - user will provide feedback in next message
-                            onDeny();
-                        } else if (option.id === 'plan-reject') {
-                            onDeny();
                         } else if (option.id === 'yes') {
                             onApprove({});
                         } else if (option.id === 'yes-session') {
@@ -235,11 +265,13 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
                 isElicitation,
                 isEditOrWriteTool,
                 isDirectoryAccess,
+                isPlanReview,
                 options,
                 suggestedPatterns,
                 onApprove,
                 onDeny,
                 onCancel,
+                feedbackText,
             ]
         );
 
@@ -385,6 +417,37 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
                             </Box>
                         );
                     })}
+
+                    {/* Feedback input as third option for plan review */}
+                    {isPlanReview && (
+                        <Box>
+                            {selectedIndex === options.length ? (
+                                // Selected - show editable input
+                                <Box flexDirection="row">
+                                    <Text color="red" bold>
+                                        {'  ▶ '}
+                                    </Text>
+                                    {feedbackText ? (
+                                        <Text color="white">
+                                            {feedbackText}
+                                            <Text color="cyan">▋</Text>
+                                        </Text>
+                                    ) : (
+                                        <Text color="gray">
+                                            What changes would you like?
+                                            <Text color="cyan">▋</Text>
+                                        </Text>
+                                    )}
+                                </Box>
+                            ) : (
+                                // Not selected - show placeholder
+                                <Text color="gray">
+                                    {'    '}
+                                    {feedbackText || 'What changes would you like?'}
+                                </Text>
+                            )}
+                        </Box>
+                    )}
                 </Box>
 
                 {/* Compact instructions */}

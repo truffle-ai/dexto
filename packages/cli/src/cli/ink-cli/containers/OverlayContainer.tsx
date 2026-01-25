@@ -350,19 +350,27 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
             [approval, eventBus, completeApproval, setUi]
         );
 
-        const handleDeny = useCallback(() => {
-            if (!approval || !eventBus) return;
+        const handleDeny = useCallback(
+            (feedback?: string) => {
+                if (!approval || !eventBus) return;
 
-            eventBus.emit('approval:response', {
-                approvalId: approval.approvalId,
-                status: ApprovalStatus.DENIED,
-                sessionId: approval.sessionId,
-                reason: DenialReason.USER_DENIED,
-                message: 'User denied the tool execution',
-            });
+                // Include user feedback in the denial message if provided
+                const message = feedback
+                    ? `User requested changes: ${feedback}`
+                    : 'User denied the tool execution';
 
-            completeApproval();
-        }, [approval, eventBus, completeApproval]);
+                eventBus.emit('approval:response', {
+                    approvalId: approval.approvalId,
+                    status: ApprovalStatus.DENIED,
+                    sessionId: approval.sessionId,
+                    reason: DenialReason.USER_DENIED,
+                    message,
+                });
+
+                completeApproval();
+            },
+            [approval, eventBus, completeApproval]
+        );
 
         const handleCancelApproval = useCallback(() => {
             if (!approval || !eventBus) return;
