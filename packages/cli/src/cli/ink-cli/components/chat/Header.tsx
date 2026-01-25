@@ -71,8 +71,8 @@ export function Header({ modelName, sessionId, hasActiveSession, startupInfo }: 
                 </Box>
             )}
 
-            {/* Log file (hidden in privacy mode) */}
-            {startupInfo.logFile && process.env.DEXTO_PRIVACY_MODE !== 'true' && (
+            {/* Log file (only shown in dev mode) */}
+            {startupInfo.logFile && process.env.DEXTO_DEV_MODE === 'true' && (
                 <Box flexDirection="row">
                     <Text color="gray">Logs: {startupInfo.logFile}</Text>
                 </Box>
