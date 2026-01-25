@@ -27,6 +27,7 @@ const PACKAGES = [
     { name: '@dexto/registry', path: 'packages/registry' },
     { name: '@dexto/tools-filesystem', path: 'packages/tools-filesystem' },
     { name: '@dexto/tools-process', path: 'packages/tools-process' },
+    { name: '@dexto/tools-todo', path: 'packages/tools-todo' },
     { name: '@dexto/image-local', path: 'packages/image-local' },
     { name: '@dexto/agent-management', path: 'packages/agent-management' },
     { name: '@dexto/server', path: 'packages/server' },
