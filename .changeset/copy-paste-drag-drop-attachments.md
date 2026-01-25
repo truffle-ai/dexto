@@ -6,7 +6,7 @@
 Add copy-paste and drag-drop support for multiple file attachments
 
 **New Features:**
-- Support for up to 5 file attachments per message (25MB each, 125MB total)
+- Support for up to 5 file attachments per message (5MB each, 25MB total)
 - Copy-paste files from file manager, screenshots, and images from browser
 - Drag-drop files with visual feedback and drop overlay
 - Multiple file types supported: images, PDFs, and audio files
@@ -19,6 +19,9 @@ Add copy-paste and drag-drop support for multiple file attachments
 - File rejection analytics tracking
 - Keyboard shortcuts: Backspace removes last attachment, Cmd+I focuses input
 - Unified file handler for consistent validation across all input methods
+- Consistent duplicate file rejection across all upload methods (paste/drop/button)
+- Defensive checks for undefined mimeType and malformed data URLs
+- Keyboard accessibility: Remove buttons visible on focus (focus:opacity-100)
 
 **Technical Changes:**
 - Refactored from single image+file to unified `Attachment[]` array
