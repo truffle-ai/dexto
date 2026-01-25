@@ -7,6 +7,15 @@ import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
 import type { ToolDisplayData, ContentPart, McpConnectionStatus, McpServerType } from '@dexto/core';
 
 /**
+ * Update information for version check
+ */
+export interface UpdateInfo {
+    current: string;
+    latest: string;
+    updateCommand: string;
+}
+
+/**
  * Startup information displayed in CLI header
  */
 export interface StartupInfo {
@@ -14,6 +23,10 @@ export interface StartupInfo {
     failedConnections: string[];
     toolCount: number;
     logFile: string | null;
+    /** Update info if a newer version is available */
+    updateInfo?: UpdateInfo | undefined;
+    /** True if installed agents differ from bundled and user should sync */
+    needsAgentSync?: boolean | undefined;
 }
 
 /**
