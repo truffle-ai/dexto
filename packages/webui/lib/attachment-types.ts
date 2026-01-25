@@ -27,10 +27,10 @@ export interface Attachment {
  * Attachment limits and constraints.
  */
 export const ATTACHMENT_LIMITS = {
-    /** Maximum size per file in bytes (25MB) */
-    MAX_FILE_SIZE: 25 * 1024 * 1024,
+    /** Maximum size per file in bytes (5MB) */
+    MAX_FILE_SIZE: 5 * 1024 * 1024,
     /** Maximum number of attachments per message */
     MAX_COUNT: 5,
-    /** Maximum total size of all attachments in bytes (125MB) */
-    MAX_TOTAL_SIZE: 125 * 1024 * 1024,
+    /** Maximum total size of all attachments in bytes (25MB = 5MB × 5 files) */
+    MAX_TOTAL_SIZE: 25 * 1024 * 1024,
 } as const;

@@ -782,13 +782,44 @@ export default function InputArea({
             'Large text detected. Attach as a file instead of inflating the input?\n(OK = attach as file, Cancel = paste truncated preview)'
         );
         if (attach) {
+            // Calculate actual byte size using UTF-8 encoding
+            const textBytes = new TextEncoder().encode(pasted);
+            const byteSize = textBytes.length;
+
+            // Validate against attachment limits BEFORE creating attachment
+            // 1. Check attachment count
+            if (attachments.length >= ATTACHMENT_LIMITS.MAX_COUNT) {
+                showUserError(
+                    `Cannot attach pasted text. Maximum ${ATTACHMENT_LIMITS.MAX_COUNT} attachments allowed (currently ${attachments.length}).`
+                );
+                return;
+            }
+
+            // 2. Check individual file size
+            if (byteSize > ATTACHMENT_LIMITS.MAX_FILE_SIZE) {
+                showUserError(
+                    `Pasted text is too large (${formatFileSize(byteSize)}). Maximum ${formatFileSize(ATTACHMENT_LIMITS.MAX_FILE_SIZE)} per file.`
+                );
+                return;
+            }
+
+            // 3. Check total size
+            const currentTotalSize = attachments.reduce((sum, att) => sum + att.size, 0);
+            if (currentTotalSize + byteSize > ATTACHMENT_LIMITS.MAX_TOTAL_SIZE) {
+                showUserError(
+                    `Total size would exceed ${formatFileSize(ATTACHMENT_LIMITS.MAX_TOTAL_SIZE)}. Current: ${formatFileSize(currentTotalSize)}, Adding: ${formatFileSize(byteSize)}.`
+                );
+                return;
+            }
+
+            // All validations passed - create attachment
             const attachment: Attachment = {
                 id: generateAttachmentId(),
                 type: 'file',
                 data: toBase64(pasted),
                 mimeType: 'text/plain',
                 filename: 'pasted.txt',
-                size: pasted.length,
+                size: byteSize, // Use actual byte size, not character count
                 source: 'paste',
             };
             setAttachments((prev) => [...prev, attachment]);
