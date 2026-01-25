@@ -130,11 +130,12 @@ describe('planToolsProvider', () => {
 
             const tools = planToolsProvider.create(config, createMockContext(mockLogger));
 
-            expect(tools).toHaveLength(3);
+            expect(tools).toHaveLength(4);
             const toolIds = tools.map((t) => t.id);
             expect(toolIds).toContain('plan_create');
             expect(toolIds).toContain('plan_read');
             expect(toolIds).toContain('plan_update');
+            expect(toolIds).toContain('plan_review');
         });
 
         it('should create only enabled tools', () => {

@@ -5,7 +5,7 @@
  * - plan_create: Create a new plan for the session
  * - plan_read: Read the current plan
  * - plan_update: Update the existing plan
- * - plan_status: Update plan status or checkpoints
+ * - plan_review: Request user review of the plan (shows plan content with approval options)
  */
 
 import * as path from 'node:path';
@@ -15,11 +15,12 @@ import { PlanService } from './plan-service.js';
 import { createPlanCreateTool } from './tools/plan-create-tool.js';
 import { createPlanReadTool } from './tools/plan-read-tool.js';
 import { createPlanUpdateTool } from './tools/plan-update-tool.js';
+import { createPlanReviewTool } from './tools/plan-review-tool.js';
 
 /**
  * Available plan tool names for enabledTools configuration
  */
-const PLAN_TOOL_NAMES = ['plan_create', 'plan_read', 'plan_update'] as const;
+const PLAN_TOOL_NAMES = ['plan_create', 'plan_read', 'plan_update', 'plan_review'] as const;
 type PlanToolName = (typeof PLAN_TOOL_NAMES)[number];
 
 /**
@@ -50,6 +51,7 @@ type PlanToolsConfig = z.output<typeof PlanToolsConfigSchema>;
  * - plan_create: Create a new plan with markdown content
  * - plan_read: Read the current plan
  * - plan_update: Update existing plan (shows diff preview)
+ * - plan_review: Request user review of the plan (shows plan with approval options)
  *
  * Plans are stored in .dexto/plans/{sessionId}/ with:
  * - plan.md: Markdown content with checkboxes (- [ ] and - [x])
@@ -76,6 +78,7 @@ export const planToolsProvider: CustomToolProvider<'plan-tools', PlanToolsConfig
             plan_create: () => createPlanCreateTool(planService),
             plan_read: () => createPlanReadTool(planService),
             plan_update: () => createPlanUpdateTool(planService),
+            plan_review: () => createPlanReviewTool(planService),
         };
 
         // Determine which tools to create

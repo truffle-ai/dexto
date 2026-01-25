@@ -4,26 +4,47 @@ description: Enter planning mode to create and manage implementation plans
 user-invocable: true
 ---
 
-# Planning Mode
+# Planning Mode - PLAN FIRST, THEN IMPLEMENT
 
-You are now in planning mode. You have access to plan management tools for creating and tracking implementation plans.
+**CRITICAL**: You are in planning mode. You MUST create and get approval for a plan BEFORE writing any code or making any changes.
+
+## MANDATORY WORKFLOW
+
+**DO NOT skip these steps. DO NOT start implementing until the plan is approved.**
+
+1. **Research first** (if needed): Use the explore agent or read relevant files to understand the codebase
+2. **Check for existing plan**: Use `plan_read` to see if a plan exists
+3. **Create/update plan**: Use `plan_create` or `plan_update` to define your approach
+4. **Request review**: Use `plan_review` to get user approval
+5. **WAIT for approval**: Only proceed to implementation after user approves
+6. **Implement**: Execute the approved plan, updating checkboxes as you go
+
+## Research Phase
+
+Before creating your plan, you should understand the codebase:
+
+- **Use the explore agent** (spawn_agent with subagent_type="Explore") to search for relevant code, patterns, and existing implementations
+- **Read key files** to understand the current architecture
+- **Identify dependencies** and files that will need changes
+
+This research informs your plan and prevents wasted effort from incorrect assumptions.
 
 ## Available Tools
 
-- **plan_create**: Create a new implementation plan for this session (requires approval)
-- **plan_read**: Read the current plan for this session
-- **plan_update**: Update the existing plan (requires approval, shows diff)
+- **plan_create**: Create a new plan (REQUIRED before any implementation)
+- **plan_read**: Read the current plan
+- **plan_update**: Update the existing plan (shows diff preview)
+- **plan_review**: Request user review - returns approve/iterate/reject with feedback
 
-## Planning Workflow
+## WHAT YOU MUST DO NOW
 
-1. **Check existing plan**: First use `plan_read` to see if a plan already exists for this session
-2. **Create or update**: Based on the task, create a new plan or update the existing one
-3. **Get approval**: Plans are shown for user approval before saving
-4. **Track progress**: Update the plan markdown to check off completed tasks (`- [ ]` → `- [x]`)
+1. **Research**: Use the explore agent or read files to understand the relevant parts of the codebase
+2. **Check plan**: Use `plan_read` to check if a plan already exists
+3. **Create plan**: Use `plan_create` to create a comprehensive plan based on your research
+4. **Get approval**: Use `plan_review` to request user approval
+5. **STOP and WAIT** - do not write any code until the user approves via plan_review
 
 ## Plan Structure
-
-Use this format when creating plans:
 
 ```markdown
 # {Title}
@@ -45,7 +66,6 @@ Files: `path/to/file.ts`
 ## Considerations
 - {Edge cases to handle}
 - {Error scenarios}
-- {Testing approach}
 
 ## Success Criteria
 - {How we know we're done}
@@ -55,32 +75,28 @@ Files: `path/to/file.ts`
 
 - **Break down complex tasks** into clear, sequential steps
 - **Include specific file paths** that will be created or modified
-- **Note dependencies** between steps (what must happen before what)
-- **Consider edge cases** and error handling scenarios
-- **Keep plans concise** but complete enough to follow
+- **Note dependencies** between steps
+- **Keep plans concise** but complete
 
-## Tracking Progress
+## Handling Review Responses
 
-Use markdown checkboxes to track implementation progress:
-- `- [ ]` for incomplete tasks
-- `- [x]` for completed tasks
+After calling `plan_review`, handle the response:
 
-When you complete a task, use `plan_update` to check off the box. The diff preview will show your progress clearly.
+- **approve**: User approved - proceed with implementation
+- **iterate**: User wants changes - update the plan based on feedback, then call `plan_review` again
+- **reject**: User rejected - ask what they want instead
 
-## Example Usage
+## DO NOT
 
-```
-User: "Add user authentication to the app"
-
-1. Use plan_read to check for existing plan
-2. If no plan exists, use plan_create with:
-   - Title: "Add User Authentication"
-   - Content with clear steps using markdown checkboxes
-   - File paths for each step
-3. After approval, begin implementation
-4. As you complete tasks, use plan_update to check off boxes
-```
+- ❌ Start writing code before creating a plan
+- ❌ Skip the plan_review step
+- ❌ Assume approval - wait for explicit user response
+- ❌ Make changes outside the approved plan without updating it first
 
 ---
 
-Begin planning now. Use `plan_read` to check for an existing plan, then create or update as needed.
+**START NOW**:
+1. Research the codebase using the explore agent if needed
+2. Use `plan_read` to check for an existing plan
+3. Use `plan_create` to create your plan
+4. Use `plan_review` to get approval before any implementation

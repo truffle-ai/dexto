@@ -53,7 +53,17 @@ interface ApprovalPromptProps {
 /**
  * Selection option type - supports both simple yes/no and pattern-based options
  */
-type SelectionOption = 'yes' | 'yes-session' | 'yes-accept-edits' | 'no' | `pattern-${number}`;
+type SelectionOption =
+    | 'yes'
+    | 'yes-session'
+    | 'yes-accept-edits'
+    | 'no'
+    | `pattern-${number}`
+    // Plan review specific options
+    | 'plan-approve'
+    | 'plan-approve-accept-edits'
+    | 'plan-iterate'
+    | 'plan-reject';
 
 /**
  * Compact approval prompt component that displays above the input area
@@ -68,14 +78,22 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
         const isElicitation = approval.type === 'elicitation';
         const isDirectoryAccess = approval.type === 'directory_access';
 
+        // Extract tool metadata
+        const toolName = approval.metadata.toolName as string | undefined;
+        const toolArgs = (approval.metadata.args as Record<string, unknown>) || {};
+
+        // Check if this is a plan_review tool (shows custom approval options)
+        const isPlanReview =
+            toolName === 'custom--plan_review' ||
+            toolName === 'internal--plan_review' ||
+            toolName === 'plan_review';
+
         // Extract suggested patterns for bash tools
         const suggestedPatterns =
             (approval.metadata.suggestedPatterns as string[] | undefined) ?? [];
         const hasBashPatterns = suggestedPatterns.length > 0;
 
         // Check if this is an edit/write file tool
-        const toolName = approval.metadata.toolName as string | undefined;
-        const toolArgs = (approval.metadata.args as Record<string, unknown>) || {};
         const isEditOrWriteTool = isEditWriteTool(toolName);
 
         // Format tool header using shared utility (same format as tool messages)
@@ -95,7 +113,13 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
         // Build the list of options based on approval type
         const options: Array<{ id: SelectionOption; label: string }> = [];
 
-        if (hasBashPatterns) {
+        if (isPlanReview) {
+            // Plan review - show plan-specific options
+            options.push({ id: 'plan-approve', label: 'Approve' });
+            options.push({ id: 'plan-approve-accept-edits', label: 'Approve + Accept All Edits' });
+            options.push({ id: 'plan-iterate', label: 'Request Changes' });
+            options.push({ id: 'plan-reject', label: 'Reject' });
+        } else if (hasBashPatterns) {
             // Bash tool with pattern suggestions
             options.push({ id: 'yes', label: 'Yes (once)' });
             suggestedPatterns.forEach((pattern, i) => {
@@ -161,7 +185,17 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
                         const option = getCurrentOption();
                         if (!option) return false;
 
-                        if (option.id === 'yes') {
+                        // Plan review options
+                        if (option.id === 'plan-approve') {
+                            onApprove({});
+                        } else if (option.id === 'plan-approve-accept-edits') {
+                            onApprove({ enableAcceptEditsMode: true });
+                        } else if (option.id === 'plan-iterate') {
+                            // Deny the tool - user will provide feedback in next message
+                            onDeny();
+                        } else if (option.id === 'plan-reject') {
+                            onDeny();
+                        } else if (option.id === 'yes') {
                             onApprove({});
                         } else if (option.id === 'yes-session') {
                             // For directory access, remember the directory; otherwise remember the tool
@@ -253,9 +287,17 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
                         </Box>
                     );
                 case 'file':
-                    // Use enhanced file preview with full content for new file creation
+                    // Use enhanced file preview with full content for file creation
                     if (displayPreview.operation === 'create' && displayPreview.content) {
                         return <CreateFilePreview data={displayPreview} />;
+                    }
+                    // For plan_review (read operation with content), show full content for review
+                    if (
+                        displayPreview.operation === 'read' &&
+                        displayPreview.content &&
+                        isPlanReview
+                    ) {
+                        return <CreateFilePreview data={displayPreview} header="Review plan" />;
                     }
                     // Fallback for other file operations
                     return (

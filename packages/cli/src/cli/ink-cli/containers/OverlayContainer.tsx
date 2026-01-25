@@ -317,10 +317,15 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     setUi((prev) => ({ ...prev, autoApproveEdits: true }));
                 }
 
-                // Auto-disable plan mode when plan_create is approved
+                // Auto-disable plan mode when plan_create or plan_review is approved
                 // This signals the transition from planning phase to execution phase
                 const toolName = approval.metadata.toolName as string | undefined;
-                if (toolName === 'plan_create') {
+                const isPlanTool =
+                    toolName === 'plan_create' ||
+                    toolName === 'plan_review' ||
+                    toolName === 'custom--plan_create' ||
+                    toolName === 'custom--plan_review';
+                if (isPlanTool) {
                     setUi((prev) => ({
                         ...prev,
                         planModeActive: false,
