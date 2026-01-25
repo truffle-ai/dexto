@@ -205,8 +205,46 @@ function loadMcpConfig(
             );
 
             if (hasServerConfig) {
-                // Normalize to our expected format
-                return { mcpServers: parsed as Record<string, unknown> };
+                // Normalize Claude Code format to Dexto format
+                // Claude Code doesn't require 'type' field - it infers from 'command' vs 'url'
+                const normalized: Record<string, unknown> = {};
+
+                for (const [serverName, serverConfig] of Object.entries(parsed)) {
+                    if (
+                        typeof serverConfig === 'object' &&
+                        serverConfig !== null &&
+                        !Array.isArray(serverConfig)
+                    ) {
+                        const config = serverConfig as Record<string, unknown>;
+
+                        // If type is already present, use as-is
+                        if ('type' in config) {
+                            normalized[serverName] = config;
+                        }
+                        // If command is present, infer type: 'stdio'
+                        else if ('command' in config) {
+                            normalized[serverName] = {
+                                type: 'stdio',
+                                ...config,
+                            };
+                        }
+                        // If url is present, infer type based on URL or default to 'http'
+                        else if ('url' in config) {
+                            const url = String(config.url || '');
+                            // If URL contains /sse or ends with /sse, assume SSE
+                            const inferredType = url.includes('/sse') ? 'sse' : 'http';
+                            normalized[serverName] = {
+                                type: inferredType,
+                                ...config,
+                            };
+                        } else {
+                            // Unknown format - keep as-is and let validation catch it
+                            normalized[serverName] = config;
+                        }
+                    }
+                }
+
+                return { mcpServers: normalized };
             }
         }
 

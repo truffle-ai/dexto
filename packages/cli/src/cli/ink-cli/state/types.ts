@@ -338,7 +338,10 @@ export type OverlayType =
     | 'prompt-delete-selector'
     | 'session-rename'
     | 'context-stats'
-    | 'export-wizard';
+    | 'export-wizard'
+    | 'plugin-manager'
+    | 'plugin-list'
+    | 'plugin-import-selector';
 
 /**
  * MCP server type for custom wizard (null = not yet selected)

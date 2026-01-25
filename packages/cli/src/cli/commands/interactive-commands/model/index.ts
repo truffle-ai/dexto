@@ -5,11 +5,12 @@
  * This command definition exists for autocomplete and help display.
  */
 
-import type { CommandDefinition, CommandHandlerResult } from '../command-parser.js';
+import type { CommandDefinition } from '../command-parser.js';
+import { overlayOnlyHandler } from '../command-parser.js';
 
 /**
- * Model management command definition
- * Always shows the interactive model selector overlay (handled by ALWAYS_OVERLAY)
+ * Model management command definition.
+ * Handler is never called - model is in ALWAYS_OVERLAY and handled by ModelSelector overlay.
  */
 export const modelCommands: CommandDefinition = {
     name: 'model',
@@ -17,9 +18,5 @@ export const modelCommands: CommandDefinition = {
     usage: '/model',
     category: 'General',
     aliases: ['m'],
-    handler: async (): Promise<CommandHandlerResult> => {
-        // This handler is never called - model is in ALWAYS_OVERLAY
-        // which intercepts and shows the model selector overlay instead
-        return true;
-    },
+    handler: overlayOnlyHandler,
 };

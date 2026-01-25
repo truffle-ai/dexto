@@ -253,6 +253,37 @@ describe('loadClaudeCodePlugin', () => {
             });
         });
 
+        it('should infer type: stdio when command is present but type is missing (Claude Code format)', () => {
+            const plugin = createPlugin('playwright', '/plugins/playwright');
+            // Claude Code format: no 'type' field, infer from 'command'
+            const claudeCodeFormat = {
+                playwright: {
+                    command: 'npx',
+                    args: ['@playwright/mcp@latest'],
+                },
+            };
+
+            vi.mocked(fs.existsSync).mockImplementation((p) => {
+                if (p === '/plugins/playwright/.mcp.json') return true;
+                return false;
+            });
+
+            vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify(claudeCodeFormat));
+
+            const result = loadClaudeCodePlugin(plugin);
+
+            // Should normalize and infer type: 'stdio'
+            expect(result.mcpConfig).toEqual({
+                mcpServers: {
+                    playwright: {
+                        type: 'stdio',
+                        command: 'npx',
+                        args: ['@playwright/mcp@latest'],
+                    },
+                },
+            });
+        });
+
         it('should handle Claude Code stdio format', () => {
             const plugin = createPlugin('filesystem', '/plugins/filesystem');
             const claudeCodeFormat = {
@@ -274,6 +305,7 @@ describe('loadClaudeCodePlugin', () => {
             expect(result.mcpConfig).toEqual({
                 mcpServers: {
                     filesystem: {
+                        type: 'stdio',
                         command: 'npx',
                         args: ['@modelcontextprotocol/server-filesystem'],
                     },

@@ -48,6 +48,7 @@ export function getClaudeCodeInstalledPluginsPath(): string | null {
 export function listInstalledPlugins(projectPath?: string): ListedPlugin[] {
     const plugins: ListedPlugin[] = [];
     const seenNames = new Set<string>();
+    const registeredNames = new Set<string>(); // Track all names from installed_plugins.json (even if filtered by scope)
     const homeDir = process.env.HOME || process.env.USERPROFILE || '';
     const cwd = projectPath || process.cwd();
 
@@ -65,14 +66,21 @@ export function listInstalledPlugins(projectPath?: string): ListedPlugin[] {
     };
 
     // === Source 1: Dexto's installed_plugins.json ===
-    const dextoPlugins = readDextoInstalledPlugins(cwd);
+    const { plugins: dextoPlugins, allNames: dextoAllNames } = readDextoInstalledPlugins(cwd);
+    for (const name of dextoAllNames) {
+        registeredNames.add(name.toLowerCase());
+    }
     for (const plugin of dextoPlugins) {
         addPlugin(plugin);
     }
 
     // === Source 2: Claude Code's installed_plugins.json ===
     if (homeDir) {
-        const claudeCodePlugins = readClaudeCodeInstalledPlugins(homeDir, cwd);
+        const { plugins: claudeCodePlugins, allNames: claudeAllNames } =
+            readClaudeCodeInstalledPlugins(homeDir, cwd);
+        for (const name of claudeAllNames) {
+            registeredNames.add(name.toLowerCase());
+        }
         for (const plugin of claudeCodePlugins) {
             addPlugin(plugin);
         }
@@ -111,8 +119,9 @@ export function listInstalledPlugins(projectPath?: string): ListedPlugin[] {
 
     /**
      * Scans Claude Code's cache directory structure: cache/<namespace>/<plugin>/<version>/
+     * Only adds plugins that aren't already tracked in installed_plugins.json
      */
-    const scanClaudeCodeCache = (rootDir: string): void => {
+    const scanClaudeCodeCache = (rootDir: string, skipNames: Set<string>): void => {
         const cacheDir = path.join(rootDir, 'cache');
         if (!existsSync(cacheDir)) return;
 
@@ -137,6 +146,11 @@ export function listInstalledPlugins(projectPath?: string): ListedPlugin[] {
                         const manifest = tryLoadManifest(versionPath);
 
                         if (manifest) {
+                            // Skip if already tracked in installed_plugins.json (even if filtered by scope)
+                            if (skipNames.has(manifest.name.toLowerCase())) {
+                                continue;
+                            }
+
                             addPlugin({
                                 name: manifest.name,
                                 description: manifest.description,
@@ -161,22 +175,26 @@ export function listInstalledPlugins(projectPath?: string): ListedPlugin[] {
     scanPluginsDir(getDextoGlobalPath('plugins'), 'dexto');
     if (homeDir) {
         scanPluginsDir(path.join(homeDir, '.claude', 'plugins'), 'claude-code');
-        // Also scan Claude Code's cache directory structure
-        scanClaudeCodeCache(path.join(homeDir, '.claude', 'plugins'));
+        // Also scan Claude Code's cache directory structure (skip plugins already in installed_plugins.json)
+        scanClaudeCodeCache(path.join(homeDir, '.claude', 'plugins'), registeredNames);
     }
 
     return plugins;
 }
 
 /**
- * Reads Dexto's installed_plugins.json and returns ListedPlugin array.
+ * Reads Dexto's installed_plugins.json and returns ListedPlugin array plus all plugin names (even filtered ones).
  */
-function readDextoInstalledPlugins(currentProjectPath: string): ListedPlugin[] {
+function readDextoInstalledPlugins(currentProjectPath: string): {
+    plugins: ListedPlugin[];
+    allNames: string[];
+} {
     const plugins: ListedPlugin[] = [];
+    const allNames: string[] = [];
     const filePath = getDextoInstalledPluginsPath();
 
     if (!existsSync(filePath)) {
-        return plugins;
+        return { plugins, allNames };
     }
 
     try {
@@ -185,7 +203,7 @@ function readDextoInstalledPlugins(currentProjectPath: string): ListedPlugin[] {
         const result = InstalledPluginsFileSchema.safeParse(parsed);
 
         if (!result.success) {
-            return plugins;
+            return { plugins, allNames };
         }
 
         for (const [_pluginId, installations] of Object.entries(result.data.plugins)) {
@@ -197,18 +215,23 @@ function readDextoInstalledPlugins(currentProjectPath: string): ListedPlugin[] {
                     continue;
                 }
 
-                // For project-scoped and local-scoped plugins, only include if projectPath matches
-                if ((scope === 'project' || scope === 'local') && projectPath) {
-                    const normalizedProjectPath = path.resolve(projectPath).toLowerCase();
-                    const normalizedCurrentPath = path.resolve(currentProjectPath).toLowerCase();
-                    if (normalizedProjectPath !== normalizedCurrentPath) {
-                        continue;
-                    }
-                }
-
-                // Load manifest to get name and description
+                // Load manifest to get name
                 const manifest = tryLoadManifest(installPath);
                 if (manifest) {
+                    // Track all names (even if filtered by scope)
+                    allNames.push(manifest.name);
+
+                    // For project-scoped and local-scoped plugins, only include if projectPath matches
+                    if ((scope === 'project' || scope === 'local') && projectPath) {
+                        const normalizedProjectPath = path.resolve(projectPath).toLowerCase();
+                        const normalizedCurrentPath = path
+                            .resolve(currentProjectPath)
+                            .toLowerCase();
+                        if (normalizedProjectPath !== normalizedCurrentPath) {
+                            continue;
+                        }
+                    }
+
                     plugins.push({
                         name: manifest.name,
                         description: manifest.description,
@@ -225,21 +248,22 @@ function readDextoInstalledPlugins(currentProjectPath: string): ListedPlugin[] {
         // File read/parse error - silently skip
     }
 
-    return plugins;
+    return { plugins, allNames };
 }
 
 /**
- * Reads Claude Code's installed_plugins.json and returns ListedPlugin array.
+ * Reads Claude Code's installed_plugins.json and returns ListedPlugin array plus all plugin names (even filtered ones).
  */
 function readClaudeCodeInstalledPlugins(
     homeDir: string,
     currentProjectPath: string
-): ListedPlugin[] {
+): { plugins: ListedPlugin[]; allNames: string[] } {
     const plugins: ListedPlugin[] = [];
+    const allNames: string[] = [];
     const filePath = path.join(homeDir, '.claude', 'plugins', 'installed_plugins.json');
 
     if (!existsSync(filePath)) {
-        return plugins;
+        return { plugins, allNames };
     }
 
     try {
@@ -248,7 +272,7 @@ function readClaudeCodeInstalledPlugins(
         const result = InstalledPluginsFileSchema.safeParse(parsed);
 
         if (!result.success) {
-            return plugins;
+            return { plugins, allNames };
         }
 
         for (const installations of Object.values(result.data.plugins)) {
@@ -260,18 +284,23 @@ function readClaudeCodeInstalledPlugins(
                     continue;
                 }
 
-                // For project-scoped and local-scoped plugins, only include if projectPath matches
-                if ((scope === 'project' || scope === 'local') && projectPath) {
-                    const normalizedProjectPath = path.resolve(projectPath).toLowerCase();
-                    const normalizedCurrentPath = path.resolve(currentProjectPath).toLowerCase();
-                    if (normalizedProjectPath !== normalizedCurrentPath) {
-                        continue;
-                    }
-                }
-
-                // Load manifest to get name and description
+                // Load manifest to get name
                 const manifest = tryLoadManifest(installPath);
                 if (manifest) {
+                    // Track all names (even if filtered by scope)
+                    allNames.push(manifest.name);
+
+                    // For project-scoped and local-scoped plugins, only include if projectPath matches
+                    if ((scope === 'project' || scope === 'local') && projectPath) {
+                        const normalizedProjectPath = path.resolve(projectPath).toLowerCase();
+                        const normalizedCurrentPath = path
+                            .resolve(currentProjectPath)
+                            .toLowerCase();
+                        if (normalizedProjectPath !== normalizedCurrentPath) {
+                            continue;
+                        }
+                    }
+
                     plugins.push({
                         name: manifest.name,
                         description: manifest.description,
@@ -286,5 +315,5 @@ function readClaudeCodeInstalledPlugins(
         // File read/parse error - silently skip
     }
 
-    return plugins;
+    return { plugins, allNames };
 }

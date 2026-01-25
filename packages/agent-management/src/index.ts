@@ -169,6 +169,7 @@ export {
     loadClaudeCodePlugin,
     // Validation
     validatePluginDirectory,
+    tryLoadManifest,
     // Listing
     listInstalledPlugins,
     getDextoInstalledPluginsPath,

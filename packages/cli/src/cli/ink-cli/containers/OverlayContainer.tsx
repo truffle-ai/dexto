@@ -91,6 +91,14 @@ import ContextStatsOverlay, {
     type ContextStatsOverlayHandle,
 } from '../components/overlays/ContextStatsOverlay.js';
 import ExportWizard, { type ExportWizardHandle } from '../components/overlays/ExportWizard.js';
+import PluginManager, {
+    type PluginManagerHandle,
+    type PluginAction,
+} from '../components/overlays/PluginManager.js';
+import PluginList, { type PluginListHandle } from '../components/overlays/PluginList.js';
+import PluginImportSelector, {
+    type PluginImportSelectorHandle,
+} from '../components/overlays/PluginImportSelector.js';
 import type { PromptAddScope } from '../state/types.js';
 import type { PromptInfo, ResourceMetadata, LLMProvider, SearchResult } from '@dexto/core';
 import type { LogLevel } from '@dexto/core';
@@ -177,6 +185,9 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
         const sessionRenameRef = useRef<SessionRenameOverlayHandle>(null);
         const contextStatsRef = useRef<ContextStatsOverlayHandle>(null);
         const exportWizardRef = useRef<ExportWizardHandle>(null);
+        const pluginManagerRef = useRef<PluginManagerHandle>(null);
+        const pluginListRef = useRef<PluginListHandle>(null);
+        const pluginImportSelectorRef = useRef<PluginImportSelectorHandle>(null);
 
         // Expose handleInput method via ref - routes to appropriate overlay
         useImperativeHandle(
@@ -252,6 +263,14 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             return contextStatsRef.current?.handleInput(inputStr, key) ?? false;
                         case 'export-wizard':
                             return exportWizardRef.current?.handleInput(inputStr, key) ?? false;
+                        case 'plugin-manager':
+                            return pluginManagerRef.current?.handleInput(inputStr, key) ?? false;
+                        case 'plugin-list':
+                            return pluginListRef.current?.handleInput(inputStr, key) ?? false;
+                        case 'plugin-import-selector':
+                            return (
+                                pluginImportSelectorRef.current?.handleInput(inputStr, key) ?? false
+                            );
                         default:
                             return false;
                     }
@@ -1349,6 +1368,153 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
             [setUi, setInput, setMessages, agent, buffer]
         );
 
+        // Handle plugin manager actions
+        const handlePluginManagerAction = useCallback(
+            (action: PluginAction) => {
+                if (action === 'list') {
+                    setUi((prev) => ({
+                        ...prev,
+                        activeOverlay: 'plugin-list',
+                    }));
+                } else if (action === 'import') {
+                    setUi((prev) => ({
+                        ...prev,
+                        activeOverlay: 'plugin-import-selector',
+                    }));
+                }
+            },
+            [setUi]
+        );
+
+        // Handle plugin import completion
+        const handlePluginImport = useCallback(
+            async (pluginName: string, pluginPath: string) => {
+                setUi((prev) => ({ ...prev, activeOverlay: 'none' }));
+                buffer.setText('');
+                setInput((prev) => ({ ...prev, historyIndex: -1 }));
+                setUi((prev) => ({ ...prev, isProcessing: true }));
+
+                setMessages((prev) => [
+                    ...prev,
+                    {
+                        id: generateMessageId('system'),
+                        role: 'system',
+                        content: `✅ Plugin '${pluginName}' imported successfully. Loading MCP servers...`,
+                        timestamp: new Date(),
+                    },
+                ]);
+
+                try {
+                    // Use the plugin loader to properly load and normalize the plugin config
+                    const { loadClaudeCodePlugin } = await import('@dexto/agent-management');
+                    const { tryLoadManifest } = await import('@dexto/agent-management');
+
+                    const manifest = tryLoadManifest(pluginPath);
+                    if (!manifest) {
+                        throw new Error('Failed to load plugin manifest');
+                    }
+
+                    const loadedPlugin = loadClaudeCodePlugin({
+                        path: pluginPath,
+                        manifest,
+                        source: 'user',
+                        format: 'claude-code',
+                    });
+
+                    // Connect MCP servers if the plugin has any
+                    if (loadedPlugin.mcpConfig?.mcpServers) {
+                        const serverNames: string[] = [];
+                        const errors: string[] = [];
+
+                        for (const [serverName, serverConfig] of Object.entries(
+                            loadedPlugin.mcpConfig.mcpServers
+                        )) {
+                            try {
+                                await agent.addMcpServer(serverName, serverConfig as any);
+                                serverNames.push(serverName);
+                            } catch (error) {
+                                errors.push(
+                                    `${serverName}: ${error instanceof Error ? error.message : String(error)}`
+                                );
+                            }
+                        }
+
+                        if (serverNames.length > 0) {
+                            setMessages((prev) => [
+                                ...prev,
+                                {
+                                    id: generateMessageId('system'),
+                                    role: 'system',
+                                    content: `🔌 Connected MCP servers: ${serverNames.join(', ')}. Tools are now available!`,
+                                    timestamp: new Date(),
+                                },
+                            ]);
+                        }
+
+                        if (errors.length > 0) {
+                            setMessages((prev) => [
+                                ...prev,
+                                {
+                                    id: generateMessageId('error'),
+                                    role: 'system',
+                                    content: `⚠️ Some MCP servers failed to connect:\n${errors.join('\n')}`,
+                                    timestamp: new Date(),
+                                },
+                            ]);
+                        }
+
+                        if (serverNames.length === 0 && errors.length > 0) {
+                            setMessages((prev) => [
+                                ...prev,
+                                {
+                                    id: generateMessageId('error'),
+                                    role: 'system',
+                                    content: `❌ No MCP servers could be connected. Please check the configuration.`,
+                                    timestamp: new Date(),
+                                },
+                            ]);
+                        }
+                    } else {
+                        setMessages((prev) => [
+                            ...prev,
+                            {
+                                id: generateMessageId('system'),
+                                role: 'system',
+                                content: `ℹ️ Plugin '${pluginName}' has no MCP servers to connect.`,
+                                timestamp: new Date(),
+                            },
+                        ]);
+                    }
+
+                    // Show any warnings from plugin loading
+                    if (loadedPlugin.warnings.length > 0) {
+                        setMessages((prev) => [
+                            ...prev,
+                            {
+                                id: generateMessageId('system'),
+                                role: 'system',
+                                content: `⚠️ Plugin warnings:\n${loadedPlugin.warnings.join('\n')}`,
+                                timestamp: new Date(),
+                            },
+                        ]);
+                    }
+                } catch (error) {
+                    setMessages((prev) => [
+                        ...prev,
+                        {
+                            id: generateMessageId('error'),
+                            role: 'system',
+                            content: `❌ Failed to load plugin: ${error instanceof Error ? error.message : String(error)}`,
+                            timestamp: new Date(),
+                        },
+                    ]);
+                }
+
+                setUi((prev) => ({ ...prev, isProcessing: false }));
+            },
+            [setUi, setInput, setMessages, buffer, agent]
+        );
+
         // Handle session subcommand selection
         const handleSessionSubcommandSelect = useCallback(
             async (action: SessionAction) => {
@@ -2004,6 +2170,37 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         }}
                         initialModel={editingModel}
                     />
+                )}
+
+                {/* Plugin manager */}
+                {ui.activeOverlay === 'plugin-manager' && (
+                    <Box marginTop={1}>
+                        <PluginManager
+                            ref={pluginManagerRef}
+                            isVisible={true}
+                            onAction={handlePluginManagerAction}
+                            onClose={handleClose}
+                        />
+                    </Box>
+                )}
+
+                {/* Plugin list */}
+                {ui.activeOverlay === 'plugin-list' && (
+                    <Box marginTop={1}>
+                        <PluginList ref={pluginListRef} isVisible={true} onClose={handleClose} />
+                    </Box>
+                )}
+
+                {/* Plugin import selector */}
+                {ui.activeOverlay === 'plugin-import-selector' && (
+                    <Box marginTop={1}>
+                        <PluginImportSelector
+                            ref={pluginImportSelectorRef}
+                            isVisible={true}
+                            onImport={handlePluginImport}
+                            onClose={handleClose}
+                        />
+                    </Box>
                 )}
 
                 {/* Session subcommand selector */}
