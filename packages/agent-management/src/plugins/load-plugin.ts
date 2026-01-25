@@ -3,7 +3,7 @@
  *
  * Loads plugin contents including commands, skills, MCP configuration,
  * and custom tool providers (Dexto-native plugins).
- * Detects and warns about unsupported features (hooks, LSP, shell injection).
+ * Detects and warns about unsupported features (hooks, LSP).
  *
  * Supports two plugin formats:
  * - .claude-plugin: Claude Code compatible format
@@ -20,11 +20,6 @@ import type {
     PluginMCPConfig,
     DextoPluginManifest,
 } from './types.js';
-
-/**
- * Regex to detect shell injection patterns like $(command) or `command`
- */
-const SHELL_INJECTION_PATTERN = /\$\([^)]+\)|`[^`]+`/;
 
 /**
  * Type guard to check if manifest is a Dexto-native manifest
@@ -56,18 +51,12 @@ export function loadClaudeCodePlugin(plugin: DiscoveredPlugin): LoadedPlugin {
     if (existsSync(commandsDir)) {
         const commandFiles = scanMarkdownFiles(commandsDir);
         for (const file of commandFiles) {
-            // Check for shell injection in command content
             const content = readFileSafe(file);
             if (!content) {
                 warnings.push(
                     `[${pluginName}] Command '${path.basename(file)}' could not be read and will be skipped`
                 );
                 continue;
-            }
-            if (SHELL_INJECTION_PATTERN.test(content)) {
-                warnings.push(
-                    `[${pluginName}] Command '${path.basename(file)}' contains shell injection syntax which is not supported`
-                );
             }
 
             commands.push({
@@ -88,18 +77,12 @@ export function loadClaudeCodePlugin(plugin: DiscoveredPlugin): LoadedPlugin {
 
                 const skillFile = path.join(skillsDir, entry.name, 'SKILL.md');
                 if (existsSync(skillFile)) {
-                    // Check for shell injection in skill content
                     const content = readFileSafe(skillFile);
                     if (!content) {
                         warnings.push(
                             `[${pluginName}] Skill '${entry.name}' could not be read and will be skipped`
                         );
                         continue;
-                    }
-                    if (SHELL_INJECTION_PATTERN.test(content)) {
-                        warnings.push(
-                            `[${pluginName}] Skill '${entry.name}' contains shell injection syntax which is not supported`
-                        );
                     }
 
                     commands.push({
@@ -276,11 +259,11 @@ function checkUnsupportedFeatures(
     pluginName: string,
     warnings: string[]
 ): void {
-    // Check for hooks/hooks.json (shell injection risk)
+    // Check for hooks/hooks.json (security risk - would allow arbitrary command execution)
     const hooksPath = path.join(pluginPath, 'hooks', 'hooks.json');
     if (existsSync(hooksPath)) {
         warnings.push(
-            `[${pluginName}] hooks/hooks.json detected but not supported (shell injection security risk)`
+            `[${pluginName}] hooks/hooks.json detected but not supported (security risk)`
         );
     }
 
