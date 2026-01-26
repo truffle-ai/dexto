@@ -1649,13 +1649,26 @@ export function isValidProviderModel(provider: LLMProvider, model: string): bool
 export function getProviderFromModel(model: string): LLMProvider {
     // Handle OpenRouter format models (e.g., 'anthropic/claude-opus-4.5')
     if (model.includes('/')) {
-        const [prefix] = model.split('/');
+        const [prefix, ...rest] = model.split('/');
+        const modelName = rest.join('/');
         if (prefix) {
             const normalizedPrefix = prefix.toLowerCase();
             // Check if prefix matches a known provider prefix (case-insensitive)
             for (const [provider, providerPrefix] of Object.entries(OPENROUTER_PROVIDER_PREFIX)) {
                 if (providerPrefix?.toLowerCase() === normalizedPrefix) {
-                    return provider as LLMProvider;
+                    // Verify model exists in this provider's registry before returning
+                    const providerInfo = LLM_REGISTRY[provider as LLMProvider];
+                    const normalizedModelName = stripBedrockRegionPrefix(modelName).toLowerCase();
+                    const existsInProvider = providerInfo.models.some(
+                        (m) =>
+                            m.name.toLowerCase() === normalizedModelName ||
+                            m.openrouterId?.toLowerCase() === model.toLowerCase()
+                    );
+                    if (existsInProvider) {
+                        return provider as LLMProvider;
+                    }
+                    // Model not found in matched provider - fall through to registry scan
+                    break;
                 }
             }
         }
