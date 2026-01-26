@@ -726,38 +726,22 @@ program
         })
     );
 
-// 14) `billing` SUB-COMMAND GROUP
-const billingCommand = program.command('billing').description('Manage Dexto billing and credits');
-
-billingCommand
-    .command('status')
-    .description('Show billing status and balance information')
+// 14) `billing` COMMAND
+program
+    .command('billing')
+    .description('Show billing status and credit balance')
     .action(
-        withAnalytics('billing status', async () => {
+        withAnalytics('billing', async () => {
             try {
                 await handleBillingStatusCommand();
-                safeExit('billing status', 0);
+                safeExit('billing', 0);
             } catch (err) {
                 if (err instanceof ExitSignal) throw err;
-                console.error(`❌ dexto billing status command failed: ${err}`);
-                safeExit('billing status', 1, 'error');
+                console.error(`❌ dexto billing command failed: ${err}`);
+                safeExit('billing', 1, 'error');
             }
         })
     );
-
-// Also add `dexto billing` as default to show status
-billingCommand.action(
-    withAnalytics('billing', async () => {
-        try {
-            await handleBillingStatusCommand();
-            safeExit('billing', 0);
-        } catch (err) {
-            if (err instanceof ExitSignal) throw err;
-            console.error(`❌ dexto billing command failed: ${err}`);
-            safeExit('billing', 1, 'error');
-        }
-    })
-);
 
 // 15) `mcp` SUB-COMMAND
 // For now, this mode simply aggregates and re-expose tools from configured MCP servers (no agent)
