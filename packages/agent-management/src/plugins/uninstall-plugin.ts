@@ -3,16 +3,11 @@
  *
  * Uninstalls plugins from Dexto's plugin directory.
  * Removes plugin files and updates installed_plugins.json.
- *
- * Note: Only uninstalls Dexto-managed plugins (from installed_plugins.json).
- * For imported plugins (from Claude Code), only removes from Dexto's registry
- * without deleting files.
  */
 
 import * as path from 'path';
 import { existsSync, readFileSync, rmSync } from 'fs';
 import { loadDextoInstalledPlugins, saveDextoInstalledPlugins } from './install-plugin.js';
-import { listClaudeCodePlugins } from './import-plugin.js';
 import { PluginError } from './errors.js';
 import type { PluginUninstallResult, InstalledPluginEntry } from './types.js';
 
@@ -115,29 +110,15 @@ export async function uninstallPlugin(
     // Find the plugin installation
     const found = findPluginInstallation(nameWithoutVersion, projectPath);
     if (!found) {
-        // Check if this is a Claude Code plugin that hasn't been imported
-        const claudePlugins = listClaudeCodePlugins();
-        const claudePlugin = claudePlugins.find(
-            (p) => p.name.toLowerCase() === nameWithoutVersion.toLowerCase()
-        );
-
-        if (claudePlugin && !claudePlugin.isImported) {
-            throw PluginError.uninstallNotFound(
-                nameWithoutVersion,
-                `This plugin is from Claude Code but not imported into Dexto. ` +
-                    `Use '/plugin import ${nameWithoutVersion}' to add it first.`
-            );
-        }
-
         throw PluginError.uninstallNotFound(nameWithoutVersion);
     }
 
     const { entry, pluginId } = found;
 
-    // Delete plugin files (unless it's a local or imported plugin)
-    // Local and imported plugins are just references - we don't own the files
+    // Delete plugin files (unless it's a local plugin)
+    // Local plugins are just references - we don't own the files
     let removedPath: string | undefined;
-    const shouldDeleteFiles = !entry.isLocal && !entry.isImported;
+    const shouldDeleteFiles = !entry.isLocal;
 
     if (shouldDeleteFiles) {
         try {
@@ -150,7 +131,7 @@ export async function uninstallPlugin(
             );
         }
     } else {
-        // For local/imported plugins, just remove from manifest (don't delete files)
+        // For local plugins, just remove from manifest (don't delete files)
         removedPath = entry.installPath;
     }
 

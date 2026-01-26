@@ -150,14 +150,12 @@ export interface ListedPlugin {
     version?: string | undefined;
     /** Absolute path to plugin directory */
     path: string;
-    /** Source of plugin discovery */
-    source: 'dexto' | 'claude-code' | 'directory';
+    /** Source of plugin discovery (always 'dexto' now) */
+    source: 'dexto';
     /** Installation scope if installed via Dexto */
     scope?: PluginInstallScope | undefined;
     /** ISO timestamp of installation */
     installedAt?: string | undefined;
-    /** Whether this plugin is imported from Claude Code */
-    isImported?: boolean | undefined;
 }
 
 /**
@@ -196,32 +194,4 @@ export interface PluginUninstallResult {
     success: boolean;
     /** Path that was removed */
     removedPath?: string | undefined;
-}
-
-/**
- * Result of plugin import from Claude Code
- */
-export interface PluginImportResult {
-    /** Whether import succeeded */
-    success: boolean;
-    /** Plugin name from manifest */
-    pluginName: string;
-    /** Path to the Claude Code plugin (not copied) */
-    pluginPath: string;
-}
-
-/**
- * A Claude Code plugin available for import
- */
-export interface ClaudeCodePlugin {
-    /** Plugin name from manifest */
-    name: string;
-    /** Plugin description */
-    description?: string | undefined;
-    /** Plugin version */
-    version?: string | undefined;
-    /** Absolute path to plugin directory */
-    path: string;
-    /** Whether already imported into Dexto */
-    isImported: boolean;
 }

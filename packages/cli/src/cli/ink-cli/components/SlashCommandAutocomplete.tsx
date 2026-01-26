@@ -554,9 +554,14 @@ const SlashCommandAutocompleteInner = forwardRef<
                 // Line 2:     Description text (source)
                 const commandText = nameText + argsString;
                 // Show source as label, with collision indicator if needed
-                const sourceLabel = hasCollision
-                    ? `${prompt.source} - use /${prompt.commandName}`
+                // For plugin skills, show namespace (plugin name) instead of "config"
+                const metadata = prompt.metadata as Record<string, unknown> | undefined;
+                const displaySource = metadata?.namespace
+                    ? String(metadata.namespace)
                     : prompt.source || 'prompt';
+                const sourceLabel = hasCollision
+                    ? `${displaySource} - use /${prompt.commandName}`
+                    : displaySource;
 
                 return (
                     <Box key={`prompt-${prompt.name}`} flexDirection="column" paddingX={0}>

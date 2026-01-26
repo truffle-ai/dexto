@@ -65,7 +65,7 @@ import McpCustomWizard, {
 import CustomModelWizard, {
     type CustomModelWizardHandle,
 } from '../components/overlays/CustomModelWizard.js';
-import type { CustomModel } from '@dexto/agent-management';
+import type { CustomModel, ListedPlugin } from '@dexto/agent-management';
 import ApiKeyInput, { type ApiKeyInputHandle } from '../components/overlays/ApiKeyInput.js';
 import SearchOverlay, { type SearchOverlayHandle } from '../components/overlays/SearchOverlay.js';
 import PromptList, {
@@ -96,9 +96,10 @@ import PluginManager, {
     type PluginAction,
 } from '../components/overlays/PluginManager.js';
 import PluginList, { type PluginListHandle } from '../components/overlays/PluginList.js';
-import PluginImportSelector, {
-    type PluginImportSelectorHandle,
-} from '../components/overlays/PluginImportSelector.js';
+import PluginActions, {
+    type PluginActionsHandle,
+    type PluginActionResult,
+} from '../components/overlays/PluginActions.js';
 import MarketplaceBrowser, {
     type MarketplaceBrowserHandle,
     type MarketplaceBrowserAction,
@@ -194,8 +195,11 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
         const exportWizardRef = useRef<ExportWizardHandle>(null);
         const pluginManagerRef = useRef<PluginManagerHandle>(null);
         const pluginListRef = useRef<PluginListHandle>(null);
-        const pluginImportSelectorRef = useRef<PluginImportSelectorHandle>(null);
+        const pluginActionsRef = useRef<PluginActionsHandle>(null);
         const marketplaceBrowserRef = useRef<MarketplaceBrowserHandle>(null);
+
+        // State for selected plugin (for plugin-actions overlay)
+        const [selectedPlugin, setSelectedPlugin] = useState<ListedPlugin | null>(null);
         const marketplaceAddPromptRef = useRef<MarketplaceAddPromptHandle>(null);
 
         // Expose handleInput method via ref - routes to appropriate overlay
@@ -276,10 +280,8 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             return pluginManagerRef.current?.handleInput(inputStr, key) ?? false;
                         case 'plugin-list':
                             return pluginListRef.current?.handleInput(inputStr, key) ?? false;
-                        case 'plugin-import-selector':
-                            return (
-                                pluginImportSelectorRef.current?.handleInput(inputStr, key) ?? false
-                            );
+                        case 'plugin-actions':
+                            return pluginActionsRef.current?.handleInput(inputStr, key) ?? false;
                         case 'marketplace-browser':
                             return (
                                 marketplaceBrowserRef.current?.handleInput(inputStr, key) ?? false
@@ -1417,11 +1419,6 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         ...prev,
                         activeOverlay: 'plugin-list',
                     }));
-                } else if (action === 'import') {
-                    setUi((prev) => ({
-                        ...prev,
-                        activeOverlay: 'plugin-import-selector',
-                    }));
                 } else if (action === 'marketplace') {
                     setUi((prev) => ({
                         ...prev,
@@ -1432,138 +1429,83 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
             [setUi]
         );
 
-        // Handle plugin import completion
-        const handlePluginImport = useCallback(
-            async (pluginName: string, pluginPath: string) => {
-                setUi((prev) => ({ ...prev, activeOverlay: 'none' }));
-                buffer.setText('');
-                setInput((prev) => ({ ...prev, historyIndex: -1 }));
-                setUi((prev) => ({ ...prev, isProcessing: true }));
-
-                setMessages((prev) => [
+        // Handle plugin selection from plugin list
+        const handlePluginSelect = useCallback(
+            (plugin: ListedPlugin) => {
+                setSelectedPlugin(plugin);
+                setUi((prev) => ({
                     ...prev,
-                    {
-                        id: generateMessageId('system'),
-                        role: 'system',
-                        content: `✅ Plugin '${pluginName}' imported successfully. Loading MCP servers...`,
-                        timestamp: new Date(),
-                    },
-                ]);
+                    activeOverlay: 'plugin-actions',
+                }));
+            },
+            [setUi]
+        );
 
-                try {
-                    // Use the plugin loader to properly load and normalize the plugin config
-                    const { loadClaudeCodePlugin } = await import('@dexto/agent-management');
-                    const { tryLoadManifest } = await import('@dexto/agent-management');
-
-                    const manifest = tryLoadManifest(pluginPath);
-                    if (!manifest) {
-                        throw new Error('Failed to load plugin manifest');
-                    }
-
-                    const loadedPlugin = loadClaudeCodePlugin({
-                        path: pluginPath,
-                        manifest,
-                        source: 'user',
-                        format: 'claude-code',
-                    });
-
-                    // Connect MCP servers if the plugin has any
-                    if (loadedPlugin.mcpConfig?.mcpServers) {
-                        const serverNames: string[] = [];
-                        const errors: string[] = [];
-
-                        for (const [serverName, serverConfig] of Object.entries(
-                            loadedPlugin.mcpConfig.mcpServers
-                        )) {
-                            try {
-                                await agent.addMcpServer(serverName, serverConfig as any);
-                                serverNames.push(serverName);
-                            } catch (error) {
-                                errors.push(
-                                    `${serverName}: ${error instanceof Error ? error.message : String(error)}`
-                                );
-                            }
-                        }
-
-                        if (serverNames.length > 0) {
-                            setMessages((prev) => [
-                                ...prev,
-                                {
-                                    id: generateMessageId('system'),
-                                    role: 'system',
-                                    content: `🔌 Connected MCP servers: ${serverNames.join(', ')}. Tools are now available!`,
-                                    timestamp: new Date(),
-                                },
-                            ]);
-                        }
-
-                        if (errors.length > 0) {
-                            setMessages((prev) => [
-                                ...prev,
-                                {
-                                    id: generateMessageId('error'),
-                                    role: 'system',
-                                    content: `⚠️ Some MCP servers failed to connect:\n${errors.join('\n')}`,
-                                    timestamp: new Date(),
-                                },
-                            ]);
-                        }
-
-                        if (serverNames.length === 0 && errors.length > 0) {
-                            setMessages((prev) => [
-                                ...prev,
-                                {
-                                    id: generateMessageId('error'),
-                                    role: 'system',
-                                    content: `❌ No MCP servers could be connected. Please check the configuration.`,
-                                    timestamp: new Date(),
-                                },
-                            ]);
-                        }
-                    } else {
-                        setMessages((prev) => [
-                            ...prev,
-                            {
-                                id: generateMessageId('system'),
-                                role: 'system',
-                                content: `ℹ️ Plugin '${pluginName}' has no MCP servers to connect.`,
-                                timestamp: new Date(),
-                            },
-                        ]);
-                    }
-
-                    // Show any warnings from plugin loading
-                    if (loadedPlugin.warnings.length > 0) {
-                        setMessages((prev) => [
-                            ...prev,
-                            {
-                                id: generateMessageId('system'),
-                                role: 'system',
-                                content: `⚠️ Plugin warnings:\n${loadedPlugin.warnings.join('\n')}`,
-                                timestamp: new Date(),
-                            },
-                        ]);
-                    }
-                } catch (error) {
-                    setMessages((prev) => [
+        // Handle plugin actions (uninstall, back)
+        const handlePluginAction = useCallback(
+            async (action: PluginActionResult) => {
+                if (action.type === 'back') {
+                    setSelectedPlugin(null);
+                    setUi((prev) => ({
                         ...prev,
-                        {
-                            id: generateMessageId('error'),
-                            role: 'system',
-                            content: `❌ Failed to load plugin: ${error instanceof Error ? error.message : String(error)}`,
-                            timestamp: new Date(),
-                        },
-                    ]);
+                        activeOverlay: 'plugin-list',
+                    }));
+                    return;
                 }
 
-                setUi((prev) => ({ ...prev, isProcessing: false }));
+                if (action.type === 'uninstall') {
+                    setUi((prev) => ({ ...prev, activeOverlay: 'none', isProcessing: true }));
+
+                    try {
+                        const { uninstallPlugin, reloadAgentConfigFromFile, enrichAgentConfig } =
+                            await import('@dexto/agent-management');
+                        await uninstallPlugin(action.plugin.name);
+
+                        setMessages((prev) => [
+                            ...prev,
+                            {
+                                id: generateMessageId('system'),
+                                role: 'system',
+                                content: `Plugin '${action.plugin.name}' has been uninstalled.`,
+                                timestamp: new Date(),
+                            },
+                        ]);
+
+                        // Refresh prompts to remove uninstalled plugin skills
+                        try {
+                            const newConfig = await reloadAgentConfigFromFile(
+                                agent.getAgentFilePath()
+                            );
+                            const enrichedConfig = enrichAgentConfig(
+                                newConfig,
+                                agent.getAgentFilePath()
+                            );
+                            await agent.refreshPrompts(enrichedConfig.prompts);
+                        } catch {
+                            // Non-critical: prompts will refresh on next agent restart
+                        }
+                    } catch (error) {
+                        setMessages((prev) => [
+                            ...prev,
+                            {
+                                id: generateMessageId('error'),
+                                role: 'system',
+                                content: `Failed to uninstall plugin: ${error instanceof Error ? error.message : String(error)}`,
+                                timestamp: new Date(),
+                            },
+                        ]);
+                    }
+
+                    setSelectedPlugin(null);
+                    setUi((prev) => ({ ...prev, isProcessing: false }));
+                }
             },
-            [setUi, setInput, setMessages, buffer, agent]
+            [setUi, setMessages, agent]
         );
 
         // Handle marketplace browser actions
         const handleMarketplaceBrowserAction = useCallback(
-            (action: MarketplaceBrowserAction) => {
+            async (action: MarketplaceBrowserAction) => {
                 if (action.type === 'add-marketplace') {
                     setUi((prev) => ({ ...prev, activeOverlay: 'marketplace-add' }));
                 } else if (action.type === 'plugin-installed') {
@@ -1577,9 +1519,25 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             timestamp: new Date(),
                         },
                     ]);
+
+                    // Refresh prompts to include new plugin skills
+                    try {
+                        const { reloadAgentConfigFromFile, enrichAgentConfig } = await import(
+                            '@dexto/agent-management'
+                        );
+                        const newConfig = await reloadAgentConfigFromFile(agent.getAgentFilePath());
+                        const enrichedConfig = enrichAgentConfig(
+                            newConfig,
+                            agent.getAgentFilePath()
+                        );
+                        await agent.refreshPrompts(enrichedConfig.prompts);
+                    } catch (error) {
+                        // Non-critical: prompts will refresh on next agent restart
+                        // Log but don't show error to user
+                    }
                 }
             },
-            [setUi, setMessages]
+            [setUi, setMessages, agent]
         );
 
         // Handle marketplace add completion
@@ -2271,18 +2229,30 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                 {/* Plugin list */}
                 {ui.activeOverlay === 'plugin-list' && (
                     <Box marginTop={1}>
-                        <PluginList ref={pluginListRef} isVisible={true} onClose={handleClose} />
+                        <PluginList
+                            ref={pluginListRef}
+                            isVisible={true}
+                            onPluginSelect={handlePluginSelect}
+                            onClose={handleClose}
+                        />
                     </Box>
                 )}
 
-                {/* Plugin import selector */}
-                {ui.activeOverlay === 'plugin-import-selector' && (
+                {/* Plugin actions */}
+                {ui.activeOverlay === 'plugin-actions' && (
                     <Box marginTop={1}>
-                        <PluginImportSelector
-                            ref={pluginImportSelectorRef}
+                        <PluginActions
+                            ref={pluginActionsRef}
                             isVisible={true}
-                            onImport={handlePluginImport}
-                            onClose={handleClose}
+                            plugin={selectedPlugin}
+                            onAction={handlePluginAction}
+                            onClose={() => {
+                                setSelectedPlugin(null);
+                                setUi((prev) => ({
+                                    ...prev,
+                                    activeOverlay: 'plugin-list',
+                                }));
+                            }}
                         />
                     </Box>
                 )}

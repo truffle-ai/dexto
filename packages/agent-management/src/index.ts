@@ -173,7 +173,6 @@ export {
     // Listing
     listInstalledPlugins,
     getDextoInstalledPluginsPath,
-    getClaudeCodeInstalledPluginsPath,
     // Installation
     installPluginFromPath,
     loadDextoInstalledPlugins,
@@ -181,11 +180,6 @@ export {
     isPluginInstalled,
     // Uninstallation
     uninstallPlugin,
-    // Import from Claude Code
-    listClaudeCodePlugins,
-    importClaudeCodePlugin,
-    getClaudeCodePluginsDir,
-    getClaudeCodeInstalledPluginsJsonPath,
     // Schemas
     PluginManifestSchema,
     PluginMCPConfigSchema,
@@ -217,8 +211,6 @@ export {
     type PluginValidationResult,
     type PluginInstallResult,
     type PluginUninstallResult,
-    type PluginImportResult,
-    type ClaudeCodePlugin,
     type ValidatedPluginManifest,
     type ValidatedPluginMCPConfig,
     type InstallPluginOptions,

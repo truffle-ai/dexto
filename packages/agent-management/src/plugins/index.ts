@@ -23,8 +23,6 @@ export type {
     PluginValidationResult,
     PluginInstallResult,
     PluginUninstallResult,
-    PluginImportResult,
-    ClaudeCodePlugin,
 } from './types.js';
 
 // Schemas
@@ -65,11 +63,7 @@ export { loadClaudeCodePlugin } from './load-plugin.js';
 export { validatePluginDirectory, tryLoadManifest } from './validate-plugin.js';
 
 // Listing
-export {
-    listInstalledPlugins,
-    getDextoInstalledPluginsPath,
-    getClaudeCodeInstalledPluginsPath,
-} from './list-plugins.js';
+export { listInstalledPlugins, getDextoInstalledPluginsPath } from './list-plugins.js';
 
 // Installation
 export {
@@ -82,14 +76,6 @@ export {
 
 // Uninstallation
 export { uninstallPlugin, type UninstallPluginOptions } from './uninstall-plugin.js';
-
-// Import from Claude Code
-export {
-    listClaudeCodePlugins,
-    importClaudeCodePlugin,
-    getClaudeCodePluginsDir,
-    getClaudeCodeInstalledPluginsJsonPath,
-} from './import-plugin.js';
 
 // Marketplace
 export {

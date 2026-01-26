@@ -18,6 +18,7 @@ import {
     installPluginFromMarketplace,
     getUninstalledDefaults,
     addMarketplace,
+    listInstalledPlugins,
     type MarketplaceEntry,
     type MarketplacePlugin,
 } from '@dexto/agent-management';
@@ -111,6 +112,7 @@ const MarketplaceBrowser = forwardRef<MarketplaceBrowserHandle, MarketplaceBrows
         const [selectedMarketplace, setSelectedMarketplace] = useState<string | null>(null);
         const [isInstalling, setIsInstalling] = useState(false);
         const [uninstalledDefaults, setUninstalledDefaults] = useState<UninstalledDefault[]>([]);
+        const [installedPluginNames, setInstalledPluginNames] = useState<Set<string>>(new Set());
 
         // Forward handleInput to BaseSelector
         useImperativeHandle(
@@ -149,6 +151,10 @@ const MarketplaceBrowser = forwardRef<MarketplaceBrowserHandle, MarketplaceBrows
                 // Load uninstalled default marketplaces
                 const defaults = getUninstalledDefaults();
                 setUninstalledDefaults(defaults);
+
+                // Load installed plugins to show status
+                const installed = listInstalledPlugins();
+                setInstalledPluginNames(new Set(installed.map((p) => p.name.toLowerCase())));
             } catch (error) {
                 setLoadError(
                     `Failed to load marketplaces: ${error instanceof Error ? error.message : String(error)}`
@@ -156,6 +162,7 @@ const MarketplaceBrowser = forwardRef<MarketplaceBrowserHandle, MarketplaceBrows
                 setMarketplaces([]);
                 setPlugins([]);
                 setUninstalledDefaults([]);
+                setInstalledPluginNames(new Set());
             } finally {
                 setIsLoading(false);
             }
@@ -294,6 +301,7 @@ const MarketplaceBrowser = forwardRef<MarketplaceBrowserHandle, MarketplaceBrows
 
             // Plugin item
             const p = item.plugin;
+            const isInstalled = installedPluginNames.has(p.name.toLowerCase());
             return (
                 <Box flexDirection="column">
                     <Box>
@@ -303,6 +311,7 @@ const MarketplaceBrowser = forwardRef<MarketplaceBrowserHandle, MarketplaceBrows
                         </Text>
                         {p.version && <Text color="gray">@{p.version}</Text>}
                         {p.category && <Text color="magenta"> [{p.category}]</Text>}
+                        {isInstalled && <Text color="green"> (installed)</Text>}
                     </Box>
                     {p.description && (
                         <Box marginLeft={2}>
@@ -311,10 +320,17 @@ const MarketplaceBrowser = forwardRef<MarketplaceBrowserHandle, MarketplaceBrows
                             </Text>
                         </Box>
                     )}
-                    {isSelected && (
+                    {isSelected && !isInstalled && (
                         <Box marginLeft={2}>
                             <Text color="green" dimColor>
                                 Press Enter to install
+                            </Text>
+                        </Box>
+                    )}
+                    {isSelected && isInstalled && (
+                        <Box marginLeft={2}>
+                            <Text color="gray" dimColor>
+                                Already installed - use /plugin to manage
                             </Text>
                         </Box>
                     )}
@@ -357,13 +373,25 @@ const MarketplaceBrowser = forwardRef<MarketplaceBrowserHandle, MarketplaceBrows
                 return;
             }
 
-            // Install plugin
+            // Install plugin (skip if already installed)
             if (item.type === 'plugin' && !isInstalling) {
+                const isAlreadyInstalled = installedPluginNames.has(item.plugin.name.toLowerCase());
+                if (isAlreadyInstalled) {
+                    // Already installed, do nothing (user can manage via /plugin)
+                    return;
+                }
+
                 setIsInstalling(true);
                 try {
                     const result = await installPluginFromMarketplace(
                         `${item.plugin.name}@${item.plugin.marketplace}`
                     );
+                    // Update installed plugins set
+                    setInstalledPluginNames((prev) => {
+                        const next = new Set(prev);
+                        next.add(result.pluginName.toLowerCase());
+                        return next;
+                    });
                     onAction({
                         type: 'plugin-installed',
                         pluginName: result.pluginName,

@@ -73,7 +73,6 @@ import {
     handlePluginInstallCommand,
     handlePluginUninstallCommand,
     handlePluginValidateCommand,
-    handlePluginImportCommand,
     // Marketplace handlers
     handleMarketplaceAddCommand,
     handleMarketplaceRemoveCommand,
@@ -479,22 +478,6 @@ pluginCommand
                 if (err instanceof ExitSignal) throw err;
                 console.error(`❌ dexto plugin validate command failed: ${err}`);
                 safeExit('plugin validate', 1, 'error');
-            }
-        })
-    );
-
-pluginCommand
-    .command('import [name]')
-    .description('Import a Claude Code plugin into Dexto (list available if no name)')
-    .action(
-        withAnalytics('plugin import', async (name?: string) => {
-            try {
-                await handlePluginImportCommand({ name });
-                safeExit('plugin import', 0);
-            } catch (err) {
-                if (err instanceof ExitSignal) throw err;
-                console.error(`❌ dexto plugin import command failed: ${err}`);
-                safeExit('plugin import', 1, 'error');
             }
         })
     );

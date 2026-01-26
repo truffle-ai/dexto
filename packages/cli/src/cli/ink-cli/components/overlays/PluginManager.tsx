@@ -1,6 +1,6 @@
 /**
  * PluginManager Component
- * Interactive plugin management overlay - list, install, import plugins
+ * Interactive plugin management overlay - list installed plugins and browse marketplace
  */
 
 import React, { useState, useEffect, forwardRef, useRef, useImperativeHandle } from 'react';
@@ -8,7 +8,7 @@ import { Box, Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
 import { BaseSelector, type BaseSelectorHandle } from '../base/BaseSelector.js';
 
-export type PluginAction = 'list' | 'import' | 'marketplace' | 'back';
+export type PluginAction = 'list' | 'marketplace' | 'back';
 
 interface PluginManagerProps {
     isVisible: boolean;
@@ -28,20 +28,19 @@ interface PluginOption {
 }
 
 const PLUGIN_OPTIONS: PluginOption[] = [
-    { action: 'list', label: 'List Plugins', description: 'View installed plugins', icon: '📋' },
     {
-        action: 'import',
-        label: 'Import Plugin',
-        description: 'Import Claude Code plugin',
-        icon: '⬇️',
+        action: 'list',
+        label: 'List Plugins',
+        description: 'View and manage installed plugins',
+        icon: '📋',
     },
     {
         action: 'marketplace',
-        label: 'Browse Marketplace',
-        description: 'Install from marketplace',
+        label: 'Marketplace',
+        description: 'Browse and install from marketplaces',
         icon: '🛒',
     },
-    { action: 'back', label: 'Back', description: 'Close plugin manager', icon: '◀️' },
+    { action: 'back', label: 'Back', description: 'Return to previous menu', icon: '←' },
 ];
 
 /**
@@ -76,13 +75,19 @@ const PluginManager = forwardRef<PluginManagerHandle, PluginManagerProps>(functi
 
     // Format option for display
     const formatItem = (option: PluginOption, isSelected: boolean) => (
-        <>
-            <Text>{option.icon} </Text>
-            <Text color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>
-                {option.label}
-            </Text>
-            <Text color={isSelected ? 'white' : 'gray'}> - {option.description}</Text>
-        </>
+        <Box flexDirection="column">
+            <Box>
+                <Text>{option.icon} </Text>
+                <Text color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>
+                    {option.label}
+                </Text>
+            </Box>
+            <Box marginLeft={3}>
+                <Text color={isSelected ? 'white' : 'gray'} dimColor={!isSelected}>
+                    {option.description}
+                </Text>
+            </Box>
+        </Box>
     );
 
     // Handle selection

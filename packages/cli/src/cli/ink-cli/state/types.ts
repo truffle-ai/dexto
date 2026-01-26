@@ -341,7 +341,7 @@ export type OverlayType =
     | 'export-wizard'
     | 'plugin-manager'
     | 'plugin-list'
-    | 'plugin-import-selector'
+    | 'plugin-actions'
     | 'marketplace-browser'
     | 'marketplace-add';
 

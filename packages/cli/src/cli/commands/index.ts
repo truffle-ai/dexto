@@ -28,7 +28,6 @@ export {
     handlePluginInstallCommand,
     handlePluginUninstallCommand,
     handlePluginValidateCommand,
-    handlePluginImportCommand,
     // Marketplace handlers
     handleMarketplaceAddCommand,
     handleMarketplaceRemoveCommand,
@@ -44,8 +43,6 @@ export {
     type PluginUninstallCommandOptionsInput,
     type PluginValidateCommandOptions,
     type PluginValidateCommandOptionsInput,
-    type PluginImportCommandOptions,
-    type PluginImportCommandOptionsInput,
     // Marketplace types
     type MarketplaceAddCommandOptionsInput,
     type MarketplaceRemoveCommandOptionsInput,

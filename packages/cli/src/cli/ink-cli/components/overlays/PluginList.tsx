@@ -11,6 +11,7 @@ import { BaseSelector, type BaseSelectorHandle } from '../base/BaseSelector.js';
 
 interface PluginListProps {
     isVisible: boolean;
+    onPluginSelect: (plugin: ListedPlugin) => void;
     onClose: () => void;
 }
 
@@ -26,7 +27,7 @@ interface PluginListItem extends ListedPlugin {
  * Plugin list overlay - shows installed plugins
  */
 const PluginList = forwardRef<PluginListHandle, PluginListProps>(function PluginList(
-    { isVisible, onClose },
+    { isVisible, onPluginSelect, onClose },
     ref
 ) {
     const baseSelectorRef = useRef<BaseSelectorHandle>(null);
@@ -57,7 +58,7 @@ const PluginList = forwardRef<PluginListHandle, PluginListProps>(function Plugin
                     displayLabel: `${plugin.name}@${plugin.version || 'unknown'}`,
                 }));
                 setPlugins(pluginItems);
-            } catch (error) {
+            } catch {
                 setPlugins([]);
             } finally {
                 setIsLoading(false);
@@ -68,14 +69,12 @@ const PluginList = forwardRef<PluginListHandle, PluginListProps>(function Plugin
 
     // Format plugin for display
     const formatItem = (plugin: PluginListItem, isSelected: boolean) => {
-        const sourceIcon =
-            plugin.source === 'dexto' ? '🔷' : plugin.source === 'claude-code' ? '🔶' : '📁';
         const scopeLabel = plugin.scope ? ` [${plugin.scope}]` : '';
 
         return (
             <Box flexDirection="column">
                 <Box>
-                    <Text>{sourceIcon} </Text>
+                    <Text>📦 </Text>
                     <Text color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>
                         {plugin.name}
                     </Text>
@@ -89,16 +88,23 @@ const PluginList = forwardRef<PluginListHandle, PluginListProps>(function Plugin
                     )}
                 </Box>
                 {plugin.description && (
-                    <Box marginLeft={2}>
+                    <Box marginLeft={3}>
                         <Text color={isSelected ? 'white' : 'gray'} dimColor={!isSelected}>
                             {plugin.description}
                         </Text>
                     </Box>
                 )}
                 {isSelected && (
-                    <Box marginLeft={2}>
+                    <Box marginLeft={3}>
                         <Text color="gray" dimColor>
                             {plugin.path}
+                        </Text>
+                    </Box>
+                )}
+                {isSelected && (
+                    <Box marginLeft={3}>
+                        <Text color="green" dimColor>
+                            Press Enter to manage
                         </Text>
                     </Box>
                 )}
@@ -106,10 +112,9 @@ const PluginList = forwardRef<PluginListHandle, PluginListProps>(function Plugin
         );
     };
 
-    // Handle selection (just show details, no action)
-    const handleSelect = (_plugin: PluginListItem) => {
-        // Currently no actions on plugin selection
-        // Could add uninstall/enable/disable in the future
+    // Handle selection - navigate to plugin actions
+    const handleSelect = (plugin: PluginListItem) => {
+        onPluginSelect(plugin);
     };
 
     return (

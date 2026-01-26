@@ -6,7 +6,6 @@
  * - dexto plugin install --path <path>
  * - dexto plugin uninstall <name>
  * - dexto plugin validate [path]
- * - dexto plugin import [name]
  */
 
 import { z } from 'zod';
@@ -16,8 +15,6 @@ import {
     installPluginFromPath,
     uninstallPlugin,
     validatePluginDirectory,
-    listClaudeCodePlugins,
-    importClaudeCodePlugin,
     type PluginInstallScope,
     // Marketplace
     addMarketplace,
@@ -53,12 +50,6 @@ const PluginUninstallCommandSchema = z
 const PluginValidateCommandSchema = z
     .object({
         path: z.string().default('.').describe('Path to the plugin directory to validate'),
-    })
-    .strict();
-
-const PluginImportCommandSchema = z
-    .object({
-        name: z.string().optional().describe('Name of the Claude Code plugin to import'),
     })
     .strict();
 
@@ -114,9 +105,6 @@ export type PluginUninstallCommandOptionsInput = z.input<typeof PluginUninstallC
 export type PluginValidateCommandOptions = z.output<typeof PluginValidateCommandSchema>;
 export type PluginValidateCommandOptionsInput = z.input<typeof PluginValidateCommandSchema>;
 
-export type PluginImportCommandOptions = z.output<typeof PluginImportCommandSchema>;
-export type PluginImportCommandOptionsInput = z.input<typeof PluginImportCommandSchema>;
-
 // Marketplace command types
 export type MarketplaceAddCommandOptions = z.output<typeof MarketplaceAddCommandSchema>;
 export type MarketplaceAddCommandOptionsInput = z.input<typeof MarketplaceAddCommandSchema>;
@@ -137,7 +125,7 @@ export type MarketplaceInstallCommandOptionsInput = z.input<typeof MarketplaceIn
 
 /**
  * Handles the `dexto plugin list` command.
- * Lists all installed plugins from Dexto and Claude Code.
+ * Lists all installed plugins managed by Dexto.
  */
 export async function handlePluginListCommand(
     options: PluginListCommandOptionsInput
@@ -286,73 +274,6 @@ export async function handlePluginValidateCommand(
     if (!result.valid) {
         process.exit(1);
     }
-}
-
-/**
- * Handles the `dexto plugin import [name]` command.
- * Imports a Claude Code plugin into Dexto's registry.
- * If no name is provided, lists available plugins.
- */
-export async function handlePluginImportCommand(
-    options: PluginImportCommandOptionsInput
-): Promise<void> {
-    const validated = PluginImportCommandSchema.parse(options);
-
-    // List available Claude Code plugins
-    const claudePlugins = listClaudeCodePlugins();
-
-    if (claudePlugins.length === 0) {
-        console.log(chalk.yellow('No Claude Code plugins found.'));
-        console.log('');
-        console.log('Claude Code plugins are typically installed at:');
-        console.log(chalk.dim('  ~/.claude/plugins/'));
-        return;
-    }
-
-    // If no name provided, list available plugins
-    if (!validated.name) {
-        console.log(chalk.bold('Claude Code Plugins Available for Import:'));
-        console.log('');
-
-        const notImported = claudePlugins.filter((p) => !p.isImported);
-        const imported = claudePlugins.filter((p) => p.isImported);
-
-        if (notImported.length > 0) {
-            console.log(chalk.cyan('Not yet imported:'));
-            for (const plugin of notImported) {
-                console.log(
-                    `  ${chalk.green(plugin.name)}${chalk.dim('@' + (plugin.version || 'unknown'))}`
-                );
-                if (plugin.description) {
-                    console.log(chalk.dim(`    ${plugin.description}`));
-                }
-            }
-            console.log('');
-        }
-
-        if (imported.length > 0) {
-            console.log(chalk.dim('Already imported:'));
-            for (const plugin of imported) {
-                console.log(
-                    chalk.dim(`  ${plugin.name}@${plugin.version || 'unknown'} (imported)`)
-                );
-            }
-            console.log('');
-        }
-
-        console.log('To import a plugin, run:');
-        console.log(chalk.cyan('  dexto plugin import <name>'));
-        return;
-    }
-
-    // Import the specified plugin
-    console.log(chalk.cyan(`Importing plugin '${validated.name}' from Claude Code...`));
-
-    const result = await importClaudeCodePlugin(validated.name);
-
-    console.log(chalk.green(`Successfully imported plugin '${result.pluginName}'`));
-    console.log(chalk.dim(`  Path: ${result.pluginPath}`));
-    console.log('');
 }
 
 // === Marketplace Command Handlers ===
@@ -591,15 +512,6 @@ export async function handleMarketplaceInstallCommand(
 /**
  * Gets a display label for the plugin source.
  */
-function getSourceLabel(source: 'dexto' | 'claude-code' | 'directory'): string {
-    switch (source) {
-        case 'dexto':
-            return chalk.blue('(dexto)');
-        case 'claude-code':
-            return chalk.magenta('(claude-code)');
-        case 'directory':
-            return chalk.dim('(directory)');
-        default:
-            return '';
-    }
+function getSourceLabel(_source: 'dexto'): string {
+    return chalk.blue('(dexto)');
 }
