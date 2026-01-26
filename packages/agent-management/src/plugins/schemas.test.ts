@@ -145,7 +145,7 @@ describe('InstalledPluginEntrySchema', () => {
     it('should validate a minimal entry with required fields', () => {
         const entry = {
             scope: 'user',
-            installPath: '/home/user/.claude/plugins/cache/marketplace/plugin/1.0.0',
+            installPath: '/home/user/.dexto/plugins/cache/marketplace/plugin/1.0.0',
         };
         const result = InstalledPluginEntrySchema.safeParse(entry);
 
@@ -153,7 +153,7 @@ describe('InstalledPluginEntrySchema', () => {
         if (result.success) {
             expect(result.data.scope).toBe('user');
             expect(result.data.installPath).toBe(
-                '/home/user/.claude/plugins/cache/marketplace/plugin/1.0.0'
+                '/home/user/.dexto/plugins/cache/marketplace/plugin/1.0.0'
             );
         }
     });
@@ -161,7 +161,7 @@ describe('InstalledPluginEntrySchema', () => {
     it('should validate a complete entry with all fields', () => {
         const entry = {
             scope: 'project',
-            installPath: '/home/user/.claude/plugins/cache/marketplace/my-plugin/1.0.0',
+            installPath: '/home/user/.dexto/plugins/cache/marketplace/my-plugin/1.0.0',
             version: '1.0.0',
             installedAt: '2026-01-21T10:52:10.027Z',
             lastUpdated: '2026-01-21T10:52:10.027Z',
@@ -268,7 +268,7 @@ describe('InstalledPluginsFileSchema', () => {
                     {
                         scope: 'user',
                         installPath:
-                            '/home/user/.claude/plugins/cache/claude-code-plugins/code-review/1.0.0',
+                            '/home/user/.dexto/plugins/cache/claude-code-plugins/code-review/1.0.0',
                         version: '1.0.0',
                         installedAt: '2026-01-21T10:52:10.027Z',
                         lastUpdated: '2026-01-21T10:52:10.027Z',
@@ -279,14 +279,14 @@ describe('InstalledPluginsFileSchema', () => {
                     {
                         scope: 'project',
                         installPath:
-                            '/home/user/.claude/plugins/cache/marketplace/another-plugin/2.0.0',
+                            '/home/user/.dexto/plugins/cache/marketplace/another-plugin/2.0.0',
                         version: '2.0.0',
                         projectPath: '/Users/test/my-project',
                     },
                     {
                         scope: 'project',
                         installPath:
-                            '/home/user/.claude/plugins/cache/marketplace/another-plugin/2.0.0',
+                            '/home/user/.dexto/plugins/cache/marketplace/another-plugin/2.0.0',
                         version: '2.0.0',
                         projectPath: '/Users/test/other-project',
                     },
@@ -310,16 +310,16 @@ describe('InstalledPluginsFileSchema', () => {
                 'multi-install-plugin@marketplace': [
                     {
                         scope: 'user',
-                        installPath: '/home/user/.claude/plugins/cache/marketplace/plugin/1.0.0',
+                        installPath: '/home/user/.dexto/plugins/cache/marketplace/plugin/1.0.0',
                     },
                     {
                         scope: 'project',
-                        installPath: '/home/user/.claude/plugins/cache/marketplace/plugin/1.0.0',
+                        installPath: '/home/user/.dexto/plugins/cache/marketplace/plugin/1.0.0',
                         projectPath: '/project1',
                     },
                     {
                         scope: 'project',
-                        installPath: '/home/user/.claude/plugins/cache/marketplace/plugin/1.0.0',
+                        installPath: '/home/user/.dexto/plugins/cache/marketplace/plugin/1.0.0',
                         projectPath: '/project2',
                     },
                 ],

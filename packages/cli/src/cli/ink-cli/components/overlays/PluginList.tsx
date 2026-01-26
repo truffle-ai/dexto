@@ -1,9 +1,16 @@
 /**
  * PluginList Component
- * Displays list of installed plugins with details
+ * Clean table-like view of installed plugins
  */
 
-import React, { useState, useEffect, forwardRef, useRef, useImperativeHandle } from 'react';
+import React, {
+    useState,
+    useEffect,
+    forwardRef,
+    useRef,
+    useImperativeHandle,
+    useMemo,
+} from 'react';
 import { Box, Text } from 'ink';
 import { listInstalledPlugins, type ListedPlugin } from '@dexto/agent-management';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
@@ -19,12 +26,19 @@ export interface PluginListHandle {
     handleInput: (input: string, key: Key) => boolean;
 }
 
-interface PluginListItem extends ListedPlugin {
-    displayLabel: string;
+interface BackItem {
+    type: 'back';
 }
 
+interface PluginItem {
+    type: 'plugin';
+    plugin: ListedPlugin;
+}
+
+type ListItem = BackItem | PluginItem;
+
 /**
- * Plugin list overlay - shows installed plugins
+ * Plugin list overlay - shows installed plugins in clean table format
  */
 const PluginList = forwardRef<PluginListHandle, PluginListProps>(function PluginList(
     { isVisible, onPluginSelect, onClose },
@@ -43,7 +57,7 @@ const PluginList = forwardRef<PluginListHandle, PluginListProps>(function Plugin
         []
     );
 
-    const [plugins, setPlugins] = useState<PluginListItem[]>([]);
+    const [plugins, setPlugins] = useState<ListedPlugin[]>([]);
     const [selectedIndex, setSelectedIndex] = useState(0);
     const [isLoading, setIsLoading] = useState(true);
 
@@ -53,11 +67,7 @@ const PluginList = forwardRef<PluginListHandle, PluginListProps>(function Plugin
             setIsLoading(true);
             try {
                 const installedPlugins = listInstalledPlugins();
-                const pluginItems: PluginListItem[] = installedPlugins.map((plugin) => ({
-                    ...plugin,
-                    displayLabel: `${plugin.name}@${plugin.version || 'unknown'}`,
-                }));
-                setPlugins(pluginItems);
+                setPlugins(installedPlugins);
             } catch {
                 setPlugins([]);
             } finally {
@@ -67,44 +77,56 @@ const PluginList = forwardRef<PluginListHandle, PluginListProps>(function Plugin
         }
     }, [isVisible]);
 
-    // Format plugin for display
-    const formatItem = (plugin: PluginListItem, isSelected: boolean) => {
-        const scopeLabel = plugin.scope ? ` [${plugin.scope}]` : '';
+    // Build list items with back option
+    const items = useMemo<ListItem[]>(() => {
+        const list: ListItem[] = [{ type: 'back' }];
+        list.push(...plugins.map((plugin) => ({ type: 'plugin' as const, plugin })));
+        return list;
+    }, [plugins]);
+
+    // Format item for display - clean single line with optional details
+    const formatItem = (item: ListItem, isSelected: boolean) => {
+        if (item.type === 'back') {
+            return (
+                <Box>
+                    <Text color={isSelected ? 'cyan' : 'gray'}>{isSelected ? '▸ ' : '  '}</Text>
+                    <Text color="gray">← </Text>
+                    <Text color={isSelected ? 'white' : 'gray'}>Back to menu</Text>
+                </Box>
+            );
+        }
+
+        const plugin = item.plugin;
+        const version = plugin.version || 'unknown';
+        const scopeBadge = plugin.scope ? ` [${plugin.scope}]` : '';
 
         return (
             <Box flexDirection="column">
                 <Box>
-                    <Text>📦 </Text>
-                    <Text color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>
+                    <Text color={isSelected ? 'cyan' : 'gray'}>{isSelected ? '▸ ' : '  '}</Text>
+                    <Text color={isSelected ? 'white' : 'gray'}>📦 </Text>
+                    <Text color={isSelected ? 'cyan' : 'white'} bold={isSelected}>
                         {plugin.name}
                     </Text>
-                    <Text color={isSelected ? 'white' : 'gray'}>
-                        @{plugin.version || 'unknown'}
+                    <Text color="gray" dimColor>
+                        @{version}
                     </Text>
-                    {scopeLabel && (
-                        <Text color="yellow" dimColor={!isSelected}>
-                            {scopeLabel}
+                    {scopeBadge && (
+                        <Text color="yellow" dimColor>
+                            {scopeBadge}
                         </Text>
                     )}
                 </Box>
-                {plugin.description && (
-                    <Box marginLeft={3}>
-                        <Text color={isSelected ? 'white' : 'gray'} dimColor={!isSelected}>
-                            {plugin.description}
-                        </Text>
+                {/* Show description and path only when selected */}
+                {isSelected && plugin.description && (
+                    <Box marginLeft={4}>
+                        <Text color="gray">{plugin.description}</Text>
                     </Box>
                 )}
                 {isSelected && (
-                    <Box marginLeft={3}>
+                    <Box marginLeft={4}>
                         <Text color="gray" dimColor>
                             {plugin.path}
-                        </Text>
-                    </Box>
-                )}
-                {isSelected && (
-                    <Box marginLeft={3}>
-                        <Text color="green" dimColor>
-                            Press Enter to manage
                         </Text>
                     </Box>
                 )}
@@ -112,15 +134,22 @@ const PluginList = forwardRef<PluginListHandle, PluginListProps>(function Plugin
         );
     };
 
-    // Handle selection - navigate to plugin actions
-    const handleSelect = (plugin: PluginListItem) => {
-        onPluginSelect(plugin);
+    // Handle selection
+    const handleSelect = (item: ListItem) => {
+        if (item.type === 'back') {
+            onClose();
+        } else {
+            onPluginSelect(item.plugin);
+        }
     };
+
+    const pluginCount = plugins.length;
+    const title = pluginCount > 0 ? `Installed Plugins (${pluginCount})` : 'Installed Plugins';
 
     return (
         <BaseSelector
             ref={baseSelectorRef}
-            items={plugins}
+            items={items}
             isVisible={isVisible}
             isLoading={isLoading}
             selectedIndex={selectedIndex}
@@ -128,9 +157,9 @@ const PluginList = forwardRef<PluginListHandle, PluginListProps>(function Plugin
             onSelect={handleSelect}
             onClose={onClose}
             formatItem={formatItem}
-            title={`Installed Plugins (${plugins.length})`}
+            title={title}
             borderColor="cyan"
-            emptyMessage="No plugins installed"
+            emptyMessage="No plugins installed. Browse the marketplace to find plugins."
         />
     );
 });

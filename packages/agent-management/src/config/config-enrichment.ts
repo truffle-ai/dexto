@@ -7,8 +7,8 @@
  *
  * Also discovers command prompts from (in priority order):
  * - Local: <projectRoot>/commands/ (dexto-source dev mode or dexto-project only)
- * - Local: <cwd>/.dexto/commands/, <cwd>/.claude/commands/, <cwd>/.cursor/commands/
- * - Global: ~/.dexto/commands/, ~/.claude/commands/, ~/.cursor/commands/
+ * - Local: <cwd>/.dexto/commands/
+ * - Global: ~/.dexto/commands/
  *
  * Core services now require explicit paths - this enrichment layer provides them.
  */
@@ -295,7 +295,7 @@ export function enrichAgentConfig(
             }
         }
 
-        // Discover standalone skills from ~/.claude/skills/ and <cwd>/.claude/skills/
+        // Discover standalone skills from ~/.dexto/skills/ and <cwd>/.dexto/skills/
         // These are bare skill directories with SKILL.md files (not full plugins)
         // Unlike plugin commands, standalone skills don't need namespace prefixing -
         // the id from frontmatter or directory name is used directly.

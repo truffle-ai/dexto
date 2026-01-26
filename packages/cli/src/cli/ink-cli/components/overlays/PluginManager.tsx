@@ -1,6 +1,6 @@
 /**
  * PluginManager Component
- * Interactive plugin management overlay - list installed plugins and browse marketplace
+ * Main menu for plugin management - clean, minimal interface
  */
 
 import React, { useState, useEffect, forwardRef, useRef, useImperativeHandle } from 'react';
@@ -23,28 +23,33 @@ export interface PluginManagerHandle {
 interface PluginOption {
     action: PluginAction;
     label: string;
-    description: string;
+    hint: string;
     icon: string;
 }
 
 const PLUGIN_OPTIONS: PluginOption[] = [
     {
         action: 'list',
-        label: 'List Plugins',
-        description: 'View and manage installed plugins',
-        icon: '📋',
+        label: 'Installed Plugins',
+        hint: 'View, manage, uninstall',
+        icon: '📦',
     },
     {
         action: 'marketplace',
-        label: 'Marketplace',
-        description: 'Browse and install from marketplaces',
+        label: 'Browse Marketplace',
+        hint: 'Find and install plugins',
         icon: '🛒',
     },
-    { action: 'back', label: 'Back', description: 'Return to previous menu', icon: '←' },
+    {
+        action: 'back',
+        label: 'Back',
+        hint: '',
+        icon: '←',
+    },
 ];
 
 /**
- * Plugin manager overlay - shows plugin management options
+ * Plugin manager overlay - main menu for plugin management
  */
 const PluginManager = forwardRef<PluginManagerHandle, PluginManagerProps>(function PluginManager(
     { isVisible, onAction, onClose },
@@ -63,7 +68,6 @@ const PluginManager = forwardRef<PluginManagerHandle, PluginManagerProps>(functi
         []
     );
 
-    const [options] = useState<PluginOption[]>(PLUGIN_OPTIONS);
     const [selectedIndex, setSelectedIndex] = useState(0);
 
     // Reset selection when becoming visible
@@ -73,22 +77,26 @@ const PluginManager = forwardRef<PluginManagerHandle, PluginManagerProps>(functi
         }
     }, [isVisible]);
 
-    // Format option for display
-    const formatItem = (option: PluginOption, isSelected: boolean) => (
-        <Box flexDirection="column">
+    // Format option for display - clean single line
+    const formatItem = (option: PluginOption, isSelected: boolean) => {
+        const isBack = option.action === 'back';
+
+        return (
             <Box>
-                <Text>{option.icon} </Text>
-                <Text color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>
+                <Text color={isSelected ? 'cyan' : 'gray'}>{isSelected ? '▸ ' : '  '}</Text>
+                <Text color={isBack ? 'gray' : isSelected ? 'white' : 'gray'}>{option.icon} </Text>
+                <Text color={isBack ? 'gray' : isSelected ? 'cyan' : 'white'} bold={isSelected}>
                     {option.label}
                 </Text>
+                {option.hint && (
+                    <Text color="gray" dimColor>
+                        {' '}
+                        — {option.hint}
+                    </Text>
+                )}
             </Box>
-            <Box marginLeft={3}>
-                <Text color={isSelected ? 'white' : 'gray'} dimColor={!isSelected}>
-                    {option.description}
-                </Text>
-            </Box>
-        </Box>
-    );
+        );
+    };
 
     // Handle selection
     const handleSelect = (option: PluginOption) => {
@@ -102,7 +110,7 @@ const PluginManager = forwardRef<PluginManagerHandle, PluginManagerProps>(functi
     return (
         <BaseSelector
             ref={baseSelectorRef}
-            items={options}
+            items={PLUGIN_OPTIONS}
             isVisible={isVisible}
             isLoading={false}
             selectedIndex={selectedIndex}
@@ -110,7 +118,7 @@ const PluginManager = forwardRef<PluginManagerHandle, PluginManagerProps>(functi
             onSelect={handleSelect}
             onClose={onClose}
             formatItem={formatItem}
-            title="Plugin Manager"
+            title="Plugins"
             borderColor="magenta"
             emptyMessage="No options available"
         />

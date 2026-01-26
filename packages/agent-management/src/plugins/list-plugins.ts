@@ -23,17 +23,6 @@ export function getDextoInstalledPluginsPath(): string {
 }
 
 /**
- * @deprecated Claude Code plugins are no longer discovered. Use marketplace to install plugins.
- */
-export function getClaudeCodeInstalledPluginsPath(): string | null {
-    const homeDir = process.env.HOME || process.env.USERPROFILE || '';
-    if (!homeDir) {
-        return null;
-    }
-    return path.join(homeDir, '.claude', 'plugins', 'installed_plugins.json');
-}
-
-/**
  * Lists all installed plugins managed by Dexto.
  *
  * Discovery sources:

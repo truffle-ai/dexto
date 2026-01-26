@@ -15,7 +15,6 @@ import {
     getMarketplaceEntry,
     getAllMarketplaces,
     updateMarketplaceTimestamp,
-    getAllMarketplacesWithClaudeCode,
 } from './registry.js';
 import { MarketplaceError } from './errors.js';
 import { MarketplaceManifestSchema } from './schemas.js';
@@ -338,10 +337,7 @@ async function updateSingleMarketplace(name: string): Promise<MarketplaceUpdateR
 /**
  * List all registered marketplaces
  */
-export function listMarketplaces(includeClaudeCode = true): MarketplaceEntry[] {
-    if (includeClaudeCode) {
-        return getAllMarketplacesWithClaudeCode();
-    }
+export function listMarketplaces(): MarketplaceEntry[] {
     return getAllMarketplaces();
 }
 
@@ -462,8 +458,8 @@ export function scanMarketplacePlugins(
 /**
  * List all plugins across all marketplaces
  */
-export function listAllMarketplacePlugins(includeClaudeCode = true): MarketplacePlugin[] {
-    const marketplaces = listMarketplaces(includeClaudeCode);
+export function listAllMarketplacePlugins(): MarketplacePlugin[] {
+    const marketplaces = listMarketplaces();
     const allPlugins: MarketplacePlugin[] = [];
 
     for (const marketplace of marketplaces) {

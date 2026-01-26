@@ -1,11 +1,11 @@
 /**
  * Standalone Skill Discovery
  *
- * Discovers standalone skills from ~/.claude/skills/ directory.
+ * Discovers standalone skills from ~/.dexto/skills/ directory.
  * These are different from plugin skills - they're just directories containing a SKILL.md file.
  *
  * Structure:
- * ~/.claude/skills/
+ * ~/.dexto/skills/
  * └── skill-name/
  *     ├── SKILL.md          (required - the skill prompt)
  *     └── references/       (optional - reference files)
@@ -34,8 +34,8 @@ export interface DiscoveredSkill {
  * Discovers standalone skills from standard locations.
  *
  * Search Locations:
- * 1. <cwd>/.claude/skills/*    (project)
- * 2. ~/.claude/skills/*        (user)
+ * 1. <cwd>/.dexto/skills/*    (project)
+ * 2. ~/.dexto/skills/*        (user)
  *
  * @param projectPath Optional project path (defaults to cwd)
  * @returns Array of discovered skills
@@ -90,13 +90,13 @@ export function discoverStandaloneSkills(projectPath?: string): DiscoveredSkill[
     };
 
     // === Project skills ===
-    // 1. Claude Code project skills: <cwd>/.claude/skills/
-    scanSkillsDir(path.join(cwd, '.claude', 'skills'), 'project');
+    // 1. Dexto project skills: <cwd>/.dexto/skills/
+    scanSkillsDir(path.join(cwd, '.dexto', 'skills'), 'project');
 
     // === User skills ===
-    // 2. Claude Code user skills: ~/.claude/skills/
+    // 2. Dexto user skills: ~/.dexto/skills/
     if (homeDir) {
-        scanSkillsDir(path.join(homeDir, '.claude', 'skills'), 'user');
+        scanSkillsDir(path.join(homeDir, '.dexto', 'skills'), 'user');
     }
 
     return skills;
@@ -113,7 +113,7 @@ export function getSkillSearchPaths(): string[] {
     const cwd = process.cwd();
 
     return [
-        path.join(cwd, '.claude', 'skills'),
-        homeDir ? path.join(homeDir, '.claude', 'skills') : '',
+        path.join(cwd, '.dexto', 'skills'),
+        homeDir ? path.join(homeDir, '.dexto', 'skills') : '',
     ].filter(Boolean);
 }

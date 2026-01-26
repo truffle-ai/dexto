@@ -99,7 +99,7 @@ export const InstalledPluginEntrySchema = z
     .describe('Plugin installation entry');
 
 /**
- * Schema for ~/.claude/plugins/installed_plugins.json
+ * Schema for ~/.dexto/plugins/installed_plugins.json
  */
 export const InstalledPluginsFileSchema = z
     .object({

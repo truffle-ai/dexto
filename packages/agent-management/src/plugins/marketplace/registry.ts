@@ -122,64 +122,6 @@ export function getAllMarketplaces(): MarketplaceEntry[] {
 }
 
 /**
- * Get Claude Code's marketplace registry path
- */
-export function getClaudeCodeMarketplacesPath(): string | null {
-    const possiblePath = path.join(homedir(), '.claude', 'plugins', 'known_marketplaces.json');
-    return existsSync(possiblePath) ? possiblePath : null;
-}
-
-/**
- * Load Claude Code's marketplaces as fallback
- * Returns empty array if not found or invalid
- */
-export function loadClaudeCodeMarketplaces(): MarketplaceEntry[] {
-    const filePath = getClaudeCodeMarketplacesPath();
-    if (!filePath) {
-        return [];
-    }
-
-    try {
-        const content = readFileSync(filePath, 'utf-8');
-        const parsed = JSON.parse(content);
-        const result = KnownMarketplacesFileSchema.safeParse(parsed);
-
-        if (!result.success) {
-            return [];
-        }
-
-        return Object.values(result.data.marketplaces);
-    } catch {
-        return [];
-    }
-}
-
-/**
- * Get all marketplaces from both Dexto and Claude Code
- * Dexto marketplaces take priority for duplicates
- */
-export function getAllMarketplacesWithClaudeCode(): MarketplaceEntry[] {
-    const dextoMarketplaces = getAllMarketplaces();
-    const claudeMarketplaces = loadClaudeCodeMarketplaces();
-
-    // Create a map with Dexto marketplaces (priority)
-    const marketplaceMap = new Map<string, MarketplaceEntry>();
-
-    for (const entry of dextoMarketplaces) {
-        marketplaceMap.set(entry.name, entry);
-    }
-
-    // Add Claude Code marketplaces that don't exist in Dexto
-    for (const entry of claudeMarketplaces) {
-        if (!marketplaceMap.has(entry.name)) {
-            marketplaceMap.set(entry.name, entry);
-        }
-    }
-
-    return Array.from(marketplaceMap.values());
-}
-
-/**
  * Add a marketplace entry to the registry
  */
 export function addMarketplaceEntry(entry: MarketplaceEntry): void {

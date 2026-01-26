@@ -39,7 +39,6 @@ vi.mock('../registry.js', () => ({
     getMarketplaceEntry: vi.fn(),
     getAllMarketplaces: vi.fn(() => []),
     updateMarketplaceTimestamp: vi.fn(),
-    getAllMarketplacesWithClaudeCode: vi.fn(() => []),
 }));
 
 // Mock validate-plugin
@@ -64,7 +63,6 @@ import {
     removeMarketplaceEntry,
     getMarketplaceEntry,
     getAllMarketplaces,
-    getAllMarketplacesWithClaudeCode,
 } from '../registry.js';
 import { tryLoadManifest } from '../../validate-plugin.js';
 import type { MarketplaceEntry } from '../types.js';
@@ -80,7 +78,6 @@ describe('Marketplace Operations', () => {
         vi.mocked(childProcess.execSync).mockReset();
         vi.mocked(getMarketplaceEntry).mockReset();
         vi.mocked(getAllMarketplaces).mockReset();
-        vi.mocked(getAllMarketplacesWithClaudeCode).mockReset();
         vi.mocked(addMarketplaceEntry).mockReset();
         vi.mocked(removeMarketplaceEntry).mockReset();
         vi.mocked(tryLoadManifest).mockReset();
@@ -362,40 +359,24 @@ describe('Marketplace Operations', () => {
     });
 
     describe('listMarketplaces', () => {
-        it('returns marketplaces including Claude Code when includeClaudeCode is true', () => {
-            const combined: MarketplaceEntry[] = [
+        it('returns all registered marketplaces', () => {
+            const marketplaces: MarketplaceEntry[] = [
                 {
                     name: 'dexto-market',
                     source: { type: 'github', value: 'dexto/plugins' },
                     installLocation: '/dexto/path',
                 },
                 {
-                    name: 'claude-market',
-                    source: { type: 'github', value: 'anthropics/plugins' },
-                    installLocation: '/claude/path',
+                    name: 'custom-market',
+                    source: { type: 'github', value: 'user/plugins' },
+                    installLocation: '/custom/path',
                 },
             ];
-            vi.mocked(getAllMarketplacesWithClaudeCode).mockReturnValue(combined);
+            vi.mocked(getAllMarketplaces).mockReturnValue(marketplaces);
 
-            const result = listMarketplaces(true);
+            const result = listMarketplaces();
 
             expect(result).toHaveLength(2);
-            expect(getAllMarketplacesWithClaudeCode).toHaveBeenCalled();
-        });
-
-        it('returns only Dexto marketplaces when includeClaudeCode is false', () => {
-            const dextoOnly: MarketplaceEntry[] = [
-                {
-                    name: 'dexto-market',
-                    source: { type: 'github', value: 'dexto/plugins' },
-                    installLocation: '/dexto/path',
-                },
-            ];
-            vi.mocked(getAllMarketplaces).mockReturnValue(dextoOnly);
-
-            const result = listMarketplaces(false);
-
-            expect(result).toHaveLength(1);
             expect(getAllMarketplaces).toHaveBeenCalled();
         });
     });
@@ -482,7 +463,7 @@ describe('Marketplace Operations', () => {
                 source: { type: 'github', value: 'owner/repo' },
                 installLocation: '/path/to/marketplace',
             };
-            vi.mocked(getAllMarketplacesWithClaudeCode).mockReturnValue([mockEntry]);
+            vi.mocked(getAllMarketplaces).mockReturnValue([mockEntry]);
             vi.mocked(fs.existsSync).mockReturnValue(true);
             vi.mocked(fs.readFileSync).mockReturnValue(
                 JSON.stringify({
@@ -519,7 +500,7 @@ describe('Marketplace Operations', () => {
         });
 
         it('returns null when plugin not found', () => {
-            vi.mocked(getAllMarketplacesWithClaudeCode).mockReturnValue([]);
+            vi.mocked(getAllMarketplaces).mockReturnValue([]);
 
             const result = findPluginInMarketplaces('nonexistent');
 

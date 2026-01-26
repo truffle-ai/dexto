@@ -1,6 +1,6 @@
 /**
  * PluginActions Component
- * Shows actions for a selected installed plugin: uninstall
+ * Clean action menu for a selected plugin
  */
 
 import React, {
@@ -38,13 +38,12 @@ interface ActionItem {
     id: string;
     type: PluginActionType;
     label: string;
-    description: string;
     icon: string;
     color: string;
 }
 
 /**
- * Plugin Actions - uninstall for a specific plugin
+ * Plugin Actions - action menu for a specific plugin
  */
 const PluginActions = forwardRef<PluginActionsHandle, PluginActionsProps>(function PluginActions(
     { isVisible, plugin, onAction, onClose },
@@ -77,39 +76,38 @@ const PluginActions = forwardRef<PluginActionsHandle, PluginActionsProps>(functi
 
         return [
             {
-                id: 'uninstall',
-                type: 'uninstall' as const,
-                label: 'Uninstall plugin',
-                description: 'Remove this plugin from your system',
-                icon: '🗑️',
-                color: 'red',
-            },
-            {
                 id: 'back',
                 type: 'back' as const,
-                label: 'Back to plugin list',
-                description: 'Return to the list of installed plugins',
+                label: 'Back to list',
                 icon: '←',
                 color: 'gray',
+            },
+            {
+                id: 'uninstall',
+                type: 'uninstall' as const,
+                label: 'Uninstall',
+                icon: '🗑',
+                color: 'red',
             },
         ];
     }, [plugin]);
 
-    // Format item for display
+    // Format item for display - clean single line
     const formatItem = (item: ActionItem, isSelected: boolean) => {
+        const isBack = item.type === 'back';
+
         return (
-            <Box flexDirection="column">
-                <Box>
-                    <Text>{item.icon} </Text>
-                    <Text color={isSelected ? item.color : 'gray'} bold={isSelected}>
-                        {item.label}
-                    </Text>
-                </Box>
-                <Box marginLeft={3}>
-                    <Text color="gray" dimColor={!isSelected}>
-                        {item.description}
-                    </Text>
-                </Box>
+            <Box>
+                <Text color={isSelected ? 'cyan' : 'gray'}>{isSelected ? '▸ ' : '  '}</Text>
+                <Text color={isBack ? 'gray' : isSelected ? item.color : 'gray'}>{item.icon} </Text>
+                <Text
+                    color={
+                        isBack ? (isSelected ? 'white' : 'gray') : isSelected ? item.color : 'white'
+                    }
+                    bold={isSelected && !isBack}
+                >
+                    {item.label}
+                </Text>
             </Box>
         );
     };
@@ -122,7 +120,9 @@ const PluginActions = forwardRef<PluginActionsHandle, PluginActionsProps>(functi
 
     if (!plugin) return null;
 
-    const scopeLabel = plugin.scope ? ` [${plugin.scope}]` : '';
+    const version = plugin.version || 'unknown';
+    const scopeBadge = plugin.scope ? ` [${plugin.scope}]` : '';
+    const title = `📦 ${plugin.name}@${version}${scopeBadge}`;
 
     return (
         <BaseSelector
@@ -135,7 +135,7 @@ const PluginActions = forwardRef<PluginActionsHandle, PluginActionsProps>(functi
             onSelect={handleSelect}
             onClose={onClose}
             formatItem={formatItem}
-            title={`📦 ${plugin.name}@${plugin.version || 'unknown'}${scopeLabel}`}
+            title={title}
             borderColor="magenta"
             emptyMessage="No actions available"
         />

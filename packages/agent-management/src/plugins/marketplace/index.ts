@@ -47,9 +47,6 @@ export {
     getMarketplaceEntry,
     marketplaceExists,
     getAllMarketplaces,
-    getAllMarketplacesWithClaudeCode,
-    getClaudeCodeMarketplacesPath,
-    loadClaudeCodeMarketplaces,
     getUninstalledDefaults,
     isDefaultMarketplace,
 } from './registry.js';

@@ -1,19 +1,16 @@
 /**
- * Claude Code Plugin Discovery
+ * Plugin Discovery
  *
- * Discovers plugins from standard locations following the Claude Code plugin format.
+ * Discovers plugins from Dexto locations following the plugin format.
  * Plugins must have a .claude-plugin/plugin.json manifest file.
  *
  * Discovery Methods (Priority Order):
  * 1. Read ~/.dexto/plugins/installed_plugins.json for Dexto installed plugins
- * 2. Read ~/.claude/plugins/installed_plugins.json for Claude Code installed plugins
- * 3. Scan directories for plugins with .claude-plugin/plugin.json manifests
+ * 2. Scan directories for plugins with .claude-plugin/plugin.json manifests
  *
  * Search Locations for Directory Scanning:
  * 1. <cwd>/.dexto/plugins/*     (project)
- * 2. <cwd>/.claude/plugins/*    (project, Claude Code compatibility)
- * 3. ~/.dexto/plugins/*         (user)
- * 4. ~/.claude/plugins/*        (user, Claude Code compatibility - legacy)
+ * 2. ~/.dexto/plugins/*         (user)
  *
  * First found wins on name collision (by plugin name).
  */
@@ -31,7 +28,7 @@ import type {
 } from './types.js';
 
 /**
- * Discovers Claude Code plugins from standard locations.
+ * Discovers plugins from Dexto locations.
  *
  * @param projectPath Optional project path for filtering project-scoped plugins
  * @param bundledPluginPaths Optional array of absolute paths to bundled plugins from image definition
@@ -43,7 +40,6 @@ export function discoverClaudeCodePlugins(
 ): DiscoveredPlugin[] {
     const plugins: DiscoveredPlugin[] = [];
     const seenNames = new Set<string>();
-    const homeDir = process.env.HOME || process.env.USERPROFILE || '';
     const cwd = projectPath || process.cwd();
 
     /**
@@ -59,28 +55,11 @@ export function discoverClaudeCodePlugins(
         return true;
     };
 
-    // === Method 1: Read Dexto's installed_plugins.json (Dexto installed plugins - highest priority) ===
+    // === Method 1: Read Dexto's installed_plugins.json (highest priority) ===
     const dextoInstalledPluginsPath = getDextoGlobalPath('plugins', 'installed_plugins.json');
     const dextoInstalledPlugins = readInstalledPluginsFile(dextoInstalledPluginsPath, cwd);
     for (const plugin of dextoInstalledPlugins) {
         addPlugin(plugin);
-    }
-
-    // === Method 2: Read Claude Code's installed_plugins.json (Claude Code installed plugins) ===
-    if (homeDir) {
-        const claudeCodeInstalledPluginsPath = path.join(
-            homeDir,
-            '.claude',
-            'plugins',
-            'installed_plugins.json'
-        );
-        const claudeCodeInstalledPlugins = readInstalledPluginsFile(
-            claudeCodeInstalledPluginsPath,
-            cwd
-        );
-        for (const plugin of claudeCodeInstalledPlugins) {
-            addPlugin(plugin);
-        }
     }
 
     /**
@@ -124,25 +103,15 @@ export function discoverClaudeCodePlugins(
         }
     };
 
-    // === Method 3: Scan directories (legacy and local plugins) ===
+    // === Method 2: Scan directories ===
 
-    // === Project plugins ===
-    // 1. Dexto project plugins: <cwd>/.dexto/plugins/
+    // Project plugins: <cwd>/.dexto/plugins/
     scanPluginsDir(path.join(cwd, '.dexto', 'plugins'), 'project');
 
-    // 2. Claude Code project plugins: <cwd>/.claude/plugins/
-    scanPluginsDir(path.join(cwd, '.claude', 'plugins'), 'project');
-
-    // === User plugins ===
-    // 3. Dexto user plugins: ~/.dexto/plugins/
+    // User plugins: ~/.dexto/plugins/
     scanPluginsDir(getDextoGlobalPath('plugins'), 'user');
 
-    // 4. Claude Code user plugins: ~/.claude/plugins/ (legacy direct placement)
-    if (homeDir) {
-        scanPluginsDir(path.join(homeDir, '.claude', 'plugins'), 'user');
-    }
-
-    // === Method 4: Bundled plugins from image definition ===
+    // === Method 3: Bundled plugins from image definition ===
     // These have lowest priority so users can override bundled plugins
     if (bundledPluginPaths && bundledPluginPaths.length > 0) {
         for (const pluginPath of bundledPluginPaths) {
@@ -176,11 +145,10 @@ export function discoverClaudeCodePlugins(
 }
 
 /**
- * Reads and parses ~/.claude/plugins/installed_plugins.json
+ * Reads and parses installed_plugins.json
  *
- * This is Claude Code's primary method for tracking installed plugins.
  * Plugins are stored at paths like:
- *   ~/.claude/plugins/cache/<marketplace>/<plugin-name>/<version>/
+ *   ~/.dexto/plugins/cache/<marketplace>/<plugin-name>/<version>/
  *
  * @param filePath Path to installed_plugins.json
  * @param currentProjectPath Current project path for filtering project-scoped plugins
@@ -244,7 +212,7 @@ function readInstalledPluginsFile(
                 }
 
                 if (loadResult) {
-                    // Map Claude Code scope to our source type
+                    // Map scope to source type
                     const source: 'project' | 'user' =
                         scope === 'project' || scope === 'local' ? 'project' : 'user';
 
@@ -271,31 +239,22 @@ function readInstalledPluginsFile(
  * @returns Array of plugin search paths
  */
 export function getPluginSearchPaths(): string[] {
-    const homeDir = process.env.HOME || process.env.USERPROFILE || '';
     const cwd = process.cwd();
 
     return [
         // Dexto's installed_plugins.json (highest priority)
         getDextoGlobalPath('plugins', 'installed_plugins.json'),
-        // Claude Code's installed_plugins.json
-        homeDir ? path.join(homeDir, '.claude', 'plugins', 'installed_plugins.json') : '',
         // Directory scan locations
         path.join(cwd, '.dexto', 'plugins'),
-        path.join(cwd, '.claude', 'plugins'),
         getDextoGlobalPath('plugins'),
-        homeDir ? path.join(homeDir, '.claude', 'plugins') : '',
-    ].filter(Boolean);
+    ];
 }
 
 /**
- * Gets the path to Claude Code's installed_plugins.json file.
+ * Gets the path to Dexto's installed_plugins.json file.
  *
- * @returns Absolute path to installed_plugins.json or null if HOME is not set
+ * @returns Absolute path to installed_plugins.json
  */
-export function getInstalledPluginsPath(): string | null {
-    const homeDir = process.env.HOME || process.env.USERPROFILE || '';
-    if (!homeDir) {
-        return null;
-    }
-    return path.join(homeDir, '.claude', 'plugins', 'installed_plugins.json');
+export function getInstalledPluginsPath(): string {
+    return getDextoGlobalPath('plugins', 'installed_plugins.json');
 }

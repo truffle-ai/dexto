@@ -82,3 +82,6 @@ agents/sports-analytics-agent/
 .verdaccio
 
 packages/os-electron/out/
+
+# Temporarily ignore launch-video package (WIP)
+packages/launch-video/

@@ -113,7 +113,6 @@ export {
     getMarketplaceEntry,
     marketplaceExists,
     getAllMarketplaces,
-    getAllMarketplacesWithClaudeCode,
     getUninstalledDefaults,
     isDefaultMarketplace,
     // Operations

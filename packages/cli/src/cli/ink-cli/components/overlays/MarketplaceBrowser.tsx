@@ -1,6 +1,6 @@
 /**
  * MarketplaceBrowser Component
- * Browse plugin marketplaces and install plugins
+ * Clean, intuitive marketplace browser with two-level navigation
  */
 
 import React, {
@@ -44,22 +44,15 @@ export interface MarketplaceBrowserHandle {
 
 type BrowserView = 'marketplaces' | 'plugins';
 
-interface MarketplaceListItem {
-    type: 'marketplace';
-    marketplace: MarketplaceEntry;
-}
-
-interface PluginListItem {
-    type: 'plugin';
-    plugin: MarketplacePlugin;
-}
-
-interface AddMarketplaceItem {
-    type: 'add-new';
-}
-
+// List item types
 interface BackItem {
     type: 'back';
+}
+
+interface MarketplaceItem {
+    type: 'marketplace';
+    marketplace: MarketplaceEntry;
+    pluginCount: number;
 }
 
 interface DefaultMarketplaceItem {
@@ -69,12 +62,22 @@ interface DefaultMarketplaceItem {
     sourceType: 'github' | 'git' | 'local';
 }
 
+interface AddMarketplaceItem {
+    type: 'add-new';
+}
+
+interface PluginItem {
+    type: 'plugin';
+    plugin: MarketplacePlugin;
+    isInstalled: boolean;
+}
+
 type ListItem =
-    | MarketplaceListItem
-    | PluginListItem
-    | AddMarketplaceItem
     | BackItem
-    | DefaultMarketplaceItem;
+    | MarketplaceItem
+    | DefaultMarketplaceItem
+    | AddMarketplaceItem
+    | PluginItem;
 
 /**
  * Get source type icon
@@ -93,7 +96,7 @@ function getSourceIcon(type: string): string {
 }
 
 /**
- * Marketplace browser overlay
+ * Marketplace browser overlay - clean two-level navigation
  */
 interface UninstalledDefault {
     name: string;
@@ -144,20 +147,17 @@ const MarketplaceBrowser = forwardRef<MarketplaceBrowserHandle, MarketplaceBrows
                 const mktplaces = listMarketplaces();
                 setMarketplaces(mktplaces);
 
-                // Also load all plugins for quick access
                 const allPlugins = listAllMarketplacePlugins();
                 setPlugins(allPlugins);
 
-                // Load uninstalled default marketplaces
                 const defaults = getUninstalledDefaults();
                 setUninstalledDefaults(defaults);
 
-                // Load installed plugins to show status
                 const installed = listInstalledPlugins();
                 setInstalledPluginNames(new Set(installed.map((p) => p.name.toLowerCase())));
             } catch (error) {
                 setLoadError(
-                    `Failed to load marketplaces: ${error instanceof Error ? error.message : String(error)}`
+                    `Failed to load: ${error instanceof Error ? error.message : String(error)}`
                 );
                 setMarketplaces([]);
                 setPlugins([]);
@@ -168,7 +168,7 @@ const MarketplaceBrowser = forwardRef<MarketplaceBrowserHandle, MarketplaceBrows
             }
         };
 
-        // Load plugins for a specific marketplace
+        // Show plugins for a marketplace
         const showMarketplacePlugins = (marketplaceName: string) => {
             setSelectedMarketplace(marketplaceName);
             setView('plugins');
@@ -187,26 +187,31 @@ const MarketplaceBrowser = forwardRef<MarketplaceBrowserHandle, MarketplaceBrows
             if (view === 'marketplaces') {
                 const list: ListItem[] = [];
 
-                // Add uninstalled default marketplaces first (with setup prompt)
+                // Back option first
+                list.push({ type: 'back' });
+
+                // Uninstalled default marketplaces (setup prompts)
                 for (const def of uninstalledDefaults) {
                     list.push({
-                        type: 'default-marketplace' as const,
+                        type: 'default-marketplace',
                         name: def.name,
                         sourceValue: def.source.value,
                         sourceType: def.source.type,
                     });
                 }
 
-                // Add installed marketplaces
-                list.push(
-                    ...marketplaces.map((m) => ({
-                        type: 'marketplace' as const,
+                // Installed marketplaces
+                for (const m of marketplaces) {
+                    const pluginCount = plugins.filter((p) => p.marketplace === m.name).length;
+                    list.push({
+                        type: 'marketplace',
                         marketplace: m,
-                    }))
-                );
+                        pluginCount,
+                    });
+                }
 
-                // Add "Add marketplace" option
-                list.push({ type: 'add-new' as const });
+                // Add marketplace option
+                list.push({ type: 'add-new' });
 
                 return list;
             } else {
@@ -215,81 +220,101 @@ const MarketplaceBrowser = forwardRef<MarketplaceBrowserHandle, MarketplaceBrows
                     ? plugins.filter((p) => p.marketplace === selectedMarketplace)
                     : plugins;
 
-                const list: ListItem[] = filteredPlugins.map((p) => ({
-                    type: 'plugin' as const,
-                    plugin: p,
-                }));
+                const list: ListItem[] = [{ type: 'back' }];
 
-                // Add back option at the top
-                list.unshift({ type: 'back' as const });
+                for (const plugin of filteredPlugins) {
+                    const isInstalled = installedPluginNames.has(plugin.name.toLowerCase());
+                    list.push({
+                        type: 'plugin',
+                        plugin,
+                        isInstalled,
+                    });
+                }
 
                 return list;
             }
-        }, [view, marketplaces, plugins, selectedMarketplace, uninstalledDefaults]);
+        }, [
+            view,
+            marketplaces,
+            plugins,
+            selectedMarketplace,
+            uninstalledDefaults,
+            installedPluginNames,
+        ]);
 
         // Format item for display
         const formatItem = (item: ListItem, isSelected: boolean) => {
+            // Back option
+            if (item.type === 'back') {
+                const label = view === 'plugins' ? 'Back to marketplaces' : 'Back to menu';
+                return (
+                    <Box>
+                        <Text color={isSelected ? 'cyan' : 'gray'}>{isSelected ? '▸ ' : '  '}</Text>
+                        <Text color="gray">← </Text>
+                        <Text color={isSelected ? 'white' : 'gray'}>{label}</Text>
+                    </Box>
+                );
+            }
+
+            // Add marketplace option
             if (item.type === 'add-new') {
                 return (
                     <Box>
-                        <Text color={isSelected ? 'green' : 'gray'} bold={isSelected}>
-                            + Add marketplace
-                        </Text>
+                        <Text color={isSelected ? 'cyan' : 'gray'}>{isSelected ? '▸ ' : '  '}</Text>
+                        <Text color={isSelected ? 'green' : 'gray'}>+ </Text>
+                        <Text color={isSelected ? 'green' : 'gray'}>Add custom marketplace</Text>
                     </Box>
                 );
             }
 
-            if (item.type === 'back') {
-                return (
-                    <Box>
-                        <Text color={isSelected ? 'yellow' : 'gray'} bold={isSelected}>
-                            {'<'} Back to marketplaces
-                        </Text>
-                    </Box>
-                );
-            }
-
+            // Default (uninstalled) marketplace
             if (item.type === 'default-marketplace') {
                 const icon = getSourceIcon(item.sourceType);
                 return (
                     <Box flexDirection="column">
                         <Box>
+                            <Text color={isSelected ? 'cyan' : 'gray'}>
+                                {isSelected ? '▸ ' : '  '}
+                            </Text>
                             <Text>{icon} </Text>
                             <Text color={isSelected ? 'cyan' : 'white'} bold={isSelected}>
                                 {item.name}
                             </Text>
                             <Text color="yellow"> (not installed)</Text>
                         </Box>
-                        <Box marginLeft={2}>
-                            <Text color="gray" dimColor>
-                                {item.sourceValue}
-                            </Text>
-                        </Box>
                         {isSelected && (
-                            <Box marginLeft={2}>
-                                <Text color="green">Press Enter to install this marketplace</Text>
+                            <Box marginLeft={4}>
+                                <Text color="gray" dimColor>
+                                    {item.sourceValue}
+                                </Text>
                             </Box>
                         )}
                     </Box>
                 );
             }
 
+            // Installed marketplace
             if (item.type === 'marketplace') {
                 const m = item.marketplace;
-                const pluginCount = plugins.filter((p) => p.marketplace === m.name).length;
                 const icon = getSourceIcon(m.source.type);
 
                 return (
                     <Box flexDirection="column">
                         <Box>
+                            <Text color={isSelected ? 'cyan' : 'gray'}>
+                                {isSelected ? '▸ ' : '  '}
+                            </Text>
                             <Text>{icon} </Text>
                             <Text color={isSelected ? 'cyan' : 'white'} bold={isSelected}>
                                 {m.name}
                             </Text>
-                            <Text color="gray"> ({pluginCount} plugins)</Text>
+                            <Text color="gray" dimColor>
+                                {' '}
+                                ({item.pluginCount} plugins)
+                            </Text>
                         </Box>
                         {isSelected && (
-                            <Box marginLeft={2}>
+                            <Box marginLeft={4}>
                                 <Text color="gray" dimColor>
                                     {m.source.value}
                                 </Text>
@@ -301,36 +326,38 @@ const MarketplaceBrowser = forwardRef<MarketplaceBrowserHandle, MarketplaceBrows
 
             // Plugin item
             const p = item.plugin;
-            const isInstalled = installedPluginNames.has(p.name.toLowerCase());
+            const statusBadge = item.isInstalled ? <Text color="green"> ✓</Text> : null;
+
             return (
                 <Box flexDirection="column">
                     <Box>
-                        <Text>📦 </Text>
+                        <Text color={isSelected ? 'cyan' : 'gray'}>{isSelected ? '▸ ' : '  '}</Text>
+                        <Text color={isSelected ? 'white' : 'gray'}>📦 </Text>
                         <Text color={isSelected ? 'cyan' : 'white'} bold={isSelected}>
                             {p.name}
                         </Text>
-                        {p.version && <Text color="gray">@{p.version}</Text>}
-                        {p.category && <Text color="magenta"> [{p.category}]</Text>}
-                        {isInstalled && <Text color="green"> (installed)</Text>}
-                    </Box>
-                    {p.description && (
-                        <Box marginLeft={2}>
-                            <Text color={isSelected ? 'white' : 'gray'} dimColor={!isSelected}>
-                                {p.description}
-                            </Text>
-                        </Box>
-                    )}
-                    {isSelected && !isInstalled && (
-                        <Box marginLeft={2}>
-                            <Text color="green" dimColor>
-                                Press Enter to install
-                            </Text>
-                        </Box>
-                    )}
-                    {isSelected && isInstalled && (
-                        <Box marginLeft={2}>
+                        {p.version && (
                             <Text color="gray" dimColor>
-                                Already installed - use /plugin to manage
+                                @{p.version}
+                            </Text>
+                        )}
+                        {p.category && (
+                            <Text color="magenta" dimColor>
+                                {' '}
+                                [{p.category}]
+                            </Text>
+                        )}
+                        {statusBadge}
+                    </Box>
+                    {isSelected && p.description && (
+                        <Box marginLeft={4}>
+                            <Text color="gray">{p.description}</Text>
+                        </Box>
+                    )}
+                    {isSelected && item.isInstalled && (
+                        <Box marginLeft={4}>
+                            <Text color="gray" dimColor>
+                                Already installed
                             </Text>
                         </Box>
                     )}
@@ -340,27 +367,29 @@ const MarketplaceBrowser = forwardRef<MarketplaceBrowserHandle, MarketplaceBrows
 
         // Handle selection
         const handleSelect = async (item: ListItem) => {
+            if (item.type === 'back') {
+                if (view === 'plugins') {
+                    goBackToMarketplaces();
+                } else {
+                    onClose();
+                }
+                return;
+            }
+
             if (item.type === 'add-new') {
                 onAction({ type: 'add-marketplace' });
                 return;
             }
 
-            if (item.type === 'back') {
-                goBackToMarketplaces();
-                return;
-            }
-
             if (item.type === 'default-marketplace' && !isInstalling) {
-                // Install the default marketplace
                 setIsInstalling(true);
                 try {
                     await addMarketplace(item.sourceValue, { name: item.name });
                     onAction({ type: 'marketplace-added', marketplaceName: item.name });
-                    // Reload to show the newly installed marketplace
                     loadMarketplaces();
                 } catch (error) {
                     logger.error(
-                        `MarketplaceBrowser.handleSelect failed to add marketplace ${item.name}: ${error instanceof Error ? error.message : String(error)}`
+                        `Failed to add marketplace ${item.name}: ${error instanceof Error ? error.message : String(error)}`
                     );
                 } finally {
                     setIsInstalling(false);
@@ -373,20 +402,13 @@ const MarketplaceBrowser = forwardRef<MarketplaceBrowserHandle, MarketplaceBrows
                 return;
             }
 
-            // Install plugin (skip if already installed)
-            if (item.type === 'plugin' && !isInstalling) {
-                const isAlreadyInstalled = installedPluginNames.has(item.plugin.name.toLowerCase());
-                if (isAlreadyInstalled) {
-                    // Already installed, do nothing (user can manage via /plugin)
-                    return;
-                }
-
+            // Install plugin
+            if (item.type === 'plugin' && !isInstalling && !item.isInstalled) {
                 setIsInstalling(true);
                 try {
                     const result = await installPluginFromMarketplace(
                         `${item.plugin.name}@${item.plugin.marketplace}`
                     );
-                    // Update installed plugins set
                     setInstalledPluginNames((prev) => {
                         const next = new Set(prev);
                         next.add(result.pluginName.toLowerCase());
@@ -399,7 +421,7 @@ const MarketplaceBrowser = forwardRef<MarketplaceBrowserHandle, MarketplaceBrows
                     });
                 } catch (error) {
                     logger.error(
-                        `MarketplaceBrowser.handleSelect failed to install ${item.plugin.name}: ${error instanceof Error ? error.message : String(error)}`
+                        `Failed to install ${item.plugin.name}: ${error instanceof Error ? error.message : String(error)}`
                     );
                 } finally {
                     setIsInstalling(false);
@@ -410,16 +432,16 @@ const MarketplaceBrowser = forwardRef<MarketplaceBrowserHandle, MarketplaceBrows
         // Get title based on view
         const getTitle = () => {
             if (view === 'plugins' && selectedMarketplace) {
-                return `Plugins - ${selectedMarketplace}`;
+                return `${selectedMarketplace} › Plugins`;
             }
-            return 'Plugin Marketplace';
+            return 'Marketplace';
         };
 
-        // Get empty message based on view
+        // Get empty message
         const getEmptyMessage = () => {
             if (loadError) return loadError;
             if (view === 'plugins') return 'No plugins found in this marketplace';
-            return 'No marketplaces registered. Add one to get started.';
+            return 'No marketplaces. Add one to browse plugins.';
         };
 
         return (
@@ -436,6 +458,7 @@ const MarketplaceBrowser = forwardRef<MarketplaceBrowserHandle, MarketplaceBrows
                 title={getTitle()}
                 borderColor="green"
                 emptyMessage={getEmptyMessage()}
+                loadingMessage={isInstalling ? 'Installing...' : 'Loading...'}
             />
         );
     }

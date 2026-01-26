@@ -69,7 +69,7 @@ describe('listInstalledPlugins', () => {
                         {
                             scope: 'local',
                             projectPath: '/different/project',
-                            installPath: '/home/user/.claude/plugins/cache/test/test-plugin/1.0.0',
+                            installPath: '/home/user/.dexto/plugins/cache/test/test-plugin/1.0.0',
                             version: '1.0.0',
                             installedAt: '2026-01-01T00:00:00.000Z',
                         },
@@ -84,11 +84,11 @@ describe('listInstalledPlugins', () => {
             });
 
             vi.mocked(fs.existsSync).mockImplementation((p) => {
-                if (p === '/home/user/.claude/plugins/installed_plugins.json') return true;
-                if (p === '/home/user/.claude/plugins/cache/test/test-plugin/1.0.0') return true;
+                if (p === '/home/user/.dexto/plugins/installed_plugins.json') return true;
+                if (p === '/home/user/.dexto/plugins/cache/test/test-plugin/1.0.0') return true;
                 if (
                     p ===
-                    '/home/user/.claude/plugins/cache/test/test-plugin/1.0.0/.claude-plugin/plugin.json'
+                    '/home/user/.dexto/plugins/cache/test/test-plugin/1.0.0/.claude-plugin/plugin.json'
                 )
                     return true;
                 return false;
@@ -117,7 +117,7 @@ describe('listInstalledPlugins', () => {
                     'test-plugin@test-marketplace': [
                         {
                             scope: 'user',
-                            installPath: '/home/user/.claude/plugins/cache/test/test-plugin/1.0.0',
+                            installPath: '/home/user/.dexto/plugins/cache/test/test-plugin/1.0.0',
                             version: '1.0.0',
                             installedAt: '2026-01-01T00:00:00.000Z',
                         },
@@ -132,11 +132,11 @@ describe('listInstalledPlugins', () => {
             });
 
             vi.mocked(fs.existsSync).mockImplementation((p) => {
-                if (p === '/home/user/.claude/plugins/installed_plugins.json') return true;
-                if (p === '/home/user/.claude/plugins/cache/test/test-plugin/1.0.0') return true;
+                if (p === '/home/user/.dexto/plugins/installed_plugins.json') return true;
+                if (p === '/home/user/.dexto/plugins/cache/test/test-plugin/1.0.0') return true;
                 if (
                     p ===
-                    '/home/user/.claude/plugins/cache/test/test-plugin/1.0.0/.claude-plugin/plugin.json'
+                    '/home/user/.dexto/plugins/cache/test/test-plugin/1.0.0/.claude-plugin/plugin.json'
                 )
                     return true;
                 return false;
@@ -171,7 +171,7 @@ describe('listInstalledPlugins', () => {
                             scope: 'local',
                             projectPath: '/different/project',
                             installPath:
-                                '/home/user/.claude/plugins/cache/test/filtered-plugin/1.0.0',
+                                '/home/user/.dexto/plugins/cache/test/filtered-plugin/1.0.0',
                             version: '1.0.0',
                             installedAt: '2026-01-01T00:00:00.000Z',
                         },
@@ -186,13 +186,12 @@ describe('listInstalledPlugins', () => {
             });
 
             vi.mocked(fs.existsSync).mockImplementation((p) => {
-                if (p === '/home/user/.claude/plugins/installed_plugins.json') return true;
+                if (p === '/home/user/.dexto/plugins/installed_plugins.json') return true;
                 if (p === '/home/user/.claude/plugins/cache') return true;
-                if (p === '/home/user/.claude/plugins/cache/test/filtered-plugin/1.0.0')
-                    return true;
+                if (p === '/home/user/.dexto/plugins/cache/test/filtered-plugin/1.0.0') return true;
                 if (
                     p ===
-                    '/home/user/.claude/plugins/cache/test/filtered-plugin/1.0.0/.claude-plugin/plugin.json'
+                    '/home/user/.dexto/plugins/cache/test/filtered-plugin/1.0.0/.claude-plugin/plugin.json'
                 )
                     return true;
                 return false;
@@ -214,10 +213,10 @@ describe('listInstalledPlugins', () => {
                 if (dirStr === '/home/user/.claude/plugins/cache') {
                     return [createDirent('test', true)] as any;
                 }
-                if (dirStr === '/home/user/.claude/plugins/cache/test') {
+                if (dirStr === '/home/user/.dexto/plugins/cache/test') {
                     return [createDirent('filtered-plugin', true)] as any;
                 }
-                if (dirStr === '/home/user/.claude/plugins/cache/test/filtered-plugin') {
+                if (dirStr === '/home/user/.dexto/plugins/cache/test/filtered-plugin') {
                     return [createDirent('1.0.0', true)] as any;
                 }
                 return [];
@@ -233,30 +232,18 @@ describe('listInstalledPlugins', () => {
     });
 
     describe('cache scanning', () => {
-        it('should add untracked plugins from cache (legacy plugins)', () => {
-            // Plugins in cache but NOT in installed_plugins.json should still be listed
-            // (these are legacy plugins from before the registry existed)
+        it('does not list plugins in cache that are not tracked in installed_plugins.json', () => {
+            // Plugins must be tracked in installed_plugins.json or placed directly in
+            // ~/.dexto/plugins/ or <cwd>/.dexto/plugins/ (not in cache subdirectory)
+            // The cache directory is only for versioned copies managed by the install system
 
             const installedPluginsContent = JSON.stringify({
                 version: 2,
                 plugins: {},
             });
 
-            const manifestContent = JSON.stringify({
-                name: 'legacy-plugin',
-                description: 'Legacy plugin',
-                version: '1.0.0',
-            });
-
             vi.mocked(fs.existsSync).mockImplementation((p) => {
-                if (p === '/home/user/.claude/plugins/installed_plugins.json') return true;
-                if (p === '/home/user/.claude/plugins/cache') return true;
-                if (p === '/home/user/.claude/plugins/cache/test/legacy-plugin/1.0.0') return true;
-                if (
-                    p ===
-                    '/home/user/.claude/plugins/cache/test/legacy-plugin/1.0.0/.claude-plugin/plugin.json'
-                )
-                    return true;
+                if (p === '/home/user/.dexto/plugins/installed_plugins.json') return true;
                 return false;
             });
 
@@ -264,32 +251,16 @@ describe('listInstalledPlugins', () => {
                 if (typeof p === 'string' && p.endsWith('installed_plugins.json')) {
                     return installedPluginsContent;
                 }
-                if (typeof p === 'string' && p.endsWith('plugin.json')) {
-                    return manifestContent;
-                }
                 return '';
             });
 
-            // Mock cache directory structure scanning
-            vi.mocked(fs.readdirSync).mockImplementation((dir) => {
-                const dirStr = typeof dir === 'string' ? dir : dir.toString();
-                if (dirStr === '/home/user/.claude/plugins/cache') {
-                    return [createDirent('test', true)] as any;
-                }
-                if (dirStr === '/home/user/.claude/plugins/cache/test') {
-                    return [createDirent('legacy-plugin', true)] as any;
-                }
-                if (dirStr === '/home/user/.claude/plugins/cache/test/legacy-plugin') {
-                    return [createDirent('1.0.0', true)] as any;
-                }
-                return [];
-            });
+            vi.mocked(fs.readdirSync).mockReturnValue([]);
 
             const result = listInstalledPlugins('/test/project');
 
-            // Should be 1 because it's in cache but not tracked in installed_plugins.json
-            expect(result).toHaveLength(1);
-            expect(result[0]!.name).toBe('legacy-plugin');
+            // No plugins should be found because nothing is tracked in installed_plugins.json
+            // and no plugins are directly in the plugins directories
+            expect(result).toHaveLength(0);
         });
     });
 });

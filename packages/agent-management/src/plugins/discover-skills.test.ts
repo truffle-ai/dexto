@@ -43,15 +43,15 @@ describe('discoverStandaloneSkills', () => {
     });
 
     describe('skill discovery from user directory', () => {
-        it('should discover skills from ~/.claude/skills/', () => {
+        it('should discover skills from ~/.dexto/skills/', () => {
             vi.mocked(fs.existsSync).mockImplementation((p) => {
-                if (p === '/home/user/.claude/skills') return true;
-                if (p === '/home/user/.claude/skills/remotion-video/SKILL.md') return true;
+                if (p === '/home/user/.dexto/skills') return true;
+                if (p === '/home/user/.dexto/skills/remotion-video/SKILL.md') return true;
                 return false;
             });
 
             vi.mocked(fs.readdirSync).mockImplementation((dir) => {
-                if (dir === '/home/user/.claude/skills') {
+                if (dir === '/home/user/.dexto/skills') {
                     return [createDirent('remotion-video', true)] as any;
                 }
                 return [];
@@ -62,21 +62,21 @@ describe('discoverStandaloneSkills', () => {
             expect(result).toHaveLength(1);
             expect(result[0]).toMatchObject({
                 name: 'remotion-video',
-                path: '/home/user/.claude/skills/remotion-video',
-                skillFile: '/home/user/.claude/skills/remotion-video/SKILL.md',
+                path: '/home/user/.dexto/skills/remotion-video',
+                skillFile: '/home/user/.dexto/skills/remotion-video/SKILL.md',
                 source: 'user',
             });
         });
 
         it('should skip directories without SKILL.md', () => {
             vi.mocked(fs.existsSync).mockImplementation((p) => {
-                if (p === '/home/user/.claude/skills') return true;
+                if (p === '/home/user/.dexto/skills') return true;
                 // SKILL.md does not exist
                 return false;
             });
 
             vi.mocked(fs.readdirSync).mockImplementation((dir) => {
-                if (dir === '/home/user/.claude/skills') {
+                if (dir === '/home/user/.dexto/skills') {
                     return [createDirent('incomplete-skill', true)] as any;
                 }
                 return [];
@@ -89,15 +89,15 @@ describe('discoverStandaloneSkills', () => {
     });
 
     describe('skill discovery from project directory', () => {
-        it('should discover skills from <cwd>/.claude/skills/', () => {
+        it('should discover skills from <cwd>/.dexto/skills/', () => {
             vi.mocked(fs.existsSync).mockImplementation((p) => {
-                if (p === '/test/project/.claude/skills') return true;
-                if (p === '/test/project/.claude/skills/my-project-skill/SKILL.md') return true;
+                if (p === '/test/project/.dexto/skills') return true;
+                if (p === '/test/project/.dexto/skills/my-project-skill/SKILL.md') return true;
                 return false;
             });
 
             vi.mocked(fs.readdirSync).mockImplementation((dir) => {
-                if (dir === '/test/project/.claude/skills') {
+                if (dir === '/test/project/.dexto/skills') {
                     return [createDirent('my-project-skill', true)] as any;
                 }
                 return [];
@@ -114,18 +114,18 @@ describe('discoverStandaloneSkills', () => {
 
         it('should prioritize project skills over user skills with same name', () => {
             vi.mocked(fs.existsSync).mockImplementation((p) => {
-                if (p === '/test/project/.claude/skills') return true;
-                if (p === '/test/project/.claude/skills/shared-skill/SKILL.md') return true;
-                if (p === '/home/user/.claude/skills') return true;
-                if (p === '/home/user/.claude/skills/shared-skill/SKILL.md') return true;
+                if (p === '/test/project/.dexto/skills') return true;
+                if (p === '/test/project/.dexto/skills/shared-skill/SKILL.md') return true;
+                if (p === '/home/user/.dexto/skills') return true;
+                if (p === '/home/user/.dexto/skills/shared-skill/SKILL.md') return true;
                 return false;
             });
 
             vi.mocked(fs.readdirSync).mockImplementation((dir) => {
-                if (dir === '/test/project/.claude/skills') {
+                if (dir === '/test/project/.dexto/skills') {
                     return [createDirent('shared-skill', true)] as any;
                 }
-                if (dir === '/home/user/.claude/skills') {
+                if (dir === '/home/user/.dexto/skills') {
                     return [createDirent('shared-skill', true)] as any;
                 }
                 return [];
@@ -136,7 +136,7 @@ describe('discoverStandaloneSkills', () => {
             // Should only have one skill (project takes priority)
             expect(result).toHaveLength(1);
             expect(result[0]!.source).toBe('project');
-            expect(result[0]!.path).toBe('/test/project/.claude/skills/shared-skill');
+            expect(result[0]!.path).toBe('/test/project/.dexto/skills/shared-skill');
         });
     });
 
@@ -151,13 +151,13 @@ describe('discoverStandaloneSkills', () => {
 
         it('should skip non-directory entries', () => {
             vi.mocked(fs.existsSync).mockImplementation((p) => {
-                if (p === '/home/user/.claude/skills') return true;
-                if (p === '/home/user/.claude/skills/valid-skill/SKILL.md') return true;
+                if (p === '/home/user/.dexto/skills') return true;
+                if (p === '/home/user/.dexto/skills/valid-skill/SKILL.md') return true;
                 return false;
             });
 
             vi.mocked(fs.readdirSync).mockImplementation((dir) => {
-                if (dir === '/home/user/.claude/skills') {
+                if (dir === '/home/user/.dexto/skills') {
                     return [
                         createDirent('valid-skill', true),
                         createDirent('some-file.md', false), // File, not directory
@@ -177,13 +177,13 @@ describe('discoverStandaloneSkills', () => {
             delete process.env.USERPROFILE;
 
             vi.mocked(fs.existsSync).mockImplementation((p) => {
-                if (p === '/test/project/.claude/skills') return true;
-                if (p === '/test/project/.claude/skills/local-skill/SKILL.md') return true;
+                if (p === '/test/project/.dexto/skills') return true;
+                if (p === '/test/project/.dexto/skills/local-skill/SKILL.md') return true;
                 return false;
             });
 
             vi.mocked(fs.readdirSync).mockImplementation((dir) => {
-                if (dir === '/test/project/.claude/skills') {
+                if (dir === '/test/project/.dexto/skills') {
                     return [createDirent('local-skill', true)] as any;
                 }
                 return [];
@@ -197,15 +197,15 @@ describe('discoverStandaloneSkills', () => {
 
         it('should discover multiple skills from same directory', () => {
             vi.mocked(fs.existsSync).mockImplementation((p) => {
-                if (p === '/home/user/.claude/skills') return true;
-                if (p === '/home/user/.claude/skills/skill-a/SKILL.md') return true;
-                if (p === '/home/user/.claude/skills/skill-b/SKILL.md') return true;
-                if (p === '/home/user/.claude/skills/skill-c/SKILL.md') return true;
+                if (p === '/home/user/.dexto/skills') return true;
+                if (p === '/home/user/.dexto/skills/skill-a/SKILL.md') return true;
+                if (p === '/home/user/.dexto/skills/skill-b/SKILL.md') return true;
+                if (p === '/home/user/.dexto/skills/skill-c/SKILL.md') return true;
                 return false;
             });
 
             vi.mocked(fs.readdirSync).mockImplementation((dir) => {
-                if (dir === '/home/user/.claude/skills') {
+                if (dir === '/home/user/.dexto/skills') {
                     return [
                         createDirent('skill-a', true),
                         createDirent('skill-b', true),
@@ -240,6 +240,6 @@ describe('getSkillSearchPaths', () => {
     it('should return all search paths in priority order', () => {
         const paths = getSkillSearchPaths();
 
-        expect(paths).toEqual(['/test/project/.claude/skills', '/home/user/.claude/skills']);
+        expect(paths).toEqual(['/test/project/.dexto/skills', '/home/user/.dexto/skills']);
     });
 });
