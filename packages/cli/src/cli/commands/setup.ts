@@ -423,10 +423,11 @@ async function handleQuickStart(): Promise<void> {
 /**
  * Dexto setup flow - login if needed, select model, save preferences
  *
- * Per the transparent gateway design (feature-plans/dexto-unified-model-provider.md):
- * - Config stores native provider/model (e.g., provider: anthropic, model: claude-sonnet-4-5-20250929)
- * - Runtime routing handles transformation when user is logged into Dexto
- * - User never sees "dexto" as provider - they see the actual provider (Anthropic, OpenAI, etc.)
+ * Config storage:
+ * - provider: 'dexto' (the gateway provider)
+ * - model: OpenRouter-style ID (e.g., 'anthropic/claude-haiku-4.5')
+ *
+ * Runtime handles routing requests through the Dexto gateway to the underlying provider.
  */
 async function handleDextoProviderSetup(): Promise<void> {
     console.log(chalk.magenta('\n★ Dexto Setup\n'));
