@@ -249,10 +249,6 @@ async function provisionKeys(authToken: string, _userEmail?: string): Promise<vo
                 console.log(chalk.yellow('⚠️  Existing key is invalid, provisioning new one...'));
                 const provisionResult = await apiClient.provisionDextoApiKey(authToken);
 
-                if (!auth) {
-                    throw new Error('Authentication state not found');
-                }
-
                 if (!provisionResult.dextoApiKey) {
                     throw new Error('Failed to get new API key');
                 }
