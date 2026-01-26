@@ -133,7 +133,8 @@ export async function getAuthToken(): Promise<string | null> {
 
 export async function getDextoApiKey(): Promise<string | null> {
     const auth = await loadAuth();
-    return auth?.dextoApiKey || null;
+    // Check auth.json first, fallback to env var
+    return auth?.dextoApiKey || process.env.DEXTO_API_KEY || null;
 }
 
 async function refreshAccessToken(refreshToken: string): Promise<{

@@ -487,6 +487,11 @@ export default function ModelPickerModal() {
         }
 
         if (!skipApiKeyCheck && provider && !provider.hasApiKey && !customApiKey) {
+            // Dexto provider requires OAuth login via CLI, not manual API key entry
+            if (providerId === 'dexto') {
+                setError('Run `dexto login` or `/login` from the CLI to authenticate with Dexto');
+                return;
+            }
             setPendingSelection({ provider: providerId, model });
             setPendingKeyProvider(providerId);
             setKeyModalOpen(true);
