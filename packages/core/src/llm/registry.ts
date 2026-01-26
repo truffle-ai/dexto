@@ -1647,6 +1647,20 @@ export function isValidProviderModel(provider: LLMProvider, model: string): bool
  * @returns The inferred provider name ('openai', 'anthropic', etc.), or 'unknown' if no match is found.
  */
 export function getProviderFromModel(model: string): LLMProvider {
+    // Handle OpenRouter format models (e.g., 'anthropic/claude-opus-4.5')
+    if (model.includes('/')) {
+        const [prefix] = model.split('/');
+        if (prefix) {
+            const normalizedPrefix = prefix.toLowerCase();
+            // Check if prefix matches a known provider prefix (case-insensitive)
+            for (const [provider, providerPrefix] of Object.entries(OPENROUTER_PROVIDER_PREFIX)) {
+                if (providerPrefix?.toLowerCase() === normalizedPrefix) {
+                    return provider as LLMProvider;
+                }
+            }
+        }
+    }
+
     const normalizedModel = stripBedrockRegionPrefix(model).toLowerCase();
     for (const provider of LLM_PROVIDERS) {
         const info = LLM_REGISTRY[provider];
@@ -1862,10 +1876,23 @@ export function resolveModelOrigin(
         const [prefix, ...rest] = model.split('/');
         const modelName = rest.join('/');
 
-        // Find provider by prefix
-        for (const [provider, providerPrefix] of Object.entries(OPENROUTER_PROVIDER_PREFIX)) {
-            if (providerPrefix === prefix) {
-                return { provider: provider as LLMProvider, model: modelName };
+        // Find provider by prefix (case-insensitive)
+        if (prefix) {
+            const normalizedPrefix = prefix.toLowerCase();
+            for (const [provider, providerPrefix] of Object.entries(OPENROUTER_PROVIDER_PREFIX)) {
+                if (providerPrefix?.toLowerCase() === normalizedPrefix) {
+                    // Reverse lookup: find native model name via openrouterId
+                    // e.g., 'anthropic/claude-opus-4.5' → 'claude-opus-4-5-20251101'
+                    const providerInfo = LLM_REGISTRY[provider as LLMProvider];
+                    const nativeModel = providerInfo?.models.find(
+                        (m) => m.openrouterId?.toLowerCase() === model.toLowerCase()
+                    );
+                    if (nativeModel) {
+                        return { provider: provider as LLMProvider, model: nativeModel.name };
+                    }
+                    // Fallback: return extracted model name (may be custom or already native)
+                    return { provider: provider as LLMProvider, model: modelName };
+                }
             }
         }
 

@@ -31,7 +31,7 @@ import { parseSlashInput, splitKeyValueAndPositional } from '../lib/parseSlash';
 import { useAnalytics } from '@/lib/analytics/index.js';
 import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/queryKeys';
-import { useLLMCatalog } from './hooks/useLLM';
+import { useModelCapabilities } from './hooks/useLLM';
 import { useResolvePrompt } from './hooks/usePrompts';
 import { useInputHistory } from './hooks/useInputHistory';
 import { useQueuedMessages, useRemoveQueuedMessage, useQueueMessage } from './hooks/useQueue';
@@ -194,26 +194,18 @@ export default function InputArea({
         }
     }, [text]);
 
-    // Fetch supported file types for the active model to drive Attach menu
-    const { data: catalogData } = useLLMCatalog({ mode: 'flat' });
+    // Fetch model capabilities (supported file types) via dedicated endpoint
+    // This handles gateway providers (dexto, openrouter) by resolving to underlying model capabilities
+    const { data: capabilities } = useModelCapabilities(currentLLM?.provider, currentLLM?.model);
 
-    // Extract supported file types for the current model
+    // Extract supported file types from capabilities
     useEffect(() => {
-        const provider = currentLLM?.provider;
-        const model = currentLLM?.model;
-        if (!provider || !model || !catalogData) {
+        if (capabilities?.supportedFileTypes) {
+            setSupportedFileTypes(capabilities.supportedFileTypes);
+        } else {
             setSupportedFileTypes([]);
-            return;
         }
-        // Type guard: flat mode returns { models: [...] }
-        if (!('models' in catalogData)) {
-            setSupportedFileTypes([]);
-            return;
-        }
-        const models = catalogData.models;
-        const match = models.find((m) => m.provider === provider && m.name === model);
-        setSupportedFileTypes(match?.supportedFileTypes || []);
-    }, [currentLLM?.provider, currentLLM?.model, catalogData]);
+    }, [capabilities]);
 
     // NOTE: We intentionally do not manually resize the textarea. We rely on
     // CSS max-height + overflow to keep layout stable.

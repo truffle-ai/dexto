@@ -19,6 +19,7 @@ import {
     stripBedrockRegionPrefix,
     getModelPricing,
     getModelDisplayName,
+    resolveModelOrigin,
 } from './registry.js';
 import { LLMErrorCode } from './error-codes.js';
 import { ErrorScope, ErrorType } from '../errors/types.js';
@@ -97,6 +98,31 @@ describe('LLM Registry Core Functions', () => {
                     type: ErrorType.USER,
                 })
             );
+        });
+
+        it('returns correct provider for OpenRouter format models', () => {
+            // Anthropic models
+            expect(getProviderFromModel('anthropic/claude-opus-4.5')).toBe('anthropic');
+            expect(getProviderFromModel('anthropic/claude-sonnet-4.5')).toBe('anthropic');
+            expect(getProviderFromModel('anthropic/claude-haiku-4.5')).toBe('anthropic');
+
+            // OpenAI models
+            expect(getProviderFromModel('openai/gpt-5-mini')).toBe('openai');
+            expect(getProviderFromModel('openai/o4-mini')).toBe('openai');
+
+            // Google models
+            expect(getProviderFromModel('google/gemini-3-flash-preview')).toBe('google');
+
+            // xAI models (note: x-ai prefix)
+            expect(getProviderFromModel('x-ai/grok-4')).toBe('xai');
+
+            // Cohere models
+            expect(getProviderFromModel('cohere/command-a-03-2025')).toBe('cohere');
+        });
+
+        it('handles case insensitivity for OpenRouter format models', () => {
+            expect(getProviderFromModel('ANTHROPIC/claude-opus-4.5')).toBe('anthropic');
+            expect(getProviderFromModel('Anthropic/Claude-Opus-4.5')).toBe('anthropic');
         });
     });
 
@@ -674,6 +700,109 @@ describe('Bedrock Region Prefix Handling', () => {
             expect(getModelDisplayName(`eu.${bedrockModel}`, 'bedrock')).toBe(expected);
             expect(getModelDisplayName(`us.${bedrockModel}`, 'bedrock')).toBe(expected);
             expect(getModelDisplayName(`global.${bedrockModel}`, 'bedrock')).toBe(expected);
+        });
+    });
+});
+
+describe('resolveModelOrigin', () => {
+    describe('for gateway providers (openrouter, dexto)', () => {
+        it('resolves OpenRouter format Anthropic models to native format', () => {
+            // OpenRouter format → native model name via openrouterId reverse lookup
+            const result = resolveModelOrigin('anthropic/claude-opus-4.5', 'openrouter');
+            expect(result).toEqual({
+                provider: 'anthropic',
+                model: 'claude-opus-4-5-20251101',
+            });
+        });
+
+        it('resolves OpenRouter format models for dexto provider', () => {
+            const result = resolveModelOrigin('anthropic/claude-haiku-4.5', 'dexto');
+            expect(result).toEqual({
+                provider: 'anthropic',
+                model: 'claude-haiku-4-5-20251001',
+            });
+        });
+
+        it('handles case-insensitive OpenRouter format lookups', () => {
+            const result = resolveModelOrigin('ANTHROPIC/CLAUDE-OPUS-4.5', 'openrouter');
+            expect(result).toEqual({
+                provider: 'anthropic',
+                model: 'claude-opus-4-5-20251101',
+            });
+        });
+
+        it('returns extracted model name for OpenRouter format without openrouterId mapping', () => {
+            // For models without an explicit openrouterId, falls back to extracting the model name
+            const result = resolveModelOrigin('openai/gpt-5-mini', 'openrouter');
+            expect(result).toEqual({
+                provider: 'openai',
+                model: 'gpt-5-mini',
+            });
+        });
+
+        it('resolves native model names without prefix', () => {
+            const result = resolveModelOrigin('claude-haiku-4-5-20251001', 'openrouter');
+            expect(result).toEqual({
+                provider: 'anthropic',
+                model: 'claude-haiku-4-5-20251001',
+            });
+        });
+
+        it('resolves native model names for OpenAI', () => {
+            const result = resolveModelOrigin('o4-mini', 'openrouter');
+            expect(result).toEqual({
+                provider: 'openai',
+                model: 'o4-mini',
+            });
+        });
+
+        it('returns null for unknown vendor-prefixed models (groq uses native format)', () => {
+            // Groq models in our registry don't have vendor prefix (e.g., 'llama-3.3-70b-versatile')
+            // But OpenRouter uses 'meta-llama/llama-3.3-70b-versatile'
+            // Since the prefixed version isn't in our registry, this returns null
+            const result = resolveModelOrigin('meta-llama/llama-3.3-70b-versatile', 'openrouter');
+            expect(result).toBeNull();
+        });
+
+        it('resolves groq models using native format', () => {
+            // Use the native format that's in our registry
+            const result = resolveModelOrigin('llama-3.3-70b-versatile', 'openrouter');
+            expect(result).toEqual({
+                provider: 'groq',
+                model: 'llama-3.3-70b-versatile',
+            });
+        });
+
+        it('returns null for unknown custom models', () => {
+            const result = resolveModelOrigin('custom/unknown-model', 'openrouter');
+            expect(result).toBeNull();
+        });
+
+        it('handles xAI models with x-ai prefix', () => {
+            const result = resolveModelOrigin('x-ai/grok-4', 'openrouter');
+            expect(result).toEqual({
+                provider: 'xai',
+                model: 'grok-4',
+            });
+        });
+    });
+
+    describe('for non-gateway providers', () => {
+        it('returns the model as-is for providers without supportsAllRegistryModels', () => {
+            // OpenAI doesn't support all registry models
+            const result = resolveModelOrigin('some-model', 'openai');
+            expect(result).toEqual({
+                provider: 'openai',
+                model: 'some-model',
+            });
+        });
+
+        it('returns the model as-is for anthropic provider', () => {
+            const result = resolveModelOrigin('claude-opus-4-5-20251101', 'anthropic');
+            expect(result).toEqual({
+                provider: 'anthropic',
+                model: 'claude-opus-4-5-20251101',
+            });
         });
     });
 });

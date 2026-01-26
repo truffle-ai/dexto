@@ -7,8 +7,10 @@ import {
     SUPPORTED_FILE_TYPES,
     supportsBaseURL,
     getAllModelsForProvider,
+    getSupportedFileTypesForModel,
     type ProviderInfo,
     type LLMProvider,
+    type SupportedFileType,
     LLMUpdatesSchema,
 } from '@dexto/core';
 import {
@@ -296,6 +298,42 @@ export function createLlmRouter(getAgent: GetAgentFn) {
         },
     });
 
+    // Model capabilities endpoint - resolves gateway providers to underlying model capabilities
+    const capabilitiesRoute = createRoute({
+        method: 'get',
+        path: '/llm/capabilities',
+        summary: 'Get Model Capabilities',
+        description:
+            'Returns the capabilities (supported file types) for a specific provider/model combination. ' +
+            'Handles gateway providers (dexto, openrouter) by resolving to the underlying model capabilities.',
+        tags: ['llm'],
+        request: {
+            query: z.object({
+                provider: z.enum(LLM_PROVIDERS).describe('LLM provider name'),
+                model: z
+                    .string()
+                    .min(1)
+                    .describe('Model name (supports both native and OpenRouter format)'),
+            }),
+        },
+        responses: {
+            200: {
+                description: 'Model capabilities',
+                content: {
+                    'application/json': {
+                        schema: z.object({
+                            provider: z.enum(LLM_PROVIDERS).describe('Provider name'),
+                            model: z.string().describe('Model name as provided'),
+                            supportedFileTypes: z
+                                .array(z.enum(SUPPORTED_FILE_TYPES))
+                                .describe('File types supported by this model'),
+                        }),
+                    },
+                },
+            },
+        },
+    });
+
     return app
         .openapi(currentRoute, async (ctx) => {
             const agent = await getAgent(ctx);
@@ -490,5 +528,28 @@ export function createLlmRouter(getAgent: GetAgentFn) {
                 );
             }
             return ctx.json({ ok: true as const, deleted: name } as const, 200);
+        })
+        .openapi(capabilitiesRoute, (ctx) => {
+            const { provider, model } = ctx.req.valid('query');
+
+            // getSupportedFileTypesForModel handles:
+            // 1. Gateway providers (dexto, openrouter) - resolves via resolveModelOrigin to underlying model
+            // 2. Native providers - direct lookup in registry
+            // 3. Custom model providers (openai-compatible) - returns provider-level capabilities
+            // Falls back to provider-level supportedFileTypes if model not found
+            let supportedFileTypes: SupportedFileType[];
+            try {
+                supportedFileTypes = getSupportedFileTypesForModel(provider, model);
+            } catch {
+                // If model lookup fails, fall back to provider-level capabilities
+                const providerInfo = LLM_REGISTRY[provider];
+                supportedFileTypes = providerInfo?.supportedFileTypes ?? [];
+            }
+
+            return ctx.json({
+                provider,
+                model,
+                supportedFileTypes,
+            });
         });
 }

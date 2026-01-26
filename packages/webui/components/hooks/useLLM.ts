@@ -131,6 +131,29 @@ export function useDeleteCustomModel() {
     });
 }
 
+// Model capabilities hook - resolves gateway providers to underlying model capabilities
+export function useModelCapabilities(
+    provider: LLMProvider | null | undefined,
+    model: string | null | undefined,
+    options?: { enabled?: boolean }
+) {
+    return useQuery({
+        queryKey: [...queryKeys.llm.catalog, 'capabilities', provider, model],
+        queryFn: async () => {
+            if (!provider || !model) return null;
+            const response = await client.api.llm.capabilities.$get({
+                query: { provider, model },
+            });
+            if (!response.ok) {
+                throw new Error(`Failed to fetch model capabilities: ${response.status}`);
+            }
+            return await response.json();
+        },
+        enabled: (options?.enabled ?? true) && !!provider && !!model,
+        staleTime: 5 * 60 * 1000, // 5 minutes - capabilities rarely change
+    });
+}
+
 // Export inferred types for components to use
 export type SaveApiKeyPayload = Parameters<typeof client.api.llm.key.$post>[0]['json'];
 export type LLMProvider = SaveApiKeyPayload['provider'];
