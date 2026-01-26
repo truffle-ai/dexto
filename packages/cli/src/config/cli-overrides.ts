@@ -110,19 +110,16 @@ export function applyUserPreferences(
         return mergedConfig;
     }
 
-    // Apply user preferences fully
-    mergedConfig.llm = {
-        ...mergedConfig.llm,
-        provider: preferences.llm.provider,
-        model: preferences.llm.model,
-    };
-
-    // Only override apiKey if user has one configured
+    // Apply user preferences - only override if defined (preferences is Partial)
+    if (preferences.llm.provider) {
+        mergedConfig.llm.provider = preferences.llm.provider;
+    }
+    if (preferences.llm.model) {
+        mergedConfig.llm.model = preferences.llm.model;
+    }
     if (preferences.llm.apiKey) {
         mergedConfig.llm.apiKey = preferences.llm.apiKey;
     }
-
-    // Only override baseURL if user has one configured
     if (preferences.llm.baseURL) {
         mergedConfig.llm.baseURL = preferences.llm.baseURL;
     }
