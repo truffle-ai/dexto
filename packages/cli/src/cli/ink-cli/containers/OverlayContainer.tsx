@@ -372,16 +372,30 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                 // Pre-check: Dexto provider requires OAuth login AND API key
                 // Check BEFORE closing the overlay so user can pick a different model
                 if (provider === 'dexto') {
-                    const { canUseDextoProvider } = await import('../../utils/dexto-setup.js');
-                    const canUse = await canUseDextoProvider();
-                    if (!canUse) {
+                    try {
+                        const { canUseDextoProvider } = await import('../../utils/dexto-setup.js');
+                        const canUse = await canUseDextoProvider();
+                        if (!canUse) {
+                            setMessages((prev) => [
+                                ...prev,
+                                {
+                                    id: generateMessageId('system'),
+                                    role: 'system',
+                                    content:
+                                        '❌ Cannot switch to Dexto model - authentication required. Run /login to authenticate.',
+                                    timestamp: new Date(),
+                                },
+                            ]);
+                            // Don't close the overlay - let user pick a different model
+                            return;
+                        }
+                    } catch (error) {
                         setMessages((prev) => [
                             ...prev,
                             {
                                 id: generateMessageId('system'),
                                 role: 'system',
-                                content:
-                                    '❌ Cannot switch to Dexto model - authentication required. Run /login to authenticate.',
+                                content: `❌ Failed to verify Dexto auth: ${error instanceof Error ? error.message : String(error)}`,
                                 timestamp: new Date(),
                             },
                         ]);
