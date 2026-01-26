@@ -1117,6 +1117,17 @@ program
                                     './cli/commands/auth/login.js'
                                 );
                                 await handleLoginCommand({ interactive: true });
+
+                                // Verify key was actually provisioned (provisionKeys silently catches errors)
+                                const { canUseDextoProvider } = await import(
+                                    './cli/utils/dexto-setup.js'
+                                );
+                                if (!(await canUseDextoProvider())) {
+                                    console.error(
+                                        '\n❌ API key provisioning failed. Please try again or run `dexto setup` to use a different provider.\n'
+                                    );
+                                    safeExit('main', 1, 'dexto-key-provisioning-failed');
+                                }
                                 // After login, continue with startup (preferences unchanged, now authenticated)
                             } else if (authCheck.action === 'setup') {
                                 // User wants to configure different provider - run setup
