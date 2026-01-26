@@ -1129,7 +1129,7 @@ export class TurnExecutor {
                 return new DextoRuntimeError(
                     LLMErrorCode.INSUFFICIENT_CREDITS,
                     ErrorScope.LLM,
-                    ErrorType.FORBIDDEN,
+                    ErrorType.PAYMENT_REQUIRED,
                     `Insufficient Dexto credits${balance !== undefined ? `. Balance: $${balance.toFixed(2)}` : ''}`,
                     {
                         sessionId: this.sessionId,
