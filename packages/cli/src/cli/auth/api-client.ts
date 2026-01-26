@@ -47,6 +47,7 @@ export interface UsageSummaryResponse {
  */
 export class DextoApiClient {
     private readonly baseUrl: string;
+    private readonly timeoutMs = 10_000; // 10 second timeout for API calls
 
     constructor(baseUrl: string = DEXTO_API_URL) {
         this.baseUrl = baseUrl;
@@ -64,6 +65,7 @@ export class DextoApiClient {
                 headers: {
                     Authorization: `Bearer ${apiKey}`,
                 },
+                signal: AbortSignal.timeout(this.timeoutMs),
             });
 
             if (!response.ok) {
@@ -99,6 +101,7 @@ export class DextoApiClient {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({ name, regenerate }),
+                signal: AbortSignal.timeout(this.timeoutMs),
             });
 
             if (!response.ok) {
@@ -155,6 +158,7 @@ export class DextoApiClient {
                 headers: {
                     Authorization: `Bearer ${apiKey}`,
                 },
+                signal: AbortSignal.timeout(this.timeoutMs),
             });
 
             if (!response.ok) {
