@@ -205,7 +205,14 @@ function startCallbackServer(port: number, config: OAuthConfig): Promise<OAuthRe
                     `);
                 } else if (req.method === 'POST' && parsedUrl.pathname === '/callback') {
                     let body = '';
+                    const MAX_BODY_SIZE = 10 * 1024; // 10KB - plenty for OAuth tokens
                     req.on('data', (chunk) => {
+                        if (body.length + chunk.length > MAX_BODY_SIZE) {
+                            req.destroy();
+                            res.writeHead(413);
+                            res.end('Request too large');
+                            return;
+                        }
                         body += chunk.toString();
                     });
 
