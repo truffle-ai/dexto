@@ -100,7 +100,7 @@ export function applyCLIOverrides(
  */
 export function applyUserPreferences(
     baseConfig: AgentConfig,
-    preferences: GlobalPreferences
+    preferences: Partial<GlobalPreferences>
 ): AgentConfig {
     // Create a deep copy to avoid mutating the original
     const mergedConfig = JSON.parse(JSON.stringify(baseConfig)) as AgentConfig;

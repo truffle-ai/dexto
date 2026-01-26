@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest';
-import { resolveSubAgentLLM, type ResolveSubAgentLLMOptions } from './llm-resolution.js';
+import { resolveSubAgentLLM } from './llm-resolution.js';
 import type { LLMConfig } from '@dexto/core';
 
 describe('resolveSubAgentLLM', () => {

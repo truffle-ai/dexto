@@ -5,7 +5,7 @@ import {
     type CLIConfigOverrides,
 } from './cli-overrides.js';
 import type { AgentConfig } from '@dexto/core';
-import type { GlobalPreferences } from '@dexto/agent-management';
+// Note: applyUserPreferences accepts Partial<GlobalPreferences> since it only uses the llm field
 
 function clone<T>(obj: T): T {
     return JSON.parse(JSON.stringify(obj));
@@ -142,9 +142,9 @@ describe('applyUserPreferences', () => {
     };
 
     test('applies user preferences fully (provider, model, apiKey)', () => {
-        const preferences: GlobalPreferences = {
+        const preferences = {
             llm: {
-                provider: 'openai',
+                provider: 'openai' as const,
                 model: 'gpt-5-mini',
                 apiKey: '$OPENAI_API_KEY',
             },
@@ -158,9 +158,9 @@ describe('applyUserPreferences', () => {
     });
 
     test('applies dexto provider preferences', () => {
-        const preferences: GlobalPreferences = {
+        const preferences = {
             llm: {
-                provider: 'dexto',
+                provider: 'dexto' as const,
                 model: 'anthropic/claude-sonnet-4',
                 apiKey: '$DEXTO_API_KEY',
             },
@@ -174,7 +174,7 @@ describe('applyUserPreferences', () => {
     });
 
     test('without llm preferences -> returns config unchanged', () => {
-        const preferences: GlobalPreferences = {};
+        const preferences = {};
 
         const result = applyUserPreferences(clone(baseAgentConfig), preferences);
 
@@ -184,9 +184,9 @@ describe('applyUserPreferences', () => {
     });
 
     test('preserves agent apiKey if user has no apiKey configured', () => {
-        const preferences: GlobalPreferences = {
+        const preferences = {
             llm: {
-                provider: 'anthropic',
+                provider: 'anthropic' as const,
                 model: 'claude-sonnet-4-5-20250929',
                 // No apiKey specified
             },
@@ -200,9 +200,9 @@ describe('applyUserPreferences', () => {
     });
 
     test('applies baseURL if provided in preferences', () => {
-        const preferences: GlobalPreferences = {
+        const preferences = {
             llm: {
-                provider: 'openai-compatible',
+                provider: 'openai-compatible' as const,
                 model: 'local-model',
                 apiKey: 'test-key',
                 baseURL: 'http://localhost:8080/v1',
@@ -217,9 +217,9 @@ describe('applyUserPreferences', () => {
 
     test('does not mutate original config', () => {
         const originalConfig = clone(baseAgentConfig);
-        const preferences: GlobalPreferences = {
+        const preferences = {
             llm: {
-                provider: 'openai',
+                provider: 'openai' as const,
                 model: 'gpt-5-mini',
                 apiKey: '$OPENAI_API_KEY',
             },

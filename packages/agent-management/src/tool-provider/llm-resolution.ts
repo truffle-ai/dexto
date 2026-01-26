@@ -14,7 +14,7 @@
  * 0. Check sub-agent's .local.yml for LLM override (highest priority)
  */
 
-import type { LLMConfig, LLMProvider } from '@dexto/core';
+import type { LLMConfig } from '@dexto/core';
 import { hasAllRegistryModelsSupport, transformModelNameForProvider } from '@dexto/core';
 
 /**

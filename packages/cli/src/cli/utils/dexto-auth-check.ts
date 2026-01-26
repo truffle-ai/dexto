@@ -27,7 +27,7 @@
 import chalk from 'chalk';
 import * as p from '@clack/prompts';
 import { isAuthenticated } from '../auth/index.js';
-import { getEffectiveLLMConfig, type EffectiveLLMConfig } from '../../config/effective-llm.js';
+import { getEffectiveLLMConfig } from '../../config/effective-llm.js';
 
 export interface DextoAuthCheckResult {
     shouldContinue: boolean;

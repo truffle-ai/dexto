@@ -36,7 +36,6 @@ import {
     getDefaultModelForProvider,
     getProviderFromModel,
     getAllModelsForProvider,
-    LLM_REGISTRY,
     ModelInfo,
 } from '../llm/registry.js';
 import type { LLMProvider } from '../llm/types.js';
