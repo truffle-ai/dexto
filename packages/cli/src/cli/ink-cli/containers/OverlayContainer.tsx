@@ -99,6 +99,13 @@ import PluginList, { type PluginListHandle } from '../components/overlays/Plugin
 import PluginImportSelector, {
     type PluginImportSelectorHandle,
 } from '../components/overlays/PluginImportSelector.js';
+import MarketplaceBrowser, {
+    type MarketplaceBrowserHandle,
+    type MarketplaceBrowserAction,
+} from '../components/overlays/MarketplaceBrowser.js';
+import MarketplaceAddPrompt, {
+    type MarketplaceAddPromptHandle,
+} from '../components/overlays/MarketplaceAddPrompt.js';
 import type { PromptAddScope } from '../state/types.js';
 import type { PromptInfo, ResourceMetadata, LLMProvider, SearchResult } from '@dexto/core';
 import type { LogLevel } from '@dexto/core';
@@ -188,6 +195,8 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
         const pluginManagerRef = useRef<PluginManagerHandle>(null);
         const pluginListRef = useRef<PluginListHandle>(null);
         const pluginImportSelectorRef = useRef<PluginImportSelectorHandle>(null);
+        const marketplaceBrowserRef = useRef<MarketplaceBrowserHandle>(null);
+        const marketplaceAddPromptRef = useRef<MarketplaceAddPromptHandle>(null);
 
         // Expose handleInput method via ref - routes to appropriate overlay
         useImperativeHandle(
@@ -270,6 +279,14 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         case 'plugin-import-selector':
                             return (
                                 pluginImportSelectorRef.current?.handleInput(inputStr, key) ?? false
+                            );
+                        case 'marketplace-browser':
+                            return (
+                                marketplaceBrowserRef.current?.handleInput(inputStr, key) ?? false
+                            );
+                        case 'marketplace-add':
+                            return (
+                                marketplaceAddPromptRef.current?.handleInput(inputStr, key) ?? false
                             );
                         default:
                             return false;
@@ -1405,6 +1422,11 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         ...prev,
                         activeOverlay: 'plugin-import-selector',
                     }));
+                } else if (action === 'marketplace') {
+                    setUi((prev) => ({
+                        ...prev,
+                        activeOverlay: 'marketplace-browser',
+                    }));
                 }
             },
             [setUi]
@@ -1537,6 +1559,44 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                 setUi((prev) => ({ ...prev, isProcessing: false }));
             },
             [setUi, setInput, setMessages, buffer, agent]
+        );
+
+        // Handle marketplace browser actions
+        const handleMarketplaceBrowserAction = useCallback(
+            (action: MarketplaceBrowserAction) => {
+                if (action.type === 'add-marketplace') {
+                    setUi((prev) => ({ ...prev, activeOverlay: 'marketplace-add' }));
+                } else if (action.type === 'plugin-installed') {
+                    setUi((prev) => ({ ...prev, activeOverlay: 'none' }));
+                    setMessages((prev) => [
+                        ...prev,
+                        {
+                            id: generateMessageId('system'),
+                            role: 'system',
+                            content: `✅ Plugin '${action.pluginName}' installed from ${action.marketplace}`,
+                            timestamp: new Date(),
+                        },
+                    ]);
+                }
+            },
+            [setUi, setMessages]
+        );
+
+        // Handle marketplace add completion
+        const handleMarketplaceAddComplete = useCallback(
+            (name: string, pluginCount: number) => {
+                setUi((prev) => ({ ...prev, activeOverlay: 'marketplace-browser' }));
+                setMessages((prev) => [
+                    ...prev,
+                    {
+                        id: generateMessageId('system'),
+                        role: 'system',
+                        content: `✅ Marketplace '${name}' added (${pluginCount} plugins found)`,
+                        timestamp: new Date(),
+                    },
+                ]);
+            },
+            [setUi, setMessages]
         );
 
         // Handle session subcommand selection
@@ -2223,6 +2283,32 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             isVisible={true}
                             onImport={handlePluginImport}
                             onClose={handleClose}
+                        />
+                    </Box>
+                )}
+
+                {/* Marketplace browser */}
+                {ui.activeOverlay === 'marketplace-browser' && (
+                    <Box marginTop={1}>
+                        <MarketplaceBrowser
+                            ref={marketplaceBrowserRef}
+                            isVisible={true}
+                            onAction={handleMarketplaceBrowserAction}
+                            onClose={handleClose}
+                        />
+                    </Box>
+                )}
+
+                {/* Marketplace add prompt */}
+                {ui.activeOverlay === 'marketplace-add' && (
+                    <Box marginTop={1}>
+                        <MarketplaceAddPrompt
+                            ref={marketplaceAddPromptRef}
+                            isVisible={true}
+                            onComplete={handleMarketplaceAddComplete}
+                            onClose={() =>
+                                setUi((prev) => ({ ...prev, activeOverlay: 'marketplace-browser' }))
+                            }
                         />
                     </Box>
                 )}

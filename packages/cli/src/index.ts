@@ -74,8 +74,17 @@ import {
     handlePluginUninstallCommand,
     handlePluginValidateCommand,
     handlePluginImportCommand,
+    // Marketplace handlers
+    handleMarketplaceAddCommand,
+    handleMarketplaceRemoveCommand,
+    handleMarketplaceUpdateCommand,
+    handleMarketplaceListCommand,
+    handleMarketplacePluginsCommand,
+    handleMarketplaceInstallCommand,
     type PluginListCommandOptionsInput,
     type PluginInstallCommandOptionsInput,
+    type MarketplaceListCommandOptionsInput,
+    type MarketplaceInstallCommandOptionsInput,
 } from './cli/commands/index.js';
 import {
     handleSessionListCommand,
@@ -488,6 +497,129 @@ pluginCommand
                 safeExit('plugin import', 1, 'error');
             }
         })
+    );
+
+// 12) `plugin marketplace` SUB-COMMANDS
+const marketplaceCommand = pluginCommand
+    .command('marketplace')
+    .alias('market')
+    .description('Manage plugin marketplaces');
+
+marketplaceCommand
+    .command('add <source>')
+    .description('Add a marketplace (GitHub: owner/repo, git URL, or local path)')
+    .option('--name <name>', 'Custom name for the marketplace')
+    .action(
+        withAnalytics(
+            'plugin marketplace add',
+            async (source: string, options: { name?: string }) => {
+                try {
+                    await handleMarketplaceAddCommand({ source, name: options.name });
+                    safeExit('plugin marketplace add', 0);
+                } catch (err) {
+                    if (err instanceof ExitSignal) throw err;
+                    console.error(`❌ dexto plugin marketplace add command failed: ${err}`);
+                    safeExit('plugin marketplace add', 1, 'error');
+                }
+            }
+        )
+    );
+
+marketplaceCommand
+    .command('list')
+    .description('List registered marketplaces')
+    .option('--verbose', 'Show detailed marketplace information')
+    .action(
+        withAnalytics(
+            'plugin marketplace list',
+            async (options: MarketplaceListCommandOptionsInput) => {
+                try {
+                    await handleMarketplaceListCommand(options);
+                    safeExit('plugin marketplace list', 0);
+                } catch (err) {
+                    if (err instanceof ExitSignal) throw err;
+                    console.error(`❌ dexto plugin marketplace list command failed: ${err}`);
+                    safeExit('plugin marketplace list', 1, 'error');
+                }
+            }
+        )
+    );
+
+marketplaceCommand
+    .command('remove <name>')
+    .alias('rm')
+    .description('Remove a registered marketplace')
+    .action(
+        withAnalytics('plugin marketplace remove', async (name: string) => {
+            try {
+                await handleMarketplaceRemoveCommand({ name });
+                safeExit('plugin marketplace remove', 0);
+            } catch (err) {
+                if (err instanceof ExitSignal) throw err;
+                console.error(`❌ dexto plugin marketplace remove command failed: ${err}`);
+                safeExit('plugin marketplace remove', 1, 'error');
+            }
+        })
+    );
+
+marketplaceCommand
+    .command('update [name]')
+    .description('Update marketplace(s) from remote (git pull)')
+    .action(
+        withAnalytics('plugin marketplace update', async (name?: string) => {
+            try {
+                await handleMarketplaceUpdateCommand({ name });
+                safeExit('plugin marketplace update', 0);
+            } catch (err) {
+                if (err instanceof ExitSignal) throw err;
+                console.error(`❌ dexto plugin marketplace update command failed: ${err}`);
+                safeExit('plugin marketplace update', 1, 'error');
+            }
+        })
+    );
+
+marketplaceCommand
+    .command('plugins [marketplace]')
+    .description('List plugins available in marketplaces')
+    .option('--verbose', 'Show plugin descriptions')
+    .action(
+        withAnalytics(
+            'plugin marketplace plugins',
+            async (marketplace?: string, options?: { verbose?: boolean }) => {
+                try {
+                    await handleMarketplacePluginsCommand({
+                        marketplace,
+                        verbose: options?.verbose,
+                    });
+                    safeExit('plugin marketplace plugins', 0);
+                } catch (err) {
+                    if (err instanceof ExitSignal) throw err;
+                    console.error(`❌ dexto plugin marketplace plugins command failed: ${err}`);
+                    safeExit('plugin marketplace plugins', 1, 'error');
+                }
+            }
+        )
+    );
+
+marketplaceCommand
+    .command('install <plugin>')
+    .description('Install a plugin from marketplace (plugin or plugin@marketplace)')
+    .option('--scope <scope>', 'Installation scope: user, project, or local', 'user')
+    .option('--force', 'Force reinstall if already exists')
+    .action(
+        withAnalytics(
+            'plugin marketplace install',
+            async (plugin: string, options: MarketplaceInstallCommandOptionsInput) => {
+                try {
+                    await handleMarketplaceInstallCommand({ ...options, plugin });
+                    safeExit('plugin marketplace install', 0);
+                } catch (err) {
+                    if (err instanceof ExitSignal) throw err;
+                    console.error(`❌ dexto plugin marketplace install command failed: ${err}`);
+                    safeExit('plugin marketplace install', 1, 'error');
+                }
+            }
+        )
     );
 
 // Helper to bootstrap a minimal agent for non-interactive session/search ops

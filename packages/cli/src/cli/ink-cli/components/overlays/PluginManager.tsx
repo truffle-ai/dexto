@@ -8,7 +8,7 @@ import { Box, Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
 import { BaseSelector, type BaseSelectorHandle } from '../base/BaseSelector.js';
 
-export type PluginAction = 'list' | 'import' | 'back';
+export type PluginAction = 'list' | 'import' | 'marketplace' | 'back';
 
 interface PluginManagerProps {
     isVisible: boolean;
@@ -34,6 +34,12 @@ const PLUGIN_OPTIONS: PluginOption[] = [
         label: 'Import Plugin',
         description: 'Import Claude Code plugin',
         icon: '⬇️',
+    },
+    {
+        action: 'marketplace',
+        label: 'Browse Marketplace',
+        description: 'Install from marketplace',
+        icon: '🛒',
     },
     { action: 'back', label: 'Back', description: 'Close plugin manager', icon: '◀️' },
 ];

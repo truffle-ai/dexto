@@ -29,6 +29,13 @@ export {
     handlePluginUninstallCommand,
     handlePluginValidateCommand,
     handlePluginImportCommand,
+    // Marketplace handlers
+    handleMarketplaceAddCommand,
+    handleMarketplaceRemoveCommand,
+    handleMarketplaceUpdateCommand,
+    handleMarketplaceListCommand,
+    handleMarketplacePluginsCommand,
+    handleMarketplaceInstallCommand,
     type PluginListCommandOptions,
     type PluginListCommandOptionsInput,
     type PluginInstallCommandOptions,
@@ -39,4 +46,10 @@ export {
     type PluginValidateCommandOptionsInput,
     type PluginImportCommandOptions,
     type PluginImportCommandOptionsInput,
+    // Marketplace types
+    type MarketplaceAddCommandOptionsInput,
+    type MarketplaceRemoveCommandOptionsInput,
+    type MarketplaceUpdateCommandOptionsInput,
+    type MarketplaceListCommandOptionsInput,
+    type MarketplaceInstallCommandOptionsInput,
 } from './plugin.js';

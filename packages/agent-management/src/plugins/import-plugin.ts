@@ -36,8 +36,9 @@ export function getClaudeCodeInstalledPluginsJsonPath(): string | null {
 }
 
 /**
- * Lists Claude Code plugins available for import.
- * Returns plugins from Claude Code that are not already imported into Dexto.
+ * Lists all Claude Code plugins with their import status.
+ * Returns both imported and not-yet-imported plugins, with the `isImported`
+ * flag indicating whether each plugin has already been imported into Dexto.
  */
 export function listClaudeCodePlugins(): ClaudeCodePlugin[] {
     const plugins: ClaudeCodePlugin[] = [];

@@ -192,6 +192,18 @@ export {
     // Error handling
     PluginErrorCode,
     PluginError,
+    // Marketplace
+    DEFAULT_MARKETPLACES,
+    addMarketplace,
+    removeMarketplace,
+    updateMarketplace,
+    listMarketplaces,
+    listAllMarketplacePlugins,
+    installPluginFromMarketplace,
+    getUninstalledDefaults,
+    isDefaultMarketplace,
+    MarketplaceErrorCode,
+    MarketplaceError,
     // Types
     type PluginManifest,
     type DiscoveredPlugin,
@@ -211,4 +223,10 @@ export {
     type ValidatedPluginMCPConfig,
     type InstallPluginOptions,
     type UninstallPluginOptions,
+    // Marketplace types
+    type MarketplaceEntry,
+    type MarketplacePlugin,
+    type MarketplaceAddResult,
+    type MarketplaceUpdateResult,
+    type MarketplaceInstallResult,
 } from './plugins/index.js';

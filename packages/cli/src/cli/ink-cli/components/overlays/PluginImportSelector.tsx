@@ -117,8 +117,9 @@ const PluginImportSelector = forwardRef<PluginImportSelectorHandle, PluginImport
         // Handle selection - import the plugin
         const handleSelect = async (plugin: LocalPluginItem) => {
             try {
-                await importClaudeCodePlugin(plugin.name);
-                onImport(plugin.name, plugin.path);
+                const result = await importClaudeCodePlugin(plugin.name);
+                // Use authoritative name/path from the import result (from manifest)
+                onImport(result.pluginName, result.pluginPath);
             } catch (error) {
                 logger.error(
                     `PluginImportSelector.handleSelect failed to import ${plugin.name}: ${error instanceof Error ? error.message : String(error)}`

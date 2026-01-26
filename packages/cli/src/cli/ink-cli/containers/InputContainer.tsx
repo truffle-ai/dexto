@@ -759,6 +759,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
             'prompt-add-wizard',
             'model-selector',
             'export-wizard',
+            'marketplace-add',
         ];
         const hasOverlayWithOwnInput = overlaysWithOwnInput.includes(ui.activeOverlay);
         const isHistorySearchActive = ui.historySearch.isActive;

@@ -341,7 +341,9 @@ export type OverlayType =
     | 'export-wizard'
     | 'plugin-manager'
     | 'plugin-list'
-    | 'plugin-import-selector';
+    | 'plugin-import-selector'
+    | 'marketplace-browser'
+    | 'marketplace-add';
 
 /**
  * MCP server type for custom wizard (null = not yet selected)

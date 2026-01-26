@@ -90,3 +90,58 @@ export {
     getClaudeCodePluginsDir,
     getClaudeCodeInstalledPluginsJsonPath,
 } from './import-plugin.js';
+
+// Marketplace
+export {
+    // Types
+    type MarketplaceSourceType,
+    type MarketplaceSource,
+    type MarketplaceEntry,
+    type KnownMarketplacesFile,
+    type MarketplacePlugin,
+    type MarketplaceAddResult,
+    type MarketplaceRemoveResult,
+    type MarketplaceUpdateResult,
+    type MarketplaceInstallResult,
+    type MarketplaceAddOptions,
+    type MarketplaceInstallOptions,
+    type MarketplaceManifest,
+    // Schemas
+    MarketplaceSourceSchema,
+    MarketplaceEntrySchema,
+    KnownMarketplacesFileSchema,
+    MarketplaceManifestSchema,
+    MarketplacePluginEntrySchema,
+    MarketplaceAddCommandSchema,
+    MarketplaceInstallCommandSchema,
+    // Errors
+    MarketplaceErrorCode,
+    MarketplaceError,
+    // Registry
+    DEFAULT_MARKETPLACES,
+    getMarketplacesRegistryPath,
+    getMarketplacesDir,
+    getMarketplaceCacheDir,
+    loadKnownMarketplaces,
+    saveKnownMarketplaces,
+    getMarketplaceEntry,
+    marketplaceExists,
+    getAllMarketplaces,
+    getAllMarketplacesWithClaudeCode,
+    getUninstalledDefaults,
+    isDefaultMarketplace,
+    // Operations
+    parseMarketplaceSource,
+    deriveMarketplaceName,
+    addMarketplace,
+    removeMarketplace,
+    updateMarketplace,
+    listMarketplaces,
+    scanMarketplacePlugins,
+    listAllMarketplacePlugins,
+    findPluginInMarketplaces,
+    // Install from marketplace
+    parsePluginSpec,
+    installPluginFromMarketplace,
+    searchMarketplacePlugins,
+} from './marketplace/index.js';
