@@ -72,8 +72,7 @@ export function createInvokeSkillTool(services: InternalToolsServices): Internal
                     key === skill ||
                     info.displayName === skill ||
                     info.commandName === skill ||
-                    info.name === skill ||
-                    info.name === `config:${skill}`
+                    info.name === skill
                 ) {
                     skillKey = key;
                     break;

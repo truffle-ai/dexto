@@ -101,7 +101,53 @@ export function listClaudeCodePlugins(): ClaudeCodePlugin[] {
 
             for (const entry of entries) {
                 if (!entry.isDirectory()) continue;
-                if (entry.name === 'cache' || entry.name === 'marketplaces') continue;
+                if (entry.name === 'marketplaces') continue;
+
+                // Handle cache directory specially - traverse its nested structure
+                // Claude Code stores plugins in cache/<namespace>/<plugin>/<version>/
+                if (entry.name === 'cache') {
+                    const cachePath = path.join(claudePluginsDir, 'cache');
+                    try {
+                        const namespaces = readdirSync(cachePath, { withFileTypes: true });
+                        for (const namespace of namespaces) {
+                            if (!namespace.isDirectory()) continue;
+                            const namespacePath = path.join(cachePath, namespace.name);
+                            const pluginDirs = readdirSync(namespacePath, { withFileTypes: true });
+                            for (const pluginDir of pluginDirs) {
+                                if (!pluginDir.isDirectory()) continue;
+                                const pluginDirPath = path.join(namespacePath, pluginDir.name);
+                                const versions = readdirSync(pluginDirPath, {
+                                    withFileTypes: true,
+                                });
+                                for (const version of versions) {
+                                    if (!version.isDirectory()) continue;
+                                    const versionPath = path.join(pluginDirPath, version.name);
+
+                                    // Skip if already found via installed_plugins.json
+                                    if (seenPaths.has(versionPath.toLowerCase())) continue;
+
+                                    const manifest = tryLoadManifest(versionPath);
+                                    if (manifest) {
+                                        const isImported = importedPaths.has(
+                                            versionPath.toLowerCase()
+                                        );
+                                        plugins.push({
+                                            name: manifest.name,
+                                            description: manifest.description,
+                                            version: manifest.version,
+                                            path: versionPath,
+                                            isImported,
+                                        });
+                                        seenPaths.add(versionPath.toLowerCase());
+                                    }
+                                }
+                            }
+                        }
+                    } catch {
+                        // Cache directory read error - silently skip
+                    }
+                    continue;
+                }
 
                 const pluginPath = path.join(claudePluginsDir, entry.name);
 
@@ -143,7 +189,7 @@ export async function importClaudeCodePlugin(pluginName: string): Promise<Plugin
     let plugin = claudePlugins.find((p) => p.name.toLowerCase() === pluginName.toLowerCase());
 
     // If not found by name, try by path
-    if (!plugin && (pluginName.startsWith('/') || pluginName.startsWith('.'))) {
+    if (!plugin && (path.isAbsolute(pluginName) || pluginName.startsWith('.'))) {
         const absolutePath = path.isAbsolute(pluginName) ? pluginName : path.resolve(pluginName);
         plugin = claudePlugins.find((p) => p.path.toLowerCase() === absolutePath.toLowerCase());
     }

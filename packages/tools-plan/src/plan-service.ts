@@ -152,8 +152,24 @@ export class PlanService {
 
             return { content, meta: metaResult.data };
         } catch (error) {
-            this.logger?.error(`Failed to read plan for session ${sessionId}: ${error}`);
-            return null;
+            const err = error as NodeJS.ErrnoException;
+            // ENOENT means file doesn't exist - return null (expected case)
+            if (err.code === 'ENOENT') {
+                return null;
+            }
+            // JSON parse errors (SyntaxError) mean corrupted data - treat as not found
+            // but log for debugging
+            if (error instanceof SyntaxError) {
+                this.logger?.error(
+                    `Failed to read plan for session ${sessionId}: ${error.message}`
+                );
+                return null;
+            }
+            // For real I/O errors (permission denied, disk issues), throw to surface the issue
+            this.logger?.error(
+                `Failed to read plan for session ${sessionId}: ${err.message ?? String(err)}`
+            );
+            throw PlanError.storageError('read', sessionId, err);
         }
     }
 

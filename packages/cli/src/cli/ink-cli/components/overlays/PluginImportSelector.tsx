@@ -6,6 +6,7 @@
 import React, { useState, useEffect, forwardRef, useRef, useImperativeHandle } from 'react';
 import { Box, Text } from 'ink';
 import { listClaudeCodePlugins, importClaudeCodePlugin } from '@dexto/agent-management';
+import { logger } from '@dexto/core';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
 import { BaseSelector, type BaseSelectorHandle } from '../base/BaseSelector.js';
 
@@ -119,8 +120,9 @@ const PluginImportSelector = forwardRef<PluginImportSelectorHandle, PluginImport
                 await importClaudeCodePlugin(plugin.name);
                 onImport(plugin.name, plugin.path);
             } catch (error) {
-                // Error handling could be improved with a message to the user
-                console.error('Failed to import plugin:', error);
+                logger.error(
+                    `PluginImportSelector.handleSelect failed to import ${plugin.name}: ${error instanceof Error ? error.message : String(error)}`
+                );
             }
         };
 

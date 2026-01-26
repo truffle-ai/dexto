@@ -26,7 +26,7 @@ export const PlanErrorCode = {
     STORAGE_ERROR: 'STORAGE_ERROR',
 } as const;
 
-export type PlanErrorCode = (typeof PlanErrorCode)[keyof typeof PlanErrorCode];
+export type PlanErrorCodeType = (typeof PlanErrorCode)[keyof typeof PlanErrorCode];
 
 /**
  * Error factory for plan operations

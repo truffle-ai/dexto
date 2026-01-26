@@ -45,4 +45,4 @@ export { PlanService } from './plan-service.js';
 export type { Plan, PlanMeta, PlanStatus, PlanServiceOptions, PlanUpdateResult } from './types.js';
 
 // Error utilities
-export { PlanError, PlanErrorCode } from './errors.js';
+export { PlanError, PlanErrorCode, type PlanErrorCodeType } from './errors.js';
