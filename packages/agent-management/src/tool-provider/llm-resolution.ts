@@ -79,6 +79,7 @@ export function resolveSubAgentLLM(options: ResolveSubAgentLLMOptions): SubAgent
                     provider: parentProvider,
                     model: transformedModel,
                     apiKey: parentLLM.apiKey,
+                    baseURL: parentLLM.baseURL,
                 },
                 resolution: 'gateway-transform',
                 reason:
@@ -96,6 +97,7 @@ export function resolveSubAgentLLM(options: ResolveSubAgentLLMOptions): SubAgent
             llm: {
                 ...subAgentLLM,
                 apiKey: parentLLM.apiKey, // Use parent's credentials
+                baseURL: parentLLM.baseURL, // Inherit custom endpoint (e.g., Azure OpenAI)
             },
             resolution: 'same-provider',
             reason:
