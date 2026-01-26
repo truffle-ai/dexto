@@ -16,6 +16,13 @@ export {
     type ListAgentsCommandOptionsInput,
 } from './list-agents.js';
 export { handleWhichCommand, type WhichCommandOptions } from './which.js';
+export {
+    handleSyncAgentsCommand,
+    shouldPromptForSync,
+    markSyncDismissed,
+    clearSyncDismissed,
+    type SyncAgentsCommandOptions,
+} from './sync-agents.js';
 
 // Auth commands
 export {

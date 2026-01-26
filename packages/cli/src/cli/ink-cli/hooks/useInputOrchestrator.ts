@@ -513,6 +513,12 @@ export function useInputOrchestrator({
                 return;
             }
 
+            // Ctrl+T: Toggle todo list expansion (collapsed shows only current task)
+            if (key.ctrl && inputStr === 't') {
+                setUi((prev) => ({ ...prev, todoExpanded: !prev.todoExpanded }));
+                return;
+            }
+
             // Shift+Tab: Toggle "accept all edits" mode (when not in approval modal)
             // Note: When in approval modal for edit/write tools, ApprovalPrompt handles this
             if (key.shift && key.tab && currentApproval === null) {

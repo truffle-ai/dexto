@@ -24,6 +24,7 @@ const ALWAYS_OVERLAY: Record<string, OverlayType> = {
     context: 'context-stats',
     ctx: 'context-stats', // alias
     tokens: 'context-stats', // alias
+    export: 'export-wizard',
 };
 
 /**

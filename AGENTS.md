@@ -10,6 +10,14 @@
 
 This runs `scripts/quality-checks.sh` for build, tests, lint, and typecheck. Individual checks can be run separately. See `.claude/commands/quality-checks.md` for details.
 
+## Adding New Packages
+
+All `@dexto/*` packages use **fixed versioning** - they share the same version number.
+
+**When creating a new package:**
+1. Add the package name to the `fixed` array in `.changeset/config.json`
+2. Set its `version` in `package.json` to match other packages (check `packages/core/package.json` for current version)
+
 ## General rules
 - Do NOT focus on pleasing the user. Focus on being CORRECT, use facts and code as your source of truth. Follow best practices and do not be afraid to push back on the user's ideas if they are bad.
 - Do not be lazy. Read as much relevant code as possible to keep your answers grounded in reality

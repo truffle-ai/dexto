@@ -24,6 +24,10 @@ interface StatusBarProps {
     copyModeEnabled?: boolean;
     /** Whether an approval prompt is currently shown */
     isAwaitingApproval?: boolean;
+    /** Whether the todo list is expanded */
+    todoExpanded?: boolean;
+    /** Whether there are todos to display */
+    hasTodos?: boolean;
 }
 
 /**
@@ -42,6 +46,8 @@ export function StatusBar({
     approvalQueueCount,
     copyModeEnabled = false,
     isAwaitingApproval = false,
+    todoExpanded = true,
+    hasTodos = false,
 }: StatusBarProps) {
     // Cycle through witty phrases while processing (not during compacting)
     const { phrase } = usePhraseCycler({ isActive: isProcessing && !isCompacting });
@@ -73,15 +79,23 @@ export function StatusBar({
         return null;
     }
 
+    // Build the task toggle hint based on state
+    const todoHint = hasTodos
+        ? todoExpanded
+            ? 'ctrl+t to hide tasks'
+            : 'ctrl+t to show tasks'
+        : null;
+
     // Show compacting state - yellow/orange color to indicate context management
     if (isCompacting) {
         const metaParts: string[] = [];
         if (showTime) metaParts.push(`(${elapsedTime})`);
         metaParts.push('Esc to cancel');
+        if (todoHint) metaParts.push(todoHint);
         const metaContent = metaParts.join(' • ');
 
         return (
-            <Box paddingX={1} marginTop={1} marginBottom={1} flexDirection="column">
+            <Box paddingX={1} marginTop={1} flexDirection="column">
                 {/* Line 1: spinner + compacting message */}
                 <Box flexDirection="row" alignItems="center">
                     <Text color="yellow">
@@ -105,10 +119,11 @@ export function StatusBar({
         if (showTime) metaParts.push(`(${elapsedTime})`);
         if (tokenCount) metaParts.push(tokenCount);
         metaParts.push('Esc to cancel');
+        if (todoHint) metaParts.push(todoHint);
         const metaContent = metaParts.join(' • ');
 
         return (
-            <Box paddingX={1} marginTop={1} marginBottom={1} flexDirection="column">
+            <Box paddingX={1} marginTop={1} flexDirection="column">
                 {/* Line 1: spinner + phrase */}
                 <Box flexDirection="row" alignItems="center">
                     <Text color="green">
@@ -131,10 +146,11 @@ export function StatusBar({
     if (showTime) metaParts.push(`(${elapsedTime})`);
     if (tokenCount) metaParts.push(tokenCount);
     metaParts.push('Esc to cancel');
+    if (todoHint) metaParts.push(todoHint);
     const metaContent = metaParts.join(' • ');
 
     return (
-        <Box paddingX={1} marginTop={1} marginBottom={1} flexDirection="column">
+        <Box paddingX={1} marginTop={1} flexDirection="column">
             {/* Line 1: spinner + phrase + queue count */}
             <Box flexDirection="row" alignItems="center">
                 <Text color="green">

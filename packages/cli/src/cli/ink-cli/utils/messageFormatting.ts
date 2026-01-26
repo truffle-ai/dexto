@@ -155,7 +155,7 @@ const TOOL_CONFIGS: Record<string, ToolDisplayConfig> = {
     // Agent spawning - handled specially in getToolDisplayName for dynamic agentId
     spawn_agent: { displayName: 'Agent', argsToShow: ['task'], primaryArg: 'task' },
 
-    todo_write: { displayName: 'ToDo', argsToShow: [] },
+    todo_write: { displayName: 'UpdateTasks', argsToShow: [] },
 };
 
 /**
@@ -339,7 +339,7 @@ const PATH_ARGS = new Set(['file_path', 'path']);
  * Note: 'command' is handled specially - single-line commands are not truncated,
  * but multi-line commands (heredocs) are truncated to first line only.
  */
-const NEVER_TRUNCATE_ARGS = new Set(['url', 'task']);
+const NEVER_TRUNCATE_ARGS = new Set(['url', 'task', 'pattern', 'question']);
 
 /**
  * Formats tool arguments for display.

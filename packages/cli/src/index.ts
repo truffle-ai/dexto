@@ -75,6 +75,11 @@ import {
     handleListAgentsCommand,
     type ListAgentsCommandOptionsInput,
     handleWhichCommand,
+    handleSyncAgentsCommand,
+    shouldPromptForSync,
+    markSyncDismissed,
+    clearSyncDismissed,
+    type SyncAgentsCommandOptions,
     handleLoginCommand,
     handleLogoutCommand,
     handleStatusCommand,
@@ -89,6 +94,7 @@ import {
 } from './cli/commands/session-commands.js';
 import { requiresSetup } from './cli/utils/setup-utils.js';
 import { checkForFileInCurrentDirectory, FileNotFoundError } from './cli/utils/package-mgmt.js';
+import { checkForUpdates, displayUpdateNotification } from './cli/utils/version-check.js';
 import { resolveWebRoot } from './web.js';
 import { initializeMcpServer, createMcpTransport } from '@dexto/server';
 import { createAgentCard } from '@dexto/core';
@@ -99,6 +105,10 @@ const program = new Command();
 
 // Initialize analytics early (no-op if disabled)
 await initAnalytics({ appVersion: pkg.version });
+
+// Start version check early (non-blocking)
+// We'll check the result later and display notification for interactive modes
+const versionCheckPromise = checkForUpdates(pkg.version);
 
 /**
  * Recursively removes null values from an object.
@@ -166,10 +176,6 @@ program
     .option(
         '--image <package>',
         'Image package to load (e.g., @dexto/image-local). Overrides config image field.'
-    )
-    .option(
-        '--privacy-mode',
-        'Hide full file paths from display (useful for screen recording/sharing). Can also set DEXTO_PRIVACY_MODE=true'
     )
     .option(
         '--dev',
@@ -287,15 +293,9 @@ program
                 safeExit('setup', 0);
             } catch (err) {
                 if (err instanceof ExitSignal) throw err;
-                if (process.env.DEXTO_PRIVACY_MODE === 'true') {
-                    console.error(
-                        `❌ dexto setup command failed: ${err}. Check logs for more information`
-                    );
-                } else {
-                    console.error(
-                        `❌ dexto setup command failed: ${err}. Check logs in ~/.dexto/logs/dexto.log for more information`
-                    );
-                }
+                console.error(
+                    `❌ dexto setup command failed: ${err}. Check logs in ~/.dexto/logs/dexto.log for more information`
+                );
                 safeExit('setup', 1, 'error');
             }
         })
@@ -389,6 +389,25 @@ program
                 if (err instanceof ExitSignal) throw err;
                 console.error(`❌ dexto which command failed: ${err}`);
                 safeExit('which', 1, 'error');
+            }
+        })
+    );
+
+// 10) `sync-agents` SUB-COMMAND
+program
+    .command('sync-agents')
+    .description('Sync installed agents with bundled versions')
+    .option('--list', 'List agent status without updating')
+    .option('--force', 'Update all agents without prompting')
+    .action(
+        withAnalytics('sync-agents', async (options: Partial<SyncAgentsCommandOptions>) => {
+            try {
+                await handleSyncAgentsCommand(options);
+                safeExit('sync-agents', 0);
+            } catch (err) {
+                if (err instanceof ExitSignal) throw err;
+                console.error(`❌ dexto sync-agents command failed: ${err}`);
+                safeExit('sync-agents', 1, 'error');
             }
         })
     );
@@ -490,7 +509,7 @@ async function getMostRecentSessionId(
     return mostRecentId;
 }
 
-// 10) `session` SUB-COMMAND
+// 11) `session` SUB-COMMAND
 const sessionCommand = program.command('session').description('Manage chat sessions');
 
 sessionCommand
@@ -552,7 +571,7 @@ sessionCommand
         })
     );
 
-// 11) `search` SUB-COMMAND
+// 12) `search` SUB-COMMAND
 program
     .command('search')
     .description('Search session history')
@@ -613,7 +632,7 @@ program
         )
     );
 
-// 12) `auth` SUB-COMMAND GROUP
+// 13) `auth` SUB-COMMAND GROUP
 const authCommand = program.command('auth').description('Manage authentication');
 
 authCommand
@@ -724,7 +743,7 @@ program
         })
     );
 
-// 13) `billing` SUB-COMMAND GROUP
+// 14) `billing` SUB-COMMAND GROUP
 const billingCommand = program.command('billing').description('Manage Dexto billing and credits');
 
 billingCommand
@@ -757,7 +776,7 @@ billingCommand.action(
     })
 );
 
-// 14) `mcp` SUB-COMMAND
+// 15) `mcp` SUB-COMMAND
 // For now, this mode simply aggregates and re-expose tools from configured MCP servers (no agent)
 // dexto --mode mcp will be moved to this sub-command in the future
 program
@@ -796,11 +815,7 @@ program
                         nameOrPath,
                         globalOpts.autoInstall !== false
                     );
-                    if (process.env.DEXTO_PRIVACY_MODE === 'true') {
-                        console.log(`📄 Loading Dexto config...`);
-                    } else {
-                        console.log(`📄 Loading Dexto config from: ${configPath}`);
-                    }
+                    console.log(`📄 Loading Dexto config from: ${configPath}`);
                     const config = await loadAgentConfig(configPath);
 
                     logger.info(`Validating MCP servers...`);
@@ -851,7 +866,7 @@ program
         )
     );
 
-// 13) Main dexto CLI - Interactive/One shot (CLI/HEADLESS) or run in other modes (--mode web/server/mcp)
+// 14) Main dexto CLI - Interactive/One shot (CLI/HEADLESS) or run in other modes (--mode web/server/mcp)
 program
     .argument(
         '[prompt...]',
@@ -900,11 +915,6 @@ program
                 }
 
                 const opts = program.opts();
-
-                // Set privacy mode early to gate all path-related output
-                if (opts.privacyMode) {
-                    process.env.DEXTO_PRIVACY_MODE = 'true';
-                }
 
                 // Set dev mode early to use local repo agents instead of ~/.dexto
                 if (opts.dev) {
@@ -1348,13 +1358,6 @@ program
                 let agent: DextoAgent;
                 let derivedAgentId: string;
                 try {
-                    // Show startup message (respecting privacy mode)
-                    if (process.env.DEXTO_PRIVACY_MODE === 'true') {
-                        console.error(`🚀 Initializing Dexto...`);
-                    } else {
-                        console.error(`🚀 Initializing Dexto with config: ${resolvedPath}`);
-                    }
-
                     // Set run mode for tool confirmation provider
                     process.env.DEXTO_RUN_MODE = opts.mode;
 
@@ -1595,6 +1598,25 @@ program
                             const session = await agent.createSession();
                             const cliSessionId: string = session.id;
 
+                            // Check for updates (will be shown in Ink header)
+                            const cliUpdateInfo = await versionCheckPromise;
+
+                            // Check if installed agents differ from bundled and prompt to sync
+                            const needsSync = await shouldPromptForSync(pkg.version);
+                            if (needsSync) {
+                                const shouldSync = await p.confirm({
+                                    message: 'Agent config updates available. Sync now?',
+                                    initialValue: true,
+                                });
+
+                                if (p.isCancel(shouldSync) || !shouldSync) {
+                                    await markSyncDismissed(pkg.version);
+                                } else {
+                                    await handleSyncAgentsCommand({ force: true, quiet: true });
+                                    await clearSyncDismissed();
+                                }
+                            }
+
                             // Interactive mode - use Ink CLI with session support
                             // Suppress console output before starting Ink UI
                             const originalConsole = {
@@ -1614,7 +1636,9 @@ program
                                 const { startInkCliRefactored } = await import(
                                     './cli/ink-cli/InkCLIRefactored.js'
                                 );
-                                await startInkCliRefactored(agent, cliSessionId);
+                                await startInkCliRefactored(agent, cliSessionId, {
+                                    updateInfo: cliUpdateInfo ?? undefined,
+                                });
                             } catch (error) {
                                 inkError = error;
                             } finally {
@@ -1680,6 +1704,12 @@ program
 
                         console.log(chalk.green(`✅ Server running at ${serverUrl}`));
 
+                        // Show update notification if available
+                        const webUpdateInfo = await versionCheckPromise;
+                        if (webUpdateInfo) {
+                            displayUpdateNotification(webUpdateInfo);
+                        }
+
                         // Open WebUI in browser if webRoot is available
                         if (webRoot) {
                             try {
@@ -1715,6 +1745,12 @@ program
                         console.log('  POST /api/reset - Reset conversation');
                         console.log('  GET  /api/mcp/servers - List MCP servers');
                         console.log('  SSE support available for real-time events');
+
+                        // Show update notification if available
+                        const serverUpdateInfo = await versionCheckPromise;
+                        if (serverUpdateInfo) {
+                            displayUpdateNotification(serverUpdateInfo);
+                        }
                         break;
                     }
 
@@ -1778,5 +1814,5 @@ program
         )
     );
 
-// 14) PARSE & EXECUTE
+// 15) PARSE & EXECUTE
 program.parseAsync(process.argv);

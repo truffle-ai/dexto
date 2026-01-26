@@ -125,11 +125,22 @@ export function InkCLIRefactored({
 }
 
 /**
+ * Options for starting the Ink CLI
+ */
+export interface InkCLIOptions {
+    /** Update info if a newer version is available */
+    updateInfo?: { current: string; latest: string; updateCommand: string } | undefined;
+    /** True if installed agents differ from bundled and user should sync */
+    needsAgentSync?: boolean | undefined;
+}
+
+/**
  * Start the modern Ink-based CLI
  */
 export async function startInkCliRefactored(
     agent: DextoAgent,
-    initialSessionId: string | null
+    initialSessionId: string | null,
+    options: InkCLIOptions = {}
 ): Promise<void> {
     registerGracefulShutdown(() => agent, { inkMode: true });
 
@@ -137,7 +148,12 @@ export async function startInkCliRefactored(
     // This wraps pastes with escape sequences that our KeypressContext handles
     enableBracketedPaste();
 
-    const startupInfo = await getStartupInfo(agent);
+    const baseStartupInfo = await getStartupInfo(agent);
+    const startupInfo = {
+        ...baseStartupInfo,
+        updateInfo: options.updateInfo,
+        needsAgentSync: options.needsAgentSync,
+    };
 
     // Initialize sound service from preferences
     const { SoundNotificationService } = await import('./utils/soundNotification.js');

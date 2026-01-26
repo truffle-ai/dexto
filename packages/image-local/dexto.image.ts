@@ -34,8 +34,6 @@ export default defineImage({
 
                 blobStoreRegistry.register(localBlobStoreProvider);
                 blobStoreRegistry.register(inMemoryBlobStoreProvider);
-
-                console.log('✓ Registered blob storage providers: local, in-memory');
             },
         },
 
@@ -52,10 +50,6 @@ export default defineImage({
                 customToolRegistry.register(processToolsProvider);
                 customToolRegistry.register(agentSpawnerToolsProvider);
                 customToolRegistry.register(todoToolsProvider);
-
-                console.log(
-                    '✓ Registered tool providers: filesystem-tools, process-tools, agent-spawner, todo-tools'
-                );
             },
         },
     },

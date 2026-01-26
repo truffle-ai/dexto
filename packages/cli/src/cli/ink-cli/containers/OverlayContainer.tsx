@@ -90,6 +90,7 @@ import SessionRenameOverlay, {
 import ContextStatsOverlay, {
     type ContextStatsOverlayHandle,
 } from '../components/overlays/ContextStatsOverlay.js';
+import ExportWizard, { type ExportWizardHandle } from '../components/overlays/ExportWizard.js';
 import type { PromptAddScope } from '../state/types.js';
 import type { PromptInfo, ResourceMetadata, LLMProvider, SearchResult } from '@dexto/core';
 import type { LogLevel } from '@dexto/core';
@@ -175,6 +176,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
         const promptDeleteSelectorRef = useRef<PromptDeleteSelectorHandle>(null);
         const sessionRenameRef = useRef<SessionRenameOverlayHandle>(null);
         const contextStatsRef = useRef<ContextStatsOverlayHandle>(null);
+        const exportWizardRef = useRef<ExportWizardHandle>(null);
 
         // Expose handleInput method via ref - routes to appropriate overlay
         useImperativeHandle(
@@ -248,6 +250,8 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             return sessionRenameRef.current?.handleInput(inputStr, key) ?? false;
                         case 'context-stats':
                             return contextStatsRef.current?.handleInput(inputStr, key) ?? false;
+                        case 'export-wizard':
+                            return exportWizardRef.current?.handleInput(inputStr, key) ?? false;
                         default:
                             return false;
                     }
@@ -2108,6 +2112,17 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             sessionId={session.id}
                         />
                     </Box>
+                )}
+
+                {/* Export wizard overlay */}
+                {ui.activeOverlay === 'export-wizard' && (
+                    <ExportWizard
+                        ref={exportWizardRef}
+                        isVisible={true}
+                        agent={agent}
+                        sessionId={session.id}
+                        onClose={handleClose}
+                    />
                 )}
             </>
         );
