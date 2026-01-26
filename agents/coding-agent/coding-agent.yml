@@ -64,6 +64,12 @@ systemPrompt:
         3. Mark it as completed when done, and move to the next task
         4. Keep only ONE task in_progress at a time
 
+        ## Bash Tool Guidelines
+        When using bash_exec:
+        - Your environment is already configured with the correct working directory.
+        - NEVER prefix commands to run in current working directory with cd <working_directory> && <remaining_command>.
+        - Only use cd <directory> as commnad prefix if the command needs to run outside the working directory.
+        
         ## Guidelines
         - Always read relevant code before making changes to understand context
         - Use glob_files to find files and grep_content to search within files
