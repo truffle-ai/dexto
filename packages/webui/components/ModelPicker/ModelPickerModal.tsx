@@ -25,6 +25,7 @@ import {
     type CustomModel,
 } from '../hooks/useLLM';
 import { useLocalModels, useDeleteInstalledModel, type LocalModel } from '../hooks/useModels';
+import { useDextoAuth } from '../hooks/useDextoAuth';
 import {
     CustomModelForm,
     type CustomModelFormData,
@@ -114,6 +115,9 @@ export default function ModelPickerModal() {
         isLoading: loading,
         error: catalogError,
     } = useLLMCatalog({ enabled: open });
+
+    // Load dexto auth status (for checking if user can use dexto provider)
+    const { data: dextoAuthStatus } = useDextoAuth(open);
 
     // Load custom models from API (always enabled so trigger shows correct icon)
     const { data: customModels = [] } = useCustomModels();
@@ -486,12 +490,15 @@ export default function ModelPickerModal() {
             }
         }
 
-        if (!skipApiKeyCheck && provider && !provider.hasApiKey && !customApiKey) {
-            // Dexto provider requires OAuth login via CLI, not manual API key entry
-            if (providerId === 'dexto') {
+        // Dexto provider requires OAuth login via CLI, not manual API key entry
+        // Check canUse from auth status API (requires both authentication AND API key)
+        if (!skipApiKeyCheck && providerId === 'dexto') {
+            if (!dextoAuthStatus?.canUse) {
                 setError('Run `dexto login` or `/login` from the CLI to authenticate with Dexto');
                 return;
             }
+        } else if (!skipApiKeyCheck && provider && !provider.hasApiKey && !customApiKey) {
+            // Other providers - show API key modal if no key configured
             setPendingSelection({ provider: providerId, model });
             setPendingKeyProvider(providerId);
             setKeyModalOpen(true);

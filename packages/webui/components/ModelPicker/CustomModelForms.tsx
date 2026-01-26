@@ -17,6 +17,7 @@ import { validateBaseURL } from './types';
 import { useValidateOpenRouterModel } from '../hooks/useOpenRouter';
 import { useProviderApiKey, type LLMProvider } from '../hooks/useLLM';
 import { useValidateLocalFile } from '../hooks/useModels';
+import { useDextoAuth } from '../hooks/useDextoAuth';
 
 const BEDROCK_DOCS_URL = 'https://docs.dexto.ai/docs/guides/supported-llm-providers#amazon-bedrock';
 
@@ -28,7 +29,8 @@ export type CustomModelProvider =
     | 'glama'
     | 'bedrock'
     | 'ollama'
-    | 'local';
+    | 'local'
+    | 'dexto';
 
 export interface CustomModelFormData {
     provider: CustomModelProvider;
@@ -90,6 +92,13 @@ const PROVIDER_OPTIONS: { value: CustomModelProvider; label: string; description
     // TODO: Add 'vertex' provider for custom Vertex AI model IDs (uses ADC auth like Bedrock)
     // Would allow users to add model IDs not yet in registry (e.g., new Gemini previews)
 ];
+
+// Dexto option is feature-flagged - shown separately when enabled
+const DEXTO_PROVIDER_OPTION = {
+    value: 'dexto' as const,
+    label: 'Dexto',
+    description: 'Access 100+ models with Dexto credits (login required)',
+};
 
 // ============================================================================
 // Provider-specific field components
@@ -812,6 +821,141 @@ function LocalFields({ formData, onChange, setLocalError }: ProviderFieldsProps)
 }
 
 /**
+ * Dexto fields - model ID with OpenRouter format, no API key (uses OAuth login)
+ */
+function DextoFields({ formData, onChange, setLocalError }: ProviderFieldsProps) {
+    const { mutateAsync: validateOpenRouterModel } = useValidateOpenRouterModel();
+    const validationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const [validation, setValidation] = useState<{
+        status: 'idle' | 'validating' | 'valid' | 'invalid';
+        error?: string;
+    }>({ status: 'idle' });
+
+    // Debounced validation (reuses OpenRouter validation since Dexto uses OpenRouter model IDs)
+    useEffect(() => {
+        const modelId = formData.name.trim();
+        if (!modelId) {
+            setValidation({ status: 'idle' });
+            return;
+        }
+        if (!modelId.includes('/')) {
+            setValidation({
+                status: 'invalid',
+                error: 'Format: provider/model (e.g., anthropic/claude-sonnet-4.5)',
+            });
+            return;
+        }
+        if (validationTimerRef.current) clearTimeout(validationTimerRef.current);
+        setValidation({ status: 'validating' });
+        validationTimerRef.current = setTimeout(async () => {
+            try {
+                const result = await validateOpenRouterModel(modelId);
+                setValidation(
+                    result.valid
+                        ? { status: 'valid' }
+                        : {
+                              status: 'invalid',
+                              error:
+                                  result.error ||
+                                  `Model '${modelId}' not found. Check https://openrouter.ai/models`,
+                          }
+                );
+            } catch {
+                setValidation({ status: 'invalid', error: 'Validation failed - check model ID' });
+            }
+        }, 500);
+        return () => {
+            if (validationTimerRef.current) clearTimeout(validationTimerRef.current);
+        };
+    }, [formData.name, validateOpenRouterModel]);
+
+    const isValid = validation.status === 'valid';
+    const isInvalid = validation.status === 'invalid';
+    const isValidating = validation.status === 'validating';
+
+    return (
+        <>
+            {/* Setup Guide Banner */}
+            <div className="p-3 rounded-md bg-purple-500/10 border border-purple-500/30">
+                <div className="flex items-start gap-2">
+                    <Info className="h-4 w-4 text-purple-500 mt-0.5 flex-shrink-0" />
+                    <div className="space-y-1">
+                        <p className="text-xs text-purple-700 dark:text-purple-300">
+                            Uses your Dexto credits with OpenRouter model IDs.
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                            Requires login: run{' '}
+                            <code className="px-1 py-0.5 rounded bg-muted text-[10px]">
+                                dexto login
+                            </code>{' '}
+                            from the CLI first.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            {/* Model ID */}
+            <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">Model ID *</label>
+                <div className="relative">
+                    <Input
+                        value={formData.name}
+                        onChange={(e) => {
+                            onChange({ name: e.target.value });
+                            setLocalError(null);
+                        }}
+                        placeholder="e.g., anthropic/claude-sonnet-4.5, openai/gpt-5.2"
+                        className={cn(
+                            'h-9 text-sm pr-8',
+                            isValid && 'border-green-500 focus-visible:ring-green-500',
+                            isInvalid && 'border-red-500 focus-visible:ring-red-500'
+                        )}
+                    />
+                    {formData.name.trim() && (
+                        <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                            {isValidating && (
+                                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                            )}
+                            {isValid && <Check className="h-4 w-4 text-green-500" />}
+                            {isInvalid && <X className="h-4 w-4 text-red-500" />}
+                        </div>
+                    )}
+                </div>
+                {isInvalid && validation.error && (
+                    <p className="text-[10px] text-red-500">{validation.error}</p>
+                )}
+                <p className="text-[10px] text-muted-foreground">
+                    Find model IDs at{' '}
+                    <a
+                        href="https://openrouter.ai/models"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary hover:underline"
+                    >
+                        openrouter.ai/models
+                    </a>
+                </p>
+            </div>
+
+            {/* Display Name */}
+            <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">
+                    Display Name <span className="text-muted-foreground/60">(optional)</span>
+                </label>
+                <Input
+                    value={formData.displayName}
+                    onChange={(e) => onChange({ displayName: e.target.value })}
+                    placeholder="Friendly name for the model"
+                    className="h-9 text-sm"
+                />
+            </div>
+
+            {/* No API Key field - Dexto uses OAuth login */}
+        </>
+    );
+}
+
+/**
  * Reusable API Key field component
  */
 function ApiKeyField({
@@ -902,6 +1046,15 @@ export function CustomModelForm({
     // Fetch provider API key status (not the actual key - it's masked for security)
     const { data: providerKeyData } = useProviderApiKey(formData.provider as LLMProvider);
 
+    // Fetch dexto auth status to conditionally show dexto provider option
+    const { data: dextoAuthStatus } = useDextoAuth();
+    const showDextoProvider = dextoAuthStatus?.enabled ?? false;
+
+    // Build provider options list - include dexto when feature is enabled
+    const providerOptions = showDextoProvider
+        ? [...PROVIDER_OPTIONS, DEXTO_PROVIDER_OPTION]
+        : PROVIDER_OPTIONS;
+
     // Reset error when provider changes
     useEffect(() => {
         setLocalError(null);
@@ -985,6 +1138,16 @@ export function CustomModelForm({
                     return;
                 }
                 break;
+            case 'dexto':
+                if (!formData.name.trim()) {
+                    setLocalError('Model ID is required');
+                    return;
+                }
+                if (!formData.name.includes('/')) {
+                    setLocalError('Format: provider/model (e.g., anthropic/claude-sonnet-4.5)');
+                    return;
+                }
+                break;
         }
         setLocalError(null);
         onSubmit();
@@ -1008,13 +1171,15 @@ export function CustomModelForm({
                     formData.filePath?.trim().startsWith('/') &&
                     formData.filePath?.trim().endsWith('.gguf')
                 );
+            case 'dexto':
+                return formData.name.trim() && formData.name.includes('/');
             default:
                 return false;
         }
     })();
 
     const displayError = localError || error;
-    const selectedProvider = PROVIDER_OPTIONS.find((p) => p.value === formData.provider);
+    const selectedProvider = providerOptions.find((p) => p.value === formData.provider);
 
     const renderProviderFields = () => {
         const props: ProviderFieldsProps = {
@@ -1042,6 +1207,8 @@ export function CustomModelForm({
                 return <OllamaFields {...props} />;
             case 'local':
                 return <LocalFields {...props} />;
+            case 'dexto':
+                return <DextoFields {...props} />;
             case 'openai-compatible':
             default:
                 return <OpenAICompatibleFields {...props} />;
@@ -1096,7 +1263,7 @@ export function CustomModelForm({
                         </button>
                         {dropdownOpen && (
                             <div className="absolute z-50 w-full mt-1 rounded-md border border-border bg-popover shadow-lg">
-                                {PROVIDER_OPTIONS.map((option) => (
+                                {providerOptions.map((option) => (
                                     <button
                                         key={option.value}
                                         type="button"

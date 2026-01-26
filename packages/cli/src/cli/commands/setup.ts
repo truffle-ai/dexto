@@ -1133,7 +1133,45 @@ async function showSettingsMenu(): Promise<void> {
  * Change model setting (includes provider selection)
  */
 async function changeModel(currentProvider?: LLMProvider): Promise<void> {
-    const provider = currentProvider || (await selectProvider());
+    let provider: LLMProvider | null | '_back' = currentProvider ?? null;
+
+    // If no provider specified, show selection
+    // When Dexto auth is enabled, show Dexto/Other choice first (matching first-time setup flow)
+    if (!provider && isDextoAuthEnabled()) {
+        const providerChoice = await p.select({
+            message: 'Choose your model source',
+            options: [
+                {
+                    value: 'dexto',
+                    label: `${chalk.magenta('★')} Dexto Credits`,
+                    hint: 'All models, one account',
+                },
+                {
+                    value: 'other',
+                    label: `${chalk.blue('●')} Other providers`,
+                    hint: 'OpenAI, Anthropic, Gemini, Ollama, etc.',
+                },
+            ],
+        });
+
+        if (p.isCancel(providerChoice)) {
+            p.log.warn('Model change cancelled');
+            return;
+        }
+
+        if (providerChoice === 'dexto') {
+            // Use the same Dexto setup flow as first-time setup
+            await handleDextoProviderSetup();
+            return;
+        }
+
+        // 'other' - fall through to normal provider selection
+    }
+
+    // Get provider if not already set
+    if (!provider) {
+        provider = await selectProvider();
+    }
 
     // Handle cancellation or back from selectProvider
     if (provider === null || provider === '_back') {
