@@ -272,7 +272,8 @@ export async function handlePluginValidateCommand(
 
     // Exit with error code if invalid
     if (!result.valid) {
-        throw new Error('Plugin validation failed');
+        const errorDetails = result.errors.length > 0 ? `: ${result.errors.join(', ')}` : '';
+        throw new Error(`Plugin validation failed${errorDetails}`);
     }
 }
 
