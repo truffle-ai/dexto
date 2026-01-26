@@ -33,13 +33,19 @@ export async function handleLoginCommand(
                     initialValue: false,
                 });
 
-                if (!shouldContinue) {
+                if (p.isCancel(shouldContinue) || !shouldContinue) {
                     return;
                 }
             }
         }
 
         if (options.token) {
+            // Validate the token before storing
+            const client = getDextoApiClient();
+            const isValid = await client.validateDextoApiKey(options.token);
+            if (!isValid) {
+                throw new Error('Invalid token provided - validation failed');
+            }
             await storeAuth({ token: options.token, createdAt: Date.now() });
             console.log(chalk.green('✅ Authentication token saved'));
             return;
@@ -73,7 +79,8 @@ export async function handleLoginCommand(
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         p.outro(chalk.red(`❌ Login failed: ${errorMessage}`));
-        process.exit(1);
+        // Re-throw to let CLI wrapper handle exit and analytics tracking
+        throw error;
     }
 }
 

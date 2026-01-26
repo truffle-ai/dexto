@@ -1836,9 +1836,11 @@ export function transformModelNameForProvider(
     }
 
     // Look up the explicit openrouterId mapping - no fallback
+    // Use case-insensitive matching for consistency with other registry lookups
     const providerInfo = LLM_REGISTRY[originalProvider];
     if (providerInfo) {
-        const modelInfo = providerInfo.models.find((m) => m.name === model);
+        const normalizedModel = model.toLowerCase();
+        const modelInfo = providerInfo.models.find((m) => m.name.toLowerCase() === normalizedModel);
         if (modelInfo?.openrouterId) {
             return modelInfo.openrouterId;
         }

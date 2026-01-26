@@ -67,6 +67,7 @@ export async function handleLogoutCommand(
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         console.error(chalk.red(`❌ Logout failed: ${errorMessage}`));
-        process.exit(1);
+        // Re-throw to let CLI wrapper handle exit and analytics tracking
+        throw error;
     }
 }

@@ -833,7 +833,7 @@ program
         )
     );
 
-// 14) Main dexto CLI - Interactive/One shot (CLI/HEADLESS) or run in other modes (--mode web/server/mcp)
+// 16) Main dexto CLI - Interactive/One shot (CLI/HEADLESS) or run in other modes (--mode web/server/mcp)
 program
     .argument(
         '[prompt...]',
@@ -1781,5 +1781,5 @@ program
         )
     );
 
-// 15) PARSE & EXECUTE
+// 17) PARSE & EXECUTE
 program.parseAsync(process.argv);

@@ -59,8 +59,12 @@ export async function loadAuth(): Promise<AuthConfig | null> {
         const validated = AuthConfigSchema.parse(config);
 
         if (validated.expiresAt && validated.expiresAt < Date.now()) {
-            await removeAuth();
-            return null;
+            // Only remove auth if there's no refresh token available
+            // If refresh token exists, return the expired auth and let getAuthToken() handle refresh
+            if (!validated.refreshToken) {
+                await removeAuth();
+                return null;
+            }
         }
 
         return validated;

@@ -42,6 +42,9 @@ export function Footer({
         percentLeft: number;
     } | null>(null);
 
+    // Check if Dexto is actually the active provider (not just if API key exists)
+    const viaDexto = agent.getCurrentLLMConfig().provider === 'dexto';
+
     useEffect(() => {
         if (!sessionId) {
             setContextLeft(null);
@@ -109,7 +112,7 @@ export function Footer({
                 </Box>
                 <Box>
                     <Text color="cyan">{displayModelName}</Text>
-                    {process.env.DEXTO_API_KEY && <Text color="gray"> via Dexto</Text>}
+                    {viaDexto && <Text color="gray"> via Dexto</Text>}
                 </Box>
             </Box>
 

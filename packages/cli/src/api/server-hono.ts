@@ -367,10 +367,9 @@ export async function initializeHonoApi(
                     const preferences = await loadGlobalPreferences();
                     if (preferences?.llm?.provider && preferences?.llm?.model) {
                         config = applyUserPreferences(config, preferences);
-                        logger.debug(`Applied user preferences to agent from ${filePath}`, {
-                            provider: preferences.llm.provider,
-                            model: preferences.llm.model,
-                        });
+                        logger.debug(
+                            `Applied user preferences to agent from ${filePath} (provider=${preferences.llm.provider}, model=${preferences.llm.model})`
+                        );
                     }
                 } catch {
                     logger.debug('Could not load preferences, using bundled config');

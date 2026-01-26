@@ -35,6 +35,8 @@ const DEXTO_GATEWAY_HEADERS = {
 export interface DextoProviderContext {
     /** Session ID for usage tracking */
     sessionId?: string;
+    /** Client source for usage attribution (cli, web, sdk) */
+    clientSource?: 'cli' | 'web' | 'sdk';
 }
 
 /**
@@ -135,7 +137,7 @@ export function createVercelModel(
 
             // Build headers for usage tracking
             const headers: Record<string, string> = {
-                [DEXTO_GATEWAY_HEADERS.CLIENT_SOURCE]: 'cli',
+                [DEXTO_GATEWAY_HEADERS.CLIENT_SOURCE]: context?.clientSource ?? 'cli',
             };
             if (context?.sessionId) {
                 headers[DEXTO_GATEWAY_HEADERS.SESSION_ID] = context.sessionId;

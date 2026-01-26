@@ -1060,6 +1060,16 @@ export function CustomModelForm({
         setLocalError(null);
     }, [formData.provider]);
 
+    // Reset provider to default if dexto is selected but becomes unavailable
+    useEffect(() => {
+        if (dextoAuthStatus && !showDextoProvider && formData.provider === 'dexto') {
+            onChange({
+                ...formData,
+                provider: 'openai-compatible',
+            });
+        }
+    }, [dextoAuthStatus, showDextoProvider, formData, onChange]);
+
     const handleSubmit = () => {
         // Provider-specific validation
         switch (formData.provider) {
