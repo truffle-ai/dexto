@@ -453,6 +453,13 @@ async function handleDextoProviderSetup(): Promise<void> {
 
         try {
             await handleBrowserLogin();
+            // Verify key was actually provisioned (provisionKeys silently catches errors)
+            if (!(await canUseDextoProvider())) {
+                p.log.error(
+                    'API key provisioning failed. Please try again or use `dexto setup` with a different provider.'
+                );
+                process.exit(1);
+            }
             p.log.success('Login successful! Continuing with setup...');
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);
