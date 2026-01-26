@@ -83,7 +83,6 @@ import {
     handleLoginCommand,
     handleLogoutCommand,
     handleStatusCommand,
-    handleWhoamiCommand,
     handleBillingStatusCommand,
 } from './cli/commands/index.js';
 import {
@@ -686,22 +685,6 @@ authCommand
                 if (err instanceof ExitSignal) throw err;
                 console.error(`❌ dexto auth status command failed: ${err}`);
                 safeExit('auth status', 1, 'error');
-            }
-        })
-    );
-
-authCommand
-    .command('whoami')
-    .description('Show current authenticated user')
-    .action(
-        withAnalytics('auth whoami', async () => {
-            try {
-                await handleWhoamiCommand();
-                safeExit('auth whoami', 0);
-            } catch (err) {
-                if (err instanceof ExitSignal) throw err;
-                console.error(`❌ dexto auth whoami command failed: ${err}`);
-                safeExit('auth whoami', 1, 'error');
             }
         })
     );

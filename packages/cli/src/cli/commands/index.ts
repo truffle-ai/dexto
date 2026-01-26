@@ -25,12 +25,7 @@ export {
 } from './sync-agents.js';
 
 // Auth commands
-export {
-    handleLoginCommand,
-    handleLogoutCommand,
-    handleStatusCommand,
-    handleWhoamiCommand,
-} from './auth/index.js';
+export { handleLoginCommand, handleLogoutCommand, handleStatusCommand } from './auth/index.js';
 
 // Billing commands
 export { handleBillingStatusCommand } from './billing/index.js';
