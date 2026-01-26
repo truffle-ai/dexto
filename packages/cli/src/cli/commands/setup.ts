@@ -21,6 +21,7 @@ import {
     getGlobalPreferencesPath,
     updateGlobalPreferences,
     setActiveModel,
+    isDextoAuthEnabled,
     type CreatePreferencesOptions,
 } from '@dexto/agent-management';
 import { interactiveApiKeySetup, hasApiKeyConfigured } from '../utils/api-key-setup.js';
@@ -518,25 +519,33 @@ async function handleInteractiveSetup(_options: CLISetupOptions): Promise<void> 
  * Wizard Step: Setup Type (Quick Start vs Custom)
  */
 async function wizardStepSetupType(state: SetupWizardState): Promise<SetupWizardState> {
+    // Build options list - only show Dexto Credits when feature is enabled
+    const options: Array<{ value: string; label: string; hint: string }> = [];
+
+    if (isDextoAuthEnabled()) {
+        options.push({
+            value: 'dexto',
+            label: `${chalk.magenta('★')} Dexto Credits`,
+            hint: 'All models, one account - login to get started (recommended)',
+        });
+    }
+
+    options.push(
+        {
+            value: 'quick',
+            label: `${chalk.green('●')} Quick Start`,
+            hint: 'Google Gemini (free) - no account needed',
+        },
+        {
+            value: 'custom',
+            label: `${chalk.blue('●')} Custom Setup`,
+            hint: 'Choose your provider (OpenAI, Anthropic, Ollama, etc.)',
+        }
+    );
+
     const setupType = await p.select({
         message: 'How would you like to set up Dexto?',
-        options: [
-            {
-                value: 'dexto',
-                label: `${chalk.magenta('★')} Dexto Credits`,
-                hint: 'All models, one account - login to get started (recommended)',
-            },
-            {
-                value: 'quick',
-                label: `${chalk.green('●')} Quick Start`,
-                hint: 'Google Gemini (free) - no account needed',
-            },
-            {
-                value: 'custom',
-                label: `${chalk.blue('●')} Custom Setup`,
-                hint: 'Choose your provider (OpenAI, Anthropic, Ollama, etc.)',
-            },
-        ],
+        options,
     });
 
     if (p.isCancel(setupType)) {

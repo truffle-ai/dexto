@@ -23,10 +23,14 @@ process.env.DEXTO_CLI_VERSION = pkg.version;
 
 // Set DEXTO_API_KEY from auth.json if user is logged in
 // This enables transparent routing through Dexto gateway for supported providers
-import { getDextoApiKey } from './cli/auth/index.js';
-const dextoApiKey = await getDextoApiKey();
-if (dextoApiKey) {
-    process.env.DEXTO_API_KEY = dextoApiKey;
+// Only active when Dexto auth feature is enabled
+import { isDextoAuthEnabled } from '@dexto/agent-management';
+if (isDextoAuthEnabled()) {
+    const { getDextoApiKey } = await import('./cli/auth/index.js');
+    const dextoApiKey = await getDextoApiKey();
+    if (dextoApiKey) {
+        process.env.DEXTO_API_KEY = dextoApiKey;
+    }
 }
 
 import {
@@ -1119,7 +1123,8 @@ program
                     // Check if user is configured for Dexto credits but not authenticated
                     // This can happen if user logged out after setting up with Dexto
                     // Now that preferences apply to ALL agents, we check for any agent
-                    {
+                    // Only run this check when Dexto auth feature is enabled
+                    if (isDextoAuthEnabled()) {
                         const { checkDextoAuthState } = await import(
                             './cli/utils/dexto-auth-check.js'
                         );

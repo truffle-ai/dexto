@@ -17,6 +17,7 @@ import {
     saveCustomModel,
     deleteCustomModel,
     CustomModelSchema,
+    isDextoAuthEnabled,
 } from '@dexto/agent-management';
 import type { Context } from 'hono';
 import {
@@ -328,7 +329,8 @@ export function createLlmRouter(getAgent: GetAgentFn) {
             const { apiKey, ...configWithoutKey } = currentConfig;
 
             // With explicit providers, viaDexto is simply whether the provider is 'dexto'
-            const viaDexto = currentConfig.provider === 'dexto';
+            // Only report viaDexto when the feature is enabled
+            const viaDexto = isDextoAuthEnabled() && currentConfig.provider === 'dexto';
 
             return ctx.json({
                 config: {
@@ -356,6 +358,11 @@ export function createLlmRouter(getAgent: GetAgentFn) {
             const providers: Record<string, ProviderCatalog> = {};
 
             for (const provider of LLM_PROVIDERS) {
+                // Skip dexto provider when feature is not enabled
+                if (provider === 'dexto' && !isDextoAuthEnabled()) {
+                    continue;
+                }
+
                 const info = LLM_REGISTRY[provider];
                 const displayName = provider.charAt(0).toUpperCase() + provider.slice(1);
                 const keyStatus = getProviderKeyStatus(provider);
