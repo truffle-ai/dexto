@@ -32,28 +32,42 @@ This adds the `dexto` command to your system, giving you access to the agent run
 dexto
 ```
 
-This triggers the first-time setup wizard with two options:
+This triggers the first-time setup wizard.
 
-- **Quick Start (Recommended)** - Uses Google Gemini with free tier, minimal prompts
-- **Custom Setup** - Choose your provider, model, and default mode
+### Quick Start (Recommended)
+
+1. **Choose setup type** → Select "Get started now"
+2. **Pick provider** → Gemini (free), Groq (fast), or Local
+3. **Get API key** → Browser opens, or paste existing key
+4. **Confirm mode** → Press Enter for Terminal (default)
+
+Done! You're ready to chat.
+
+### Custom Setup
+
+1. **Choose "Choose my own provider"**
+2. **Browse providers** → OpenAI, Anthropic, local models, gateways
+3. **Select model** → Pick from available models
+4. **Configure API key** → Browser, paste, or skip
+5. **Choose default mode** → Terminal, Browser, or API Server
 
 ### Supported Providers
 
 | Category | Providers |
 |----------|-----------|
 | **Free Cloud** | Google Gemini, Groq |
-| **Local (No API key)** | Local Models (uses node-llama-cpp), Ollama (requires [Ollama](https://ollama.com) installed) |
+| **Local (No API key)** | Local Models, Ollama (requires [Ollama](https://ollama.com) installed) |
 | **Cloud** | OpenAI, Anthropic, xAI, Cohere |
 | **Gateways** | OpenRouter, Glama, LiteLLM, OpenAI-Compatible |
 | **Enterprise** | Google Vertex AI, AWS Bedrock |
 
-### Default Modes
+### Modes Explained
 
-During setup, you'll choose how to use Dexto by default:
-
-- **Terminal CLI** - Interactive command-line interface
-- **Web UI** - Opens in browser at localhost:3000
-- **API Server** - REST API for programmatic access
+| Mode | Flag | Description | Best For |
+|------|------|-------------|----------|
+| **Terminal** | `--mode cli` | Interactive CLI in your terminal | Quick tasks, coding |
+| **Browser** | `--mode web` | Web UI at localhost:3000 | Long conversations |
+| **API Server** | `--mode server` | REST API on port 3001 | Integrations, apps |
 
 ## 3. Start Using Dexto
 

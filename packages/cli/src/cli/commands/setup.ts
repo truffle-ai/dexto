@@ -248,15 +248,97 @@ export async function handleSetupCommand(options: Partial<CLISetupOptionsInput>)
 }
 
 /**
- * Quick start flow - uses Google Gemini with minimal prompts
+ * Quick start flow - pick a free provider with minimal prompts
  */
 async function handleQuickStart(): Promise<void> {
-    console.log(chalk.cyan('\n🚀 Quick Start with Google Gemini\n'));
+    console.log(chalk.cyan('\n🚀 Quick Start\n'));
 
     p.intro(chalk.cyan('Quick Setup'));
 
-    const provider: LLMProvider = 'google';
-    const model = getDefaultModelForProvider(provider) || 'gemini-2.5-pro';
+    // Let user pick from popular free providers
+    const quickProvider = await p.select({
+        message: 'Choose a provider',
+        options: [
+            {
+                value: 'google' as const,
+                label: `${chalk.green('●')} Google Gemini`,
+                hint: 'Free, 1M+ context (recommended)',
+            },
+            {
+                value: 'groq' as const,
+                label: `${chalk.green('●')} Groq`,
+                hint: 'Free, ultra-fast',
+            },
+            {
+                value: 'local' as const,
+                label: `${chalk.cyan('●')} Local Models`,
+                hint: 'Free, private, runs on your machine',
+            },
+        ],
+    });
+
+    if (p.isCancel(quickProvider)) {
+        p.cancel('Setup cancelled');
+        process.exit(0);
+    }
+
+    // Handle local models with dedicated setup flow
+    if (quickProvider === 'local') {
+        const localResult = await setupLocalModels();
+        if (!hasSelectedModel(localResult)) {
+            p.cancel('Setup cancelled');
+            process.exit(0);
+        }
+        const model = getModelFromResult(localResult);
+
+        // CLI mode confirmation for local
+        const useCli = await p.confirm({
+            message: 'Start in Terminal mode? (You can change this later)',
+            initialValue: true,
+        });
+
+        if (p.isCancel(useCli)) {
+            p.cancel('Setup cancelled');
+            process.exit(0);
+        }
+
+        const defaultMode = useCli ? 'cli' : await selectDefaultMode();
+        if (defaultMode === null) {
+            p.cancel('Setup cancelled');
+            process.exit(0);
+        }
+
+        // Sync the active model for local provider
+        await setActiveModel(model);
+
+        const preferences = createInitialPreferences({
+            provider: 'local',
+            model,
+            defaultMode,
+            setupCompleted: true,
+            apiKeyPending: false,
+        });
+
+        await saveGlobalPreferences(preferences);
+
+        capture('dexto_setup', {
+            provider: 'local',
+            model,
+            setupMode: 'interactive',
+            setupVariant: 'quick-start',
+            defaultMode,
+            apiKeySkipped: false,
+        });
+
+        showSetupComplete('local', model, defaultMode, false);
+        return;
+    }
+
+    // Cloud provider flow (google or groq)
+    const provider: LLMProvider = quickProvider;
+    const model =
+        getDefaultModelForProvider(provider) ||
+        (provider === 'google' ? 'gemini-2.5-pro' : 'llama-3.3-70b-versatile');
     const apiKeyVar = getProviderEnvVar(provider);
     let apiKeySkipped = false;
 
@@ -264,8 +346,9 @@ async function handleQuickStart(): Promise<void> {
     const hasKey = hasApiKeyConfigured(provider);
 
     if (!hasKey) {
+        const providerName = getProviderDisplayName(provider);
         p.note(
-            `Google Gemini is ${chalk.green('free')} to use!\n\n` +
+            `${providerName} is ${chalk.green('free')} to use!\n\n` +
                 `We'll help you get an API key in just a few seconds.`,
             'Free AI Access'
         );
@@ -287,8 +370,18 @@ async function handleQuickStart(): Promise<void> {
         p.log.success(`API key for ${getProviderDisplayName(provider)} already configured`);
     }
 
-    // Ask about default mode
-    const defaultMode = await selectDefaultMode();
+    // CLI mode confirmation
+    const useCli = await p.confirm({
+        message: 'Start in Terminal mode? (You can change this later)',
+        initialValue: true,
+    });
+
+    if (p.isCancel(useCli)) {
+        p.cancel('Setup cancelled');
+        process.exit(0);
+    }
+
+    const defaultMode = useCli ? 'cli' : await selectDefaultMode();
 
     // Handle cancellation
     if (defaultMode === null) {
@@ -376,13 +469,13 @@ async function wizardStepSetupType(state: SetupWizardState): Promise<SetupWizard
         options: [
             {
                 value: 'quick',
-                label: `${chalk.green('●')} Quick Start`,
-                hint: 'Google Gemini (free) - recommended for new users',
+                label: `${chalk.green('→')} Get started now`,
+                hint: 'Pick a free provider and start chatting',
             },
             {
                 value: 'custom',
-                label: `${chalk.blue('●')} Custom Setup`,
-                hint: 'Choose your provider (OpenAI, Anthropic, Ollama, etc.)',
+                label: `${chalk.blue('●')} Choose my own provider`,
+                hint: 'OpenAI, Anthropic, local models, and more',
             },
         ],
     });
@@ -646,18 +739,18 @@ async function selectDefaultModeWithBack(): Promise<
         options: [
             {
                 value: 'cli' as const,
-                label: `${chalk.green('●')} Terminal CLI`,
-                hint: 'Interactive command-line interface (recommended)',
+                label: `${chalk.green('●')} Terminal`,
+                hint: 'Chat in your terminal (most popular)',
             },
             {
                 value: 'web' as const,
-                label: `${chalk.blue('●')} Web UI`,
-                hint: 'Opens in browser at localhost:3000',
+                label: `${chalk.blue('●')} Browser`,
+                hint: 'Web UI at localhost:3000',
             },
             {
                 value: 'server' as const,
-                label: `${chalk.rgb(255, 165, 0)('●')} API Server`,
-                hint: 'REST API for programmatic access',
+                label: `${chalk.cyan('●')} API Server`,
+                hint: 'REST API for integrations',
             },
             { value: '_back' as const, label: chalk.gray('← Back'), hint: 'Go to previous step' },
         ],
@@ -1126,18 +1219,18 @@ async function selectDefaultMode(): Promise<
         options: [
             {
                 value: 'cli' as const,
-                label: `${chalk.green('●')} Terminal CLI`,
-                hint: 'Interactive command-line interface (recommended)',
+                label: `${chalk.green('●')} Terminal`,
+                hint: 'Chat in your terminal (most popular)',
             },
             {
                 value: 'web' as const,
-                label: `${chalk.blue('●')} Web UI`,
-                hint: 'Opens in browser at localhost:3000',
+                label: `${chalk.blue('●')} Browser`,
+                hint: 'Web UI at localhost:3000',
             },
             {
                 value: 'server' as const,
-                label: `${chalk.rgb(255, 165, 0)('●')} API Server`,
-                hint: 'REST API for programmatic access',
+                label: `${chalk.cyan('●')} API Server`,
+                hint: 'REST API for integrations',
             },
         ],
     });
