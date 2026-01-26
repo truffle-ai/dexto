@@ -54,11 +54,9 @@ import {
     updateMarketplace,
     listMarketplaces,
     scanMarketplacePlugins,
-    listAllMarketplacePlugins,
     findPluginInMarketplaces,
 } from '../operations.js';
 import {
-    getMarketplacesDir,
     addMarketplaceEntry,
     removeMarketplaceEntry,
     getMarketplaceEntry,

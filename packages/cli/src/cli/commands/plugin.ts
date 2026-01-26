@@ -272,7 +272,7 @@ export async function handlePluginValidateCommand(
 
     // Exit with error code if invalid
     if (!result.valid) {
-        process.exit(1);
+        throw new Error('Plugin validation failed');
     }
 }
 

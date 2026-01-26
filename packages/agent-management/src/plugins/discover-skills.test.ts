@@ -13,12 +13,28 @@ vi.mock('fs', async () => {
 
 import { discoverStandaloneSkills, getSkillSearchPaths } from './discover-skills.js';
 
+// Mock Dirent type that matches fs.Dirent interface
+interface MockDirent
+    extends Pick<
+        fs.Dirent,
+        | 'name'
+        | 'isFile'
+        | 'isDirectory'
+        | 'isBlockDevice'
+        | 'isCharacterDevice'
+        | 'isSymbolicLink'
+        | 'isFIFO'
+        | 'isSocket'
+        | 'path'
+        | 'parentPath'
+    > {}
+
 describe('discoverStandaloneSkills', () => {
     const originalCwd = process.cwd;
     const originalEnv = { ...process.env };
 
     // Helper to create mock Dirent-like objects
-    const createDirent = (name: string, isDir: boolean) => ({
+    const createDirent = (name: string, isDir: boolean): MockDirent => ({
         name,
         isFile: () => !isDir,
         isDirectory: () => isDir,
@@ -52,7 +68,9 @@ describe('discoverStandaloneSkills', () => {
 
             vi.mocked(fs.readdirSync).mockImplementation((dir) => {
                 if (dir === '/home/user/.dexto/skills') {
-                    return [createDirent('remotion-video', true)] as any;
+                    return [createDirent('remotion-video', true)] as unknown as ReturnType<
+                        typeof fs.readdirSync
+                    >;
                 }
                 return [];
             });
@@ -77,7 +95,9 @@ describe('discoverStandaloneSkills', () => {
 
             vi.mocked(fs.readdirSync).mockImplementation((dir) => {
                 if (dir === '/home/user/.dexto/skills') {
-                    return [createDirent('incomplete-skill', true)] as any;
+                    return [createDirent('incomplete-skill', true)] as unknown as ReturnType<
+                        typeof fs.readdirSync
+                    >;
                 }
                 return [];
             });
@@ -98,7 +118,9 @@ describe('discoverStandaloneSkills', () => {
 
             vi.mocked(fs.readdirSync).mockImplementation((dir) => {
                 if (dir === '/test/project/.dexto/skills') {
-                    return [createDirent('my-project-skill', true)] as any;
+                    return [createDirent('my-project-skill', true)] as unknown as ReturnType<
+                        typeof fs.readdirSync
+                    >;
                 }
                 return [];
             });
@@ -123,10 +145,14 @@ describe('discoverStandaloneSkills', () => {
 
             vi.mocked(fs.readdirSync).mockImplementation((dir) => {
                 if (dir === '/test/project/.dexto/skills') {
-                    return [createDirent('shared-skill', true)] as any;
+                    return [createDirent('shared-skill', true)] as unknown as ReturnType<
+                        typeof fs.readdirSync
+                    >;
                 }
                 if (dir === '/home/user/.dexto/skills') {
-                    return [createDirent('shared-skill', true)] as any;
+                    return [createDirent('shared-skill', true)] as unknown as ReturnType<
+                        typeof fs.readdirSync
+                    >;
                 }
                 return [];
             });
@@ -161,7 +187,7 @@ describe('discoverStandaloneSkills', () => {
                     return [
                         createDirent('valid-skill', true),
                         createDirent('some-file.md', false), // File, not directory
-                    ] as any;
+                    ] as unknown as ReturnType<typeof fs.readdirSync>;
                 }
                 return [];
             });
@@ -184,7 +210,9 @@ describe('discoverStandaloneSkills', () => {
 
             vi.mocked(fs.readdirSync).mockImplementation((dir) => {
                 if (dir === '/test/project/.dexto/skills') {
-                    return [createDirent('local-skill', true)] as any;
+                    return [createDirent('local-skill', true)] as unknown as ReturnType<
+                        typeof fs.readdirSync
+                    >;
                 }
                 return [];
             });
@@ -210,7 +238,7 @@ describe('discoverStandaloneSkills', () => {
                         createDirent('skill-a', true),
                         createDirent('skill-b', true),
                         createDirent('skill-c', true),
-                    ] as any;
+                    ] as unknown as ReturnType<typeof fs.readdirSync>;
                 }
                 return [];
             });

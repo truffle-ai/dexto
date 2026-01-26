@@ -9,7 +9,11 @@ import { existsSync, mkdirSync } from 'fs';
 import { execSync } from 'child_process';
 import { copyDirectory } from '../../utils/path.js';
 import { getMarketplaceCacheDir, getMarketplaceEntry } from './registry.js';
-import { findPluginInMarketplaces, scanMarketplacePlugins } from './operations.js';
+import {
+    findPluginInMarketplaces,
+    scanMarketplacePlugins,
+    listAllMarketplacePlugins,
+} from './operations.js';
 import { MarketplaceError } from './errors.js';
 import { installPluginFromPath } from '../install-plugin.js';
 import type {
@@ -169,8 +173,6 @@ export function searchMarketplacePlugins(
         }
         plugins = scanMarketplacePlugins(entry.installLocation, entry.name);
     } else {
-        // Import dynamically to avoid circular dependency
-        const { listAllMarketplacePlugins } = require('./operations.js');
         plugins = listAllMarketplacePlugins();
     }
 
