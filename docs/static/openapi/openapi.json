@@ -2,7 +2,7 @@
   "openapi": "3.0.0",
   "info": {
     "title": "Dexto API",
-    "version": "1.5.4",
+    "version": "1.5.6",
     "description": "OpenAPI spec for the Dexto REST API server"
   },
   "servers": [
@@ -93,6 +93,10 @@
     {
       "name": "models",
       "description": "List and manage local GGUF models and Ollama models"
+    },
+    {
+      "name": "auth",
+      "description": "Dexto authentication status and management"
     }
   ],
   "components": {
@@ -5696,7 +5700,8 @@
                               "bedrock",
                               "ollama",
                               "local",
-                              "vertex"
+                              "vertex",
+                              "dexto"
                             ],
                             "default": "openai-compatible"
                           },
@@ -5777,7 +5782,8 @@
                       "bedrock",
                       "ollama",
                       "local",
-                      "vertex"
+                      "vertex",
+                      "dexto"
                     ],
                     "default": "openai-compatible"
                   },
@@ -5855,7 +5861,8 @@
                             "bedrock",
                             "ollama",
                             "local",
-                            "vertex"
+                            "vertex",
+                            "dexto"
                           ],
                           "default": "openai-compatible"
                         },
@@ -5980,6 +5987,111 @@
                   "required": [
                     "ok",
                     "error"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/llm/capabilities": {
+      "get": {
+        "summary": "Get Model Capabilities",
+        "description": "Returns the capabilities (supported file types) for a specific provider/model combination. Handles gateway providers (dexto, openrouter) by resolving to the underlying model capabilities.",
+        "tags": [
+          "llm"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "openai",
+                "openai-compatible",
+                "anthropic",
+                "google",
+                "groq",
+                "xai",
+                "cohere",
+                "openrouter",
+                "litellm",
+                "glama",
+                "vertex",
+                "bedrock",
+                "local",
+                "ollama",
+                "dexto"
+              ],
+              "description": "LLM provider name"
+            },
+            "required": true,
+            "description": "LLM provider name",
+            "name": "provider",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Model name (supports both native and OpenRouter format)"
+            },
+            "required": true,
+            "description": "Model name (supports both native and OpenRouter format)",
+            "name": "model",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Model capabilities",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "provider": {
+                      "type": "string",
+                      "enum": [
+                        "openai",
+                        "openai-compatible",
+                        "anthropic",
+                        "google",
+                        "groq",
+                        "xai",
+                        "cohere",
+                        "openrouter",
+                        "litellm",
+                        "glama",
+                        "vertex",
+                        "bedrock",
+                        "local",
+                        "ollama",
+                        "dexto"
+                      ],
+                      "description": "Provider name"
+                    },
+                    "model": {
+                      "type": "string",
+                      "description": "Model name as provided"
+                    },
+                    "supportedFileTypes": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "pdf",
+                          "image",
+                          "audio"
+                        ]
+                      },
+                      "description": "File types supported by this model"
+                    }
+                  },
+                  "required": [
+                    "provider",
+                    "model",
+                    "supportedFileTypes"
                   ]
                 }
               }
@@ -13035,6 +13147,46 @@
                     "fileDeleted"
                   ],
                   "description": "Delete model response"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/dexto-auth/status": {
+      "get": {
+        "summary": "Dexto Auth Status",
+        "description": "Returns dexto authentication status. Used by Web UI to check if user can use dexto features.",
+        "tags": [
+          "auth"
+        ],
+        "responses": {
+          "200": {
+            "description": "Dexto auth status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "enabled": {
+                      "type": "boolean",
+                      "description": "Whether dexto auth feature is enabled"
+                    },
+                    "authenticated": {
+                      "type": "boolean",
+                      "description": "Whether user is authenticated with dexto"
+                    },
+                    "canUse": {
+                      "type": "boolean",
+                      "description": "Whether user can use dexto (authenticated AND has API key)"
+                    }
+                  },
+                  "required": [
+                    "enabled",
+                    "authenticated",
+                    "canUse"
+                  ]
                 }
               }
             }
