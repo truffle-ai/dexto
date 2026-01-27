@@ -4,6 +4,7 @@ import { setMaxListeners } from 'events';
 import { MCPManager } from '../mcp/manager.js';
 import { ToolManager } from '../tools/tool-manager.js';
 import { SystemPromptManager } from '../systemPrompt/manager.js';
+import { SkillsContributor } from '../systemPrompt/contributors.js';
 import { ResourceManager, expandMessageReferences } from '../resources/index.js';
 import { expandBlobReferences } from '../context/utils.js';
 import type { InternalMessage } from '../context/types.js';
@@ -288,19 +289,9 @@ export class DextoAgent {
                 services: services,
             });
 
-            // Set agent reference for custom tools (must be done before tool initialization)
-            // This allows custom tool providers to wire up bidirectional communication
-            services.toolManager.setAgent(this);
-
-            // Initialize toolManager now that agent reference is set
-            // Custom tools need agent access for bidirectional communication
-            await services.toolManager.initialize();
-
-            // Initialize search service from services
-            this.searchService = services.searchService;
-
             // Initialize prompts manager (aggregates MCP, internal, starter prompts)
             // File prompts automatically resolve custom slash commands
+            // Must be initialized before toolManager so invoke_skill tool can access prompts
             const promptManager = new PromptManager(
                 this.mcpManager,
                 this.resourceManager,
@@ -311,6 +302,34 @@ export class DextoAgent {
             );
             await promptManager.initialize();
             Object.assign(this, { promptManager });
+
+            // Set agent reference for custom tools (must be done before tool initialization)
+            // This allows custom tool providers to wire up bidirectional communication
+            services.toolManager.setAgent(this);
+
+            // Set prompt manager for invoke_skill tool (must be done before tool initialization)
+            services.toolManager.setPromptManager(promptManager);
+
+            // Add skills contributor to system prompt if invoke_skill is enabled
+            // This lists available skills so the LLM knows what it can invoke
+            if (this.config.internalTools?.includes('invoke_skill')) {
+                const skillsContributor = new SkillsContributor(
+                    'skills',
+                    50, // Priority after memories (40) but before most other content
+                    promptManager,
+                    this.logger
+                );
+                services.systemPromptManager.addContributor(skillsContributor);
+                this.logger.debug('Added SkillsContributor to system prompt');
+            }
+
+            // Initialize toolManager now that agent and promptManager references are set
+            // Custom tools need agent access for bidirectional communication
+            // invoke_skill tool needs promptManager access
+            await services.toolManager.initialize();
+
+            // Initialize search service from services
+            this.searchService = services.searchService;
 
             // Note: Telemetry is initialized in createAgentServices() before services are created
             // This ensures decorators work correctly on all services
@@ -1301,6 +1320,8 @@ export class DextoAgent {
      */
     public async endSession(sessionId: string): Promise<void> {
         this.ensureStarted();
+        // Clear session-level tool restrictions to prevent memory leak
+        this.toolManager.clearSessionToolRestrictions(sessionId);
         return this.sessionManager.endSession(sessionId);
     }
 
@@ -1311,6 +1332,8 @@ export class DextoAgent {
      */
     public async deleteSession(sessionId: string): Promise<void> {
         this.ensureStarted();
+        // Clear session-level tool restrictions to prevent memory leak
+        this.toolManager.clearSessionToolRestrictions(sessionId);
         return this.sessionManager.deleteSession(sessionId);
     }
 
@@ -2582,10 +2605,11 @@ export class DextoAgent {
      * - Prompt key resolution (resolving aliases)
      * - Argument normalization (including special _context field)
      * - Prompt execution and flattening
+     * - Returning per-prompt overrides (allowedTools, model) for the invoker to apply
      *
      * @param name The prompt name or alias
      * @param options Optional configuration for prompt resolution
-     * @returns Promise resolving to the resolved text and resource URIs
+     * @returns Promise resolving to the resolved text, resource URIs, and optional overrides
      */
     public async resolvePrompt(
         name: string,
@@ -2593,7 +2617,7 @@ export class DextoAgent {
             context?: string;
             args?: Record<string, unknown>;
         } = {}
-    ): Promise<{ text: string; resources: string[] }> {
+    ): Promise<import('../prompts/index.js').ResolvedPromptResult> {
         this.ensureStarted();
         return await this.promptManager.resolvePrompt(name, options);
     }

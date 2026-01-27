@@ -295,6 +295,8 @@ export function AlternateBufferCLI({
                     isAwaitingApproval={approval !== null}
                     todoExpanded={ui.todoExpanded}
                     hasTodos={todos.some((t) => t.status !== 'completed')}
+                    planModeActive={ui.planModeActive}
+                    autoApproveEdits={ui.autoApproveEdits}
                 />
 
                 {/* Todo panel - shown below status bar */}
@@ -376,6 +378,7 @@ export function AlternateBufferCLI({
                     modelName={session.modelName}
                     cwd={process.cwd()}
                     autoApproveEdits={ui.autoApproveEdits}
+                    planModeActive={ui.planModeActive}
                     isShellMode={buffer.text.startsWith('!')}
                 />
 

@@ -65,7 +65,7 @@ import McpCustomWizard, {
 import CustomModelWizard, {
     type CustomModelWizardHandle,
 } from '../components/overlays/CustomModelWizard.js';
-import type { CustomModel } from '@dexto/agent-management';
+import type { CustomModel, ListedPlugin } from '@dexto/agent-management';
 import ApiKeyInput, { type ApiKeyInputHandle } from '../components/overlays/ApiKeyInput.js';
 import SearchOverlay, { type SearchOverlayHandle } from '../components/overlays/SearchOverlay.js';
 import PromptList, {
@@ -91,6 +91,22 @@ import ContextStatsOverlay, {
     type ContextStatsOverlayHandle,
 } from '../components/overlays/ContextStatsOverlay.js';
 import ExportWizard, { type ExportWizardHandle } from '../components/overlays/ExportWizard.js';
+import PluginManager, {
+    type PluginManagerHandle,
+    type PluginAction,
+} from '../components/overlays/PluginManager.js';
+import PluginList, { type PluginListHandle } from '../components/overlays/PluginList.js';
+import PluginActions, {
+    type PluginActionsHandle,
+    type PluginActionResult,
+} from '../components/overlays/PluginActions.js';
+import MarketplaceBrowser, {
+    type MarketplaceBrowserHandle,
+    type MarketplaceBrowserAction,
+} from '../components/overlays/MarketplaceBrowser.js';
+import MarketplaceAddPrompt, {
+    type MarketplaceAddPromptHandle,
+} from '../components/overlays/MarketplaceAddPrompt.js';
 import type { PromptAddScope } from '../state/types.js';
 import type { PromptInfo, ResourceMetadata, LLMProvider, SearchResult } from '@dexto/core';
 import type { LogLevel } from '@dexto/core';
@@ -177,6 +193,14 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
         const sessionRenameRef = useRef<SessionRenameOverlayHandle>(null);
         const contextStatsRef = useRef<ContextStatsOverlayHandle>(null);
         const exportWizardRef = useRef<ExportWizardHandle>(null);
+        const pluginManagerRef = useRef<PluginManagerHandle>(null);
+        const pluginListRef = useRef<PluginListHandle>(null);
+        const pluginActionsRef = useRef<PluginActionsHandle>(null);
+        const marketplaceBrowserRef = useRef<MarketplaceBrowserHandle>(null);
+
+        // State for selected plugin (for plugin-actions overlay)
+        const [selectedPlugin, setSelectedPlugin] = useState<ListedPlugin | null>(null);
+        const marketplaceAddPromptRef = useRef<MarketplaceAddPromptHandle>(null);
 
         // Expose handleInput method via ref - routes to appropriate overlay
         useImperativeHandle(
@@ -252,6 +276,20 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             return contextStatsRef.current?.handleInput(inputStr, key) ?? false;
                         case 'export-wizard':
                             return exportWizardRef.current?.handleInput(inputStr, key) ?? false;
+                        case 'plugin-manager':
+                            return pluginManagerRef.current?.handleInput(inputStr, key) ?? false;
+                        case 'plugin-list':
+                            return pluginListRef.current?.handleInput(inputStr, key) ?? false;
+                        case 'plugin-actions':
+                            return pluginActionsRef.current?.handleInput(inputStr, key) ?? false;
+                        case 'marketplace-browser':
+                            return (
+                                marketplaceBrowserRef.current?.handleInput(inputStr, key) ?? false
+                            );
+                        case 'marketplace-add':
+                            return (
+                                marketplaceAddPromptRef.current?.handleInput(inputStr, key) ?? false
+                            );
                         default:
                             return false;
                     }
@@ -298,6 +336,22 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     setUi((prev) => ({ ...prev, autoApproveEdits: true }));
                 }
 
+                // Auto-disable plan mode when plan_create or plan_review is approved
+                // This signals the transition from planning phase to execution phase
+                const toolName = approval.metadata.toolName as string | undefined;
+                const isPlanTool =
+                    toolName === 'plan_create' ||
+                    toolName === 'plan_review' ||
+                    toolName === 'custom--plan_create' ||
+                    toolName === 'custom--plan_review';
+                if (isPlanTool) {
+                    setUi((prev) => ({
+                        ...prev,
+                        planModeActive: false,
+                        planModeInitialized: false,
+                    }));
+                }
+
                 eventBus.emit('approval:response', {
                     approvalId: approval.approvalId,
                     status: ApprovalStatus.APPROVED,
@@ -315,19 +369,27 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
             [approval, eventBus, completeApproval, setUi]
         );
 
-        const handleDeny = useCallback(() => {
-            if (!approval || !eventBus) return;
+        const handleDeny = useCallback(
+            (feedback?: string) => {
+                if (!approval || !eventBus) return;
 
-            eventBus.emit('approval:response', {
-                approvalId: approval.approvalId,
-                status: ApprovalStatus.DENIED,
-                sessionId: approval.sessionId,
-                reason: DenialReason.USER_DENIED,
-                message: 'User denied the tool execution',
-            });
+                // Include user feedback in the denial message if provided
+                const message = feedback
+                    ? `User requested changes: ${feedback}`
+                    : 'User denied the tool execution';
 
-            completeApproval();
-        }, [approval, eventBus, completeApproval]);
+                eventBus.emit('approval:response', {
+                    approvalId: approval.approvalId,
+                    status: ApprovalStatus.DENIED,
+                    sessionId: approval.sessionId,
+                    reason: DenialReason.USER_DENIED,
+                    message,
+                });
+
+                completeApproval();
+            },
+            [approval, eventBus, completeApproval]
+        );
 
         const handleCancelApproval = useCallback(() => {
             if (!approval || !eventBus) return;
@@ -1349,6 +1411,152 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
             [setUi, setInput, setMessages, agent, buffer]
         );
 
+        // Handle plugin manager actions
+        const handlePluginManagerAction = useCallback(
+            (action: PluginAction) => {
+                if (action === 'list') {
+                    setUi((prev) => ({
+                        ...prev,
+                        activeOverlay: 'plugin-list',
+                    }));
+                } else if (action === 'marketplace') {
+                    setUi((prev) => ({
+                        ...prev,
+                        activeOverlay: 'marketplace-browser',
+                    }));
+                }
+            },
+            [setUi]
+        );
+
+        // Handle plugin selection from plugin list
+        const handlePluginSelect = useCallback(
+            (plugin: ListedPlugin) => {
+                setSelectedPlugin(plugin);
+                setUi((prev) => ({
+                    ...prev,
+                    activeOverlay: 'plugin-actions',
+                }));
+            },
+            [setUi]
+        );
+
+        // Handle plugin actions (uninstall, back)
+        const handlePluginAction = useCallback(
+            async (action: PluginActionResult) => {
+                if (action.type === 'back') {
+                    setSelectedPlugin(null);
+                    setUi((prev) => ({
+                        ...prev,
+                        activeOverlay: 'plugin-list',
+                    }));
+                    return;
+                }
+
+                if (action.type === 'uninstall') {
+                    setUi((prev) => ({ ...prev, activeOverlay: 'none', isProcessing: true }));
+
+                    try {
+                        const { uninstallPlugin, reloadAgentConfigFromFile, enrichAgentConfig } =
+                            await import('@dexto/agent-management');
+                        await uninstallPlugin(action.plugin.name);
+
+                        setMessages((prev) => [
+                            ...prev,
+                            {
+                                id: generateMessageId('system'),
+                                role: 'system',
+                                content: `Plugin '${action.plugin.name}' has been uninstalled.`,
+                                timestamp: new Date(),
+                            },
+                        ]);
+
+                        // Refresh prompts to remove uninstalled plugin skills
+                        try {
+                            const newConfig = await reloadAgentConfigFromFile(
+                                agent.getAgentFilePath()
+                            );
+                            const enrichedConfig = enrichAgentConfig(
+                                newConfig,
+                                agent.getAgentFilePath()
+                            );
+                            await agent.refreshPrompts(enrichedConfig.prompts);
+                        } catch {
+                            // Non-critical: prompts will refresh on next agent restart
+                        }
+                    } catch (error) {
+                        setMessages((prev) => [
+                            ...prev,
+                            {
+                                id: generateMessageId('error'),
+                                role: 'system',
+                                content: `Failed to uninstall plugin: ${error instanceof Error ? error.message : String(error)}`,
+                                timestamp: new Date(),
+                            },
+                        ]);
+                    }
+
+                    setSelectedPlugin(null);
+                    setUi((prev) => ({ ...prev, isProcessing: false }));
+                }
+            },
+            [setUi, setMessages, agent]
+        );
+
+        // Handle marketplace browser actions
+        const handleMarketplaceBrowserAction = useCallback(
+            async (action: MarketplaceBrowserAction) => {
+                if (action.type === 'add-marketplace') {
+                    setUi((prev) => ({ ...prev, activeOverlay: 'marketplace-add' }));
+                } else if (action.type === 'plugin-installed') {
+                    setUi((prev) => ({ ...prev, activeOverlay: 'none' }));
+                    setMessages((prev) => [
+                        ...prev,
+                        {
+                            id: generateMessageId('system'),
+                            role: 'system',
+                            content: `✅ Plugin '${action.pluginName}' installed from ${action.marketplace}`,
+                            timestamp: new Date(),
+                        },
+                    ]);
+
+                    // Refresh prompts to include new plugin skills
+                    try {
+                        const { reloadAgentConfigFromFile, enrichAgentConfig } = await import(
+                            '@dexto/agent-management'
+                        );
+                        const newConfig = await reloadAgentConfigFromFile(agent.getAgentFilePath());
+                        const enrichedConfig = enrichAgentConfig(
+                            newConfig,
+                            agent.getAgentFilePath()
+                        );
+                        await agent.refreshPrompts(enrichedConfig.prompts);
+                    } catch (error) {
+                        // Non-critical: prompts will refresh on next agent restart
+                        // Log but don't show error to user
+                    }
+                }
+            },
+            [setUi, setMessages, agent]
+        );
+
+        // Handle marketplace add completion
+        const handleMarketplaceAddComplete = useCallback(
+            (name: string, pluginCount: number) => {
+                setUi((prev) => ({ ...prev, activeOverlay: 'marketplace-browser' }));
+                setMessages((prev) => [
+                    ...prev,
+                    {
+                        id: generateMessageId('system'),
+                        role: 'system',
+                        content: `✅ Marketplace '${name}' added (${pluginCount} plugins found)`,
+                        timestamp: new Date(),
+                    },
+                ]);
+            },
+            [setUi, setMessages]
+        );
+
         // Handle session subcommand selection
         const handleSessionSubcommandSelect = useCallback(
             async (action: SessionAction) => {
@@ -2004,6 +2212,75 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         }}
                         initialModel={editingModel}
                     />
+                )}
+
+                {/* Plugin manager */}
+                {ui.activeOverlay === 'plugin-manager' && (
+                    <Box marginTop={1}>
+                        <PluginManager
+                            ref={pluginManagerRef}
+                            isVisible={true}
+                            onAction={handlePluginManagerAction}
+                            onClose={handleClose}
+                        />
+                    </Box>
+                )}
+
+                {/* Plugin list */}
+                {ui.activeOverlay === 'plugin-list' && (
+                    <Box marginTop={1}>
+                        <PluginList
+                            ref={pluginListRef}
+                            isVisible={true}
+                            onPluginSelect={handlePluginSelect}
+                            onClose={handleClose}
+                        />
+                    </Box>
+                )}
+
+                {/* Plugin actions */}
+                {ui.activeOverlay === 'plugin-actions' && (
+                    <Box marginTop={1}>
+                        <PluginActions
+                            ref={pluginActionsRef}
+                            isVisible={true}
+                            plugin={selectedPlugin}
+                            onAction={handlePluginAction}
+                            onClose={() => {
+                                setSelectedPlugin(null);
+                                setUi((prev) => ({
+                                    ...prev,
+                                    activeOverlay: 'plugin-list',
+                                }));
+                            }}
+                        />
+                    </Box>
+                )}
+
+                {/* Marketplace browser */}
+                {ui.activeOverlay === 'marketplace-browser' && (
+                    <Box marginTop={1}>
+                        <MarketplaceBrowser
+                            ref={marketplaceBrowserRef}
+                            isVisible={true}
+                            onAction={handleMarketplaceBrowserAction}
+                            onClose={handleClose}
+                        />
+                    </Box>
+                )}
+
+                {/* Marketplace add prompt */}
+                {ui.activeOverlay === 'marketplace-add' && (
+                    <Box marginTop={1}>
+                        <MarketplaceAddPrompt
+                            ref={marketplaceAddPromptRef}
+                            isVisible={true}
+                            onComplete={handleMarketplaceAddComplete}
+                            onClose={() =>
+                                setUi((prev) => ({ ...prev, activeOverlay: 'marketplace-browser' }))
+                            }
+                        />
+                    </Box>
                 )}
 
                 {/* Session subcommand selector */}

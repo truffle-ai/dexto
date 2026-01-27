@@ -23,3 +23,30 @@ export {
     clearSyncDismissed,
     type SyncAgentsCommandOptions,
 } from './sync-agents.js';
+export {
+    handlePluginListCommand,
+    handlePluginInstallCommand,
+    handlePluginUninstallCommand,
+    handlePluginValidateCommand,
+    // Marketplace handlers
+    handleMarketplaceAddCommand,
+    handleMarketplaceRemoveCommand,
+    handleMarketplaceUpdateCommand,
+    handleMarketplaceListCommand,
+    handleMarketplacePluginsCommand,
+    handleMarketplaceInstallCommand,
+    type PluginListCommandOptions,
+    type PluginListCommandOptionsInput,
+    type PluginInstallCommandOptions,
+    type PluginInstallCommandOptionsInput,
+    type PluginUninstallCommandOptions,
+    type PluginUninstallCommandOptionsInput,
+    type PluginValidateCommandOptions,
+    type PluginValidateCommandOptionsInput,
+    // Marketplace types
+    type MarketplaceAddCommandOptionsInput,
+    type MarketplaceRemoveCommandOptionsInput,
+    type MarketplaceUpdateCommandOptionsInput,
+    type MarketplaceListCommandOptionsInput,
+    type MarketplaceInstallCommandOptionsInput,
+} from './plugin.js';

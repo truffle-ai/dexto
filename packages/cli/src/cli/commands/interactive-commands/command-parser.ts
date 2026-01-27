@@ -41,6 +41,12 @@ export interface CommandDefinition {
 }
 
 /**
+ * No-op handler for overlay-only commands.
+ * Used by commands in ALWAYS_OVERLAY that are handled entirely by the overlay system.
+ */
+export const overlayOnlyHandler = async (): Promise<CommandHandlerResult> => true;
+
+/**
  * Parse arguments respecting quotes and escape sequences
  */
 function parseQuotedArguments(input: string): string[] {
@@ -181,6 +187,7 @@ export function displayAllCommands(commands: CommandDefinition[]): void {
         'Session Management',
         'Model Management',
         'MCP Management',
+        'Plugin Management',
         'Tool Management',
         'Prompt Management',
         'System',

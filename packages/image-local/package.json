@@ -30,6 +30,7 @@
     "@dexto/agent-management": "workspace:*",
     "@dexto/core": "workspace:*",
     "@dexto/tools-filesystem": "workspace:*",
+    "@dexto/tools-plan": "workspace:*",
     "@dexto/tools-process": "workspace:*",
     "@dexto/tools-todo": "workspace:*"
   },

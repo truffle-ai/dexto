@@ -77,10 +77,11 @@ export class AgentRuntime {
 
         try {
             // Enrich the config with runtime paths
+            // Skip plugin discovery for subagents to avoid duplicate warnings
             const enrichedConfig = enrichAgentConfig(
                 config.agentConfig,
                 undefined, // No config path
-                false // Not interactive CLI
+                { isInteractiveCli: false, skipPluginDiscovery: true }
             );
 
             // Override agentId in enriched config

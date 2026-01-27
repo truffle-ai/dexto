@@ -4,19 +4,36 @@ import { parse as parseYaml } from 'yaml';
 import type { AgentConfig } from '@dexto/core';
 import type { IDextoLogger } from '@dexto/core';
 import { ConfigError } from './errors.js';
+import { getDextoPath } from '../utils/path.js';
+
+/**
+ * Template variables context for expansion
+ */
+interface TemplateContext {
+    /** Agent directory (where the config file is located) */
+    agentDir: string;
+    /** Project .dexto directory (context-aware via getDextoPath) */
+    projectDir: string;
+}
 
 /**
  * Expand template variables in agent configuration
- * Replaces ${{dexto.agent_dir}} with the agent's directory path
+ *
+ * Supported variables:
+ * - ${{dexto.agent_dir}} - Agent's directory path (where config is located)
+ * - ${{dexto.project_dir}} - Context-aware .dexto directory:
+ *   - dexto-source + dev mode: <repo>/.dexto
+ *   - dexto-project: <project>/.dexto
+ *   - global-cli: ~/.dexto
  */
-function expandTemplateVars(config: unknown, agentDir: string): unknown {
+function expandTemplateVars(config: unknown, context: TemplateContext): unknown {
     // Deep clone to avoid mutations
     const result = JSON.parse(JSON.stringify(config));
 
     // Walk the config recursively
     function walk(obj: unknown): unknown {
         if (typeof obj === 'string') {
-            return expandString(obj, agentDir);
+            return expandString(obj, context);
         }
         if (Array.isArray(obj)) {
             return obj.map(walk);
@@ -37,13 +54,29 @@ function expandTemplateVars(config: unknown, agentDir: string): unknown {
 /**
  * Expand template variables in a string value
  */
-function expandString(str: string, agentDir: string): string {
-    // Replace ${{dexto.agent_dir}} with absolute path
-    const result = str.replace(/\${{\s*dexto\.agent_dir\s*}}/g, agentDir);
+function expandString(str: string, context: TemplateContext): string {
+    let result = str;
+    let hasAgentDirExpansion = false;
+    let hasProjectDirExpansion = false;
 
-    // Security: Validate no path traversal for any expanded path
-    if (result !== str) {
-        validateExpandedPath(str, result, agentDir);
+    // Replace ${{dexto.agent_dir}} with absolute path
+    if (/\${{\s*dexto\.agent_dir\s*}}/.test(result)) {
+        result = result.replace(/\${{\s*dexto\.agent_dir\s*}}/g, context.agentDir);
+        hasAgentDirExpansion = true;
+    }
+
+    // Replace ${{dexto.project_dir}} with absolute path
+    if (/\${{\s*dexto\.project_dir\s*}}/.test(result)) {
+        result = result.replace(/\${{\s*dexto\.project_dir\s*}}/g, context.projectDir);
+        hasProjectDirExpansion = true;
+    }
+
+    // Security: Validate no path traversal for expanded paths
+    if (hasAgentDirExpansion) {
+        validateExpandedPath(str, result, context.agentDir, 'agent_dir');
+    }
+    if (hasProjectDirExpansion) {
+        validateExpandedPath(str, result, context.projectDir, 'project_dir');
     }
 
     return result;
@@ -52,16 +85,21 @@ function expandString(str: string, agentDir: string): string {
 /**
  * Validate that template expansion doesn't allow path traversal
  */
-function validateExpandedPath(original: string, expanded: string, agentDir: string): void {
+function validateExpandedPath(
+    original: string,
+    expanded: string,
+    rootDir: string,
+    varName: string
+): void {
     const resolved = path.resolve(expanded);
-    const agentRoot = path.resolve(agentDir);
-    const relative = path.relative(agentRoot, resolved);
+    const root = path.resolve(rootDir);
+    const relative = path.relative(root, resolved);
     if (relative.startsWith('..') || path.isAbsolute(relative)) {
         throw new Error(
-            `Security: Template expansion attempted to escape agent directory.\n` +
+            `Security: Template expansion attempted to escape ${varName} directory.\n` +
                 `Original: ${original}\n` +
                 `Expanded: ${expanded}\n` +
-                `Agent root: ${agentRoot}`
+                `Root: ${root}`
         );
     }
 }
@@ -127,8 +165,14 @@ export async function loadAgentConfig(
     // --- Step 4: Expand template variables ---
     try {
         const agentDir = path.dirname(absolutePath);
-        config = expandTemplateVars(config, agentDir);
-        logger?.debug(`Expanded template variables for agent in: ${agentDir}`);
+        // Use context-aware path resolution for project_dir
+        // getDextoPath('') returns the .dexto directory for the current context
+        const projectDir = getDextoPath('');
+        const context: TemplateContext = { agentDir, projectDir };
+        config = expandTemplateVars(config, context);
+        logger?.debug(
+            `Expanded template variables for agent in: ${agentDir}, project: ${projectDir}`
+        );
     } catch (error) {
         throw ConfigError.parseError(
             absolutePath,

@@ -616,12 +616,37 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
 
                         // Build content with images if any
                         let content: string | ContentPart[];
+
+                        // Plan mode injection: prepend plan skill content on first message
+                        // The <plan-mode> tags are filtered out by the message renderer so users
+                        // don't see the instructions, but the LLM receives them.
+                        //
+                        // TODO: Consider dropping <plan-mode> content after plan is approved/disabled.
+                        // Edge case: user may still need access to plan tools after approval for
+                        // progress tracking (checking off tasks). Current approach keeps it simple
+                        // by letting the content remain in context - it's not re-injected, just
+                        // stays from the first message.
+                        let messageText = trimmed;
+                        if (ui.planModeActive && !ui.planModeInitialized) {
+                            try {
+                                const planSkill = await agent.resolvePrompt('plan', {});
+                                if (planSkill.text) {
+                                    messageText = `<plan-mode>\n${planSkill.text}\n</plan-mode>\n\n${trimmed}`;
+                                    // Mark plan mode as initialized after injection
+                                    setUi((prev) => ({ ...prev, planModeInitialized: true }));
+                                }
+                            } catch {
+                                // Plan skill not found - continue without injection
+                                // This can happen if the plan-tools plugin is not enabled
+                            }
+                        }
+
                         if (pendingImages.length > 0) {
                             // Build multimodal content parts
                             const parts: ContentPart[] = [];
 
-                            // Add text part first
-                            parts.push({ type: 'text', text: trimmed } as TextPart);
+                            // Add text part first (with potential plan-mode injection)
+                            parts.push({ type: 'text', text: messageText } as TextPart);
 
                             // Add image parts
                             for (const img of pendingImages) {
@@ -634,7 +659,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
 
                             content = parts;
                         } else {
-                            content = trimmed;
+                            content = messageText;
                         }
 
                         // Get current LLM config for analytics
@@ -714,6 +739,8 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                 inputService,
                 ui.isProcessing,
                 ui.activeOverlay,
+                ui.planModeActive,
+                ui.planModeInitialized,
                 session.id,
                 useStreaming,
                 soundService,
@@ -732,6 +759,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
             'prompt-add-wizard',
             'model-selector',
             'export-wizard',
+            'marketplace-add',
         ];
         const hasOverlayWithOwnInput = overlaysWithOwnInput.includes(ui.activeOverlay);
         const isHistorySearchActive = ui.historySearch.isActive;
