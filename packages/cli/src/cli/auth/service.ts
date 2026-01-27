@@ -136,9 +136,13 @@ export async function getAuthToken(): Promise<string | null> {
 }
 
 export async function getDextoApiKey(): Promise<string | null> {
+    // Explicit env var takes priority (for CI, testing, account override)
+    if (process.env.DEXTO_API_KEY?.trim()) {
+        return process.env.DEXTO_API_KEY;
+    }
+    // Fall back to auth.json (from `dexto login`)
     const auth = await loadAuth();
-    // Check auth.json first, fallback to env var
-    return auth?.dextoApiKey || process.env.DEXTO_API_KEY || null;
+    return auth?.dextoApiKey || null;
 }
 
 async function refreshAccessToken(refreshToken: string): Promise<{

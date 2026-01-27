@@ -181,50 +181,6 @@ async function verifyToken(token: string): Promise<boolean> {
     }
 }
 
-/**
- * Helper to save Dexto API key to ~/.dexto/.env
- * Returns the env var and path for display purposes
- */
-async function saveDextoApiKey(apiKey: string): Promise<{ envVar: string; targetEnvPath: string }> {
-    const { getDextoEnvPath, ensureDextoGlobalDirectory } = await import('@dexto/core');
-    const path = await import('path');
-    const fs = await import('fs/promises');
-
-    const envVar = 'DEXTO_API_KEY';
-    const targetEnvPath = getDextoEnvPath();
-
-    // Ensure directory exists
-    await ensureDextoGlobalDirectory();
-    await fs.mkdir(path.dirname(targetEnvPath), { recursive: true });
-
-    // Read existing .env or create empty
-    let envContent = '';
-    try {
-        envContent = await fs.readFile(targetEnvPath, 'utf-8');
-    } catch {
-        // File doesn't exist, start fresh
-    }
-
-    // Update or add the key
-    const lines = envContent.split('\n');
-    const keyPattern = new RegExp(`^${envVar}=`);
-    const keyIndex = lines.findIndex((line) => keyPattern.test(line));
-
-    if (keyIndex >= 0) {
-        lines[keyIndex] = `${envVar}=${apiKey}`;
-    } else {
-        lines.push(`${envVar}=${apiKey}`);
-    }
-
-    // Write back
-    await fs.writeFile(targetEnvPath, lines.filter(Boolean).join('\n') + '\n', 'utf-8');
-
-    // Make available in current process
-    process.env[envVar] = apiKey;
-
-    return { envVar, targetEnvPath };
-}
-
 async function provisionKeys(authToken: string, _userEmail?: string): Promise<void> {
     try {
         const apiClient = await getDextoApiClient();
@@ -239,9 +195,6 @@ async function provisionKeys(authToken: string, _userEmail?: string): Promise<vo
 
                 if (isValid) {
                     console.log(chalk.green('✅ Existing key is valid'));
-
-                    // Persist to ~/.dexto/.env (in case it's missing)
-                    await saveDextoApiKey(auth.dextoApiKey);
                     return; // All good, we're done
                 }
 
@@ -258,9 +211,6 @@ async function provisionKeys(authToken: string, _userEmail?: string): Promise<vo
                     dextoApiKey: provisionResult.dextoApiKey,
                     dextoKeyId: provisionResult.keyId,
                 });
-
-                // Persist to ~/.dexto/.env
-                await saveDextoApiKey(provisionResult.dextoApiKey);
 
                 console.log(chalk.green('✅ New key provisioned'));
                 console.log(chalk.dim(`   Key ID: ${provisionResult.keyId}`));
@@ -300,12 +250,8 @@ async function provisionKeys(authToken: string, _userEmail?: string): Promise<vo
             dextoKeyId: provisionResult.keyId,
         });
 
-        // Persist to ~/.dexto/.env
-        const { envVar, targetEnvPath } = await saveDextoApiKey(provisionResult.dextoApiKey);
-
         console.log(chalk.green('✅ Dexto API key provisioned!'));
         console.log(chalk.dim(`   Key ID: ${provisionResult.keyId}`));
-        console.log(chalk.dim(`   Saved ${envVar} to ${targetEnvPath}`));
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         console.log(chalk.red(`❌ Failed to provision Dexto API key: ${errorMessage}`));

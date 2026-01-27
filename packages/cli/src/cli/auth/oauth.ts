@@ -213,9 +213,11 @@ function startCallbackServer(
                     `);
                 } else if (req.method === 'POST' && parsedUrl.pathname === '/callback') {
                     let body = '';
+                    let payloadTooLarge = false;
                     const MAX_BODY_SIZE = 10 * 1024; // 10KB - plenty for OAuth tokens
                     req.on('data', (chunk) => {
                         if (body.length + chunk.length > MAX_BODY_SIZE) {
+                            payloadTooLarge = true;
                             req.destroy();
                             res.writeHead(413);
                             res.end('Request too large');
@@ -225,6 +227,9 @@ function startCallbackServer(
                     });
 
                     req.on('end', async () => {
+                        // Guard against double-response after 413
+                        if (payloadTooLarge) return;
+
                         try {
                             const data = JSON.parse(body);
 
@@ -299,7 +304,9 @@ function startCallbackServer(
                     res.end('Not Found');
                 }
             } catch (error) {
-                logger.error(`Callback server error: ${error}`);
+                logger.error(
+                    `OAuth callback server error: ${error instanceof Error ? error.message : String(error)}`
+                );
                 res.writeHead(500);
                 res.end('Internal Server Error');
                 server.close();
@@ -349,6 +356,7 @@ export async function performOAuthLogin(config: OAuthConfig): Promise<OAuthResul
         const authParams = querystring.stringify({
             redirect_to: redirectUri,
             state: state,
+            ...(config.scopes?.length && { scopes: config.scopes.join(' ') }),
         });
 
         const authUrl = `${config.authUrl}/auth/v1/authorize?provider=${provider}&${authParams}`;
