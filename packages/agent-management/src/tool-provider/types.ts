@@ -16,4 +16,7 @@ export interface SpawnAgentOutput {
 
     /** Error message if the task failed */
     error?: string;
+
+    /** Warning message (e.g., when fallback LLM was used) */
+    warning?: string;
 }

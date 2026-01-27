@@ -19,6 +19,11 @@ import {
     stripBedrockRegionPrefix,
     getModelPricing,
     getModelDisplayName,
+    resolveModelOrigin,
+    transformModelNameForProvider,
+    getAllModelsForProvider,
+    isModelValidForProvider,
+    hasAllRegistryModelsSupport,
 } from './registry.js';
 import { LLMErrorCode } from './error-codes.js';
 import { ErrorScope, ErrorType } from '../errors/types.js';
@@ -97,6 +102,31 @@ describe('LLM Registry Core Functions', () => {
                     type: ErrorType.USER,
                 })
             );
+        });
+
+        it('returns correct provider for OpenRouter format models', () => {
+            // Anthropic models
+            expect(getProviderFromModel('anthropic/claude-opus-4.5')).toBe('anthropic');
+            expect(getProviderFromModel('anthropic/claude-sonnet-4.5')).toBe('anthropic');
+            expect(getProviderFromModel('anthropic/claude-haiku-4.5')).toBe('anthropic');
+
+            // OpenAI models
+            expect(getProviderFromModel('openai/gpt-5-mini')).toBe('openai');
+            expect(getProviderFromModel('openai/o4-mini')).toBe('openai');
+
+            // Google models
+            expect(getProviderFromModel('google/gemini-3-flash-preview')).toBe('google');
+
+            // xAI models (note: x-ai prefix)
+            expect(getProviderFromModel('x-ai/grok-4')).toBe('xai');
+
+            // Cohere models
+            expect(getProviderFromModel('cohere/command-a-03-2025')).toBe('cohere');
+        });
+
+        it('handles case insensitivity for OpenRouter format models', () => {
+            expect(getProviderFromModel('ANTHROPIC/claude-opus-4.5')).toBe('anthropic');
+            expect(getProviderFromModel('Anthropic/Claude-Opus-4.5')).toBe('anthropic');
         });
     });
 
@@ -674,6 +704,331 @@ describe('Bedrock Region Prefix Handling', () => {
             expect(getModelDisplayName(`eu.${bedrockModel}`, 'bedrock')).toBe(expected);
             expect(getModelDisplayName(`us.${bedrockModel}`, 'bedrock')).toBe(expected);
             expect(getModelDisplayName(`global.${bedrockModel}`, 'bedrock')).toBe(expected);
+        });
+    });
+});
+
+describe('resolveModelOrigin', () => {
+    describe('for gateway providers (openrouter, dexto)', () => {
+        it('resolves OpenRouter format Anthropic models to native format', () => {
+            // OpenRouter format → native model name via openrouterId reverse lookup
+            const result = resolveModelOrigin('anthropic/claude-opus-4.5', 'openrouter');
+            expect(result).toEqual({
+                provider: 'anthropic',
+                model: 'claude-opus-4-5-20251101',
+            });
+        });
+
+        it('resolves OpenRouter format models for dexto provider', () => {
+            const result = resolveModelOrigin('anthropic/claude-haiku-4.5', 'dexto');
+            expect(result).toEqual({
+                provider: 'anthropic',
+                model: 'claude-haiku-4-5-20251001',
+            });
+        });
+
+        it('handles case-insensitive OpenRouter format lookups', () => {
+            const result = resolveModelOrigin('ANTHROPIC/CLAUDE-OPUS-4.5', 'openrouter');
+            expect(result).toEqual({
+                provider: 'anthropic',
+                model: 'claude-opus-4-5-20251101',
+            });
+        });
+
+        it('returns extracted model name for OpenRouter format without openrouterId mapping', () => {
+            // For models without an explicit openrouterId, falls back to extracting the model name
+            const result = resolveModelOrigin('openai/gpt-5-mini', 'openrouter');
+            expect(result).toEqual({
+                provider: 'openai',
+                model: 'gpt-5-mini',
+            });
+        });
+
+        it('resolves native model names without prefix', () => {
+            const result = resolveModelOrigin('claude-haiku-4-5-20251001', 'openrouter');
+            expect(result).toEqual({
+                provider: 'anthropic',
+                model: 'claude-haiku-4-5-20251001',
+            });
+        });
+
+        it('resolves native model names for OpenAI', () => {
+            const result = resolveModelOrigin('o4-mini', 'openrouter');
+            expect(result).toEqual({
+                provider: 'openai',
+                model: 'o4-mini',
+            });
+        });
+
+        it('returns null for unknown vendor-prefixed models (groq uses native format)', () => {
+            // Groq models in our registry don't have vendor prefix (e.g., 'llama-3.3-70b-versatile')
+            // But OpenRouter uses 'meta-llama/llama-3.3-70b-versatile'
+            // Since the prefixed version isn't in our registry, this returns null
+            const result = resolveModelOrigin('meta-llama/llama-3.3-70b-versatile', 'openrouter');
+            expect(result).toBeNull();
+        });
+
+        it('resolves groq models using native format', () => {
+            // Use the native format that's in our registry
+            const result = resolveModelOrigin('llama-3.3-70b-versatile', 'openrouter');
+            expect(result).toEqual({
+                provider: 'groq',
+                model: 'llama-3.3-70b-versatile',
+            });
+        });
+
+        it('returns null for unknown custom models', () => {
+            const result = resolveModelOrigin('custom/unknown-model', 'openrouter');
+            expect(result).toBeNull();
+        });
+
+        it('handles xAI models with x-ai prefix', () => {
+            const result = resolveModelOrigin('x-ai/grok-4', 'openrouter');
+            expect(result).toEqual({
+                provider: 'xai',
+                model: 'grok-4',
+            });
+        });
+    });
+
+    describe('for non-gateway providers', () => {
+        it('returns the model as-is for providers without supportsAllRegistryModels', () => {
+            // OpenAI doesn't support all registry models
+            const result = resolveModelOrigin('some-model', 'openai');
+            expect(result).toEqual({
+                provider: 'openai',
+                model: 'some-model',
+            });
+        });
+
+        it('returns the model as-is for anthropic provider', () => {
+            const result = resolveModelOrigin('claude-opus-4-5-20251101', 'anthropic');
+            expect(result).toEqual({
+                provider: 'anthropic',
+                model: 'claude-opus-4-5-20251101',
+            });
+        });
+    });
+});
+
+describe('hasAllRegistryModelsSupport', () => {
+    it('returns true for dexto provider', () => {
+        expect(hasAllRegistryModelsSupport('dexto')).toBe(true);
+    });
+
+    it('returns true for openrouter provider', () => {
+        expect(hasAllRegistryModelsSupport('openrouter')).toBe(true);
+    });
+
+    it('returns false for native providers', () => {
+        expect(hasAllRegistryModelsSupport('openai')).toBe(false);
+        expect(hasAllRegistryModelsSupport('anthropic')).toBe(false);
+        expect(hasAllRegistryModelsSupport('google')).toBe(false);
+        expect(hasAllRegistryModelsSupport('groq')).toBe(false);
+    });
+});
+
+describe('getAllModelsForProvider', () => {
+    it('returns only provider models for native providers', () => {
+        const openaiModels = getAllModelsForProvider('openai');
+        expect(openaiModels.length).toBeGreaterThan(0);
+        // Native provider models should not have originalProvider
+        expect(
+            openaiModels.every(
+                (m) => !('originalProvider' in m) || m.originalProvider === undefined
+            )
+        ).toBe(true);
+    });
+
+    it('returns models from all accessible providers for gateway providers', () => {
+        const dextoModels = getAllModelsForProvider('dexto');
+
+        // Should have models from multiple providers
+        const providers = new Set(dextoModels.map((m) => m.originalProvider));
+        expect(providers.size).toBeGreaterThan(1);
+
+        // Should include models from openai, anthropic, google, etc.
+        expect(providers.has('openai')).toBe(true);
+        expect(providers.has('anthropic')).toBe(true);
+        expect(providers.has('google')).toBe(true);
+    });
+
+    it('includes originalProvider for gateway provider models', () => {
+        const dextoModels = getAllModelsForProvider('dexto');
+        expect(dextoModels.every((m) => m.originalProvider !== undefined)).toBe(true);
+    });
+
+    it('does not include models from other gateway providers', () => {
+        const dextoModels = getAllModelsForProvider('dexto');
+        const providers = new Set(dextoModels.map((m) => m.originalProvider));
+
+        // Should not include dexto or openrouter
+        expect(providers.has('dexto')).toBe(false);
+        expect(providers.has('openrouter')).toBe(false);
+    });
+});
+
+describe('isModelValidForProvider', () => {
+    it('returns true for native provider models', () => {
+        expect(isModelValidForProvider('openai', 'gpt-5-mini')).toBe(true);
+        expect(isModelValidForProvider('anthropic', 'claude-haiku-4-5-20251001')).toBe(true);
+    });
+
+    it('returns false for unknown models on native providers', () => {
+        expect(isModelValidForProvider('openai', 'unknown-model')).toBe(false);
+    });
+
+    it('returns true for any model on gateway providers', () => {
+        // Gateway providers with supportsAllRegistryModels can access models from other providers
+        expect(isModelValidForProvider('dexto', 'gpt-5-mini')).toBe(true);
+        expect(isModelValidForProvider('dexto', 'claude-haiku-4-5-20251001')).toBe(true);
+        expect(isModelValidForProvider('openrouter', 'gpt-5-mini')).toBe(true);
+    });
+
+    it('returns true for OpenRouter format models on gateway providers', () => {
+        expect(isModelValidForProvider('dexto', 'anthropic/claude-opus-4.5')).toBe(true);
+        expect(isModelValidForProvider('openrouter', 'openai/gpt-5-mini')).toBe(true);
+    });
+});
+
+describe('transformModelNameForProvider', () => {
+    describe('targeting gateway providers', () => {
+        it('transforms Anthropic models using openrouterId', () => {
+            const result = transformModelNameForProvider(
+                'claude-haiku-4-5-20251001',
+                'anthropic',
+                'dexto'
+            );
+            expect(result).toBe('anthropic/claude-haiku-4.5');
+        });
+
+        it('transforms OpenAI models using openrouterId', () => {
+            const result = transformModelNameForProvider('gpt-5-mini', 'openai', 'dexto');
+            expect(result).toBe('openai/gpt-5-mini');
+        });
+
+        it('transforms Google models using openrouterId', () => {
+            const result = transformModelNameForProvider(
+                'gemini-3-flash-preview',
+                'google',
+                'openrouter'
+            );
+            expect(result).toBe('google/gemini-3-flash-preview');
+        });
+
+        it('transforms xAI models with x-ai prefix', () => {
+            const result = transformModelNameForProvider('grok-4', 'xai', 'dexto');
+            expect(result).toBe('x-ai/grok-4');
+        });
+
+        it('does not transform models already in OpenRouter format', () => {
+            const result = transformModelNameForProvider(
+                'anthropic/claude-opus-4.5',
+                'anthropic',
+                'dexto'
+            );
+            expect(result).toBe('anthropic/claude-opus-4.5');
+        });
+
+        it('does not transform groq models (no prefix needed)', () => {
+            const result = transformModelNameForProvider(
+                'llama-3.3-70b-versatile',
+                'groq',
+                'dexto'
+            );
+            expect(result).toBe('llama-3.3-70b-versatile');
+        });
+
+        it('does not transform when original provider is a gateway', () => {
+            const result = transformModelNameForProvider(
+                'anthropic/claude-opus-4.5',
+                'dexto',
+                'openrouter'
+            );
+            expect(result).toBe('anthropic/claude-opus-4.5');
+        });
+    });
+
+    describe('targeting native providers', () => {
+        it('returns model unchanged when target is not a gateway', () => {
+            const result = transformModelNameForProvider('gpt-5-mini', 'openai', 'openai');
+            expect(result).toBe('gpt-5-mini');
+        });
+
+        it('returns model unchanged for anthropic target', () => {
+            const result = transformModelNameForProvider(
+                'claude-haiku-4-5-20251001',
+                'anthropic',
+                'anthropic'
+            );
+            expect(result).toBe('claude-haiku-4-5-20251001');
+        });
+    });
+
+    describe('error handling', () => {
+        it('throws for model without openrouterId mapping', () => {
+            // Create a scenario where we try to transform a model that doesn't have openrouterId
+            // This would be a bug in our registry - all gateway-accessible models should have openrouterId
+            expect(() =>
+                transformModelNameForProvider('fake-model-no-mapping', 'openai', 'dexto')
+            ).toThrow(/has no openrouterId mapping/);
+        });
+    });
+});
+
+describe('Gateway provider integration with lookup functions', () => {
+    describe('getMaxInputTokensForModel', () => {
+        it('resolves gateway provider to native provider for token lookup', () => {
+            // dexto + anthropic model should resolve to anthropic's token limit
+            const dextoResult = getMaxInputTokensForModel('dexto', 'claude-haiku-4-5-20251001');
+            const anthropicResult = getMaxInputTokensForModel(
+                'anthropic',
+                'claude-haiku-4-5-20251001'
+            );
+            expect(dextoResult).toBe(anthropicResult);
+        });
+
+        it('handles OpenRouter format models', () => {
+            const result = getMaxInputTokensForModel('dexto', 'anthropic/claude-haiku-4.5');
+            const expected = getMaxInputTokensForModel('anthropic', 'claude-haiku-4-5-20251001');
+            expect(result).toBe(expected);
+        });
+    });
+
+    describe('getSupportedFileTypesForModel', () => {
+        it('resolves gateway provider to native provider for file type lookup', () => {
+            const dextoResult = getSupportedFileTypesForModel('dexto', 'claude-haiku-4-5-20251001');
+            const anthropicResult = getSupportedFileTypesForModel(
+                'anthropic',
+                'claude-haiku-4-5-20251001'
+            );
+            expect(dextoResult).toEqual(anthropicResult);
+        });
+    });
+
+    describe('getModelPricing', () => {
+        it('resolves gateway provider to native provider for pricing lookup', () => {
+            const dextoResult = getModelPricing('dexto', 'claude-haiku-4-5-20251001');
+            const anthropicResult = getModelPricing('anthropic', 'claude-haiku-4-5-20251001');
+            expect(dextoResult).toEqual(anthropicResult);
+        });
+
+        it('returns undefined for unknown models on gateway', () => {
+            const result = getModelPricing('dexto', 'unknown-custom-model');
+            expect(result).toBeUndefined();
+        });
+    });
+
+    describe('getModelDisplayName', () => {
+        it('resolves gateway provider to native provider for display name lookup', () => {
+            const dextoResult = getModelDisplayName('claude-haiku-4-5-20251001', 'dexto');
+            const anthropicResult = getModelDisplayName('claude-haiku-4-5-20251001', 'anthropic');
+            expect(dextoResult).toBe(anthropicResult);
+        });
+
+        it('handles OpenRouter format models', () => {
+            const result = getModelDisplayName('anthropic/claude-haiku-4.5', 'dexto');
+            expect(result).toBe('Claude 4.5 Haiku');
         });
     });
 });

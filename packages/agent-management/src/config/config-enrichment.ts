@@ -239,7 +239,6 @@ export function enrichAgentConfig(
             // Note: Logging happens at enrichment time since we don't have a logger instance
             // Warnings are stored in the loaded plugin and can be accessed by callers
             for (const warning of loaded.warnings) {
-                // eslint-disable-next-line no-console
                 console.warn(`[plugin] ${warning}`);
             }
 

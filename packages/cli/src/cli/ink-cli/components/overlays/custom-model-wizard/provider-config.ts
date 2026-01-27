@@ -4,7 +4,7 @@
  */
 
 import type { CustomModel, CustomModelProvider } from '@dexto/agent-management';
-import { CUSTOM_MODEL_PROVIDERS } from '@dexto/agent-management';
+import { CUSTOM_MODEL_PROVIDERS, isDextoAuthEnabled } from '@dexto/agent-management';
 import {
     lookupOpenRouterModel,
     refreshOpenRouterModelCache,
@@ -455,6 +455,67 @@ export const PROVIDER_CONFIGS: Record<CustomModelProvider, ProviderConfig> = {
             docsUrl: 'https://docs.dexto.ai/docs/guides/supported-llm-providers#google-vertex-ai',
         },
     },
+
+    dexto: {
+        displayName: 'Dexto',
+        description: 'Access 100+ models with Dexto credits',
+        steps: [
+            {
+                field: 'name',
+                label: 'Model ID (OpenRouter format)',
+                placeholder: 'e.g., anthropic/claude-sonnet-4.5, openai/gpt-5.2',
+                required: true,
+                validate: validators.slashFormat,
+            },
+            { ...DISPLAY_NAME_STEP, placeholder: 'e.g., Claude 4.5 Sonnet via Dexto' },
+            REASONING_EFFORT_STEP,
+            // No API key step - Dexto uses OAuth login (DEXTO_API_KEY from auth.json)
+        ],
+        buildModel: (values, provider) => {
+            const model: CustomModel = {
+                name: values.name || '',
+                provider,
+            };
+            if (values.displayName?.trim()) {
+                model.displayName = values.displayName.trim();
+            }
+            if (values.reasoningEffort?.trim()) {
+                model.reasoningEffort =
+                    values.reasoningEffort.toLowerCase() as CustomModel['reasoningEffort'];
+            }
+            return model;
+        },
+        asyncValidation: {
+            field: 'name',
+            validate: async (modelId: string) => {
+                // Reuse OpenRouter validation since Dexto uses OpenRouter model IDs
+                let status = lookupOpenRouterModel(modelId);
+
+                // If cache is stale/empty, try to refresh
+                if (status === 'unknown') {
+                    try {
+                        await refreshOpenRouterModelCache();
+                        status = lookupOpenRouterModel(modelId);
+                    } catch {
+                        // Network failed - allow the model (graceful degradation)
+                        return null;
+                    }
+                }
+
+                if (status === 'invalid') {
+                    return `Model '${modelId}' not found. Dexto uses OpenRouter model IDs - check https://openrouter.ai/models`;
+                }
+
+                return null;
+            },
+        },
+        setupInfo: {
+            title: 'Dexto Setup',
+            description:
+                'Add OpenRouter-format models that use your Dexto credits. Requires login: run `dexto login` first.',
+            docsUrl: 'https://openrouter.ai/models',
+        },
+    },
 };
 
 /**
@@ -475,9 +536,11 @@ export function getProviderLabel(provider: CustomModelProvider): string {
 
 /**
  * Get all available provider types.
+ * Filters out 'dexto' when the feature flag is disabled.
  */
-export function getAvailableProviders(): readonly CustomModelProvider[] {
-    return CUSTOM_MODEL_PROVIDERS;
+export function getAvailableProviders(): CustomModelProvider[] {
+    const dextoEnabled = isDextoAuthEnabled();
+    return CUSTOM_MODEL_PROVIDERS.filter((provider) => provider !== 'dexto' || dextoEnabled);
 }
 
 /**

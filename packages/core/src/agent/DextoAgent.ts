@@ -36,7 +36,7 @@ import {
     getSupportedProviders,
     getDefaultModelForProvider,
     getProviderFromModel,
-    LLM_REGISTRY,
+    getAllModelsForProvider,
     ModelInfo,
 } from '../llm/registry.js';
 import type { LLMProvider } from '../llm/types.js';
@@ -1974,7 +1974,7 @@ export class DextoAgent {
      * ```
      */
     public getSupportedProviders(): LLMProvider[] {
-        return getSupportedProviders() as LLMProvider[];
+        return getSupportedProviders();
     }
 
     /**
@@ -1994,18 +1994,17 @@ export class DextoAgent {
      * const hasDefault = models.google.some(model => model.isDefault);
      * ```
      */
-    public getSupportedModels(): Record<LLMProvider, Array<ModelInfo & { isDefault: boolean }>> {
-        const result = {} as Record<LLMProvider, Array<ModelInfo & { isDefault: boolean }>>;
+    public getSupportedModels(): Record<
+        LLMProvider,
+        Array<ModelInfo & { isDefault: boolean; originalProvider?: LLMProvider }>
+    > {
+        const result = {} as Record<
+            LLMProvider,
+            Array<ModelInfo & { isDefault: boolean; originalProvider?: LLMProvider }>
+        >;
 
-        const providers = getSupportedProviders() as LLMProvider[];
-        for (const provider of providers) {
-            const defaultModel = getDefaultModelForProvider(provider);
-            const providerInfo = LLM_REGISTRY[provider];
-
-            result[provider] = providerInfo.models.map((model) => ({
-                ...model,
-                isDefault: model.name === defaultModel,
-            }));
+        for (const provider of this.getSupportedProviders()) {
+            result[provider] = this.getSupportedModelsForProvider(provider);
         }
 
         return result;
@@ -2014,6 +2013,8 @@ export class DextoAgent {
     /**
      * Gets supported models for a specific provider.
      * Returns model information including metadata for the specified provider only.
+     * For gateway providers like 'dexto' with supportsAllRegistryModels, returns
+     * all models from all accessible providers with their original provider info.
      *
      * @param provider The provider to get models for
      * @returns Array of model information for the specified provider
@@ -2032,14 +2033,20 @@ export class DextoAgent {
      */
     public getSupportedModelsForProvider(
         provider: LLMProvider
-    ): Array<ModelInfo & { isDefault: boolean }> {
-        const defaultModel = getDefaultModelForProvider(provider);
-        const providerInfo = LLM_REGISTRY[provider];
+    ): Array<ModelInfo & { isDefault: boolean; originalProvider?: LLMProvider }> {
+        const models = getAllModelsForProvider(provider);
 
-        return providerInfo.models.map((model) => ({
-            ...model,
-            isDefault: model.name === defaultModel,
-        }));
+        return models.map((model) => {
+            // For inherited models, get default from the original provider
+            const originalProvider =
+                'originalProvider' in model ? model.originalProvider : provider;
+            const defaultModel = getDefaultModelForProvider(originalProvider ?? provider);
+
+            return {
+                ...model,
+                isDefault: model.name === defaultModel,
+            };
+        });
     }
 
     /**

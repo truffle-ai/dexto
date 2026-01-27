@@ -431,6 +431,41 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                 baseURL?: string,
                 reasoningEffort?: 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh'
             ) => {
+                // Pre-check: Dexto provider requires OAuth login AND API key
+                // Check BEFORE closing the overlay so user can pick a different model
+                if (provider === 'dexto') {
+                    try {
+                        const { canUseDextoProvider } = await import('../../utils/dexto-setup.js');
+                        const canUse = await canUseDextoProvider();
+                        if (!canUse) {
+                            setMessages((prev) => [
+                                ...prev,
+                                {
+                                    id: generateMessageId('system'),
+                                    role: 'system',
+                                    content:
+                                        '❌ Cannot switch to Dexto model - authentication required. Run /login to authenticate.',
+                                    timestamp: new Date(),
+                                },
+                            ]);
+                            // Don't close the overlay - let user pick a different model
+                            return;
+                        }
+                    } catch (error) {
+                        setMessages((prev) => [
+                            ...prev,
+                            {
+                                id: generateMessageId('error'),
+                                role: 'system',
+                                content: `❌ Failed to verify Dexto auth: ${error instanceof Error ? error.message : String(error)}`,
+                                timestamp: new Date(),
+                            },
+                        ]);
+                        // Don't close the overlay - let user pick a different model
+                        return;
+                    }
+                }
+
                 setUi((prev) => ({ ...prev, activeOverlay: 'none', mcpWizardServerType: null }));
                 buffer.setText('');
                 setInput((prev) => ({ ...prev, historyIndex: -1 }));

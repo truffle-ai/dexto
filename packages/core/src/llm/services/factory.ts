@@ -18,17 +18,44 @@ import type { IConversationHistoryProvider } from '../../session/history/types.j
 import type { SystemPromptManager } from '../../systemPrompt/manager.js';
 import type { IDextoLogger } from '../../logger/v2/types.js';
 import { requiresApiKey } from '../registry.js';
-import { getPrimaryApiKeyEnvVar } from '../../utils/api-key-resolver.js';
+import { getPrimaryApiKeyEnvVar, resolveApiKeyForProvider } from '../../utils/api-key-resolver.js';
 import type { CompactionConfigInput } from '../../context/compaction/schemas.js';
 
-export function createVercelModel(llmConfig: ValidatedLLMConfig): LanguageModel {
-    const provider = llmConfig.provider;
-    const model = llmConfig.model;
-    // apiKey can be undefined for providers that don't require it (openai-compatible, litellm, etc.)
-    const apiKey = llmConfig.apiKey;
+// Dexto Gateway headers for usage tracking
+const DEXTO_GATEWAY_HEADERS = {
+    SESSION_ID: 'X-Dexto-Session-ID',
+    CLIENT_SOURCE: 'X-Dexto-Source',
+    CLIENT_VERSION: 'X-Dexto-Version',
+} as const;
+
+/**
+ * Context for model creation, including session info for usage tracking.
+ */
+export interface DextoProviderContext {
+    /** Session ID for usage tracking */
+    sessionId?: string;
+    /** Client source for usage attribution (cli, web, sdk) */
+    clientSource?: 'cli' | 'web' | 'sdk';
+}
+
+/**
+ * Create a Vercel AI SDK LanguageModel from config.
+ *
+ * With explicit providers, the config's provider field directly determines
+ * where requests go. No auth-dependent routing - what you configure is what runs.
+ *
+ * @param llmConfig - LLM configuration from agent config
+ * @param context - Optional context for usage tracking (session ID, etc.)
+ * @returns Vercel AI SDK LanguageModel instance
+ */
+export function createVercelModel(
+    llmConfig: ValidatedLLMConfig,
+    context?: DextoProviderContext
+): LanguageModel {
+    const { provider, model, baseURL } = llmConfig;
+    const apiKey = llmConfig.apiKey || resolveApiKeyForProvider(provider);
 
     // Runtime check: if provider requires API key but none is configured, fail with helpful message
-    // This catches cases where relaxed validation allowed app to start without API key
     if (requiresApiKey(provider) && !apiKey?.trim()) {
         const envVar = getPrimaryApiKeyEnvVar(provider);
         throw LLMError.apiKeyMissing(provider, envVar);
@@ -37,30 +64,27 @@ export function createVercelModel(llmConfig: ValidatedLLMConfig): LanguageModel 
     switch (provider.toLowerCase()) {
         case 'openai': {
             // Regular OpenAI - strict compatibility, no baseURL
-            // API key is required - use empty string if not provided (SDK will fail with clear error)
             return createOpenAI({ apiKey: apiKey ?? '' })(model);
         }
         case 'openai-compatible': {
             // OpenAI-compatible - requires baseURL, uses chat completions endpoint
             // Must use .chat() as most compatible endpoints (like Ollama) don't support Responses API
-            // API key is optional - local providers like Ollama don't need one
-            const baseURL = getOpenAICompatibleBaseURL(llmConfig);
-            if (!baseURL) {
+            const compatibleBaseURL =
+                baseURL?.replace(/\/$/, '') || process.env.OPENAI_BASE_URL?.replace(/\/$/, '');
+            if (!compatibleBaseURL) {
                 throw LLMError.baseUrlMissing('openai-compatible');
             }
-            return createOpenAI({ apiKey: apiKey ?? '', baseURL }).chat(model);
+            return createOpenAI({ apiKey: apiKey ?? '', baseURL: compatibleBaseURL }).chat(model);
         }
         case 'openrouter': {
-            // OpenRouter - unified API gateway for 100+ models
-            // baseURL is auto-injected by resolver, but we validate it here as well
-            const baseURL = llmConfig.baseURL || 'https://openrouter.ai/api/v1';
-            return createOpenAI({ apiKey: apiKey ?? '', baseURL }).chat(model);
+            // OpenRouter - unified API gateway for 100+ models (BYOK)
+            // Model IDs are in OpenRouter format (e.g., 'anthropic/claude-sonnet-4-5-20250929')
+            const orBaseURL = baseURL || 'https://openrouter.ai/api/v1';
+            return createOpenAI({ apiKey: apiKey ?? '', baseURL: orBaseURL }).chat(model);
         }
         case 'litellm': {
             // LiteLLM - OpenAI-compatible proxy for 100+ LLM providers
             // User must provide their own LiteLLM proxy URL
-            // API key is optional - proxy handles auth internally
-            const baseURL = llmConfig.baseURL;
             if (!baseURL) {
                 throw LLMError.baseUrlMissing('litellm');
             }
@@ -69,12 +93,40 @@ export function createVercelModel(llmConfig: ValidatedLLMConfig): LanguageModel 
         case 'glama': {
             // Glama - OpenAI-compatible gateway for multiple LLM providers
             // Fixed endpoint, no user configuration needed
-            const baseURL = 'https://glama.ai/api/gateway/openai/v1';
-            return createOpenAI({ apiKey: apiKey ?? '', baseURL }).chat(model);
+            const glamaBaseURL = 'https://glama.ai/api/gateway/openai/v1';
+            return createOpenAI({ apiKey: apiKey ?? '', baseURL: glamaBaseURL }).chat(model);
+        }
+        case 'dexto': {
+            // Dexto Gateway - OpenAI-compatible proxy with per-request billing
+            // Routes through api.dexto.ai to OpenRouter, deducts from user balance
+            // Requires DEXTO_API_KEY from `dexto login`
+            //
+            // Model IDs are in OpenRouter format (e.g., 'anthropic/claude-sonnet-4-5-20250929')
+            // Users explicitly choose `provider: dexto` in their config
+            //
+            // Note: 402 "insufficient credits" errors are handled in turn-executor.ts mapProviderError()
+            const dextoBaseURL = 'https://api.dexto.ai/v1';
+
+            // Build headers for usage tracking
+            const headers: Record<string, string> = {
+                [DEXTO_GATEWAY_HEADERS.CLIENT_SOURCE]: context?.clientSource ?? 'cli',
+            };
+            if (context?.sessionId) {
+                headers[DEXTO_GATEWAY_HEADERS.SESSION_ID] = context.sessionId;
+            }
+            if (process.env.DEXTO_CLI_VERSION) {
+                headers[DEXTO_GATEWAY_HEADERS.CLIENT_VERSION] = process.env.DEXTO_CLI_VERSION;
+            }
+
+            // Model is already in OpenRouter format - pass through directly
+            return createOpenAI({ apiKey: apiKey ?? '', baseURL: dextoBaseURL, headers }).chat(
+                model
+            );
         }
         case 'vertex': {
             // Google Vertex AI - supports both Gemini and Claude models
             // Auth via Application Default Credentials (ADC)
+            //
             // TODO: Integrate with agent config (llmConfig.vertex?.projectId) as primary,
             // falling back to env vars. This would allow per-agent Vertex configuration.
             const projectId = process.env.GOOGLE_VERTEX_PROJECT;
@@ -139,9 +191,7 @@ export function createVercelModel(llmConfig: ValidatedLLMConfig): LanguageModel 
             // SDK automatically reads AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_SESSION_TOKEN
             return createAmazonBedrock({ region })(modelId);
         }
-        // TODO: Add 'dexto' case (similar to openrouter, uses https://api.dexto.ai/v1)
         case 'anthropic':
-            // API key required - SDK will fail with clear error if empty
             return createAnthropic({ apiKey: apiKey ?? '' })(model);
         case 'google':
             return createGoogleGenerativeAI({ apiKey: apiKey ?? '' })(model);
@@ -155,9 +205,9 @@ export function createVercelModel(llmConfig: ValidatedLLMConfig): LanguageModel 
             // Ollama - local model server with OpenAI-compatible API
             // Uses the /v1 endpoint for AI SDK compatibility
             // Default URL: http://localhost:11434
-            const baseURL = llmConfig.baseURL || 'http://localhost:11434/v1';
+            const ollamaBaseURL = baseURL || 'http://localhost:11434/v1';
             // Ollama doesn't require an API key, but the SDK needs a non-empty string
-            return createOpenAI({ apiKey: 'ollama', baseURL }).chat(model);
+            return createOpenAI({ apiKey: 'ollama', baseURL: ollamaBaseURL }).chat(model);
         }
         case 'local': {
             // Native node-llama-cpp execution via AI SDK adapter.
@@ -169,24 +219,6 @@ export function createVercelModel(llmConfig: ValidatedLLMConfig): LanguageModel 
         default:
             throw LLMError.unsupportedProvider(provider);
     }
-}
-
-/**
- * Overrides a default base URL for OpenAI compatible models - this allows adding openai compatibles
- * Hierarchy: we first check the config file, then the environment variable
- * Regex checks for trailing slashes and removes them
- * @param llmConfig LLM configuration from the config file
- * @returns Base URL or empty string if not found
- */
-function getOpenAICompatibleBaseURL(llmConfig: ValidatedLLMConfig): string {
-    if (llmConfig.baseURL) {
-        return llmConfig.baseURL.replace(/\/$/, '');
-    }
-    // Check for environment variable as fallback
-    if (process.env.OPENAI_BASE_URL) {
-        return process.env.OPENAI_BASE_URL.replace(/\/$/, '');
-    }
-    return '';
 }
 
 /**
@@ -217,7 +249,7 @@ export function createLLMService(
     compactionStrategy?: import('../../context/compaction/types.js').ICompactionStrategy | null,
     compactionConfig?: CompactionConfigInput
 ): VercelLLMService {
-    const model = createVercelModel(config);
+    const model = createVercelModel(config, { sessionId });
 
     return new VercelLLMService(
         toolManager,

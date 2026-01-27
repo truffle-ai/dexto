@@ -19,6 +19,7 @@ import { getAgentRegistry } from '../registry/registry.js';
 import type { AgentRegistryEntry } from '../registry/types.js';
 import type { AgentSpawnerConfig } from './schemas.js';
 import type { SpawnAgentOutput } from './types.js';
+import { resolveSubAgentLLM } from './llm-resolution.js';
 
 export class RuntimeService implements TaskForker {
     private runtime: AgentRuntime;
@@ -369,9 +370,14 @@ export class RuntimeService implements TaskForker {
                     errorMsg.includes('provider');
 
                 if (isLlmError && input.agentId) {
-                    // Fallback: retry with parent's LLM config
+                    // Fallback: retry with parent's full LLM config
+                    // This can happen if:
+                    // - Model transformation failed for the sub-agent's model
+                    // - API rate limits or other provider-specific errors
+                    // - Edge cases in LLM resolution
                     this.logger.warn(
-                        `Sub-agent LLM config failed: ${errorMsg}. Falling back to parent's LLM config.`
+                        `Sub-agent '${input.agentId}' LLM config failed: ${errorMsg}. ` +
+                            `Falling back to parent's full LLM config.`
                     );
                     usedFallback = true;
 
@@ -436,6 +442,9 @@ export class RuntimeService implements TaskForker {
             if (result.error !== undefined) {
                 output.error = result.error;
             }
+            if (usedFallback) {
+                output.warning = `Sub-agent '${input.agentId}' used fallback LLM (parent's full config) due to an error with its configured model.`;
+            }
             return output;
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);
@@ -496,9 +505,20 @@ export class RuntimeService implements TaskForker {
                 let llmConfig = loadedConfig.llm;
 
                 if (inheritLlm) {
-                    // Use parent's full LLM config
-                    this.logger.debug('Using parent LLM config (inheritLlm=true)');
+                    // Use parent's full LLM config (fallback mode after first attempt failed)
+                    this.logger.debug(
+                        `Sub-agent '${agentId}' using parent LLM config (inheritLlm=true)`
+                    );
                     llmConfig = { ...parentConfig.llm };
+                } else {
+                    // Resolve optimal LLM: try to use sub-agent's model with parent's provider
+                    const resolution = resolveSubAgentLLM({
+                        subAgentLLM: loadedConfig.llm,
+                        parentLLM: parentConfig.llm,
+                        subAgentId: agentId,
+                    });
+                    this.logger.debug(`Sub-agent LLM resolution: ${resolution.reason}`);
+                    llmConfig = resolution.llm;
                 }
 
                 // Override certain settings for sub-agent behavior

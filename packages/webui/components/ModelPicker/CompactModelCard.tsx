@@ -26,11 +26,13 @@ const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
     xai: 'Grok',
     cohere: 'Cohere',
     'openai-compatible': 'Custom',
+    dexto: 'Dexto',
 };
 
 // Providers that have multi-vendor models (don't strip provider prefixes from display name)
 const MULTI_VENDOR_PROVIDERS = new Set([
     'openrouter',
+    'dexto',
     'openai-compatible',
     'litellm',
     'glama',
@@ -55,8 +57,10 @@ export function CompactModelCard({
     const priceLines = formatPricingLines(model.pricing || undefined);
     const descriptionLines = [
         `Provider: ${providerInfo.name}`,
-        `Max tokens: ${model.maxInputTokens.toLocaleString()}`,
-        model.supportedFileTypes.length > 0 && `Supports: ${model.supportedFileTypes.join(', ')}`,
+        model.maxInputTokens && `Max tokens: ${model.maxInputTokens.toLocaleString()}`,
+        Array.isArray(model.supportedFileTypes) &&
+            model.supportedFileTypes.length > 0 &&
+            `Supports: ${model.supportedFileTypes.join(', ')}`,
         !hasApiKey && 'API key required',
         ...priceLines,
     ].filter(Boolean) as string[];

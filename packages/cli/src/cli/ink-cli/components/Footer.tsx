@@ -44,6 +44,9 @@ export function Footer({
         percentLeft: number;
     } | null>(null);
 
+    // Check if Dexto is actually the active provider (not just if API key exists)
+    const viaDexto = agent.getCurrentLLMConfig().provider === 'dexto';
+
     useEffect(() => {
         if (!sessionId) {
             setContextLeft(null);
@@ -109,7 +112,10 @@ export function Footer({
                     <Text color={pathColor}>{displayPath}</Text>
                     {branchName && <Text color="gray"> ({branchName})</Text>}
                 </Box>
-                <Text color="cyan">{displayModelName}</Text>
+                <Box>
+                    <Text color="cyan">{displayModelName}</Text>
+                    {viaDexto && <Text color="gray"> via Dexto</Text>}
+                </Box>
             </Box>
 
             {/* Line 2: Context left */}

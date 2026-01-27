@@ -23,6 +23,14 @@ export {
     clearSyncDismissed,
     type SyncAgentsCommandOptions,
 } from './sync-agents.js';
+
+// Auth commands
+export { handleLoginCommand, handleLogoutCommand, handleStatusCommand } from './auth/index.js';
+
+// Billing commands
+export { handleBillingStatusCommand } from './billing/index.js';
+
+// Plugin commands
 export {
     handlePluginListCommand,
     handlePluginInstallCommand,

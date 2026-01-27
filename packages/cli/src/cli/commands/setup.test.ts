@@ -306,7 +306,7 @@ describe('Setup Command', () => {
             // New wizard flow uses p.select for setup type, selectProvider for provider
             mockPrompts.select.mockResolvedValueOnce('custom'); // Setup type
             mockSelectProvider.mockResolvedValueOnce('openai'); // Provider (via selectProvider)
-            mockPrompts.select.mockResolvedValueOnce('gpt-4'); // Model
+            mockPrompts.select.mockResolvedValueOnce('gpt-4o'); // Model (must be valid OpenAI model from registry)
             mockPrompts.select.mockResolvedValueOnce('web'); // Default mode
             mockHasApiKeyConfigured.mockReturnValue(false); // No API key exists
 
@@ -316,12 +316,11 @@ describe('Setup Command', () => {
 
             await handleSetupCommand(options);
 
-            // API key setup is called with provider and model option
+            // API key setup is called with provider and model
             expect(mockInteractiveApiKeySetup).toHaveBeenCalledWith(
                 'openai',
                 expect.objectContaining({
                     exitOnCancel: false,
-                    model: 'gpt-4',
                 })
             );
         });

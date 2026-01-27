@@ -5,11 +5,10 @@
  */
 
 import * as path from 'path';
-import { existsSync, readdirSync, readFileSync, rmSync, statSync } from 'fs';
+import { existsSync, readdirSync, readFileSync, rmSync } from 'fs';
 import { execSync } from 'child_process';
 import {
     getMarketplacesDir,
-    loadKnownMarketplaces,
     addMarketplaceEntry,
     removeMarketplaceEntry,
     getMarketplaceEntry,

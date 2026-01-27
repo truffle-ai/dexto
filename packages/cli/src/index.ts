@@ -18,6 +18,22 @@ import { withAnalytics, safeExit, ExitSignal } from './analytics/wrapper.js';
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json');
 
+// Set CLI version for Dexto Gateway usage tracking
+process.env.DEXTO_CLI_VERSION = pkg.version;
+
+// Populate DEXTO_API_KEY for Dexto gateway routing
+// Resolution order in getDextoApiKey():
+//   1. Explicit env var (CI, testing, account override)
+//   2. auth.json from `dexto login`
+import { isDextoAuthEnabled } from '@dexto/agent-management';
+if (isDextoAuthEnabled()) {
+    const { getDextoApiKey } = await import('./cli/auth/index.js');
+    const dextoApiKey = await getDextoApiKey();
+    if (dextoApiKey) {
+        process.env.DEXTO_API_KEY = dextoApiKey;
+    }
+}
+
 import {
     logger,
     getProviderFromModel,
@@ -39,11 +55,7 @@ import type { ValidatedAgentConfig } from '@dexto/core';
 import { startHonoApiServer } from './api/server-hono.js';
 import { validateCliOptions, handleCliOptionsError } from './cli/utils/options.js';
 import { validateAgentConfig } from './cli/utils/config-validation.js';
-import {
-    applyCLIOverrides,
-    applyUserPreferences,
-    checkAgentCompatibility,
-} from './config/cli-overrides.js';
+import { applyCLIOverrides, applyUserPreferences } from './config/cli-overrides.js';
 import { enrichAgentConfig } from '@dexto/agent-management';
 import { getPort } from './utils/port-utils.js';
 import {
@@ -69,6 +81,10 @@ import {
     markSyncDismissed,
     clearSyncDismissed,
     type SyncAgentsCommandOptions,
+    handleLoginCommand,
+    handleLogoutCommand,
+    handleStatusCommand,
+    handleBillingStatusCommand,
     handlePluginListCommand,
     handlePluginInstallCommand,
     handlePluginUninstallCommand,
@@ -829,7 +845,119 @@ program
         )
     );
 
-// 13) `mcp` SUB-COMMAND
+// 13) `auth` SUB-COMMAND GROUP
+const authCommand = program.command('auth').description('Manage authentication');
+
+authCommand
+    .command('login')
+    .description('Login to Dexto')
+    .option('--api-key <key>', 'Use Dexto API key instead of browser login')
+    .option('--no-interactive', 'Disable interactive prompts')
+    .action(
+        withAnalytics('auth login', async (options: { apiKey?: string; interactive?: boolean }) => {
+            try {
+                await handleLoginCommand(options);
+                safeExit('auth login', 0);
+            } catch (err) {
+                if (err instanceof ExitSignal) throw err;
+                console.error(`❌ dexto auth login command failed: ${err}`);
+                safeExit('auth login', 1, 'error');
+            }
+        })
+    );
+
+authCommand
+    .command('logout')
+    .description('Logout from Dexto')
+    .option('--force', 'Skip confirmation prompt')
+    .option('--no-interactive', 'Disable interactive prompts')
+    .action(
+        withAnalytics(
+            'auth logout',
+            async (options: { force?: boolean; interactive?: boolean }) => {
+                try {
+                    await handleLogoutCommand(options);
+                    safeExit('auth logout', 0);
+                } catch (err) {
+                    if (err instanceof ExitSignal) throw err;
+                    console.error(`❌ dexto auth logout command failed: ${err}`);
+                    safeExit('auth logout', 1, 'error');
+                }
+            }
+        )
+    );
+
+authCommand
+    .command('status')
+    .description('Show authentication status')
+    .action(
+        withAnalytics('auth status', async () => {
+            try {
+                await handleStatusCommand();
+                safeExit('auth status', 0);
+            } catch (err) {
+                if (err instanceof ExitSignal) throw err;
+                console.error(`❌ dexto auth status command failed: ${err}`);
+                safeExit('auth status', 1, 'error');
+            }
+        })
+    );
+
+// Also add convenience aliases at root level
+program
+    .command('login')
+    .description('Login to Dexto (alias for `dexto auth login`)')
+    .option('--api-key <key>', 'Use Dexto API key instead of browser login')
+    .option('--no-interactive', 'Disable interactive prompts')
+    .action(
+        withAnalytics('login', async (options: { apiKey?: string; interactive?: boolean }) => {
+            try {
+                await handleLoginCommand(options);
+                safeExit('login', 0);
+            } catch (err) {
+                if (err instanceof ExitSignal) throw err;
+                console.error(`❌ dexto login command failed: ${err}`);
+                safeExit('login', 1, 'error');
+            }
+        })
+    );
+
+program
+    .command('logout')
+    .description('Logout from Dexto (alias for `dexto auth logout`)')
+    .option('--force', 'Skip confirmation prompt')
+    .option('--no-interactive', 'Disable interactive prompts')
+    .action(
+        withAnalytics('logout', async (options: { force?: boolean; interactive?: boolean }) => {
+            try {
+                await handleLogoutCommand(options);
+                safeExit('logout', 0);
+            } catch (err) {
+                if (err instanceof ExitSignal) throw err;
+                console.error(`❌ dexto logout command failed: ${err}`);
+                safeExit('logout', 1, 'error');
+            }
+        })
+    );
+
+// 14) `billing` COMMAND
+program
+    .command('billing')
+    .description('Show billing status and credit balance')
+    .action(
+        withAnalytics('billing', async () => {
+            try {
+                await handleBillingStatusCommand();
+                safeExit('billing', 0);
+            } catch (err) {
+                if (err instanceof ExitSignal) throw err;
+                console.error(`❌ dexto billing command failed: ${err}`);
+                safeExit('billing', 1, 'error');
+            }
+        })
+    );
+
+// 15) `mcp` SUB-COMMAND
 // For now, this mode simply aggregates and re-expose tools from configured MCP servers (no agent)
 // dexto --mode mcp will be moved to this sub-command in the future
 program
@@ -919,7 +1047,7 @@ program
         )
     );
 
-// 14) Main dexto CLI - Interactive/One shot (CLI/HEADLESS) or run in other modes (--mode web/server/mcp)
+// 16) Main dexto CLI - Interactive/One shot (CLI/HEADLESS) or run in other modes (--mode web/server/mcp)
 program
     .argument(
         '[prompt...]',
@@ -1168,9 +1296,9 @@ program
                     let mergedConfig = applyCLIOverrides(rawConfig, opts as CLIConfigOverrides);
 
                     // ——— PREFERENCE-AWARE CONFIG HANDLING ———
-                    // For coding-agent (no explicit agent specified): Apply user preferences
-                    // For specific agents: Check compatibility and warn if needed
-                    const isDefaultAgent = !opts.agent;
+                    // User's LLM preferences from preferences.yml apply to ALL agents
+                    // See feature-plans/auto-update.md section 8.11 - Three-Layer LLM Resolution
+                    const agentId = opts.agent ?? 'coding-agent';
                     let preferences: Awaited<ReturnType<typeof loadGlobalPreferences>> | null =
                         null;
 
@@ -1183,12 +1311,56 @@ program
                         }
                     }
 
+                    // Check if user is configured for Dexto credits but not authenticated
+                    // This can happen if user logged out after setting up with Dexto
+                    // Now that preferences apply to ALL agents, we check for any agent
+                    // Only run this check when Dexto auth feature is enabled
+                    if (isDextoAuthEnabled()) {
+                        const { checkDextoAuthState } = await import(
+                            './cli/utils/dexto-auth-check.js'
+                        );
+                        const authCheck = await checkDextoAuthState(
+                            opts.interactive !== false,
+                            agentId
+                        );
+
+                        if (!authCheck.shouldContinue) {
+                            if (authCheck.action === 'login') {
+                                // User wants to log in - run login flow then restart
+                                const { handleLoginCommand } = await import(
+                                    './cli/commands/auth/login.js'
+                                );
+                                await handleLoginCommand({ interactive: true });
+
+                                // Verify key was actually provisioned (provisionKeys silently catches errors)
+                                const { canUseDextoProvider } = await import(
+                                    './cli/utils/dexto-setup.js'
+                                );
+                                if (!(await canUseDextoProvider())) {
+                                    console.error(
+                                        '\n❌ API key provisioning failed. Please try again or run `dexto setup` to use a different provider.\n'
+                                    );
+                                    safeExit('main', 1, 'dexto-key-provisioning-failed');
+                                }
+                                // After login, continue with startup (preferences unchanged, now authenticated)
+                            } else if (authCheck.action === 'setup') {
+                                // User wants to configure different provider - run setup
+                                const { handleSetupCommand } = await import(
+                                    './cli/commands/setup.js'
+                                );
+                                await handleSetupCommand({ interactive: true, force: true });
+                                // Reload preferences after setup
+                                preferences = await loadGlobalPreferences();
+                            } else {
+                                // User cancelled
+                                safeExit('main', 0, 'dexto-auth-check-cancelled');
+                            }
+                        }
+                    }
+
                     // Check for pending API key setup (user skipped during initial setup)
-                    if (
-                        isDefaultAgent &&
-                        preferences?.setup?.apiKeyPending &&
-                        opts.interactive !== false
-                    ) {
+                    // Since preferences now apply to ALL agents, this check runs for any agent
+                    if (preferences?.setup?.apiKeyPending && opts.interactive !== false) {
                         // Check if API key is still missing (user may have set it manually)
                         const configuredApiKey = resolveApiKeyForProvider(preferences.llm.provider);
                         if (!configuredApiKey) {
@@ -1230,87 +1402,16 @@ program
                         }
                     }
 
-                    if (isDefaultAgent && preferences) {
-                        // Default-agent: Apply user's LLM preferences at runtime
-                        // This ensures the base agent always uses user's preferred model/provider
+                    // Apply user's LLM preferences to ALL agents (not just the default)
+                    // See feature-plans/auto-update.md section 8.11 - Three-Layer LLM Resolution:
+                    //   local.llm ?? preferences.llm ?? bundled.llm
+                    // The preferences.llm acts as a "global .local.yml" for LLM settings
+                    if (preferences?.llm?.provider && preferences?.llm?.model) {
                         mergedConfig = applyUserPreferences(mergedConfig, preferences);
-                        logger.debug('Applied user preferences to coding-agent', {
+                        logger.debug(`Applied user preferences to ${agentId}`, {
                             provider: preferences.llm.provider,
                             model: preferences.llm.model,
                         });
-                    } else if (!isDefaultAgent && mergedConfig.llm) {
-                        // Specific agent: Check if user has the required provider configured
-                        const agentProvider = mergedConfig.llm.provider;
-                        const resolvedApiKey = resolveApiKeyForProvider(agentProvider);
-                        const compatibility = checkAgentCompatibility(
-                            mergedConfig,
-                            preferences,
-                            resolvedApiKey
-                        );
-
-                        if (!compatibility.compatible && opts.interactive !== false) {
-                            // User is missing API key for the agent's provider
-                            if (
-                                !compatibility.userHasApiKey &&
-                                preferences?.llm?.provider &&
-                                preferences?.llm?.model
-                            ) {
-                                // User has a default LLM configured - offer choice
-                                const { promptForMissingAgentApiKey } = await import(
-                                    './cli/utils/api-key-setup.js'
-                                );
-
-                                const result = await promptForMissingAgentApiKey(
-                                    compatibility.agentProvider,
-                                    compatibility.agentModel,
-                                    preferences.llm.provider,
-                                    preferences.llm.model
-                                );
-
-                                if (result.action === 'cancel') {
-                                    safeExit('main', 0, 'agent-api-key-cancelled');
-                                }
-
-                                if (result.action === 'use-default') {
-                                    // Apply user's default LLM to the agent config
-                                    mergedConfig = applyUserPreferences(mergedConfig, preferences);
-                                    // Also resolve the actual API key from environment
-                                    // (preferences store env var reference like $GOOGLE_API_KEY, not the actual key)
-                                    const userApiKey = resolveApiKeyForProvider(
-                                        preferences.llm.provider
-                                    );
-                                    if (userApiKey) {
-                                        mergedConfig.llm.apiKey = userApiKey;
-                                    }
-                                    logger.debug(
-                                        'Applied user preferences to agent (user chose default)',
-                                        {
-                                            provider: preferences.llm.provider,
-                                            model: preferences.llm.model,
-                                        }
-                                    );
-                                }
-
-                                if (result.action === 'add-key' && result.apiKey) {
-                                    // User added the API key - update the config
-                                    mergedConfig.llm.apiKey = result.apiKey;
-                                    logger.debug('Applied new API key to agent config');
-                                }
-                            } else {
-                                // No default LLM to fall back to - show warnings only
-                                console.log(chalk.yellow('\n⚠️  Agent Compatibility Notice:'));
-                                for (const warning of compatibility.warnings) {
-                                    console.log(chalk.yellow(`   ${warning}`));
-                                }
-                                if (compatibility.instructions.length > 0) {
-                                    console.log(chalk.dim('\n   To fix:'));
-                                    for (const instruction of compatibility.instructions) {
-                                        console.log(chalk.dim(`   ${instruction}`));
-                                    }
-                                }
-                                console.log(''); // Empty line for spacing
-                            }
-                        }
                     }
 
                     // Clean up null values from config (can happen from YAML files with explicit nulls)
@@ -1903,5 +2004,5 @@ program
         )
     );
 
-// 15) PARSE & EXECUTE
+// 17) PARSE & EXECUTE
 program.parseAsync(process.argv);
