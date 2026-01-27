@@ -455,7 +455,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         setMessages((prev) => [
                             ...prev,
                             {
-                                id: generateMessageId('system'),
+                                id: generateMessageId('error'),
                                 role: 'system',
                                 content: `❌ Failed to verify Dexto auth: ${error instanceof Error ? error.message : String(error)}`,
                                 timestamp: new Date(),

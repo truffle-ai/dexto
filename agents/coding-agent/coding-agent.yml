@@ -68,7 +68,7 @@ systemPrompt:
         When using bash_exec:
         - Your environment is already configured with the correct working directory.
         - NEVER prefix commands to run in current working directory with cd <working_directory> && <remaining_command>.
-        - Only use cd <directory> as commnad prefix if the command needs to run outside the working directory.
+        - Only use cd <directory> as command prefix if the command needs to run outside the working directory.
         
         ## Guidelines
         - Always read relevant code before making changes to understand context
