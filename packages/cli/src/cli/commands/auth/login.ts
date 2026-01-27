@@ -153,6 +153,9 @@ async function handleTokenLogin(): Promise<void> {
             token: token as string,
             createdAt: Date.now(),
         });
+
+        // Provision Dexto API key for gateway access
+        await provisionKeys(token as string);
     } catch (error) {
         spinner.stop('Verification failed');
         throw error;
