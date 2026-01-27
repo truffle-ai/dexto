@@ -98,11 +98,12 @@ export interface ProviderInfo {
      */
     supportsAllRegistryModels?: boolean;
     /**
-     * When true, this provider is hidden from user-facing UIs (model picker, provider selection).
-     * Used for transparent infrastructure providers like 'dexto' that route requests behind the scenes.
-     * The provider can still be used programmatically and in setup flows.
+     * OpenRouter prefix for this provider's models (e.g., 'openai', 'anthropic', 'x-ai').
+     * Used by gateway providers to parse and route prefixed model names.
+     * - If set: provider's models can be accessed via gateway as `{prefix}/{model}`
+     * - If undefined: provider is not accessible via gateways (local, gateway providers themselves)
      */
-    hidden?: boolean;
+    openrouterPrefix?: string;
 }
 
 /** Fallback when we cannot determine the model's input-token limit */
@@ -463,6 +464,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
         ],
         baseURLSupport: 'none',
         supportedFileTypes: [], // No defaults - models must explicitly specify support
+        openrouterPrefix: 'openai',
     },
     'openai-compatible': {
         models: [], // Empty - accepts any model name for custom endpoints
@@ -611,6 +613,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
         ],
         baseURLSupport: 'none',
         supportedFileTypes: [], // No defaults - models must explicitly specify support
+        openrouterPrefix: 'anthropic',
     },
     google: {
         models: [
@@ -731,6 +734,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
         ],
         baseURLSupport: 'none',
         supportedFileTypes: [], // No defaults - models must explicitly specify support
+        openrouterPrefix: 'google',
     },
     // https://console.groq.com/docs/models
     groq: {
@@ -913,6 +917,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
         ],
         baseURLSupport: 'none',
         supportedFileTypes: [], // XAI currently doesn't support file uploads
+        openrouterPrefix: 'x-ai',
     },
     // https://docs.cohere.com/reference/models
     cohere: {
@@ -973,6 +978,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
         ],
         baseURLSupport: 'none',
         supportedFileTypes: [], // Cohere currently doesn't support file uploads
+        openrouterPrefix: 'cohere',
     },
     // https://openrouter.ai/docs
     // OpenRouter is a unified API gateway providing access to 100+ models from various providers.
@@ -1600,28 +1606,23 @@ export function getMaxInputTokensForModel(
     model: string,
     logger?: IDextoLogger
 ): number {
-    const providerInfo = LLM_REGISTRY[provider];
+    // Resolve gateway providers to the original provider
+    const resolved = resolveToNativeProvider(provider, model);
+    const providerInfo = LLM_REGISTRY[resolved.provider];
 
-    // For gateway providers with supportsAllRegistryModels, resolve to original provider
-    if (providerInfo.supportsAllRegistryModels) {
-        const origin = resolveModelOrigin(model, provider);
-        if (origin) {
-            return getMaxInputTokensForModel(origin.provider, origin.model, logger);
-        }
-        // Model not found in any registry - fall through to error
-    }
-
-    const normalizedModel = stripBedrockRegionPrefix(model).toLowerCase();
+    const normalizedModel = stripBedrockRegionPrefix(resolved.model).toLowerCase();
     const modelInfo = providerInfo.models.find((m) => m.name.toLowerCase() === normalizedModel);
     if (!modelInfo) {
-        const supportedModels = getSupportedModels(provider).join(', ');
+        const supportedModels = getSupportedModels(resolved.provider).join(', ');
         logger?.error(
-            `Model '${model}' not found for provider '${provider}' in LLM registry. Supported models: ${supportedModels}`
+            `Model '${resolved.model}' not found for provider '${resolved.provider}' in LLM registry. Supported models: ${supportedModels}`
         );
-        throw LLMError.unknownModel(provider, model);
+        throw LLMError.unknownModel(resolved.provider, resolved.model);
     }
 
-    logger?.debug(`Found max tokens for ${provider}/${model}: ${modelInfo.maxInputTokens}`);
+    logger?.debug(
+        `Found max tokens for ${resolved.provider}/${resolved.model}: ${modelInfo.maxInputTokens}`
+    );
     return modelInfo.maxInputTokens;
 }
 
@@ -1653,11 +1654,12 @@ export function getProviderFromModel(model: string): LLMProvider {
         const modelName = rest.join('/');
         if (prefix) {
             const normalizedPrefix = prefix.toLowerCase();
-            // Check if prefix matches a known provider prefix (case-insensitive)
-            for (const [provider, providerPrefix] of Object.entries(OPENROUTER_PROVIDER_PREFIX)) {
+            // Check if prefix matches a known provider's openrouterPrefix (case-insensitive)
+            for (const provider of LLM_PROVIDERS) {
+                const providerPrefix = getOpenrouterPrefix(provider);
                 if (providerPrefix?.toLowerCase() === normalizedPrefix) {
                     // Verify model exists in this provider's registry before returning
-                    const providerInfo = LLM_REGISTRY[provider as LLMProvider];
+                    const providerInfo = LLM_REGISTRY[provider];
                     const normalizedModelName = stripBedrockRegionPrefix(modelName).toLowerCase();
                     const existsInProvider = providerInfo.models.some(
                         (m) =>
@@ -1665,7 +1667,7 @@ export function getProviderFromModel(model: string): LLMProvider {
                             m.openrouterId?.toLowerCase() === model.toLowerCase()
                     );
                     if (existsInProvider) {
-                        return provider as LLMProvider;
+                        return provider;
                     }
                     // Model not found in matched provider - fall through to registry scan
                     break;
@@ -1743,31 +1745,28 @@ export function hasAllRegistryModelsSupport(provider: LLMProvider): boolean {
 }
 
 /**
- * Provider prefix mapping for OpenRouter/Dexto model format.
- * Maps native provider names to their OpenRouter prefix.
- * null means the provider's models already have vendor prefixes (e.g., groq models like 'meta-llama/...')
+ * Gets the OpenRouter prefix for a provider from the registry.
+ * Returns undefined if the provider doesn't have a prefix (e.g., groq models already have vendor prefixes).
  */
-const OPENROUTER_PROVIDER_PREFIX: Partial<Record<LLMProvider, string | null>> = {
-    openai: 'openai',
-    anthropic: 'anthropic',
-    google: 'google',
-    xai: 'x-ai',
-    cohere: 'cohere',
-    groq: null, // Groq models already have vendor prefix (meta-llama/, qwen/, etc.)
-};
+function getOpenrouterPrefix(provider: LLMProvider): string | undefined {
+    return LLM_REGISTRY[provider].openrouterPrefix;
+}
 
 /**
  * Providers whose models are accessible via gateway providers with supportsAllRegistryModels.
- * Excludes local-only providers and gateway providers themselves.
+ * Derived from providers that have openrouterPrefix OR whose models don't need transformation (groq).
  */
-const GATEWAY_ACCESSIBLE_PROVIDERS: LLMProvider[] = [
-    'openai',
-    'anthropic',
-    'google',
-    'groq',
-    'xai',
-    'cohere',
-];
+const GATEWAY_ACCESSIBLE_PROVIDERS: LLMProvider[] = (
+    Object.entries(LLM_REGISTRY) as [LLMProvider, ProviderInfo][]
+)
+    .filter(
+        ([provider, info]) =>
+            // Has openrouterPrefix (needs transformation)
+            info.openrouterPrefix !== undefined ||
+            // Special case: groq models already have vendor prefixes, no transformation needed
+            provider === 'groq'
+    )
+    .map(([provider]) => provider);
 
 /**
  * Gets all models available for a provider, including inherited models
@@ -1826,13 +1825,13 @@ export function transformModelNameForProvider(
     originalProvider: LLMProvider,
     targetProvider: LLMProvider
 ): string {
-    // Only transform when targeting gateway providers
-    if (targetProvider !== 'dexto' && targetProvider !== 'openrouter') {
+    // Only transform when targeting gateway providers (those with supportsAllRegistryModels)
+    if (!hasAllRegistryModelsSupport(targetProvider)) {
         return model;
     }
 
     // If original provider is already a gateway, model is already in correct format
-    if (originalProvider === 'dexto' || originalProvider === 'openrouter') {
+    if (hasAllRegistryModelsSupport(originalProvider)) {
         return model;
     }
 
@@ -1841,10 +1840,10 @@ export function transformModelNameForProvider(
         return model;
     }
 
-    // For providers whose models already have vendor prefixes (like groq's meta-llama/),
+    // For providers without openrouterPrefix (like groq whose models already have vendor prefixes),
     // no transformation needed
-    const prefix = OPENROUTER_PROVIDER_PREFIX[originalProvider];
-    if (prefix === null) {
+    const prefix = getOpenrouterPrefix(originalProvider);
+    if (!prefix) {
         return model;
     }
 
@@ -1865,7 +1864,7 @@ export function transformModelNameForProvider(
         ErrorScope.LLM,
         ErrorType.SYSTEM,
         `Model '${model}' from provider '${originalProvider}' has no openrouterId mapping. ` +
-            `All models that can be used via gateway providers (dexto/openrouter) must have explicit openrouterId in the registry.`,
+            `All models that can be used via gateway providers must have explicit openrouterId in the registry.`,
         { model, originalProvider, targetProvider }
     );
 }
@@ -1894,25 +1893,26 @@ export function resolveModelOrigin(
         // Find provider by prefix (case-insensitive)
         if (prefix) {
             const normalizedPrefix = prefix.toLowerCase();
-            for (const [provider, providerPrefix] of Object.entries(OPENROUTER_PROVIDER_PREFIX)) {
+            for (const provider of LLM_PROVIDERS) {
+                const providerPrefix = getOpenrouterPrefix(provider);
                 if (providerPrefix?.toLowerCase() === normalizedPrefix) {
                     // Reverse lookup: find native model name via openrouterId
                     // e.g., 'anthropic/claude-opus-4.5' → 'claude-opus-4-5-20251101'
-                    const providerInfo = LLM_REGISTRY[provider as LLMProvider];
+                    const providerInfo = LLM_REGISTRY[provider];
                     const nativeModel = providerInfo?.models.find(
                         (m) => m.openrouterId?.toLowerCase() === model.toLowerCase()
                     );
                     if (nativeModel) {
-                        return { provider: provider as LLMProvider, model: nativeModel.name };
+                        return { provider, model: nativeModel.name };
                     }
                     // Fallback: return extracted model name (may be custom or already native)
-                    return { provider: provider as LLMProvider, model: modelName };
+                    return { provider, model: modelName };
                 }
             }
         }
 
-        // For models with vendor prefix (like meta-llama/llama-3.3-70b), check groq
-        // The full model name including prefix might be in groq's registry
+        // For models with vendor prefix (like meta-llama/llama-3.3-70b), check all accessible providers
+        // The full model name including prefix might be in the registry (e.g., groq models)
         for (const sourceProvider of GATEWAY_ACCESSIBLE_PROVIDERS) {
             const sourceInfo = LLM_REGISTRY[sourceProvider];
             if (sourceInfo.models.some((m) => m.name.toLowerCase() === model.toLowerCase())) {
@@ -1932,6 +1932,28 @@ export function resolveModelOrigin(
 
     // Model not found in any registry - might be a custom model
     return null;
+}
+
+/**
+ * Resolves a gateway provider to its underlying native provider.
+ * For gateway providers (dexto, openrouter), finds the original provider that owns the model.
+ * For native providers, returns the input unchanged.
+ *
+ * @example
+ * resolveToNativeProvider('dexto', 'anthropic/claude-opus-4.5') → { provider: 'anthropic', model: 'claude-opus-4-5-20251101' }
+ * resolveToNativeProvider('openai', 'gpt-5-mini') → { provider: 'openai', model: 'gpt-5-mini' }
+ */
+function resolveToNativeProvider(
+    provider: LLMProvider,
+    model: string
+): { provider: LLMProvider; model: string } {
+    if (hasAllRegistryModelsSupport(provider)) {
+        const origin = resolveModelOrigin(model, provider);
+        if (origin) {
+            return origin;
+        }
+    }
+    return { provider, model };
 }
 
 /**
@@ -2006,30 +2028,20 @@ export function getSupportedFileTypesForModel(
     provider: LLMProvider,
     model: string
 ): SupportedFileType[] {
-    const providerInfo = LLM_REGISTRY[provider];
+    // Resolve gateway providers to the original provider
+    const resolved = resolveToNativeProvider(provider, model);
+    const providerInfo = LLM_REGISTRY[resolved.provider];
 
-    // For gateway providers with supportsAllRegistryModels, resolve to original provider
-    if (providerInfo.supportsAllRegistryModels) {
-        const origin = resolveModelOrigin(model, provider);
-        if (origin) {
-            return getSupportedFileTypesForModel(origin.provider, origin.model);
-        }
-        // Model not found - fall back to provider-level supportedFileTypes
-        return providerInfo.supportedFileTypes;
-    }
-
-    // Special case: providers that accept any model name (e.g., openai-compatible)
-    if (acceptsAnyModel(provider)) {
-        // For custom endpoints, use the provider-level supportedFileTypes declaration
-        // This allows attachments despite unknown model capabilities (user assumes responsibility)
+    // For providers that accept any model name (openai-compatible, gateways with custom models)
+    if (acceptsAnyModel(resolved.provider)) {
         return providerInfo.supportedFileTypes;
     }
 
     // Find the specific model (strip Bedrock region prefix for lookup)
-    const normalizedModel = stripBedrockRegionPrefix(model).toLowerCase();
+    const normalizedModel = stripBedrockRegionPrefix(resolved.model).toLowerCase();
     const modelInfo = providerInfo.models.find((m) => m.name.toLowerCase() === normalizedModel);
     if (!modelInfo) {
-        throw LLMError.unknownModel(provider, model);
+        throw LLMError.unknownModel(resolved.provider, resolved.model);
     }
 
     return modelInfo.supportedFileTypes;
@@ -2247,24 +2259,16 @@ export function getEffectiveMaxInputTokens(config: LLMConfig, logger: IDextoLogg
  * @returns The pricing information for the model, or undefined if not available.
  */
 export function getModelPricing(provider: LLMProvider, model: string): ModelPricing | undefined {
-    const providerInfo = LLM_REGISTRY[provider];
+    // Resolve gateway providers to the original provider
+    const resolved = resolveToNativeProvider(provider, model);
+    const providerInfo = LLM_REGISTRY[resolved.provider];
 
-    // For gateway providers with supportsAllRegistryModels, resolve to original provider
-    if (providerInfo.supportsAllRegistryModels) {
-        const origin = resolveModelOrigin(model, provider);
-        if (origin) {
-            return getModelPricing(origin.provider, origin.model);
-        }
-        // Model not found in any registry
+    // For providers that accept any model name, no pricing available
+    if (acceptsAnyModel(resolved.provider)) {
         return undefined;
     }
 
-    // Special case: providers that accept any model name (e.g., openai-compatible)
-    if (acceptsAnyModel(provider)) {
-        return undefined; // No pricing for custom endpoints
-    }
-
-    const normalizedModel = stripBedrockRegionPrefix(model).toLowerCase();
+    const normalizedModel = stripBedrockRegionPrefix(resolved.model).toLowerCase();
     const modelInfo = providerInfo.models.find((m) => m.name.toLowerCase() === normalizedModel);
     return modelInfo?.pricing;
 }
@@ -2274,31 +2278,23 @@ export function getModelPricing(provider: LLMProvider, model: string): ModelPric
  * For gateway providers with supportsAllRegistryModels, looks up the model in its original provider.
  */
 export function getModelDisplayName(model: string, provider?: LLMProvider): string {
-    let resolvedProvider: LLMProvider;
+    let inferredProvider: LLMProvider;
     try {
-        resolvedProvider = provider ?? getProviderFromModel(model);
+        inferredProvider = provider ?? getProviderFromModel(model);
     } catch {
         // Unknown model - fall back to model ID
         return model;
     }
 
-    const providerInfo = LLM_REGISTRY[resolvedProvider];
+    // Resolve gateway providers to the original provider
+    const resolved = resolveToNativeProvider(inferredProvider, model);
+    const providerInfo = LLM_REGISTRY[resolved.provider];
 
-    // For gateway providers with supportsAllRegistryModels, resolve to original provider
-    if (providerInfo?.supportsAllRegistryModels) {
-        const origin = resolveModelOrigin(model, resolvedProvider);
-        if (origin) {
-            return getModelDisplayName(origin.model, origin.provider);
-        }
-        // Model not found in any registry
+    if (!providerInfo || acceptsAnyModel(resolved.provider)) {
         return model;
     }
 
-    if (!providerInfo || acceptsAnyModel(resolvedProvider)) {
-        return model;
-    }
-
-    const normalizedModel = stripBedrockRegionPrefix(model).toLowerCase();
+    const normalizedModel = stripBedrockRegionPrefix(resolved.model).toLowerCase();
     const modelInfo = providerInfo.models.find((m) => m.name.toLowerCase() === normalizedModel);
     return modelInfo?.displayName ?? model;
 }

@@ -1951,7 +1951,7 @@ export class DextoAgent {
      * ```
      */
     public getSupportedProviders(): LLMProvider[] {
-        return getSupportedProviders() as LLMProvider[];
+        return getSupportedProviders();
     }
 
     /**
@@ -1980,22 +1980,8 @@ export class DextoAgent {
             Array<ModelInfo & { isDefault: boolean; originalProvider?: LLMProvider }>
         >;
 
-        const providers = getSupportedProviders() as LLMProvider[];
-        for (const provider of providers) {
-            // Use getAllModelsForProvider which handles supportsAllRegistryModels
-            const models = getAllModelsForProvider(provider);
-
-            result[provider] = models.map((model) => {
-                // For inherited models, get default from the original provider
-                const originalProvider =
-                    'originalProvider' in model ? model.originalProvider : provider;
-                const defaultModel = getDefaultModelForProvider(originalProvider ?? provider);
-
-                return {
-                    ...model,
-                    isDefault: model.name === defaultModel,
-                };
-            });
+        for (const provider of this.getSupportedProviders()) {
+            result[provider] = this.getSupportedModelsForProvider(provider);
         }
 
         return result;
