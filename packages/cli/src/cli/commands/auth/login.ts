@@ -168,6 +168,7 @@ async function verifyToken(token: string): Promise<boolean> {
                 apikey: SUPABASE_ANON_KEY,
                 'User-Agent': 'dexto-cli/1.0.0',
             },
+            signal: AbortSignal.timeout(10_000),
         });
 
         if (response.ok) {

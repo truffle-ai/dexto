@@ -162,6 +162,7 @@ async function refreshAccessToken(refreshToken: string): Promise<{
             body: JSON.stringify({
                 refresh_token: refreshToken,
             }),
+            signal: AbortSignal.timeout(10_000),
         });
 
         if (!response.ok) {
