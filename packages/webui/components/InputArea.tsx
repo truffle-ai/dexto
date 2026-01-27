@@ -842,8 +842,21 @@ export default function InputArea({
             const reader = new FileReader();
             reader.onloadend = () => {
                 try {
-                    const result = reader.result as string;
+                    const result = reader.result;
+
+                    // Validate that result is a string
+                    if (typeof result !== 'string') {
+                        reject(new Error('Malformed data URL: FileReader result is not a string'));
+                        return;
+                    }
+
+                    // Validate that comma exists in data URL format (data:mime/type;base64,data)
                     const commaIndex = result.indexOf(',');
+                    if (commaIndex === -1) {
+                        reject(new Error('Malformed data URL: missing comma separator'));
+                        return;
+                    }
+
                     const data = result.substring(commaIndex + 1);
 
                     const attachment: Attachment = {
