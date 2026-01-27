@@ -1287,4 +1287,296 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             });
         });
     });
+
+    describe('Session Auto-Approve Tools (Skill allowed-tools)', () => {
+        describe('Basic CRUD Operations', () => {
+            it('should set and get session auto-approve tools', () => {
+                const toolManager = new ToolManager(
+                    mockMcpManager,
+                    mockApprovalManager,
+                    mockAllowedToolsProvider,
+                    'manual',
+                    mockAgentEventBus,
+                    { alwaysAllow: [], alwaysDeny: [] },
+                    { internalToolsConfig: [], internalToolsServices: {} as any },
+                    mockLogger
+                );
+
+                const sessionId = 'test-session-123';
+                const tools = ['internal--bash', 'mcp--read_file'];
+
+                toolManager.setSessionAutoApproveTools(sessionId, tools);
+
+                expect(toolManager.hasSessionAutoApproveTools(sessionId)).toBe(true);
+                expect(toolManager.getSessionAutoApproveTools(sessionId)).toEqual(tools);
+            });
+
+            it('should return false/undefined for non-existent sessions', () => {
+                const toolManager = new ToolManager(
+                    mockMcpManager,
+                    mockApprovalManager,
+                    mockAllowedToolsProvider,
+                    'manual',
+                    mockAgentEventBus,
+                    { alwaysAllow: [], alwaysDeny: [] },
+                    { internalToolsConfig: [], internalToolsServices: {} as any },
+                    mockLogger
+                );
+
+                expect(toolManager.hasSessionAutoApproveTools('non-existent')).toBe(false);
+                expect(toolManager.getSessionAutoApproveTools('non-existent')).toBeUndefined();
+            });
+
+            it('should clear session auto-approve tools', () => {
+                const toolManager = new ToolManager(
+                    mockMcpManager,
+                    mockApprovalManager,
+                    mockAllowedToolsProvider,
+                    'manual',
+                    mockAgentEventBus,
+                    { alwaysAllow: [], alwaysDeny: [] },
+                    { internalToolsConfig: [], internalToolsServices: {} as any },
+                    mockLogger
+                );
+
+                const sessionId = 'test-session-123';
+                toolManager.setSessionAutoApproveTools(sessionId, ['internal--bash']);
+
+                expect(toolManager.hasSessionAutoApproveTools(sessionId)).toBe(true);
+
+                toolManager.clearSessionAutoApproveTools(sessionId);
+
+                expect(toolManager.hasSessionAutoApproveTools(sessionId)).toBe(false);
+                expect(toolManager.getSessionAutoApproveTools(sessionId)).toBeUndefined();
+            });
+
+            it('should handle multiple sessions independently', () => {
+                const toolManager = new ToolManager(
+                    mockMcpManager,
+                    mockApprovalManager,
+                    mockAllowedToolsProvider,
+                    'manual',
+                    mockAgentEventBus,
+                    { alwaysAllow: [], alwaysDeny: [] },
+                    { internalToolsConfig: [], internalToolsServices: {} as any },
+                    mockLogger
+                );
+
+                const session1 = 'session-1';
+                const session2 = 'session-2';
+
+                toolManager.setSessionAutoApproveTools(session1, ['internal--bash']);
+                toolManager.setSessionAutoApproveTools(session2, [
+                    'mcp--read_file',
+                    'mcp--write_file',
+                ]);
+
+                expect(toolManager.getSessionAutoApproveTools(session1)).toEqual([
+                    'internal--bash',
+                ]);
+                expect(toolManager.getSessionAutoApproveTools(session2)).toEqual([
+                    'mcp--read_file',
+                    'mcp--write_file',
+                ]);
+
+                // Clearing one session should not affect the other
+                toolManager.clearSessionAutoApproveTools(session1);
+
+                expect(toolManager.hasSessionAutoApproveTools(session1)).toBe(false);
+                expect(toolManager.hasSessionAutoApproveTools(session2)).toBe(true);
+            });
+
+            it('should overwrite existing tools when setting again', () => {
+                const toolManager = new ToolManager(
+                    mockMcpManager,
+                    mockApprovalManager,
+                    mockAllowedToolsProvider,
+                    'manual',
+                    mockAgentEventBus,
+                    { alwaysAllow: [], alwaysDeny: [] },
+                    { internalToolsConfig: [], internalToolsServices: {} as any },
+                    mockLogger
+                );
+
+                const sessionId = 'test-session';
+                toolManager.setSessionAutoApproveTools(sessionId, ['tool1']);
+                toolManager.setSessionAutoApproveTools(sessionId, ['tool2', 'tool3']);
+
+                expect(toolManager.getSessionAutoApproveTools(sessionId)).toEqual([
+                    'tool2',
+                    'tool3',
+                ]);
+            });
+        });
+
+        describe('Auto-Approve Precedence', () => {
+            it('should auto-approve tools in session auto-approve list', async () => {
+                (mockMcpManager.getAllTools as ReturnType<typeof vi.fn>).mockResolvedValue({
+                    test_tool: {
+                        name: 'test_tool',
+                        description: 'A test tool',
+                        inputSchema: {},
+                    },
+                });
+                (mockMcpManager.executeTool as ReturnType<typeof vi.fn>).mockResolvedValue(
+                    'success'
+                );
+
+                const toolManager = new ToolManager(
+                    mockMcpManager,
+                    mockApprovalManager,
+                    mockAllowedToolsProvider,
+                    'manual', // Manual mode - normally requires approval
+                    mockAgentEventBus,
+                    { alwaysAllow: [], alwaysDeny: [] },
+                    { internalToolsConfig: [], internalToolsServices: {} as any },
+                    mockLogger
+                );
+
+                const sessionId = 'test-session';
+                toolManager.setSessionAutoApproveTools(sessionId, ['mcp--test_tool']);
+
+                // Execute tool with sessionId
+                await toolManager.executeTool('mcp--test_tool', {}, 'call-1', sessionId);
+
+                // Should NOT have requested approval (auto-approved by session config)
+                expect(mockApprovalManager.requestToolConfirmation).not.toHaveBeenCalled();
+                expect(mockMcpManager.executeTool).toHaveBeenCalledWith('test_tool', {}, sessionId);
+            });
+
+            it('should still require approval for tools NOT in session auto-approve list', async () => {
+                (mockMcpManager.getAllTools as ReturnType<typeof vi.fn>).mockResolvedValue({
+                    allowed_tool: {
+                        name: 'allowed_tool',
+                        description: 'Allowed tool',
+                        inputSchema: {},
+                    },
+                    other_tool: {
+                        name: 'other_tool',
+                        description: 'Other tool',
+                        inputSchema: {},
+                    },
+                });
+                (mockMcpManager.executeTool as ReturnType<typeof vi.fn>).mockResolvedValue(
+                    'success'
+                );
+
+                const toolManager = new ToolManager(
+                    mockMcpManager,
+                    mockApprovalManager,
+                    mockAllowedToolsProvider,
+                    'manual',
+                    mockAgentEventBus,
+                    { alwaysAllow: [], alwaysDeny: [] },
+                    { internalToolsConfig: [], internalToolsServices: {} as any },
+                    mockLogger
+                );
+
+                const sessionId = 'test-session';
+                toolManager.setSessionAutoApproveTools(sessionId, ['mcp--allowed_tool']);
+
+                // Execute a tool NOT in the auto-approve list
+                await toolManager.executeTool('mcp--other_tool', {}, 'call-1', sessionId);
+
+                // Should have requested approval
+                expect(mockApprovalManager.requestToolConfirmation).toHaveBeenCalled();
+            });
+
+            it('should respect alwaysDeny even if tool is in session auto-approve', async () => {
+                (mockMcpManager.getAllTools as ReturnType<typeof vi.fn>).mockResolvedValue({
+                    dangerous_tool: {
+                        name: 'dangerous_tool',
+                        description: 'A dangerous tool',
+                        inputSchema: {},
+                    },
+                });
+
+                const toolManager = new ToolManager(
+                    mockMcpManager,
+                    mockApprovalManager,
+                    mockAllowedToolsProvider,
+                    'manual',
+                    mockAgentEventBus,
+                    { alwaysAllow: [], alwaysDeny: ['mcp--dangerous_tool'] }, // In deny list (full qualified name)
+                    { internalToolsConfig: [], internalToolsServices: {} as any },
+                    mockLogger
+                );
+
+                const sessionId = 'test-session';
+                toolManager.setSessionAutoApproveTools(sessionId, ['mcp--dangerous_tool']);
+
+                // Should throw because alwaysDeny takes precedence
+                await expect(
+                    toolManager.executeTool('mcp--dangerous_tool', {}, 'call-1', sessionId)
+                ).rejects.toThrow();
+
+                expect(mockMcpManager.executeTool).not.toHaveBeenCalled();
+            });
+
+            it('should not auto-approve if sessionId does not match', async () => {
+                (mockMcpManager.getAllTools as ReturnType<typeof vi.fn>).mockResolvedValue({
+                    test_tool: {
+                        name: 'test_tool',
+                        description: 'A test tool',
+                        inputSchema: {},
+                    },
+                });
+                (mockMcpManager.executeTool as ReturnType<typeof vi.fn>).mockResolvedValue(
+                    'success'
+                );
+
+                const toolManager = new ToolManager(
+                    mockMcpManager,
+                    mockApprovalManager,
+                    mockAllowedToolsProvider,
+                    'manual',
+                    mockAgentEventBus,
+                    { alwaysAllow: [], alwaysDeny: [] },
+                    { internalToolsConfig: [], internalToolsServices: {} as any },
+                    mockLogger
+                );
+
+                // Set auto-approve for session-1
+                toolManager.setSessionAutoApproveTools('session-1', ['mcp--test_tool']);
+
+                // Execute with different session
+                await toolManager.executeTool('mcp--test_tool', {}, 'call-1', 'session-2');
+
+                // Should have requested approval (different session)
+                expect(mockApprovalManager.requestToolConfirmation).toHaveBeenCalled();
+            });
+
+            it('should not auto-approve when no sessionId provided', async () => {
+                (mockMcpManager.getAllTools as ReturnType<typeof vi.fn>).mockResolvedValue({
+                    test_tool: {
+                        name: 'test_tool',
+                        description: 'A test tool',
+                        inputSchema: {},
+                    },
+                });
+                (mockMcpManager.executeTool as ReturnType<typeof vi.fn>).mockResolvedValue(
+                    'success'
+                );
+
+                const toolManager = new ToolManager(
+                    mockMcpManager,
+                    mockApprovalManager,
+                    mockAllowedToolsProvider,
+                    'manual',
+                    mockAgentEventBus,
+                    { alwaysAllow: [], alwaysDeny: [] },
+                    { internalToolsConfig: [], internalToolsServices: {} as any },
+                    mockLogger
+                );
+
+                toolManager.setSessionAutoApproveTools('session-1', ['mcp--test_tool']);
+
+                // Execute without sessionId
+                await toolManager.executeTool('mcp--test_tool', {}, 'call-1');
+
+                // Should have requested approval (no sessionId means no session auto-approve)
+                expect(mockApprovalManager.requestToolConfirmation).toHaveBeenCalled();
+            });
+        });
+    });
 });
