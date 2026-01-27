@@ -154,7 +154,7 @@ customTools:
     securityLevel: moderate
   - type: todo-tools
   - type: plan-tools
-    basePath: .dexto/plans
+    basePath: "${{dexto.project_dir}}/plans"
   - type: agent-spawner
     maxConcurrentAgents: 5
     defaultTimeout: 300000
