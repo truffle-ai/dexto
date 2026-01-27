@@ -245,6 +245,57 @@ describe('discoverCommandPrompts', () => {
         });
     });
 
+    describe('discovery from local .claude/commands/', () => {
+        it('should discover commands from <cwd>/.claude/commands/', () => {
+            vi.mocked(fs.existsSync).mockImplementation(
+                (p) => p === '/test/project/.claude/commands'
+            );
+            vi.mocked(fs.readdirSync).mockImplementation((dir) => {
+                if (dir === '/test/project/.claude/commands') {
+                    return [
+                        createDirent('quality-checks.md', true),
+                        createDirent('deploy.md', true),
+                    ] as any;
+                }
+                return [];
+            });
+
+            const result = discoverCommandPrompts();
+
+            expect(result).toHaveLength(2);
+            expect(result[0]).toEqual({
+                type: 'file',
+                file: '/test/project/.claude/commands/quality-checks.md',
+            });
+            expect(result[1]).toEqual({
+                type: 'file',
+                file: '/test/project/.claude/commands/deploy.md',
+            });
+        });
+    });
+
+    describe('discovery from local .cursor/commands/', () => {
+        it('should discover commands from <cwd>/.cursor/commands/', () => {
+            vi.mocked(fs.existsSync).mockImplementation(
+                (p) => p === '/test/project/.cursor/commands'
+            );
+            vi.mocked(fs.readdirSync).mockImplementation((dir) => {
+                if (dir === '/test/project/.cursor/commands') {
+                    return [createDirent('lint.md', true)] as any;
+                }
+                return [];
+            });
+
+            const result = discoverCommandPrompts();
+
+            expect(result).toHaveLength(1);
+            expect(result[0]).toEqual({
+                type: 'file',
+                file: '/test/project/.cursor/commands/lint.md',
+            });
+        });
+    });
+
     describe('discovery from global directories', () => {
         it('should discover commands from ~/.dexto/commands/', () => {
             vi.mocked(fs.existsSync).mockImplementation((p) => p === '/home/user/.dexto/commands');
@@ -261,6 +312,42 @@ describe('discoverCommandPrompts', () => {
             expect(result[0]).toEqual({
                 type: 'file',
                 file: '/home/user/.dexto/commands/global-cmd.md',
+            });
+        });
+
+        it('should discover commands from ~/.claude/commands/', () => {
+            vi.mocked(fs.existsSync).mockImplementation((p) => p === '/home/user/.claude/commands');
+            vi.mocked(fs.readdirSync).mockImplementation((dir) => {
+                if (dir === '/home/user/.claude/commands') {
+                    return [createDirent('claude-global.md', true)] as any;
+                }
+                return [];
+            });
+
+            const result = discoverCommandPrompts();
+
+            expect(result).toHaveLength(1);
+            expect(result[0]).toEqual({
+                type: 'file',
+                file: '/home/user/.claude/commands/claude-global.md',
+            });
+        });
+
+        it('should discover commands from ~/.cursor/commands/', () => {
+            vi.mocked(fs.existsSync).mockImplementation((p) => p === '/home/user/.cursor/commands');
+            vi.mocked(fs.readdirSync).mockImplementation((dir) => {
+                if (dir === '/home/user/.cursor/commands') {
+                    return [createDirent('cursor-global.md', true)] as any;
+                }
+                return [];
+            });
+
+            const result = discoverCommandPrompts();
+
+            expect(result).toHaveLength(1);
+            expect(result[0]).toEqual({
+                type: 'file',
+                file: '/home/user/.cursor/commands/cursor-global.md',
             });
         });
     });

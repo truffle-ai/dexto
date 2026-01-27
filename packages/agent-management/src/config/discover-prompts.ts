@@ -9,9 +9,13 @@
  * Local commands (project-specific):
  * 1. <projectRoot>/commands/ (dexto-source dev mode or dexto-project only)
  * 2. <cwd>/.dexto/commands/
+ * 3. <cwd>/.claude/commands/ (Claude Code compatibility)
+ * 4. <cwd>/.cursor/commands/ (Cursor compatibility)
  *
  * Global commands (user-wide):
- * 3. ~/.dexto/commands/
+ * 5. ~/.dexto/commands/
+ * 6. ~/.claude/commands/ (Claude Code compatibility)
+ * 7. ~/.cursor/commands/ (Cursor compatibility)
  *
  * Files with the same basename are deduplicated (first found wins).
  */
@@ -43,6 +47,7 @@ export function discoverCommandPrompts(): FilePromptEntry[] {
     const prompts: FilePromptEntry[] = [];
     const seenFiles = new Set<string>();
     const cwd = process.cwd();
+    const homeDir = process.env.HOME || process.env.USERPROFILE || '';
 
     // Helper to scan a directory and add unique files
     const scanAndAdd = (dir: string): void => {
@@ -98,10 +103,26 @@ export function discoverCommandPrompts(): FilePromptEntry[] {
     // 2. Dexto local commands: <cwd>/.dexto/commands/
     scanAndAdd(path.join(cwd, '.dexto', 'commands'));
 
+    // 3. Claude Code local commands: <cwd>/.claude/commands/
+    scanAndAdd(path.join(cwd, '.claude', 'commands'));
+
+    // 4. Cursor local commands: <cwd>/.cursor/commands/
+    scanAndAdd(path.join(cwd, '.cursor', 'commands'));
+
     // === Global commands (user-wide) ===
 
-    // 3. Dexto global commands: ~/.dexto/commands/
+    // 5. Dexto global commands: ~/.dexto/commands/
     scanAndAdd(getDextoGlobalPath('commands'));
+
+    // 6. Claude Code global commands: ~/.claude/commands/
+    if (homeDir) {
+        scanAndAdd(path.join(homeDir, '.claude', 'commands'));
+    }
+
+    // 7. Cursor global commands: ~/.cursor/commands/
+    if (homeDir) {
+        scanAndAdd(path.join(homeDir, '.cursor', 'commands'));
+    }
 
     return prompts;
 }
