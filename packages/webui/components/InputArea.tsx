@@ -834,8 +834,21 @@ export default function InputArea({
             const reader = new FileReader();
             reader.onloadend = () => {
                 try {
-                    const result = reader.result as string;
+                    const result = reader.result;
+
+                    // Validate that result is a string
+                    if (typeof result !== 'string') {
+                        reject(new Error('Malformed data URL: FileReader result is not a string'));
+                        return;
+                    }
+
+                    // Validate that comma exists in data URL format (data:mime/type;base64,data)
                     const commaIndex = result.indexOf(',');
+                    if (commaIndex === -1) {
+                        reject(new Error('Malformed data URL: missing comma separator'));
+                        return;
+                    }
+
                     const data = result.substring(commaIndex + 1);
 
                     const attachment: Attachment = {
@@ -1027,6 +1040,15 @@ export default function InputArea({
         }
     };
 
+    // Keyboard handler for accessibility - allows keyboard users to activate file picker
+    const handleDropZoneKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            // Trigger the first available file input for keyboard users
+            fileInputRef.current?.click();
+        }
+    };
+
     // Unified input panel: use the same full-featured chat composer in both welcome and chat states
 
     // Chat variant - full featured input area
@@ -1077,6 +1099,9 @@ export default function InputArea({
                     }}
                 >
                     <div
+                        role="region"
+                        aria-label="Message input area with file drop zone. Press Enter or Space to select files"
+                        tabIndex={0}
                         className={cn(
                             'relative transition-all duration-200',
                             isDragging && 'ring-2 ring-primary ring-offset-2 rounded-lg'
@@ -1085,6 +1110,7 @@ export default function InputArea({
                         onDragOver={handleDragOver}
                         onDragLeave={handleDragLeave}
                         onDrop={handleDrop}
+                        onKeyDown={handleDropZoneKeyDown}
                     >
                         <ChatInputContainer>
                             {/* Drop overlay with visual feedback */}
