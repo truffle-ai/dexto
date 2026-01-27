@@ -10,30 +10,32 @@ import { SUPABASE_URL, SUPABASE_ANON_KEY } from './constants.js';
 const AUTH_CONFIG_FILE = 'auth.json';
 
 export interface AuthConfig {
-    token: string;
+    /** Supabase access token from OAuth login (optional if using --api-key) */
+    token?: string | undefined;
     refreshToken?: string | undefined;
     userId?: string | undefined;
     email?: string | undefined;
     expiresAt?: number | undefined;
     createdAt: number;
-    openRouterApiKey?: string | undefined;
-    openRouterKeyId?: string | undefined;
+    /** Dexto API key for gateway access (from --api-key or provisioned after OAuth) */
     dextoApiKey?: string | undefined;
     dextoKeyId?: string | undefined;
 }
 
-const AuthConfigSchema = z.object({
-    token: z.string().min(1),
-    refreshToken: z.string().optional(),
-    userId: z.string().optional(),
-    email: z.string().email().optional(),
-    expiresAt: z.number().optional(),
-    createdAt: z.number(),
-    openRouterApiKey: z.string().optional(),
-    openRouterKeyId: z.string().optional(),
-    dextoApiKey: z.string().optional(),
-    dextoKeyId: z.string().optional(),
-});
+const AuthConfigSchema = z
+    .object({
+        token: z.string().min(1).optional(),
+        refreshToken: z.string().optional(),
+        userId: z.string().optional(),
+        email: z.string().email().optional(),
+        expiresAt: z.number().optional(),
+        createdAt: z.number(),
+        dextoApiKey: z.string().optional(),
+        dextoKeyId: z.string().optional(),
+    })
+    .refine((data) => data.token || data.dextoApiKey, {
+        message: 'Either token (from OAuth) or dextoApiKey (from --api-key) is required',
+    });
 
 export async function storeAuth(config: AuthConfig): Promise<void> {
     const authPath = getDextoGlobalPath('', AUTH_CONFIG_FILE);
@@ -101,7 +103,7 @@ export async function getAuthToken(): Promise<string | null> {
     const isExpiringSoon = auth.expiresAt && auth.expiresAt < now + fiveMinutes;
 
     if (!isExpiringSoon) {
-        return auth.token;
+        return auth.token ?? null;
     }
 
     if (!auth.refreshToken) {

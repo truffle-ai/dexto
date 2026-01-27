@@ -638,10 +638,10 @@ const authCommand = program.command('auth').description('Manage authentication')
 authCommand
     .command('login')
     .description('Login to Dexto')
-    .option('--token <token>', 'Use API token instead of browser login')
+    .option('--api-key <key>', 'Use Dexto API key instead of browser login')
     .option('--no-interactive', 'Disable interactive prompts')
     .action(
-        withAnalytics('auth login', async (options: { token?: string; interactive?: boolean }) => {
+        withAnalytics('auth login', async (options: { apiKey?: string; interactive?: boolean }) => {
             try {
                 await handleLoginCommand(options);
                 safeExit('auth login', 0);
@@ -694,10 +694,10 @@ authCommand
 program
     .command('login')
     .description('Login to Dexto (alias for `dexto auth login`)')
-    .option('--token <token>', 'Use API token instead of browser login')
+    .option('--api-key <key>', 'Use Dexto API key instead of browser login')
     .option('--no-interactive', 'Disable interactive prompts')
     .action(
-        withAnalytics('login', async (options: { token?: string; interactive?: boolean }) => {
+        withAnalytics('login', async (options: { apiKey?: string; interactive?: boolean }) => {
             try {
                 await handleLoginCommand(options);
                 safeExit('login', 0);

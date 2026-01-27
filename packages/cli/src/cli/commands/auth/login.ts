@@ -17,7 +17,7 @@ import { logger } from '@dexto/core';
  */
 export async function handleLoginCommand(
     options: {
-        token?: string;
+        apiKey?: string;
         interactive?: boolean;
     } = {}
 ): Promise<void> {
@@ -27,32 +27,35 @@ export async function handleLoginCommand(
             const userInfo = auth?.email || auth?.userId || 'user';
             console.log(chalk.green(`✅ Already logged in as: ${userInfo}`));
 
-            if (options.interactive !== false) {
-                const shouldContinue = await p.confirm({
-                    message: 'Do you want to login with a different account?',
-                    initialValue: false,
-                });
+            // In non-interactive mode, already authenticated = success (idempotent)
+            if (options.interactive === false) {
+                return;
+            }
 
-                if (p.isCancel(shouldContinue) || !shouldContinue) {
-                    return;
-                }
+            const shouldContinue = await p.confirm({
+                message: 'Do you want to login with a different account?',
+                initialValue: false,
+            });
+
+            if (p.isCancel(shouldContinue) || !shouldContinue) {
+                return;
             }
         }
 
-        if (options.token) {
-            // Validate the token before storing
+        if (options.apiKey) {
+            // Validate the Dexto API key before storing
             const client = getDextoApiClient();
-            const isValid = await client.validateDextoApiKey(options.token);
+            const isValid = await client.validateDextoApiKey(options.apiKey);
             if (!isValid) {
-                throw new Error('Invalid token provided - validation failed');
+                throw new Error('Invalid API key provided - validation failed');
             }
-            await storeAuth({ token: options.token, createdAt: Date.now() });
-            console.log(chalk.green('✅ Authentication token saved'));
+            await storeAuth({ dextoApiKey: options.apiKey, createdAt: Date.now() });
+            console.log(chalk.green('✅ Dexto API key saved'));
             return;
         }
 
         if (options.interactive === false) {
-            throw new Error('Token is required when --no-interactive is used');
+            throw new Error('--api-key is required when --no-interactive is used');
         }
 
         p.intro(chalk.inverse(' Login to Dexto '));
