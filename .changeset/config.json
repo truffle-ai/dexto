@@ -15,7 +15,8 @@
     "@dexto/image-local",
     "@dexto/tools-filesystem",
     "@dexto/tools-process",
-    "@dexto/tools-todo"
+    "@dexto/tools-todo",
+    "@dexto/tools-plan"
   ]],
   "linked": [],
   "access": "public",

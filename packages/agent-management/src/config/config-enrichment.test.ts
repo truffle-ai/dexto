@@ -7,6 +7,13 @@ vi.mock('./discover-prompts.js', () => ({
     discoverAgentInstructionFile: vi.fn(() => null),
 }));
 
+// Mock the plugins module to prevent real filesystem discovery
+vi.mock('../plugins/index.js', () => ({
+    discoverClaudeCodePlugins: vi.fn(() => []),
+    loadClaudeCodePlugin: vi.fn(() => ({ manifest: {}, commands: [], warnings: [] })),
+    discoverStandaloneSkills: vi.fn(() => []),
+}));
+
 // Import after mock is set up
 import { enrichAgentConfig } from './config-enrichment.js';
 import { discoverCommandPrompts } from './discover-prompts.js';

@@ -10,6 +10,7 @@
  * - Conversation Commands: Session management, history, and search
  * - Model Commands: Model switching and configuration
  * - MCP Commands: MCP server management
+ * - Plugin Commands: Claude Code plugin management
  * - System Commands: Configuration, logging, and statistics
  * - Tool Commands: Tool listing and management
  * - Prompt Commands: System prompt management
@@ -29,6 +30,7 @@ import { searchCommand, resumeCommand, renameCommand } from './session/index.js'
 import { exportCommand } from './export/index.js';
 import { modelCommands } from './model/index.js';
 import { mcpCommands } from './mcp/index.js';
+import { pluginCommands } from './plugin/index.js';
 import { systemCommands } from './system/index.js';
 import { toolCommands } from './tool-commands.js';
 import { promptCommands } from './prompt-commands.js';
@@ -69,6 +71,9 @@ const baseCommands: CommandDefinition[] = [
 
     // MCP server management
     mcpCommands, // /mcp - opens MCP server list overlay
+
+    // Plugin management
+    pluginCommands, // /plugin - manage Claude Code compatible plugins
 
     // Tool management commands
     ...toolCommands,

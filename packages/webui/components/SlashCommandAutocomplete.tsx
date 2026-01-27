@@ -44,7 +44,10 @@ const PromptItem = ({
                 <div className="flex items-center gap-2 mb-1 flex-wrap">
                     {/* Command name with inline arguments */}
                     <div className="flex items-center gap-1">
-                        <span className="font-medium text-xs text-foreground">/{prompt.name}</span>
+                        {/* Use commandName (collision-resolved) for display, fall back to displayName/name */}
+                        <span className="font-medium text-xs text-foreground">
+                            /{prompt.commandName || prompt.displayName || prompt.name}
+                        </span>
                         {prompt.arguments && prompt.arguments.length > 0 && (
                             <span className="flex items-center gap-1">
                                 {prompt.arguments.map((arg) => (

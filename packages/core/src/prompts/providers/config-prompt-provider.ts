@@ -10,7 +10,7 @@ import { expandPlaceholders } from '../utils.js';
 import { assertValidPromptName } from '../name-validation.js';
 import { readFile, realpath } from 'fs/promises';
 import { existsSync } from 'fs';
-import { dirname, relative, sep } from 'path';
+import { basename, dirname, relative, sep } from 'path';
 
 /**
  * Config Prompt Provider - Unified provider for prompts from agent configuration
@@ -114,6 +114,19 @@ export class ConfigPromptProvider implements PromptProvider {
             ...(promptInfo.title && { title: promptInfo.title }),
             ...(promptInfo.description && { description: promptInfo.description }),
             ...(promptInfo.arguments && { arguments: promptInfo.arguments }),
+            // Claude Code compatibility fields
+            ...(promptInfo.disableModelInvocation !== undefined && {
+                disableModelInvocation: promptInfo.disableModelInvocation,
+            }),
+            ...(promptInfo.userInvocable !== undefined && {
+                userInvocable: promptInfo.userInvocable,
+            }),
+            ...(promptInfo.allowedTools !== undefined && {
+                allowedTools: promptInfo.allowedTools,
+            }),
+            ...(promptInfo.model !== undefined && { model: promptInfo.model }),
+            ...(promptInfo.context !== undefined && { context: promptInfo.context }),
+            ...(promptInfo.agent !== undefined && { agent: promptInfo.agent }),
         };
     }
 
@@ -166,6 +179,13 @@ export class ConfigPromptProvider implements PromptProvider {
             title: prompt.title,
             description: prompt.description,
             source: 'config',
+            // Claude Code compatibility fields
+            disableModelInvocation: prompt['disable-model-invocation'],
+            userInvocable: prompt['user-invocable'],
+            allowedTools: prompt['allowed-tools'],
+            model: prompt.model,
+            context: prompt.context,
+            agent: prompt.agent,
             metadata: {
                 type: 'inline',
                 category: prompt.category,
@@ -225,13 +245,34 @@ export class ConfigPromptProvider implements PromptProvider {
                 return null;
             }
 
+            // Config-level fields override frontmatter values
+            const disableModelInvocation =
+                prompt['disable-model-invocation'] ?? parsed.disableModelInvocation;
+            const userInvocable = prompt['user-invocable'] ?? parsed.userInvocable;
+            const allowedTools = prompt['allowed-tools'] ?? parsed.allowedTools;
+            const model = prompt.model ?? parsed.model;
+            const context = prompt.context ?? parsed.context;
+            const agent = prompt.agent ?? parsed.agent;
+
+            const displayName = parsed.id;
+            const promptName = prompt.namespace
+                ? `config:${prompt.namespace}:${parsed.id}`
+                : `config:${parsed.id}`;
+
             const promptInfo: PromptInfo = {
-                name: `config:${parsed.id}`,
-                displayName: parsed.id,
+                name: promptName,
+                displayName,
                 title: parsed.title,
                 description: parsed.description,
                 source: 'config',
                 ...(parsed.arguments && { arguments: parsed.arguments }),
+                // Claude Code compatibility fields
+                ...(disableModelInvocation !== undefined && { disableModelInvocation }),
+                ...(userInvocable !== undefined && { userInvocable }),
+                ...(allowedTools !== undefined && { allowedTools }),
+                ...(model !== undefined && { model }),
+                ...(context !== undefined && { context }),
+                ...(agent !== undefined && { agent }),
                 metadata: {
                     type: 'file',
                     filePath: filePath,
@@ -239,6 +280,7 @@ export class ConfigPromptProvider implements PromptProvider {
                     priority: parsed.priority,
                     showInStarters: prompt.showInStarters,
                     originalId: parsed.id,
+                    ...(prompt.namespace && { namespace: prompt.namespace }),
                 },
             };
 
@@ -262,16 +304,36 @@ export class ConfigPromptProvider implements PromptProvider {
         category?: string;
         priority?: number;
         arguments?: Array<{ name: string; required: boolean; description?: string }>;
+        // Claude Code compatibility fields
+        disableModelInvocation?: boolean;
+        userInvocable?: boolean;
+        allowedTools?: string[];
+        model?: string;
+        context?: 'inline' | 'fork';
+        agent?: string;
     } {
         const lines = rawContent.trim().split('\n');
-        const fileName = filePath.split('/').pop()?.replace(/\.md$/, '') ?? 'unknown';
+        // Use path utilities for cross-platform compatibility (Windows uses backslashes)
+        const fileName = basename(filePath, '.md') || 'unknown';
+        const parentDir = basename(dirname(filePath)) || 'unknown';
 
-        let id = fileName;
-        let title = fileName;
-        let description = `File prompt: ${fileName}`;
+        // For SKILL.md files, use parent directory name as the id (Claude Code convention)
+        // e.g., .claude/skills/my-skill/SKILL.md -> id = "my-skill"
+        const defaultId = fileName.toUpperCase() === 'SKILL' ? parentDir : fileName;
+
+        let id = defaultId;
+        let title = defaultId;
+        let description = `File prompt: ${defaultId}`;
         let category: string | undefined;
         let priority: number | undefined;
         let argumentHint: string | undefined;
+        // Claude Code compatibility fields
+        let disableModelInvocation: boolean | undefined;
+        let userInvocable: boolean | undefined;
+        let allowedTools: string[] | undefined;
+        let model: string | undefined;
+        let context: 'inline' | 'fork' | undefined;
+        let agent: string | undefined;
         let contentBody: string;
 
         // Parse frontmatter if present
@@ -295,9 +357,21 @@ export class ConfigPromptProvider implements PromptProvider {
                         return m ? (m[1] || m[2] || '').trim() : null;
                     };
 
+                    const matchBool = (key: string): boolean | undefined => {
+                        const val = match(key);
+                        if (val === 'true') return true;
+                        if (val === 'false') return false;
+                        return undefined;
+                    };
+
                     if (line.includes('id:')) {
                         const val = match('id');
                         if (val) id = val;
+                    } else if (line.includes('name:') && !line.includes('display-name:')) {
+                        // Claude Code SKILL.md uses 'name:' instead of 'id:'
+                        // Only use if id hasn't been explicitly set via 'id:' field
+                        const val = match('name');
+                        if (val && id === defaultId) id = val;
                     } else if (line.includes('title:')) {
                         const val = match('title');
                         if (val) title = val;
@@ -313,7 +387,37 @@ export class ConfigPromptProvider implements PromptProvider {
                     } else if (line.includes('argument-hint:')) {
                         const val = match('argument-hint');
                         if (val) argumentHint = val;
+                    } else if (line.includes('disable-model-invocation:')) {
+                        disableModelInvocation = matchBool('disable-model-invocation');
+                    } else if (line.includes('user-invocable:')) {
+                        userInvocable = matchBool('user-invocable');
+                    } else if (line.includes('model:')) {
+                        const val = match('model');
+                        if (val) model = val;
+                    } else if (line.includes('context:')) {
+                        const val = match('context');
+                        if (val === 'fork' || val === 'inline') context = val;
+                    } else if (line.includes('agent:')) {
+                        const val = match('agent');
+                        if (val) agent = val;
                     }
+                    // Note: allowed-tools parsing requires special handling for arrays
+                    // Will be parsed as YAML array in a separate pass below
+                }
+
+                // Parse allowed-tools as inline YAML array format: [item1, item2] or []
+                // Note: Multiline YAML array format (- item) is not supported
+                const frontmatterText = frontmatterLines.join('\n');
+                const allowedToolsMatch = frontmatterText.match(/allowed-tools:\s*\[([^\]]*)\]/);
+                if (allowedToolsMatch) {
+                    const rawContent = allowedToolsMatch[1]?.trim() ?? '';
+                    allowedTools =
+                        rawContent.length === 0
+                            ? []
+                            : rawContent
+                                  .split(',')
+                                  .map((s) => s.trim().replace(/^['"]|['"]$/g, ''))
+                                  .filter((s) => s.length > 0);
                 }
             } else {
                 contentBody = rawContent;
@@ -323,7 +427,7 @@ export class ConfigPromptProvider implements PromptProvider {
         }
 
         // Extract title from first heading if not in frontmatter
-        if (title === fileName) {
+        if (title === defaultId) {
             for (const line of contentBody.trim().split('\n')) {
                 if (line.trim().startsWith('#')) {
                     title = line.trim().replace(/^#+\s*/, '');
@@ -343,6 +447,12 @@ export class ConfigPromptProvider implements PromptProvider {
             ...(category !== undefined && { category }),
             ...(priority !== undefined && { priority }),
             ...(parsedArguments !== undefined && { arguments: parsedArguments }),
+            ...(disableModelInvocation !== undefined && { disableModelInvocation }),
+            ...(userInvocable !== undefined && { userInvocable }),
+            ...(allowedTools !== undefined && { allowedTools }),
+            ...(model !== undefined && { model }),
+            ...(context !== undefined && { context }),
+            ...(agent !== undefined && { agent }),
         };
     }
 

@@ -35,6 +35,11 @@ export const agentSpawnerToolsProvider: CustomToolProvider<'agent-spawner', Agen
         // Create the runtime service that bridges tools to AgentRuntime
         const service = new RuntimeService(agent, config, logger);
 
+        // Wire up RuntimeService as taskForker for invoke_skill (context: fork support)
+        // This enables skills with `context: fork` to execute in isolated subagents
+        agent.toolManager.setTaskForker(service);
+        logger.debug('RuntimeService wired as taskForker for context:fork skill support');
+
         return [createSpawnAgentTool(service)];
     },
 

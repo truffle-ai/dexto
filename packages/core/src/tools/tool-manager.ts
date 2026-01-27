@@ -15,6 +15,7 @@ import { ApprovalStatus, ApprovalType } from '../approval/types.js';
 import type { ApprovalRequest, ToolConfirmationMetadata } from '../approval/types.js';
 import type { IAllowedToolsProvider } from './confirmation/allowed-tools-provider/types.js';
 import type { PluginManager } from '../plugins/manager.js';
+import type { PromptManager } from '../prompts/prompt-manager.js';
 import type { SessionManager } from '../session/index.js';
 import type { AgentStateManager } from '../agent/state-manager.js';
 import type { BeforeToolCallPayload, AfterToolResultPayload } from '../plugins/types.js';
@@ -92,6 +93,10 @@ export class ToolManager {
     private cacheValid: boolean = false;
     private logger: IDextoLogger;
 
+    // Session-level tool restrictions (Phase 2 Claude Code compatibility)
+    // When a prompt with allowedTools is invoked, only those tools are allowed for the session
+    private sessionToolRestrictions: Map<string, string[]> = new Map();
+
     constructor(
         mcpManager: MCPManager,
         approvalManager: ApprovalManager,
@@ -167,6 +172,101 @@ export class ToolManager {
             this.internalToolsProvider.setAgent(agent);
             this.logger.debug('Agent reference configured for custom tools');
         }
+    }
+
+    /**
+     * Set prompt manager for invoke_skill tool (called after construction to avoid circular dependencies)
+     * Must be called before initialize() if invoke_skill tool is enabled
+     */
+    setPromptManager(promptManager: PromptManager): void {
+        if (this.internalToolsProvider) {
+            this.internalToolsProvider.setPromptManager(promptManager);
+            this.logger.debug('PromptManager reference configured for invoke_skill tool');
+        }
+    }
+
+    /**
+     * Set task forker for context:fork skill execution (late-binding)
+     * Called by agent-spawner custom tool provider after RuntimeService is created.
+     * This enables invoke_skill to fork execution to an isolated subagent.
+     */
+    setTaskForker(taskForker: import('./internal-tools/registry.js').TaskForker): void {
+        if (this.internalToolsProvider) {
+            this.internalToolsProvider.setTaskForker(taskForker);
+            this.logger.debug(
+                'TaskForker reference configured for invoke_skill (context:fork support)'
+            );
+        }
+    }
+
+    // ============= SESSION TOOL RESTRICTIONS (Phase 2 Claude Code compatibility) =============
+
+    /**
+     * Set session-level tool restrictions.
+     * When set, only the specified tools will be allowed for this session.
+     * This is used when a prompt with `allowedTools` is invoked.
+     *
+     * @param sessionId The session ID to restrict
+     * @param allowedTools Array of tool names that are allowed (e.g., ['internal--ask_user', 'custom--read_file'])
+     */
+    setSessionToolRestrictions(sessionId: string, allowedTools: string[]): void {
+        this.sessionToolRestrictions.set(sessionId, allowedTools);
+        this.logger.info(
+            `Session tool restrictions set for '${sessionId}': ${allowedTools.length} tools allowed`
+        );
+        this.logger.debug(`Allowed tools: ${allowedTools.join(', ')}`);
+    }
+
+    /**
+     * Clear session-level tool restrictions.
+     * Call this when the session ends or when restrictions should be lifted.
+     *
+     * @param sessionId The session ID to clear restrictions for
+     */
+    clearSessionToolRestrictions(sessionId: string): void {
+        const hadRestrictions = this.sessionToolRestrictions.has(sessionId);
+        this.sessionToolRestrictions.delete(sessionId);
+        if (hadRestrictions) {
+            this.logger.info(`Session tool restrictions cleared for '${sessionId}'`);
+        }
+    }
+
+    /**
+     * Check if a session has tool restrictions active.
+     *
+     * @param sessionId The session ID to check
+     * @returns true if the session has tool restrictions
+     */
+    hasSessionToolRestrictions(sessionId: string): boolean {
+        return this.sessionToolRestrictions.has(sessionId);
+    }
+
+    /**
+     * Get the allowed tools for a session (if restrictions are active).
+     *
+     * @param sessionId The session ID to check
+     * @returns Array of allowed tool names, or undefined if no restrictions
+     */
+    getSessionAllowedTools(sessionId: string): string[] | undefined {
+        return this.sessionToolRestrictions.get(sessionId);
+    }
+
+    /**
+     * Check if a tool is allowed for a session based on session restrictions.
+     * If no restrictions are set for the session, returns true (all tools allowed).
+     *
+     * @param sessionId The session ID
+     * @param toolName The tool name to check
+     * @returns true if the tool is allowed
+     */
+    private isToolAllowedForSession(sessionId: string, toolName: string): boolean {
+        const allowedTools = this.sessionToolRestrictions.get(sessionId);
+        if (!allowedTools) {
+            // No restrictions for this session
+            return true;
+        }
+        // Check if tool matches any allowed pattern
+        return allowedTools.some((pattern) => this.matchesToolPolicy(toolName, pattern));
     }
 
     /**
@@ -962,6 +1062,21 @@ export class ToolManager {
             return { requireApproval: true, approvalStatus: 'approved' };
         }
 
+        // PRECEDENCE 1.75: Check session-level tool restrictions (Phase 2 Claude Code compatibility)
+        // When a prompt with allowedTools is invoked, only those tools are allowed for that session
+        // This takes precedence over static alwaysAllow list to ensure prompt-level security
+        if (sessionId && this.hasSessionToolRestrictions(sessionId)) {
+            if (!this.isToolAllowedForSession(sessionId, toolName)) {
+                this.logger.info(
+                    `Tool '${toolName}' not in session's allowed tools list – blocking execution (session: ${sessionId})`
+                );
+                this.logger.debug(`🚫 Tool execution blocked by session restrictions: ${toolName}`);
+                throw ToolError.executionDenied(toolName, sessionId);
+            }
+            // Tool is in the session's allowed list - continue to normal flow
+            this.logger.debug(`Tool '${toolName}' is in session's allowed tools list`);
+        }
+
         // PRECEDENCE 2: Check static alwaysAllow list
         if (this.isInAlwaysAllowList(toolName)) {
             this.logger.info(
@@ -1132,7 +1247,8 @@ export class ToolManager {
                     `Tool confirmation denied for ${toolName}, sessionId: ${sessionId ?? 'global'}, reason: ${response.reason ?? 'unknown'}`
                 );
                 this.logger.debug(`🚫 Tool execution denied: ${toolName}`);
-                throw ToolError.executionDenied(toolName, sessionId);
+                // Pass through user message (e.g., feedback for plan review)
+                throw ToolError.executionDenied(toolName, sessionId, response.message);
             }
 
             this.logger.info(

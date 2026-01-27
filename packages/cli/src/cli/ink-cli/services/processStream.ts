@@ -29,7 +29,7 @@ import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
 import { generateMessageId } from '../utils/idGenerator.js';
 import { checkForSplit } from '../utils/streamSplitter.js';
 import { formatToolHeader } from '../utils/messageFormatting.js';
-import { isEditWriteTool } from '../utils/toolUtils.js';
+import { isAutoApprovableInEditMode } from '../utils/toolUtils.js';
 import { capture } from '../../../analytics/index.js';
 import chalk from 'chalk';
 
@@ -678,6 +678,25 @@ export async function processStream(
                         });
                     }
 
+                    // Handle plan_review tool results - update UI state when plan is approved
+                    if (event.toolName === 'plan_review' && event.success !== false) {
+                        try {
+                            const planReviewResult = event.rawResult as {
+                                approved?: boolean;
+                            } | null;
+                            if (planReviewResult?.approved) {
+                                // User approved the plan - disable plan mode
+                                setUi((prev) => ({
+                                    ...prev,
+                                    planModeActive: false,
+                                    planModeInitialized: false,
+                                }));
+                            }
+                        } catch {
+                            // Silently ignore parsing errors - plan mode state remains unchanged
+                        }
+                    }
+
                     // Track tool result analytics
                     capture('dexto_tool_result', {
                         source: 'cli',
@@ -843,7 +862,7 @@ export async function processStream(
                         // Type is narrowed - metadata is now ToolConfirmationMetadata
                         const { toolName } = event.metadata;
 
-                        if (isEditWriteTool(toolName)) {
+                        if (isAutoApprovableInEditMode(toolName)) {
                             // Auto-approve immediately - emit response and let tool:running handle status
                             eventBus.emit('approval:response', {
                                 approvalId: event.approvalId,

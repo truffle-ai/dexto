@@ -2,11 +2,13 @@ import { InternalTool } from '../types.js';
 import { SearchService } from '../../search/index.js';
 import { ApprovalManager } from '../../approval/manager.js';
 import { ResourceManager } from '../../resources/manager.js';
+import type { PromptManager } from '../../prompts/prompt-manager.js';
 import { createSearchHistoryTool } from './implementations/search-history-tool.js';
 import { createAskUserTool } from './implementations/ask-user-tool.js';
 import { createDelegateToUrlTool } from './implementations/delegate-to-url-tool.js';
 import { createListResourcesTool } from './implementations/list-resources-tool.js';
 import { createGetResourceTool } from './implementations/get-resource-tool.js';
+import { createInvokeSkillTool } from './implementations/invoke-skill-tool.js';
 import type { KnownInternalTool } from './constants.js';
 
 /**
@@ -30,6 +32,37 @@ import type { KnownInternalTool } from './constants.js';
 export type AgentFeature = 'elicitation';
 
 /**
+ * Interface for forking skill execution to an isolated subagent.
+ * Implemented by RuntimeService in @dexto/agent-management.
+ */
+export interface TaskForker {
+    /**
+     * Execute a task in an isolated subagent context.
+     * The subagent has no access to the parent's conversation history.
+     *
+     * @param options.task - Short description for UI/logs
+     * @param options.instructions - Full instructions for the subagent
+     * @param options.agentId - Optional agent ID from registry to use for execution
+     * @param options.autoApprove - Auto-approve tool calls (default: true for fork skills)
+     * @param options.toolCallId - Optional tool call ID for progress events
+     * @param options.sessionId - Optional session ID for progress events
+     * @returns Result with success status and response/error
+     */
+    fork(options: {
+        task: string;
+        instructions: string;
+        agentId?: string;
+        autoApprove?: boolean;
+        toolCallId?: string;
+        sessionId?: string;
+    }): Promise<{
+        success: boolean;
+        response?: string;
+        error?: string;
+    }>;
+}
+
+/**
  * Services available to internal tools
  * Add new services here as needed for internal tools
  */
@@ -37,6 +70,9 @@ export interface InternalToolsServices {
     searchService?: SearchService;
     approvalManager?: ApprovalManager;
     resourceManager?: ResourceManager;
+    promptManager?: PromptManager;
+    /** Optional forker for executing skills in isolated context (context: fork) */
+    taskForker?: TaskForker;
 }
 
 /**
@@ -87,6 +123,11 @@ export const INTERNAL_TOOL_REGISTRY: Record<KnownInternalTool, InternalToolRegis
             createGetResourceTool(services.resourceManager!),
         requiredServices: ['resourceManager'] as const,
         description: 'Access a stored resource to get URLs or metadata',
+    },
+    invoke_skill: {
+        factory: (services: InternalToolsServices) => createInvokeSkillTool(services),
+        requiredServices: ['promptManager'] as const,
+        description: 'Invoke a skill to load specialized instructions for a task',
     },
 };
 

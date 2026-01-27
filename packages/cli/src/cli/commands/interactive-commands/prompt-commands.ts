@@ -214,15 +214,16 @@ export const promptCommands: CommandDefinition[] = [
 
 /**
  * Create a dynamic command definition from a prompt
- * @param promptInfo The prompt metadata
- * @param hasCollision Whether this prompt's displayName collides with another
+ * @param promptInfo The prompt metadata with pre-computed commandName
  */
-function createPromptCommand(promptInfo: PromptInfo, hasCollision: boolean): CommandDefinition {
-    const baseName = promptInfo.displayName || promptInfo.name;
-    // Add source prefix if collision (e.g., "config:review" or "mcp:review")
-    const commandName = hasCollision ? `${promptInfo.source}:${baseName}` : baseName;
+function createPromptCommand(promptInfo: PromptInfo): CommandDefinition {
+    // Use pre-computed commandName (collision-resolved by PromptManager)
+    // Fall back to displayName or name for backwards compatibility
+    const commandName = promptInfo.commandName || promptInfo.displayName || promptInfo.name;
     // Keep internal name for prompt resolution (e.g., "config:review" or "mcp:server1:review")
     const internalName = promptInfo.name;
+    // Base name for display purposes (without source prefix)
+    const baseName = promptInfo.displayName || promptInfo.name;
 
     return {
         name: commandName,
@@ -232,27 +233,10 @@ function createPromptCommand(promptInfo: PromptInfo, hasCollision: boolean): Com
         handler: async (
             args: string[],
             agent: DextoAgent,
-            _ctx: CommandContext
+            ctx: CommandContext
         ): Promise<CommandHandlerResult> => {
             try {
                 const { argMap, context: contextString } = splitPromptArguments(args);
-
-                if (Object.keys(argMap).length > 0) {
-                    console.log(chalk.cyan(`🤖 Executing prompt: ${commandName}`));
-                    console.log(chalk.gray(`Explicit arguments: ${JSON.stringify(argMap)}`));
-                } else if (contextString) {
-                    console.log(chalk.cyan(`🤖 Executing prompt: ${commandName}`));
-                    console.log(
-                        chalk.gray(
-                            `Context: ${contextString} (LLM will extrapolate template variables)`
-                        )
-                    );
-                } else {
-                    console.log(chalk.cyan(`🤖 Executing prompt: ${commandName}`));
-                    console.log(
-                        chalk.gray('No arguments provided - LLM will extrapolate from context')
-                    );
-                }
 
                 // Use resolvePrompt instead of getPrompt + flattenPromptResult (matches WebUI approach)
                 const resolveOptions: {
@@ -268,6 +252,67 @@ function createPromptCommand(promptInfo: PromptInfo, hasCollision: boolean): Com
                 // Use internal name for resolution (includes prefix like "config:")
                 const result = await agent.resolvePrompt(internalName, resolveOptions);
 
+                // Apply per-prompt overrides (Phase 2 Claude Code compatibility)
+                // These overrides persist for the session until explicitly cleared
+                if (ctx.sessionId) {
+                    // Apply model override if specified
+                    if (result.model) {
+                        console.log(
+                            chalk.gray(`🔄 Switching model to '${result.model}' for this prompt`)
+                        );
+                        try {
+                            await agent.switchLLM({ model: result.model }, ctx.sessionId);
+                        } catch (modelError) {
+                            console.log(
+                                chalk.yellow(
+                                    `⚠️  Failed to switch model: ${modelError instanceof Error ? modelError.message : String(modelError)}`
+                                )
+                            );
+                        }
+                    }
+
+                    // Apply tool restrictions if specified
+                    if (result.allowedTools && result.allowedTools.length > 0) {
+                        console.log(
+                            chalk.gray(`🔒 Restricting tools to: ${result.allowedTools.join(', ')}`)
+                        );
+                        try {
+                            agent.toolManager.setSessionToolRestrictions(
+                                ctx.sessionId,
+                                result.allowedTools
+                            );
+                        } catch (toolError) {
+                            console.log(
+                                chalk.yellow(
+                                    `⚠️  Failed to apply tool restrictions: ${toolError instanceof Error ? toolError.message : String(toolError)}`
+                                )
+                            );
+                        }
+                    }
+                }
+
+                // Fork skills: route through LLM to call invoke_skill
+                // This ensures approval flow and context management work naturally through
+                // processStream, rather than bypassing it with direct tool execution.
+                if (result.context === 'fork') {
+                    const skillName = internalName;
+                    const taskContext = contextString || '';
+
+                    // Build instruction message for the LLM
+                    // The <skill-invocation> tags help the LLM recognize this is a structured request
+                    const instructionText = `<skill-invocation>
+Execute the fork skill: ${commandName}
+${taskContext ? `Task context: ${taskContext}` : ''}
+
+Call the internal--invoke_skill tool immediately with:
+- skill: "${skillName}"
+${taskContext ? `- taskContext: "${taskContext}"` : ''}
+</skill-invocation>`;
+
+                    return createSendMessageMarker(instructionText);
+                }
+
+                // Inline skills: wrap content in <skill-invocation> for clean history display
                 // Convert resource URIs to @resource mentions so agent.run() can expand them
                 let finalText = result.text;
                 if (result.resources.length > 0) {
@@ -277,9 +322,19 @@ function createPromptCommand(promptInfo: PromptInfo, hasCollision: boolean): Com
                 }
 
                 if (finalText.trim()) {
-                    // Return the resolved text so CLI can send it through normal streaming flow
-                    // This matches WebUI behavior: resolvePrompt() -> handleSend(text)
-                    return createSendMessageMarker(finalText.trim());
+                    // Wrap in <skill-invocation> tags for clean display in history
+                    // The tags help formatSkillInvocationMessage() detect and format these
+                    const taskContext = contextString || '';
+                    const wrappedText = `<skill-invocation>
+Execute the inline skill: ${commandName}
+${taskContext ? `Task context: ${taskContext}` : ''}
+
+skill: "${internalName}"
+</skill-invocation>
+
+${finalText.trim()}`;
+
+                    return createSendMessageMarker(wrappedText);
                 } else {
                     const warningMsg = `⚠️  Prompt '${commandName}' returned no content`;
                     console.log(chalk.rgb(255, 165, 0)(warningMsg));
@@ -300,26 +355,21 @@ function createPromptCommand(promptInfo: PromptInfo, hasCollision: boolean): Com
 
 /**
  * Get all dynamic prompt commands based on available prompts.
- * Handles displayName collisions by prefixing with source (e.g., config:review).
+ * Uses pre-computed commandName from PromptManager for collision handling.
+ * Filters out prompts with `userInvocable: false` as these are not intended
+ * for direct user invocation via slash commands.
  */
 export async function getDynamicPromptCommands(agent: DextoAgent): Promise<CommandDefinition[]> {
     try {
         const prompts = await agent.listPrompts();
-        const promptEntries = Object.entries(prompts);
+        // Filter out prompts that are not user-invocable (userInvocable: false)
+        // These prompts are intended for LLM auto-invocation only, not CLI slash commands
+        const promptEntries = Object.entries(prompts).filter(
+            ([, info]) => info.userInvocable !== false
+        );
 
-        // Build frequency map of displayNames to detect collisions
-        const displayNameCounts = new Map<string, number>();
-        for (const [, info] of promptEntries) {
-            const displayName = info.displayName || info.name;
-            displayNameCounts.set(displayName, (displayNameCounts.get(displayName) || 0) + 1);
-        }
-
-        // Create commands with conditional prefixing
-        return promptEntries.map(([, info]) => {
-            const displayName = info.displayName || info.name;
-            const hasCollision = (displayNameCounts.get(displayName) || 0) > 1;
-            return createPromptCommand(info, hasCollision);
-        });
+        // Create commands using pre-computed commandName (collision-resolved by PromptManager)
+        return promptEntries.map(([, info]) => createPromptCommand(info));
     } catch (error) {
         agent.logger.error(
             `Failed to get dynamic prompt commands: ${error instanceof Error ? error.message : String(error)}`

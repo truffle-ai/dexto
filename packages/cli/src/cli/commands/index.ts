@@ -29,3 +29,32 @@ export { handleLoginCommand, handleLogoutCommand, handleStatusCommand } from './
 
 // Billing commands
 export { handleBillingStatusCommand } from './billing/index.js';
+
+// Plugin commands
+export {
+    handlePluginListCommand,
+    handlePluginInstallCommand,
+    handlePluginUninstallCommand,
+    handlePluginValidateCommand,
+    // Marketplace handlers
+    handleMarketplaceAddCommand,
+    handleMarketplaceRemoveCommand,
+    handleMarketplaceUpdateCommand,
+    handleMarketplaceListCommand,
+    handleMarketplacePluginsCommand,
+    handleMarketplaceInstallCommand,
+    type PluginListCommandOptions,
+    type PluginListCommandOptionsInput,
+    type PluginInstallCommandOptions,
+    type PluginInstallCommandOptionsInput,
+    type PluginUninstallCommandOptions,
+    type PluginUninstallCommandOptionsInput,
+    type PluginValidateCommandOptions,
+    type PluginValidateCommandOptionsInput,
+    // Marketplace types
+    type MarketplaceAddCommandOptionsInput,
+    type MarketplaceRemoveCommandOptionsInput,
+    type MarketplaceUpdateCommandOptionsInput,
+    type MarketplaceListCommandOptionsInput,
+    type MarketplaceInstallCommandOptionsInput,
+} from './plugin.js';

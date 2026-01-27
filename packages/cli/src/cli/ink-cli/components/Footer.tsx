@@ -15,6 +15,7 @@ interface FooterProps {
     cwd?: string;
     branchName?: string;
     autoApproveEdits?: boolean;
+    planModeActive?: boolean;
     /** Whether user is in shell command mode (input starts with !) */
     isShellMode?: boolean;
 }
@@ -34,6 +35,7 @@ export function Footer({
     cwd,
     branchName,
     autoApproveEdits,
+    planModeActive,
     isShellMode,
 }: FooterProps) {
     const displayPath = cwd ? getDirectoryName(cwd) : '';
@@ -124,6 +126,7 @@ export function Footer({
             )}
 
             {/* Line 3: Mode indicators (left) */}
+            {/* Shift+Tab cycles: Normal → Plan Mode → Accept All Edits → Normal */}
             {isShellMode && (
                 <Box>
                     <Text color="yellow" bold>
@@ -132,10 +135,16 @@ export function Footer({
                     <Text color="gray"> for shell mode</Text>
                 </Box>
             )}
-            {autoApproveEdits && !isShellMode && (
+            {planModeActive && !isShellMode && (
+                <Box>
+                    <Text color="magentaBright">plan mode</Text>
+                    <Text color="gray"> (shift + tab to cycle)</Text>
+                </Box>
+            )}
+            {autoApproveEdits && !planModeActive && !isShellMode && (
                 <Box>
                     <Text color="yellowBright">accept edits</Text>
-                    <Text color="gray"> (shift + tab to toggle)</Text>
+                    <Text color="gray"> (shift + tab to cycle)</Text>
                 </Box>
             )}
         </Box>

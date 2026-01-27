@@ -386,6 +386,31 @@ describe('ConfigPromptProvider', () => {
             });
         });
 
+        test('loads Claude Code SKILL.md format (uses name: instead of id:)', async () => {
+            const config = makeAgentConfig([
+                {
+                    type: 'file',
+                    file: join(FIXTURES_DIR, 'claude-skill.md'),
+                    namespace: 'my-plugin',
+                    showInStarters: false,
+                },
+            ]);
+
+            const provider = new ConfigPromptProvider(config, mockLogger);
+            const result = await provider.listPrompts();
+
+            expect(result.prompts).toHaveLength(1);
+            expect(result.prompts[0]).toMatchObject({
+                // name: field in frontmatter should be used as id
+                name: 'config:my-plugin:test-skill',
+                // displayName is now just the skill id (without namespace prefix)
+                // commandName (computed by PromptManager) handles collision resolution
+                displayName: 'test-skill',
+                description: 'A test skill using Claude Code SKILL.md format with name field.',
+                source: 'config',
+            });
+        });
+
         test('gets file prompt content', async () => {
             const config = makeAgentConfig([
                 {
@@ -500,6 +525,63 @@ describe('ConfigPromptProvider', () => {
             const text = (result.messages?.[0]?.content as any).text as string;
             // $ARGUMENTS should be expanded
             expect(text).toContain('detailed style');
+        });
+
+        test('SKILL.md uses parent directory name as id (Claude Code convention)', async () => {
+            const config = makeAgentConfig([
+                {
+                    type: 'file',
+                    file: join(FIXTURES_DIR, 'my-test-skill', 'SKILL.md'),
+                    showInStarters: false,
+                },
+            ]);
+
+            const provider = new ConfigPromptProvider(config, mockLogger);
+            const result = await provider.listPrompts();
+
+            expect(result.prompts).toHaveLength(1);
+            expect(result.prompts[0]).toMatchObject({
+                // Should use directory name "my-test-skill" as id, not "SKILL"
+                name: 'config:my-test-skill',
+                displayName: 'my-test-skill',
+                description: 'Test skill using directory name as id',
+                source: 'config',
+            });
+        });
+
+        test('parses context: fork from SKILL.md frontmatter', async () => {
+            const config = makeAgentConfig([
+                {
+                    type: 'file',
+                    file: join(FIXTURES_DIR, 'my-test-skill', 'SKILL.md'),
+                    showInStarters: false,
+                },
+            ]);
+
+            const provider = new ConfigPromptProvider(config, mockLogger);
+            const result = await provider.listPrompts();
+
+            expect(result.prompts).toHaveLength(1);
+            // context should be parsed from frontmatter
+            expect(result.prompts[0]?.context).toBe('fork');
+        });
+
+        test('getPromptDefinition includes context field', async () => {
+            const config = makeAgentConfig([
+                {
+                    type: 'file',
+                    file: join(FIXTURES_DIR, 'my-test-skill', 'SKILL.md'),
+                    showInStarters: false,
+                },
+            ]);
+
+            const provider = new ConfigPromptProvider(config, mockLogger);
+            const def = await provider.getPromptDefinition('config:my-test-skill');
+
+            expect(def).toMatchObject({
+                name: 'config:my-test-skill',
+                context: 'fork',
+            });
         });
     });
 });

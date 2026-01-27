@@ -46,14 +46,23 @@ export interface ApprovalOptions {
 interface ApprovalPromptProps {
     approval: ApprovalRequest;
     onApprove: (options: ApprovalOptions) => void;
-    onDeny: () => void;
+    onDeny: (feedback?: string) => void;
     onCancel: () => void;
 }
 
 /**
  * Selection option type - supports both simple yes/no and pattern-based options
  */
-type SelectionOption = 'yes' | 'yes-session' | 'yes-accept-edits' | 'no' | `pattern-${number}`;
+type SelectionOption =
+    | 'yes'
+    | 'yes-session'
+    | 'yes-accept-edits'
+    | 'no'
+    | `pattern-${number}`
+    // Plan review specific options
+    | 'plan-approve'
+    | 'plan-approve-accept-edits'
+    | 'plan-reject'; // Single reject option with feedback input
 
 /**
  * Compact approval prompt component that displays above the input area
@@ -68,14 +77,22 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
         const isElicitation = approval.type === 'elicitation';
         const isDirectoryAccess = approval.type === 'directory_access';
 
+        // Extract tool metadata
+        const toolName = approval.metadata.toolName as string | undefined;
+        const toolArgs = (approval.metadata.args as Record<string, unknown>) || {};
+
+        // Check if this is a plan_review tool (shows custom approval options)
+        const isPlanReview =
+            toolName === 'custom--plan_review' ||
+            toolName === 'internal--plan_review' ||
+            toolName === 'plan_review';
+
         // Extract suggested patterns for bash tools
         const suggestedPatterns =
             (approval.metadata.suggestedPatterns as string[] | undefined) ?? [];
         const hasBashPatterns = suggestedPatterns.length > 0;
 
         // Check if this is an edit/write file tool
-        const toolName = approval.metadata.toolName as string | undefined;
-        const toolArgs = (approval.metadata.args as Record<string, unknown>) || {};
         const isEditOrWriteTool = isEditWriteTool(toolName);
 
         // Format tool header using shared utility (same format as tool messages)
@@ -86,6 +103,10 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
 
         const [selectedIndex, setSelectedIndex] = useState(0);
 
+        // State for plan review feedback input
+        const [showFeedbackInput, setShowFeedbackInput] = useState(false);
+        const [feedbackText, setFeedbackText] = useState('');
+
         // Ref for elicitation form
         const elicitationFormRef = useRef<ElicitationFormHandle>(null);
 
@@ -95,7 +116,12 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
         // Build the list of options based on approval type
         const options: Array<{ id: SelectionOption; label: string }> = [];
 
-        if (hasBashPatterns) {
+        if (isPlanReview) {
+            // Plan review - show plan-specific options (2 options + feedback input)
+            options.push({ id: 'plan-approve', label: 'Approve' });
+            options.push({ id: 'plan-approve-accept-edits', label: 'Approve + Accept All Edits' });
+            // Third "option" is the feedback input (handled specially in render)
+        } else if (hasBashPatterns) {
             // Bash tool with pattern suggestions
             options.push({ id: 'yes', label: 'Yes (once)' });
             suggestedPatterns.forEach((pattern, i) => {
@@ -147,21 +173,59 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
                         return elicitationFormRef.current.handleInput(input, key);
                     }
 
+                    // For plan review, calculate total options including feedback input
+                    const totalOptions = isPlanReview ? options.length + 1 : options.length;
+                    const isFeedbackSelected =
+                        isPlanReview && selectedIndexRef.current === options.length;
+
+                    // Handle typing when feedback input is selected
+                    if (isFeedbackSelected) {
+                        if (key.return) {
+                            // Submit rejection with feedback
+                            onDeny(feedbackText || undefined);
+                            return true;
+                        } else if (key.backspace || key.delete) {
+                            setFeedbackText((prev) => prev.slice(0, -1));
+                            return true;
+                        } else if (key.upArrow) {
+                            // Navigate up from feedback input
+                            setSelectedIndex(options.length - 1);
+                            return true;
+                        } else if (key.downArrow) {
+                            // Wrap to first option
+                            setSelectedIndex(0);
+                            return true;
+                        } else if (key.escape) {
+                            onCancel();
+                            return true;
+                        } else if (input && !key.ctrl && !key.meta) {
+                            // Add typed character to feedback
+                            setFeedbackText((prev) => prev + input);
+                            return true;
+                        }
+                        return true; // Consume all input when feedback is selected
+                    }
+
                     if (key.upArrow) {
                         setSelectedIndex((current) =>
-                            current === 0 ? options.length - 1 : current - 1
+                            current === 0 ? totalOptions - 1 : current - 1
                         );
                         return true;
                     } else if (key.downArrow) {
                         setSelectedIndex((current) =>
-                            current === options.length - 1 ? 0 : current + 1
+                            current === totalOptions - 1 ? 0 : current + 1
                         );
                         return true;
                     } else if (key.return) {
                         const option = getCurrentOption();
                         if (!option) return false;
 
-                        if (option.id === 'yes') {
+                        // Plan review options
+                        if (option.id === 'plan-approve') {
+                            onApprove({});
+                        } else if (option.id === 'plan-approve-accept-edits') {
+                            onApprove({ enableAcceptEditsMode: true });
+                        } else if (option.id === 'yes') {
                             onApprove({});
                         } else if (option.id === 'yes-session') {
                             // For directory access, remember the directory; otherwise remember the tool
@@ -201,11 +265,13 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
                 isElicitation,
                 isEditOrWriteTool,
                 isDirectoryAccess,
+                isPlanReview,
                 options,
                 suggestedPatterns,
                 onApprove,
                 onDeny,
                 onCancel,
+                feedbackText,
             ]
         );
 
@@ -253,9 +319,17 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
                         </Box>
                     );
                 case 'file':
-                    // Use enhanced file preview with full content for new file creation
+                    // Use enhanced file preview with full content for file creation
                     if (displayPreview.operation === 'create' && displayPreview.content) {
                         return <CreateFilePreview data={displayPreview} />;
+                    }
+                    // For plan_review (read operation with content), show full content for review
+                    if (
+                        displayPreview.operation === 'read' &&
+                        displayPreview.content &&
+                        isPlanReview
+                    ) {
+                        return <CreateFilePreview data={displayPreview} header="Review plan" />;
                     }
                     // Fallback for other file operations
                     return (
@@ -343,6 +417,37 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
                             </Box>
                         );
                     })}
+
+                    {/* Feedback input as third option for plan review */}
+                    {isPlanReview && (
+                        <Box>
+                            {selectedIndex === options.length ? (
+                                // Selected - show editable input
+                                <Box flexDirection="row">
+                                    <Text color="red" bold>
+                                        {'  ▶ '}
+                                    </Text>
+                                    {feedbackText ? (
+                                        <Text color="white">
+                                            {feedbackText}
+                                            <Text color="cyan">▋</Text>
+                                        </Text>
+                                    ) : (
+                                        <Text color="gray">
+                                            What changes would you like?
+                                            <Text color="cyan">▋</Text>
+                                        </Text>
+                                    )}
+                                </Box>
+                            ) : (
+                                // Not selected - show placeholder
+                                <Text color="gray">
+                                    {'    '}
+                                    {feedbackText || 'What changes would you like?'}
+                                </Text>
+                            )}
+                        </Box>
+                    )}
                 </Box>
 
                 {/* Compact instructions */}

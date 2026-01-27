@@ -458,6 +458,9 @@ importers:
       '@dexto/tools-filesystem':
         specifier: workspace:*
         version: link:../tools-filesystem
+      '@dexto/tools-plan':
+        specifier: workspace:*
+        version: link:../tools-plan
       '@dexto/tools-process':
         specifier: workspace:*
         version: link:../tools-process
@@ -548,6 +551,34 @@ importers:
       typescript:
         specifier: ^5.3.3
         version: 5.9.2
+
+  packages/tools-plan:
+    dependencies:
+      '@dexto/core':
+        specifier: workspace:*
+        version: link:../core
+      diff:
+        specifier: ^7.0.0
+        version: 7.0.0
+      zod:
+        specifier: ^3.24.1
+        version: 3.25.76
+    devDependencies:
+      '@types/diff':
+        specifier: ^7.0.0
+        version: 7.0.2
+      '@types/node':
+        specifier: ^22.10.5
+        version: 22.19.0
+      dotenv:
+        specifier: ^16.4.7
+        version: 16.6.1
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.2
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@edge-runtime/vm@3.2.0)(@types/node@22.19.0)(lightningcss@1.30.1)
 
   packages/tools-process:
     dependencies:
@@ -2666,6 +2697,9 @@ packages:
 
   '@types/diff@5.2.3':
     resolution: {integrity: sha512-K0Oqlrq3kQMaO2RhfrNQX5trmt+XLyom88zS0u84nnIcLvFnRUMRRHmrGny5GSM+kNO9IZLARsdQHDzkhAgmrQ==}
+
+  '@types/diff@7.0.2':
+    resolution: {integrity: sha512-JSWRMozjFKsGlEjiiKajUjIJVKuKdE3oVy2DNtK+fUo8q82nhFZ2CPQwicAIkXrofahDXrWJ7mjelvZphMS98Q==}
 
   '@types/diff@8.0.0':
     resolution: {integrity: sha512-o7jqJM04gfaYrdCecCVMbZhNdG6T1MHg/oQoRFdERLV+4d+V7FijhiEAbFu0Usww84Yijk9yH58U4Jk4HbtzZw==}
@@ -8816,6 +8850,8 @@ snapshots:
   '@types/deep-eql@4.0.2': {}
 
   '@types/diff@5.2.3': {}
+
+  '@types/diff@7.0.2': {}
 
   '@types/diff@8.0.0':
     dependencies:

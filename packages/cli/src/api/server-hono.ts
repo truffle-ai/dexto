@@ -34,13 +34,24 @@ const DEFAULT_AGENT_VERSION = '1.0.0';
  * Load image dynamically based on config and environment
  * Priority: Config image field > Environment variable > Default
  * Images are optional, but default to image-local for convenience
+ *
+ * @returns Image metadata including bundled plugins, or null if image has no metadata export
  */
-async function loadImageForConfig(config: { image?: string | undefined }): Promise<void> {
+async function loadImageForConfig(config: {
+    image?: string | undefined;
+}): Promise<{ bundledPlugins?: string[] } | null> {
     const imageName = config.image || process.env.DEXTO_IMAGE || '@dexto/image-local';
 
     try {
-        await import(imageName);
+        const imageModule = await import(imageName);
         logger.debug(`Loaded image: ${imageName}`);
+
+        // Extract metadata if available (built images export imageMetadata)
+        if (imageModule.imageMetadata) {
+            return imageModule.imageMetadata;
+        }
+
+        return null;
     } catch (err) {
         const errorMsg = `Failed to load image '${imageName}': ${err instanceof Error ? err.message : String(err)}`;
         logger.error(errorMsg);
@@ -110,13 +121,14 @@ async function createAgentFromId(agentId: string): Promise<DextoAgent> {
             }
         }
 
-        // Enrich config with per-agent paths
+        // Load image to get bundled plugins
+        const imageMetadata = await loadImageForConfig(config);
+
+        // Enrich config with per-agent paths and bundled plugins
         const enrichedConfig = enrichAgentConfig(config, agentPath, {
             logLevel: 'info', // Server uses info-level logging for visibility
+            bundledPlugins: imageMetadata?.bundledPlugins || [],
         });
-
-        // Load image dynamically based on config
-        await loadImageForConfig(enrichedConfig);
 
         // Create agent instance
         logger.info(`Creating agent: ${agentId} from ${agentPath}`);
@@ -376,13 +388,14 @@ export async function initializeHonoApi(
                 }
             }
 
-            // 3. Enrich config with per-agent paths (logs, storage, etc.)
+            // 3. Load image first to get bundled plugins
+            const imageMetadata = await loadImageForConfig(config);
+
+            // 3.5. Enrich config with per-agent paths and bundled plugins from image
             const enrichedConfig = enrichAgentConfig(config, filePath, {
                 logLevel: 'info', // Server uses info-level logging for visibility
+                bundledPlugins: imageMetadata?.bundledPlugins || [],
             });
-
-            // 3.5. Load image dynamically based on config
-            await loadImageForConfig(enrichedConfig);
 
             // 4. Create new agent instance directly (will initialize fresh telemetry in createAgentServices)
             newAgent = new DextoAgent(enrichedConfig, filePath);
