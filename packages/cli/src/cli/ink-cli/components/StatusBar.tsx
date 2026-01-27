@@ -28,6 +28,10 @@ interface StatusBarProps {
     todoExpanded?: boolean;
     /** Whether there are todos to display */
     hasTodos?: boolean;
+    /** Whether plan mode is active */
+    planModeActive?: boolean;
+    /** Whether accept all edits mode is active */
+    autoApproveEdits?: boolean;
 }
 
 /**
@@ -48,6 +52,8 @@ export function StatusBar({
     isAwaitingApproval = false,
     todoExpanded = true,
     hasTodos = false,
+    planModeActive = false,
+    autoApproveEdits = false,
 }: StatusBarProps) {
     // Cycle through witty phrases while processing (not during compacting)
     const { phrase } = usePhraseCycler({ isActive: isProcessing && !isCompacting });
@@ -70,7 +76,7 @@ export function StatusBar({
     }
 
     if (!isProcessing) {
-        // No status bar when idle
+        // Mode indicators (plan mode, accept edits) are shown in Footer, not here
         return null;
     }
 

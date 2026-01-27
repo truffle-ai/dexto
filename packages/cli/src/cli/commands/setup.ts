@@ -21,6 +21,7 @@ import {
     getGlobalPreferencesPath,
     updateGlobalPreferences,
     setActiveModel,
+    isDextoAuthEnabled,
     type CreatePreferencesOptions,
 } from '@dexto/agent-management';
 import { interactiveApiKeySetup, hasApiKeyConfigured } from '../utils/api-key-setup.js';
@@ -38,6 +39,8 @@ import {
     getModelFromResult,
 } from '../utils/local-model-setup.js';
 import { requiresSetup } from '../utils/setup-utils.js';
+import { canUseDextoProvider } from '../utils/dexto-setup.js';
+import { handleBrowserLogin } from './auth/login.js';
 import * as p from '@clack/prompts';
 import { logger } from '@dexto/core';
 import { capture } from '../../analytics/index.js';
@@ -418,6 +421,161 @@ async function handleQuickStart(): Promise<void> {
 }
 
 /**
+ * Dexto setup flow - login if needed, select model, save preferences
+ *
+ * Config storage:
+ * - provider: 'dexto' (the gateway provider)
+ * - model: OpenRouter-style ID (e.g., 'anthropic/claude-haiku-4.5')
+ *
+ * Runtime handles routing requests through the Dexto gateway to the underlying provider.
+ */
+async function handleDextoProviderSetup(): Promise<void> {
+    console.log(chalk.magenta('\n★ Dexto Setup\n'));
+
+    // Check if user already has DEXTO_API_KEY
+    const hasKey = await canUseDextoProvider();
+
+    if (!hasKey) {
+        p.note(
+            `Dexto gives you instant access to ${chalk.cyan('all AI models')} with a single account.\n\n` +
+                `We'll open your browser to sign in or create an account.`,
+            'Login Required'
+        );
+
+        const shouldLogin = await p.confirm({
+            message: 'Continue with browser login?',
+            initialValue: true,
+        });
+
+        if (p.isCancel(shouldLogin) || !shouldLogin) {
+            p.cancel('Setup cancelled');
+            process.exit(0);
+        }
+
+        try {
+            await handleBrowserLogin();
+            // Verify key was actually provisioned (provisionKeys silently catches errors)
+            if (!(await canUseDextoProvider())) {
+                p.log.error(
+                    'API key provisioning failed. Please try again or use `dexto setup` with a different provider.'
+                );
+                process.exit(1);
+            }
+            p.log.success('Login successful! Continuing with setup...');
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            p.log.error(`Login failed: ${errorMessage}`);
+            p.cancel('Setup cancelled - login required for Dexto');
+            process.exit(1);
+        }
+    } else {
+        p.log.success('Already logged in to Dexto');
+    }
+
+    // Model selection - show popular models in OpenRouter format
+    // NOTE: This list is intentionally hardcoded (not from registry) to include
+    // curated hints for onboarding UX. Keep model IDs in sync with:
+    // packages/core/src/llm/registry.ts (LLM_REGISTRY.dexto.models)
+    const model = await p.select({
+        message: 'Select a model to start with',
+        options: [
+            // Claude models (Anthropic via Dexto gateway)
+            {
+                value: 'anthropic/claude-haiku-4.5',
+                label: 'Claude 4.5 Haiku',
+                hint: 'Fast & affordable (recommended)',
+            },
+            {
+                value: 'anthropic/claude-sonnet-4.5',
+                label: 'Claude 4.5 Sonnet',
+                hint: 'Balanced performance and cost',
+            },
+            {
+                value: 'anthropic/claude-opus-4.5',
+                label: 'Claude 4.5 Opus',
+                hint: 'Most capable Claude model',
+            },
+            // OpenAI models (via Dexto gateway)
+            {
+                value: 'openai/gpt-5.2',
+                label: 'GPT-5.2',
+                hint: 'OpenAI flagship model',
+            },
+            {
+                value: 'openai/gpt-5.2-codex',
+                label: 'GPT-5.2 Codex',
+                hint: 'Optimized for coding',
+            },
+            // Google models (via Dexto gateway)
+            {
+                value: 'google/gemini-3-pro-preview',
+                label: 'Gemini 3 Pro',
+                hint: 'Google flagship model',
+            },
+            {
+                value: 'google/gemini-3-flash-preview',
+                label: 'Gemini 3 Flash',
+                hint: 'Fast and efficient',
+            },
+            // Free models (via Dexto gateway)
+            {
+                value: 'qwen/qwen3-coder:free',
+                label: 'Qwen3 Coder (Free)',
+                hint: 'Free coding model, 262k context',
+            },
+            {
+                value: 'deepseek/deepseek-r1-0528:free',
+                label: 'DeepSeek R1 (Free)',
+                hint: 'Free reasoning model, 163k context',
+            },
+        ],
+    });
+
+    if (p.isCancel(model)) {
+        p.cancel('Setup cancelled');
+        process.exit(0);
+    }
+
+    // Dexto setup always uses 'dexto' provider with OpenRouter model IDs
+    const provider: LLMProvider = 'dexto';
+
+    // Cast model to string (prompts library typing)
+    const selectedModel = model as string;
+
+    p.log.info(`${chalk.dim('Tip:')} You can switch models anytime with ${chalk.cyan('/model')}`);
+
+    // Ask about default mode
+    const defaultMode = await selectDefaultMode();
+
+    if (defaultMode === null) {
+        p.cancel('Setup cancelled');
+        process.exit(0);
+    }
+
+    // Save preferences with explicit dexto provider and OpenRouter model ID
+    const preferences = createInitialPreferences({
+        provider,
+        model: selectedModel,
+        defaultMode,
+        setupCompleted: true,
+        apiKeyPending: false,
+        apiKeyVar: 'DEXTO_API_KEY',
+    });
+
+    await saveGlobalPreferences(preferences);
+
+    capture('dexto_setup', {
+        provider,
+        model: selectedModel,
+        setupMode: 'interactive',
+        setupVariant: 'dexto',
+        defaultMode,
+    });
+
+    showSetupComplete(provider, selectedModel, defaultMode, false);
+}
+
+/**
  * Full interactive setup flow with wizard navigation.
  * Users can go back to previous steps to change their selections.
  */
@@ -464,25 +622,44 @@ async function handleInteractiveSetup(_options: CLISetupOptions): Promise<void> 
  * Wizard Step: Setup Type (Quick Start vs Custom)
  */
 async function wizardStepSetupType(state: SetupWizardState): Promise<SetupWizardState> {
+    // Build options list - only show Dexto Credits when feature is enabled
+    const options: Array<{ value: string; label: string; hint: string }> = [];
+
+    if (isDextoAuthEnabled()) {
+        options.push({
+            value: 'dexto',
+            label: `${chalk.magenta('★')} Dexto Credits`,
+            hint: 'All models, one account - login to get started (recommended)',
+        });
+    }
+
+    options.push(
+        {
+            value: 'quick',
+            label: `${chalk.green('●')} Quick Start`,
+            hint: 'Google Gemini (free) - no account needed',
+        },
+        {
+            value: 'custom',
+            label: `${chalk.blue('●')} Custom Setup`,
+            hint: 'Choose your provider (OpenAI, Anthropic, Ollama, etc.)',
+        }
+    );
+
     const setupType = await p.select({
         message: 'How would you like to set up Dexto?',
-        options: [
-            {
-                value: 'quick',
-                label: `${chalk.green('→')} Get started now`,
-                hint: 'Pick a free provider and start chatting',
-            },
-            {
-                value: 'custom',
-                label: `${chalk.blue('●')} Choose my own provider`,
-                hint: 'OpenAI, Anthropic, local models, and more',
-            },
-        ],
+        options,
     });
 
     if (p.isCancel(setupType)) {
         p.cancel('Setup cancelled');
         process.exit(0);
+    }
+
+    if (setupType === 'dexto') {
+        // Handle Dexto Credits flow - login if needed, then proceed to model selection
+        await handleDextoProviderSetup();
+        return { ...state, step: 'complete', quickStartHandled: true };
     }
 
     if (setupType === 'quick') {
@@ -966,7 +1143,45 @@ async function showSettingsMenu(): Promise<void> {
  * Change model setting (includes provider selection)
  */
 async function changeModel(currentProvider?: LLMProvider): Promise<void> {
-    const provider = currentProvider || (await selectProvider());
+    let provider: LLMProvider | null | '_back' = currentProvider ?? null;
+
+    // If no provider specified, show selection
+    // When Dexto auth is enabled, show Dexto/Other choice first (matching first-time setup flow)
+    if (!provider && isDextoAuthEnabled()) {
+        const providerChoice = await p.select({
+            message: 'Choose your model source',
+            options: [
+                {
+                    value: 'dexto',
+                    label: `${chalk.magenta('★')} Dexto Credits`,
+                    hint: 'All models, one account',
+                },
+                {
+                    value: 'other',
+                    label: `${chalk.blue('●')} Other providers`,
+                    hint: 'OpenAI, Anthropic, Gemini, Ollama, etc.',
+                },
+            ],
+        });
+
+        if (p.isCancel(providerChoice)) {
+            p.log.warn('Model change cancelled');
+            return;
+        }
+
+        if (providerChoice === 'dexto') {
+            // Use the same Dexto setup flow as first-time setup
+            await handleDextoProviderSetup();
+            return;
+        }
+
+        // 'other' - fall through to normal provider selection
+    }
+
+    // Get provider if not already set
+    if (!provider) {
+        provider = await selectProvider();
+    }
 
     // Handle cancellation or back from selectProvider
     if (provider === null || provider === '_back') {

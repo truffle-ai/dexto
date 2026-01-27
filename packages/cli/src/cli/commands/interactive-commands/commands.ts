@@ -10,6 +10,7 @@
  * - Conversation Commands: Session management, history, and search
  * - Model Commands: Model switching and configuration
  * - MCP Commands: MCP server management
+ * - Plugin Commands: Claude Code plugin management
  * - System Commands: Configuration, logging, and statistics
  * - Tool Commands: Tool listing and management
  * - Prompt Commands: System prompt management
@@ -21,6 +22,7 @@
 
 import type { DextoAgent } from '@dexto/core';
 import type { CommandDefinition, CommandHandlerResult } from './command-parser.js';
+import { isDextoAuthEnabled } from '@dexto/agent-management';
 
 // Import modular command definitions
 import { generalCommands, createHelpCommand } from './general-commands.js';
@@ -28,10 +30,12 @@ import { searchCommand, resumeCommand, renameCommand } from './session/index.js'
 import { exportCommand } from './export/index.js';
 import { modelCommands } from './model/index.js';
 import { mcpCommands } from './mcp/index.js';
+import { pluginCommands } from './plugin/index.js';
 import { systemCommands } from './system/index.js';
 import { toolCommands } from './tool-commands.js';
 import { promptCommands } from './prompt-commands.js';
 import { documentationCommands } from './documentation-commands.js';
+import { loginCommand } from './auth/index.js';
 
 /**
  * Complete list of all available CLI commands.
@@ -68,6 +72,9 @@ const baseCommands: CommandDefinition[] = [
     // MCP server management
     mcpCommands, // /mcp - opens MCP server list overlay
 
+    // Plugin management
+    pluginCommands, // /plugin - manage Claude Code compatible plugins
+
     // Tool management commands
     ...toolCommands,
 
@@ -79,6 +86,9 @@ const baseCommands: CommandDefinition[] = [
 
     // Documentation commands
     ...documentationCommands,
+
+    // Auth commands (feature-flagged)
+    ...(isDextoAuthEnabled() ? [loginCommand] : []),
 ];
 
 // Add help command that can see all commands

@@ -15,6 +15,7 @@ interface FooterProps {
     cwd?: string;
     branchName?: string;
     autoApproveEdits?: boolean;
+    planModeActive?: boolean;
     /** Whether user is in shell command mode (input starts with !) */
     isShellMode?: boolean;
 }
@@ -34,6 +35,7 @@ export function Footer({
     cwd,
     branchName,
     autoApproveEdits,
+    planModeActive,
     isShellMode,
 }: FooterProps) {
     const displayPath = cwd ? getDirectoryName(cwd) : '';
@@ -41,6 +43,9 @@ export function Footer({
     const [contextLeft, setContextLeft] = useState<{
         percentLeft: number;
     } | null>(null);
+
+    // Check if Dexto is actually the active provider (not just if API key exists)
+    const viaDexto = agent.getCurrentLLMConfig().provider === 'dexto';
 
     useEffect(() => {
         if (!sessionId) {
@@ -107,7 +112,10 @@ export function Footer({
                     <Text color={pathColor}>{displayPath}</Text>
                     {branchName && <Text color="gray"> ({branchName})</Text>}
                 </Box>
-                <Text color="cyan">{displayModelName}</Text>
+                <Box>
+                    <Text color="cyan">{displayModelName}</Text>
+                    {viaDexto && <Text color="gray"> via Dexto</Text>}
+                </Box>
             </Box>
 
             {/* Line 2: Context left */}
@@ -118,6 +126,7 @@ export function Footer({
             )}
 
             {/* Line 3: Mode indicators (left) */}
+            {/* Shift+Tab cycles: Normal → Plan Mode → Accept All Edits → Normal */}
             {isShellMode && (
                 <Box>
                     <Text color="yellow" bold>
@@ -126,10 +135,16 @@ export function Footer({
                     <Text color="gray"> for shell mode</Text>
                 </Box>
             )}
-            {autoApproveEdits && !isShellMode && (
+            {planModeActive && !isShellMode && (
+                <Box>
+                    <Text color="magentaBright">plan mode</Text>
+                    <Text color="gray"> (shift + tab to cycle)</Text>
+                </Box>
+            )}
+            {autoApproveEdits && !planModeActive && !isShellMode && (
                 <Box>
                     <Text color="yellowBright">accept edits</Text>
-                    <Text color="gray"> (shift + tab to toggle)</Text>
+                    <Text color="gray"> (shift + tab to cycle)</Text>
                 </Box>
             )}
         </Box>

@@ -8,7 +8,10 @@ import {
     deriveDisplayName,
     getAgentRegistry,
     AgentFactory,
+    globalPreferencesExist,
+    loadGlobalPreferences,
 } from '@dexto/agent-management';
+import { applyUserPreferences } from '../config/cli-overrides.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import {
     createDextoApp,
@@ -31,13 +34,24 @@ const DEFAULT_AGENT_VERSION = '1.0.0';
  * Load image dynamically based on config and environment
  * Priority: Config image field > Environment variable > Default
  * Images are optional, but default to image-local for convenience
+ *
+ * @returns Image metadata including bundled plugins, or null if image has no metadata export
  */
-async function loadImageForConfig(config: { image?: string | undefined }): Promise<void> {
+async function loadImageForConfig(config: {
+    image?: string | undefined;
+}): Promise<{ bundledPlugins?: string[] } | null> {
     const imageName = config.image || process.env.DEXTO_IMAGE || '@dexto/image-local';
 
     try {
-        await import(imageName);
+        const imageModule = await import(imageName);
         logger.debug(`Loaded image: ${imageName}`);
+
+        // Extract metadata if available (built images export imageMetadata)
+        if (imageModule.imageMetadata) {
+            return imageModule.imageMetadata;
+        }
+
+        return null;
     } catch (err) {
         const errorMsg = `Failed to load image '${imageName}': ${err instanceof Error ? err.message : String(err)}`;
         logger.error(errorMsg);
@@ -77,6 +91,9 @@ async function listAgents(): Promise<{
  * Create an agent from an agent ID
  * Replacement for old Dexto.createAgent()
  * Uses registry.resolveAgent() which auto-installs if needed
+ *
+ * Applies user preferences (preferences.yml) to ALL agents, not just the default.
+ * See feature-plans/auto-update.md section 8.11 - Three-Layer LLM Resolution.
  */
 async function createAgentFromId(agentId: string): Promise<DextoAgent> {
     try {
@@ -84,14 +101,34 @@ async function createAgentFromId(agentId: string): Promise<DextoAgent> {
         const registry = getAgentRegistry();
         const agentPath = await registry.resolveAgent(agentId, true);
 
-        // Load and enrich agent config
-        const config = await loadAgentConfig(agentPath);
+        // Load agent config
+        let config = await loadAgentConfig(agentPath);
+
+        // Apply user's LLM preferences to ALL agents
+        // Three-Layer Resolution: local.llm ?? preferences.llm ?? bundled.llm
+        if (globalPreferencesExist()) {
+            try {
+                const preferences = await loadGlobalPreferences();
+                if (preferences?.llm?.provider && preferences?.llm?.model) {
+                    config = applyUserPreferences(config, preferences);
+                    logger.debug(`Applied user preferences to ${agentId}`, {
+                        provider: preferences.llm.provider,
+                        model: preferences.llm.model,
+                    });
+                }
+            } catch {
+                logger.debug('Could not load preferences, using bundled config');
+            }
+        }
+
+        // Load image to get bundled plugins
+        const imageMetadata = await loadImageForConfig(config);
+
+        // Enrich config with per-agent paths and bundled plugins
         const enrichedConfig = enrichAgentConfig(config, agentPath, {
             logLevel: 'info', // Server uses info-level logging for visibility
+            bundledPlugins: imageMetadata?.bundledPlugins || [],
         });
-
-        // Load image dynamically based on config
-        await loadImageForConfig(enrichedConfig);
 
         // Create agent instance
         logger.info(`Creating agent: ${agentId} from ${agentPath}`);
@@ -333,15 +370,32 @@ export async function initializeHonoApi(
             await Telemetry.shutdownGlobal();
 
             // 2. Load agent configuration from file path
-            const config = await loadAgentConfig(filePath);
+            let config = await loadAgentConfig(filePath);
 
-            // 3. Enrich config with per-agent paths (logs, storage, etc.)
+            // 2.5. Apply user's LLM preferences to ALL agents
+            // Three-Layer Resolution: local.llm ?? preferences.llm ?? bundled.llm
+            if (globalPreferencesExist()) {
+                try {
+                    const preferences = await loadGlobalPreferences();
+                    if (preferences?.llm?.provider && preferences?.llm?.model) {
+                        config = applyUserPreferences(config, preferences);
+                        logger.debug(
+                            `Applied user preferences to agent from ${filePath} (provider=${preferences.llm.provider}, model=${preferences.llm.model})`
+                        );
+                    }
+                } catch {
+                    logger.debug('Could not load preferences, using bundled config');
+                }
+            }
+
+            // 3. Load image first to get bundled plugins
+            const imageMetadata = await loadImageForConfig(config);
+
+            // 3.5. Enrich config with per-agent paths and bundled plugins from image
             const enrichedConfig = enrichAgentConfig(config, filePath, {
                 logLevel: 'info', // Server uses info-level logging for visibility
+                bundledPlugins: imageMetadata?.bundledPlugins || [],
             });
-
-            // 3.5. Load image dynamically based on config
-            await loadImageForConfig(enrichedConfig);
 
             // 4. Create new agent instance directly (will initialize fresh telemetry in createAgentServices)
             newAgent = new DextoAgent(enrichedConfig, filePath);

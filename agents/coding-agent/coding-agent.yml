@@ -64,6 +64,12 @@ systemPrompt:
         3. Mark it as completed when done, and move to the next task
         4. Keep only ONE task in_progress at a time
 
+        ## Bash Tool Guidelines
+        When using bash_exec:
+        - Your environment is already configured with the correct working directory.
+        - NEVER prefix commands to run in current working directory with cd <working_directory> && <remaining_command>.
+        - Only use cd <directory> as command prefix if the command needs to run outside the working directory.
+        
         ## Guidelines
         - Always read relevant code before making changes to understand context
         - Use glob_files to find files and grep_content to search within files
@@ -118,6 +124,7 @@ toolConfirmation:
       - custom--bash_output    # Check background process output
       - custom--kill_process   # Kill processes without approval (only processes started by agent)
       - custom--todo_write     # Todo updates don't need approval
+      - custom--plan_read      # Read plan without approval
 
     # Tools that are always denied (dangerous operations)
     # Uncomment to restrict certain operations
@@ -140,6 +147,7 @@ elicitation:
 # Internal tools - core tools that are always available
 internalTools:
   - ask_user       # Ask questions and collect input
+  - invoke_skill   # Invoke skills/prompts during execution
 
 # Custom tools - filesystem and process tools from image-local
 customTools:
@@ -151,6 +159,8 @@ customTools:
   - type: process-tools
     securityLevel: moderate
   - type: todo-tools
+  - type: plan-tools
+    basePath: "${{dexto.project_dir}}/plans"
   - type: agent-spawner
     maxConcurrentAgents: 5
     defaultTimeout: 300000
@@ -229,6 +239,11 @@ internalResources:
 
 # Prompts - coding-focused examples shown as clickable buttons in WebUI
 prompts:
+  # Skills - can be invoked by the LLM via invoke_skill tool
+  - type: file
+    file: "${{dexto.agent_dir}}/skills/code-review.md"
+    # user-invocable: true (default) - appears as /code-review slash command
+    # disable-model-invocation: false (default) - LLM can invoke via invoke_skill
   - type: inline
     id: analyze-codebase
     title: "🔍 Analyze Codebase"

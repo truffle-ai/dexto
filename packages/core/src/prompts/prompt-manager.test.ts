@@ -61,3 +61,102 @@ describe('PromptManager MCP args mapping/filtering', () => {
         expect(capture.lastArgs).toEqual({ metric_type: 'users', time_period: 'Q4 2024' });
     });
 });
+
+describe('PromptManager getPromptDefinition', () => {
+    test('returns context field from config prompts', async () => {
+        const fakeMCP = {
+            getAllPromptMetadata() {
+                return [];
+            },
+            getPromptMetadata() {
+                return undefined;
+            },
+            async getPrompt() {
+                return { messages: [] };
+            },
+        } as any;
+        const resourceManagerStub = { getBlobStore: () => undefined } as any;
+        const agentConfig: any = {
+            prompts: [
+                {
+                    type: 'inline',
+                    id: 'fork-skill',
+                    prompt: 'A skill with fork context',
+                    description: 'Test fork skill',
+                    context: 'fork',
+                },
+            ],
+        };
+        const eventBus: any = { on: () => {}, emit: () => {} };
+        const dbStub: any = {
+            connect: async () => {},
+            list: async () => [],
+            get: async () => undefined,
+        };
+
+        const pm = new PromptManager(
+            fakeMCP,
+            resourceManagerStub,
+            agentConfig,
+            eventBus,
+            dbStub,
+            mockLogger
+        );
+        await pm.initialize();
+        const def = await pm.getPromptDefinition('config:fork-skill');
+
+        expect(def).toMatchObject({
+            name: 'config:fork-skill',
+            description: 'Test fork skill',
+            context: 'fork',
+        });
+    });
+
+    test('returns undefined context when not specified', async () => {
+        const fakeMCP = {
+            getAllPromptMetadata() {
+                return [];
+            },
+            getPromptMetadata() {
+                return undefined;
+            },
+            async getPrompt() {
+                return { messages: [] };
+            },
+        } as any;
+        const resourceManagerStub = { getBlobStore: () => undefined } as any;
+        const agentConfig: any = {
+            prompts: [
+                {
+                    type: 'inline',
+                    id: 'inline-skill',
+                    prompt: 'A skill without context',
+                    description: 'Test inline skill',
+                },
+            ],
+        };
+        const eventBus: any = { on: () => {}, emit: () => {} };
+        const dbStub: any = {
+            connect: async () => {},
+            list: async () => [],
+            get: async () => undefined,
+        };
+
+        const pm = new PromptManager(
+            fakeMCP,
+            resourceManagerStub,
+            agentConfig,
+            eventBus,
+            dbStub,
+            mockLogger
+        );
+        await pm.initialize();
+        const def = await pm.getPromptDefinition('config:inline-skill');
+
+        expect(def).toMatchObject({
+            name: 'config:inline-skill',
+            description: 'Test inline skill',
+        });
+        expect(def?.context).toBeUndefined();
+    });
+});

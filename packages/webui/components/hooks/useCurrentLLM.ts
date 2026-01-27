@@ -23,6 +23,7 @@ export function useCurrentLLM(sessionId: string | null, enabled: boolean = true)
                 model: cfg.model,
                 displayName: cfg.displayName,
                 baseURL: cfg.baseURL,
+                viaDexto: data.routing?.viaDexto ?? false,
             };
         },
         // Always enabled - API returns default config when no sessionId

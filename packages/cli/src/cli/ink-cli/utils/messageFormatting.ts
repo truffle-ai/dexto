@@ -11,6 +11,43 @@ import type { Message } from '../state/types.js';
 import { generateMessageId } from './idGenerator.js';
 
 /**
+ * Regex to detect skill invocation messages.
+ * Matches: <skill-invocation>...skill: "config:skill-name"...</skill-invocation>
+ * Works for both fork and inline skills.
+ */
+const SKILL_INVOCATION_REGEX =
+    /<skill-invocation>[\s\S]*?skill:\s*"(?:config:)?([^"]+)"[\s\S]*?<\/skill-invocation>/;
+
+/**
+ * Formats a skill invocation message for clean display.
+ * Converts verbose <skill-invocation> blocks to clean /skill-name format.
+ * Works for both fork skills (just the tag) and inline skills (tag + content).
+ *
+ * @param content - The message content to check and format
+ * @returns Formatted content if it's a skill invocation, original content otherwise
+ */
+export function formatSkillInvocationMessage(content: string): string {
+    const match = content.match(SKILL_INVOCATION_REGEX);
+    if (match) {
+        const skillName = match[1];
+        // Extract task context if present
+        const contextMatch = content.match(/Task context:\s*(.+?)(?:\n|$)/);
+        if (contextMatch) {
+            return `/${skillName} ${contextMatch[1]}`;
+        }
+        return `/${skillName}`;
+    }
+    return content;
+}
+
+/**
+ * Checks if a message content is a skill invocation.
+ */
+export function isSkillInvocationMessage(content: string): boolean {
+    return SKILL_INVOCATION_REGEX.test(content);
+}
+
+/**
  * Convert absolute path to display-friendly relative path.
  * Strategy:
  * 1. If path is under cwd → relative from cwd (e.g., "src/file.ts")
@@ -152,8 +189,11 @@ const TOOL_CONFIGS: Record<string, ToolDisplayConfig> = {
     // User interaction
     ask_user: { displayName: 'Ask', argsToShow: ['question'], primaryArg: 'question' },
 
-    // Agent spawning - handled specially in getToolDisplayName for dynamic agentId
+    // Agent spawning - handled specially in formatToolHeader for dynamic agentId
     spawn_agent: { displayName: 'Agent', argsToShow: ['task'], primaryArg: 'task' },
+
+    // Skill invocation - handled specially in formatToolHeader to show clean skill name
+    invoke_skill: { displayName: 'Skill', argsToShow: ['skill'], primaryArg: 'skill' },
 
     todo_write: { displayName: 'UpdateTasks', argsToShow: [] },
 };
@@ -286,14 +326,31 @@ export function formatToolHeader(
     const argsFormatted = formatToolArgsForDisplay(toolName, args);
     const badge = getToolTypeBadge(toolName);
 
-    // Special handling for spawn_agent: use agentId as display name
     // Normalize tool name to handle all prefixes (internal--, custom--)
     const normalizedToolName = toolName.replace(/^(?:internal--|custom--)/, '');
+
+    // Special handling for spawn_agent: use agentId as display name
     const isSpawnAgent = normalizedToolName === 'spawn_agent';
     if (isSpawnAgent && args.agentId) {
         const agentId = String(args.agentId);
         const agentLabel = agentId.replace(/-agent$/, '');
         displayName = agentLabel.charAt(0).toUpperCase() + agentLabel.slice(1);
+    }
+
+    // Special handling for invoke_skill: show skill as /skill-name
+    const isInvokeSkill = normalizedToolName === 'invoke_skill';
+    if (isInvokeSkill && args.skill) {
+        const skillName = String(args.skill);
+        // Extract display name from skill identifier (e.g., "config:test-fork" -> "test-fork")
+        const colonIndex = skillName.indexOf(':');
+        const displaySkillName = colonIndex >= 0 ? skillName.slice(colonIndex + 1) : skillName;
+        // Override args display to show clean slash command format
+        return {
+            displayName: 'Skill',
+            argsFormatted: `/${displaySkillName}`,
+            badge,
+            header: `Skill(/${displaySkillName})`,
+        };
     }
 
     // Only show badge for MCP tools (external tools worth distinguishing)
@@ -649,10 +706,15 @@ export function convertHistoryToUIMessages(
         }
 
         // Handle other messages (user, system)
-        const textContent = extractTextContent(msg.content);
+        let textContent = extractTextContent(msg.content);
 
         // Skip empty messages
         if (!textContent) return;
+
+        // Format skill invocation messages for cleaner display
+        if (msg.role === 'user') {
+            textContent = formatSkillInvocationMessage(textContent);
+        }
 
         uiMessages.push({
             id: `session-${sessionId}-${index}`,

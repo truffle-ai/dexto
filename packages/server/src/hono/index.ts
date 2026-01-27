@@ -24,6 +24,7 @@ import { createKeyRouter } from './routes/key.js';
 import { createToolsRouter } from './routes/tools.js';
 import { createDiscoveryRouter } from './routes/discovery.js';
 import { createModelsRouter } from './routes/models.js';
+import { createDextoAuthRouter } from './routes/dexto-auth.js';
 import {
     createStaticRouter,
     createSpaFallbackHandler,
@@ -163,7 +164,8 @@ export function createDextoApp(options: CreateDextoAppOptions) {
         .route(routePrefix, createKeyRouter())
         .route(routePrefix, createToolsRouter(getAgent))
         .route(routePrefix, createDiscoveryRouter())
-        .route(routePrefix, createModelsRouter());
+        .route(routePrefix, createModelsRouter())
+        .route(routePrefix, createDextoAuthRouter(getAgent));
 
     // Expose OpenAPI document
     // Current approach uses @hono/zod-openapi's .doc() method for OpenAPI spec generation
@@ -269,6 +271,10 @@ export function createDextoApp(options: CreateDextoAppOptions) {
             {
                 name: 'models',
                 description: 'List and manage local GGUF models and Ollama models',
+            },
+            {
+                name: 'auth',
+                description: 'Dexto authentication status and management',
             },
         ],
     });

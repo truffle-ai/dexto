@@ -16,6 +16,7 @@ export const INTERNAL_TOOL_NAMES = [
     'delegate_to_url',
     'list_resources',
     'get_resource',
+    'invoke_skill',
 ] as const;
 
 export type KnownInternalTool = (typeof INTERNAL_TOOL_NAMES)[number];

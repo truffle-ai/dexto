@@ -11,7 +11,7 @@
  * - Always cleans up agents after task completion (synchronous model)
  */
 
-import type { DextoAgent, IDextoLogger, AgentConfig } from '@dexto/core';
+import type { DextoAgent, IDextoLogger, AgentConfig, TaskForker } from '@dexto/core';
 import { AgentRuntime } from '../runtime/AgentRuntime.js';
 import { createDelegatingApprovalHandler } from '../runtime/approval-delegation.js';
 import { loadAgentConfig } from '../config/loader.js';
@@ -19,8 +19,9 @@ import { getAgentRegistry } from '../registry/registry.js';
 import type { AgentRegistryEntry } from '../registry/types.js';
 import type { AgentSpawnerConfig } from './schemas.js';
 import type { SpawnAgentOutput } from './types.js';
+import { resolveSubAgentLLM } from './llm-resolution.js';
 
-export class RuntimeService {
+export class RuntimeService implements TaskForker {
     private runtime: AgentRuntime;
     private parentId: string;
     private parentAgent: DextoAgent;
@@ -74,6 +75,7 @@ export class RuntimeService {
      * @param input.task - Short task description (for logging/UI)
      * @param input.instructions - Full prompt sent to sub-agent
      * @param input.agentId - Optional agent ID from registry
+     * @param input.autoApprove - Optional override for auto-approve (used by fork skills)
      * @param input.timeout - Optional task timeout in milliseconds
      * @param input.toolCallId - Optional tool call ID for progress events
      * @param input.sessionId - Optional session ID for progress events
@@ -82,6 +84,7 @@ export class RuntimeService {
         task: string;
         instructions: string;
         agentId?: string;
+        autoApprove?: boolean;
         timeout?: number;
         toolCallId?: string;
         sessionId?: string;
@@ -114,11 +117,11 @@ export class RuntimeService {
 
         const timeout = input.timeout ?? this.config.defaultTimeout;
 
-        // Check config-level autoApproveAgents
-        let autoApprove = false;
-        if (input.agentId && this.config.autoApproveAgents) {
-            autoApprove = this.config.autoApproveAgents.includes(input.agentId);
-        }
+        // Determine autoApprove: explicit input > config-level autoApproveAgents > false
+        const autoApprove =
+            input.autoApprove !== undefined
+                ? input.autoApprove
+                : !!(input.agentId && this.config.autoApproveAgents?.includes(input.agentId));
 
         // Try with sub-agent's config first, fall back to parent's LLM if it fails
         const result = await this.trySpawnWithFallback(
@@ -129,6 +132,53 @@ export class RuntimeService {
             input.sessionId
         );
         return result;
+    }
+
+    /**
+     * Fork execution to an isolated subagent.
+     * Implements TaskForker interface for use by invoke_skill when context: fork is set.
+     *
+     * @param options.task - Short description for UI/logs
+     * @param options.instructions - Full instructions for the subagent
+     * @param options.agentId - Optional agent ID from registry to use for execution
+     * @param options.autoApprove - Auto-approve tool calls (default: true for fork skills)
+     * @param options.toolCallId - Optional tool call ID for progress events
+     * @param options.sessionId - Optional session ID for progress events
+     */
+    async fork(options: {
+        task: string;
+        instructions: string;
+        agentId?: string;
+        autoApprove?: boolean;
+        toolCallId?: string;
+        sessionId?: string;
+    }): Promise<{ success: boolean; response?: string; error?: string }> {
+        // Delegate to spawnAndExecute, passing options
+        // Only include optional properties when they have values (exactOptionalPropertyTypes)
+        const spawnOptions: {
+            task: string;
+            instructions: string;
+            agentId?: string;
+            autoApprove?: boolean;
+            toolCallId?: string;
+            sessionId?: string;
+        } = {
+            task: options.task,
+            instructions: options.instructions,
+        };
+        if (options.agentId) {
+            spawnOptions.agentId = options.agentId;
+        }
+        if (options.autoApprove !== undefined) {
+            spawnOptions.autoApprove = options.autoApprove;
+        }
+        if (options.toolCallId) {
+            spawnOptions.toolCallId = options.toolCallId;
+        }
+        if (options.sessionId) {
+            spawnOptions.sessionId = options.sessionId;
+        }
+        return this.spawnAndExecute(spawnOptions);
     }
 
     /**
@@ -320,9 +370,14 @@ export class RuntimeService {
                     errorMsg.includes('provider');
 
                 if (isLlmError && input.agentId) {
-                    // Fallback: retry with parent's LLM config
+                    // Fallback: retry with parent's full LLM config
+                    // This can happen if:
+                    // - Model transformation failed for the sub-agent's model
+                    // - API rate limits or other provider-specific errors
+                    // - Edge cases in LLM resolution
                     this.logger.warn(
-                        `Sub-agent LLM config failed: ${errorMsg}. Falling back to parent's LLM config.`
+                        `Sub-agent '${input.agentId}' LLM config failed: ${errorMsg}. ` +
+                            `Falling back to parent's full LLM config.`
                     );
                     usedFallback = true;
 
@@ -387,6 +442,9 @@ export class RuntimeService {
             if (result.error !== undefined) {
                 output.error = result.error;
             }
+            if (usedFallback) {
+                output.warning = `Sub-agent '${input.agentId}' used fallback LLM (parent's full config) due to an error with its configured model.`;
+            }
             return output;
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);
@@ -447,9 +505,20 @@ export class RuntimeService {
                 let llmConfig = loadedConfig.llm;
 
                 if (inheritLlm) {
-                    // Use parent's full LLM config
-                    this.logger.debug('Using parent LLM config (inheritLlm=true)');
+                    // Use parent's full LLM config (fallback mode after first attempt failed)
+                    this.logger.debug(
+                        `Sub-agent '${agentId}' using parent LLM config (inheritLlm=true)`
+                    );
                     llmConfig = { ...parentConfig.llm };
+                } else {
+                    // Resolve optimal LLM: try to use sub-agent's model with parent's provider
+                    const resolution = resolveSubAgentLLM({
+                        subAgentLLM: loadedConfig.llm,
+                        parentLLM: parentConfig.llm,
+                        subAgentId: agentId,
+                    });
+                    this.logger.debug(`Sub-agent LLM resolution: ${resolution.reason}`);
+                    llmConfig = resolution.llm;
                 }
 
                 // Override certain settings for sub-agent behavior
@@ -469,7 +538,7 @@ export class RuntimeService {
             }
         }
 
-        // Start with a minimal config inheriting LLM settings from parent
+        // Start with a config inheriting LLM and tools from parent
         const config: AgentConfig = {
             llm: { ...parentConfig.llm },
 
@@ -480,6 +549,21 @@ export class RuntimeService {
             toolConfirmation: {
                 mode: toolConfirmationMode,
             },
+
+            // Inherit MCP servers from parent so subagent has tool access
+            mcpServers: parentConfig.mcpServers ? { ...parentConfig.mcpServers } : {},
+
+            // Inherit internal tools from parent, excluding tools that don't work in subagent context
+            // - ask_user: Subagents can't interact with the user directly
+            // - invoke_skill: Avoid nested skill invocations for simplicity
+            internalTools: parentConfig.internalTools
+                ? parentConfig.internalTools.filter(
+                      (tool) => tool !== 'ask_user' && tool !== 'invoke_skill'
+                  )
+                : [],
+
+            // Inherit custom tools from parent
+            customTools: parentConfig.customTools ? [...parentConfig.customTools] : [],
 
             // Suppress sub-agent console logs entirely using silent transport
             logger: {

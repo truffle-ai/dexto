@@ -35,6 +35,10 @@ interface ProviderOption {
 /**
  * Provider configuration registry
  * Organized by category for better UX
+ *
+ * Note: dexto is NOT included here - it's a transparent routing layer,
+ * not a user-selectable provider. When logged into Dexto, requests are
+ * automatically routed through the Dexto gateway.
  */
 export const PROVIDER_REGISTRY: Partial<Record<LLMProvider, ProviderOption>> = {
     google: {

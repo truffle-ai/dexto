@@ -64,6 +64,12 @@ export {
 } from './utils/execution-context.js';
 export { walkUpDirectories } from './utils/fs-walk.js';
 export { updateEnvFile } from './utils/env-file.js';
+export { isDextoAuthEnabled } from './utils/feature-flags.js';
+export {
+    isDextoAuthenticated,
+    getDextoApiKeyFromAuth,
+    canUseDextoProvider,
+} from './utils/dexto-auth.js';
 
 // Config management utilities
 export {
@@ -159,3 +165,66 @@ export * from './runtime/index.js';
 
 // Agent Spawner Tool Provider
 export * from './tool-provider/index.js';
+
+// Claude Code Plugin Loader
+export {
+    // Discovery
+    discoverClaudeCodePlugins,
+    getPluginSearchPaths,
+    // Loading
+    loadClaudeCodePlugin,
+    // Validation
+    validatePluginDirectory,
+    tryLoadManifest,
+    // Listing
+    listInstalledPlugins,
+    getDextoInstalledPluginsPath,
+    // Installation
+    installPluginFromPath,
+    loadDextoInstalledPlugins,
+    saveDextoInstalledPlugins,
+    isPluginInstalled,
+    // Uninstallation
+    uninstallPlugin,
+    // Schemas
+    PluginManifestSchema,
+    PluginMCPConfigSchema,
+    // Error handling
+    PluginErrorCode,
+    PluginError,
+    // Marketplace
+    DEFAULT_MARKETPLACES,
+    addMarketplace,
+    removeMarketplace,
+    updateMarketplace,
+    listMarketplaces,
+    listAllMarketplacePlugins,
+    installPluginFromMarketplace,
+    getUninstalledDefaults,
+    isDefaultMarketplace,
+    MarketplaceErrorCode,
+    MarketplaceError,
+    // Types
+    type PluginManifest,
+    type DiscoveredPlugin,
+    type PluginCommand,
+    type PluginMCPConfig,
+    type LoadedPlugin,
+    type PluginInstallScope,
+    type InstalledPluginEntry,
+    type InstalledPluginsFile,
+    type ListedPlugin,
+    type PluginValidationResult,
+    type PluginInstallResult,
+    type PluginUninstallResult,
+    type ValidatedPluginManifest,
+    type ValidatedPluginMCPConfig,
+    type InstallPluginOptions,
+    type UninstallPluginOptions,
+    // Marketplace types
+    type MarketplaceEntry,
+    type MarketplacePlugin,
+    type MarketplaceAddResult,
+    type MarketplaceUpdateResult,
+    type MarketplaceInstallResult,
+} from './plugins/index.js';

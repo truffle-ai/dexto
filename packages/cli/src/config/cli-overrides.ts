@@ -2,13 +2,21 @@
  * CLI-specific configuration types and utilities
  * This file handles CLI argument processing and config merging logic
  *
- * TODO: Future preference system enhancement
- * Currently, global preferences are only applied to the coding-agent at runtime.
- * Future improvements could include:
- * - Per-agent preference overrides (~/.dexto/agents/{id}/preferences.yml)
+ * Current behavior (Three-Layer LLM Resolution):
+ * Global preferences from preferences.yml are applied to ALL agents at runtime.
+ * See feature-plans/auto-update.md section 8.11 for the resolution order:
+ *   1. agent.local.yml llm section     → Agent-specific override (NOT YET IMPLEMENTED)
+ *   2. preferences.yml llm section     → User's global default (CURRENT)
+ *   3. agent.yml llm section           → Bundled fallback
+ *
+ * Note: Sub-agents spawned via RuntimeService have separate LLM resolution logic
+ * that tries to preserve the sub-agent's intended model when possible.
+ * See packages/agent-management/src/tool-provider/llm-resolution.ts
+ *
+ * TODO: Future enhancements
+ * - Per-agent local overrides (~/.dexto/agents/{id}/{id}.local.yml)
  * - Agent capability requirements (requires: { vision: true, toolUse: true })
- * - Merge strategy configuration (global > agent, agent > global, field-specific)
- * - User-controlled preference scopes via CLI flags (--prefer-global-llm)
+ * - Merge strategy configuration for non-LLM fields
  */
 
 import type { AgentConfig, LLMConfig, LLMProvider } from '@dexto/core';
@@ -81,9 +89,10 @@ export function applyCLIOverrides(
 
 /**
  * Applies global user preferences to an agent configuration at runtime.
- * This is used for the coding-agent to ensure user's LLM preferences are applied.
+ * This is used to ensure user's LLM preferences are applied to all agents.
  *
  * Unlike writeLLMPreferences() which modifies files, this performs an in-memory merge.
+ * User preferences fully override agent defaults for provider, model, and apiKey.
  *
  * @param baseConfig The configuration loaded from agent file
  * @param preferences Global user preferences
@@ -91,28 +100,28 @@ export function applyCLIOverrides(
  */
 export function applyUserPreferences(
     baseConfig: AgentConfig,
-    preferences: GlobalPreferences
+    preferences: Partial<GlobalPreferences>
 ): AgentConfig {
     // Create a deep copy to avoid mutating the original
     const mergedConfig = JSON.parse(JSON.stringify(baseConfig)) as AgentConfig;
 
-    // Apply LLM preferences (user preferences override agent defaults)
-    if (preferences.llm) {
-        mergedConfig.llm = {
-            ...mergedConfig.llm,
-            provider: preferences.llm.provider,
-            model: preferences.llm.model,
-        };
+    // No LLM preferences to apply
+    if (!preferences.llm) {
+        return mergedConfig;
+    }
 
-        // Only override apiKey if user has one configured
-        if (preferences.llm.apiKey) {
-            mergedConfig.llm.apiKey = preferences.llm.apiKey;
-        }
-
-        // Only override baseURL if user has one configured
-        if (preferences.llm.baseURL) {
-            mergedConfig.llm.baseURL = preferences.llm.baseURL;
-        }
+    // Apply user preferences - only override if defined (preferences is Partial)
+    if (preferences.llm.provider) {
+        mergedConfig.llm.provider = preferences.llm.provider;
+    }
+    if (preferences.llm.model) {
+        mergedConfig.llm.model = preferences.llm.model;
+    }
+    if (preferences.llm.apiKey) {
+        mergedConfig.llm.apiKey = preferences.llm.apiKey;
+    }
+    if (preferences.llm.baseURL) {
+        mergedConfig.llm.baseURL = preferences.llm.baseURL;
     }
 
     return mergedConfig;
@@ -207,6 +216,8 @@ function getEnvVarForProvider(provider: LLMProvider): string {
         // Local providers don't require API keys (empty string signals no key needed)
         local: '',
         ollama: '',
+        // Dexto gateway uses DEXTO_API_KEY from `dexto login`
+        dexto: 'DEXTO_API_KEY',
     };
     return envVarMap[provider];
 }
