@@ -20,6 +20,8 @@ import { basename, dirname, relative, sep } from 'path';
  * Dexto uses prefixed names like "custom--bash_exec", "custom--read_file".
  *
  * Keys are lowercase for case-insensitive lookup.
+ *
+ * TODO: Add additional Claude Code tool mappings as needed (e.g., list, search, run, notebook, etc.)
  */
 const CLAUDE_CODE_TOOL_MAP: Record<string, string> = {
     // Bash/process tools
