@@ -103,9 +103,8 @@ export async function handleBrowserLogin(): Promise<void> {
             expiresAt,
         });
 
-        console.log(chalk.green('\n🎉 Login successful!'));
         if (result.user?.email) {
-            console.log(chalk.dim(`Welcome back, ${result.user.email}`));
+            console.log(chalk.dim(`\nWelcome back, ${result.user.email}`));
         }
 
         await provisionKeys(result.accessToken, result.user?.email);
