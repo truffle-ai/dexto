@@ -165,7 +165,7 @@ export function createDextoApp(options: CreateDextoAppOptions) {
         .route(routePrefix, createToolsRouter(getAgent))
         .route(routePrefix, createDiscoveryRouter())
         .route(routePrefix, createModelsRouter())
-        .route(`${routePrefix}/dexto-auth`, createDextoAuthRouter(getAgent));
+        .route(routePrefix, createDextoAuthRouter(getAgent));
 
     // Expose OpenAPI document
     // Current approach uses @hono/zod-openapi's .doc() method for OpenAPI spec generation

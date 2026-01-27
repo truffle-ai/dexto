@@ -15,7 +15,7 @@ export function createDextoAuthRouter(_getAgent: GetAgentFn) {
 
     const statusRoute = createRoute({
         method: 'get',
-        path: '/status',
+        path: '/dexto-auth/status',
         summary: 'Dexto Auth Status',
         description:
             'Returns dexto authentication status. Used by Web UI to check if user can use dexto features.',
