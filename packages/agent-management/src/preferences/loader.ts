@@ -147,8 +147,6 @@ export interface CreatePreferencesOptions {
         onApprovalRequired?: boolean;
         onTaskComplete?: boolean;
     };
-    /** Whether to prefer Dexto Credits over direct API keys when both are available (default: true) */
-    preferDextoCredits?: boolean;
 }
 
 /**
@@ -192,7 +190,6 @@ export function createInitialPreferences(options: CreatePreferencesOptions): Glo
             onApprovalRequired: options.sounds?.onApprovalRequired ?? true,
             onTaskComplete: options.sounds?.onTaskComplete ?? true,
         },
-        preferDextoCredits: options.preferDextoCredits ?? true,
     };
 }
 

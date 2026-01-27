@@ -61,7 +61,6 @@ describe('Config Writer', () => {
                 onApprovalRequired: true,
                 onTaskComplete: true,
             },
-            preferDextoCredits: true,
         };
     });
 

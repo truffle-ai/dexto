@@ -142,7 +142,6 @@ describe('requiresSetup', () => {
                     onApprovalRequired: true,
                     onTaskComplete: true,
                 },
-                preferDextoCredits: true,
             });
 
             const result = await requiresSetup();
@@ -172,7 +171,6 @@ describe('requiresSetup', () => {
                     onApprovalRequired: true,
                     onTaskComplete: true,
                 },
-                preferDextoCredits: true,
             });
 
             const result = await requiresSetup();
@@ -202,7 +200,6 @@ describe('requiresSetup', () => {
                     onApprovalRequired: true,
                     onTaskComplete: true,
                 },
-                preferDextoCredits: true,
             });
 
             const result = await requiresSetup();
@@ -232,7 +229,6 @@ describe('requiresSetup', () => {
                     onApprovalRequired: true,
                     onTaskComplete: true,
                 },
-                preferDextoCredits: true,
             });
 
             const result = await requiresSetup();

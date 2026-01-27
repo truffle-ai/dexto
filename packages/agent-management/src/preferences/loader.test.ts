@@ -66,7 +66,6 @@ describe('Preferences Loader', () => {
                 onApprovalRequired: true,
                 onTaskComplete: true,
             },
-            preferDextoCredits: true,
         };
     });
 
@@ -318,7 +317,6 @@ setup:
                     onApprovalRequired: true,
                     onTaskComplete: true,
                 },
-                preferDextoCredits: true,
             });
         });
 
