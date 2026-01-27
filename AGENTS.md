@@ -19,7 +19,7 @@ This runs `scripts/quality-checks.sh` for build, tests, lint, and typecheck. See
 - Optimize for correctness. Use facts and code as the source of truth.
 - Read relevant code before recommending changes. Prefer grep/glob + direct file references over assumptions.
 - If something requires assumptions, state them and ask for confirmation.
-- Don’t communicate to the user via code comments. Comments are for future readers of the code, not for explaining decisions to the user.
+- Don't communicate to the user via code comments. Comments are for future readers of the code, not for explaining decisions to the user.
 
 ## Stack Rules (important)
 
@@ -187,12 +187,12 @@ Update process:
 The repo contains logger v1 and logger v2 APIs (core). Prefer patterns compatible with structured logging.
 
 - Prefer: `logger.info('Message', { contextKey: value })` (structured context as the second parameter where supported)
-- Avoid: `logger.error('Failed:', err)` style extra-arg logging; it’s ambiguous across logger versions/transports.
+- Avoid: `logger.error('Failed:', err)` style extra-arg logging; it's ambiguous across logger versions/transports.
 - Template literals are fine when interpolating values:
   - `logger.info(\`Server running at \${url}\`)`
 
 Colors:
-- Color formatting exists (chalk-based), but treat color choice as optional and primarily CLI-facing (don’t encode “must use exact color X” rules in new code unless the existing subsystem already does).
+- Color formatting exists (chalk-based), but treat color choice as optional and primarily CLI-facing (don't encode “must use exact color X” rules in new code unless the existing subsystem already does).
 
 Browser safety:
 - `packages/core/src/logger/logger.ts` is Node-oriented (fs/path/winston). Be careful not to import Node-only runtime modules into `packages/webui` bundles. Prefer `import type` when consuming core types from the WebUI.
@@ -217,7 +217,8 @@ Browser safety:
 
 - Never use `git add .` or `git add -A`. Stage explicit files/paths only.
 - Always inspect staged files before committing.
-- Don’t include AI-generated footers in commits/PRs.
+- Never amend commits (`git commit --amend`). Create new commits instead.
+- Don't include AI-generated footers in commits/PRs.
 - Keep commit messages technical and descriptive.
 
 ## Documentation Changes
