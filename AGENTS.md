@@ -2,6 +2,8 @@
 
 This repo is reviewed by automated agents (including CodeRabbit). This file is the source of truth for repo-wide conventions and review expectations.
 
+**Package manager: pnpm** (do not use npm/yarn)
+
 ## Code Quality Requirements
 
 Before completing significant tasks, prompt the user to ask if they want to run:
@@ -39,14 +41,36 @@ These rules are intended to prevent stack fragmentation and review churn.
 
 - Core is the business logic layer. Keep policy, validation boundaries, and reusable services here.
 
+### CLI (`packages/cli`)
+
+- Entry point: `packages/cli/src/cli/index.ts`
+- Static commands (e.g., `dexto init`, `dexto setup`): `packages/cli/src/cli/commands/`
+- Interactive CLI commands (e.g., `/help`, `/compact`): `packages/cli/src/cli/commands/interactive-commands/`
+- Ink-based UI components: `packages/cli/src/cli/ink-cli/`
+
+### Other Important Packages
+
+- **`@dexto/client-sdk`**: Lightweight type-safe client for the Dexto API (Hono-based). Use for external integrations.
+- **`@dexto/agent-management`**: Agent registry, config discovery, preferences, and agent resolution logic.
+- **`@dexto/tools-*`**: Modular tool packages (`tools-filesystem`, `tools-process`, `tools-todo`, `tools-plan`). Each provides a tool provider that registers with the core tool registry.
+
+### Images (`packages/image-*`)
+
+Images are pre-configured bundles of providers, tools, and defaults for specific deployment targets. They use `defineImage()` from core.
+
+- **`@dexto/image-local`**: Local development image with filesystem/process tools, SQLite storage.
+- **`@dexto/image-bundler`**: Build tool for bundling images (`dexto-bundle` CLI).
+
+Image definition files use the convention `dexto.image.ts` and register providers (blob stores, custom tools) as side-effects when imported.
+
 ## Avoiding Duplication (repo-wide)
 
-Before adding a new helper/utility/service:
-1. Search for existing utilities or similar patterns (glob/grep).
-2. Prefer reuse or extension of existing helpers.
-3. If introducing something new, explain why existing code cannot be reused.
+**Before adding any new helper/utility/service:**
+1. Search the codebase first (glob/grep for similar patterns).
+2. Prefer extending existing code over creating new.
+3. If new code is necessary, justify why existing code doesn't work.
 
-This applies everywhere (core, server, cli, webui).
+This applies everywhere (core, server, cli, webui). Violations will be flagged in review.
 
 ## Adding New Packages
 
@@ -76,11 +100,17 @@ When creating a new package:
 
 ### Execution Context Detection
 
-Dexto infers its execution environment to enable context-aware defaults and path resolution.
+Dexto infers its execution environment to enable context-aware defaults and path resolution. Use these utilities when behavior should differ based on how dexto is running.
 
-- Key implementation: `packages/core/src/utils/execution-context.ts`
-- Context-aware paths: `packages/core/src/utils/path.ts`
-- Context-aware API key setup UX: `packages/cli/src/cli/utils/api-key-setup.ts`
+**Context types:**
+- `dexto-source`: Running within the dexto monorepo itself (development)
+- `dexto-project`: Running in a project that has dexto as a dependency
+- `global-cli`: Running as globally installed CLI or in a non-dexto project
+
+**Key files:**
+- `packages/core/src/utils/execution-context.ts` - Context detection
+- `packages/core/src/utils/path.ts` - Context-aware path resolution
+- `packages/cli/src/cli/utils/api-key-setup.ts` - Context-aware setup UX
 
 ## Zod / Schema Design
 
@@ -200,6 +230,8 @@ Test types:
 - Unit: `*.test.ts`
 - Integration: `*.integration.test.ts`
 
+Test location: Co-locate tests with source files (e.g., `foo.ts` → `foo.test.ts` in same directory).
+
 Common commands:
 - `pnpm test`
 - `pnpm run test:unit`
@@ -210,6 +242,7 @@ When fixing bugs, add regression coverage where feasible.
 ## Maintaining This File
 
 Keep `AGENTS.md` updated when:
+- Adding a new package: add a brief description under the appropriate Stack Rules section
 - Architecture boundaries change (server/webui/cli)
 - Repo-wide conventions change (lint/type patterns, errors, OpenAPI generation)
 - File paths referenced here move
