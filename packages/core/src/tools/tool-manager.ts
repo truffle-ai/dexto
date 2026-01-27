@@ -211,6 +211,11 @@ export class ToolManager {
      * @param autoApproveTools Array of tool names to auto-approve (e.g., ['custom--bash_exec', 'custom--read_file'])
      */
     setSessionAutoApproveTools(sessionId: string, autoApproveTools: string[]): void {
+        // Empty array = no auto-approvals, same as clearing
+        if (autoApproveTools.length === 0) {
+            this.clearSessionAutoApproveTools(sessionId);
+            return;
+        }
         this.sessionAutoApproveTools.set(sessionId, autoApproveTools);
         this.logger.info(
             `Session auto-approve tools set for '${sessionId}': ${autoApproveTools.length} tools`

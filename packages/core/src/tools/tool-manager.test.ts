@@ -1407,6 +1407,31 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     'tool3',
                 ]);
             });
+
+            it('should clear auto-approvals when setting empty array', () => {
+                const toolManager = new ToolManager(
+                    mockMcpManager,
+                    mockApprovalManager,
+                    mockAllowedToolsProvider,
+                    'manual',
+                    mockAgentEventBus,
+                    { alwaysAllow: [], alwaysDeny: [] },
+                    { internalToolsConfig: [], internalToolsServices: {} as any },
+                    mockLogger
+                );
+
+                const sessionId = 'test-session';
+
+                // First set some tools
+                toolManager.setSessionAutoApproveTools(sessionId, ['internal--bash']);
+                expect(toolManager.hasSessionAutoApproveTools(sessionId)).toBe(true);
+
+                // Setting empty array should clear auto-approvals
+                toolManager.setSessionAutoApproveTools(sessionId, []);
+
+                expect(toolManager.hasSessionAutoApproveTools(sessionId)).toBe(false);
+                expect(toolManager.getSessionAutoApproveTools(sessionId)).toBeUndefined();
+            });
         });
 
         describe('Auto-Approve Precedence', () => {
