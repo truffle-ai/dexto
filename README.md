@@ -15,6 +15,17 @@
   <a href="https://deepwiki.com/truffle-ai/dexto"><img src="https://deepwiki.com/badge.svg"></a>
 </p>
 
+<!-- Keep these links. Translations will automatically update with the README. -->
+<a href="https://zdoc.app/de/truffle-ai/dexto">Deutsch</a> | 
+<a href="https://zdoc.app/en/truffle-ai/dexto">English</a> | 
+<a href="https://zdoc.app/es/truffle-ai/dexto">Español</a> | 
+<a href="https://zdoc.app/fr/truffle-ai/dexto">français</a> | 
+<a href="https://zdoc.app/ja/truffle-ai/dexto">日本語</a> | 
+<a href="https://zdoc.app/ko/truffle-ai/dexto">한국어</a> | 
+<a href="https://zdoc.app/pt/truffle-ai/dexto">Português</a> | 
+<a href="https://zdoc.app/ru/truffle-ai/dexto">Русский</a> | 
+<a href="https://zdoc.app/zh/truffle-ai/dexto">中文</a>
+
 <p align="center"><b>An open agent harness for AI applications—ships with a powerful coding agent.</b></p>
 
 <div align="center">
