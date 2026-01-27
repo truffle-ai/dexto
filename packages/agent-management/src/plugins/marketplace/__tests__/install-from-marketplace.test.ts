@@ -52,7 +52,7 @@ import {
     installPluginFromMarketplace,
     searchMarketplacePlugins,
 } from '../install-from-marketplace.js';
-import { getMarketplaceEntry, getMarketplaceCacheDir } from '../registry.js';
+import { getMarketplaceEntry } from '../registry.js';
 import { findPluginInMarketplaces, scanMarketplacePlugins } from '../operations.js';
 import { installPluginFromPath } from '../../install-plugin.js';
 import { copyDirectory } from '../../../utils/path.js';

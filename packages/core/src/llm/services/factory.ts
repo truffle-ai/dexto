@@ -20,7 +20,6 @@ import type { IDextoLogger } from '../../logger/v2/types.js';
 import { requiresApiKey } from '../registry.js';
 import { getPrimaryApiKeyEnvVar, resolveApiKeyForProvider } from '../../utils/api-key-resolver.js';
 import type { CompactionConfigInput } from '../../context/compaction/schemas.js';
-import type { LLMProvider } from '../types.js';
 
 // Dexto Gateway headers for usage tracking
 const DEXTO_GATEWAY_HEADERS = {
