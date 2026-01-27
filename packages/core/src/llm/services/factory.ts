@@ -128,11 +128,7 @@ export function createVercelModel(
             // Model IDs are in OpenRouter format (e.g., 'anthropic/claude-sonnet-4-5-20250929')
             // Users explicitly choose `provider: dexto` in their config
             //
-            // TODO: Handle 402 "out of credits" response from Dexto gateway
-            // - Return typed INSUFFICIENT_CREDITS error (not silent fallback)
-            // - Include recovery hints: "Run `dexto billing` to check balance" or
-            //   "Switch to direct provider (ANTHROPIC_API_KEY configured)"
-            // - See feature-plans/holistic-dexto-auth-analysis/02-routing-decision-and-fallback.md
+            // Note: 402 "insufficient credits" errors are handled in turn-executor.ts mapProviderError()
             const dextoBaseURL = 'https://api.dexto.ai/v1';
 
             // Build headers for usage tracking
