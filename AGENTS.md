@@ -52,6 +52,8 @@ These rules are intended to prevent stack fragmentation and review churn.
 
 - **`@dexto/client-sdk`**: Lightweight type-safe client for the Dexto API (Hono-based). Use for external integrations.
 - **`@dexto/agent-management`**: Agent registry, config discovery, preferences, and agent resolution logic.
+- **`@dexto/analytics`**: Shared PostHog analytics utilities for CLI and WebUI (opt-in telemetry).
+- **`@dexto/registry`**: Shared registry data (MCP server presets, etc.) for CLI and WebUI.
 - **`@dexto/tools-*`**: Modular tool packages (`tools-filesystem`, `tools-process`, `tools-todo`, `tools-plan`). Each provides a tool provider that registers with the core tool registry.
 
 ### Images (`packages/image-*`)
@@ -63,6 +65,14 @@ Images are pre-configured bundles of providers, tools, and defaults for specific
 
 Image definition files use the convention `dexto.image.ts` and register providers (blob stores, custom tools) as side-effects when imported.
 
+### Adding New Packages
+
+All `@dexto/*` packages use **fixed versioning** (shared version number).
+
+When creating a new package:
+1. Add the package name to the `fixed` array in `.changeset/config.json`
+2. Set its `version` in `package.json` to match other packages (check `packages/core/package.json`)
+
 ## Avoiding Duplication (repo-wide)
 
 **Before adding any new helper/utility/service:**
@@ -71,14 +81,6 @@ Image definition files use the convention `dexto.image.ts` and register provider
 3. If new code is necessary, justify why existing code doesn't work.
 
 This applies everywhere (core, server, cli, webui). Violations will be flagged in review.
-
-## Adding New Packages
-
-All `@dexto/*` packages use **fixed versioning** (shared version number).
-
-When creating a new package:
-1. Add the package name to the `fixed` array in `.changeset/config.json`
-2. Set its `version` in `package.json` to match other packages (check `packages/core/package.json`)
 
 ## Architecture & Design Patterns
 
@@ -93,7 +95,7 @@ When creating a new package:
 
 ### Service Initialization
 
-- **Config file is source of truth**: `agents/coding-agent/coding-agent.yml`
+- **Config file is source of truth**: Agent YAML files in `agents/` directory (e.g., `agents/coding-agent/coding-agent.yml`).
 - **Override pattern for advanced use**: use `InitializeServicesOptions` only for top-level services (avoid wiring every internal dependency).
 - **CLI Config Enrichment**: CLI adds per-agent paths (logs, database, blobs) via `enrichAgentConfig()` before agent initialization.
   - Source: `packages/agent-management/src/config/config-enrichment.ts`
