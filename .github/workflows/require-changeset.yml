@@ -21,7 +21,7 @@ jobs:
           git diff --name-only origin/${{ github.base_ref }}... > changed.txt
           echo "Changed files:" && cat changed.txt
       - name: Require changeset for publishable changes
-        if: "${{ !contains(github.event.pull_request.labels.*.name, 'release: none') }}"
+        if: "${{ !contains(github.event.pull_request.labels.*.name, 'release: none') && github.actor != 'dependabot[bot]' }}"
         run: |
           set -e
           # If publishable packages were touched in this PR, ensure a changeset file is part of the PR diff

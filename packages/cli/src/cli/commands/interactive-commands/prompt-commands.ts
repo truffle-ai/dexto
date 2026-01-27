@@ -271,20 +271,21 @@ function createPromptCommand(promptInfo: PromptInfo): CommandDefinition {
                         }
                     }
 
-                    // Apply tool restrictions if specified
+                    // Apply auto-approve tools if specified
+                    // These tools will skip confirmation prompts during skill execution
                     if (result.allowedTools && result.allowedTools.length > 0) {
                         console.log(
-                            chalk.gray(`🔒 Restricting tools to: ${result.allowedTools.join(', ')}`)
+                            chalk.gray(`🔓 Auto-approving tools: ${result.allowedTools.join(', ')}`)
                         );
                         try {
-                            agent.toolManager.setSessionToolRestrictions(
+                            agent.toolManager.setSessionAutoApproveTools(
                                 ctx.sessionId,
                                 result.allowedTools
                             );
                         } catch (toolError) {
                             console.log(
                                 chalk.yellow(
-                                    `⚠️  Failed to apply tool restrictions: ${toolError instanceof Error ? toolError.message : String(toolError)}`
+                                    `⚠️  Failed to set auto-approve tools: ${toolError instanceof Error ? toolError.message : String(toolError)}`
                                 )
                             );
                         }
