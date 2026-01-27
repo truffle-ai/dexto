@@ -18,7 +18,7 @@ import type { IConversationHistoryProvider } from '../../session/history/types.j
 import type { SystemPromptManager } from '../../systemPrompt/manager.js';
 import type { IDextoLogger } from '../../logger/v2/types.js';
 import { requiresApiKey } from '../registry.js';
-import { getPrimaryApiKeyEnvVar } from '../../utils/api-key-resolver.js';
+import { getPrimaryApiKeyEnvVar, resolveApiKeyForProvider } from '../../utils/api-key-resolver.js';
 import type { CompactionConfigInput } from '../../context/compaction/schemas.js';
 import type { LLMProvider } from '../types.js';
 
@@ -40,29 +40,6 @@ export interface DextoProviderContext {
 }
 
 /**
- * Resolve the API key for a provider.
- *
- * Priority:
- * 1. Explicit apiKey in config
- * 2. Environment variable for the provider
- *
- * For `dexto` provider, uses DEXTO_API_KEY (set by CLI from auth.json if logged in).
- */
-function resolveApiKey(provider: LLMProvider, configApiKey?: string): string | undefined {
-    if (configApiKey) {
-        return configApiKey;
-    }
-
-    // Check environment variable for the provider
-    const envVar = getPrimaryApiKeyEnvVar(provider);
-    if (envVar) {
-        return process.env[envVar];
-    }
-
-    return undefined;
-}
-
-/**
  * Create a Vercel AI SDK LanguageModel from config.
  *
  * With explicit providers, the config's provider field directly determines
@@ -77,7 +54,7 @@ export function createVercelModel(
     context?: DextoProviderContext
 ): LanguageModel {
     const { provider, model, baseURL } = llmConfig;
-    const apiKey = resolveApiKey(provider, llmConfig.apiKey);
+    const apiKey = llmConfig.apiKey || resolveApiKeyForProvider(provider);
 
     // Runtime check: if provider requires API key but none is configured, fail with helpful message
     if (requiresApiKey(provider) && !apiKey?.trim()) {
@@ -189,6 +166,11 @@ export function createVercelModel(
             // - IAM roles on EC2/Lambda (fromNodeProviderChain)
             // This would require adding @aws-sdk/credential-providers dependency
             // and exposing a config option like llmConfig.bedrock?.credentialProvider
+            //
+            // Current implementation: SDK reads directly from env vars:
+            // - AWS_REGION (required)
+            // - AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY (required)
+            // - AWS_SESSION_TOKEN (optional, for temporary credentials)
             const region = process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION;
             if (!region) {
                 throw LLMError.missingConfig(
