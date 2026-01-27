@@ -1,17 +1,25 @@
 // packages/cli/src/cli/auth/oauth.ts
 // OAuth flow implementation with local callback server
+//
+// TODO: Add CSRF protection via Device Code Flow (RFC 8628)
+// Current localhost callback pattern lacks CSRF protection. We attempted to add
+// a `state` parameter but Supabase uses `state` internally for its own OAuth CSRF
+// with Google, causing conflicts. The proper solution is Device Code Flow:
+// 1. CLI requests device code from server
+// 2. User visits URL and enters code
+// 3. CLI polls for authorization completion
+// This is what Supabase CLI, GitHub CLI, and others use for secure CLI auth.
 
 import * as http from 'http';
 import * as url from 'url';
 import * as querystring from 'querystring';
-import { randomBytes } from 'node:crypto';
 import chalk from 'chalk';
 import * as p from '@clack/prompts';
 import { logger } from '@dexto/core';
 import { readFileSync } from 'node:fs';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './constants.js';
 
-// Store OAuth state for CSRF protection (port -> cryptographic state)
+// Track active OAuth callback servers by port for cleanup
 const oauthStateStore = new Map<number, string>();
 
 const DEXTO_LOGO_DATA_URL = (() => {
@@ -82,13 +90,8 @@ function ensurePortAvailable(port: number): Promise<number> {
 
 /**
  * Start local HTTP server to receive OAuth callback
- * @param expectedState - The CSRF state token to validate on callback
  */
-function startCallbackServer(
-    port: number,
-    config: OAuthConfig,
-    expectedState: string
-): Promise<OAuthResult> {
+function startCallbackServer(port: number, config: OAuthConfig): Promise<OAuthResult> {
     return new Promise((resolve, reject) => {
         const server = http.createServer(async (req, res) => {
             try {
@@ -176,7 +179,6 @@ function startCallbackServer(
                             const accessToken = hashParams.get('access_token') || urlParams.get('access_token');
                             const refreshToken = hashParams.get('refresh_token') || urlParams.get('refresh_token');
                             const expiresIn = hashParams.get('expires_in') || urlParams.get('expires_in');
-                            const state = hashParams.get('state') || urlParams.get('state');
                             const error = hashParams.get('error') || urlParams.get('error');
 
                             if (window.location.hash || window.location.search) {
@@ -198,8 +200,7 @@ function startCallbackServer(
                                     body: JSON.stringify({
                                         access_token: accessToken,
                                         refresh_token: refreshToken,
-                                        expires_in: expiresIn ? parseInt(expiresIn) : undefined,
-                                        state: state
+                                        expires_in: expiresIn ? parseInt(expiresIn) : undefined
                                     })
                                 }).then(() => {
                                     document.querySelector('.container').innerHTML = ${JSON.stringify(SUCCESS_HTML)};
@@ -213,11 +214,9 @@ function startCallbackServer(
                     `);
                 } else if (req.method === 'POST' && parsedUrl.pathname === '/callback') {
                     let body = '';
-                    let payloadTooLarge = false;
                     const MAX_BODY_SIZE = 10 * 1024; // 10KB - plenty for OAuth tokens
                     req.on('data', (chunk) => {
                         if (body.length + chunk.length > MAX_BODY_SIZE) {
-                            payloadTooLarge = true;
                             req.destroy();
                             res.writeHead(413);
                             res.end('Request too large');
@@ -227,9 +226,6 @@ function startCallbackServer(
                     });
 
                     req.on('end', async () => {
-                        // Guard against double-response after 413
-                        if (payloadTooLarge) return;
-
                         try {
                             const data = JSON.parse(body);
 
@@ -238,22 +234,6 @@ function startCallbackServer(
                                 res.end('OK');
                                 server.close();
                                 reject(new Error(`OAuth error: ${data.error}`));
-                                return;
-                            }
-
-                            // Validate CSRF state token
-                            if (data.state !== expectedState) {
-                                logger.warn(
-                                    `OAuth state mismatch - possible CSRF attack. Expected: ${expectedState.slice(0, 8)}..., Got: ${data.state?.slice(0, 8) ?? 'none'}...`
-                                );
-                                res.writeHead(403);
-                                res.end('Invalid state');
-                                server.close();
-                                reject(
-                                    new Error(
-                                        'OAuth state validation failed - possible CSRF attack'
-                                    )
-                                );
                                 return;
                             }
 
@@ -304,9 +284,7 @@ function startCallbackServer(
                     res.end('Not Found');
                 }
             } catch (error) {
-                logger.error(
-                    `OAuth callback server error: ${error instanceof Error ? error.message : String(error)}`
-                );
+                logger.error(`Callback server error: ${error}`);
                 res.writeHead(500);
                 res.end('Internal Server Error');
                 server.close();
@@ -347,21 +325,17 @@ export async function performOAuthLogin(config: OAuthConfig): Promise<OAuthResul
         const port = await ensurePortAvailable(OAUTH_CALLBACK_PORT);
         const redirectUri = `http://localhost:${port}`;
 
-        // Generate cryptographic state for CSRF protection
-        const state = randomBytes(32).toString('hex');
-        oauthStateStore.set(port, state);
-        logger.debug(`Registered OAuth callback server on port ${port} with CSRF state`);
+        oauthStateStore.set(port, 'active');
+        logger.debug(`Registered OAuth callback server on port ${port}`);
 
         const provider = config.provider || 'google';
         const authParams = querystring.stringify({
             redirect_to: redirectUri,
-            state: state,
-            ...(config.scopes?.length && { scopes: config.scopes.join(' ') }),
         });
 
         const authUrl = `${config.authUrl}/auth/v1/authorize?provider=${provider}&${authParams}`;
 
-        const tokenPromise = startCallbackServer(port, config, state);
+        const tokenPromise = startCallbackServer(port, config);
 
         console.log(chalk.cyan('🌐 Opening browser for authentication...'));
 
