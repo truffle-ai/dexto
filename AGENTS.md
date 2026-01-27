@@ -121,7 +121,8 @@ Use standardized helpers from: `packages/core/src/utils/result.ts`
 
 ### Rules
 
-- Avoid `throw new Error()` in core repo. Prefer typed errors.
+- Avoid `throw new Error()` in `packages/core`. Prefer typed errors.
+- Non-core packages may use plain `Error` when a typed error is not available.
 - Use module-specific **error factory** pattern for new modules.
   - Reference examples:
     - `packages/core/src/config/errors.ts`
