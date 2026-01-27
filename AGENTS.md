@@ -128,6 +128,7 @@ Use standardized helpers from: `packages/core/src/utils/result.ts`
     - `packages/core/src/logger/v2/errors.ts`
     - `packages/core/src/storage/errors.ts`
     - `packages/core/src/telemetry/errors.ts`
+- **Exemption**: Build-time CLI tools and development tooling (bundlers, compilers, build scripts) are exempt from the strict `DextoRuntimeError`/`DextoValidationError` requirement. Plain `Error` is acceptable for build tool failures to align with standard build tool practices (tsc, esbuild, vite).
 
 ### Server/API error mapping
 
