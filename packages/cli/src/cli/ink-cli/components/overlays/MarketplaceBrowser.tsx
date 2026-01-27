@@ -42,7 +42,9 @@ export interface MarketplaceBrowserHandle {
     handleInput: (input: string, key: Key) => boolean;
 }
 
-type BrowserView = 'marketplaces' | 'plugins';
+type BrowserView = 'marketplaces' | 'plugins' | 'scope-select';
+
+type InstallScope = 'user' | 'project';
 
 // List item types
 interface BackItem {
@@ -72,12 +74,21 @@ interface PluginItem {
     isInstalled: boolean;
 }
 
+interface ScopeItem {
+    type: 'scope';
+    scope: InstallScope;
+    label: string;
+    description: string;
+    icon: string;
+}
+
 type ListItem =
     | BackItem
     | MarketplaceItem
     | DefaultMarketplaceItem
     | AddMarketplaceItem
-    | PluginItem;
+    | PluginItem
+    | ScopeItem;
 
 /**
  * Get source type icon
@@ -115,6 +126,7 @@ const MarketplaceBrowser = forwardRef<MarketplaceBrowserHandle, MarketplaceBrows
         const [selectedMarketplace, setSelectedMarketplace] = useState<string | null>(null);
         const [isInstalling, setIsInstalling] = useState(false);
         const [uninstalledDefaults, setUninstalledDefaults] = useState<UninstalledDefault[]>([]);
+        const [pendingPlugin, setPendingPlugin] = useState<MarketplacePlugin | null>(null);
         const [installedPluginNames, setInstalledPluginNames] = useState<Set<string>>(new Set());
 
         // Forward handleInput to BaseSelector
@@ -182,6 +194,20 @@ const MarketplaceBrowser = forwardRef<MarketplaceBrowserHandle, MarketplaceBrows
             setSelectedIndex(0);
         };
 
+        // Show scope selection for a plugin
+        const showScopeSelection = (plugin: MarketplacePlugin) => {
+            setPendingPlugin(plugin);
+            setView('scope-select');
+            setSelectedIndex(0);
+        };
+
+        // Go back to plugins from scope selection
+        const goBackToPlugins = () => {
+            setPendingPlugin(null);
+            setView('plugins');
+            setSelectedIndex(0);
+        };
+
         // Build items based on current view
         const items = useMemo<ListItem[]>(() => {
             if (view === 'marketplaces') {
@@ -212,6 +238,27 @@ const MarketplaceBrowser = forwardRef<MarketplaceBrowserHandle, MarketplaceBrows
 
                 // Add marketplace option
                 list.push({ type: 'add-new' });
+
+                return list;
+            } else if (view === 'scope-select') {
+                // Scope selection view
+                const list: ListItem[] = [{ type: 'back' }];
+
+                list.push({
+                    type: 'scope',
+                    scope: 'user',
+                    label: 'Global (user)',
+                    description: 'Available in all projects',
+                    icon: '🌐',
+                });
+
+                list.push({
+                    type: 'scope',
+                    scope: 'project',
+                    label: 'Project only',
+                    description: 'Only in current project, can be committed to git',
+                    icon: '📁',
+                });
 
                 return list;
             } else {
@@ -246,12 +293,41 @@ const MarketplaceBrowser = forwardRef<MarketplaceBrowserHandle, MarketplaceBrows
         const formatItem = (item: ListItem, isSelected: boolean) => {
             // Back option
             if (item.type === 'back') {
-                const label = view === 'plugins' ? 'Back to marketplaces' : 'Back to menu';
+                const label =
+                    view === 'scope-select'
+                        ? 'Back to plugins'
+                        : view === 'plugins'
+                          ? 'Back to marketplaces'
+                          : 'Back to menu';
                 return (
                     <Box>
                         <Text color={isSelected ? 'cyan' : 'gray'}>{isSelected ? '▸ ' : '  '}</Text>
                         <Text color="gray">← </Text>
                         <Text color={isSelected ? 'white' : 'gray'}>{label}</Text>
+                    </Box>
+                );
+            }
+
+            // Scope selection option
+            if (item.type === 'scope') {
+                return (
+                    <Box flexDirection="column">
+                        <Box>
+                            <Text color={isSelected ? 'cyan' : 'gray'}>
+                                {isSelected ? '▸ ' : '  '}
+                            </Text>
+                            <Text>{item.icon} </Text>
+                            <Text color={isSelected ? 'cyan' : 'white'} bold={isSelected}>
+                                {item.label}
+                            </Text>
+                        </Box>
+                        {isSelected && (
+                            <Box marginLeft={4}>
+                                <Text color="gray" dimColor>
+                                    {item.description}
+                                </Text>
+                            </Box>
+                        )}
                     </Box>
                 );
             }
@@ -368,7 +444,9 @@ const MarketplaceBrowser = forwardRef<MarketplaceBrowserHandle, MarketplaceBrows
         // Handle selection
         const handleSelect = async (item: ListItem) => {
             if (item.type === 'back') {
-                if (view === 'plugins') {
+                if (view === 'scope-select') {
+                    goBackToPlugins();
+                } else if (view === 'plugins') {
                     goBackToMarketplaces();
                 } else {
                     onClose();
@@ -402,12 +480,19 @@ const MarketplaceBrowser = forwardRef<MarketplaceBrowserHandle, MarketplaceBrows
                 return;
             }
 
-            // Install plugin
-            if (item.type === 'plugin' && !isInstalling && !item.isInstalled) {
+            // Show scope selection for plugin
+            if (item.type === 'plugin' && !item.isInstalled) {
+                showScopeSelection(item.plugin);
+                return;
+            }
+
+            // Install plugin with selected scope
+            if (item.type === 'scope' && pendingPlugin && !isInstalling) {
                 setIsInstalling(true);
                 try {
                     const result = await installPluginFromMarketplace(
-                        `${item.plugin.name}@${item.plugin.marketplace}`
+                        `${pendingPlugin.name}@${pendingPlugin.marketplace}`,
+                        { scope: item.scope }
                     );
                     setInstalledPluginNames((prev) => {
                         const next = new Set(prev);
@@ -419,9 +504,11 @@ const MarketplaceBrowser = forwardRef<MarketplaceBrowserHandle, MarketplaceBrows
                         pluginName: result.pluginName,
                         marketplace: result.marketplace,
                     });
+                    // Go back to plugins view after successful install
+                    goBackToPlugins();
                 } catch (error) {
                     logger.error(
-                        `Failed to install ${item.plugin.name}: ${error instanceof Error ? error.message : String(error)}`
+                        `Failed to install ${pendingPlugin.name}: ${error instanceof Error ? error.message : String(error)}`
                     );
                 } finally {
                     setIsInstalling(false);
@@ -431,6 +518,9 @@ const MarketplaceBrowser = forwardRef<MarketplaceBrowserHandle, MarketplaceBrows
 
         // Get title based on view
         const getTitle = () => {
+            if (view === 'scope-select' && pendingPlugin) {
+                return `Install ${pendingPlugin.name} › Choose Scope`;
+            }
             if (view === 'plugins' && selectedMarketplace) {
                 return `${selectedMarketplace} › Plugins`;
             }
