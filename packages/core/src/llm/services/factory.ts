@@ -150,6 +150,9 @@ export function createVercelModel(
         case 'vertex': {
             // Google Vertex AI - supports both Gemini and Claude models
             // Auth via Application Default Credentials (ADC)
+            //
+            // TODO: Integrate with agent config (llmConfig.vertex?.projectId) as primary,
+            // falling back to env vars. This would allow per-agent Vertex configuration.
             const projectId = process.env.GOOGLE_VERTEX_PROJECT;
             if (!projectId) {
                 throw LLMError.missingConfig(
@@ -179,6 +182,13 @@ export function createVercelModel(
         case 'bedrock': {
             // Amazon Bedrock - AWS-hosted gateway for Claude, Nova, Llama, Mistral
             // Auth via AWS credentials (env vars or credential provider)
+            //
+            // TODO: Add credentialProvider support for:
+            // - ~/.aws/credentials file profiles (fromIni)
+            // - AWS SSO sessions (fromSSO)
+            // - IAM roles on EC2/Lambda (fromNodeProviderChain)
+            // This would require adding @aws-sdk/credential-providers dependency
+            // and exposing a config option like llmConfig.bedrock?.credentialProvider
             const region = process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION;
             if (!region) {
                 throw LLMError.missingConfig(
