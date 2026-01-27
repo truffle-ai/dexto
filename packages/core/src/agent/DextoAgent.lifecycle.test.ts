@@ -305,36 +305,36 @@ describe('DextoAgent Lifecycle Management', () => {
         });
     });
 
-    describe('Session Tool Restrictions Cleanup (Memory Leak Fix)', () => {
-        test('endSession should call clearSessionToolRestrictions', async () => {
+    describe('Session Auto-Approve Tools Cleanup (Memory Leak Fix)', () => {
+        test('endSession should call clearSessionAutoApproveTools', async () => {
             const agent = new DextoAgent(mockConfig);
 
-            // Add clearSessionToolRestrictions mock to toolManager
-            mockServices.toolManager.clearSessionToolRestrictions = vi.fn();
+            // Add clearSessionAutoApproveTools mock to toolManager
+            mockServices.toolManager.clearSessionAutoApproveTools = vi.fn();
             mockServices.sessionManager.endSession = vi.fn().mockResolvedValue(undefined);
 
             await agent.start();
 
             await agent.endSession('test-session-123');
 
-            expect(mockServices.toolManager.clearSessionToolRestrictions).toHaveBeenCalledWith(
+            expect(mockServices.toolManager.clearSessionAutoApproveTools).toHaveBeenCalledWith(
                 'test-session-123'
             );
             expect(mockServices.sessionManager.endSession).toHaveBeenCalledWith('test-session-123');
         });
 
-        test('deleteSession should call clearSessionToolRestrictions', async () => {
+        test('deleteSession should call clearSessionAutoApproveTools', async () => {
             const agent = new DextoAgent(mockConfig);
 
-            // Add clearSessionToolRestrictions mock to toolManager
-            mockServices.toolManager.clearSessionToolRestrictions = vi.fn();
+            // Add clearSessionAutoApproveTools mock to toolManager
+            mockServices.toolManager.clearSessionAutoApproveTools = vi.fn();
             mockServices.sessionManager.deleteSession = vi.fn().mockResolvedValue(undefined);
 
             await agent.start();
 
             await agent.deleteSession('test-session-456');
 
-            expect(mockServices.toolManager.clearSessionToolRestrictions).toHaveBeenCalledWith(
+            expect(mockServices.toolManager.clearSessionAutoApproveTools).toHaveBeenCalledWith(
                 'test-session-456'
             );
             expect(mockServices.sessionManager.deleteSession).toHaveBeenCalledWith(
@@ -342,12 +342,12 @@ describe('DextoAgent Lifecycle Management', () => {
             );
         });
 
-        test('clearSessionToolRestrictions should be called before session cleanup', async () => {
+        test('clearSessionAutoApproveTools should be called before session cleanup', async () => {
             const agent = new DextoAgent(mockConfig);
             const callOrder: string[] = [];
 
-            mockServices.toolManager.clearSessionToolRestrictions = vi.fn(() => {
-                callOrder.push('clearSessionToolRestrictions');
+            mockServices.toolManager.clearSessionAutoApproveTools = vi.fn(() => {
+                callOrder.push('clearSessionAutoApproveTools');
             });
             mockServices.sessionManager.endSession = vi.fn().mockImplementation(() => {
                 callOrder.push('endSession');
@@ -357,7 +357,7 @@ describe('DextoAgent Lifecycle Management', () => {
             await agent.start();
             await agent.endSession('test-session');
 
-            expect(callOrder).toEqual(['clearSessionToolRestrictions', 'endSession']);
+            expect(callOrder).toEqual(['clearSessionAutoApproveTools', 'endSession']);
         });
     });
 

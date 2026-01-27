@@ -13,6 +13,41 @@ import { existsSync } from 'fs';
 import { basename, dirname, relative, sep } from 'path';
 
 /**
+ * Mapping from Claude Code tool names to Dexto tool names.
+ * Used for .claude/commands/ compatibility.
+ *
+ * Claude Code uses short names like "bash", "read", "write" in allowed-tools.
+ * Dexto uses prefixed names like "custom--bash_exec", "custom--read_file".
+ *
+ * Keys are lowercase for case-insensitive lookup.
+ *
+ * TODO: Add additional Claude Code tool mappings as needed (e.g., list, search, run, notebook, etc.)
+ */
+const CLAUDE_CODE_TOOL_MAP: Record<string, string> = {
+    // Bash/process tools
+    bash: 'custom--bash_exec',
+
+    // Filesystem tools
+    read: 'custom--read_file',
+    write: 'custom--write_file',
+    edit: 'custom--edit_file',
+    glob: 'custom--glob_files',
+    grep: 'custom--grep_content',
+
+    // Internal tools
+    task: 'internal--delegate_task',
+};
+
+/**
+ * Normalize tool names from Claude Code format to Dexto format.
+ * Uses case-insensitive lookup for Claude Code tool names.
+ * Unknown tools are passed through unchanged.
+ */
+function normalizeAllowedTools(tools: string[]): string[] {
+    return tools.map((tool) => CLAUDE_CODE_TOOL_MAP[tool.toLowerCase()] ?? tool);
+}
+
+/**
  * Config Prompt Provider - Unified provider for prompts from agent configuration
  *
  * Handles both inline prompts (text defined directly in config) and file-based prompts
@@ -182,7 +217,9 @@ export class ConfigPromptProvider implements PromptProvider {
             // Claude Code compatibility fields
             disableModelInvocation: prompt['disable-model-invocation'],
             userInvocable: prompt['user-invocable'],
-            allowedTools: prompt['allowed-tools'],
+            allowedTools: prompt['allowed-tools']
+                ? normalizeAllowedTools(prompt['allowed-tools'])
+                : undefined,
             model: prompt.model,
             context: prompt.context,
             agent: prompt.agent,
@@ -249,7 +286,10 @@ export class ConfigPromptProvider implements PromptProvider {
             const disableModelInvocation =
                 prompt['disable-model-invocation'] ?? parsed.disableModelInvocation;
             const userInvocable = prompt['user-invocable'] ?? parsed.userInvocable;
-            const allowedTools = prompt['allowed-tools'] ?? parsed.allowedTools;
+            const rawAllowedTools = prompt['allowed-tools'] ?? parsed.allowedTools;
+            const allowedTools = rawAllowedTools
+                ? normalizeAllowedTools(rawAllowedTools)
+                : undefined;
             const model = prompt.model ?? parsed.model;
             const context = prompt.context ?? parsed.context;
             const agent = prompt.agent ?? parsed.agent;

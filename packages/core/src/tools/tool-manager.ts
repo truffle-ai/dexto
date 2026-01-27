@@ -11,7 +11,7 @@ import type { IDextoLogger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
 import type { AgentEventBus } from '../events/index.js';
 import type { ApprovalManager } from '../approval/manager.js';
-import { ApprovalStatus, ApprovalType } from '../approval/types.js';
+import { ApprovalStatus, ApprovalType, DenialReason } from '../approval/types.js';
 import type { ApprovalRequest, ToolConfirmationMetadata } from '../approval/types.js';
 import type { IAllowedToolsProvider } from './confirmation/allowed-tools-provider/types.js';
 import type { PluginManager } from '../plugins/manager.js';
@@ -93,9 +93,10 @@ export class ToolManager {
     private cacheValid: boolean = false;
     private logger: IDextoLogger;
 
-    // Session-level tool restrictions (Phase 2 Claude Code compatibility)
-    // When a prompt with allowedTools is invoked, only those tools are allowed for the session
-    private sessionToolRestrictions: Map<string, string[]> = new Map();
+    // Session-level auto-approve tools for skills
+    // When a skill with allowedTools is invoked, those tools are auto-approved (skip confirmation)
+    // This is ADDITIVE - other tools are NOT blocked, they just go through normal approval flow
+    private sessionAutoApproveTools: Map<string, string[]> = new Map();
 
     constructor(
         mcpManager: MCPManager,
@@ -199,74 +200,78 @@ export class ToolManager {
         }
     }
 
-    // ============= SESSION TOOL RESTRICTIONS (Phase 2 Claude Code compatibility) =============
+    // ============= SESSION AUTO-APPROVE TOOLS =============
 
     /**
-     * Set session-level tool restrictions.
-     * When set, only the specified tools will be allowed for this session.
-     * This is used when a prompt with `allowedTools` is invoked.
+     * Set session-level auto-approve tools.
+     * When set, these tools will skip confirmation prompts for this session.
+     * This is ADDITIVE - other tools are NOT blocked, they just go through normal approval flow.
      *
-     * @param sessionId The session ID to restrict
-     * @param allowedTools Array of tool names that are allowed (e.g., ['internal--ask_user', 'custom--read_file'])
+     * @param sessionId The session ID
+     * @param autoApproveTools Array of tool names to auto-approve (e.g., ['custom--bash_exec', 'custom--read_file'])
      */
-    setSessionToolRestrictions(sessionId: string, allowedTools: string[]): void {
-        this.sessionToolRestrictions.set(sessionId, allowedTools);
+    setSessionAutoApproveTools(sessionId: string, autoApproveTools: string[]): void {
+        // Empty array = no auto-approvals, same as clearing
+        if (autoApproveTools.length === 0) {
+            this.clearSessionAutoApproveTools(sessionId);
+            return;
+        }
+        this.sessionAutoApproveTools.set(sessionId, autoApproveTools);
         this.logger.info(
-            `Session tool restrictions set for '${sessionId}': ${allowedTools.length} tools allowed`
+            `Session auto-approve tools set for '${sessionId}': ${autoApproveTools.length} tools`
         );
-        this.logger.debug(`Allowed tools: ${allowedTools.join(', ')}`);
+        this.logger.debug(`Auto-approve tools: ${autoApproveTools.join(', ')}`);
     }
 
     /**
-     * Clear session-level tool restrictions.
-     * Call this when the session ends or when restrictions should be lifted.
+     * Clear session-level auto-approve tools.
+     * Call this when the session ends or when the skill completes.
      *
-     * @param sessionId The session ID to clear restrictions for
+     * @param sessionId The session ID to clear auto-approve tools for
      */
-    clearSessionToolRestrictions(sessionId: string): void {
-        const hadRestrictions = this.sessionToolRestrictions.has(sessionId);
-        this.sessionToolRestrictions.delete(sessionId);
-        if (hadRestrictions) {
-            this.logger.info(`Session tool restrictions cleared for '${sessionId}'`);
+    clearSessionAutoApproveTools(sessionId: string): void {
+        const hadAutoApprove = this.sessionAutoApproveTools.has(sessionId);
+        this.sessionAutoApproveTools.delete(sessionId);
+        if (hadAutoApprove) {
+            this.logger.info(`Session auto-approve tools cleared for '${sessionId}'`);
         }
     }
 
     /**
-     * Check if a session has tool restrictions active.
+     * Check if a session has auto-approve tools set.
      *
      * @param sessionId The session ID to check
-     * @returns true if the session has tool restrictions
+     * @returns true if the session has auto-approve tools
      */
-    hasSessionToolRestrictions(sessionId: string): boolean {
-        return this.sessionToolRestrictions.has(sessionId);
+    hasSessionAutoApproveTools(sessionId: string): boolean {
+        return this.sessionAutoApproveTools.has(sessionId);
     }
 
     /**
-     * Get the allowed tools for a session (if restrictions are active).
+     * Get the auto-approve tools for a session.
      *
      * @param sessionId The session ID to check
-     * @returns Array of allowed tool names, or undefined if no restrictions
+     * @returns Array of auto-approve tool names, or undefined if none set
      */
-    getSessionAllowedTools(sessionId: string): string[] | undefined {
-        return this.sessionToolRestrictions.get(sessionId);
+    getSessionAutoApproveTools(sessionId: string): string[] | undefined {
+        return this.sessionAutoApproveTools.get(sessionId);
     }
 
     /**
-     * Check if a tool is allowed for a session based on session restrictions.
-     * If no restrictions are set for the session, returns true (all tools allowed).
+     * Check if a tool should be auto-approved for a session.
+     * Returns true if the tool is in the session's auto-approve list.
      *
      * @param sessionId The session ID
      * @param toolName The tool name to check
-     * @returns true if the tool is allowed
+     * @returns true if the tool should be auto-approved
      */
-    private isToolAllowedForSession(sessionId: string, toolName: string): boolean {
-        const allowedTools = this.sessionToolRestrictions.get(sessionId);
-        if (!allowedTools) {
-            // No restrictions for this session
-            return true;
+    private isToolAutoApprovedForSession(sessionId: string, toolName: string): boolean {
+        const autoApproveTools = this.sessionAutoApproveTools.get(sessionId);
+        if (!autoApproveTools) {
+            return false;
         }
-        // Check if tool matches any allowed pattern
-        return allowedTools.some((pattern) => this.matchesToolPolicy(toolName, pattern));
+        // Check if tool matches any auto-approve pattern
+        return autoApproveTools.some((pattern) => this.matchesToolPolicy(toolName, pattern));
     }
 
     /**
@@ -296,6 +301,17 @@ export class ToolManager {
                 `🔄 MCP server removed: ${payload.serverName}, invalidating tool cache`
             );
             this.invalidateCache();
+        });
+
+        // Auto-clear session auto-approve tools when a run completes
+        // This ensures skill auto-approve tools don't persist beyond their intended scope
+        this.agentEventBus.on('run:complete', (payload) => {
+            if (this.hasSessionAutoApproveTools(payload.sessionId)) {
+                this.logger.debug(
+                    `🔓 Run complete, clearing session auto-approve tools for '${payload.sessionId}'`
+                );
+                this.clearSessionAutoApproveTools(payload.sessionId);
+            }
         });
     }
 
@@ -1026,14 +1042,8 @@ export class ToolManager {
     }
 
     /**
-     * Handle tool approval/confirmation flow
-     * Checks allowed list, manages approval modes (manual, auto-approve, auto-deny),
-     * and handles remember choice logic
-     *
-     * @param toolName The fully qualified tool name
-     * @param args The arguments for the tool
-     * @param toolCallId The unique tool call ID for tracking parallel tool calls
-     * @param sessionId Optional session ID for context
+     * Handle tool approval flow. Checks various precedence levels to determine
+     * if a tool should be auto-approved, denied, or requires manual approval.
      */
     private async handleToolApproval(
         toolName: string,
@@ -1041,43 +1051,61 @@ export class ToolManager {
         toolCallId: string,
         sessionId?: string
     ): Promise<{ requireApproval: boolean; approvalStatus?: 'approved' | 'rejected' }> {
-        // PRECEDENCE 1: Check static alwaysDeny list (highest priority - security-first)
+        // Try quick resolution first (auto-approve/deny based on policies)
+        const quickResult = await this.tryQuickApprovalResolution(toolName, args, sessionId);
+        if (quickResult !== null) {
+            return quickResult;
+        }
+
+        // Fall back to manual approval flow
+        return this.requestManualApproval(toolName, args, toolCallId, sessionId);
+    }
+
+    /**
+     * Try to resolve tool approval quickly based on policies and cached permissions.
+     * Returns null if manual approval is needed.
+     *
+     * Precedence order (highest to lowest):
+     * 1. Static deny list (security - always blocks)
+     * 2. Custom approval override (tool-specific approval flows)
+     * 3. Session auto-approve (skill allowed-tools)
+     * 4. Static allow list
+     * 5. Dynamic "remembered" allowed list
+     * 6. Bash command patterns
+     * 7. Approval mode (auto-approve/auto-deny)
+     */
+    private async tryQuickApprovalResolution(
+        toolName: string,
+        args: Record<string, unknown>,
+        sessionId?: string
+    ): Promise<{ requireApproval: boolean; approvalStatus?: 'approved' } | null> {
+        // 1. Check static alwaysDeny list (highest priority - security-first)
         if (this.isInAlwaysDenyList(toolName)) {
             this.logger.info(
                 `Tool '${toolName}' is in static deny list – blocking execution (session: ${sessionId ?? 'global'})`
             );
-            this.logger.debug(`🚫 Tool execution blocked by policy: ${toolName}`);
             throw ToolError.executionDenied(toolName, sessionId);
         }
 
-        // PRECEDENCE 1.5: Check if tool has custom approval override (e.g., directory access for file tools)
-        // This allows tools to request specialized approval flows instead of default tool confirmation
+        // 2. Check custom approval override (e.g., directory access for file tools)
         const customApprovalResult = await this.checkCustomApprovalOverride(
             toolName,
             args,
             sessionId
         );
         if (customApprovalResult.handled) {
-            // Custom approval was handled (approved or threw an error)
             return { requireApproval: true, approvalStatus: 'approved' };
         }
 
-        // PRECEDENCE 1.75: Check session-level tool restrictions (Phase 2 Claude Code compatibility)
-        // When a prompt with allowedTools is invoked, only those tools are allowed for that session
-        // This takes precedence over static alwaysAllow list to ensure prompt-level security
-        if (sessionId && this.hasSessionToolRestrictions(sessionId)) {
-            if (!this.isToolAllowedForSession(sessionId, toolName)) {
-                this.logger.info(
-                    `Tool '${toolName}' not in session's allowed tools list – blocking execution (session: ${sessionId})`
-                );
-                this.logger.debug(`🚫 Tool execution blocked by session restrictions: ${toolName}`);
-                throw ToolError.executionDenied(toolName, sessionId);
-            }
-            // Tool is in the session's allowed list - continue to normal flow
-            this.logger.debug(`Tool '${toolName}' is in session's allowed tools list`);
+        // 3. Check session auto-approve (skill allowed-tools)
+        if (sessionId && this.isToolAutoApprovedForSession(sessionId, toolName)) {
+            this.logger.info(
+                `Tool '${toolName}' is in session's auto-approve list – skipping confirmation (session: ${sessionId})`
+            );
+            return { requireApproval: false };
         }
 
-        // PRECEDENCE 2: Check static alwaysAllow list
+        // 4. Check static alwaysAllow list
         if (this.isInAlwaysAllowList(toolName)) {
             this.logger.info(
                 `Tool '${toolName}' is in static allow list – skipping confirmation (session: ${sessionId ?? 'global'})`
@@ -1085,23 +1113,20 @@ export class ToolManager {
             return { requireApproval: false };
         }
 
-        // PRECEDENCE 3: Check dynamic "remembered" allowed list
-        const isAllowed = await this.allowedToolsProvider.isToolAllowed(toolName, sessionId);
-
-        if (isAllowed) {
+        // 5. Check dynamic "remembered" allowed list
+        if (await this.allowedToolsProvider.isToolAllowed(toolName, sessionId)) {
             this.logger.info(
                 `Tool '${toolName}' already allowed for session '${sessionId ?? 'global'}' – skipping confirmation.`
             );
             return { requireApproval: false };
         }
 
-        // PRECEDENCE 3.5: Check bash command patterns (for bash_exec tool)
-        let bashPatternResult: { approved: boolean; suggestedPatterns?: string[] } | undefined;
+        // 6. Check bash command patterns
         if (this.isBashTool(toolName)) {
             const command = args.command as string | undefined;
             if (command) {
-                bashPatternResult = this.checkBashPatternApproval(command);
-                if (bashPatternResult.approved) {
+                const bashResult = this.checkBashPatternApproval(command);
+                if (bashResult.approved) {
                     this.logger.info(
                         `Bash command '${command}' matched approved pattern – skipping confirmation.`
                     );
@@ -1110,8 +1135,7 @@ export class ToolManager {
             }
         }
 
-        // PRECEDENCE 4: Fall back to approval mode
-        // Handle different approval modes
+        // 7. Check approval mode
         if (this.approvalMode === 'auto-approve') {
             this.logger.debug(`🟢 Auto-approving tool execution: ${toolName}`);
             return { requireApproval: false };
@@ -1122,148 +1146,179 @@ export class ToolManager {
             throw ToolError.executionDenied(toolName, sessionId);
         }
 
-        // Manual mode - request approval
+        // Needs manual approval
+        return null;
+    }
+
+    /**
+     * Request manual approval from the user for a tool execution.
+     * Generates preview, sends approval request, and handles the response.
+     */
+    private async requestManualApproval(
+        toolName: string,
+        args: Record<string, unknown>,
+        toolCallId: string,
+        sessionId?: string
+    ): Promise<{ requireApproval: boolean; approvalStatus: 'approved' | 'rejected' }> {
         this.logger.info(
             `Tool confirmation requested for ${toolName}, sessionId: ${sessionId ?? 'global'}`
         );
 
         try {
-            // Generate preview for approval UI (if tool supports it)
-            let displayPreview: ToolDisplayData | undefined;
-            // Strip prefix to get the base tool name for tool lookup
-            // Tools are registered by base name (e.g., 'edit_file') but exposed with prefixes:
-            // - 'internal--' for built-in internal tools
-            // - 'custom--' for custom tools (filesystem tools, bash tools, etc.)
-            const actualToolName = toolName.replace(/^internal--/, '').replace(/^custom--/, '');
-            const internalTool = this.internalToolsProvider?.getTool(actualToolName);
+            // Generate preview for approval UI
+            const displayPreview = await this.generateToolPreview(
+                toolName,
+                args,
+                toolCallId,
+                sessionId
+            );
 
-            if (internalTool?.generatePreview) {
-                try {
-                    const context: ToolExecutionContext = { sessionId, toolCallId };
-                    const preview = await internalTool.generatePreview(args, context);
-                    displayPreview = preview ?? undefined;
-                    this.logger.debug(`Generated preview for ${toolName}`);
-                } catch (previewError) {
-                    // VALIDATION_FAILED errors should fail before approval (file not found, string not found, etc.)
-                    if (
-                        previewError instanceof DextoRuntimeError &&
-                        previewError.code === ToolErrorCode.VALIDATION_FAILED
-                    ) {
-                        this.logger.debug(
-                            `Validation failed for ${toolName}: ${previewError.message}`
-                        );
-                        throw previewError;
-                    }
-                    // Other errors (unexpected exceptions) should not block approval
-                    this.logger.debug(
-                        `Preview generation failed for ${toolName}: ${previewError instanceof Error ? previewError.message : String(previewError)}`
-                    );
-                }
-            }
+            // Get suggested bash patterns if applicable
+            const suggestedPatterns = this.getBashSuggestedPatterns(toolName, args);
 
-            // Request approval through the ApprovalManager
-            const requestData: {
-                toolName: string;
-                toolCallId: string;
-                args: Record<string, unknown>;
-                sessionId?: string;
-                displayPreview?: ToolDisplayData;
-                suggestedPatterns?: string[];
-            } = {
+            // Build and send approval request
+            const response = await this.approvalManager.requestToolConfirmation({
                 toolName,
                 toolCallId,
                 args,
-            };
+                ...(sessionId !== undefined && { sessionId }),
+                ...(displayPreview !== undefined && { displayPreview }),
+                ...(suggestedPatterns !== undefined && { suggestedPatterns }),
+            });
 
-            if (sessionId !== undefined) {
-                requestData.sessionId = sessionId;
-            }
-
-            if (displayPreview !== undefined) {
-                requestData.displayPreview = displayPreview;
-            }
-
-            // Add suggested patterns for bash commands
-            if (
-                bashPatternResult?.suggestedPatterns &&
-                bashPatternResult.suggestedPatterns.length > 0
-            ) {
-                requestData.suggestedPatterns = bashPatternResult.suggestedPatterns;
-            }
-
-            const response = await this.approvalManager.requestToolConfirmation(requestData);
-
-            // Handle remember choice / pattern if approved
+            // Handle "remember" choices if approved
             if (response.status === ApprovalStatus.APPROVED && response.data) {
-                const rememberChoice =
-                    'rememberChoice' in response.data ? response.data.rememberChoice : false;
-                const rememberPattern =
-                    'rememberPattern' in response.data ? response.data.rememberPattern : undefined;
-
-                if (rememberChoice) {
-                    // Remember the entire tool for the session
-                    // Use the request's sessionId to ensure permission is stored for the correct session
-                    // Fall back to response.sessionId only if request didn't specify one
-                    const allowSessionId = sessionId ?? response.sessionId;
-                    await this.allowedToolsProvider.allowTool(toolName, allowSessionId);
-                    this.logger.info(
-                        `Tool '${toolName}' added to allowed tools for session '${allowSessionId ?? 'global'}' (remember choice selected)`
-                    );
-
-                    // Auto-approve any pending parallel requests for the same tool
-                    this.autoApprovePendingToolRequests(toolName, allowSessionId);
-                } else if (
-                    rememberPattern &&
-                    typeof rememberPattern === 'string' &&
-                    this.isBashTool(toolName)
-                ) {
-                    // Remember a specific bash command pattern (only for bash tools)
-                    this.approvalManager.addBashPattern(rememberPattern);
-                    this.logger.info(
-                        `Bash pattern '${rememberPattern}' added for session approval`
-                    );
-
-                    // Auto-approve any pending parallel bash commands that match this pattern
-                    this.autoApprovePendingBashRequests(rememberPattern, sessionId);
-                }
+                await this.handleRememberChoice(toolName, response, sessionId);
             }
 
-            const approved = response.status === ApprovalStatus.APPROVED;
-
-            if (!approved) {
-                // Distinguish between timeout, cancellation, and actual denial
-                if (response.status === ApprovalStatus.CANCELLED && response.reason === 'timeout') {
-                    this.logger.info(
-                        `Tool confirmation timed out for ${toolName}, sessionId: ${sessionId ?? 'global'}`
-                    );
-                    this.logger.debug(`⏱️ Tool execution timed out: ${toolName}`);
-                    // Use timeout value from response if available, otherwise fallback to 0
-                    const timeoutMs = response.timeoutMs ?? 0;
-                    throw ToolError.executionTimeout(toolName, timeoutMs, sessionId);
-                }
-
-                // All other non-approved statuses (denied, cancelled for other reasons)
-                this.logger.info(
-                    `Tool confirmation denied for ${toolName}, sessionId: ${sessionId ?? 'global'}, reason: ${response.reason ?? 'unknown'}`
-                );
-                this.logger.debug(`🚫 Tool execution denied: ${toolName}`);
-                // Pass through user message (e.g., feedback for plan review)
-                throw ToolError.executionDenied(toolName, sessionId, response.message);
+            // Process response
+            if (response.status !== ApprovalStatus.APPROVED) {
+                this.handleApprovalDenied(toolName, response, sessionId);
             }
 
             this.logger.info(
                 `Tool confirmation approved for ${toolName}, sessionId: ${sessionId ?? 'global'}`
             );
-
-            // Return approval metadata
             return { requireApproval: true, approvalStatus: 'approved' };
         } catch (error) {
-            // Log and re-throw - errors are already properly formatted by ApprovalManager
             this.logger.error(
                 `Tool confirmation error for ${toolName}: ${error instanceof Error ? error.message : String(error)}`
             );
             throw error;
         }
+    }
+
+    /**
+     * Generate a preview for the tool approval UI if the tool supports it.
+     */
+    private async generateToolPreview(
+        toolName: string,
+        args: Record<string, unknown>,
+        toolCallId: string,
+        sessionId?: string
+    ): Promise<ToolDisplayData | undefined> {
+        const actualToolName = toolName.replace(/^internal--/, '').replace(/^custom--/, '');
+        const internalTool = this.internalToolsProvider?.getTool(actualToolName);
+
+        if (!internalTool?.generatePreview) {
+            return undefined;
+        }
+
+        try {
+            const context: ToolExecutionContext = { sessionId, toolCallId };
+            const preview = await internalTool.generatePreview(args, context);
+            this.logger.debug(`Generated preview for ${toolName}`);
+            return preview ?? undefined;
+        } catch (previewError) {
+            // Validation errors should fail before approval
+            if (
+                previewError instanceof DextoRuntimeError &&
+                previewError.code === ToolErrorCode.VALIDATION_FAILED
+            ) {
+                this.logger.debug(`Validation failed for ${toolName}: ${previewError.message}`);
+                throw previewError;
+            }
+            // Other errors should not block approval
+            this.logger.debug(
+                `Preview generation failed for ${toolName}: ${previewError instanceof Error ? previewError.message : String(previewError)}`
+            );
+            return undefined;
+        }
+    }
+
+    /**
+     * Get suggested bash patterns for the approval UI.
+     */
+    private getBashSuggestedPatterns(
+        toolName: string,
+        args: Record<string, unknown>
+    ): string[] | undefined {
+        if (!this.isBashTool(toolName)) {
+            return undefined;
+        }
+        const command = args.command as string | undefined;
+        if (!command) {
+            return undefined;
+        }
+        const result = this.checkBashPatternApproval(command);
+        return result.suggestedPatterns?.length ? result.suggestedPatterns : undefined;
+    }
+
+    /**
+     * Handle "remember choice" or "remember pattern" when user approves a tool.
+     */
+    private async handleRememberChoice(
+        toolName: string,
+        response: { status: ApprovalStatus; data?: unknown; sessionId?: string | undefined },
+        sessionId?: string
+    ): Promise<void> {
+        const data = response.data as Record<string, unknown> | undefined;
+        if (!data) return;
+
+        const rememberChoice = data.rememberChoice as boolean | undefined;
+        const rememberPattern = data.rememberPattern as string | undefined;
+
+        if (rememberChoice) {
+            const allowSessionId = sessionId ?? response.sessionId;
+            await this.allowedToolsProvider.allowTool(toolName, allowSessionId);
+            this.logger.info(
+                `Tool '${toolName}' added to allowed tools for session '${allowSessionId ?? 'global'}' (remember choice selected)`
+            );
+            this.autoApprovePendingToolRequests(toolName, allowSessionId);
+        } else if (rememberPattern && this.isBashTool(toolName)) {
+            this.approvalManager.addBashPattern(rememberPattern);
+            this.logger.info(`Bash pattern '${rememberPattern}' added for session approval`);
+            this.autoApprovePendingBashRequests(rememberPattern, sessionId);
+        }
+    }
+
+    /**
+     * Handle approval denied/timeout - throws appropriate error.
+     */
+    private handleApprovalDenied(
+        toolName: string,
+        response: {
+            status: ApprovalStatus;
+            reason?: DenialReason | undefined;
+            message?: string | undefined;
+            timeoutMs?: number | undefined;
+        },
+        sessionId?: string
+    ): never {
+        if (
+            response.status === ApprovalStatus.CANCELLED &&
+            response.reason === DenialReason.TIMEOUT
+        ) {
+            this.logger.info(
+                `Tool confirmation timed out for ${toolName}, sessionId: ${sessionId ?? 'global'}`
+            );
+            throw ToolError.executionTimeout(toolName, response.timeoutMs ?? 0, sessionId);
+        }
+
+        this.logger.info(
+            `Tool confirmation denied for ${toolName}, sessionId: ${sessionId ?? 'global'}, reason: ${response.reason ?? 'unknown'}`
+        );
+        throw ToolError.executionDenied(toolName, sessionId, response.message);
     }
 
     /**
