@@ -18,35 +18,31 @@ import { basename, dirname, relative, sep } from 'path';
  *
  * Claude Code uses short names like "bash", "read", "write" in allowed-tools.
  * Dexto uses prefixed names like "custom--bash_exec", "custom--read_file".
+ *
+ * Keys are lowercase for case-insensitive lookup.
  */
 const CLAUDE_CODE_TOOL_MAP: Record<string, string> = {
     // Bash/process tools
     bash: 'custom--bash_exec',
-    Bash: 'custom--bash_exec',
 
     // Filesystem tools
     read: 'custom--read_file',
-    Read: 'custom--read_file',
     write: 'custom--write_file',
-    Write: 'custom--write_file',
     edit: 'custom--edit_file',
-    Edit: 'custom--edit_file',
     glob: 'custom--glob_files',
-    Glob: 'custom--glob_files',
     grep: 'custom--grep_content',
-    Grep: 'custom--grep_content',
 
     // Internal tools
     task: 'internal--delegate_task',
-    Task: 'internal--delegate_task',
 };
 
 /**
  * Normalize tool names from Claude Code format to Dexto format.
+ * Uses case-insensitive lookup for Claude Code tool names.
  * Unknown tools are passed through unchanged.
  */
 function normalizeAllowedTools(tools: string[]): string[] {
-    return tools.map((tool) => CLAUDE_CODE_TOOL_MAP[tool] ?? tool);
+    return tools.map((tool) => CLAUDE_CODE_TOOL_MAP[tool.toLowerCase()] ?? tool);
 }
 
 /**
