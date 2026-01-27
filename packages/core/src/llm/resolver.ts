@@ -12,6 +12,8 @@ import {
     getEffectiveMaxInputTokens,
     supportsBaseURL,
     supportsCustomModels,
+    hasAllRegistryModelsSupport,
+    transformModelNameForProvider,
 } from './registry.js';
 import {
     lookupOpenRouterModel,
@@ -115,6 +117,24 @@ export async function resolveLLMConfig(
             type: ErrorType.USER,
             context: { provider, model },
         });
+    }
+
+    // Gateway model transformation
+    // When targeting a gateway provider (dexto/openrouter), transform native model names
+    // to OpenRouter format (e.g., "claude-sonnet-4-5-20250929" -> "anthropic/claude-sonnet-4.5")
+    if (hasAllRegistryModelsSupport(provider) && !model.includes('/')) {
+        try {
+            const originalProvider = getProviderFromModel(model);
+            model = transformModelNameForProvider(model, originalProvider, provider);
+            logger.debug(
+                `Transformed model for ${provider}: ${updates.model ?? previous.model} -> ${model}`
+            );
+        } catch {
+            // Model not in registry - pass through as-is, gateway may accept custom model IDs
+            logger.debug(
+                `Model '${model}' not in registry, passing through to ${provider} without transformation`
+            );
+        }
     }
 
     // Token defaults - always use model's effective max unless explicitly provided
