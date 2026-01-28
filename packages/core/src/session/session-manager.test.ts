@@ -17,6 +17,8 @@ vi.mock('../logger/index.js', () => ({
         info: vi.fn(),
         debug: vi.fn(),
     },
+    DextoLogger: vi.fn(),
+    FileTransport: vi.fn(),
 }));
 vi.mock('crypto', () => ({
     randomUUID: vi.fn(() => 'mock-uuid-123'),
@@ -99,6 +101,10 @@ describe('SessionManager', () => {
         mockServices = {
             stateManager: {
                 getLLMConfig: vi.fn().mockReturnValue(mockLLMConfig),
+                getRuntimeConfig: vi.fn().mockReturnValue({
+                    llm: mockLLMConfig,
+                    agentCard: { name: 'test-agent' },
+                }),
                 updateLLM: vi.fn().mockReturnValue({ isValid: true, errors: [], warnings: [] }),
             },
             systemPromptManager: {

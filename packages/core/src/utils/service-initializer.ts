@@ -70,7 +70,10 @@ export async function createAgentServices(
     config: ValidatedAgentConfig,
     configPath: string | undefined,
     logger: IDextoLogger,
-    agentEventBus: AgentEventBus
+    agentEventBus: AgentEventBus,
+    overrides?: {
+        sessionLoggerFactory?: import('../session/session-manager.js').SessionLoggerFactory;
+    }
 ): Promise<AgentServices> {
     // 0. Initialize telemetry FIRST (before any decorated classes are instantiated)
     // This must happen before creating any services that use @InstrumentClass decorator
@@ -235,6 +238,9 @@ export async function createAgentServices(
         {
             maxSessions: config.sessions?.maxSessions,
             sessionTTL: config.sessions?.sessionTTL,
+            ...(overrides?.sessionLoggerFactory !== undefined && {
+                sessionLoggerFactory: overrides.sessionLoggerFactory,
+            }),
         },
         logger
     );

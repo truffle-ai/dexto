@@ -11,6 +11,21 @@ import type { StorageManager } from '../storage/index.js';
 import type { PluginManager } from '../plugins/manager.js';
 import { SessionError } from './errors.js';
 import type { TokenUsage } from '../llm/types.js';
+export type SessionLoggerFactory = (options: {
+    baseLogger: IDextoLogger;
+    agentId: string;
+    sessionId: string;
+}) => IDextoLogger;
+
+function defaultSessionLoggerFactory(options: {
+    baseLogger: IDextoLogger;
+    agentId: string;
+    sessionId: string;
+}): IDextoLogger {
+    // Default behavior (no filesystem assumptions): just a child logger.
+    // Hosts (CLI/server) can inject a SessionLoggerFactory that writes to a file.
+    return options.baseLogger.createChild(DextoLogComponent.SESSION);
+}
 
 /**
  * Session-level token usage totals (accumulated across all messages).
@@ -30,6 +45,8 @@ export interface SessionMetadata {
 export interface SessionManagerConfig {
     maxSessions?: number;
     sessionTTL?: number;
+    /** Host hook for creating a session-scoped logger (e.g. file logger) */
+    sessionLoggerFactory?: SessionLoggerFactory;
 }
 
 export interface SessionData {
@@ -72,6 +89,8 @@ export class SessionManager {
     private readonly tokenUsageLocks = new Map<string, Promise<void>>();
     private logger: IDextoLogger;
 
+    private readonly sessionLoggerFactory: SessionLoggerFactory;
+
     constructor(
         private services: {
             stateManager: AgentStateManager;
@@ -88,6 +107,7 @@ export class SessionManager {
     ) {
         this.maxSessions = config.maxSessions ?? 100;
         this.sessionTTL = config.sessionTTL ?? 3600000; // 1 hour
+        this.sessionLoggerFactory = config.sessionLoggerFactory ?? defaultSessionLoggerFactory;
         this.logger = logger.createChild(DextoLogComponent.SESSION);
     }
 
@@ -223,10 +243,17 @@ export class SessionManager {
         if (existingMetadata) {
             // Session exists in storage, restore it
             await this.updateSessionActivity(id);
+            const runtimeConfig = this.services.stateManager.getRuntimeConfig();
+            const agentId = runtimeConfig.agentCard?.name ?? runtimeConfig.agentId;
+            const sessionLogger = this.sessionLoggerFactory({
+                baseLogger: this.logger,
+                agentId,
+                sessionId: id,
+            });
             const session = new ChatSession(
                 { ...this.services, sessionManager: this },
                 id,
-                this.logger
+                sessionLogger
             );
             await session.init();
             this.sessions.set(id, session);
@@ -264,7 +291,18 @@ export class SessionManager {
         // Now create the actual session object
         let session: ChatSession;
         try {
-            session = new ChatSession({ ...this.services, sessionManager: this }, id, this.logger);
+            const runtimeConfig = this.services.stateManager.getRuntimeConfig();
+            const agentId = runtimeConfig.agentCard?.name ?? runtimeConfig.agentId;
+            const sessionLogger = this.sessionLoggerFactory({
+                baseLogger: this.logger,
+                agentId,
+                sessionId: id,
+            });
+            session = new ChatSession(
+                { ...this.services, sessionManager: this },
+                id,
+                sessionLogger
+            );
             await session.init();
             this.sessions.set(id, session);
 
@@ -318,10 +356,17 @@ export class SessionManager {
                 .get<SessionData>(sessionKey);
             if (sessionData) {
                 // Restore session to memory
+                const runtimeConfig = this.services.stateManager.getRuntimeConfig();
+                const agentId = runtimeConfig.agentCard?.name ?? runtimeConfig.agentId;
+                const sessionLogger = this.sessionLoggerFactory({
+                    baseLogger: this.logger,
+                    agentId,
+                    sessionId,
+                });
                 const session = new ChatSession(
                     { ...this.services, sessionManager: this },
                     sessionId,
-                    this.logger
+                    sessionLogger
                 );
                 await session.init();
                 this.sessions.set(sessionId, session);

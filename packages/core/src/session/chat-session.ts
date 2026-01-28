@@ -118,7 +118,7 @@ export class ChatSession {
      */
     private currentRunController: AbortController | null = null;
 
-    private logger: IDextoLogger;
+    public readonly logger: IDextoLogger;
 
     /**
      * Creates a new ChatSession instance.
@@ -691,6 +691,8 @@ export class ChatSession {
             this.logger.debug(
                 `ChatSession ${this.id}: Memory cleanup completed (chat history preserved)`
             );
+
+            await this.logger.destroy();
         } catch (error) {
             this.logger.error(
                 `Error during ChatSession cleanup for session ${this.id}: ${error instanceof Error ? error.message : String(error)}`

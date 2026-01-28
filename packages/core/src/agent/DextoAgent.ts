@@ -177,6 +177,11 @@ export class DextoAgent {
     // Active stream controllers per session - allows cancel() to abort iterators
     private activeStreamControllers: Map<string, AbortController> = new Map();
 
+    // Host overrides for service initialization (e.g. session logger factory)
+    private serviceOverrides?: {
+        sessionLoggerFactory?: import('../session/session-manager.js').SessionLoggerFactory;
+    };
+
     // Logger instance for this agent (dependency injection)
     public readonly logger: IDextoLogger;
 
@@ -192,7 +197,9 @@ export class DextoAgent {
     constructor(
         config: AgentConfig,
         private configPath?: string,
-        options?: LLMValidationOptions
+        options?: LLMValidationOptions & {
+            sessionLoggerFactory?: import('../session/session-manager.js').SessionLoggerFactory;
+        }
     ) {
         // Validate and transform the input config using appropriate schema
         const schema =
@@ -208,6 +215,13 @@ export class DextoAgent {
             agentId: this.config.agentId,
             component: DextoLogComponent.AGENT,
         });
+
+        // Capture host overrides to apply during start() when services are created.
+        if (options?.sessionLoggerFactory) {
+            this.serviceOverrides = {
+                sessionLoggerFactory: options.sessionLoggerFactory,
+            };
+        }
 
         // Create event bus early so it's available for approval handler creation
         this.agentEventBus = new AgentEventBus();
@@ -237,7 +251,8 @@ export class DextoAgent {
                 this.config,
                 this.configPath,
                 this.logger,
-                this.agentEventBus
+                this.agentEventBus,
+                this.serviceOverrides
             );
 
             // Validate all required services are provided
@@ -1841,9 +1856,9 @@ export class DextoAgent {
      * Gets the current LLM configuration with all defaults applied.
      * @returns Current LLM configuration
      */
-    public getCurrentLLMConfig(): ValidatedLLMConfig {
+    public getCurrentLLMConfig(sessionId?: string): ValidatedLLMConfig {
         this.ensureStarted();
-        return structuredClone(this.stateManager.getLLMConfig());
+        return structuredClone(this.stateManager.getLLMConfig(sessionId));
     }
 
     /**
