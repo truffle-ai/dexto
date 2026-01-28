@@ -737,7 +737,11 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                     : item.provider;
 
                 return (
-                    <Box key={`${item.provider}-${item.name}`} paddingX={0} paddingY={0}>
+                    <Box
+                        key={`${item.provider}-${item.name}-${item.isCustom ? 'custom' : 'registry'}`}
+                        paddingX={0}
+                        paddingY={0}
+                    >
                         {item.isCustom && <Text color={isSelected ? 'orange' : 'gray'}>★ </Text>}
                         <Text color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>
                             {item.displayName || item.name}
