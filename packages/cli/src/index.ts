@@ -36,6 +36,9 @@ if (isDextoAuthEnabled()) {
 
 import {
     logger,
+    DextoLogger,
+    FileTransport,
+    DextoLogComponent,
     getProviderFromModel,
     getAllSupportedModels,
     DextoAgent,
@@ -50,6 +53,7 @@ import {
     globalPreferencesExist,
     loadGlobalPreferences,
     resolveBundledScript,
+    getDextoPath,
 } from '@dexto/agent-management';
 import type { ValidatedAgentConfig } from '@dexto/core';
 import { startHonoApiServer } from './api/server-hono.js';
@@ -1564,8 +1568,29 @@ program
                     // Config is already enriched and validated - ready for agent creation
                     // DextoAgent will parse/validate again (parse-twice pattern)
                     // isInteractiveMode is already defined above for validateAgentConfig
+                    const sessionLoggerFactory: import('@dexto/core').SessionLoggerFactory = ({
+                        baseLogger,
+                        agentId,
+                        sessionId,
+                    }) => {
+                        const logFilePath = getDextoPath(
+                            'logs',
+                            path.join(agentId, `${sessionId}.log`)
+                        );
+
+                        // Standalone per-session file logger.
+                        return new DextoLogger({
+                            level: baseLogger.getLevel(),
+                            agentId,
+                            sessionId,
+                            component: DextoLogComponent.SESSION,
+                            transports: [new FileTransport({ path: logFilePath })],
+                        });
+                    };
+
                     agent = new DextoAgent(validatedConfig, resolvedPath, {
                         strict: !isInteractiveMode,
+                        sessionLoggerFactory,
                     });
 
                     // Start the agent (initialize async services)
