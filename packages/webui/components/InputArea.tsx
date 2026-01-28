@@ -12,6 +12,7 @@ import { useFontsReady } from './hooks/useFontsReady';
 import { cn, filterAndSortResources } from '../lib/utils';
 import { useCurrentSessionId, useSessionProcessing } from '@/lib/stores';
 import { useCurrentLLM } from './hooks/useCurrentLLM';
+import { useLLMCatalog } from './hooks/useLLM';
 import ResourceAutocomplete from './ResourceAutocomplete';
 import type { ResourceMetadata as UIResourceMetadata } from '@dexto/core';
 import { useResources } from './hooks/useResources';
@@ -81,6 +82,7 @@ export default function InputArea({
 
     // Get state from stores and hooks
     const { data: currentLLM } = useCurrentLLM(currentSessionId);
+    const { data: catalogData } = useLLMCatalog({ mode: 'flat' });
 
     // Input history for Up/Down navigation
     const { invalidateHistory, navigateUp, navigateDown, resetCursor, isBrowsing } =
