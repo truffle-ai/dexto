@@ -31,6 +31,8 @@ const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
     groq: 'Groq',
     xai: 'Grok',
     cohere: 'Cohere',
+    minimax: 'MiniMax',
+    glm: 'GLM',
     openrouter: 'OpenRouter',
     'openai-compatible': 'Custom',
     litellm: 'LiteLLM',

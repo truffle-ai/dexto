@@ -14,6 +14,8 @@ export const PROVIDER_API_KEY_MAP: Record<LLMProvider, string[]> = {
     groq: ['GROQ_API_KEY'],
     cohere: ['COHERE_API_KEY'],
     xai: ['XAI_API_KEY', 'X_AI_API_KEY'],
+    minimax: ['MINIMAX_API_KEY'],
+    glm: ['ZHIPU_API_KEY', 'ZHIPUAI_API_KEY'],
     openrouter: ['OPENROUTER_API_KEY'],
     litellm: ['LITELLM_API_KEY', 'LITELLM_KEY'],
     glama: ['GLAMA_API_KEY'],

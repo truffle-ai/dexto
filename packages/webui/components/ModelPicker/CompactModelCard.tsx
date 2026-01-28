@@ -25,6 +25,13 @@ const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
     groq: 'Groq',
     xai: 'Grok',
     cohere: 'Cohere',
+    minimax: 'MiniMax',
+    glm: 'GLM',
+    openrouter: 'OpenRouter',
+    litellm: 'LiteLLM',
+    glama: 'Glama',
+    vertex: 'Vertex AI',
+    bedrock: 'Bedrock',
     'openai-compatible': 'Custom',
     dexto: 'Dexto',
 };

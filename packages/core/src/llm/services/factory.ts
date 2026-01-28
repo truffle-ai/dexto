@@ -82,6 +82,16 @@ export function createVercelModel(
             const orBaseURL = baseURL || 'https://openrouter.ai/api/v1';
             return createOpenAI({ apiKey: apiKey ?? '', baseURL: orBaseURL }).chat(model);
         }
+        case 'minimax': {
+            // MiniMax - OpenAI-compatible endpoint
+            const minimaxBaseURL = baseURL || 'https://api.minimax.chat/v1';
+            return createOpenAI({ apiKey: apiKey ?? '', baseURL: minimaxBaseURL }).chat(model);
+        }
+        case 'glm': {
+            // Zhipu AI (GLM) - OpenAI-compatible endpoint
+            const glmBaseURL = baseURL || 'https://open.bigmodel.cn/api/paas/v4';
+            return createOpenAI({ apiKey: apiKey ?? '', baseURL: glmBaseURL }).chat(model);
+        }
         case 'litellm': {
             // LiteLLM - OpenAI-compatible proxy for 100+ LLM providers
             // User must provide their own LiteLLM proxy URL
