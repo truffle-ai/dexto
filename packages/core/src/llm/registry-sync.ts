@@ -1,0 +1,552 @@
+import type { LLMProvider, SupportedFileType } from './types.js';
+import type { ModelInfo } from './registry.js';
+
+export const MODELS_DEV_URL = 'https://models.dev/api.json';
+export const OPENROUTER_MODELS_URL = 'https://openrouter.ai/api/v1/models';
+
+type ModelsDevApi = Record<string, ModelsDevProvider>;
+type ModelsDevProvider = {
+    id: string;
+    name: string;
+    models: Record<string, ModelsDevModel>;
+};
+type ModelsDevModel = {
+    id: string;
+    name: string;
+    attachment: boolean;
+    limit: {
+        context: number;
+        input?: number;
+        output?: number;
+    };
+    modalities?:
+        | {
+              input: Array<'text' | 'audio' | 'image' | 'video' | 'pdf'>;
+              output: Array<'text' | 'audio' | 'image' | 'video' | 'pdf'>;
+          }
+        | undefined;
+    cost?:
+        | {
+              input: number;
+              output: number;
+              cache_read?: number;
+              cache_write?: number;
+              context_over_200k?: unknown;
+          }
+        | undefined;
+};
+
+type OpenRouterModel = {
+    id: string;
+    name: string;
+    context_length?: number;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function requireRecord(value: unknown, label: string): Record<string, unknown> {
+    if (!isRecord(value)) throw new Error(`Expected ${label} to be an object`);
+    return value;
+}
+
+function requireString(value: unknown, label: string): string {
+    if (typeof value !== 'string') throw new Error(`Expected ${label} to be a string`);
+    return value;
+}
+
+function requireNumber(value: unknown, label: string): number {
+    if (typeof value !== 'number' || Number.isNaN(value)) {
+        throw new Error(`Expected ${label} to be a number`);
+    }
+    return value;
+}
+
+export function parseModelsDevApi(json: unknown): ModelsDevApi {
+    const root = requireRecord(json, 'models.dev api.json root');
+    const api: ModelsDevApi = {};
+
+    function parseModalitiesArray(
+        value: unknown
+    ): Array<'text' | 'audio' | 'image' | 'video' | 'pdf'> {
+        if (!Array.isArray(value)) return [];
+        const result: Array<'text' | 'audio' | 'image' | 'video' | 'pdf'> = [];
+        for (const item of value) {
+            if (
+                item === 'text' ||
+                item === 'audio' ||
+                item === 'image' ||
+                item === 'video' ||
+                item === 'pdf'
+            ) {
+                result.push(item);
+            }
+        }
+        return result;
+    }
+
+    for (const [providerId, providerValue] of Object.entries(root)) {
+        if (!isRecord(providerValue)) continue;
+        const provider = providerValue;
+        const models = requireRecord(provider.models, `models.dev provider '${providerId}'.models`);
+
+        const parsedProvider: ModelsDevProvider = {
+            id: requireString(provider.id ?? providerId, `models.dev provider '${providerId}'.id`),
+            name: requireString(
+                provider.name ?? providerId,
+                `models.dev provider '${providerId}'.name`
+            ),
+            models: {},
+        };
+
+        for (const [modelId, modelValue] of Object.entries(models)) {
+            if (!isRecord(modelValue)) continue;
+            const m = modelValue;
+            const limit = requireRecord(
+                m.limit,
+                `models.dev model '${providerId}/${modelId}'.limit`
+            );
+
+            const parsedModel: ModelsDevModel = {
+                id: requireString(
+                    m.id ?? modelId,
+                    `models.dev model '${providerId}/${modelId}'.id`
+                ),
+                name: requireString(
+                    m.name ?? modelId,
+                    `models.dev model '${providerId}/${modelId}'.name`
+                ),
+                attachment: Boolean(m.attachment),
+                limit: {
+                    context: requireNumber(
+                        limit.context,
+                        `models.dev model '${providerId}/${modelId}'.limit.context`
+                    ),
+                    ...(typeof limit.input === 'number' ? { input: limit.input } : {}),
+                    ...(typeof limit.output === 'number' ? { output: limit.output } : {}),
+                },
+                modalities: isRecord(m.modalities)
+                    ? {
+                          input: parseModalitiesArray(m.modalities.input),
+                          output: parseModalitiesArray(m.modalities.output),
+                      }
+                    : undefined,
+                cost:
+                    isRecord(m.cost) &&
+                    typeof m.cost.input === 'number' &&
+                    typeof m.cost.output === 'number'
+                        ? {
+                              input: m.cost.input,
+                              output: m.cost.output,
+                              ...(typeof m.cost.cache_read === 'number'
+                                  ? { cache_read: m.cost.cache_read }
+                                  : {}),
+                              ...(typeof m.cost.cache_write === 'number'
+                                  ? { cache_write: m.cost.cache_write }
+                                  : {}),
+                              ...(m.cost.context_over_200k != null
+                                  ? { context_over_200k: m.cost.context_over_200k }
+                                  : {}),
+                          }
+                        : undefined,
+            };
+
+            parsedProvider.models[modelId] = parsedModel;
+        }
+
+        api[providerId] = parsedProvider;
+    }
+
+    return api;
+}
+
+export function parseOpenRouterModels(json: unknown): OpenRouterModel[] {
+    const root = requireRecord(json, 'OpenRouter /models response');
+    const data = root.data;
+    if (!Array.isArray(data))
+        throw new Error(`Expected OpenRouter /models response 'data' to be an array`);
+
+    const models: OpenRouterModel[] = [];
+    for (const entry of data) {
+        if (!isRecord(entry)) continue;
+        const id = entry.id;
+        const name = entry.name;
+        if (typeof id !== 'string' || typeof name !== 'string') continue;
+        const context_length =
+            typeof entry.context_length === 'number' ? entry.context_length : undefined;
+        models.push({
+            id,
+            name,
+            ...(typeof context_length === 'number' ? { context_length } : {}),
+        });
+    }
+    return models;
+}
+
+function normalizeDisplayName(name: string): string {
+    return name
+        .toLowerCase()
+        .replace(/\(latest\)/g, '')
+        .replace(/\s+v\d+\b/g, (m) => m.trim())
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function getSupportedFileTypesFromModel(
+    provider: LLMProvider,
+    model: ModelsDevModel
+): SupportedFileType[] {
+    const inputModalities = model.modalities?.input ?? [];
+    const fileTypes: SupportedFileType[] = [];
+
+    if (inputModalities.includes('pdf')) fileTypes.push('pdf');
+    if (inputModalities.includes('image')) fileTypes.push('image');
+    if (inputModalities.includes('audio')) fileTypes.push('audio');
+
+    // models.dev currently under-reports PDF support for OpenAI.
+    // Dexto historically treats OpenAI vision-capable models as supporting PDFs too.
+    if (provider === 'openai' && model.attachment === true && inputModalities.includes('image')) {
+        if (!fileTypes.includes('pdf')) fileTypes.unshift('pdf');
+    }
+
+    return fileTypes;
+}
+
+function getPricing(model: ModelsDevModel): ModelInfo['pricing'] | undefined {
+    if (!model.cost) return undefined;
+    return {
+        inputPerM: model.cost.input,
+        outputPerM: model.cost.output,
+        ...(typeof model.cost.cache_read === 'number'
+            ? { cacheReadPerM: model.cost.cache_read }
+            : {}),
+        ...(typeof model.cost.cache_write === 'number'
+            ? { cacheWritePerM: model.cost.cache_write }
+            : {}),
+        currency: 'USD',
+        unit: 'per_million_tokens',
+    };
+}
+
+function modelToModelInfo(
+    provider: LLMProvider,
+    model: ModelsDevModel,
+    options: { defaultModelId?: string; openrouterId?: string }
+): ModelInfo {
+    const pricing = getPricing(model);
+    return {
+        name: model.id,
+        displayName: model.name,
+        maxInputTokens: model.limit.input ?? model.limit.context,
+        supportedFileTypes: getSupportedFileTypesFromModel(provider, model),
+        ...(pricing ? { pricing } : {}),
+        ...(options.openrouterId ? { openrouterId: options.openrouterId } : {}),
+        ...(options.defaultModelId === model.id ? { default: true } : {}),
+    };
+}
+
+function groupOpenRouterModelsByPrefix(models: OpenRouterModel[]): Map<string, OpenRouterModel[]> {
+    const map = new Map<string, OpenRouterModel[]>();
+    for (const model of models) {
+        const [prefix] = model.id.split('/');
+        if (!prefix) continue;
+        const existing = map.get(prefix) ?? [];
+        existing.push(model);
+        map.set(prefix, existing);
+    }
+    return map;
+}
+
+function findOpenRouterIdForModel(params: {
+    openrouterPrefix: string;
+    modelsDevModel: ModelsDevModel;
+    openrouterByPrefix: Map<string, OpenRouterModel[]>;
+}): string | undefined {
+    const { openrouterPrefix, modelsDevModel, openrouterByPrefix } = params;
+
+    const candidates = openrouterByPrefix.get(openrouterPrefix) ?? [];
+    if (candidates.length === 0) return undefined;
+
+    const targetName = normalizeDisplayName(modelsDevModel.name);
+
+    const byName = candidates.filter((m) => normalizeDisplayName(m.name) === targetName);
+    if (byName.length === 1) return byName[0]?.id;
+    if (byName.length > 1) {
+        const wanted = modelsDevModel.limit.context;
+        const exactContext = byName.find((m) => m.context_length === wanted);
+        return exactContext?.id ?? byName[0]?.id;
+    }
+
+    const openrouterIds = new Set(candidates.map((m) => m.id));
+    const direct = `${openrouterPrefix}/${modelsDevModel.id}`;
+    if (openrouterIds.has(direct)) return direct;
+
+    // Google/Gemini often uses a "-001" suffix on OpenRouter IDs
+    if (openrouterPrefix.toLowerCase() === 'google') {
+        const with001 = `${openrouterPrefix}/${modelsDevModel.id}-001`;
+        if (openrouterIds.has(with001)) return with001;
+    }
+
+    const withoutLatest = `${openrouterPrefix}/${modelsDevModel.id.replace(/-chat-latest$/i, '-chat')}`;
+    if (openrouterIds.has(withoutLatest)) return withoutLatest;
+
+    const withoutGeneralLatest = `${openrouterPrefix}/${modelsDevModel.id.replace(/-latest$/i, '')}`;
+    if (openrouterIds.has(withoutGeneralLatest)) return withoutGeneralLatest;
+
+    if (openrouterPrefix.toLowerCase() === 'anthropic') {
+        const noDate = modelsDevModel.id.replace(/-\d{8}.*$/i, '');
+        const dotted = noDate.replace(/-(\d)-(\d)\b/g, '-$1.$2');
+        const anthroCandidate = `${openrouterPrefix}/${dotted}`;
+        if (openrouterIds.has(anthroCandidate)) return anthroCandidate;
+    }
+
+    return undefined;
+}
+
+type ProviderBuildSpec = {
+    provider: LLMProvider;
+    modelsDevProviderId: string;
+    includeModelId: (id: string) => boolean;
+    defaultModelId?: string;
+    openrouterPrefix?: string;
+};
+
+function buildModelsFromModelsDevProvider(params: {
+    spec: ProviderBuildSpec;
+    modelsDevApi: ModelsDevApi;
+    openrouterByPrefix: Map<string, OpenRouterModel[]>;
+}): ModelInfo[] {
+    const { spec, modelsDevApi, openrouterByPrefix } = params;
+    const modelsDevProvider = modelsDevApi[spec.modelsDevProviderId];
+    if (!modelsDevProvider) {
+        throw new Error(
+            `models.dev provider '${spec.modelsDevProviderId}' not found (needed for dexto provider '${spec.provider}')`
+        );
+    }
+
+    const results: ModelInfo[] = [];
+    for (const [modelId, model] of Object.entries(modelsDevProvider.models)) {
+        if (!spec.includeModelId(modelId)) continue;
+
+        const openrouterId =
+            spec.openrouterPrefix && spec.provider !== 'vertex' && spec.provider !== 'bedrock'
+                ? findOpenRouterIdForModel({
+                      openrouterPrefix: spec.openrouterPrefix,
+                      modelsDevModel: model,
+                      openrouterByPrefix,
+                  })
+                : undefined;
+
+        const options: { defaultModelId?: string; openrouterId?: string } = {
+            ...(spec.defaultModelId ? { defaultModelId: spec.defaultModelId } : {}),
+            ...(openrouterId ? { openrouterId } : {}),
+        };
+
+        results.push(modelToModelInfo(spec.provider, model, options));
+    }
+
+    results.sort((a, b) => a.name.localeCompare(b.name));
+    return results;
+}
+
+export function buildModelsByProviderFromParsedSources(params: {
+    modelsDevApi: ModelsDevApi;
+    openrouterModels: OpenRouterModel[];
+}): Record<LLMProvider, ModelInfo[]> {
+    const { modelsDevApi, openrouterModels } = params;
+    const openrouterByPrefix = groupOpenRouterModelsByPrefix(openrouterModels);
+
+    const defaults: Partial<Record<LLMProvider, string>> = {
+        openai: 'gpt-5-mini',
+        anthropic: 'claude-haiku-4-5-20251001',
+        google: 'gemini-3-flash-preview',
+        groq: 'llama-3.3-70b-versatile',
+        xai: 'grok-4',
+        cohere: 'command-a-03-2025',
+        minimax: 'MiniMax-M2.1',
+        glm: 'glm-4.7',
+        vertex: 'gemini-3-flash-preview',
+        bedrock: 'anthropic.claude-sonnet-4-5-20250929-v1:0',
+    };
+
+    const include = {
+        openai: (id: string) => id.startsWith('gpt-') || id.startsWith('o'),
+        anthropic: (id: string) => id.startsWith('claude-'),
+        google: (id: string) => id.startsWith('gemini-'),
+        groq: (_id: string) => true,
+        xai: (id: string) => id.startsWith('grok-'),
+        cohere: (id: string) => id.startsWith('command-'),
+        minimax: (_id: string) => true,
+        glm: (id: string) => id.startsWith('glm-'),
+        vertex: (_id: string) => true,
+        bedrock: (_id: string) => true,
+    } as const;
+
+    const modelsByProvider: Record<LLMProvider, ModelInfo[]> = {
+        openai: buildModelsFromModelsDevProvider({
+            spec: {
+                provider: 'openai',
+                modelsDevProviderId: 'openai',
+                ...(defaults.openai ? { defaultModelId: defaults.openai } : {}),
+                includeModelId: include.openai,
+                openrouterPrefix: 'openai',
+            },
+            modelsDevApi,
+            openrouterByPrefix,
+        }),
+        'openai-compatible': [],
+        anthropic: buildModelsFromModelsDevProvider({
+            spec: {
+                provider: 'anthropic',
+                modelsDevProviderId: 'anthropic',
+                ...(defaults.anthropic ? { defaultModelId: defaults.anthropic } : {}),
+                includeModelId: include.anthropic,
+                openrouterPrefix: 'anthropic',
+            },
+            modelsDevApi,
+            openrouterByPrefix,
+        }),
+        google: buildModelsFromModelsDevProvider({
+            spec: {
+                provider: 'google',
+                modelsDevProviderId: 'google',
+                ...(defaults.google ? { defaultModelId: defaults.google } : {}),
+                includeModelId: include.google,
+                openrouterPrefix: 'google',
+            },
+            modelsDevApi,
+            openrouterByPrefix,
+        }),
+        groq: buildModelsFromModelsDevProvider({
+            spec: {
+                provider: 'groq',
+                modelsDevProviderId: 'groq',
+                ...(defaults.groq ? { defaultModelId: defaults.groq } : {}),
+                includeModelId: include.groq,
+            },
+            modelsDevApi,
+            openrouterByPrefix,
+        }),
+        xai: buildModelsFromModelsDevProvider({
+            spec: {
+                provider: 'xai',
+                modelsDevProviderId: 'xai',
+                ...(defaults.xai ? { defaultModelId: defaults.xai } : {}),
+                includeModelId: include.xai,
+                openrouterPrefix: 'x-ai',
+            },
+            modelsDevApi,
+            openrouterByPrefix,
+        }),
+        cohere: buildModelsFromModelsDevProvider({
+            spec: {
+                provider: 'cohere',
+                modelsDevProviderId: 'cohere',
+                ...(defaults.cohere ? { defaultModelId: defaults.cohere } : {}),
+                includeModelId: include.cohere,
+                openrouterPrefix: 'cohere',
+            },
+            modelsDevApi,
+            openrouterByPrefix,
+        }),
+        minimax: buildModelsFromModelsDevProvider({
+            spec: {
+                provider: 'minimax',
+                modelsDevProviderId: 'minimax',
+                ...(defaults.minimax ? { defaultModelId: defaults.minimax } : {}),
+                includeModelId: include.minimax,
+                openrouterPrefix: 'minimax',
+            },
+            modelsDevApi,
+            openrouterByPrefix,
+        }),
+        glm: buildModelsFromModelsDevProvider({
+            spec: {
+                provider: 'glm',
+                modelsDevProviderId: 'zhipuai',
+                ...(defaults.glm ? { defaultModelId: defaults.glm } : {}),
+                includeModelId: include.glm,
+                openrouterPrefix: 'z-ai',
+            },
+            modelsDevApi,
+            openrouterByPrefix,
+        }),
+        openrouter: [],
+        litellm: [],
+        glama: [],
+        vertex: [
+            ...buildModelsFromModelsDevProvider({
+                spec: {
+                    provider: 'vertex',
+                    modelsDevProviderId: 'google-vertex',
+                    ...(defaults.vertex ? { defaultModelId: defaults.vertex } : {}),
+                    includeModelId: include.vertex,
+                },
+                modelsDevApi,
+                openrouterByPrefix,
+            }),
+            ...buildModelsFromModelsDevProvider({
+                spec: {
+                    provider: 'vertex',
+                    modelsDevProviderId: 'google-vertex-anthropic',
+                    includeModelId: include.vertex,
+                },
+                modelsDevApi,
+                openrouterByPrefix,
+            }),
+        ].sort((a, b) => a.name.localeCompare(b.name)),
+        bedrock: buildModelsFromModelsDevProvider({
+            spec: {
+                provider: 'bedrock',
+                modelsDevProviderId: 'amazon-bedrock',
+                ...(defaults.bedrock ? { defaultModelId: defaults.bedrock } : {}),
+                includeModelId: include.bedrock,
+            },
+            modelsDevApi,
+            openrouterByPrefix,
+        })
+            .map((m) => ({ ...m, name: m.name.replace(/^(eu\\.|us\\.|global\\.)/i, '') }))
+            .filter((m, idx, arr) => arr.findIndex((x) => x.name === m.name) === idx)
+            .sort((a, b) => a.name.localeCompare(b.name)),
+        local: [],
+        ollama: [],
+        dexto: [],
+    };
+
+    return modelsByProvider;
+}
+
+export async function buildModelsByProviderFromRemote(options?: {
+    modelsDevUrl?: string;
+    openrouterModelsUrl?: string;
+    userAgent?: string;
+    timeoutMs?: number;
+}): Promise<Record<LLMProvider, ModelInfo[]>> {
+    const timeoutMs = options?.timeoutMs ?? 30_000;
+    const userAgent = options?.userAgent ?? 'dexto-llm-registry';
+
+    const modelsDevRes = await fetch(options?.modelsDevUrl ?? MODELS_DEV_URL, {
+        headers: { 'User-Agent': userAgent },
+        signal: AbortSignal.timeout(timeoutMs),
+    });
+    if (!modelsDevRes.ok) {
+        throw new Error(
+            `Failed to fetch models.dev (${modelsDevRes.status} ${modelsDevRes.statusText})`
+        );
+    }
+    const modelsDevApi = parseModelsDevApi(await modelsDevRes.json());
+
+    const openrouterRes = await fetch(options?.openrouterModelsUrl ?? OPENROUTER_MODELS_URL, {
+        headers: { 'User-Agent': userAgent },
+        signal: AbortSignal.timeout(timeoutMs),
+    });
+    if (!openrouterRes.ok) {
+        throw new Error(
+            `Failed to fetch OpenRouter models (${openrouterRes.status} ${openrouterRes.statusText})`
+        );
+    }
+    const openrouterModels = parseOpenRouterModels(await openrouterRes.json());
+
+    return buildModelsByProviderFromParsedSources({ modelsDevApi, openrouterModels });
+}

@@ -7,6 +7,8 @@ import {
 } from './test-utils.integration.js';
 import { ErrorScope, ErrorType } from '@core/errors/index.js';
 import { LLMErrorCode } from '../error-codes.js';
+import { resolveApiKeyForProvider } from '@core/utils/api-key-resolver.js';
+import type { LLMProvider } from '@core/llm/types.js';
 
 /**
  * Vercel AI SDK LLM Service Integration Tests
@@ -17,8 +19,17 @@ import { LLMErrorCode } from '../error-codes.js';
 describe('Vercel AI SDK LLM Service Integration', () => {
     // Test with OpenAI through Vercel AI SDK by default
     const defaultProvider = 'openai';
-    const skipTests = !requiresApiKey(defaultProvider);
-    const t = skipTests ? test.skip : test.concurrent;
+    const RUN_EXTERNAL_LLM_TESTS =
+        process.env.DEXTO_RUN_EXTERNAL_LLM_TESTS === 'true' ||
+        process.env.DEXTO_RUN_EXTERNAL_LLM_TESTS === '1';
+
+    const canRunProvider = (provider: LLMProvider): boolean => {
+        if (!RUN_EXTERNAL_LLM_TESTS) return false;
+        return !requiresApiKey(provider) || Boolean(resolveApiKeyForProvider(provider));
+    };
+
+    const t = canRunProvider(defaultProvider) ? test.concurrent : test.skip;
+    const skipTests = !canRunProvider(defaultProvider);
 
     // Normal operation tests
     t(
@@ -156,7 +167,7 @@ describe('Vercel AI SDK LLM Service Integration', () => {
     );
 
     // Multiple Provider Support through Vercel AI SDK
-    (requiresApiKey('anthropic') ? test.concurrent : test.skip)(
+    (canRunProvider('anthropic') ? test.concurrent : test.skip)(
         'anthropic through vercel works normally',
         async () => {
             const anthropicConfig = TestConfigs.createVercelConfig('anthropic');
@@ -180,7 +191,7 @@ describe('Vercel AI SDK LLM Service Integration', () => {
         60000
     );
 
-    (requiresApiKey('google') ? test.concurrent : test.skip)(
+    (canRunProvider('google') ? test.concurrent : test.skip)(
         'google through vercel works normally',
         async () => {
             const googleConfig = TestConfigs.createVercelConfig('google');
@@ -359,7 +370,8 @@ describe('Vercel AI SDK LLM Service Integration', () => {
     if (skipTests) {
         test('Vercel AI SDK integration tests skipped - no API key', () => {
             console.warn(
-                `Vercel AI SDK integration tests skipped: ${defaultProvider.toUpperCase()}_API_KEY environment variable not found`
+                `Vercel AI SDK integration tests skipped. ` +
+                    `Set DEXTO_RUN_EXTERNAL_LLM_TESTS=1 and provide a valid ${defaultProvider.toUpperCase()}_API_KEY to run them.`
             );
             expect(true).toBe(true); // Placeholder test
         });

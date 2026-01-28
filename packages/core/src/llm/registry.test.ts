@@ -126,7 +126,6 @@ describe('LLM Registry Core Functions', () => {
             // MiniMax models
             expect(getProviderFromModel('minimax/minimax-m2.1')).toBe('minimax');
             expect(getProviderFromModel('MiniMax-M2.1')).toBe('minimax');
-            expect(getProviderFromModel('M2-her')).toBe('minimax');
 
             // GLM models (Zhipu)
             expect(getProviderFromModel('z-ai/glm-4.7')).toBe('glm');
@@ -315,14 +314,16 @@ describe('getEffectiveMaxInputTokens', () => {
 describe('File Support Functions', () => {
     describe('getSupportedFileTypesForModel', () => {
         it('returns correct file types for models with specific support', () => {
-            expect(getSupportedFileTypesForModel('openai', 'gpt-4o-audio-preview')).toEqual([
+            expect(getSupportedFileTypesForModel('google', 'gemini-3-flash-preview')).toEqual([
+                'pdf',
+                'image',
                 'audio',
             ]);
             expect(getSupportedFileTypesForModel('openai', 'gpt-5')).toEqual(['pdf', 'image']);
         });
 
         it('returns empty array for models without file support', () => {
-            expect(getSupportedFileTypesForModel('groq', 'gemma-2-9b-it')).toEqual([]);
+            expect(getSupportedFileTypesForModel('groq', 'gemma2-9b-it')).toEqual([]);
         });
 
         it('returns provider supportedFileTypes for openai-compatible with any model', () => {
@@ -348,7 +349,7 @@ describe('File Support Functions', () => {
 
     describe('modelSupportsFileType', () => {
         it('returns true for supported model-file combinations', () => {
-            expect(modelSupportsFileType('openai', 'gpt-4o-audio-preview', 'audio')).toBe(true);
+            expect(modelSupportsFileType('google', 'gemini-3-flash-preview', 'audio')).toBe(true);
             expect(modelSupportsFileType('openai', 'gpt-5', 'pdf')).toBe(true);
         });
 
@@ -375,7 +376,11 @@ describe('File Support Functions', () => {
 
     describe('validateModelFileSupport', () => {
         it('validates supported files correctly', () => {
-            const result = validateModelFileSupport('openai', 'gpt-4o-audio-preview', 'audio/mp3');
+            const result = validateModelFileSupport(
+                'google',
+                'gemini-3-flash-preview',
+                'audio/mp3'
+            );
             expect(result.isSupported).toBe(true);
             expect(result.fileType).toBe('audio');
             expect(result.error).toBeUndefined();
@@ -398,8 +403,8 @@ describe('File Support Functions', () => {
         it('handles parameterized MIME types correctly', () => {
             // Test audio/webm;codecs=opus (the original issue)
             const webmResult = validateModelFileSupport(
-                'openai',
-                'gpt-4o-audio-preview',
+                'google',
+                'gemini-3-flash-preview',
                 'audio/webm;codecs=opus'
             );
             expect(webmResult.isSupported).toBe(true);
@@ -408,8 +413,8 @@ describe('File Support Functions', () => {
 
             // Test other parameterized MIME types
             const mp3Result = validateModelFileSupport(
-                'openai',
-                'gpt-4o-audio-preview',
+                'google',
+                'gemini-3-flash-preview',
                 'audio/mpeg;layer=3'
             );
             expect(mp3Result.isSupported).toBe(true);
@@ -474,7 +479,7 @@ describe('Provider-Specific Tests', () => {
     describe('Anthropic provider', () => {
         it('has correct capabilities and models', () => {
             expect(getSupportedProviders()).toContain('anthropic');
-            expect(getSupportedModels('anthropic')).toContain('claude-4-sonnet-20250514');
+            expect(getSupportedModels('anthropic')).toContain('claude-sonnet-4-20250514');
             expect(getSupportedModels('anthropic')).toContain('claude-haiku-4-5-20251001');
             expect(getDefaultModelForProvider('anthropic')).toBe('claude-haiku-4-5-20251001');
             expect(supportsBaseURL('anthropic')).toBe(false);
@@ -540,9 +545,9 @@ describe('Provider-Specific Tests', () => {
         it('validates all cohere models correctly', () => {
             const cohereModels = [
                 'command-a-03-2025',
-                'command-r-plus',
-                'command-r',
-                'command-r7b',
+                'command-r-plus-08-2024',
+                'command-r-08-2024',
+                'command-r7b-12-2024',
             ];
             cohereModels.forEach((model) => {
                 expect(isValidProviderModel('cohere', model)).toBe(true);
@@ -554,9 +559,15 @@ describe('Provider-Specific Tests', () => {
             expect(getMaxInputTokensForModel('cohere', 'command-a-03-2025', mockLogger)).toBe(
                 256000
             );
-            expect(getMaxInputTokensForModel('cohere', 'command-r-plus', mockLogger)).toBe(128000);
-            expect(getMaxInputTokensForModel('cohere', 'command-r', mockLogger)).toBe(128000);
-            expect(getMaxInputTokensForModel('cohere', 'command-r7b', mockLogger)).toBe(128000);
+            expect(getMaxInputTokensForModel('cohere', 'command-r-plus-08-2024', mockLogger)).toBe(
+                128000
+            );
+            expect(getMaxInputTokensForModel('cohere', 'command-r-08-2024', mockLogger)).toBe(
+                128000
+            );
+            expect(getMaxInputTokensForModel('cohere', 'command-r7b-12-2024', mockLogger)).toBe(
+                128000
+            );
         });
     });
 
@@ -1046,7 +1057,7 @@ describe('Gateway provider integration with lookup functions', () => {
 
         it('handles OpenRouter format models', () => {
             const result = getModelDisplayName('anthropic/claude-haiku-4.5', 'dexto');
-            expect(result).toBe('Claude 4.5 Haiku');
+            expect(result).toBe('Claude Haiku 4.5');
         });
     });
 });

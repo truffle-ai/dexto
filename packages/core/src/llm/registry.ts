@@ -26,6 +26,47 @@ import {
 } from './types.js';
 import type { IDextoLogger } from '../logger/v2/types.js';
 import { getOpenRouterModelContextLength } from './providers/openrouter-model-registry.js';
+import { MODELS_BY_PROVIDER } from './registry-models.generated.js';
+import { MANUAL_MODELS_BY_PROVIDER } from './registry-models.manual.js';
+
+const LEGACY_MODEL_ID_ALIASES: Partial<Record<LLMProvider, Record<string, string>>> = {
+    anthropic: {
+        // Older Dexto configs/tests used "claude-4-{tier}-{date}".
+        // models.dev (and our generated snapshot) use "claude-{tier}-4-{date}".
+        'claude-4-sonnet-20250514': 'claude-sonnet-4-20250514',
+        'claude-4-opus-20250514': 'claude-opus-4-20250514',
+    },
+};
+
+function getNormalizedModelIdForLookup(provider: LLMProvider, model: string): string {
+    const stripped = stripBedrockRegionPrefix(model);
+    const lower = stripped.toLowerCase();
+    const aliases = LEGACY_MODEL_ID_ALIASES[provider];
+    return aliases?.[lower] ?? lower;
+}
+
+function mergeModels(base: ModelInfo[], extra: ModelInfo[] | undefined): ModelInfo[] {
+    if (!extra || extra.length === 0) return base;
+
+    const merged = [...base];
+    const indexByName = new Map<string, number>();
+    for (let i = 0; i < merged.length; i++) {
+        indexByName.set(merged[i]!.name.toLowerCase(), i);
+    }
+
+    for (const m of extra) {
+        const key = m.name.toLowerCase();
+        const existingIndex = indexByName.get(key);
+        if (existingIndex != null) {
+            merged[existingIndex] = m;
+        } else {
+            indexByName.set(key, merged.length);
+            merged.push(m);
+        }
+    }
+
+    return merged;
+}
 
 /**
  * Pricing metadata for a model (USD per 1M tokens).
@@ -122,346 +163,7 @@ export const DEFAULT_MAX_INPUT_TOKENS = 128000;
  */
 export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
     openai: {
-        models: [
-            // GPT-5.2 series (latest, released Dec 2025)
-            {
-                name: 'gpt-5.2-chat-latest',
-                displayName: 'GPT-5.2 Instant',
-                openrouterId: 'openai/gpt-5.2-chat',
-                maxInputTokens: 400000,
-                supportedFileTypes: ['pdf', 'image'],
-                pricing: {
-                    inputPerM: 1.75,
-                    outputPerM: 14.0,
-                    cacheReadPerM: 0.175,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            {
-                name: 'gpt-5.2',
-                displayName: 'GPT-5.2 Thinking',
-                openrouterId: 'openai/gpt-5.2',
-                maxInputTokens: 400000,
-                supportedFileTypes: ['pdf', 'image'],
-                pricing: {
-                    inputPerM: 1.75,
-                    outputPerM: 14.0,
-                    cacheReadPerM: 0.175,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            {
-                name: 'gpt-5.2-pro',
-                displayName: 'GPT-5.2 Pro',
-                openrouterId: 'openai/gpt-5.2-pro',
-                maxInputTokens: 400000,
-                supportedFileTypes: ['pdf', 'image'],
-                pricing: {
-                    inputPerM: 21.0,
-                    outputPerM: 168.0,
-                    cacheReadPerM: 2.1,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            {
-                name: 'gpt-5.2-codex',
-                displayName: 'GPT-5.2 Codex',
-                openrouterId: 'openai/gpt-5.2-codex',
-                maxInputTokens: 400000,
-                supportedFileTypes: ['pdf', 'image'],
-                pricing: {
-                    inputPerM: 1.75,
-                    outputPerM: 14.0,
-                    cacheReadPerM: 0.175,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            // GPT-5.1 series
-            {
-                name: 'gpt-5.1-chat-latest',
-                displayName: 'GPT-5.1 Instant',
-                openrouterId: 'openai/gpt-5.1-chat',
-                maxInputTokens: 400000,
-                supportedFileTypes: ['pdf', 'image'],
-                pricing: {
-                    inputPerM: 1.25,
-                    outputPerM: 10.0,
-                    cacheReadPerM: 0.125,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            {
-                name: 'gpt-5.1',
-                displayName: 'GPT-5.1 Thinking',
-                openrouterId: 'openai/gpt-5.1',
-                maxInputTokens: 400000,
-                supportedFileTypes: ['pdf', 'image'],
-                pricing: {
-                    inputPerM: 1.25,
-                    outputPerM: 10.0,
-                    cacheReadPerM: 0.125,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            {
-                name: 'gpt-5.1-codex',
-                displayName: 'GPT-5.1 Codex',
-                openrouterId: 'openai/gpt-5.1-codex',
-                maxInputTokens: 400000,
-                supportedFileTypes: ['pdf', 'image'],
-                pricing: {
-                    inputPerM: 1.25,
-                    outputPerM: 10.0,
-                    cacheReadPerM: 0.125,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            {
-                name: 'gpt-5.1-codex-mini',
-                displayName: 'GPT-5.1 Codex Mini',
-                openrouterId: 'openai/gpt-5.1-codex-mini',
-                maxInputTokens: 400000,
-                supportedFileTypes: ['pdf', 'image'],
-                pricing: {
-                    inputPerM: 0.25,
-                    outputPerM: 2.0,
-                    cacheReadPerM: 0.025,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            // {
-            //     name: 'gpt-5.1-codex-max',
-            //     displayName: 'GPT-5.1 Codex Max',
-            //     maxInputTokens: 400000,
-            //     supportedFileTypes: ['pdf', 'image'],
-            //     pricing: {
-            //         inputPerM: 1.25,
-            //         outputPerM: 10.0,
-            //         cacheReadPerM: 0.125,
-            //         currency: 'USD',
-            //         unit: 'per_million_tokens',
-            //     },
-            // },
-            {
-                name: 'gpt-5-pro',
-                displayName: 'GPT-5 Pro',
-                openrouterId: 'openai/gpt-5-pro',
-                maxInputTokens: 400000,
-                supportedFileTypes: ['pdf', 'image'],
-                pricing: {
-                    inputPerM: 15.0,
-                    outputPerM: 120.0,
-                    cacheReadPerM: 1.5,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            {
-                name: 'gpt-5',
-                displayName: 'GPT-5',
-                openrouterId: 'openai/gpt-5',
-                maxInputTokens: 400000,
-                supportedFileTypes: ['pdf', 'image'],
-                pricing: {
-                    inputPerM: 1.25,
-                    outputPerM: 10.0,
-                    cacheReadPerM: 0.125,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            {
-                name: 'gpt-5-mini',
-                displayName: 'GPT-5 Mini',
-                openrouterId: 'openai/gpt-5-mini',
-                maxInputTokens: 400000,
-                default: true,
-                supportedFileTypes: ['pdf', 'image'],
-                pricing: {
-                    inputPerM: 0.25,
-                    outputPerM: 2.0,
-                    cacheReadPerM: 0.025,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            {
-                name: 'gpt-5-nano',
-                displayName: 'GPT-5 Nano',
-                openrouterId: 'openai/gpt-5-nano',
-                maxInputTokens: 400000,
-                supportedFileTypes: ['pdf', 'image'],
-                pricing: {
-                    inputPerM: 0.05,
-                    outputPerM: 0.4,
-                    cacheReadPerM: 0.005,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            {
-                name: 'gpt-5-codex',
-                displayName: 'GPT-5 Codex',
-                openrouterId: 'openai/gpt-5-codex',
-                maxInputTokens: 400000,
-                supportedFileTypes: ['pdf', 'image'],
-                pricing: {
-                    inputPerM: 1.25,
-                    outputPerM: 10.0,
-                    cacheReadPerM: 0.125,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            {
-                name: 'gpt-4.1',
-                displayName: 'GPT-4.1',
-                openrouterId: 'openai/gpt-4.1',
-                maxInputTokens: 1048576,
-                supportedFileTypes: ['pdf', 'image'],
-                pricing: {
-                    inputPerM: 2.0,
-                    outputPerM: 8.0,
-                    cacheReadPerM: 0.5,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            {
-                name: 'gpt-4.1-mini',
-                displayName: 'GPT-4.1 Mini',
-                openrouterId: 'openai/gpt-4.1-mini',
-                maxInputTokens: 1048576,
-                supportedFileTypes: ['pdf', 'image'],
-                pricing: {
-                    inputPerM: 0.4,
-                    outputPerM: 1.6,
-                    cacheReadPerM: 0.1,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            {
-                name: 'gpt-4.1-nano',
-                displayName: 'GPT-4.1 Nano',
-                openrouterId: 'openai/gpt-4.1-nano',
-                maxInputTokens: 1048576,
-                supportedFileTypes: ['pdf', 'image'],
-                pricing: {
-                    inputPerM: 0.1,
-                    outputPerM: 0.4,
-                    cacheReadPerM: 0.025,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            {
-                name: 'gpt-4o',
-                displayName: 'GPT-4o',
-                openrouterId: 'openai/gpt-4o',
-                maxInputTokens: 128000,
-                supportedFileTypes: ['pdf', 'image'],
-                pricing: {
-                    inputPerM: 2.5,
-                    outputPerM: 10.0,
-                    cacheReadPerM: 1.25,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            {
-                name: 'gpt-4o-mini',
-                displayName: 'GPT-4o Mini',
-                openrouterId: 'openai/gpt-4o-mini',
-                maxInputTokens: 128000,
-                supportedFileTypes: ['pdf', 'image'],
-                pricing: {
-                    inputPerM: 0.15,
-                    outputPerM: 0.6,
-                    cacheReadPerM: 0.075,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            {
-                name: 'gpt-4o-audio-preview',
-                displayName: 'GPT-4o Audio Preview',
-                openrouterId: 'openai/gpt-4o-audio-preview',
-                maxInputTokens: 128000,
-                supportedFileTypes: ['audio'],
-                pricing: {
-                    inputPerM: 2.5,
-                    outputPerM: 10.0,
-                    cacheReadPerM: 1.25,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            {
-                name: 'o4-mini',
-                displayName: 'O4 Mini',
-                openrouterId: 'openai/o4-mini',
-                maxInputTokens: 200000,
-                supportedFileTypes: ['pdf', 'image'],
-                pricing: {
-                    inputPerM: 1.1,
-                    outputPerM: 4.4,
-                    cacheReadPerM: 0.275,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            {
-                name: 'o3',
-                displayName: 'O3',
-                openrouterId: 'openai/o3',
-                maxInputTokens: 200000,
-                supportedFileTypes: ['pdf', 'image'],
-                pricing: {
-                    inputPerM: 2.0,
-                    outputPerM: 8.0,
-                    cacheReadPerM: 0.5,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            {
-                name: 'o3-mini',
-                displayName: 'O3 Mini',
-                openrouterId: 'openai/o3-mini',
-                maxInputTokens: 200000,
-                supportedFileTypes: [],
-                pricing: {
-                    inputPerM: 1.1,
-                    outputPerM: 4.4,
-                    cacheReadPerM: 0.55,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            {
-                name: 'o1',
-                displayName: 'O1',
-                openrouterId: 'openai/o1',
-                maxInputTokens: 200000,
-                supportedFileTypes: ['pdf', 'image'],
-                pricing: {
-                    inputPerM: 15.0,
-                    outputPerM: 60.0,
-                    cacheReadPerM: 7.5,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-        ],
+        models: mergeModels(MODELS_BY_PROVIDER.openai, MANUAL_MODELS_BY_PROVIDER.openai),
         baseURLSupport: 'none',
         supportedFileTypes: [], // No defaults - models must explicitly specify support
         openrouterPrefix: 'openai',
@@ -469,584 +171,56 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
     'openai-compatible': {
         models: [], // Empty - accepts any model name for custom endpoints
         baseURLSupport: 'required',
-        supportedFileTypes: ['pdf', 'image', 'audio'], // Allow all types for custom endpoints - user assumes responsibility for model capabilities
+        supportedFileTypes: ['pdf', 'image', 'audio'], // Allow all types for custom endpoints
         supportsCustomModels: true,
     },
     anthropic: {
-        models: [
-            {
-                name: 'claude-haiku-4-5-20251001',
-                displayName: 'Claude 4.5 Haiku',
-                openrouterId: 'anthropic/claude-haiku-4.5',
-                maxInputTokens: 200000,
-                default: true,
-                supportedFileTypes: ['pdf', 'image'],
-                pricing: {
-                    inputPerM: 1.0,
-                    outputPerM: 5.0,
-                    cacheWritePerM: 1.25,
-                    cacheReadPerM: 0.1,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            {
-                name: 'claude-sonnet-4-5-20250929',
-                displayName: 'Claude 4.5 Sonnet',
-                openrouterId: 'anthropic/claude-sonnet-4.5',
-                maxInputTokens: 200000,
-                supportedFileTypes: ['pdf', 'image'],
-                pricing: {
-                    inputPerM: 3.0,
-                    outputPerM: 15.0,
-                    cacheWritePerM: 3.75,
-                    cacheReadPerM: 0.3,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            {
-                name: 'claude-opus-4-5-20251101',
-                displayName: 'Claude 4.5 Opus',
-                openrouterId: 'anthropic/claude-opus-4.5',
-                maxInputTokens: 200000,
-                supportedFileTypes: ['pdf', 'image'],
-                pricing: {
-                    inputPerM: 5.0,
-                    outputPerM: 25.0,
-                    cacheWritePerM: 6.25,
-                    cacheReadPerM: 0.5,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            {
-                name: 'claude-opus-4-1-20250805',
-                displayName: 'Claude 4.1 Opus',
-                openrouterId: 'anthropic/claude-opus-4.1',
-                maxInputTokens: 200000,
-                supportedFileTypes: ['pdf', 'image'],
-                pricing: {
-                    inputPerM: 15.0,
-                    outputPerM: 75.0,
-                    cacheWritePerM: 18.75,
-                    cacheReadPerM: 1.5,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            {
-                name: 'claude-4-opus-20250514',
-                displayName: 'Claude 4 Opus',
-                openrouterId: 'anthropic/claude-opus-4',
-                maxInputTokens: 200000,
-                supportedFileTypes: ['pdf', 'image'],
-                pricing: {
-                    inputPerM: 15.0,
-                    outputPerM: 75.0,
-                    cacheWritePerM: 18.75,
-                    cacheReadPerM: 1.5,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            {
-                name: 'claude-4-sonnet-20250514',
-                displayName: 'Claude 4 Sonnet',
-                openrouterId: 'anthropic/claude-sonnet-4',
-                maxInputTokens: 200000,
-                supportedFileTypes: ['pdf', 'image'],
-                pricing: {
-                    inputPerM: 3.0,
-                    outputPerM: 15.0,
-                    cacheWritePerM: 3.75,
-                    cacheReadPerM: 0.3,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            {
-                name: 'claude-3-7-sonnet-20250219',
-                displayName: 'Claude 3.7 Sonnet',
-                openrouterId: 'anthropic/claude-3.7-sonnet',
-                maxInputTokens: 200000,
-                supportedFileTypes: ['pdf', 'image'],
-                pricing: {
-                    inputPerM: 3.0,
-                    outputPerM: 15.0,
-                    cacheWritePerM: 3.75,
-                    cacheReadPerM: 0.3,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            {
-                name: 'claude-3-5-sonnet-20240620',
-                displayName: 'Claude 3.5 Sonnet',
-                openrouterId: 'anthropic/claude-3.5-sonnet',
-                maxInputTokens: 200000,
-                supportedFileTypes: ['pdf', 'image'],
-                pricing: {
-                    inputPerM: 3.0,
-                    outputPerM: 15.0,
-                    cacheWritePerM: 3.75,
-                    cacheReadPerM: 0.3,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            {
-                name: 'claude-3-5-haiku-20241022',
-                displayName: 'Claude 3.5 Haiku',
-                openrouterId: 'anthropic/claude-3.5-haiku',
-                maxInputTokens: 200000,
-                supportedFileTypes: ['pdf', 'image'],
-                pricing: {
-                    inputPerM: 0.8,
-                    outputPerM: 4,
-                    cacheWritePerM: 1,
-                    cacheReadPerM: 0.08,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-        ],
+        models: MODELS_BY_PROVIDER.anthropic,
         baseURLSupport: 'none',
         supportedFileTypes: [], // No defaults - models must explicitly specify support
         openrouterPrefix: 'anthropic',
     },
     google: {
-        models: [
-            {
-                name: 'gemini-3-flash-preview',
-                displayName: 'Gemini 3 Flash Preview',
-                openrouterId: 'google/gemini-3-flash-preview',
-                maxInputTokens: 1048576,
-                default: true,
-                supportedFileTypes: ['pdf', 'image', 'audio'],
-                pricing: {
-                    inputPerM: 0.5,
-                    outputPerM: 3.0,
-                    cacheReadPerM: 0.05,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            {
-                name: 'gemini-3-pro-preview',
-                displayName: 'Gemini 3 Pro Preview',
-                openrouterId: 'google/gemini-3-pro-preview',
-                maxInputTokens: 1048576,
-                supportedFileTypes: ['pdf', 'image', 'audio'],
-                pricing: {
-                    inputPerM: 2.0,
-                    outputPerM: 12.0,
-                    cacheReadPerM: 0.2,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            {
-                name: 'gemini-3-pro-image-preview',
-                displayName: 'Gemini 3 Pro Image Preview',
-                openrouterId: 'google/gemini-3-pro-image-preview',
-                maxInputTokens: 1048576,
-                supportedFileTypes: ['image'],
-                pricing: {
-                    inputPerM: 2.0,
-                    outputPerM: 120.0,
-                    cacheReadPerM: 0.2,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            {
-                name: 'gemini-2.5-pro',
-                displayName: 'Gemini 2.5 Pro',
-                openrouterId: 'google/gemini-2.5-pro',
-                maxInputTokens: 1048576,
-                supportedFileTypes: ['pdf', 'image', 'audio'],
-                pricing: {
-                    inputPerM: 1.25,
-                    outputPerM: 10.0,
-                    cacheReadPerM: 0.31,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            {
-                name: 'gemini-2.5-flash',
-                displayName: 'Gemini 2.5 Flash',
-                openrouterId: 'google/gemini-2.5-flash',
-                maxInputTokens: 1048576,
-                supportedFileTypes: ['pdf', 'image', 'audio'],
-                pricing: {
-                    inputPerM: 0.3,
-                    outputPerM: 2.5,
-                    cacheReadPerM: 0.03,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            {
-                name: 'gemini-2.5-flash-lite',
-                displayName: 'Gemini 2.5 Flash Lite',
-                openrouterId: 'google/gemini-2.5-flash-lite',
-                maxInputTokens: 1048576,
-                supportedFileTypes: ['pdf', 'image', 'audio'],
-                pricing: {
-                    inputPerM: 0.1,
-                    outputPerM: 0.4,
-                    cacheReadPerM: 0.025,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            {
-                name: 'gemini-2.0-flash',
-                displayName: 'Gemini 2.0 Flash',
-                openrouterId: 'google/gemini-2.0-flash-001',
-                maxInputTokens: 1048576,
-                supportedFileTypes: ['pdf', 'image', 'audio'],
-                pricing: {
-                    inputPerM: 0.15,
-                    outputPerM: 0.6,
-                    cacheReadPerM: 0.025,
-                    cacheWritePerM: 1.0,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            {
-                name: 'gemini-2.0-flash-lite',
-                displayName: 'Gemini 2.0 Flash Lite',
-                openrouterId: 'google/gemini-2.0-flash-lite-001',
-                maxInputTokens: 1048576,
-                supportedFileTypes: ['pdf', 'image', 'audio'],
-                pricing: {
-                    inputPerM: 0.075,
-                    outputPerM: 0.3,
-                    cacheReadPerM: 0.01875,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-        ],
+        models: MODELS_BY_PROVIDER.google,
         baseURLSupport: 'none',
         supportedFileTypes: [], // No defaults - models must explicitly specify support
         openrouterPrefix: 'google',
     },
     // https://console.groq.com/docs/models
     groq: {
-        models: [
-            {
-                name: 'gemma-2-9b-it',
-                displayName: 'Gemma 2 9B Instruct',
-                maxInputTokens: 8192,
-                supportedFileTypes: [],
-                pricing: {
-                    inputPerM: 0.2,
-                    outputPerM: 0.2,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            {
-                name: 'openai/gpt-oss-20b',
-                displayName: 'GPT OSS 20B 128k',
-                maxInputTokens: 128000,
-                supportedFileTypes: [],
-                pricing: {
-                    inputPerM: 0.1,
-                    outputPerM: 0.5,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            {
-                name: 'openai/gpt-oss-120b',
-                displayName: 'GPT OSS 120B 128k',
-                maxInputTokens: 128000,
-                supportedFileTypes: [],
-                pricing: {
-                    inputPerM: 0.15,
-                    outputPerM: 0.75,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            {
-                name: 'moonshotai/kimi-k2-instruct',
-                displayName: 'Kimi K2 1T 128k',
-                maxInputTokens: 128000,
-                supportedFileTypes: [],
-                pricing: {
-                    inputPerM: 1.0,
-                    outputPerM: 3.0,
-                    cacheReadPerM: 0.5,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            {
-                name: 'meta-llama/llama-4-scout-17b-16e-instruct',
-                displayName: 'Llama 4 Scout (17Bx16E) 128k',
-                maxInputTokens: 128000,
-                supportedFileTypes: [],
-                pricing: {
-                    inputPerM: 0.11,
-                    outputPerM: 0.34,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            {
-                name: 'meta-llama/llama-4-maverick-17b-128e-instruct',
-                displayName: 'Llama 4 Maverick (17Bx128E) 128k',
-                maxInputTokens: 128000,
-                supportedFileTypes: [],
-                pricing: {
-                    inputPerM: 0.2,
-                    outputPerM: 0.6,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            {
-                name: 'deepseek-r1-distill-llama-70b',
-                displayName: 'DeepSeek R1 Distill Llama 70B 128k',
-                maxInputTokens: 128000,
-                supportedFileTypes: [],
-                pricing: {
-                    inputPerM: 0.75,
-                    outputPerM: 0.9,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            {
-                name: 'qwen/qwen3-32b',
-                displayName: 'Qwen3 32B 131k',
-                maxInputTokens: 131000,
-                supportedFileTypes: [],
-                pricing: {
-                    inputPerM: 0.29,
-                    outputPerM: 0.59,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            {
-                name: 'llama-3.3-70b-versatile',
-                displayName: 'Llama 3.3 70B Versatile',
-                maxInputTokens: 128000,
-                default: true,
-                supportedFileTypes: [],
-                pricing: {
-                    inputPerM: 0.59,
-                    outputPerM: 0.79,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-        ],
+        models: MODELS_BY_PROVIDER.groq,
         baseURLSupport: 'none',
         supportedFileTypes: [], // Groq currently doesn't support file uploads
     },
     // https://docs.x.ai/docs/models
     // Note: XAI API only supports image uploads (JPG/PNG up to 20MB), not PDFs
     xai: {
-        models: [
-            {
-                name: 'grok-4',
-                displayName: 'Grok 4',
-                openrouterId: 'x-ai/grok-4',
-                maxInputTokens: 256000,
-                default: true,
-                supportedFileTypes: ['image'],
-                pricing: {
-                    inputPerM: 3.0,
-                    outputPerM: 15.0,
-                    cacheReadPerM: 0.75,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            {
-                name: 'grok-3',
-                displayName: 'Grok 3',
-                openrouterId: 'x-ai/grok-3',
-                maxInputTokens: 131072,
-                supportedFileTypes: ['image'],
-                pricing: {
-                    inputPerM: 3.0,
-                    outputPerM: 15.0,
-                    cacheReadPerM: 0.75,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            {
-                name: 'grok-3-mini',
-                displayName: 'Grok 3 Mini',
-                openrouterId: 'x-ai/grok-3-mini',
-                maxInputTokens: 131072,
-                supportedFileTypes: ['image'],
-                pricing: {
-                    inputPerM: 0.3,
-                    outputPerM: 0.5,
-                    cacheReadPerM: 0.075,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            {
-                name: 'grok-code-fast-1',
-                displayName: 'Grok Code Fast',
-                openrouterId: 'x-ai/grok-code-fast-1',
-                maxInputTokens: 131072,
-                supportedFileTypes: [],
-                pricing: {
-                    inputPerM: 0.2,
-                    outputPerM: 1.5,
-                    cacheReadPerM: 0.02,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-        ],
+        models: MODELS_BY_PROVIDER.xai,
         baseURLSupport: 'none',
-        supportedFileTypes: [], // XAI currently doesn't support file uploads
+        supportedFileTypes: [], // No defaults - models must explicitly specify support
         openrouterPrefix: 'x-ai',
     },
     // https://docs.cohere.com/reference/models
     cohere: {
-        models: [
-            {
-                name: 'command-a-03-2025',
-                displayName: 'Command A (03-2025)',
-                openrouterId: 'cohere/command-a',
-                maxInputTokens: 256000,
-                default: true,
-                supportedFileTypes: [],
-                pricing: {
-                    inputPerM: 2.5,
-                    outputPerM: 10.0,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            {
-                name: 'command-r-plus',
-                displayName: 'Command R+',
-                openrouterId: 'cohere/command-r-plus-08-2024',
-                maxInputTokens: 128000,
-                supportedFileTypes: [],
-                pricing: {
-                    inputPerM: 2.5,
-                    outputPerM: 10.0,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            {
-                name: 'command-r',
-                displayName: 'Command R',
-                openrouterId: 'cohere/command-r-08-2024',
-                maxInputTokens: 128000,
-                supportedFileTypes: [],
-                pricing: {
-                    inputPerM: 0.15,
-                    outputPerM: 0.6,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            {
-                name: 'command-r7b',
-                displayName: 'Command R7B',
-                openrouterId: 'cohere/command-r7b-12-2024',
-                maxInputTokens: 128000,
-                supportedFileTypes: [],
-                pricing: {
-                    inputPerM: 0.0375,
-                    outputPerM: 0.15,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-        ],
+        models: MODELS_BY_PROVIDER.cohere,
         baseURLSupport: 'none',
-        supportedFileTypes: [], // Cohere currently doesn't support file uploads
+        supportedFileTypes: [], // No defaults - models must explicitly specify support
         openrouterPrefix: 'cohere',
     },
     // https://platform.minimax.io/docs/api-reference/text-openai-api
     // MiniMax provides an OpenAI-compatible endpoint at https://api.minimax.chat/v1
     minimax: {
-        models: [
-            {
-                name: 'MiniMax-M2.1',
-                displayName: 'MiniMax M2.1',
-                openrouterId: 'minimax/minimax-m2.1',
-                maxInputTokens: 196608,
-                default: true,
-                supportedFileTypes: [],
-            },
-            {
-                name: 'MiniMax-M2.1-lightning',
-                displayName: 'MiniMax M2.1 Lightning',
-                openrouterId: 'minimax/minimax-m2.1-lightning',
-                maxInputTokens: 196608,
-                supportedFileTypes: [],
-            },
-            {
-                name: 'MiniMax-M2',
-                displayName: 'MiniMax M2',
-                openrouterId: 'minimax/minimax-m2',
-                maxInputTokens: 200000,
-                supportedFileTypes: [],
-            },
-            {
-                name: 'M2-her',
-                displayName: 'MiniMax M2-Her',
-                openrouterId: 'minimax/minimax-m2-her',
-                maxInputTokens: 32768,
-                supportedFileTypes: [],
-            },
-        ],
+        models: MODELS_BY_PROVIDER.minimax,
         baseURLSupport: 'none',
-        supportedFileTypes: [],
+        supportedFileTypes: [], // No defaults - models must explicitly specify support
         openrouterPrefix: 'minimax',
     },
-    // https://docs.z.ai/api-reference/llm/chat-completion
-    // Zhipu AI GLM OpenAI-compatible endpoint: https://open.bigmodel.cn/api/paas/v4
+    // https://open.bigmodel.cn/dev/api/normal-model/glm-4
+    // GLM (Zhipu AI) provides an OpenAI-compatible endpoint
     glm: {
-        models: [
-            {
-                name: 'glm-4.7',
-                displayName: 'GLM 4.7',
-                openrouterId: 'z-ai/glm-4.7',
-                maxInputTokens: 128000,
-                default: true,
-                supportedFileTypes: [],
-            },
-            {
-                name: 'glm-4.7-flash',
-                displayName: 'GLM 4.7 Flash',
-                openrouterId: 'z-ai/glm-4.7-flash',
-                maxInputTokens: 128000,
-                supportedFileTypes: [],
-            },
-            {
-                name: 'glm-4.7-flashx',
-                displayName: 'GLM 4.7 FlashX',
-                openrouterId: 'z-ai/glm-4.7-flashx',
-                maxInputTokens: 128000,
-                supportedFileTypes: [],
-            },
-        ],
+        models: MODELS_BY_PROVIDER.glm,
         baseURLSupport: 'none',
-        supportedFileTypes: [],
+        supportedFileTypes: [], // No defaults - models must explicitly specify support
         openrouterPrefix: 'z-ai',
     },
     // https://openrouter.ai/docs
@@ -1055,7 +229,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
     openrouter: {
         models: [], // Empty - accepts any model name (validated against OpenRouter's catalog)
         baseURLSupport: 'none', // Fixed endpoint - baseURL auto-injected in resolver, no user override allowed
-        supportedFileTypes: ['pdf', 'image', 'audio'], // Allow all types - user assumes responsibility for model capabilities
+        supportedFileTypes: ['pdf', 'image', 'audio'], // Allow all types - user assumes responsibility
         supportsCustomModels: true,
         supportsAllRegistryModels: true, // Can serve models from all other providers
     },
@@ -1063,423 +237,51 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
     // LiteLLM is an OpenAI-compatible proxy that unifies 100+ LLM providers.
     // User must host their own LiteLLM proxy and provide the baseURL.
     litellm: {
-        models: [], // Empty - accepts any model name (user's proxy determines available models)
-        baseURLSupport: 'required', // User must provide their LiteLLM proxy URL
-        supportedFileTypes: ['pdf', 'image', 'audio'], // Allow all types - user assumes responsibility for model capabilities
+        models: [],
+        baseURLSupport: 'required',
+        supportedFileTypes: ['pdf', 'image', 'audio'],
         supportsCustomModels: true,
     },
     // https://glama.ai/
     // Glama is an OpenAI-compatible gateway providing unified access to multiple LLM providers.
     // Fixed endpoint: https://glama.ai/api/gateway/openai/v1
     glama: {
-        models: [], // Empty - accepts any model name (format: provider/model e.g., openai/gpt-4o)
-        baseURLSupport: 'none', // Fixed endpoint - baseURL auto-injected
-        supportedFileTypes: ['pdf', 'image', 'audio'], // Allow all types - user assumes responsibility for model capabilities
+        models: [],
+        baseURLSupport: 'none',
+        supportedFileTypes: ['pdf', 'image', 'audio'],
         supportsCustomModels: true,
     },
     // https://cloud.google.com/vertex-ai
-    // Google Vertex AI - GCP-hosted gateway for Gemini and Claude models
-    // Supports both Google's Gemini models and Anthropic's Claude via partnership
-    //
-    // Setup instructions:
-    // 1. Create a Google Cloud account and project
-    // 2. Enable the Vertex AI API: gcloud services enable aiplatform.googleapis.com
-    // 3. Enable desired Claude models (requires Anthropic Model Garden)
-    // 4. Install Google Cloud CLI: https://cloud.google.com/sdk/docs/install
-    // 5. Configure ADC: gcloud auth application-default login
-    // 6. Set env vars: GOOGLE_VERTEX_PROJECT (required), GOOGLE_VERTEX_LOCATION (optional)
-    //
-    // TODO: Add dynamic model fetching via publishers.models.list API
-    // - Requires: projectId, region, ADC auth
-    // - Endpoints: GET projects/{project}/locations/{location}/publishers/{google,anthropic}/models
-    // - Note: API doesn't return aliases (e.g., gemini-2.0-flash), only versioned IDs
-    // - Docs: https://cloud.google.com/vertex-ai/docs/reference/rest/v1/projects.locations.models/list
-    // - Models: https://cloud.google.com/vertex-ai/generative-ai/docs/models
     vertex: {
-        models: [
-            // Gemini 3 models on Vertex AI (Preview)
-            {
-                name: 'gemini-3-flash-preview',
-                displayName: 'Gemini 3 Flash (Vertex)',
-                maxInputTokens: 1048576,
-                default: true,
-                supportedFileTypes: ['pdf', 'image', 'audio'],
-                pricing: {
-                    inputPerM: 0.5,
-                    outputPerM: 3.0,
-                    cacheReadPerM: 0.05,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            {
-                name: 'gemini-3-pro-preview',
-                displayName: 'Gemini 3 Pro (Vertex)',
-                maxInputTokens: 1048576,
-                supportedFileTypes: ['pdf', 'image', 'audio'],
-                pricing: {
-                    inputPerM: 2.0,
-                    outputPerM: 12.0,
-                    cacheReadPerM: 0.2,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            // Gemini 2.x models on Vertex AI
-            {
-                name: 'gemini-2.5-pro',
-                displayName: 'Gemini 2.5 Pro (Vertex)',
-                maxInputTokens: 1048576,
-                supportedFileTypes: ['pdf', 'image', 'audio'],
-                pricing: {
-                    inputPerM: 1.25,
-                    outputPerM: 10.0,
-                    cacheReadPerM: 0.31,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            {
-                name: 'gemini-2.5-flash',
-                displayName: 'Gemini 2.5 Flash (Vertex)',
-                maxInputTokens: 1048576,
-                supportedFileTypes: ['pdf', 'image', 'audio'],
-                pricing: {
-                    inputPerM: 0.15,
-                    outputPerM: 0.6,
-                    cacheReadPerM: 0.0375,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            {
-                name: 'gemini-2.0-flash',
-                displayName: 'Gemini 2.0 Flash (Vertex)',
-                maxInputTokens: 1048576,
-                supportedFileTypes: ['pdf', 'image', 'audio'],
-                pricing: {
-                    inputPerM: 0.1,
-                    outputPerM: 0.4,
-                    cacheReadPerM: 0.025,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            // Claude 4.5 models on Vertex AI (via Anthropic partnership)
-            // Note: Claude model IDs use @ suffix format on Vertex
-            {
-                name: 'claude-opus-4-5@20251101',
-                displayName: 'Claude 4.5 Opus (Vertex)',
-                maxInputTokens: 200000,
-                supportedFileTypes: ['pdf', 'image'],
-                pricing: {
-                    inputPerM: 5.0,
-                    outputPerM: 25.0,
-                    cacheWritePerM: 6.25,
-                    cacheReadPerM: 0.5,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            {
-                name: 'claude-sonnet-4-5@20250929',
-                displayName: 'Claude 4.5 Sonnet (Vertex)',
-                maxInputTokens: 200000,
-                supportedFileTypes: ['pdf', 'image'],
-                pricing: {
-                    inputPerM: 3.0,
-                    outputPerM: 15.0,
-                    cacheWritePerM: 3.75,
-                    cacheReadPerM: 0.3,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            {
-                name: 'claude-haiku-4-5@20251001',
-                displayName: 'Claude 4.5 Haiku (Vertex)',
-                maxInputTokens: 200000,
-                supportedFileTypes: ['pdf', 'image'],
-                pricing: {
-                    inputPerM: 1.0,
-                    outputPerM: 5.0,
-                    cacheWritePerM: 1.25,
-                    cacheReadPerM: 0.1,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            // Claude 4.1 and 4.0 models on Vertex AI
-            {
-                name: 'claude-opus-4-1@20250805',
-                displayName: 'Claude 4.1 Opus (Vertex)',
-                maxInputTokens: 200000,
-                supportedFileTypes: ['pdf', 'image'],
-                pricing: {
-                    inputPerM: 15.0,
-                    outputPerM: 75.0,
-                    cacheWritePerM: 18.75,
-                    cacheReadPerM: 1.5,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            {
-                name: 'claude-opus-4@20250514',
-                displayName: 'Claude 4 Opus (Vertex)',
-                maxInputTokens: 200000,
-                supportedFileTypes: ['pdf', 'image'],
-                pricing: {
-                    inputPerM: 15.0,
-                    outputPerM: 75.0,
-                    cacheWritePerM: 18.75,
-                    cacheReadPerM: 1.5,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            {
-                name: 'claude-sonnet-4@20250514',
-                displayName: 'Claude 4 Sonnet (Vertex)',
-                maxInputTokens: 200000,
-                supportedFileTypes: ['pdf', 'image'],
-                pricing: {
-                    inputPerM: 3.0,
-                    outputPerM: 15.0,
-                    cacheWritePerM: 3.75,
-                    cacheReadPerM: 0.3,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            // Claude 3.x models on Vertex AI
-            {
-                name: 'claude-3-7-sonnet@20250219',
-                displayName: 'Claude 3.7 Sonnet (Vertex)',
-                maxInputTokens: 200000,
-                supportedFileTypes: ['pdf', 'image'],
-                pricing: {
-                    inputPerM: 3.0,
-                    outputPerM: 15.0,
-                    cacheWritePerM: 3.75,
-                    cacheReadPerM: 0.3,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            {
-                name: 'claude-3-5-sonnet-v2@20241022',
-                displayName: 'Claude 3.5 Sonnet v2 (Vertex)',
-                maxInputTokens: 200000,
-                supportedFileTypes: ['pdf', 'image'],
-                pricing: {
-                    inputPerM: 3.0,
-                    outputPerM: 15.0,
-                    cacheWritePerM: 3.75,
-                    cacheReadPerM: 0.3,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            {
-                name: 'claude-3-5-haiku@20241022',
-                displayName: 'Claude 3.5 Haiku (Vertex)',
-                maxInputTokens: 200000,
-                supportedFileTypes: ['pdf', 'image'],
-                pricing: {
-                    inputPerM: 0.8,
-                    outputPerM: 4.0,
-                    cacheWritePerM: 1.0,
-                    cacheReadPerM: 0.08,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-        ],
-        baseURLSupport: 'none', // Auto-constructed from projectId and region
-        supportedFileTypes: ['pdf', 'image', 'audio'],
+        models: MODELS_BY_PROVIDER.vertex,
+        baseURLSupport: 'none',
+        supportedFileTypes: [], // No defaults - models must explicitly specify support
     },
-    // Amazon Bedrock - AWS-hosted gateway for Claude, Nova, and more
-    // Auth: AWS credentials (env vars) or Bedrock API key (AWS_BEARER_TOKEN_BEDROCK)
-    //
-    // Cross-region inference: Auto-added for anthropic.* and amazon.* models
-    // supportsCustomModels: true allows users to add custom model IDs beyond the fixed list
+    // https://docs.aws.amazon.com/bedrock/latest/userguide/models.html
     bedrock: {
+        models: MODELS_BY_PROVIDER.bedrock,
+        baseURLSupport: 'none',
+        supportedFileTypes: [], // No defaults - models must explicitly specify support
         supportsCustomModels: true,
-        models: [
-            // Claude 4.5 models (latest)
-            {
-                name: 'anthropic.claude-sonnet-4-5-20250929-v1:0',
-                displayName: 'Claude 4.5 Sonnet',
-                maxInputTokens: 200000,
-                default: true,
-                supportedFileTypes: ['pdf', 'image'],
-                pricing: {
-                    inputPerM: 3.0,
-                    outputPerM: 15.0,
-                    cacheWritePerM: 3.75,
-                    cacheReadPerM: 0.3,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            {
-                name: 'anthropic.claude-haiku-4-5-20251001-v1:0',
-                displayName: 'Claude 4.5 Haiku',
-                maxInputTokens: 200000,
-                supportedFileTypes: ['pdf', 'image'],
-                pricing: {
-                    inputPerM: 1.0,
-                    outputPerM: 5.0,
-                    cacheWritePerM: 1.25,
-                    cacheReadPerM: 0.1,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            {
-                name: 'anthropic.claude-opus-4-5-20251101-v1:0',
-                displayName: 'Claude 4.5 Opus',
-                maxInputTokens: 200000,
-                supportedFileTypes: ['pdf', 'image'],
-                pricing: {
-                    inputPerM: 5.0,
-                    outputPerM: 25.0,
-                    cacheWritePerM: 6.25,
-                    cacheReadPerM: 0.5,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            // Amazon Nova models
-            {
-                name: 'amazon.nova-premier-v1:0',
-                displayName: 'Nova Premier',
-                maxInputTokens: 1000000,
-                supportedFileTypes: ['image'],
-                pricing: {
-                    inputPerM: 2.5,
-                    outputPerM: 12.5,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            {
-                name: 'amazon.nova-pro-v1:0',
-                displayName: 'Nova Pro',
-                maxInputTokens: 300000,
-                supportedFileTypes: ['pdf', 'image'],
-                pricing: {
-                    inputPerM: 0.8,
-                    outputPerM: 3.2,
-                    cacheReadPerM: 0.2,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            {
-                name: 'amazon.nova-lite-v1:0',
-                displayName: 'Nova Lite',
-                maxInputTokens: 300000,
-                supportedFileTypes: ['pdf', 'image'],
-                pricing: {
-                    inputPerM: 0.06,
-                    outputPerM: 0.24,
-                    cacheReadPerM: 0.015,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            {
-                name: 'amazon.nova-micro-v1:0',
-                displayName: 'Nova Micro',
-                maxInputTokens: 128000,
-                supportedFileTypes: [],
-                pricing: {
-                    inputPerM: 0.035,
-                    outputPerM: 0.14,
-                    cacheReadPerM: 0.00875,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            // OpenAI GPT-OSS
-            {
-                name: 'openai.gpt-oss-120b-1:0',
-                displayName: 'GPT-OSS 120B',
-                maxInputTokens: 128000,
-                supportedFileTypes: [],
-                pricing: {
-                    inputPerM: 0.15,
-                    outputPerM: 0.6,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            {
-                name: 'openai.gpt-oss-20b-1:0',
-                displayName: 'GPT-OSS 20B',
-                maxInputTokens: 128000,
-                supportedFileTypes: [],
-                pricing: {
-                    inputPerM: 0.07,
-                    outputPerM: 0.3,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            // Qwen
-            {
-                name: 'qwen.qwen3-coder-30b-a3b-v1:0',
-                displayName: 'Qwen3 Coder 30B',
-                maxInputTokens: 262144,
-                supportedFileTypes: [],
-                pricing: {
-                    inputPerM: 0.15,
-                    outputPerM: 0.6,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            {
-                name: 'qwen.qwen3-coder-480b-a35b-v1:0',
-                displayName: 'Qwen3 Coder 480B',
-                maxInputTokens: 262144,
-                supportedFileTypes: [],
-                pricing: {
-                    inputPerM: 0.22,
-                    outputPerM: 1.8,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-        ],
-        baseURLSupport: 'none', // Auto-constructed from region
-        supportedFileTypes: ['pdf', 'image'],
     },
     // Native local model execution via node-llama-cpp
-    // Runs GGUF models directly on the machine using Metal/CUDA/Vulkan acceleration
-    // Models are downloaded from HuggingFace and stored in ~/.dexto/models/
     local: {
         models: [], // Populated dynamically from local model registry
-        baseURLSupport: 'none', // No external server needed
-        supportedFileTypes: ['image'], // Vision support depends on model capabilities
-        supportsCustomModels: true, // Allow any GGUF model path
+        baseURLSupport: 'none',
+        supportedFileTypes: ['image'],
+        supportsCustomModels: true,
     },
     // Ollama server integration
-    // Uses Ollama's OpenAI-compatible API for local model inference
-    // Requires Ollama to be installed and running (default: http://localhost:11434)
     ollama: {
         models: [], // Populated dynamically from Ollama API
-        baseURLSupport: 'optional', // Default: http://localhost:11434, can be customized
-        supportedFileTypes: ['image'], // Vision support depends on model
-        supportsCustomModels: true, // Accept any Ollama model name
+        baseURLSupport: 'optional',
+        supportedFileTypes: ['image'],
+        supportsCustomModels: true,
     },
     // Dexto Gateway - OpenAI-compatible proxy through api.dexto.ai
     // Routes to OpenRouter with per-request billing (balance decrement)
-    // Requires DEXTO_API_KEY from `dexto login`
+    // Requires DEXTO_API_KEY from dexto login
     //
-    // This is a first-class provider that users explicitly select.
     // Model IDs are in OpenRouter format (e.g., 'anthropic/claude-sonnet-4.5')
     dexto: {
         models: [
@@ -1587,14 +389,12 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 displayName: 'Qwen3 Coder (Free)',
                 maxInputTokens: 262000,
                 supportedFileTypes: [],
-                // Free - no pricing
             },
             {
                 name: 'deepseek/deepseek-r1-0528:free',
                 displayName: 'DeepSeek R1 (Free)',
                 maxInputTokens: 163840,
                 supportedFileTypes: [],
-                // Free - no pricing
             },
             // Other models (via OpenRouter)
             {
@@ -1622,10 +422,10 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 },
             },
         ],
-        baseURLSupport: 'none', // Fixed endpoint: https://api.dexto.ai/v1
-        supportedFileTypes: ['pdf', 'image', 'audio'], // Same as OpenRouter
-        supportsCustomModels: true, // Accept any OpenRouter model ID beyond the preset list
-        supportsAllRegistryModels: true, // Can serve models from all other providers via OpenRouter
+        baseURLSupport: 'none',
+        supportedFileTypes: ['pdf', 'image', 'audio'],
+        supportsCustomModels: true,
+        supportsAllRegistryModels: true,
     },
 };
 
@@ -1652,7 +452,7 @@ export function stripBedrockRegionPrefix(model: string): string {
  */
 export function getDefaultModelForProvider(provider: LLMProvider): string | null {
     const providerInfo = LLM_REGISTRY[provider];
-    return providerInfo.models.find((m) => m.default)?.name || null;
+    return providerInfo.models.find((m) => m.default)?.name || providerInfo.models[0]?.name || null;
 }
 
 /**
@@ -1691,7 +491,7 @@ export function getMaxInputTokensForModel(
     const resolved = resolveToNativeProvider(provider, model);
     const providerInfo = LLM_REGISTRY[resolved.provider];
 
-    const normalizedModel = stripBedrockRegionPrefix(resolved.model).toLowerCase();
+    const normalizedModel = getNormalizedModelIdForLookup(resolved.provider, resolved.model);
     const modelInfo = providerInfo.models.find((m) => m.name.toLowerCase() === normalizedModel);
     if (!modelInfo) {
         const supportedModels = getSupportedModels(resolved.provider).join(', ');
@@ -1716,7 +516,7 @@ export function getMaxInputTokensForModel(
  */
 export function isValidProviderModel(provider: LLMProvider, model: string): boolean {
     const providerInfo = LLM_REGISTRY[provider];
-    const normalizedModel = stripBedrockRegionPrefix(model).toLowerCase();
+    const normalizedModel = getNormalizedModelIdForLookup(provider, model);
     return providerInfo.models.some((m) => m.name.toLowerCase() === normalizedModel);
 }
 
@@ -1741,7 +541,7 @@ export function getProviderFromModel(model: string): LLMProvider {
                 if (providerPrefix?.toLowerCase() === normalizedPrefix) {
                     // Verify model exists in this provider's registry before returning
                     const providerInfo = LLM_REGISTRY[provider];
-                    const normalizedModelName = stripBedrockRegionPrefix(modelName).toLowerCase();
+                    const normalizedModelName = getNormalizedModelIdForLookup(provider, modelName);
                     const existsInProvider = providerInfo.models.some(
                         (m) =>
                             m.name.toLowerCase() === normalizedModelName ||
@@ -1757,9 +557,9 @@ export function getProviderFromModel(model: string): LLMProvider {
         }
     }
 
-    const normalizedModel = stripBedrockRegionPrefix(model).toLowerCase();
     for (const provider of LLM_PROVIDERS) {
         const info = LLM_REGISTRY[provider];
+        const normalizedModel = getNormalizedModelIdForLookup(provider, model);
         if (info.models.some((m) => m.name.toLowerCase() === normalizedModel)) {
             return provider;
         }
@@ -1877,6 +677,15 @@ export function getAllModelsForProvider(
     for (const sourceProvider of GATEWAY_ACCESSIBLE_PROVIDERS) {
         const sourceInfo = LLM_REGISTRY[sourceProvider];
         for (const model of sourceInfo.models) {
+            // Gateways (openrouter/dexto) need models to be usable through OpenRouter.
+            // - Providers with openrouterPrefix require explicit `openrouterId` mapping.
+            // - Groq is a special case: only models already in OpenRouter format (contain '/') are usable.
+            if (sourceProvider === 'groq' && !model.name.includes('/')) {
+                continue;
+            }
+            if (sourceInfo.openrouterPrefix && !model.openrouterId) {
+                continue;
+            }
             allModels.push({
                 ...model,
                 originalProvider: sourceProvider,
@@ -1938,7 +747,7 @@ export function transformModelNameForProvider(
     // Use case-insensitive matching for consistency with other registry lookups
     const providerInfo = LLM_REGISTRY[originalProvider];
     if (providerInfo) {
-        const normalizedModel = model.toLowerCase();
+        const normalizedModel = getNormalizedModelIdForLookup(originalProvider, model);
         const modelInfo = providerInfo.models.find((m) => m.name.toLowerCase() === normalizedModel);
         if (modelInfo?.openrouterId) {
             return modelInfo.openrouterId;
@@ -1947,7 +756,7 @@ export function transformModelNameForProvider(
 
     // No mapping found - this is a bug in our registry
     throw new DextoRuntimeError(
-        LLMErrorCode.MODEL_UNKNOWN,
+        LLMErrorCode.MODEL_OPENROUTER_MAPPING_MISSING,
         ErrorScope.LLM,
         ErrorType.SYSTEM,
         `Model '${model}' from provider '${originalProvider}' has no openrouterId mapping. ` +
@@ -1986,11 +795,19 @@ export function resolveModelOrigin(
                     // Reverse lookup: find native model name via openrouterId
                     // e.g., 'anthropic/claude-opus-4.5' → 'claude-opus-4-5-20251101'
                     const providerInfo = LLM_REGISTRY[provider];
-                    const nativeModel = providerInfo?.models.find(
-                        (m) => m.openrouterId?.toLowerCase() === model.toLowerCase()
-                    );
-                    if (nativeModel) {
-                        return { provider, model: nativeModel.name };
+                    const normalizedOpenrouterId = model.toLowerCase();
+                    const nativeModels =
+                        providerInfo?.models.filter(
+                            (m) => m.openrouterId?.toLowerCase() === normalizedOpenrouterId
+                        ) ?? [];
+                    if (nativeModels.length > 0) {
+                        // Prefer versioned model IDs when multiple native models share the same OpenRouter alias.
+                        // This preserves stable, specific metadata lookups (tokens/pricing/etc).
+                        const preferred =
+                            nativeModels.find((m) => /\d{8}/.test(m.name)) ??
+                            nativeModels.find((m) => m.default === true) ??
+                            nativeModels[0];
+                        return { provider, model: preferred!.name };
                     }
                     // Fallback: return extracted model name (may be custom or already native)
                     return { provider, model: modelName };
@@ -2011,7 +828,7 @@ export function resolveModelOrigin(
     // No prefix - search all accessible providers for the model
     for (const sourceProvider of GATEWAY_ACCESSIBLE_PROVIDERS) {
         const sourceInfo = LLM_REGISTRY[sourceProvider];
-        const normalizedModel = stripBedrockRegionPrefix(model).toLowerCase();
+        const normalizedModel = getNormalizedModelIdForLookup(sourceProvider, model);
         if (sourceInfo.models.some((m) => m.name.toLowerCase() === normalizedModel)) {
             return { provider: sourceProvider, model };
         }
@@ -2053,7 +870,7 @@ export function isModelValidForProvider(provider: LLMProvider, model: string): b
     const providerInfo = LLM_REGISTRY[provider];
 
     // Check provider's own models first
-    const normalizedModel = stripBedrockRegionPrefix(model).toLowerCase();
+    const normalizedModel = getNormalizedModelIdForLookup(provider, model);
     if (providerInfo.models.some((m) => m.name.toLowerCase() === normalizedModel)) {
         return true;
     }
@@ -2125,7 +942,7 @@ export function getSupportedFileTypesForModel(
     }
 
     // Find the specific model (strip Bedrock region prefix for lookup)
-    const normalizedModel = stripBedrockRegionPrefix(resolved.model).toLowerCase();
+    const normalizedModel = getNormalizedModelIdForLookup(resolved.provider, resolved.model);
     const modelInfo = providerInfo.models.find((m) => m.name.toLowerCase() === normalizedModel);
     if (!modelInfo) {
         throw LLMError.unknownModel(resolved.provider, resolved.model);
@@ -2355,7 +1172,7 @@ export function getModelPricing(provider: LLMProvider, model: string): ModelPric
         return undefined;
     }
 
-    const normalizedModel = stripBedrockRegionPrefix(resolved.model).toLowerCase();
+    const normalizedModel = getNormalizedModelIdForLookup(resolved.provider, resolved.model);
     const modelInfo = providerInfo.models.find((m) => m.name.toLowerCase() === normalizedModel);
     return modelInfo?.pricing;
 }
@@ -2381,7 +1198,7 @@ export function getModelDisplayName(model: string, provider?: LLMProvider): stri
         return model;
     }
 
-    const normalizedModel = stripBedrockRegionPrefix(resolved.model).toLowerCase();
+    const normalizedModel = getNormalizedModelIdForLookup(resolved.provider, resolved.model);
     const modelInfo = providerInfo.models.find((m) => m.name.toLowerCase() === normalizedModel);
     return modelInfo?.displayName ?? model;
 }

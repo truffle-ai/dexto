@@ -1,6 +1,7 @@
 import { Result, hasErrors, splitIssues, ok, fail, zodToIssues } from '../utils/result.js';
 import { Issue, ErrorScope, ErrorType } from '@core/errors/types.js';
 import { LLMErrorCode } from './error-codes.js';
+import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
 
 import { type ValidatedLLMConfig, type LLMUpdates, type LLMConfig } from './schemas.js';
 import { LLMConfigSchema } from './schemas.js';
@@ -129,7 +130,21 @@ export async function resolveLLMConfig(
             logger.debug(
                 `Transformed model for ${provider}: ${updates.model ?? previous.model} -> ${model}`
             );
-        } catch {
+        } catch (error: unknown) {
+            if (error instanceof DextoRuntimeError) {
+                // If the model is known but missing an OpenRouter mapping, fail loudly.
+                // Passing through an un-prefixed model to a gateway provider will almost certainly break.
+                if (error.code === LLMErrorCode.MODEL_OPENROUTER_MAPPING_MISSING) {
+                    warnings.push({
+                        code: error.code,
+                        message: error.message,
+                        severity: 'error',
+                        scope: ErrorScope.LLM,
+                        type: ErrorType.SYSTEM,
+                        context: { provider, model },
+                    });
+                }
+            }
             // Model not in registry - pass through as-is, gateway may accept custom model IDs
             logger.debug(
                 `Model '${model}' not in registry, passing through to ${provider} without transformation`
