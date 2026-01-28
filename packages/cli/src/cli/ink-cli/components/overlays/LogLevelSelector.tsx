@@ -14,6 +14,7 @@ interface LogLevelSelectorProps {
     onSelect: (level: string) => void;
     onClose: () => void;
     agent: DextoAgent;
+    sessionId: string | null;
 }
 
 export interface LogLevelSelectorHandle {
@@ -40,7 +41,7 @@ const LOG_LEVELS: { level: string; description: string; icon: string }[] = [
  * Log level selector - thin wrapper around BaseSelector
  */
 const LogLevelSelector = forwardRef<LogLevelSelectorHandle, LogLevelSelectorProps>(
-    function LogLevelSelector({ isVisible, onSelect, onClose, agent }, ref) {
+    function LogLevelSelector({ isVisible, onSelect, onClose, agent, sessionId }, ref) {
         const baseSelectorRef = useRef<BaseSelectorHandle>(null);
 
         // Forward handleInput to BaseSelector
@@ -60,27 +61,42 @@ const LogLevelSelector = forwardRef<LogLevelSelectorHandle, LogLevelSelectorProp
 
         // Build levels list with current indicator
         useEffect(() => {
-            if (!isVisible) {
-                setLogFilePath(null);
-                return;
-            }
+            let isCancelled = false;
 
-            // Get current level from agent's logger (shared across all child loggers)
-            const currentLevel = agent.logger.getLevel();
-            const levelList = LOG_LEVELS.map((l) => ({
-                ...l,
-                isCurrent: l.level === currentLevel,
-            }));
+            const run = async () => {
+                if (!isVisible) {
+                    setLogFilePath(null);
+                    return;
+                }
 
-            setLevels(levelList);
-            setLogFilePath(agent.logger.getLogFilePath());
+                // Get current level from agent's logger (shared across all child loggers)
+                const currentLevel = agent.logger.getLevel();
+                const levelList = LOG_LEVELS.map((l) => ({
+                    ...l,
+                    isCurrent: l.level === currentLevel,
+                }));
 
-            // Set initial selection to current level
-            const currentIndex = levelList.findIndex((l) => l.isCurrent);
-            if (currentIndex >= 0) {
-                setSelectedIndex(currentIndex);
-            }
-        }, [isVisible, agent]);
+                setLevels(levelList);
+
+                // File logging is session-scoped; prefer the active session logger if available.
+                const session = sessionId ? await agent.getSession(sessionId) : undefined;
+                if (!isCancelled) {
+                    setLogFilePath(session?.logger.getLogFilePath() ?? null);
+                }
+
+                // Set initial selection to current level
+                const currentIndex = levelList.findIndex((l) => l.isCurrent);
+                if (currentIndex >= 0) {
+                    setSelectedIndex(currentIndex);
+                }
+            };
+
+            void run();
+
+            return () => {
+                isCancelled = true;
+            };
+        }, [isVisible, agent, sessionId]);
 
         // Format level item for display
         const formatItem = (option: LogLevelOption, isSelected: boolean) => (

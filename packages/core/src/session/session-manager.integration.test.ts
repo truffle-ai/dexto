@@ -22,6 +22,10 @@ describe('Session Integration: Chat History Preservation', () => {
             maxSessions: 10,
             sessionTTL: 100, // 100ms for fast testing
         },
+        logger: {
+            level: 'warn',
+            transports: [{ type: 'console', colorize: false }],
+        },
         toolConfirmation: {
             mode: 'auto-approve',
             timeout: 120000,

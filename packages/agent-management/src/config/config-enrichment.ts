@@ -118,7 +118,7 @@ export function enrichAgentConfig(
     const agentId = deriveAgentId(config, configPath);
 
     // Generate per-agent paths
-    const logPath = getDextoPath('logs', `${agentId}.log`);
+    // Note: file logging is session-scoped (see core SessionManager) so we don't set a per-agent log file here.
     const dbPath = getDextoPath('database', `${agentId}.db`);
     const blobPath = getDextoPath('blobs', agentId);
 
@@ -131,26 +131,11 @@ export function enrichAgentConfig(
     // Enrich logger config: only provide if not set
     if (!config.logger) {
         // User didn't specify logger - provide defaults based on mode
-        // Interactive CLI: only file (console would interfere with chat UI)
-        // Other modes: console + file
+        // Interactive CLI: console transport is disabled to prevent interference with Ink UI
+        // File logging is session-scoped (see core SessionManager), so we do NOT add a file transport here.
         const transports = isInteractiveCli
-            ? [
-                  {
-                      type: 'file' as const,
-                      path: logPath,
-                      maxSize: 10 * 1024 * 1024, // 10MB
-                      maxFiles: 5,
-                  },
-              ]
-            : [
-                  { type: 'console' as const, colorize: true },
-                  {
-                      type: 'file' as const,
-                      path: logPath,
-                      maxSize: 10 * 1024 * 1024, // 10MB
-                      maxFiles: 5,
-                  },
-              ];
+            ? [{ type: 'silent' as const }]
+            : [{ type: 'console' as const, colorize: true }];
 
         enriched.logger = {
             level: logLevel,

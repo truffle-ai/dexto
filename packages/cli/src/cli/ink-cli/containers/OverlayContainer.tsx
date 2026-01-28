@@ -110,7 +110,7 @@ import MarketplaceAddPrompt, {
 import type { PromptAddScope } from '../state/types.js';
 import type { PromptInfo, ResourceMetadata, LLMProvider, SearchResult } from '@dexto/core';
 import type { LogLevel } from '@dexto/core';
-import { DextoValidationError, LLMErrorCode } from '@dexto/core';
+import { DextoValidationError, LLMErrorCode, getModelDisplayName } from '@dexto/core';
 import { InputService } from '../services/InputService.js';
 import { createUserMessage, convertHistoryToUIMessages } from '../utils/messageFormatting.js';
 import { generateMessageId } from '../utils/idGenerator.js';
@@ -746,17 +746,25 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     setMessages([]);
                     setApproval(null);
                     setApprovalQueue([]);
-                    setSession({
-                        id: newSessionId,
-                        hasActiveSession: true,
-                        modelName: session.modelName,
-                    });
 
-                    // Verify session exists
+                    // Verify session exists first
                     const sessionData = await agent.getSession(newSessionId);
                     if (!sessionData) {
                         throw new Error(`Session ${newSessionId} not found`);
                     }
+
+                    // Get the actual model being used for this session (respects llmOverride)
+                    const newSessionConfig = agent.getCurrentLLMConfig(newSessionId);
+                    const newSessionModelName = getModelDisplayName(
+                        newSessionConfig.model,
+                        newSessionConfig.provider
+                    );
+
+                    setSession({
+                        id: newSessionId,
+                        hasActiveSession: true,
+                        modelName: newSessionModelName,
+                    });
 
                     // Load session history
                     const history = await agent.getSessionHistory(newSessionId);
@@ -2134,6 +2142,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             onSelect={handleLogLevelSelect}
                             onClose={handleClose}
                             agent={agent}
+                            sessionId={session.id}
                         />
                     </Box>
                 )}
@@ -2421,7 +2430,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             isVisible={true}
                             onClose={handleClose}
                             agent={agent}
-                            sessionId={session.id}
+                            sessionId={session.id ?? ''}
                         />
                     </Box>
                 )}

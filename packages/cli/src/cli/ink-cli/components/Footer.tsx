@@ -44,8 +44,8 @@ export function Footer({
         percentLeft: number;
     } | null>(null);
 
-    // Check if Dexto is actually the active provider (not just if API key exists)
-    const viaDexto = agent.getCurrentLLMConfig().provider === 'dexto';
+    // Provider is session-scoped because /model can switch LLM per session.
+    const viaDexto = agent.getCurrentLLMConfig(sessionId ?? undefined).provider === 'dexto';
 
     useEffect(() => {
         if (!sessionId) {

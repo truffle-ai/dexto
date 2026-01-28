@@ -36,12 +36,12 @@ const DANGEROUS_PATTERNS = [
     /parted\s+\/dev\/sd[a-z]/, // Partition disk with parted
 
     // Download and execute patterns
+    // Note: curl | python and wget | python are intentionally NOT blocked
+    // as they are commonly used for legitimate data fetching and parsing
     /wget.*\|\s*sh/, // wget | sh
     /wget.*\|\s*bash/, // wget | bash
     /curl.*\|\s*sh/, // curl | sh
     /curl.*\|\s*bash/, // curl | bash
-    /wget.*\|\s*python/, // wget | python
-    /curl.*\|\s*python/, // curl | python
 
     // Shell execution
     /\|\s*bash/, // Pipe to bash

@@ -898,15 +898,45 @@ export function filterMessagesByLLMCapabilities(
     logger: IDextoLogger
 ): InternalMessage[] {
     try {
-        return messages.map((message) => {
+        let totalImagesFiltered = 0;
+        let totalFilesFiltered = 0;
+
+        const filteredMessages = messages.map((message) => {
             // Only filter user messages with array content (multimodal)
             if (message.role !== 'user' || !Array.isArray(message.content)) {
                 return message;
             }
 
+            let imagesInMessage = 0;
+            let filesInMessage = 0;
+
             const filteredContent = message.content.filter((part) => {
-                // Keep text and image parts
-                if (part.type === 'text' || part.type === 'image') {
+                // Keep text parts
+                if (part.type === 'text') {
+                    return true;
+                }
+
+                // Filter image parts based on LLM capabilities
+                if (part.type === 'image') {
+                    const mimeType = part.mimeType ?? 'image/jpeg';
+                    const validation = validateModelFileSupport(
+                        config.provider,
+                        config.model,
+                        mimeType
+                    );
+                    // Only filter if model explicitly doesn't support this file type
+                    // Keep content if validation errored or is unknown
+                    if (validation.isSupported) {
+                        return true;
+                    }
+                    if (validation.error?.includes('does not support')) {
+                        imagesInMessage++;
+                        return false;
+                    }
+                    // Unknown file type or validation error - keep the content and warn
+                    logger.warn(
+                        `Could not validate image support for ${config.model}: ${validation.error}`
+                    );
                     return true;
                 }
 
@@ -917,11 +947,27 @@ export function filterMessagesByLLMCapabilities(
                         config.model,
                         part.mimeType
                     );
-                    return validation.isSupported;
+                    // Only filter if model explicitly doesn't support this file type
+                    // Keep content if validation errored or is unknown
+                    if (validation.isSupported) {
+                        return true;
+                    }
+                    if (validation.error?.includes('does not support')) {
+                        filesInMessage++;
+                        return false;
+                    }
+                    // Unknown file type or validation error - keep the content and warn
+                    logger.warn(
+                        `Could not validate file support for ${config.model}: ${validation.error}`
+                    );
+                    return true;
                 }
 
                 return true; // Keep unknown part types
             });
+
+            totalImagesFiltered += imagesInMessage;
+            totalFilesFiltered += filesInMessage;
 
             // If all content was filtered out, add a placeholder text
             if (filteredContent.length === 0) {
@@ -936,6 +982,20 @@ export function filterMessagesByLLMCapabilities(
                 content: filteredContent,
             };
         });
+
+        // Log summary of filtered content
+        if (totalImagesFiltered > 0) {
+            logger.info(
+                `Filtered ${totalImagesFiltered} image${totalImagesFiltered > 1 ? 's' : ''} for ${config.model} since it doesn't support images`
+            );
+        }
+        if (totalFilesFiltered > 0) {
+            logger.info(
+                `Filtered ${totalFilesFiltered} file${totalFilesFiltered > 1 ? 's' : ''} for ${config.model} since it doesn't support that file type`
+            );
+        }
+
+        return filteredMessages;
     } catch (error) {
         // If filtering fails, return original messages to avoid breaking the flow
         logger.warn(`Failed to filter messages by LLM capabilities: ${String(error)}`);

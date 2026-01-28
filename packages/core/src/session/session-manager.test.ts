@@ -17,6 +17,8 @@ vi.mock('../logger/index.js', () => ({
         info: vi.fn(),
         debug: vi.fn(),
     },
+    DextoLogger: vi.fn(),
+    FileTransport: vi.fn(),
 }));
 vi.mock('crypto', () => ({
     randomUUID: vi.fn(() => 'mock-uuid-123'),
@@ -95,10 +97,15 @@ describe('SessionManager', () => {
             blobStore: mockBlobStore,
         };
 
-        // Mock services
+        // Mock services - use mockImplementation to defer evaluation until called
+        // This ensures we get the current value of mockLLMConfig, not a stale reference
         mockServices = {
             stateManager: {
-                getLLMConfig: vi.fn().mockReturnValue(mockLLMConfig),
+                getLLMConfig: vi.fn(() => mockLLMConfig),
+                getRuntimeConfig: vi.fn(() => ({
+                    llm: mockLLMConfig,
+                    agentCard: { name: 'test-agent' },
+                })),
                 updateLLM: vi.fn().mockReturnValue({ isValid: true, errors: [], warnings: [] }),
             },
             systemPromptManager: {

@@ -28,6 +28,48 @@ describe('enrichAgentConfig', () => {
         vi.mocked(discoverCommandPrompts).mockReturnValue([]);
     });
 
+    describe('logger defaults', () => {
+        it('should default to silent logger in interactive CLI mode (session logs are handled in core)', () => {
+            const baseConfig: AgentConfig = {
+                llm: {
+                    provider: 'openai',
+                    model: 'gpt-5',
+                    apiKey: 'test-key',
+                },
+                systemPrompt: 'You are a helpful assistant.',
+            };
+
+            const enriched = enrichAgentConfig(baseConfig, 'test-agent', {
+                isInteractiveCli: true,
+            });
+
+            expect(enriched.logger).toEqual({
+                level: 'error',
+                transports: [{ type: 'silent' }],
+            });
+        });
+
+        it('should default to console logger in non-interactive mode (session logs are handled in core)', () => {
+            const baseConfig: AgentConfig = {
+                llm: {
+                    provider: 'openai',
+                    model: 'gpt-5',
+                    apiKey: 'test-key',
+                },
+                systemPrompt: 'You are a helpful assistant.',
+            };
+
+            const enriched = enrichAgentConfig(baseConfig, 'test-agent', {
+                isInteractiveCli: false,
+            });
+
+            expect(enriched.logger).toEqual({
+                level: 'error',
+                transports: [{ type: 'console', colorize: true }],
+            });
+        });
+    });
+
     describe('prompt deduplication', () => {
         it('should deduplicate when same file path exists in config and discovered prompts', () => {
             // Setup: discovered prompts include a file that's also in config

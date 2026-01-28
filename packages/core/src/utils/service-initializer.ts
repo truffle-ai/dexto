@@ -64,13 +64,17 @@ export type AgentServices = {
  * @param configPath Optional path to the config file (for relative path resolution)
  * @param logger Logger instance for this agent (dependency injection)
  * @param agentEventBus Pre-created event bus from DextoAgent constructor
+ * @param overrides Optional service overrides for customization (e.g., sessionLoggerFactory)
  * @returns All the initialized services required for a Dexto agent
  */
 export async function createAgentServices(
     config: ValidatedAgentConfig,
     configPath: string | undefined,
     logger: IDextoLogger,
-    agentEventBus: AgentEventBus
+    agentEventBus: AgentEventBus,
+    overrides?: {
+        sessionLoggerFactory?: import('../session/session-manager.js').SessionLoggerFactory;
+    }
 ): Promise<AgentServices> {
     // 0. Initialize telemetry FIRST (before any decorated classes are instantiated)
     // This must happen before creating any services that use @InstrumentClass decorator
@@ -235,6 +239,9 @@ export async function createAgentServices(
         {
             maxSessions: config.sessions?.maxSessions,
             sessionTTL: config.sessions?.sessionTTL,
+            ...(overrides?.sessionLoggerFactory !== undefined && {
+                sessionLoggerFactory: overrides.sessionLoggerFactory,
+            }),
         },
         logger
     );

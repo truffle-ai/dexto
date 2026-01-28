@@ -135,7 +135,8 @@ describe('DextoAgent Lifecycle Management', () => {
                 mockValidatedConfig,
                 undefined,
                 expect.anything(), // logger instance
-                expect.anything() // eventBus instance
+                expect.anything(), // eventBus instance
+                undefined
             );
         });
 
@@ -162,7 +163,8 @@ describe('DextoAgent Lifecycle Management', () => {
                 validatedConfigWithServerModes,
                 undefined,
                 expect.anything(), // logger instance
-                expect.anything() // eventBus instance
+                expect.anything(), // eventBus instance
+                undefined
             );
         });
 

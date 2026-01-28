@@ -730,13 +730,15 @@ export function convertHistoryToUIMessages(
 /**
  * Collects startup information for display in header
  */
-export async function getStartupInfo(agent: DextoAgent) {
+export async function getStartupInfo(agent: DextoAgent, sessionId: string | null) {
     const connectedServers = agent.mcpManager.getClients();
     const failedConnections = agent.mcpManager.getFailedConnections();
     const tools = await agent.getAllTools();
     const toolCount = Object.keys(tools).length;
-    // Use agent's logger which has the correct per-agent log path from enriched config
-    const logFile = agent.logger.getLogFilePath();
+    // File logging is session-scoped. If a session already exists, show its log file.
+    const logFile = sessionId
+        ? ((await agent.getSession(sessionId))?.logger.getLogFilePath() ?? null)
+        : null;
 
     return {
         connectedServers: {
