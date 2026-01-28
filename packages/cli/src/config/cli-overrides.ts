@@ -208,6 +208,8 @@ function getEnvVarForProvider(provider: LLMProvider): string {
         groq: 'GROQ_API_KEY',
         xai: 'XAI_API_KEY',
         cohere: 'COHERE_API_KEY',
+        minimax: 'MINIMAX_API_KEY',
+        glm: 'ZHIPU_API_KEY',
         openrouter: 'OPENROUTER_API_KEY',
         litellm: 'LITELLM_API_KEY',
         glama: 'GLAMA_API_KEY',
