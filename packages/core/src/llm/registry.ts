@@ -1540,6 +1540,18 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                     unit: 'per_million_tokens',
                 },
             },
+            {
+                name: 'minimax/minimax-m2.1',
+                displayName: 'Minimax M2.1',
+                maxInputTokens: 196608,
+                supportedFileTypes: [],
+                pricing: {
+                    inputPerM: 0.27,
+                    outputPerM: 1.1,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
         ],
         baseURLSupport: 'none', // Fixed endpoint: https://api.dexto.ai/v1
         supportedFileTypes: ['pdf', 'image', 'audio'], // Same as OpenRouter

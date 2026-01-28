@@ -528,6 +528,17 @@ async function handleDextoProviderSetup(): Promise<void> {
                 label: 'DeepSeek R1 (Free)',
                 hint: 'Free reasoning model, 163k context',
             },
+            // Other models (via Dexto gateway)
+            {
+                value: 'z-ai/glm-4.7',
+                label: 'GLM 4.7',
+                hint: 'Zhipu AI flagship model',
+            },
+            {
+                value: 'minimax/minimax-m2.1',
+                label: 'Minimax M2.1',
+                hint: 'Fast model with 196k context',
+            },
         ],
     });
 
