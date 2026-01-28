@@ -71,6 +71,7 @@ export default function ModelPickerModal() {
     const [search, setSearch] = useState('');
     const [baseURL, setBaseURL] = useState('');
     const [error, setError] = useState<string | null>(null);
+    const [showAllModels, setShowAllModels] = useState(false);
     // Provider filter - empty array means 'all', can include 'custom' or any LLMProvider
     const [providerFilter, setProviderFilter] = useState<Array<LLMProvider | 'custom'>>([]);
     const [activeView, setActiveView] = useState<'favorites' | 'all'>('all');
@@ -114,7 +115,7 @@ export default function ModelPickerModal() {
         data: catalogData,
         isLoading: loading,
         error: catalogError,
-    } = useLLMCatalog({ enabled: open });
+    } = useLLMCatalog({ enabled: open, scope: showAllModels ? 'all' : 'curated' });
 
     // Load dexto auth status (for checking if user can use dexto provider)
     const { data: dextoAuthStatus } = useDextoAuth(open);
@@ -825,6 +826,29 @@ export default function ModelPickerModal() {
                                             placeholder="Search models..."
                                         />
                                     </div>
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <button
+                                                onClick={() => setShowAllModels((prev) => !prev)}
+                                                className={cn(
+                                                    'px-2 py-2 rounded-lg transition-colors flex-shrink-0 text-xs font-medium',
+                                                    showAllModels
+                                                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                                        : 'bg-muted/50 text-muted-foreground hover:text-foreground hover:bg-muted'
+                                                )}
+                                            >
+                                                {showAllModels ? 'All' : 'Curated'}
+                                                <span className="sr-only">
+                                                    Toggle full model catalog
+                                                </span>
+                                            </button>
+                                        </TooltipTrigger>
+                                        <TooltipContent side="bottom">
+                                            {showAllModels
+                                                ? 'Showing all models (large list)'
+                                                : 'Showing curated models'}
+                                        </TooltipContent>
+                                    </Tooltip>
                                     <Tooltip>
                                         <TooltipTrigger asChild>
                                             <button

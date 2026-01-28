@@ -229,7 +229,14 @@ function ProviderRow({ provider, hasKey, envVar, onSave }: ProviderRowProps) {
 }
 
 export function ApiKeysSection() {
-    const { data: catalog, isLoading, error } = useLLMCatalog({ mode: 'grouped' });
+    const {
+        data: catalog,
+        isLoading,
+        error,
+    } = useLLMCatalog({
+        mode: 'grouped',
+        includeModels: false,
+    });
     const { mutateAsync: saveApiKey } = useSaveApiKey();
 
     if (isLoading) {
