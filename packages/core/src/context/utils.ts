@@ -924,11 +924,20 @@ export function filterMessagesByLLMCapabilities(
                         config.model,
                         mimeType
                     );
+                    // Only filter if model explicitly doesn't support this file type
+                    // Keep content if validation errored or is unknown
                     if (validation.isSupported) {
                         return true;
                     }
-                    imagesInMessage++;
-                    return false;
+                    if (validation.error?.includes('does not support')) {
+                        imagesInMessage++;
+                        return false;
+                    }
+                    // Unknown file type or validation error - keep the content and warn
+                    logger.warn(
+                        `Could not validate image support for ${config.model}: ${validation.error}`
+                    );
+                    return true;
                 }
 
                 // Filter file parts based on LLM capabilities
@@ -938,11 +947,20 @@ export function filterMessagesByLLMCapabilities(
                         config.model,
                         part.mimeType
                     );
+                    // Only filter if model explicitly doesn't support this file type
+                    // Keep content if validation errored or is unknown
                     if (validation.isSupported) {
                         return true;
                     }
-                    filesInMessage++;
-                    return false;
+                    if (validation.error?.includes('does not support')) {
+                        filesInMessage++;
+                        return false;
+                    }
+                    // Unknown file type or validation error - keep the content and warn
+                    logger.warn(
+                        `Could not validate file support for ${config.model}: ${validation.error}`
+                    );
+                    return true;
                 }
 
                 return true; // Keep unknown part types

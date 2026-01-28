@@ -1573,9 +1573,12 @@ program
                         agentId,
                         sessionId,
                     }) => {
+                        // Sanitize sessionId to prevent path traversal attacks
+                        // Allow only alphanumeric, dots, hyphens, and underscores
+                        const safeSessionId = sessionId.replace(/[^a-zA-Z0-9._-]/g, '_');
                         const logFilePath = getDextoPath(
                             'logs',
-                            path.join(agentId, `${sessionId}.log`)
+                            path.join(agentId, `${safeSessionId}.log`)
                         );
 
                         // Standalone per-session file logger.

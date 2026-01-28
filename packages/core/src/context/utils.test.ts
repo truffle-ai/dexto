@@ -499,10 +499,10 @@ describe('filterMessagesByLLMCapabilities', () => {
     });
 
     test('should add placeholder text when all content is filtered out', () => {
-        // Mock validation to reject all files
+        // Mock validation to reject all files with proper error format
         mockValidateModelFileSupport.mockReturnValue({
             isSupported: false,
-            error: 'File type not supported by current LLM',
+            error: "Model 'gpt-3.5-turbo' (openai) does not support pdf files",
         });
 
         const messages: InternalMessage[] = [
@@ -530,6 +530,41 @@ describe('filterMessagesByLLMCapabilities', () => {
         expect(mockLogger.info).toHaveBeenCalledWith(
             "Filtered 1 file for gpt-3.5-turbo since it doesn't support that file type"
         );
+    });
+
+    test('should keep files when validation returns unknown error (internal error)', () => {
+        // Mock validation to return an internal error (not "does not support")
+        mockValidateModelFileSupport.mockReturnValue({
+            isSupported: false,
+            error: 'Unknown error validating model file support',
+        });
+
+        const messages: InternalMessage[] = [
+            {
+                role: 'user',
+                content: [
+                    { type: 'text', text: 'Analyze this' },
+                    {
+                        type: 'file',
+                        data: 'data',
+                        mimeType: 'application/pdf',
+                        filename: 'doc.pdf',
+                    },
+                ],
+            },
+        ];
+
+        const config: LLMContext = { provider: 'openai', model: 'gpt-3.5-turbo' };
+
+        const result = filterMessagesByLLMCapabilities(messages, config, mockLogger);
+
+        // File should be KEPT when validation errored (unknown error)
+        expect(result[0]!.content).toEqual(messages[0].content);
+        // Should log a warning instead of info
+        expect(mockLogger.warn).toHaveBeenCalledWith(
+            'Could not validate file support for gpt-3.5-turbo: Unknown error validating model file support'
+        );
+        expect(mockLogger.info).not.toHaveBeenCalled();
     });
 
     test('should only filter user messages with array content', () => {
@@ -788,7 +823,7 @@ describe('filterMessagesByLLMCapabilities', () => {
         // Some image parts may not have mimeType set
         mockValidateModelFileSupport.mockReturnValue({
             isSupported: false,
-            error: 'Image not supported',
+            error: "Model 'minimax/minimax-m2.1' (dexto) does not support image files",
         });
 
         const messages: InternalMessage[] = [
