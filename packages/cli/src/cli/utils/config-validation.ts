@@ -84,7 +84,7 @@ export async function validateAgentConfig(
     }
 
     // Other validation errors - show options
-    return await handleOtherErrors(errors, validationOptions?.agentPath);
+    return await handleOtherErrors(errors, validationOptions);
 }
 
 /**
@@ -308,7 +308,10 @@ async function interactiveBaseURLSetup(
 /**
  * Handle non-API-key validation errors interactively
  */
-async function handleOtherErrors(errors: string[], agentPath?: string): Promise<ValidationResult> {
+async function handleOtherErrors(
+    errors: string[],
+    validationOptions?: LLMValidationOptions & { agentPath?: string }
+): Promise<ValidationResult> {
     console.log(chalk.rgb(255, 165, 0)('\n⚠️  Configuration issues detected:\n'));
     for (const error of errors) {
         console.log(chalk.red(`  • ${error}`));
@@ -345,9 +348,9 @@ async function handleOtherErrors(errors: string[], agentPath?: string): Promise<
         try {
             // Run sync-agents to update the agent config
             await handleSyncAgentsCommand({ force: true, quiet: false });
-            // After sync, retry validation
-            p.log.info('Agent config synced. Please run dexto again to verify.');
-            return { success: false, errors, skipped: true };
+            // Exit after sync - user needs to restart dexto
+            p.outro(chalk.gray('Run dexto to start Dexto'));
+            process.exit(0);
         } catch (error) {
             p.log.error(
                 `Failed to sync agent: ${error instanceof Error ? error.message : String(error)}`
@@ -357,7 +360,7 @@ async function handleOtherErrors(errors: string[], agentPath?: string): Promise<
     }
 
     if (action === 'edit') {
-        showManualEditInstructions(agentPath);
+        showManualEditInstructions(validationOptions?.agentPath);
         return { success: false, errors, skipped: true };
     }
 
