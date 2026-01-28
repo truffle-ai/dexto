@@ -12,6 +12,7 @@ import {
     supportsCustomModels,
     requiresApiKey,
     isReasoningCapableModel,
+    getCuratedModelsForProvider,
 } from '@dexto/core';
 import { resolveApiKeyForProvider } from '@dexto/core';
 import {
@@ -876,25 +877,73 @@ async function selectModelWithBack(provider: LLMProvider): Promise<string | '_ba
     const providerInfo = LLM_REGISTRY[provider];
 
     if (providerInfo?.models && providerInfo.models.length > 0) {
-        const modelOptions = providerInfo.models.map((m) => ({
-            value: m.name,
-            label: m.displayName || m.name,
-        }));
-
-        const result = await p.select({
-            message: `Select a model for ${getProviderDisplayName(provider)}`,
-            options: [
-                ...modelOptions,
-                { value: '_back' as const, label: chalk.gray('← Back'), hint: 'Change provider' },
-            ],
-        });
-
-        if (p.isCancel(result)) {
-            p.cancel('Setup cancelled');
-            process.exit(0);
+        const curatedModels = getCuratedModelsForProvider(provider);
+        const defaultModel =
+            curatedModels.find((m) => m.default) ??
+            providerInfo.models.find((m) => m.default) ??
+            curatedModels[0] ??
+            providerInfo.models[0];
+        if (!defaultModel) {
+            p.log.warn('No models available for this provider');
+            return '_back';
         }
 
-        return result as string | '_back';
+        while (true) {
+            const curatedOptions = curatedModels
+                .slice(0, 8)
+                .filter((m) => m.name !== defaultModel.name)
+                .map((m) => ({
+                    value: m.name,
+                    label: m.displayName || m.name,
+                }));
+
+            const result = await p.select({
+                message: `Select a model for ${getProviderDisplayName(provider)}`,
+                options: [
+                    {
+                        value: defaultModel.name,
+                        label: defaultModel.displayName || defaultModel.name,
+                        hint: '(recommended)',
+                    },
+                    ...curatedOptions,
+                    {
+                        value: '_custom' as const,
+                        label: 'Other model…',
+                        hint: 'Enter a specific model ID',
+                    },
+                    {
+                        value: '_back' as const,
+                        label: chalk.gray('← Back'),
+                        hint: 'Change provider',
+                    },
+                ],
+            });
+
+            if (p.isCancel(result)) {
+                p.cancel('Setup cancelled');
+                process.exit(0);
+            }
+
+            if (result === '_custom') {
+                p.log.info(chalk.gray('Press Ctrl+C to go back'));
+                const model = await p.text({
+                    message: `Enter model name for ${getProviderDisplayName(provider)}`,
+                    placeholder: defaultModel.name,
+                    validate: (value) => {
+                        if (!value.trim()) return 'Model name is required';
+                        return undefined;
+                    },
+                });
+
+                if (p.isCancel(model)) {
+                    continue;
+                }
+
+                return String(model).trim();
+            }
+
+            return result as string | '_back';
+        }
     }
 
     // For providers that accept any model, show text input with back hint
@@ -1536,25 +1585,63 @@ async function selectModel(provider: LLMProvider): Promise<string | null> {
 
     // For providers with a fixed model list
     if (providerInfo?.models && providerInfo.models.length > 0) {
-        const options = providerInfo.models.map((m) => {
-            const option: { value: string; label: string; hint?: string } = {
+        const curatedModels = getCuratedModelsForProvider(provider);
+        const defaultModel =
+            curatedModels.find((m) => m.default) ??
+            providerInfo.models.find((m) => m.default) ??
+            curatedModels[0] ??
+            providerInfo.models[0];
+        if (!defaultModel) {
+            return null;
+        }
+
+        const curatedOptions = curatedModels
+            .slice(0, 8)
+            .filter((m) => m.name !== defaultModel.name)
+            .map((m) => ({
                 value: m.name,
                 label: m.displayName || m.name,
-            };
-            if (m.default) {
-                option.hint = '(default)';
-            }
-            return option;
-        });
+            }));
 
         const selected = await p.select({
             message: `Select a model for ${getProviderDisplayName(provider)}`,
-            options,
-            initialValue: providerInfo.models.find((m) => m.default)?.name,
+            options: [
+                {
+                    value: defaultModel.name,
+                    label: defaultModel.displayName || defaultModel.name,
+                    hint: '(recommended)',
+                },
+                ...curatedOptions,
+                {
+                    value: '_custom' as const,
+                    label: 'Other model…',
+                    hint: 'Enter a specific model ID',
+                },
+            ],
+            initialValue: defaultModel.name,
         });
 
         if (p.isCancel(selected)) {
             return null;
+        }
+
+        if (selected === '_custom') {
+            const modelInput = await p.text({
+                message: `Enter model name for ${getProviderDisplayName(provider)}`,
+                placeholder: defaultModel.name,
+                validate: (value) => {
+                    if (!value || value.trim().length === 0) {
+                        return 'Model name is required';
+                    }
+                    return undefined;
+                },
+            });
+
+            if (p.isCancel(modelInput)) {
+                return null;
+            }
+
+            return modelInput.trim();
         }
 
         return selected as string;

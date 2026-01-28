@@ -41,6 +41,7 @@ import {
     DextoLogComponent,
     getProviderFromModel,
     getAllSupportedModels,
+    startLlmRegistryAutoUpdate,
     DextoAgent,
     type LLMProvider,
     isPath,
@@ -128,6 +129,10 @@ await initAnalytics({ appVersion: pkg.version });
 // Start version check early (non-blocking)
 // We'll check the result later and display notification for interactive modes
 const versionCheckPromise = checkForUpdates(pkg.version);
+
+// Start self-updating LLM registry refresh (models.dev + OpenRouter mapping).
+// Uses a cached snapshot on disk and refreshes in the background.
+startLlmRegistryAutoUpdate();
 
 /**
  * Recursively removes null values from an object.
