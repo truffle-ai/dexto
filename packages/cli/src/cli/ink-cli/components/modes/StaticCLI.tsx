@@ -27,6 +27,7 @@ import type { StartupInfo } from '../../state/types.js';
 // Hooks
 import { useCLIState } from '../../hooks/useCLIState.js';
 import { useTerminalSize } from '../../hooks/useTerminalSize.js';
+import { useGitBranch } from '../../hooks/useGitBranch.js';
 
 // Components
 import { Header } from '../chat/Header.js';
@@ -87,6 +88,9 @@ export function StaticCLI({
         startupInfo,
         // No keyboard scroll handler - let terminal handle scrollback
     });
+
+    // Get current git branch name
+    const branchName = useGitBranch();
 
     // Terminal resize handling - clear and re-render Static content
     const { write: stdoutWrite } = useStdout();
@@ -270,6 +274,7 @@ export function StaticCLI({
                     sessionId={session.id}
                     modelName={session.modelName}
                     cwd={process.cwd()}
+                    {...(branchName ? { branchName } : {})}
                     autoApproveEdits={ui.autoApproveEdits}
                     planModeActive={ui.planModeActive}
                     isShellMode={buffer.text.startsWith('!')}
