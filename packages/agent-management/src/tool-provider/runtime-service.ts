@@ -12,6 +12,7 @@
  */
 
 import type { DextoAgent, IDextoLogger, AgentConfig, TaskForker } from '@dexto/core';
+import { DextoRuntimeError, ErrorType } from '@dexto/core';
 import { AgentRuntime } from '../runtime/AgentRuntime.js';
 import { createDelegatingApprovalHandler } from '../runtime/approval-delegation.js';
 import { loadAgentConfig } from '../config/loader.js';
@@ -301,6 +302,31 @@ export class RuntimeService implements TaskForker {
     }
 
     /**
+     * Check if an error is LLM-related (API errors, credit issues, model not found, etc.)
+     */
+    private isLLMError(error: unknown): boolean {
+        // Prefer typed runtime errors first
+        if (error instanceof DextoRuntimeError) {
+            // Explicit LLM-scoped errors
+            if (error.scope === 'llm') return true;
+
+            // Payment / quota style errors should trigger fallback
+            if (error.type === ErrorType.PAYMENT_REQUIRED || error.type === ErrorType.FORBIDDEN) {
+                return true;
+            }
+        }
+
+        // Last-resort heuristic matching (legacy / untyped errors)
+        const msg = error instanceof Error ? error.message : String(error);
+        return (
+            msg.includes('model') ||
+            msg.includes('provider') ||
+            msg.includes('rate limit') ||
+            msg.includes('quota')
+        );
+    }
+
+    /**
      * Try to spawn agent, falling back to parent's LLM config if the sub-agent's config fails
      */
     private async trySpawnWithFallback(
@@ -311,7 +337,8 @@ export class RuntimeService implements TaskForker {
         sessionId?: string
     ): Promise<SpawnAgentOutput> {
         let spawnedAgentId: string | undefined;
-        let usedFallback = false;
+        type LlmMode = 'subagent' | 'parent';
+        let llmMode: LlmMode = 'subagent';
         let cleanupProgressTracking: (() => void) | undefined;
 
         try {
@@ -360,26 +387,22 @@ export class RuntimeService implements TaskForker {
                 spawnedAgentId = handle.agentId;
             } catch (spawnError) {
                 // Check if it's an LLM-related error (model not supported, API key missing, etc.)
-                const errorMsg =
-                    spawnError instanceof Error ? spawnError.message : String(spawnError);
-                const isLlmError =
-                    errorMsg.includes('Model') ||
-                    errorMsg.includes('model') ||
-                    errorMsg.includes('API') ||
-                    errorMsg.includes('apiKey') ||
-                    errorMsg.includes('provider');
+                const isLlmError = this.isLLMError(spawnError);
 
-                if (isLlmError && input.agentId) {
+                if (isLlmError && input.agentId && llmMode === 'subagent') {
                     // Fallback: retry with parent's full LLM config
                     // This can happen if:
                     // - Model transformation failed for the sub-agent's model
                     // - API rate limits or other provider-specific errors
                     // - Edge cases in LLM resolution
+                    const errorMsg =
+                        spawnError instanceof Error ? spawnError.message : String(spawnError);
                     this.logger.warn(
                         `Sub-agent '${input.agentId}' LLM config failed: ${errorMsg}. ` +
                             `Falling back to parent's full LLM config.`
                     );
-                    usedFallback = true;
+
+                    llmMode = 'parent';
 
                     buildOptions.inheritLlm = true;
                     subAgentConfig = await this.buildSubAgentConfig(buildOptions);
@@ -392,7 +415,8 @@ export class RuntimeService implements TaskForker {
                             parentId: this.parentId,
                             task: input.task,
                             autoApprove,
-                            usedLlmFallback: true,
+                            llmMode: 'parent',
+                            fallbackStage: 'spawn',
                             spawnedAt: new Date().toISOString(),
                         },
                         onBeforeStart: (agent) => {
@@ -408,13 +432,13 @@ export class RuntimeService implements TaskForker {
                     });
                     spawnedAgentId = handle.agentId;
                 } else {
-                    // Not an LLM error or no agentId, re-throw
+                    // Not an LLM error or already used fallback or no agentId
                     throw spawnError;
                 }
             }
 
             this.logger.info(
-                `Spawned sub-agent '${spawnedAgentId}' for task: ${input.task}${autoApprove ? ' (auto-approve)' : ''}${usedFallback ? ' (using parent LLM)' : ''}`
+                `Spawned sub-agent '${spawnedAgentId}' for task: ${input.task}${autoApprove ? ' (auto-approve)' : ''}${llmMode === 'parent' ? ' (using parent LLM)' : ''}`
             );
 
             // Set up progress event tracking before executing
@@ -426,11 +450,94 @@ export class RuntimeService implements TaskForker {
             );
 
             // Execute with the full instructions
-            const result = await this.runtime.executeTask(
-                spawnedAgentId,
-                input.instructions,
-                timeout
-            );
+            let result: import('../runtime/types.js').TaskResult;
+            try {
+                result = await this.runtime.executeTask(
+                    spawnedAgentId,
+                    input.instructions,
+                    timeout
+                );
+            } catch (execError) {
+                // Check if it's an LLM-related error during execution
+                const isLlmExecError = this.isLLMError(execError);
+
+                if (llmMode === 'parent') {
+                    throw execError;
+                }
+
+                // Only retry if we haven't already used fallback and have an agentId
+                if (isLlmExecError && input.agentId && llmMode === 'subagent') {
+                    this.logger.warn(
+                        `Sub-agent '${input.agentId}' LLM error during execution: ${execError instanceof Error ? execError.message : String(execError)}. ` +
+                            `Retrying with parent's full LLM config.`
+                    );
+
+                    // Clean up the failed agent
+                    try {
+                        await this.runtime.stopAgent(spawnedAgentId);
+                    } catch {
+                        // Ignore cleanup errors
+                    }
+
+                    // Clean up progress tracking for the failed agent
+                    if (cleanupProgressTracking) {
+                        cleanupProgressTracking();
+                    }
+
+                    // Rebuild config with parent's LLM
+                    llmMode = 'parent';
+                    buildOptions.inheritLlm = true;
+                    subAgentConfig = await this.buildSubAgentConfig(buildOptions);
+
+                    // Spawn new agent with parent's LLM config
+                    handle = await this.runtime.spawnAgent({
+                        agentConfig: subAgentConfig,
+                        ephemeral: true,
+                        group: this.parentId,
+                        metadata: {
+                            parentId: this.parentId,
+                            task: input.task,
+                            autoApprove,
+                            llmMode: 'parent',
+                            fallbackStage: 'execution',
+                            spawnedAt: new Date().toISOString(),
+                        },
+                        onBeforeStart: (agent) => {
+                            if (!autoApprove) {
+                                const delegatingHandler = createDelegatingApprovalHandler(
+                                    this.parentAgent.services.approvalManager,
+                                    agent.config.agentId ?? 'unknown',
+                                    this.logger
+                                );
+                                agent.setApprovalHandler(delegatingHandler);
+                            }
+                        },
+                    });
+                    spawnedAgentId = handle.agentId;
+
+                    this.logger.info(
+                        `Re-spawned sub-agent '${spawnedAgentId}' for task: ${input.task} (using parent LLM)`
+                    );
+
+                    // Set up progress tracking for new agent
+                    cleanupProgressTracking = this.setupProgressTracking(
+                        handle,
+                        input,
+                        toolCallId,
+                        sessionId
+                    );
+
+                    // Retry execution with new agent
+                    result = await this.runtime.executeTask(
+                        spawnedAgentId,
+                        input.instructions,
+                        timeout
+                    );
+                } else {
+                    // Not an LLM error, already used fallback, or no agentId - re-throw
+                    throw execError;
+                }
+            }
 
             // Build output
             const output: SpawnAgentOutput = {
@@ -442,7 +549,7 @@ export class RuntimeService implements TaskForker {
             if (result.error !== undefined) {
                 output.error = result.error;
             }
-            if (usedFallback) {
+            if (llmMode === 'parent') {
                 output.warning = `Sub-agent '${input.agentId}' used fallback LLM (parent's full config) due to an error with its configured model.`;
             }
             return output;

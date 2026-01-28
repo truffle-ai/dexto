@@ -195,6 +195,11 @@ const TOOL_CONFIGS: Record<string, ToolDisplayConfig> = {
     // Skill invocation - handled specially in formatToolHeader to show clean skill name
     invoke_skill: { displayName: 'Skill', argsToShow: ['skill'], primaryArg: 'skill' },
 
+    plan_create: { displayName: 'Plan', argsToShow: [] },
+    plan_read: { displayName: 'Plan', argsToShow: [] },
+    plan_update: { displayName: 'Plan', argsToShow: [] },
+    plan_review: { displayName: 'Plan', argsToShow: [] },
+
     todo_write: { displayName: 'UpdateTasks', argsToShow: [] },
 };
 

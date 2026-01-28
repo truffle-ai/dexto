@@ -525,10 +525,16 @@ export function useInputOrchestrator({
                 return;
             }
 
+            // Ctrl+C: Always handle globally for cancellation/exit
+            if (key.ctrl && inputStr === 'c') {
+                handleCtrlC();
+                return;
+            }
+
             // Shift+Tab: Cycle through modes (when not in approval modal)
             // Modes: Normal → Plan Mode → Accept All Edits → Normal
             // Note: When in approval modal for edit/write tools, ApprovalPrompt handles Shift+Tab differently
-            if (key.shift && key.tab && currentApproval === null) {
+            if (key.shift && key.tab && !key.ctrl && !key.meta && currentApproval === null) {
                 setUi((prev) => {
                     // Determine current mode and cycle to next
                     if (!prev.planModeActive && !prev.autoApproveEdits) {
@@ -554,12 +560,6 @@ export function useInputOrchestrator({
                         };
                     }
                 });
-                return;
-            }
-
-            // Ctrl+C: Always handle globally for cancellation/exit
-            if (key.ctrl && inputStr === 'c') {
-                handleCtrlC();
                 return;
             }
 
