@@ -905,9 +905,20 @@ export function filterMessagesByLLMCapabilities(
             }
 
             const filteredContent = message.content.filter((part) => {
-                // Keep text and image parts
-                if (part.type === 'text' || part.type === 'image') {
+                // Keep text parts
+                if (part.type === 'text') {
                     return true;
+                }
+
+                // Filter image parts based on LLM capabilities
+                if (part.type === 'image') {
+                    const mimeType = part.mimeType ?? 'image/jpeg';
+                    const validation = validateModelFileSupport(
+                        config.provider,
+                        config.model,
+                        mimeType
+                    );
+                    return validation.isSupported;
                 }
 
                 // Filter file parts based on LLM capabilities

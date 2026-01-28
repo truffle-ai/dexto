@@ -618,6 +618,178 @@ describe('filterMessagesByLLMCapabilities', () => {
             { type: 'text', text: '[File attachment removed - not supported by gpt-5]' },
         ]);
     });
+
+    test('should filter out images for models that do not support vision (e.g., glm-4.7)', () => {
+        // Mock validation to reject images for models like glm-4.7 which has supportedFileTypes: []
+        mockValidateModelFileSupport.mockReturnValue({
+            isSupported: false,
+            error: 'Model glm-4.7 (dexto) does not support image files',
+        });
+
+        const messages: InternalMessage[] = [
+            {
+                role: 'user',
+                content: [
+                    { type: 'text', text: 'Describe these screenshots' },
+                    { type: 'image', image: 'base64data1', mimeType: 'image/png' },
+                    { type: 'image', image: 'base64data2', mimeType: 'image/jpeg' },
+                ],
+            },
+        ];
+
+        const config: LLMContext = { provider: 'dexto', model: 'z-ai/glm-4.7' };
+
+        const result = filterMessagesByLLMCapabilities(messages, config, mockLogger);
+
+        // Both images should be filtered out, only text remains
+        expect(result[0]!.content).toEqual([{ type: 'text', text: 'Describe these screenshots' }]);
+        // Verify validation was called for each image
+        expect(mockValidateModelFileSupport).toHaveBeenCalledTimes(2);
+        expect(mockValidateModelFileSupport).toHaveBeenCalledWith(
+            'dexto',
+            'z-ai/glm-4.7',
+            'image/png'
+        );
+        expect(mockValidateModelFileSupport).toHaveBeenCalledWith(
+            'dexto',
+            'z-ai/glm-4.7',
+            'image/jpeg'
+        );
+    });
+
+    test('should filter out images for minimax model which does not support vision', () => {
+        // Mock validation to reject images for minimax-m2.1 which has supportedFileTypes: []
+        mockValidateModelFileSupport.mockReturnValue({
+            isSupported: false,
+            error: 'Model minimax-m2.1 (dexto) does not support image files',
+        });
+
+        const messages: InternalMessage[] = [
+            {
+                role: 'user',
+                content: [
+                    { type: 'text', text: 'Analyze this image' },
+                    { type: 'image', image: 'screenshotdata', mimeType: 'image/png' },
+                ],
+            },
+        ];
+
+        const config: LLMContext = { provider: 'dexto', model: 'minimax/minimax-m2.1' };
+
+        const result = filterMessagesByLLMCapabilities(messages, config, mockLogger);
+
+        expect(result[0]!.content).toEqual([{ type: 'text', text: 'Analyze this image' }]);
+        expect(mockValidateModelFileSupport).toHaveBeenCalledWith(
+            'dexto',
+            'minimax/minimax-m2.1',
+            'image/png'
+        );
+    });
+
+    test('should keep images for models that support vision (e.g., gpt-4o)', () => {
+        // Mock validation to accept images for gpt-4o which has supportedFileTypes: ['pdf', 'image']
+        mockValidateModelFileSupport.mockReturnValue({
+            isSupported: true,
+            fileType: 'image',
+        });
+
+        const messages: InternalMessage[] = [
+            {
+                role: 'user',
+                content: [
+                    { type: 'text', text: 'What do you see?' },
+                    { type: 'image', image: 'base64data', mimeType: 'image/png' },
+                ],
+            },
+        ];
+
+        const config: LLMContext = { provider: 'openai', model: 'gpt-4o' };
+
+        const result = filterMessagesByLLMCapabilities(messages, config, mockLogger);
+
+        // Images should be kept for vision-capable models
+        expect(result).toEqual(messages);
+        expect(mockValidateModelFileSupport).toHaveBeenCalledWith('openai', 'gpt-4o', 'image/png');
+    });
+
+    test('should filter images and keep text when switching from vision to non-vision model', () => {
+        // Simulate: conversation started with Claude (supports images), switched to glm-4.7 (no vision)
+        // First message had images, second is text only
+        const messages: InternalMessage[] = [
+            {
+                role: 'user',
+                content: [
+                    { type: 'text', text: 'Look at this screenshot and help me debug' },
+                    { type: 'image', image: 'errorScreenshot', mimeType: 'image/png' },
+                ],
+            },
+            {
+                role: 'assistant',
+                content: [{ type: 'text', text: 'I can see the issue. The error is...' }],
+            },
+            {
+                role: 'user',
+                content: [
+                    { type: 'text', text: 'Thanks! Can you also check this log file?' },
+                    { type: 'file', data: 'logdata', mimeType: 'text/plain', filename: 'app.log' },
+                ],
+            },
+        ];
+
+        // Mock validation to reject both images and files for glm-4.7
+        mockValidateModelFileSupport.mockReturnValue({
+            isSupported: false,
+            error: 'Not supported by glm-4.7',
+        });
+
+        const config: LLMContext = { provider: 'dexto', model: 'z-ai/glm-4.7' };
+
+        const result = filterMessagesByLLMCapabilities(messages, config, mockLogger);
+
+        // First user message: image should be filtered, text kept
+        expect(result[0]!.content).toEqual([
+            { type: 'text', text: 'Look at this screenshot and help me debug' },
+        ]);
+
+        // Assistant message unchanged (not array content)
+        expect(result[1]).toEqual(messages[1]);
+
+        // Second user message: file should be filtered, text kept
+        expect(result[2]!.content).toEqual([
+            { type: 'text', text: 'Thanks! Can you also check this log file?' },
+        ]);
+    });
+
+    test('should handle images without explicit mimeType (defaults to image/jpeg)', () => {
+        // Some image parts may not have mimeType set
+        mockValidateModelFileSupport.mockReturnValue({
+            isSupported: false,
+            error: 'Image not supported',
+        });
+
+        const messages: InternalMessage[] = [
+            {
+                role: 'user',
+                content: [
+                    { type: 'text', text: 'Describe this' },
+                    // Image without mimeType
+                    { type: 'image', image: 'base64data' },
+                ],
+            },
+        ];
+
+        const config: LLMContext = { provider: 'dexto', model: 'minimax/minimax-m2.1' };
+
+        const result = filterMessagesByLLMCapabilities(messages, config, mockLogger);
+
+        // Image should still be filtered (uses default image/jpeg)
+        expect(result[0]!.content).toEqual([{ type: 'text', text: 'Describe this' }]);
+        expect(mockValidateModelFileSupport).toHaveBeenCalledWith(
+            'dexto',
+            'minimax/minimax-m2.1',
+            'image/jpeg'
+        );
+    });
 });
 
 describe('parseDataUri', () => {
