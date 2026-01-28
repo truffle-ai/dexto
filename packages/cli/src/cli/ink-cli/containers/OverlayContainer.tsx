@@ -5,6 +5,7 @@
 
 import React, { useCallback, useRef, useImperativeHandle, forwardRef, useState } from 'react';
 import { Box } from 'ink';
+import path from 'path';
 import type { DextoAgent, McpServerConfig, McpServerStatus, McpServerType } from '@dexto/core';
 import type { TextBuffer } from '../components/shared/text-buffer.js';
 import type { Key } from '../hooks/useInputOrchestrator.js';
@@ -1042,9 +1043,21 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                 const atIndex = input.value.lastIndexOf('@');
                 if (atIndex >= 0) {
                     const before = input.value.slice(0, atIndex + 1);
-                    const uriParts = resource.uri.split('/');
-                    const reference =
-                        resource.name || uriParts[uriParts.length - 1] || resource.uri;
+                    const uriParts = resource.uri.split(/[\\/]/);
+                    let reference = resource.name || uriParts[uriParts.length - 1] || resource.uri;
+
+                    // If it's an absolute path, use relative path as reference to be more descriptive and less bulky
+                    const rawUri = resource.uri.replace(/^(fs|file):\/\//, ''); // Stripped prefix
+                    if (path.isAbsolute(rawUri)) {
+                        try {
+                            const relativePath = path.relative(process.cwd(), rawUri);
+                            // Prioritize relative path for local files to avoid ambiguity
+                            reference = relativePath;
+                        } catch {
+                            // Keep fallback if relative fails
+                        }
+                    }
+
                     const newValue = `${before}${reference} `;
                     buffer.setText(newValue);
                     setInput((prev) => ({ ...prev, value: newValue }));
