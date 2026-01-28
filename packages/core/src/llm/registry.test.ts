@@ -862,9 +862,19 @@ describe('getAllModelsForProvider', () => {
         const dextoModels = getAllModelsForProvider('dexto');
         const providers = new Set(dextoModels.map((m) => m.originalProvider));
 
-        // Should not include dexto or openrouter
-        expect(providers.has('dexto')).toBe(false);
+        // Should NOT include openrouter (another gateway provider)
         expect(providers.has('openrouter')).toBe(false);
+    });
+
+    it('includes dexto native models with originalProvider set to dexto', () => {
+        const dextoModels = getAllModelsForProvider('dexto');
+        const dextoNativeModels = dextoModels.filter((m) => m.originalProvider === 'dexto');
+
+        // Should include dexto's native models like glm-4.7 and minimax-m2.1
+        expect(dextoNativeModels.length).toBeGreaterThan(0);
+        const dextoNativeModelNames = dextoNativeModels.map((m) => m.name);
+        expect(dextoNativeModelNames).toContain('z-ai/glm-4.7');
+        expect(dextoNativeModelNames).toContain('minimax/minimax-m2.1');
     });
 });
 

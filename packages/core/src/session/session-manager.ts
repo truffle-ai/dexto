@@ -58,6 +58,8 @@ export interface SessionData {
     metadata?: Record<string, any>;
     tokenUsage?: SessionTokenUsage;
     estimatedCost?: number;
+    /** Persisted LLM config override for this session */
+    llmOverride?: ValidatedLLMConfig;
 }
 
 /**
@@ -369,6 +371,12 @@ export class SessionManager {
                     sessionLogger
                 );
                 await session.init();
+
+                // Restore LLM override if present so session uses the correct model
+                if (sessionData.llmOverride) {
+                    this.services.stateManager.updateLLM(sessionData.llmOverride, sessionId);
+                }
+
                 this.sessions.set(sessionId, session);
                 return session;
             }
@@ -777,6 +785,16 @@ export class SessionManager {
         }
 
         await session.switchLLM(newLLMConfig);
+
+        // Persist the LLM override to storage so it survives restarts
+        const sessionKey = `session:${sessionId}`;
+        const sessionData = await this.services.storageManager
+            .getDatabase()
+            .get<SessionData>(sessionKey);
+        if (sessionData) {
+            sessionData.llmOverride = newLLMConfig;
+            await this.services.storageManager.getDatabase().set(sessionKey, sessionData);
+        }
 
         this.services.agentEventBus.emit('llm:switched', {
             newConfig: newLLMConfig,

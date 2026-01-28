@@ -1796,9 +1796,15 @@ export function getAllModelsForProvider(
         return providerInfo.models.map((m) => ({ ...m }));
     }
 
-    // Collect models from all gateway-accessible providers
-    const allModels: Array<ModelInfo & { originalProvider: LLMProvider }> = [];
+    // Collect models from the provider's own models first, then inherited models
+    const allModels: Array<ModelInfo & { originalProvider?: LLMProvider }> = [];
 
+    // Add the provider's own native models (originalProvider = provider)
+    for (const model of providerInfo.models) {
+        allModels.push({ ...model, originalProvider: provider });
+    }
+
+    // Add inherited models from other gateway-accessible providers
     for (const sourceProvider of GATEWAY_ACCESSIBLE_PROVIDERS) {
         const sourceInfo = LLM_REGISTRY[sourceProvider];
         for (const model of sourceInfo.models) {
