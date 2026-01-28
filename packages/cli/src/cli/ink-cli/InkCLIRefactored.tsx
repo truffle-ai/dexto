@@ -148,7 +148,9 @@ export async function startInkCliRefactored(
     // This wraps pastes with escape sequences that our KeypressContext handles
     enableBracketedPaste();
 
-    const baseStartupInfo = await getStartupInfo(agent);
+    // The UI can render before any session is created.
+    const baseStartupInfo = await getStartupInfo(agent, initialSessionId);
+
     const startupInfo = {
         ...baseStartupInfo,
         updateInfo: options.updateInfo,
