@@ -357,7 +357,7 @@ export class RuntimeService implements TaskForker {
             }
 
             // Try with sub-agent's config first
-            let subAgentConfig = await this.buildSubAgentConfig(buildOptions);
+            let subAgentConfig = await this.buildSubAgentConfig(buildOptions, sessionId);
 
             let handle: { agentId: string; agent: DextoAgent };
 
@@ -405,7 +405,7 @@ export class RuntimeService implements TaskForker {
                     llmMode = 'parent';
 
                     buildOptions.inheritLlm = true;
-                    subAgentConfig = await this.buildSubAgentConfig(buildOptions);
+                    subAgentConfig = await this.buildSubAgentConfig(buildOptions, sessionId);
 
                     handle = await this.runtime.spawnAgent({
                         agentConfig: subAgentConfig,
@@ -487,7 +487,7 @@ export class RuntimeService implements TaskForker {
                     // Rebuild config with parent's LLM
                     llmMode = 'parent';
                     buildOptions.inheritLlm = true;
-                    subAgentConfig = await this.buildSubAgentConfig(buildOptions);
+                    subAgentConfig = await this.buildSubAgentConfig(buildOptions, sessionId);
 
                     // Spawn new agent with parent's LLM config
                     handle = await this.runtime.spawnAgent({
@@ -584,14 +584,25 @@ export class RuntimeService implements TaskForker {
      * @param options.agentId - Agent ID from registry
      * @param options.inheritLlm - Use parent's LLM config instead of sub-agent's
      * @param options.autoApprove - Auto-approve all tool calls
+     * @param sessionId - Optional session ID to get session-specific LLM config
      */
-    private async buildSubAgentConfig(options: {
-        agentId?: string;
-        inheritLlm?: boolean;
-        autoApprove?: boolean;
-    }): Promise<AgentConfig> {
+    private async buildSubAgentConfig(
+        options: {
+            agentId?: string;
+            inheritLlm?: boolean;
+            autoApprove?: boolean;
+        },
+        sessionId?: string
+    ): Promise<AgentConfig> {
         const { agentId, inheritLlm, autoApprove } = options;
         const parentConfig = this.parentAgent.config;
+
+        // Get runtime LLM config (respects session-specific model switches)
+        const currentParentLLM = this.parentAgent.getCurrentLLMConfig(sessionId);
+        this.logger.debug(
+            `[RuntimeService] Building sub-agent config with LLM: ${currentParentLLM.provider}/${currentParentLLM.model}` +
+                (sessionId ? ` (sessionId: ${sessionId})` : ' (no sessionId)')
+        );
 
         // Determine tool confirmation mode
         const toolConfirmationMode = autoApprove ? ('auto-approve' as const) : ('manual' as const);
@@ -612,16 +623,16 @@ export class RuntimeService implements TaskForker {
                 let llmConfig = loadedConfig.llm;
 
                 if (inheritLlm) {
-                    // Use parent's full LLM config (fallback mode after first attempt failed)
+                    // Use parent's full LLM config (fallback mode)
                     this.logger.debug(
                         `Sub-agent '${agentId}' using parent LLM config (inheritLlm=true)`
                     );
-                    llmConfig = { ...parentConfig.llm };
+                    llmConfig = { ...currentParentLLM };
                 } else {
-                    // Resolve optimal LLM: try to use sub-agent's model with parent's provider
+                    // Resolve optimal LLM: prefer sub-agent's model with parent's credentials
                     const resolution = resolveSubAgentLLM({
                         subAgentLLM: loadedConfig.llm,
-                        parentLLM: parentConfig.llm,
+                        parentLLM: currentParentLLM,
                         subAgentId: agentId,
                     });
                     this.logger.debug(`Sub-agent LLM resolution: ${resolution.reason}`);
@@ -645,9 +656,9 @@ export class RuntimeService implements TaskForker {
             }
         }
 
-        // Start with a config inheriting LLM and tools from parent
+        // Fallback: minimal config inheriting parent's LLM and tools
         const config: AgentConfig = {
-            llm: { ...parentConfig.llm },
+            llm: { ...currentParentLLM },
 
             // Default system prompt for sub-agents
             systemPrompt:
