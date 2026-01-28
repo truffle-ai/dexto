@@ -252,20 +252,21 @@ export class SessionManager {
                 agentId,
                 sessionId: id,
             });
-            const session = new ChatSession(
-                { ...this.services, sessionManager: this },
-                id,
-                sessionLogger
-            );
-            await session.init();
 
-            // Restore LLM override if present so session uses the correct model
+            // Restore LLM override BEFORE session init so the service is created with correct config
             const sessionData = await this.services.storageManager
                 .getDatabase()
                 .get<SessionData>(sessionKey);
             if (sessionData?.llmOverride) {
                 this.services.stateManager.updateLLM(sessionData.llmOverride, id);
             }
+
+            const session = new ChatSession(
+                { ...this.services, sessionManager: this },
+                id,
+                sessionLogger
+            );
+            await session.init();
 
             this.sessions.set(id, session);
             this.logger.info(`Restored session from storage: ${id}`);
@@ -374,17 +375,18 @@ export class SessionManager {
                     agentId,
                     sessionId,
                 });
+
+                // Restore LLM override BEFORE session init so the service is created with correct config
+                if (sessionData.llmOverride) {
+                    this.services.stateManager.updateLLM(sessionData.llmOverride, sessionId);
+                }
+
                 const session = new ChatSession(
                     { ...this.services, sessionManager: this },
                     sessionId,
                     sessionLogger
                 );
                 await session.init();
-
-                // Restore LLM override if present so session uses the correct model
-                if (sessionData.llmOverride) {
-                    this.services.stateManager.updateLLM(sessionData.llmOverride, sessionId);
-                }
 
                 this.sessions.set(sessionId, session);
                 return session;
