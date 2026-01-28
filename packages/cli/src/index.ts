@@ -1458,7 +1458,7 @@ program
                     const validationResult = await validateAgentConfig(
                         enrichedConfig,
                         opts.interactive !== false,
-                        { strict: !isInteractiveMode }
+                        { strict: !isInteractiveMode, agentPath: resolvedPath }
                     );
 
                     if (validationResult.success && validationResult.config) {

@@ -7,6 +7,8 @@ export const LLM_PROVIDERS = [
     'groq',
     'xai',
     'cohere',
+    'minimax',
+    'glm',
     'openrouter',
     'litellm',
     'glama',

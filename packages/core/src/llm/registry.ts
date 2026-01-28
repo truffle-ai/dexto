@@ -980,6 +980,75 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
         supportedFileTypes: [], // Cohere currently doesn't support file uploads
         openrouterPrefix: 'cohere',
     },
+    // https://platform.minimax.io/docs/api-reference/text-openai-api
+    // MiniMax provides an OpenAI-compatible endpoint at https://api.minimax.chat/v1
+    minimax: {
+        models: [
+            {
+                name: 'MiniMax-M2.1',
+                displayName: 'MiniMax M2.1',
+                openrouterId: 'minimax/minimax-m2.1',
+                maxInputTokens: 196608,
+                default: true,
+                supportedFileTypes: [],
+            },
+            {
+                name: 'MiniMax-M2.1-lightning',
+                displayName: 'MiniMax M2.1 Lightning',
+                openrouterId: 'minimax/minimax-m2.1-lightning',
+                maxInputTokens: 196608,
+                supportedFileTypes: [],
+            },
+            {
+                name: 'MiniMax-M2',
+                displayName: 'MiniMax M2',
+                openrouterId: 'minimax/minimax-m2',
+                maxInputTokens: 200000,
+                supportedFileTypes: [],
+            },
+            {
+                name: 'M2-her',
+                displayName: 'MiniMax M2-Her',
+                openrouterId: 'minimax/minimax-m2-her',
+                maxInputTokens: 32768,
+                supportedFileTypes: [],
+            },
+        ],
+        baseURLSupport: 'none',
+        supportedFileTypes: [],
+        openrouterPrefix: 'minimax',
+    },
+    // https://docs.z.ai/api-reference/llm/chat-completion
+    // Zhipu AI GLM OpenAI-compatible endpoint: https://open.bigmodel.cn/api/paas/v4
+    glm: {
+        models: [
+            {
+                name: 'glm-4.7',
+                displayName: 'GLM 4.7',
+                openrouterId: 'z-ai/glm-4.7',
+                maxInputTokens: 128000,
+                default: true,
+                supportedFileTypes: [],
+            },
+            {
+                name: 'glm-4.7-flash',
+                displayName: 'GLM 4.7 Flash',
+                openrouterId: 'z-ai/glm-4.7-flash',
+                maxInputTokens: 128000,
+                supportedFileTypes: [],
+            },
+            {
+                name: 'glm-4.7-flashx',
+                displayName: 'GLM 4.7 FlashX',
+                openrouterId: 'z-ai/glm-4.7-flashx',
+                maxInputTokens: 128000,
+                supportedFileTypes: [],
+            },
+        ],
+        baseURLSupport: 'none',
+        supportedFileTypes: [],
+        openrouterPrefix: 'z-ai',
+    },
     // https://openrouter.ai/docs
     // OpenRouter is a unified API gateway providing access to 100+ models from various providers.
     // Model validation is handled dynamically via openrouter-model-registry.ts

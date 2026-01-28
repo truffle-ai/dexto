@@ -138,6 +138,10 @@ export async function processStream(
     } = setters;
     const useStreaming = options?.useStreaming ?? true;
 
+    // Link approval IDs to tool call IDs so we can finalize tool UI when an approval
+    // is cancelled/denied (otherwise tool messages can remain stuck in "Waiting...").
+    const approvalIdToToolCallId = new Map<string, string>();
+
     // Track streaming state (synchronous, not React state)
     const state: StreamState = {
         messageId: null,
@@ -881,6 +885,7 @@ export async function processStream(
                             ? event.metadata.toolCallId
                             : undefined;
                     if (toolCallId) {
+                        approvalIdToToolCallId.set(event.approvalId, toolCallId);
                         updatePendingStatus(`tool-${toolCallId}`, 'pending_approval');
                     }
 
@@ -922,16 +927,29 @@ export async function processStream(
                 }
 
                 case 'approval:response': {
-                    // Handle approval responses - dismisses auto-approved parallel tool calls
+                    // Handle approval responses.
                     //
-                    // When user approves a tool with "remember", other pending parallel requests
-                    // for the same tool are auto-approved. The handler emits approval:response
-                    // for each, and we need to dismiss them from the UI.
-                    //
-                    // For user-initiated approvals, completeApproval() in OverlayContainer
-                    // already clears the state before emitting, so these are no-ops.
+                    // 1) Dismiss auto-approved parallel tool calls (existing behavior)
+                    // 2) Finalize tool UI immediately for denied/cancelled approvals so tool
+                    //    messages don't remain stuck in "Waiting..." (pending_approval).
 
                     const { approvalId } = event;
+
+                    const toolCallId = approvalIdToToolCallId.get(approvalId);
+                    if (toolCallId) {
+                        approvalIdToToolCallId.delete(approvalId);
+
+                        // If the tool was waiting for approval and gets denied/cancelled,
+                        // we may not get a corresponding llm:tool-result event (the tool never ran).
+                        // Finalize it here so the UI reflects the outcome immediately.
+                        if (event.status !== ApprovalStatus.APPROVED) {
+                            finalizeMessage(`tool-${toolCallId}`, {
+                                toolStatus: 'finished',
+                                toolResult: 'Cancelled',
+                                isError: true,
+                            });
+                        }
+                    }
 
                     // Step 1: Remove from queue if present
                     setApprovalQueue((queue) => queue.filter((a) => a.approvalId !== approvalId));
@@ -944,7 +962,7 @@ export async function processStream(
                             return currentApproval; // Not current, nothing to do
                         }
 
-                        // Current approval was auto-approved - show next or close
+                        // Current approval was responded to - show next or close
                         // Note: queue was already filtered in Step 1, so we read updated queue
                         setApprovalQueue((queue) => {
                             if (queue.length > 0) {
