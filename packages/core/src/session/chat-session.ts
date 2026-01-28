@@ -692,7 +692,11 @@ export class ChatSession {
                 `ChatSession ${this.id}: Memory cleanup completed (chat history preserved)`
             );
 
-            await this.logger.destroy();
+            // Note: We do NOT call this.logger.destroy() here because the session logger
+            // is created via createChild() which shares transports with the parent logger.
+            // Destroying the child would close shared transports and break logging for
+            // other sessions. The child logger will be garbage collected when the
+            // session object is discarded.
         } catch (error) {
             this.logger.error(
                 `Error during ChatSession cleanup for session ${this.id}: ${error instanceof Error ? error.message : String(error)}`

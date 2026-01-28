@@ -2142,7 +2142,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             onSelect={handleLogLevelSelect}
                             onClose={handleClose}
                             agent={agent}
-                            sessionId={session.id ?? ''}
+                            sessionId={session.id}
                         />
                     </Box>
                 )}

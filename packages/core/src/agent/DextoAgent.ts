@@ -1854,10 +1854,16 @@ export class DextoAgent {
 
     /**
      * Gets the current LLM configuration with all defaults applied.
+     * @param sessionId Optional session ID to get config for specific session
      * @returns Current LLM configuration
      */
     public getCurrentLLMConfig(sessionId?: string): ValidatedLLMConfig {
         this.ensureStarted();
+        if (sessionId !== undefined && (!sessionId || typeof sessionId !== 'string')) {
+            throw AgentError.apiValidationError(
+                'sessionId must be a non-empty string when provided'
+            );
+        }
         return structuredClone(this.stateManager.getLLMConfig(sessionId));
     }
 

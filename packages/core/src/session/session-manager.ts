@@ -794,6 +794,10 @@ export class SessionManager {
         if (sessionData) {
             sessionData.llmOverride = newLLMConfig;
             await this.services.storageManager.getDatabase().set(sessionKey, sessionData);
+            // Also update cache for consistency
+            await this.services.storageManager
+                .getCache()
+                .set(sessionKey, sessionData, this.sessionTTL / 1000);
         }
 
         this.services.agentEventBus.emit('llm:switched', {

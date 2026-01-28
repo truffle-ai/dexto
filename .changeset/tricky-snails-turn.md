@@ -5,4 +5,4 @@
 'dexto': patch
 ---
 
-Add glm, minimax to dexto gateway and onbaording. split aget logging per session. persist /model overrides per session. other bug fixes for message filtering
+Add GLM and Minimax to Dexto gateway and onboarding. Split agent logging per session. Persist /model overrides per session. Other bug fixes for message filtering.
