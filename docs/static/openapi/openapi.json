@@ -2816,6 +2816,8 @@
                         "groq",
                         "xai",
                         "cohere",
+                        "minimax",
+                        "glm",
                         "openrouter",
                         "litellm",
                         "glama",
@@ -3145,6 +3147,8 @@
                             "groq",
                             "xai",
                             "cohere",
+                            "minimax",
+                            "glm",
                             "openrouter",
                             "litellm",
                             "glama",
@@ -3259,6 +3263,21 @@
         "parameters": [
           {
             "schema": {
+              "type": "string",
+              "enum": [
+                "curated",
+                "all"
+              ],
+              "default": "all",
+              "description": "Catalog scope: 'curated' returns a small, UI-friendly set of models; 'all' returns the full registry (can be large)"
+            },
+            "required": false,
+            "description": "Catalog scope: 'curated' returns a small, UI-friendly set of models; 'all' returns the full registry (can be large)",
+            "name": "scope",
+            "in": "query"
+          },
+          {
+            "schema": {
               "anyOf": [
                 {
                   "type": "string"
@@ -3275,6 +3294,41 @@
             "required": false,
             "description": "Comma-separated list of LLM providers to filter by",
             "name": "provider",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "true"
+                  ]
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "false"
+                  ]
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "1"
+                  ]
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "0"
+                  ]
+                }
+              ],
+              "description": "Include models list in the response (true or false)"
+            },
+            "required": false,
+            "description": "Include models list in the response (true or false)",
+            "name": "includeModels",
             "in": "query"
           },
           {
@@ -4166,6 +4220,264 @@
                               "description": "Provider catalog entry with models and capabilities"
                             },
                             "cohere": {
+                              "type": "object",
+                              "properties": {
+                                "name": {
+                                  "type": "string",
+                                  "description": "Provider display name"
+                                },
+                                "hasApiKey": {
+                                  "type": "boolean",
+                                  "description": "Whether API key is configured"
+                                },
+                                "primaryEnvVar": {
+                                  "type": "string",
+                                  "description": "Primary environment variable for API key"
+                                },
+                                "supportsBaseURL": {
+                                  "type": "boolean",
+                                  "description": "Whether custom base URLs are supported"
+                                },
+                                "models": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "name": {
+                                        "type": "string",
+                                        "description": "Model name identifier"
+                                      },
+                                      "maxInputTokens": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "exclusiveMinimum": true,
+                                        "description": "Maximum input tokens"
+                                      },
+                                      "default": {
+                                        "type": "boolean",
+                                        "description": "Whether this is a default model"
+                                      },
+                                      "supportedFileTypes": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string",
+                                          "enum": [
+                                            "audio",
+                                            "pdf",
+                                            "image"
+                                          ]
+                                        },
+                                        "description": "File types this model supports"
+                                      },
+                                      "displayName": {
+                                        "type": "string",
+                                        "description": "Human-readable display name"
+                                      },
+                                      "pricing": {
+                                        "type": "object",
+                                        "properties": {
+                                          "inputPerM": {
+                                            "type": "number",
+                                            "description": "Input cost per million tokens (USD)"
+                                          },
+                                          "outputPerM": {
+                                            "type": "number",
+                                            "description": "Output cost per million tokens (USD)"
+                                          },
+                                          "cacheReadPerM": {
+                                            "type": "number",
+                                            "description": "Cache read cost per million tokens"
+                                          },
+                                          "cacheWritePerM": {
+                                            "type": "number",
+                                            "description": "Cache write cost per million tokens"
+                                          },
+                                          "currency": {
+                                            "type": "string",
+                                            "enum": [
+                                              "USD"
+                                            ],
+                                            "description": "Currency"
+                                          },
+                                          "unit": {
+                                            "type": "string",
+                                            "enum": [
+                                              "per_million_tokens"
+                                            ],
+                                            "description": "Unit"
+                                          }
+                                        },
+                                        "required": [
+                                          "inputPerM",
+                                          "outputPerM"
+                                        ],
+                                        "description": "Pricing information in USD per million tokens"
+                                      }
+                                    },
+                                    "required": [
+                                      "name",
+                                      "maxInputTokens",
+                                      "supportedFileTypes"
+                                    ],
+                                    "additionalProperties": false,
+                                    "description": "Model information from LLM registry"
+                                  },
+                                  "description": "Models available from this provider"
+                                },
+                                "supportedFileTypes": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string",
+                                    "enum": [
+                                      "audio",
+                                      "pdf",
+                                      "image"
+                                    ]
+                                  },
+                                  "description": "Provider-level file type support"
+                                }
+                              },
+                              "required": [
+                                "name",
+                                "hasApiKey",
+                                "primaryEnvVar",
+                                "supportsBaseURL",
+                                "models",
+                                "supportedFileTypes"
+                              ],
+                              "additionalProperties": false,
+                              "description": "Provider catalog entry with models and capabilities"
+                            },
+                            "minimax": {
+                              "type": "object",
+                              "properties": {
+                                "name": {
+                                  "type": "string",
+                                  "description": "Provider display name"
+                                },
+                                "hasApiKey": {
+                                  "type": "boolean",
+                                  "description": "Whether API key is configured"
+                                },
+                                "primaryEnvVar": {
+                                  "type": "string",
+                                  "description": "Primary environment variable for API key"
+                                },
+                                "supportsBaseURL": {
+                                  "type": "boolean",
+                                  "description": "Whether custom base URLs are supported"
+                                },
+                                "models": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "name": {
+                                        "type": "string",
+                                        "description": "Model name identifier"
+                                      },
+                                      "maxInputTokens": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "exclusiveMinimum": true,
+                                        "description": "Maximum input tokens"
+                                      },
+                                      "default": {
+                                        "type": "boolean",
+                                        "description": "Whether this is a default model"
+                                      },
+                                      "supportedFileTypes": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string",
+                                          "enum": [
+                                            "audio",
+                                            "pdf",
+                                            "image"
+                                          ]
+                                        },
+                                        "description": "File types this model supports"
+                                      },
+                                      "displayName": {
+                                        "type": "string",
+                                        "description": "Human-readable display name"
+                                      },
+                                      "pricing": {
+                                        "type": "object",
+                                        "properties": {
+                                          "inputPerM": {
+                                            "type": "number",
+                                            "description": "Input cost per million tokens (USD)"
+                                          },
+                                          "outputPerM": {
+                                            "type": "number",
+                                            "description": "Output cost per million tokens (USD)"
+                                          },
+                                          "cacheReadPerM": {
+                                            "type": "number",
+                                            "description": "Cache read cost per million tokens"
+                                          },
+                                          "cacheWritePerM": {
+                                            "type": "number",
+                                            "description": "Cache write cost per million tokens"
+                                          },
+                                          "currency": {
+                                            "type": "string",
+                                            "enum": [
+                                              "USD"
+                                            ],
+                                            "description": "Currency"
+                                          },
+                                          "unit": {
+                                            "type": "string",
+                                            "enum": [
+                                              "per_million_tokens"
+                                            ],
+                                            "description": "Unit"
+                                          }
+                                        },
+                                        "required": [
+                                          "inputPerM",
+                                          "outputPerM"
+                                        ],
+                                        "description": "Pricing information in USD per million tokens"
+                                      }
+                                    },
+                                    "required": [
+                                      "name",
+                                      "maxInputTokens",
+                                      "supportedFileTypes"
+                                    ],
+                                    "additionalProperties": false,
+                                    "description": "Model information from LLM registry"
+                                  },
+                                  "description": "Models available from this provider"
+                                },
+                                "supportedFileTypes": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string",
+                                    "enum": [
+                                      "audio",
+                                      "pdf",
+                                      "image"
+                                    ]
+                                  },
+                                  "description": "Provider-level file type support"
+                                }
+                              },
+                              "required": [
+                                "name",
+                                "hasApiKey",
+                                "primaryEnvVar",
+                                "supportsBaseURL",
+                                "models",
+                                "supportedFileTypes"
+                              ],
+                              "additionalProperties": false,
+                              "description": "Provider catalog entry with models and capabilities"
+                            },
+                            "glm": {
                               "type": "object",
                               "properties": {
                                 "name": {
@@ -5471,6 +5783,8 @@
                           "groq",
                           "xai",
                           "cohere",
+                          "minimax",
+                          "glm",
                           "openrouter",
                           "litellm",
                           "glama",
@@ -5576,6 +5890,8 @@
                             "groq",
                             "xai",
                             "cohere",
+                            "minimax",
+                            "glm",
                             "openrouter",
                             "litellm",
                             "glama",
@@ -6014,6 +6330,8 @@
                 "groq",
                 "xai",
                 "cohere",
+                "minimax",
+                "glm",
                 "openrouter",
                 "litellm",
                 "glama",
@@ -6060,6 +6378,8 @@
                         "groq",
                         "xai",
                         "cohere",
+                        "minimax",
+                        "glm",
                         "openrouter",
                         "litellm",
                         "glama",
@@ -6751,6 +7071,8 @@
                               "groq",
                               "xai",
                               "cohere",
+                              "minimax",
+                              "glm",
                               "openrouter",
                               "litellm",
                               "glama",
@@ -7402,6 +7724,8 @@
                                   "groq",
                                   "xai",
                                   "cohere",
+                                  "minimax",
+                                  "glm",
                                   "openrouter",
                                   "litellm",
                                   "glama",
@@ -7818,6 +8142,8 @@
                                       "groq",
                                       "xai",
                                       "cohere",
+                                      "minimax",
+                                      "glm",
                                       "openrouter",
                                       "litellm",
                                       "glama",
@@ -12279,6 +12605,8 @@
                 "groq",
                 "xai",
                 "cohere",
+                "minimax",
+                "glm",
                 "openrouter",
                 "litellm",
                 "glama",
@@ -12314,6 +12642,8 @@
                         "groq",
                         "xai",
                         "cohere",
+                        "minimax",
+                        "glm",
                         "openrouter",
                         "litellm",
                         "glama",
@@ -12375,6 +12705,8 @@
                       "groq",
                       "xai",
                       "cohere",
+                      "minimax",
+                      "glm",
                       "openrouter",
                       "litellm",
                       "glama",
@@ -12427,6 +12759,8 @@
                         "groq",
                         "xai",
                         "cohere",
+                        "minimax",
+                        "glm",
                         "openrouter",
                         "litellm",
                         "glama",
