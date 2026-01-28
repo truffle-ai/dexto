@@ -597,7 +597,7 @@ describe('filterMessagesByLLMCapabilities', () => {
         // Mock validation to reject the file
         mockValidateModelFileSupport.mockReturnValue({
             isSupported: false,
-            error: 'PDF not supported',
+            error: "Model 'gpt-3.5-turbo' (openai) does not support pdf files",
         });
 
         const config: LLMContext = { provider: 'openai', model: 'gpt-3.5-turbo' };
@@ -798,7 +798,7 @@ describe('filterMessagesByLLMCapabilities', () => {
         // Mock validation to reject both images and files for glm-4.7
         mockValidateModelFileSupport.mockReturnValue({
             isSupported: false,
-            error: 'Not supported by glm-4.7',
+            error: "Model 'z-ai/glm-4.7' (dexto) does not support image files",
         });
 
         const config: LLMContext = { provider: 'dexto', model: 'z-ai/glm-4.7' };
