@@ -7,6 +7,7 @@ import {
     SUPPORTED_FILE_TYPES,
     supportsBaseURL,
     getAllModelsForProvider,
+    getCuratedModelsForProvider,
     getSupportedFileTypesForModel,
     type ProviderInfo,
     type LLMProvider,
@@ -41,6 +42,12 @@ const CurrentQuerySchema = z
 
 const CatalogQuerySchema = z
     .object({
+        scope: z
+            .enum(['curated', 'all'])
+            .default('all')
+            .describe(
+                "Catalog scope: 'curated' returns a small, UI-friendly set of models; 'all' returns the full registry (can be large)"
+            ),
         provider: z
             .union([z.string(), z.array(z.string())])
             .optional()
@@ -48,6 +55,17 @@ const CatalogQuerySchema = z
                 Array.isArray(value) ? value : value ? value.split(',') : undefined
             )
             .describe('Comma-separated list of LLM providers to filter by'),
+        includeModels: z
+            .union([z.literal('true'), z.literal('false'), z.literal('1'), z.literal('0')])
+            .optional()
+            .transform((raw): boolean | undefined =>
+                raw === 'true' || raw === '1'
+                    ? true
+                    : raw === 'false' || raw === '0'
+                      ? false
+                      : undefined
+            )
+            .describe('Include models list in the response (true or false)'),
         hasKey: z
             .union([z.literal('true'), z.literal('false'), z.literal('1'), z.literal('0')])
             .optional()
@@ -392,6 +410,8 @@ export function createLlmRouter(getAgent: GetAgentFn) {
             type ModelFlat = ProviderCatalog['models'][number] & { provider: LLMProvider };
 
             const queryParams = ctx.req.valid('query');
+            const includeModels = queryParams.includeModels ?? true;
+            const scope = queryParams.scope ?? 'all';
 
             const providers: Record<string, ProviderCatalog> = {};
 
@@ -405,9 +425,16 @@ export function createLlmRouter(getAgent: GetAgentFn) {
                 const displayName = provider.charAt(0).toUpperCase() + provider.slice(1);
                 const keyStatus = getProviderKeyStatus(provider);
 
-                // Use getAllModelsForProvider to get inherited models for gateway providers
-                // like 'dexto' that have supportsAllRegistryModels: true
-                const models = getAllModelsForProvider(provider);
+                const models = (() => {
+                    if (!includeModels) return [];
+                    if (scope === 'all') {
+                        // Full list (may include inherited models for gateway providers)
+                        return getAllModelsForProvider(provider);
+                    }
+
+                    // Curated list for UI: keep it small but not single-model-per-provider.
+                    return getCuratedModelsForProvider(provider);
+                })();
 
                 providers[provider] = {
                     name: displayName,
