@@ -20,6 +20,7 @@ export {
 } from './useInputOrchestrator.js';
 export { useKeypress } from './useKeypress.js';
 export { useTerminalSize, type TerminalSize } from './useTerminalSize.js';
+export { useGitBranch } from './useGitBranch.js';
 export {
     useCLIState,
     type UseCLIStateProps,

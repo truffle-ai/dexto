@@ -20,6 +20,7 @@ import type { Message, StartupInfo } from '../../state/types.js';
 // Hooks
 import { useTerminalSize } from '../../hooks/index.js';
 import { useCLIState } from '../../hooks/useCLIState.js';
+import { useGitBranch } from '../../hooks/useGitBranch.js';
 import { useScrollable } from '../../contexts/index.js';
 
 // Components
@@ -108,6 +109,9 @@ export function AlternateBufferCLI({
         startupInfo,
         onKeyboardScroll: handleKeyboardScroll,
     });
+
+    // Get current git branch name
+    const branchName = useGitBranch();
 
     // Register the VirtualizedList as scrollable so ScrollProvider can handle mouse scroll
     const getScrollState = useCallback(() => {
@@ -377,6 +381,7 @@ export function AlternateBufferCLI({
                     sessionId={session.id}
                     modelName={session.modelName}
                     cwd={process.cwd()}
+                    {...(branchName ? { branchName } : {})}
                     autoApproveEdits={ui.autoApproveEdits}
                     planModeActive={ui.planModeActive}
                     isShellMode={buffer.text.startsWith('!')}
