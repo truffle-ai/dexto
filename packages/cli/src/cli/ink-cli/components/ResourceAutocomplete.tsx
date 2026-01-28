@@ -268,13 +268,12 @@ const ResourceAutocompleteInner = forwardRef<ResourceAutocompleteHandle, Resourc
                             resource.name || uriParts[uriParts.length - 1] || resource.uri;
 
                         // If it's an absolute path, use relative path as reference
-                        const rawUri = resource.uri.replace(/^(fs|file):\/\//, '');
+                        const rawUri = resource.uri.replace(/^(fs|file):\/\//, ''); // Stripped prefix
                         if (path.isAbsolute(rawUri)) {
                             try {
                                 const relativePath = path.relative(process.cwd(), rawUri);
-                                if (!resource.name) {
-                                    reference = relativePath;
-                                }
+                                // Prioritize relative path for local files to avoid ambiguity
+                                reference = relativePath;
                             } catch {
                                 // Keep default
                             }
@@ -357,7 +356,7 @@ const ResourceAutocompleteInner = forwardRef<ResourceAutocompleteHandle, Resourc
 
                     // Show relative path for absolute file URIs
                     let displayUri = resource.uri;
-                    const rawUriForDisplay = displayUri.replace(/^(fs|file):\/\//, '');
+                    const rawUriForDisplay = displayUri.replace(/^(fs|file):\/\//, ''); // Stripped prefix
 
                     if (path.isAbsolute(rawUriForDisplay)) {
                         try {

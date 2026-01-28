@@ -1047,14 +1047,12 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     let reference = resource.name || uriParts[uriParts.length - 1] || resource.uri;
 
                     // If it's an absolute path, use relative path as reference to be more descriptive and less bulky
-                    const rawUri = resource.uri.replace(/^(fs|file):\/\//, '');
+                    const rawUri = resource.uri.replace(/^(fs|file):\/\//, ''); // Stripped prefix
                     if (path.isAbsolute(rawUri)) {
                         try {
                             const relativePath = path.relative(process.cwd(), rawUri);
-                            // Only use relative path if it doesn't have resource.name (to keep explicitly named resources as is)
-                            if (!resource.name) {
-                                reference = relativePath;
-                            }
+                            // Prioritize relative path for local files to avoid ambiguity
+                            reference = relativePath;
                         } catch {
                             // Keep fallback if relative fails
                         }
