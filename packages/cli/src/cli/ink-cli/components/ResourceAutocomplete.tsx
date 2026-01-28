@@ -8,6 +8,7 @@ import React, {
     useImperativeHandle,
 } from 'react';
 import { Box, Text } from 'ink';
+import path from 'path';
 import type { Key } from '../hooks/useInputOrchestrator.js';
 import type { ResourceMetadata } from '@dexto/core';
 import type { DextoAgent } from '@dexto/core';
@@ -34,7 +35,7 @@ function getResourceMatchScore(resource: ResourceMetadata, query: string): numbe
     const lowerQuery = query.toLowerCase();
     const name = (resource.name || '').toLowerCase();
     const uri = resource.uri.toLowerCase();
-    const uriFilename = uri.split('/').pop()?.toLowerCase() || '';
+    const uriFilename = uri.split(/[\\/]/).pop()?.toLowerCase() || '';
     const description = (resource.description || '').toLowerCase();
 
     // Highest priority: name starts with query
@@ -262,17 +263,28 @@ const ResourceAutocompleteInner = forwardRef<ResourceAutocompleteHandle, Resourc
 
                         // Get the @ position and construct the text to load
                         const atIndex = searchQuery.lastIndexOf('@');
+                        const uriParts = resource.uri.split(/[\\/]/);
+                        let reference =
+                            resource.name || uriParts[uriParts.length - 1] || resource.uri;
+
+                        // If it's an absolute path, use relative path as reference
+                        const rawUri = resource.uri.replace(/^(fs|file):\/\//, '');
+                        if (path.isAbsolute(rawUri)) {
+                            try {
+                                const relativePath = path.relative(process.cwd(), rawUri);
+                                if (!resource.name) {
+                                    reference = relativePath;
+                                }
+                            } catch {
+                                // Keep default
+                            }
+                        }
+
                         if (atIndex >= 0) {
                             const before = searchQuery.slice(0, atIndex + 1);
-                            const uriParts = resource.uri.split('/');
-                            const reference =
-                                resource.name || uriParts[uriParts.length - 1] || resource.uri;
                             onLoadIntoInput?.(`${before}${reference}`);
                         } else {
                             // Fallback: just append @resource
-                            const uriParts = resource.uri.split('/');
-                            const reference =
-                                resource.name || uriParts[uriParts.length - 1] || resource.uri;
                             onLoadIntoInput?.(`${searchQuery}@${reference}`);
                         }
                         return true;
@@ -338,14 +350,26 @@ const ResourceAutocompleteInner = forwardRef<ResourceAutocompleteHandle, Resourc
                 {visibleResources.map((resource, visibleIndex) => {
                     const actualIndex = scrollOffset + visibleIndex;
                     const isSelected = actualIndex === selectedIndex;
-                    const uriParts = resource.uri.split('/');
+                    const uriParts = resource.uri.split(/[\\/]/);
                     const displayName =
                         resource.name || uriParts[uriParts.length - 1] || resource.uri;
                     const isImage = (resource.mimeType || '').startsWith('image/');
 
-                    // Truncate URI for display (show last 40 chars with ellipsis)
+                    // Show relative path for absolute file URIs
+                    let displayUri = resource.uri;
+                    const rawUriForDisplay = displayUri.replace(/^(fs|file):\/\//, '');
+
+                    if (path.isAbsolute(rawUriForDisplay)) {
+                        try {
+                            displayUri = path.relative(process.cwd(), rawUriForDisplay);
+                        } catch {
+                            // Fallback to original if relative fails
+                        }
+                    }
+
+                    // Truncate URI for display (show last 50 chars with ellipsis if still long)
                     const truncatedUri =
-                        resource.uri.length > 50 ? '…' + resource.uri.slice(-49) : resource.uri;
+                        displayUri.length > 50 ? '…' + displayUri.slice(-49) : displayUri;
 
                     return (
                         <Box key={resource.uri}>
