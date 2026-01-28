@@ -11,7 +11,7 @@ import * as path from 'path';
 // Mock the registry functions
 vi.mock('./registry.js', () => ({
     getPromptGenerator: vi.fn(),
-    PROMPT_GENERATOR_SOURCES: ['date', 'resources'],
+    PROMPT_GENERATOR_SOURCES: ['date', 'env', 'resources'],
 }));
 
 const mockGetPromptGenerator = vi.mocked(registry.getPromptGenerator);
@@ -47,6 +47,7 @@ describe('SystemPromptManager', () => {
         mockGetPromptGenerator.mockImplementation((source) => {
             const mockGenerators: Record<string, any> = {
                 date: vi.fn().mockResolvedValue('Mock DateTime'),
+                env: vi.fn().mockResolvedValue('Mock Environment'),
                 resources: vi.fn().mockResolvedValue('Mock Resources'),
             };
             return mockGenerators[source];
@@ -85,10 +86,11 @@ describe('SystemPromptManager', () => {
             );
 
             const contributors = manager.getContributors();
-            expect(contributors).toHaveLength(1); // Only date is enabled by default
+            expect(contributors).toHaveLength(2); // date and env are enabled by default
 
-            // Should only have date (resources is disabled by default)
+            // Should have date and env (resources is disabled by default)
             expect(contributors[0]?.id).toBe('date'); // priority 10, enabled: true
+            expect(contributors[1]?.id).toBe('env'); // priority 15, enabled: true
         });
 
         it('should initialize with custom contributors config', () => {
@@ -586,10 +588,12 @@ You can help with:
     describe('Real-world Scenarios', () => {
         it('should handle default configuration (empty object)', async () => {
             const mockDateTimeGenerator = vi.fn().mockResolvedValue('2023-01-01 12:00:00');
+            const mockEnvGenerator = vi.fn().mockResolvedValue('<environment>mock</environment>');
             const mockResourcesGenerator = vi.fn().mockResolvedValue('Available files: config.yml');
 
             mockGetPromptGenerator.mockImplementation((source) => {
                 if (source === 'date') return mockDateTimeGenerator;
+                if (source === 'env') return mockEnvGenerator;
                 if (source === 'resources') return mockResourcesGenerator;
                 return undefined;
             });
@@ -603,14 +607,16 @@ You can help with:
                 mockLogger
             );
 
-            // Only date should be enabled by default, resources is disabled
+            // date and env should be enabled by default, resources is disabled
             const contributors = manager.getContributors();
-            expect(contributors).toHaveLength(1);
+            expect(contributors).toHaveLength(2);
             expect(contributors[0]?.id).toBe('date');
+            expect(contributors[1]?.id).toBe('env');
 
             const result = await manager.build(mockContext);
-            expect(result).toBe('2023-01-01 12:00:00');
+            expect(result).toBe('2023-01-01 12:00:00\n<environment>mock</environment>');
             expect(mockDateTimeGenerator).toHaveBeenCalledWith(mockContext);
+            expect(mockEnvGenerator).toHaveBeenCalledWith(mockContext);
             expect(mockResourcesGenerator).not.toHaveBeenCalled();
         });
 

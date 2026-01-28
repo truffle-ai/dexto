@@ -77,5 +77,5 @@ storage:
 # Tool confirmation configuration - auto-approve for better development experience
 toolConfirmation:
   mode: auto-approve
-  timeout: 120000
+  # timeout: omitted = infinite wait
   allowedToolsStorage: memory

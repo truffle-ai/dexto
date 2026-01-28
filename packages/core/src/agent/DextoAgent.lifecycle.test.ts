@@ -57,6 +57,7 @@ describe('DextoAgent Lifecycle Management', () => {
             } as any,
             toolManager: {
                 setAgent: vi.fn(),
+                setPromptManager: vi.fn(),
                 initialize: vi.fn().mockResolvedValue(undefined),
             } as any,
             systemPromptManager: {} as any,
@@ -134,7 +135,8 @@ describe('DextoAgent Lifecycle Management', () => {
                 mockValidatedConfig,
                 undefined,
                 expect.anything(), // logger instance
-                expect.anything() // eventBus instance
+                expect.anything(), // eventBus instance
+                undefined
             );
         });
 
@@ -161,7 +163,8 @@ describe('DextoAgent Lifecycle Management', () => {
                 validatedConfigWithServerModes,
                 undefined,
                 expect.anything(), // logger instance
-                expect.anything() // eventBus instance
+                expect.anything(), // eventBus instance
+                undefined
             );
         });
 
@@ -301,6 +304,62 @@ describe('DextoAgent Lifecycle Management', () => {
 
             expect(() => agent.isStarted()).not.toThrow();
             expect(() => agent.isStopped()).not.toThrow();
+        });
+    });
+
+    describe('Session Auto-Approve Tools Cleanup (Memory Leak Fix)', () => {
+        test('endSession should call clearSessionAutoApproveTools', async () => {
+            const agent = new DextoAgent(mockConfig);
+
+            // Add clearSessionAutoApproveTools mock to toolManager
+            mockServices.toolManager.clearSessionAutoApproveTools = vi.fn();
+            mockServices.sessionManager.endSession = vi.fn().mockResolvedValue(undefined);
+
+            await agent.start();
+
+            await agent.endSession('test-session-123');
+
+            expect(mockServices.toolManager.clearSessionAutoApproveTools).toHaveBeenCalledWith(
+                'test-session-123'
+            );
+            expect(mockServices.sessionManager.endSession).toHaveBeenCalledWith('test-session-123');
+        });
+
+        test('deleteSession should call clearSessionAutoApproveTools', async () => {
+            const agent = new DextoAgent(mockConfig);
+
+            // Add clearSessionAutoApproveTools mock to toolManager
+            mockServices.toolManager.clearSessionAutoApproveTools = vi.fn();
+            mockServices.sessionManager.deleteSession = vi.fn().mockResolvedValue(undefined);
+
+            await agent.start();
+
+            await agent.deleteSession('test-session-456');
+
+            expect(mockServices.toolManager.clearSessionAutoApproveTools).toHaveBeenCalledWith(
+                'test-session-456'
+            );
+            expect(mockServices.sessionManager.deleteSession).toHaveBeenCalledWith(
+                'test-session-456'
+            );
+        });
+
+        test('clearSessionAutoApproveTools should be called before session cleanup', async () => {
+            const agent = new DextoAgent(mockConfig);
+            const callOrder: string[] = [];
+
+            mockServices.toolManager.clearSessionAutoApproveTools = vi.fn(() => {
+                callOrder.push('clearSessionAutoApproveTools');
+            });
+            mockServices.sessionManager.endSession = vi.fn().mockImplementation(() => {
+                callOrder.push('endSession');
+                return Promise.resolve();
+            });
+
+            await agent.start();
+            await agent.endSession('test-session');
+
+            expect(callOrder).toEqual(['clearSessionAutoApproveTools', 'endSession']);
         });
     });
 

@@ -26,3 +26,5 @@ export {
     type ScrollState,
     type ScrollableEntry,
 } from './ScrollProvider.js';
+
+export { SoundProvider, useSoundService } from './SoundContext.js';

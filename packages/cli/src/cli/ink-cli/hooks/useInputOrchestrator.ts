@@ -244,9 +244,15 @@ export function useInputOrchestrator({
     // Handle Escape (context-aware)
     const handleEscape = useCallback((): boolean => {
         const currentUi = uiRef.current;
+        const currentApproval = approvalRef.current;
         const currentSession = sessionRef.current;
         const currentQueuedMessages = queuedMessagesRef.current;
         const currentBuffer = bufferRef.current;
+
+        // If approval prompt is showing, let it handle escape (don't intercept)
+        if (currentApproval !== null) {
+            return false;
+        }
 
         // Exit history search mode if active - restore original input
         if (currentUi.historySearch.isActive) {
@@ -513,10 +519,41 @@ export function useInputOrchestrator({
                 return;
             }
 
-            // Shift+Tab: Toggle "accept all edits" mode (when not in approval modal)
-            // Note: When in approval modal for edit/write tools, ApprovalPrompt handles this
+            // Ctrl+T: Toggle todo list expansion (collapsed shows only current task)
+            if (key.ctrl && inputStr === 't') {
+                setUi((prev) => ({ ...prev, todoExpanded: !prev.todoExpanded }));
+                return;
+            }
+
+            // Shift+Tab: Cycle through modes (when not in approval modal)
+            // Modes: Normal → Plan Mode → Accept All Edits → Normal
+            // Note: When in approval modal for edit/write tools, ApprovalPrompt handles Shift+Tab differently
             if (key.shift && key.tab && currentApproval === null) {
-                setUi((prev) => ({ ...prev, autoApproveEdits: !prev.autoApproveEdits }));
+                setUi((prev) => {
+                    // Determine current mode and cycle to next
+                    if (!prev.planModeActive && !prev.autoApproveEdits) {
+                        // Normal → Plan Mode
+                        return {
+                            ...prev,
+                            planModeActive: true,
+                            planModeInitialized: false,
+                        };
+                    } else if (prev.planModeActive) {
+                        // Plan Mode → Accept All Edits
+                        return {
+                            ...prev,
+                            planModeActive: false,
+                            planModeInitialized: false,
+                            autoApproveEdits: true,
+                        };
+                    } else {
+                        // Accept All Edits → Normal
+                        return {
+                            ...prev,
+                            autoApproveEdits: false,
+                        };
+                    }
+                });
                 return;
             }
 
@@ -526,8 +563,18 @@ export function useInputOrchestrator({
                 return;
             }
 
-            // Escape: Try global handling first
+            // Determine focus once (used for routing + Escape priority)
+            const focusTarget = getFocusTarget(currentApproval, currentUi.activeOverlay);
+
+            // Escape: route to focused component first.
+            // - If an approval is showing, Esc must cancel/deny the approval (NOT global interrupt).
+            // - Otherwise, allow global Escape handling (cancel run, close overlays, etc.).
             if (key.escape) {
+                if (focusTarget === 'approval') {
+                    currentHandlers.approval?.(inputStr, key);
+                    return;
+                }
+
                 if (handleEscape()) {
                     return; // Consumed by global handler
                 }
@@ -537,8 +584,6 @@ export function useInputOrchestrator({
             // === ROUTE TO FOCUSED COMPONENT ===
             // Only approval and overlay handlers are routed through the orchestrator.
             // Main text input handles its own keypress directly (via TextBufferInput).
-
-            const focusTarget = getFocusTarget(currentApproval, currentUi.activeOverlay);
 
             switch (focusTarget) {
                 case 'approval':

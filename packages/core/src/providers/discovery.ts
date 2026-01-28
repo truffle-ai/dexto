@@ -1,4 +1,5 @@
 import { blobStoreRegistry } from '../storage/blob/index.js';
+import { databaseRegistry } from '../storage/database/index.js';
 import { compactionRegistry } from '../context/compaction/index.js';
 import { customToolRegistry } from '../tools/custom-tool-registry.js';
 import { INTERNAL_TOOL_NAMES } from '../tools/internal-tools/constants.js';
@@ -12,7 +13,7 @@ export interface DiscoveredProvider {
     type: string;
 
     /** Provider category */
-    category: 'blob' | 'compaction' | 'customTools';
+    category: 'blob' | 'database' | 'compaction' | 'customTools';
 
     /** Optional metadata about the provider */
     metadata?:
@@ -42,6 +43,9 @@ export interface ProviderDiscovery {
     /** Blob storage providers */
     blob: DiscoveredProvider[];
 
+    /** Database providers */
+    database: DiscoveredProvider[];
+
     /** Compaction strategy providers */
     compaction: DiscoveredProvider[];
 
@@ -55,7 +59,7 @@ export interface ProviderDiscovery {
 /**
  * Provider category type.
  */
-export type ProviderCategory = 'blob' | 'compaction' | 'customTools';
+export type ProviderCategory = 'blob' | 'database' | 'compaction' | 'customTools';
 
 /**
  * List all registered providers across all registries.
@@ -112,6 +116,18 @@ export function listAllProviders(): ProviderDiscovery {
         return info;
     });
 
+    // Get database providers
+    const databaseProviders = databaseRegistry.getProviders().map((provider) => {
+        const info: DiscoveredProvider = {
+            type: provider.type,
+            category: 'database',
+        };
+        if (provider.metadata) {
+            info.metadata = provider.metadata;
+        }
+        return info;
+    });
+
     // Get internal tools
     const internalTools: InternalToolDiscovery[] = INTERNAL_TOOL_NAMES.map((name) => ({
         name,
@@ -120,6 +136,7 @@ export function listAllProviders(): ProviderDiscovery {
 
     return {
         blob: blobProviders,
+        database: databaseProviders,
         compaction: compactionProviders,
         customTools: customToolProviders,
         internalTools,
@@ -167,6 +184,8 @@ export function hasProvider(category: ProviderCategory, type: string): boolean {
     switch (category) {
         case 'blob':
             return blobStoreRegistry.has(type);
+        case 'database':
+            return databaseRegistry.has(type);
         case 'compaction':
             return compactionRegistry.has(type);
         case 'customTools':

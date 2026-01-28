@@ -182,4 +182,109 @@ describe('VercelMessageFormatter', () => {
             expect(imagePart!.image).toBeInstanceOf(URL);
         });
     });
+
+    describe('Reasoning round-trip', () => {
+        test('should include reasoning part in assistant message when reasoning is present', () => {
+            const formatter = new VercelMessageFormatter(mockLogger);
+            const messages: InternalMessage[] = [
+                {
+                    role: 'assistant',
+                    content: [{ type: 'text', text: 'Here is my answer' }],
+                    reasoning: 'Let me think about this carefully...',
+                },
+            ];
+
+            const result = formatter.format(
+                messages,
+                { provider: 'anthropic', model: 'claude-3-5-sonnet-20241022' },
+                'You are helpful'
+            );
+
+            const assistantMessage = result.find((m) => m.role === 'assistant');
+            expect(assistantMessage).toBeDefined();
+
+            const content = assistantMessage!.content as Array<{ type: string; text?: string }>;
+            const reasoningPart = content.find((p) => p.type === 'reasoning');
+            expect(reasoningPart).toBeDefined();
+            expect(reasoningPart!.text).toBe('Let me think about this carefully...');
+        });
+
+        test('should include providerOptions in reasoning part when reasoningMetadata is present', () => {
+            const formatter = new VercelMessageFormatter(mockLogger);
+            const reasoningMetadata = { anthropic: { cacheId: 'cache-123' } };
+            const messages: InternalMessage[] = [
+                {
+                    role: 'assistant',
+                    content: [{ type: 'text', text: 'Answer' }],
+                    reasoning: 'Thinking...',
+                    reasoningMetadata,
+                },
+            ];
+
+            const result = formatter.format(
+                messages,
+                { provider: 'anthropic', model: 'claude-3-5-sonnet-20241022' },
+                'You are helpful'
+            );
+
+            const assistantMessage = result.find((m) => m.role === 'assistant');
+            const content = assistantMessage!.content as Array<{
+                type: string;
+                providerOptions?: Record<string, unknown>;
+            }>;
+            const reasoningPart = content.find((p) => p.type === 'reasoning');
+
+            expect(reasoningPart).toBeDefined();
+            expect(reasoningPart!.providerOptions).toEqual(reasoningMetadata);
+        });
+
+        test('should place reasoning part before text content', () => {
+            const formatter = new VercelMessageFormatter(mockLogger);
+            const messages: InternalMessage[] = [
+                {
+                    role: 'assistant',
+                    content: [{ type: 'text', text: 'Final answer' }],
+                    reasoning: 'Step by step reasoning...',
+                },
+            ];
+
+            const result = formatter.format(
+                messages,
+                { provider: 'anthropic', model: 'claude-3-5-sonnet-20241022' },
+                'You are helpful'
+            );
+
+            const assistantMessage = result.find((m) => m.role === 'assistant');
+            const content = assistantMessage!.content as Array<{ type: string }>;
+
+            // Reasoning should come before text
+            const reasoningIndex = content.findIndex((p) => p.type === 'reasoning');
+            const textIndex = content.findIndex((p) => p.type === 'text');
+
+            expect(reasoningIndex).toBeLessThan(textIndex);
+        });
+
+        test('should not include reasoning part when reasoning is not present', () => {
+            const formatter = new VercelMessageFormatter(mockLogger);
+            const messages: InternalMessage[] = [
+                {
+                    role: 'assistant',
+                    content: [{ type: 'text', text: 'Simple answer' }],
+                    // No reasoning field
+                },
+            ];
+
+            const result = formatter.format(
+                messages,
+                { provider: 'openai', model: 'gpt-4o' },
+                'You are helpful'
+            );
+
+            const assistantMessage = result.find((m) => m.role === 'assistant');
+            const content = assistantMessage!.content as Array<{ type: string }>;
+            const reasoningPart = content.find((p) => p.type === 'reasoning');
+
+            expect(reasoningPart).toBeUndefined();
+        });
+    });
 });

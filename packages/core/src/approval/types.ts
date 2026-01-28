@@ -334,4 +334,19 @@ export interface ApprovalHandler {
      * @remarks Not all handlers track pending requests (e.g., auto-approve handlers)
      */
     getPendingRequests?(): ApprovalRequest[];
+
+    /**
+     * Auto-approve pending requests that match a predicate (optional)
+     * Used when a pattern is remembered to auto-approve other parallel requests
+     * that would now match the same pattern.
+     *
+     * @param predicate Function that returns true for requests that should be auto-approved
+     * @param responseData Optional data to include in the auto-approval response
+     * @returns Number of requests that were auto-approved
+     * @remarks Not all handlers support this (e.g., auto-approve handlers don't need it)
+     */
+    autoApprovePending?(
+        predicate: (request: ApprovalRequest) => boolean,
+        responseData?: Record<string, unknown>
+    ): number;
 }

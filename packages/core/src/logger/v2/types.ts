@@ -55,6 +55,8 @@ export interface LogEntry {
     component: DextoLogComponent;
     /** Agent ID for multi-agent isolation */
     agentId: string;
+    /** Optional session ID for multi-session isolation */
+    sessionId?: string;
     /** Optional structured context data */
     context?: Record<string, unknown> | undefined;
 }

@@ -137,6 +137,11 @@ describe('requiresSetup', () => {
                     apiKeyPending: false,
                     baseURLPending: false,
                 },
+                sounds: {
+                    enabled: true,
+                    onApprovalRequired: true,
+                    onTaskComplete: true,
+                },
             });
 
             const result = await requiresSetup();
@@ -160,6 +165,11 @@ describe('requiresSetup', () => {
                     completed: true,
                     apiKeyPending: false,
                     baseURLPending: false,
+                },
+                sounds: {
+                    enabled: true,
+                    onApprovalRequired: true,
+                    onTaskComplete: true,
                 },
             });
 
@@ -185,6 +195,11 @@ describe('requiresSetup', () => {
                     apiKeyPending: false,
                     baseURLPending: false,
                 },
+                sounds: {
+                    enabled: true,
+                    onApprovalRequired: true,
+                    onTaskComplete: true,
+                },
             });
 
             const result = await requiresSetup();
@@ -208,6 +223,11 @@ describe('requiresSetup', () => {
                     completed: true,
                     apiKeyPending: false,
                     baseURLPending: false,
+                },
+                sounds: {
+                    enabled: true,
+                    onApprovalRequired: true,
+                    onTaskComplete: true,
                 },
             });
 

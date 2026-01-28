@@ -50,6 +50,7 @@ function createMockStream(options: {
     text?: string;
     finishReason?: string;
     usage?: { inputTokens: number; outputTokens: number; totalTokens: number };
+    providerMetadata?: Record<string, unknown>;
     toolCalls?: Array<{ toolCallId: string; toolName: string; args: Record<string, unknown> }>;
     reasoning?: string;
 }) {
@@ -86,6 +87,7 @@ function createMockStream(options: {
         type: 'finish',
         finishReason: options.finishReason ?? 'stop',
         totalUsage: options.usage ?? { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
+        ...(options.providerMetadata && { providerMetadata: options.providerMetadata }),
     });
 
     return {
@@ -783,6 +785,117 @@ describe('TurnExecutor Integration Tests', () => {
                         ))
             );
             expect(hasSystemContent).toBe(true);
+        });
+    });
+
+    describe('Context Token Tracking', () => {
+        it('should store actual input tokens from LLM response in ContextManager', async () => {
+            const expectedInputTokens = 1234;
+
+            vi.mocked(streamText).mockImplementation(
+                () =>
+                    createMockStream({
+                        text: 'Response',
+                        finishReason: 'stop',
+                        usage: {
+                            inputTokens: expectedInputTokens,
+                            outputTokens: 50,
+                            totalTokens: expectedInputTokens + 50,
+                        },
+                    }) as unknown as ReturnType<typeof streamText>
+            );
+
+            // Before LLM call, should be null
+            expect(contextManager.getLastActualInputTokens()).toBeNull();
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+            await executor.execute({ mcpManager }, true);
+
+            // After LLM call, should have the actual token count
+            expect(contextManager.getLastActualInputTokens()).toBe(expectedInputTokens);
+        });
+
+        it('should update actual tokens on each LLM call', async () => {
+            // First call
+            vi.mocked(streamText).mockImplementationOnce(
+                () =>
+                    createMockStream({
+                        text: 'First response',
+                        finishReason: 'stop',
+                        usage: { inputTokens: 100, outputTokens: 20, totalTokens: 120 },
+                    }) as unknown as ReturnType<typeof streamText>
+            );
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'First message' }]);
+            await executor.execute({ mcpManager }, true);
+            expect(contextManager.getLastActualInputTokens()).toBe(100);
+
+            // Second call with different token count
+            vi.mocked(streamText).mockImplementationOnce(
+                () =>
+                    createMockStream({
+                        text: 'Second response',
+                        finishReason: 'stop',
+                        usage: { inputTokens: 250, outputTokens: 30, totalTokens: 280 },
+                    }) as unknown as ReturnType<typeof streamText>
+            );
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Second message' }]);
+            await executor.execute({ mcpManager }, true);
+            expect(contextManager.getLastActualInputTokens()).toBe(250);
+        });
+
+        it('should make actual tokens available via getContextTokenEstimate', async () => {
+            const expectedInputTokens = 5000;
+
+            vi.mocked(streamText).mockImplementation(
+                () =>
+                    createMockStream({
+                        text: 'Response',
+                        finishReason: 'stop',
+                        usage: {
+                            inputTokens: expectedInputTokens,
+                            outputTokens: 100,
+                            totalTokens: expectedInputTokens + 100,
+                        },
+                    }) as unknown as ReturnType<typeof streamText>
+            );
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+            await executor.execute({ mcpManager }, true);
+
+            // getContextTokenEstimate should return the actual value
+            const estimate = await contextManager.getContextTokenEstimate({ mcpManager }, {});
+            expect(estimate.actual).toBe(expectedInputTokens);
+        });
+
+        it('should include cached tokens in actual context input tracking', async () => {
+            const noCacheTokens = 200;
+            const cacheReadTokens = 800;
+
+            vi.mocked(streamText).mockImplementation(
+                () =>
+                    createMockStream({
+                        text: 'Response',
+                        finishReason: 'stop',
+                        usage: {
+                            inputTokens: noCacheTokens,
+                            outputTokens: 10,
+                            totalTokens: noCacheTokens + 10,
+                        },
+                        providerMetadata: {
+                            anthropic: {
+                                cacheReadInputTokens: cacheReadTokens,
+                                cacheCreationInputTokens: 0,
+                            },
+                        },
+                    }) as unknown as ReturnType<typeof streamText>
+            );
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+            await executor.execute({ mcpManager }, true);
+
+            expect(contextManager.getLastActualInputTokens()).toBe(noCacheTokens + cacheReadTokens);
         });
     });
 });

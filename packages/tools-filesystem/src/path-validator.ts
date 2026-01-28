@@ -5,7 +5,7 @@
  */
 
 import * as path from 'node:path';
-import { realpathSync } from 'node:fs';
+import * as fs from 'node:fs/promises';
 import { FileSystemConfig, PathValidation } from './types.js';
 import type { IDextoLogger } from '@dexto/core';
 
@@ -72,7 +72,7 @@ export class PathValidator {
     /**
      * Validate a file path for security and policy compliance
      */
-    validatePath(filePath: string): PathValidation {
+    async validatePath(filePath: string): Promise<PathValidation> {
         // 1. Check for empty path
         if (!filePath || filePath.trim() === '') {
             return {
@@ -91,10 +91,9 @@ export class PathValidator {
                 ? path.resolve(filePath)
                 : path.resolve(workingDir, filePath);
 
-            // Canonicalize to handle symlinks and resolve real paths
+            // Canonicalize to handle symlinks and resolve real paths (async, non-blocking)
             try {
-                // native variant preserves casing on Windows
-                normalizedPath = realpathSync.native(normalizedPath);
+                normalizedPath = await fs.realpath(normalizedPath);
             } catch {
                 // If the path doesn't exist yet (e.g., writes), fallback to the resolved path
                 // Policy checks continue to use normalizedPath
@@ -165,30 +164,10 @@ export class PathValidator {
     /**
      * Check if path is within allowed paths (whitelist check)
      * Also consults the directory approval checker if configured.
+     * Uses the sync version since the path is already normalized at this point.
      */
     private isPathAllowed(normalizedPath: string): boolean {
-        // Empty allowedPaths means all paths are allowed
-        if (this.normalizedAllowedPaths.length === 0) {
-            return true;
-        }
-
-        // Check if path is within any config-allowed path
-        const isInConfigPaths = this.normalizedAllowedPaths.some((allowedPath) => {
-            const relative = path.relative(allowedPath, normalizedPath);
-            // Path is allowed if it doesn't escape the allowed directory
-            return !relative.startsWith('..') && !path.isAbsolute(relative);
-        });
-
-        if (isInConfigPaths) {
-            return true;
-        }
-
-        // Fallback: check ApprovalManager via callback (includes working dir + approved dirs)
-        if (this.directoryApprovalChecker) {
-            return this.directoryApprovalChecker(normalizedPath);
-        }
-
-        return false;
+        return this.isPathAllowedSync(normalizedPath);
     }
 
     /**
@@ -221,9 +200,39 @@ export class PathValidator {
 
     /**
      * Quick check if a path is allowed (for internal use)
+     * Note: This assumes the path is already normalized/canonicalized
      */
     isPathAllowedQuick(normalizedPath: string): boolean {
-        return this.isPathAllowed(normalizedPath) && !this.isPathBlocked(normalizedPath);
+        return this.isPathAllowedSync(normalizedPath) && !this.isPathBlocked(normalizedPath);
+    }
+
+    /**
+     * Synchronous path allowed check (for already-normalized paths)
+     * This is used internally when we already have a canonicalized path
+     */
+    private isPathAllowedSync(normalizedPath: string): boolean {
+        // Empty allowedPaths means all paths are allowed
+        if (this.normalizedAllowedPaths.length === 0) {
+            return true;
+        }
+
+        // Check if path is within any config-allowed path
+        const isInConfigPaths = this.normalizedAllowedPaths.some((allowedPath) => {
+            const relative = path.relative(allowedPath, normalizedPath);
+            // Path is allowed if it doesn't escape the allowed directory
+            return !relative.startsWith('..') && !path.isAbsolute(relative);
+        });
+
+        if (isInConfigPaths) {
+            return true;
+        }
+
+        // Fallback: check ApprovalManager via callback (includes working dir + approved dirs)
+        if (this.directoryApprovalChecker) {
+            return this.directoryApprovalChecker(normalizedPath);
+        }
+
+        return false;
     }
 
     /**
@@ -236,7 +245,7 @@ export class PathValidator {
      * @param filePath The file path to check (can be relative or absolute)
      * @returns true if the path is within config-allowed paths, false otherwise
      */
-    isPathWithinAllowed(filePath: string): boolean {
+    async isPathWithinAllowed(filePath: string): Promise<boolean> {
         if (!filePath || filePath.trim() === '') {
             return false;
         }
@@ -250,9 +259,9 @@ export class PathValidator {
                 ? path.resolve(filePath)
                 : path.resolve(workingDir, filePath);
 
-            // Try to resolve symlinks for existing files
+            // Try to resolve symlinks for existing files (async, non-blocking)
             try {
-                normalizedPath = realpathSync.native(normalizedPath);
+                normalizedPath = await fs.realpath(normalizedPath);
             } catch {
                 // Path doesn't exist yet, use resolved path
             }

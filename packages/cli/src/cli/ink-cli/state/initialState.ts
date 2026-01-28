@@ -25,6 +25,7 @@ export function createInitialState(initialModelName: string = ''): CLIState {
             isProcessing: false,
             isCancelling: false,
             isThinking: false,
+            isCompacting: false,
             activeOverlay: 'none',
             exitWarningShown: false,
             exitWarningTimestamp: null,
@@ -41,6 +42,9 @@ export function createInitialState(initialModelName: string = ''): CLIState {
             },
             promptAddWizard: null,
             autoApproveEdits: false,
+            todoExpanded: true,
+            planModeActive: false,
+            planModeInitialized: false,
         },
         session: {
             id: null,

@@ -10,6 +10,7 @@ import React, { useCallback, useRef, useEffect, useImperativeHandle, forwardRef 
 import type { DextoAgent, ContentPart, ImagePart, TextPart, QueuedMessage } from '@dexto/core';
 import { InputArea, type OverlayTrigger } from '../components/input/InputArea.js';
 import { InputService, processStream } from '../services/index.js';
+import { useSoundService } from '../contexts/index.js';
 import type {
     Message,
     UIState,
@@ -17,6 +18,7 @@ import type {
     SessionState,
     PendingImage,
     PastedBlock,
+    TodoItem,
 } from '../state/types.js';
 import { createUserMessage } from '../utils/messageFormatting.js';
 import { generateMessageId } from '../utils/idGenerator.js';
@@ -57,6 +59,8 @@ interface InputContainerProps {
     setApproval: React.Dispatch<React.SetStateAction<ApprovalRequest | null>>;
     /** Setter for approval queue (for queued approvals via processStream) */
     setApprovalQueue: React.Dispatch<React.SetStateAction<ApprovalRequest[]>>;
+    /** Setter for todo items (for todo tool updates via processStream) */
+    setTodos: React.Dispatch<React.SetStateAction<TodoItem[]>>;
     agent: DextoAgent;
     inputService: InputService;
     /** Optional keyboard scroll handler (for alternate buffer mode) */
@@ -87,6 +91,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
             setQueuedMessages,
             setApproval,
             setApprovalQueue,
+            setTodos,
             agent,
             inputService,
             onKeyboardScroll,
@@ -96,6 +101,9 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
     ) {
         // Track pending session creation to prevent race conditions
         const sessionCreationPromiseRef = useRef<Promise<SessionCreationResult> | null>(null);
+
+        // Sound notification service from context
+        const soundService = useSoundService();
 
         // Ref to track autoApproveEdits so processStream can read latest value mid-stream
         const autoApproveEditsRef = useRef(ui.autoApproveEdits);
@@ -208,28 +216,35 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
         );
 
         // Handle overlay triggers
+        // Allow triggers while processing (for queuing), but not during approval
+        // IMPORTANT: Use functional updates to check prev.activeOverlay, not the closure value.
+        // This avoids race conditions when open/close happen in quick succession (React batching).
         const handleTriggerOverlay = useCallback(
             (trigger: OverlayTrigger) => {
-                if (ui.isProcessing || approval) return;
+                if (approval) return;
 
                 if (trigger === 'close') {
-                    if (
-                        ui.activeOverlay === 'slash-autocomplete' ||
-                        ui.activeOverlay === 'resource-autocomplete'
-                    ) {
-                        setUi((prev) => ({
-                            ...prev,
-                            activeOverlay: 'none',
-                            mcpWizardServerType: null,
-                        }));
-                    }
+                    // Use functional update to check the ACTUAL current state, not stale closure
+                    setUi((prev) => {
+                        if (
+                            prev.activeOverlay === 'slash-autocomplete' ||
+                            prev.activeOverlay === 'resource-autocomplete'
+                        ) {
+                            return {
+                                ...prev,
+                                activeOverlay: 'none',
+                                mcpWizardServerType: null,
+                            };
+                        }
+                        return prev;
+                    });
                 } else if (trigger === 'slash-autocomplete') {
                     setUi((prev) => ({ ...prev, activeOverlay: 'slash-autocomplete' }));
                 } else if (trigger === 'resource-autocomplete') {
                     setUi((prev) => ({ ...prev, activeOverlay: 'resource-autocomplete' }));
                 }
             },
-            [setUi, ui.isProcessing, ui.activeOverlay, approval]
+            [setUi, approval]
         );
 
         // Handle image paste from clipboard
@@ -525,6 +540,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                                     setPendingMessages,
                                     setDequeuedBuffer,
                                     setUi,
+                                    setSession,
                                     setQueuedMessages,
                                     setApproval,
                                     setApprovalQueue,
@@ -533,6 +549,8 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                                     useStreaming,
                                     autoApproveEditsRef,
                                     eventBus: agent.agentEventBus,
+                                    setTodos,
+                                    ...(soundService && { soundService }),
                                 }
                             );
                             return; // processStream handles UI state
@@ -598,12 +616,37 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
 
                         // Build content with images if any
                         let content: string | ContentPart[];
+
+                        // Plan mode injection: prepend plan skill content on first message
+                        // The <plan-mode> tags are filtered out by the message renderer so users
+                        // don't see the instructions, but the LLM receives them.
+                        //
+                        // TODO: Consider dropping <plan-mode> content after plan is approved/disabled.
+                        // Edge case: user may still need access to plan tools after approval for
+                        // progress tracking (checking off tasks). Current approach keeps it simple
+                        // by letting the content remain in context - it's not re-injected, just
+                        // stays from the first message.
+                        let messageText = trimmed;
+                        if (ui.planModeActive && !ui.planModeInitialized) {
+                            try {
+                                const planSkill = await agent.resolvePrompt('plan', {});
+                                if (planSkill.text) {
+                                    messageText = `<plan-mode>\n${planSkill.text}\n</plan-mode>\n\n${trimmed}`;
+                                    // Mark plan mode as initialized after injection
+                                    setUi((prev) => ({ ...prev, planModeInitialized: true }));
+                                }
+                            } catch {
+                                // Plan skill not found - continue without injection
+                                // This can happen if the plan-tools plugin is not enabled
+                            }
+                        }
+
                         if (pendingImages.length > 0) {
                             // Build multimodal content parts
                             const parts: ContentPart[] = [];
 
-                            // Add text part first
-                            parts.push({ type: 'text', text: trimmed } as TextPart);
+                            // Add text part first (with potential plan-mode injection)
+                            parts.push({ type: 'text', text: messageText } as TextPart);
 
                             // Add image parts
                             for (const img of pendingImages) {
@@ -616,7 +659,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
 
                             content = parts;
                         } else {
-                            content = trimmed;
+                            content = messageText;
                         }
 
                         // Get current LLM config for analytics
@@ -642,6 +685,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                                 setPendingMessages,
                                 setDequeuedBuffer,
                                 setUi,
+                                setSession,
                                 setQueuedMessages,
                                 setApproval,
                                 setApprovalQueue,
@@ -650,6 +694,8 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                                 useStreaming,
                                 autoApproveEditsRef,
                                 eventBus: agent.agentEventBus,
+                                setTodos,
+                                ...(soundService && { soundService }),
                             }
                         );
 
@@ -693,8 +739,11 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                 inputService,
                 ui.isProcessing,
                 ui.activeOverlay,
+                ui.planModeActive,
+                ui.planModeInitialized,
                 session.id,
                 useStreaming,
+                soundService,
             ]
         );
 
@@ -709,6 +758,8 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
             'tool-browser',
             'prompt-add-wizard',
             'model-selector',
+            'export-wizard',
+            'marketplace-add',
         ];
         const hasOverlayWithOwnInput = overlaysWithOwnInput.includes(ui.activeOverlay);
         const isHistorySearchActive = ui.historySearch.isActive;
@@ -720,7 +771,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
         // Note: slash-autocomplete handles its own Enter key (either executes command or submits raw text)
         const shouldHandleSubmit = ui.activeOverlay === 'none' || ui.activeOverlay === 'approval';
         // Allow history navigation when not blocked by approval/overlay
-        // When processing: handler allows queue editing but blocks history navigation
+        // Allow during processing so users can browse previous prompts while agent runs
         const canNavigateHistory = !approval && ui.activeOverlay === 'none';
 
         const placeholder = approval

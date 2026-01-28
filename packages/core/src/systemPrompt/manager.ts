@@ -119,4 +119,28 @@ export class SystemPromptManager {
     getContributors(): SystemPromptContributor[] {
         return this.contributors;
     }
+
+    /**
+     * Add a contributor dynamically after construction.
+     * The contributor will be inserted in priority order.
+     */
+    addContributor(contributor: SystemPromptContributor): void {
+        this.contributors.push(contributor);
+        this.contributors.sort((a, b) => a.priority - b.priority);
+        this.logger.debug(
+            `Added contributor: ${contributor.id} (priority: ${contributor.priority})`
+        );
+    }
+
+    /**
+     * Remove a contributor by ID.
+     * Returns true if removed, false if not found.
+     */
+    removeContributor(id: string): boolean {
+        const index = this.contributors.findIndex((c) => c.id === id);
+        if (index === -1) return false;
+        this.contributors.splice(index, 1);
+        this.logger.debug(`Removed contributor: ${id}`);
+        return true;
+    }
 }

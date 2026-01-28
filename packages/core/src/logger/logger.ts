@@ -463,6 +463,7 @@ export class Logger {
 
     // CLI startup information display methods
     displayStartupInfo(info: {
+        configPath?: string;
         model?: string;
         provider?: string;
         connectedServers?: { count: number; names: string[] };
@@ -475,6 +476,10 @@ export class Logger {
         if (this.isSilent) return;
 
         console.log(''); // Add spacing
+
+        if (info.configPath) {
+            console.log(`📄 ${chalk.bold('Config:')} ${chalk.dim(info.configPath)}`);
+        }
 
         if (info.model && info.provider) {
             console.log(

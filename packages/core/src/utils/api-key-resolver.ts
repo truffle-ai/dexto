@@ -14,6 +14,8 @@ export const PROVIDER_API_KEY_MAP: Record<LLMProvider, string[]> = {
     groq: ['GROQ_API_KEY'],
     cohere: ['COHERE_API_KEY'],
     xai: ['XAI_API_KEY', 'X_AI_API_KEY'],
+    minimax: ['MINIMAX_API_KEY'],
+    glm: ['ZHIPU_API_KEY', 'ZHIPUAI_API_KEY'],
     openrouter: ['OPENROUTER_API_KEY'],
     litellm: ['LITELLM_API_KEY', 'LITELLM_KEY'],
     glama: ['GLAMA_API_KEY'],
@@ -29,7 +31,8 @@ export const PROVIDER_API_KEY_MAP: Record<LLMProvider, string[]> = {
     // Local providers don't require API keys
     local: [], // Native node-llama-cpp execution
     ollama: [], // Ollama server (no authentication required)
-    // TODO: dexto: ['DEXTO_API_KEY'],
+    // Dexto gateway - requires key from `dexto login`
+    dexto: ['DEXTO_API_KEY'],
     // perplexity: ['PERPLEXITY_API_KEY'],
     // together: ['TOGETHER_API_KEY'],
     // fireworks: ['FIREWORKS_API_KEY'],

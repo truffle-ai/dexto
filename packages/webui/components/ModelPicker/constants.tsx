@@ -12,6 +12,8 @@ export const PROVIDER_LOGOS: Record<LLMProvider, string> = {
     xai: '/logos/grok.svg',
     'openai-compatible': '/logos/openai.svg',
     cohere: '/logos/cohere-color.svg',
+    minimax: '',
+    glm: '',
     openrouter: '/logos/openrouter.svg',
     litellm: '/logos/litellm.svg',
     glama: '/logos/glama.svg',
@@ -19,6 +21,7 @@ export const PROVIDER_LOGOS: Record<LLMProvider, string> = {
     bedrock: '/logos/aws-color.svg',
     local: '', // Uses Bot icon fallback - local GGUF models via node-llama-cpp
     ollama: '/logos/ollama.svg', // Ollama server
+    dexto: '/logos/dexto/dexto_logo_icon.svg', // Dexto gateway - use Dexto logo
 };
 
 // Provider pricing URLs (for quick access from Model Picker)
@@ -29,24 +32,30 @@ export const PROVIDER_PRICING_URLS: Partial<Record<LLMProvider, string>> = {
     groq: 'https://groq.com/pricing/',
     xai: 'https://docs.x.ai/docs/models',
     cohere: 'https://cohere.com/pricing',
+    minimax: 'https://platform.minimax.io/docs/pricing/overview',
+    glm: 'https://open.bigmodel.cn/pricing',
     openrouter: 'https://openrouter.ai/models',
     litellm: 'https://docs.litellm.ai/',
     glama: 'https://glama.ai/',
     vertex: 'https://cloud.google.com/vertex-ai/generative-ai/pricing',
     bedrock: 'https://aws.amazon.com/bedrock/pricing/',
+    // TODO: make this a valid URL
+    dexto: 'https://dexto.ai/pricing',
     // 'openai-compatible' intentionally omitted (varies by vendor)
 };
 
 // Helper: Format pricing from per‑million to per‑thousand tokens
 export function formatPricingLines(pricing?: {
-    inputPerM: number;
-    outputPerM: number;
+    inputPerM?: number;
+    outputPerM?: number;
     cacheReadPerM?: number;
     cacheWritePerM?: number;
     currency?: 'USD';
     unit?: 'per_million_tokens';
 }): string[] {
     if (!pricing) return [];
+    // Bail early if required pricing fields are missing
+    if (pricing.inputPerM == null || pricing.outputPerM == null) return [];
     const currency = pricing.currency || 'USD';
     const cur = currency === 'USD' ? '$' : '';
     const lines: string[] = [];
@@ -68,6 +77,7 @@ export const COLORED_LOGOS: readonly LLMProvider[] = [
     'cohere',
     'anthropic',
     'vertex',
+    'dexto',
 ] as const;
 
 // Helper to check if a logo needs dark mode inversion

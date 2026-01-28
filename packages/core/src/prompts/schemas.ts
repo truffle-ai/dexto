@@ -45,6 +45,36 @@ export const InlinePromptSchema = z
             .optional()
             .default(false)
             .describe('Show as a clickable button in WebUI starter prompts'),
+        // Claude Code compatibility fields (Phase 1)
+        'disable-model-invocation': z
+            .boolean()
+            .optional()
+            .default(false)
+            .describe('Exclude from auto-invocation list in system prompt'),
+        'user-invocable': z
+            .boolean()
+            .optional()
+            .default(true)
+            .describe('Show in slash command menu (false = hidden but auto-invocable by LLM)'),
+        // Per-prompt overrides (Phase 2)
+        'allowed-tools': z
+            .array(z.string())
+            .optional()
+            .describe('Tools allowed when this prompt is active (overrides global policies)'),
+        model: z.string().optional().describe('Model to use when this prompt is invoked'),
+        // Execution context (Phase 2)
+        context: z
+            .enum(['inline', 'fork'])
+            .optional()
+            .default('inline')
+            .describe(
+                "Execution context: 'inline' runs in current session (default), 'fork' spawns isolated subagent"
+            ),
+        // Agent for fork execution
+        agent: z
+            .string()
+            .optional()
+            .describe('Agent ID from registry to use for fork execution (e.g., "explore-agent")'),
     })
     .strict()
     .describe('Inline prompt with text defined directly in config');
@@ -65,6 +95,38 @@ export const FilePromptSchema = z
             .optional()
             .default(false)
             .describe('Show as a clickable button in WebUI starter prompts'),
+        // Claude Code compatibility fields (Phase 1) - can override frontmatter
+        'disable-model-invocation': z
+            .boolean()
+            .optional()
+            .describe('Exclude from auto-invocation list in system prompt'),
+        'user-invocable': z
+            .boolean()
+            .optional()
+            .describe('Show in slash command menu (false = hidden but auto-invocable by LLM)'),
+        // Per-prompt overrides (Phase 2) - can override frontmatter
+        'allowed-tools': z
+            .array(z.string())
+            .optional()
+            .describe('Tools allowed when this prompt is active (overrides global policies)'),
+        model: z.string().optional().describe('Model to use when this prompt is invoked'),
+        // Execution context (Phase 2) - can override frontmatter
+        context: z
+            .enum(['inline', 'fork'])
+            .optional()
+            .describe(
+                "Execution context: 'inline' runs in current session (default), 'fork' spawns isolated subagent"
+            ),
+        // Agent for fork execution - can override frontmatter
+        agent: z
+            .string()
+            .optional()
+            .describe('Agent ID from registry to use for fork execution (e.g., "explore-agent")'),
+        // Plugin namespace (Phase 3) - for prefixing command names
+        namespace: z
+            .string()
+            .optional()
+            .describe('Plugin namespace for command prefixing (e.g., plugin-name:command)'),
     })
     .strict()
     .describe('File-based prompt loaded from a markdown file');

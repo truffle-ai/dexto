@@ -235,6 +235,13 @@ export interface AssistantMessage extends MessageBase {
      */
     reasoning?: string;
 
+    /**
+     * Provider-specific metadata for reasoning, used for round-tripping.
+     * Contains opaque tokens (e.g., OpenAI itemId, Gemini thought signatures)
+     * that must be passed back to the provider on subsequent requests.
+     */
+    reasoningMetadata?: Record<string, unknown>;
+
     /** Token usage accounting for this response */
     tokenUsage?: TokenUsage;
 
@@ -280,6 +287,12 @@ export interface ToolMessage extends MessageBase {
      * Present when the tool result has been summarized to save context space.
      */
     compactedAt?: number;
+
+    /**
+     * Structured display data for tool-specific rendering (diffs, shell output, etc.)
+     * Persisted from SanitizedToolResult.meta.display for proper rendering on session resume.
+     */
+    displayData?: ToolDisplayData;
 }
 
 /**

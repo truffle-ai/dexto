@@ -56,13 +56,13 @@ export function GenericRenderer({ content, maxLines = 15 }: GenericRendererProps
             </Text>
             {displayLines.map((line, i) => (
                 <Text key={i} color="gray" wrap="truncate">
-                    {'    '}
+                    {'  ⎿ '}
                     {line}
                 </Text>
             ))}
             {truncated && (
                 <Text color="gray">
-                    {'    '}... {lines.length - maxLines} more lines
+                    {'  ⎿ '}... {lines.length - maxLines} more lines
                 </Text>
             )}
         </Box>

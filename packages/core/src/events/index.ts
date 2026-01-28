@@ -47,6 +47,7 @@ export const AGENT_EVENT_NAMES = [
     'resource:cache-invalidated',
     'approval:request',
     'approval:response',
+    'run:invoke',
 ] as const;
 
 /**
@@ -62,6 +63,7 @@ export const SESSION_EVENT_NAMES = [
     'llm:switched',
     'llm:unsupported-input',
     'tool:running',
+    'context:compacting',
     'context:compacted',
     'context:pruned',
     'message:queued',
@@ -105,6 +107,7 @@ export const STREAMING_EVENTS = [
     'tool:running',
 
     // Context management events
+    'context:compacting',
     'context:compacted',
     'context:pruned',
 
@@ -121,6 +124,9 @@ export const STREAMING_EVENTS = [
     // Approval events (needed for tool confirmation in streaming UIs)
     'approval:request',
     'approval:response',
+
+    // Service events (extensible pattern for non-core services)
+    'service:event',
 ] as const;
 
 /**
@@ -296,6 +302,22 @@ export interface AgentEventMap {
         source: 'mcp' | 'builtin';
     };
 
+    /**
+     * Agent run is being invoked externally (e.g., by scheduler, A2A, API).
+     * Fired BEFORE agent.stream()/run() is called.
+     * UI can use this to display the incoming prompt and set up streaming subscriptions.
+     */
+    'run:invoke': {
+        /** The session this run will execute in */
+        sessionId: string;
+        /** The prompt/content being sent */
+        content: import('../context/types.js').ContentPart[];
+        /** Source of the invocation */
+        source: 'scheduler' | 'a2a' | 'api' | 'external';
+        /** Optional metadata about the invocation */
+        metadata?: Record<string, unknown>;
+    };
+
     // LLM events (forwarded from session bus with sessionId added)
     /** LLM service started thinking */
     'llm:thinking': {
@@ -324,6 +346,8 @@ export interface AgentEventMap {
             cacheReadTokens?: number;
             cacheWriteTokens?: number;
         };
+        /** Estimated input tokens before LLM call (for analytics/calibration) */
+        estimatedInputTokens?: number;
         /** Finish reason: 'tool-calls' means more steps coming, others indicate completion */
         finishReason?: LLMFinishReason;
         sessionId: string;
@@ -388,6 +412,13 @@ export interface AgentEventMap {
         sessionId: string;
     };
 
+    /** Context compaction is starting */
+    'context:compacting': {
+        /** Estimated tokens that triggered compaction */
+        estimatedTokens: number;
+        sessionId: string;
+    };
+
     /** Context was compacted during multi-step tool calling */
     'context:compacted': {
         /** Actual input tokens from API that triggered compaction */
@@ -397,7 +428,7 @@ export interface AgentEventMap {
         originalMessages: number;
         compactedMessages: number;
         strategy: string;
-        reason: 'overflow' | 'token_limit' | 'message_limit';
+        reason: 'overflow' | 'manual';
         sessionId: string;
     };
 
@@ -483,6 +514,24 @@ export interface AgentEventMap {
 
     /** Fired when user approval response is received */
     'approval:response': ApprovalResponse;
+
+    /**
+     * Extensible service event for non-core/additive services.
+     * Allows services like agent-spawner, process-tools, etc. to emit events
+     * without polluting the core event namespace.
+     */
+    'service:event': {
+        /** Service identifier (e.g., 'agent-spawner', 'process-tools') */
+        service: string;
+        /** Event type within the service (e.g., 'progress', 'stdout') */
+        event: string;
+        /** Links this event to a parent tool call */
+        toolCallId?: string;
+        /** Session this event belongs to */
+        sessionId: string;
+        /** Arbitrary event data - service-specific payload */
+        data: Record<string, unknown>;
+    };
 }
 
 /**
@@ -514,6 +563,8 @@ export interface SessionEventMap {
             cacheReadTokens?: number;
             cacheWriteTokens?: number;
         };
+        /** Estimated input tokens before LLM call (for analytics/calibration) */
+        estimatedInputTokens?: number;
         /** Finish reason: 'tool-calls' means more steps coming, others indicate completion */
         finishReason?: LLMFinishReason;
     };
@@ -571,6 +622,12 @@ export interface SessionEventMap {
         details?: any;
     };
 
+    /** Context compaction is starting */
+    'context:compacting': {
+        /** Estimated tokens that triggered compaction */
+        estimatedTokens: number;
+    };
+
     /** Context was compacted during multi-step tool calling */
     'context:compacted': {
         /** Actual input tokens from API that triggered compaction */
@@ -580,7 +637,7 @@ export interface SessionEventMap {
         originalMessages: number;
         compactedMessages: number;
         strategy: string;
-        reason: 'overflow' | 'token_limit' | 'message_limit';
+        reason: 'overflow' | 'manual';
     };
 
     /** Old tool outputs were pruned (marked with compactedAt) to save tokens */
@@ -658,8 +715,10 @@ export const EventNames: readonly EventName[] = Object.freeze([...EVENT_NAMES]);
 /**
  * Generic typed EventEmitter base class using composition instead of inheritance
  * This provides full compile-time type safety by not extending EventEmitter
+ *
+ * Exported for extension by packages like multi-agent-server that need custom event buses.
  */
-class BaseTypedEventEmitter<TEventMap extends Record<string, any>> {
+export class BaseTypedEventEmitter<TEventMap extends Record<string, any>> {
     // Wrapped EventEmitter instance
     private _emitter = new EventEmitter();
 

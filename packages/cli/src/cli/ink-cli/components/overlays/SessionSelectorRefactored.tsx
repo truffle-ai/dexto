@@ -125,11 +125,11 @@ const SessionSelector = forwardRef<SessionSelectorHandle, SessionSelectorProps>(
         const formatSession = (session: SessionOption): string => {
             const parts: string[] = [];
 
-            // Add title if available, otherwise use "Session" as fallback
+            // Add title if available, otherwise use "New Session" as fallback
             if (session.metadata?.title) {
                 parts.push(session.metadata.title);
             } else {
-                parts.push('Session');
+                parts.push('New Session');
             }
 
             // Always show short ID

@@ -46,10 +46,44 @@ export class DatabaseHistoryProvider implements IConversationHistoryProvider {
         if (this.cache === null) {
             const key = this.getMessagesKey();
             try {
-                this.cache = await this.database.getRange<InternalMessage>(key, 0, 10000);
-                this.logger.debug(
-                    `DatabaseHistoryProvider: Loaded ${this.cache.length} messages from DB for session ${this.sessionId}`
-                );
+                const limit = 10000;
+                const rawMessages = await this.database.getRange<InternalMessage>(key, 0, limit);
+
+                if (rawMessages.length === limit) {
+                    this.logger.warn(
+                        `DatabaseHistoryProvider: Session ${this.sessionId} hit message limit (${limit}), history may be truncated`
+                    );
+                }
+
+                // Deduplicate messages by ID (keep first occurrence to preserve order)
+                const seen = new Set<string>();
+                this.cache = [];
+                let duplicateCount = 0;
+
+                for (const msg of rawMessages) {
+                    if (msg.id && seen.has(msg.id)) {
+                        duplicateCount++;
+                        continue; // Skip duplicate
+                    }
+                    if (msg.id) {
+                        seen.add(msg.id);
+                    }
+                    this.cache.push(msg);
+                }
+
+                // Log and self-heal if duplicates found (indicates prior data corruption)
+                if (duplicateCount > 0) {
+                    this.logger.warn(
+                        `DatabaseHistoryProvider: Found ${duplicateCount} duplicate messages for session ${this.sessionId}, deduped to ${this.cache.length}`
+                    );
+                    // Mark dirty to rewrite clean data on next flush
+                    this.dirty = true;
+                    this.scheduleFlush();
+                } else {
+                    this.logger.debug(
+                        `DatabaseHistoryProvider: Loaded ${this.cache.length} messages for session ${this.sessionId}`
+                    );
+                }
             } catch (error) {
                 this.logger.error(
                     `DatabaseHistoryProvider: Error loading messages for session ${this.sessionId}: ${error instanceof Error ? error.message : String(error)}`
@@ -74,6 +108,14 @@ export class DatabaseHistoryProvider implements IConversationHistoryProvider {
             await this.getHistory();
         }
 
+        // Check if message already exists in cache (prevent duplicates)
+        if (message.id && this.cache!.some((m) => m.id === message.id)) {
+            this.logger.debug(
+                `DatabaseHistoryProvider: Message ${message.id} already exists, skipping`
+            );
+            return;
+        }
+
         // Update cache
         this.cache!.push(message);
 
@@ -82,11 +124,7 @@ export class DatabaseHistoryProvider implements IConversationHistoryProvider {
             await this.database.append(key, message);
 
             this.logger.debug(
-                `DatabaseHistoryProvider: Saved message for session ${this.sessionId}`,
-                {
-                    role: message.role,
-                    id: message.id,
-                }
+                `DatabaseHistoryProvider: Saved message ${message.id} (${message.role}) for session ${this.sessionId}`
             );
         } catch (error) {
             // Remove from cache on failure to keep in sync
@@ -199,14 +237,28 @@ export class DatabaseHistoryProvider implements IConversationHistoryProvider {
         }
 
         const key = this.getMessagesKey();
-        const messageCount = this.cache.length;
+
+        // Take a snapshot of cache to avoid race conditions with concurrent saveMessage() calls.
+        // If saveMessage() is called during flush, it will append to the live cache AND write to DB.
+        // By iterating over a snapshot, we avoid re-appending messages that were already written.
+        const snapshot = [...this.cache];
+        const messageCount = snapshot.length;
+
+        this.logger.debug(
+            `DatabaseHistoryProvider: FLUSH START key=${key} snapshotSize=${messageCount} ids=[${snapshot.map((m) => m.id).join(',')}]`
+        );
 
         try {
-            // Atomic replace: delete all + re-append
+            // Atomic replace: delete all + re-append from snapshot
             await this.database.delete(key);
-            for (const msg of this.cache) {
+            this.logger.debug(`DatabaseHistoryProvider: FLUSH DELETED key=${key}`);
+
+            for (const msg of snapshot) {
                 await this.database.append(key, msg);
             }
+            this.logger.debug(
+                `DatabaseHistoryProvider: FLUSH REAPPENDED key=${key} count=${messageCount}`
+            );
 
             // Only clear dirty if no new updates were scheduled during flush.
             // If flushTimer exists, updateMessage() was called during the flush,
@@ -214,9 +266,6 @@ export class DatabaseHistoryProvider implements IConversationHistoryProvider {
             if (!this.flushTimer) {
                 this.dirty = false;
             }
-            this.logger.debug(
-                `DatabaseHistoryProvider: Flushed ${messageCount} messages to DB for session ${this.sessionId}`
-            );
         } catch (error) {
             this.logger.error(
                 `DatabaseHistoryProvider: Error flushing messages for session ${this.sessionId}: ${error instanceof Error ? error.message : String(error)}`
@@ -241,8 +290,8 @@ export class DatabaseHistoryProvider implements IConversationHistoryProvider {
 
         this.flushTimer = setTimeout(() => {
             this.flushTimer = null;
-            // Fire and forget - errors are logged in doFlush
-            this.doFlush().catch(() => {
+            // Use flush() instead of doFlush() to respect flushPromise concurrency guard
+            this.flush().catch(() => {
                 // Error already logged in doFlush
             });
         }, DatabaseHistoryProvider.FLUSH_DELAY_MS);

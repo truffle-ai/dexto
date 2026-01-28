@@ -7,6 +7,7 @@
  * Commands:
  * - resume: Shows interactive session selector
  * - search: Opens interactive search overlay
+ * - rename: Rename the current session
  *
  * Note: For headless CLI session management (list, history, delete),
  * see src/cli/commands/session-commands.ts
@@ -54,6 +55,26 @@ export const searchCommand: CommandDefinition = {
     usage: '/search',
     category: 'General',
     aliases: ['find'],
+    handler: async (
+        _args: string[],
+        _agent: DextoAgent,
+        _ctx: CommandContext
+    ): Promise<boolean> => {
+        // Interactive overlay handles everything - just return success
+        return true;
+    },
+};
+
+/**
+ * Rename command - rename the current session
+ * In interactive CLI, this shows the rename overlay.
+ * The overlay is triggered via commandOverlays.ts registry.
+ */
+export const renameCommand: CommandDefinition = {
+    name: 'rename',
+    description: 'Rename the current session',
+    usage: '/rename',
+    category: 'General',
     handler: async (
         _args: string[],
         _agent: DextoAgent,

@@ -295,6 +295,29 @@
     "matchIds": ["nano-banana", "nano_banana"]
   },
   {
+    "id": "openai-image",
+    "name": "OpenAI Image",
+    "description": "OpenAI's image generation and editing API with GPT Image models and DALL-E support",
+    "category": "creative",
+    "icon": "🎨",
+    "config": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@truffle-ai/openai-image-server"],
+      "env": {
+        "OPENAI_API_KEY": ""
+      },
+      "timeout": 60000
+    },
+    "tags": ["image", "generation", "editing", "ai", "openai", "dall-e", "gpt-image"],
+    "isOfficial": true,
+    "isInstalled": false,
+    "requirements": { "platform": "all", "node": ">=18.0.0" },
+    "author": "Truffle AI",
+    "homepage": "https://github.com/truffle-ai/mcp-servers/tree/main/src/openai-image",
+    "matchIds": ["openai-image", "openai_image"]
+  },
+  {
     "id": "heygen",
     "name": "HeyGen",
     "description": "Generate realistic human-like audio using HeyGen",

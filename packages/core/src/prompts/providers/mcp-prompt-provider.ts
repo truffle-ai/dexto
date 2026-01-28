@@ -44,6 +44,7 @@ export class MCPPromptProvider implements PromptProvider {
             ({ promptName, serverName, definition }) => {
                 const promptInfo: PromptInfo = {
                     name: promptName,
+                    displayName: promptName,
                     title:
                         definition.title || definition.description || `MCP prompt: ${promptName}`,
                     description: definition.description || `MCP prompt: ${promptName}`,

@@ -103,4 +103,9 @@ export const queryKeys = {
         ollama: (baseURL?: string) => ['models', 'ollama', baseURL ?? 'default'] as const,
         validateLocal: ['models', 'validateLocal'] as const,
     },
+
+    // Dexto auth queries
+    dextoAuth: {
+        status: ['dextoAuth', 'status'] as const,
+    },
 } as const;

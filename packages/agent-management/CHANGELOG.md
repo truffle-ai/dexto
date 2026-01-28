@@ -1,5 +1,103 @@
 # @dexto/agent-management
 
+## 1.5.6
+
+### Patch Changes
+
+- 042f4f0: ### CLI Improvements
+    - Add `/export` command to export conversations as Markdown or JSON
+    - Add `Ctrl+T` toggle for task list visibility during processing
+    - Improve task list UI with collapsible view near the processing message
+    - Fix race condition causing duplicate rendering (mainly visible with explore tool)
+    - Don't truncate `pattern` and `question` args in tool output display
+
+    ### Bug Fixes
+    - Fix build script to preserve `.dexto` storage (conversations, logs) during clean builds
+    - Fix `@dexto/tools-todo` versioning - add to fixed version group in changeset config
+
+    ### Configuration Changes
+    - Remove approval timeout defaults - now waits indefinitely (better UX for CLI)
+    - Add package versioning guidelines to AGENTS.md
+
+- Updated dependencies [042f4f0]
+    - @dexto/core@1.5.6
+
+## 1.5.5
+
+### Patch Changes
+
+- Updated dependencies [63fa083]
+- Updated dependencies [6df3ca9]
+    - @dexto/core@1.5.5
+
+## 1.5.4
+
+### Patch Changes
+
+- aa2c9a0: - new --dev flag for using dev mode with the CLI (for maintainers) (sets DEXTO_DEV_MODE=true and ensures local files are used)
+    - improved bash tool descriptions
+    - fixed explore agent task description getting truncated
+    - fixed some alignment issues
+    - fix search/find tools not asking approval for working outside directory
+    - add sound feature (sounds when approval reqd, when loop done)
+        - configurable in `preferences.yml` (on by default) and in `~/.dexto/sounds`, instructions in comment in `~/.dexto/preferences.yml`
+    - add new `env` system prompt contributor that includes info about os, working directory, git status. useful for coding agent to get enough context to improve cmd construction without unnecessary directory shifts
+    - support for loading `.claude/commands` and `.cursor/commands` global and local commands in addition to `.dexto/commands`
+- Updated dependencies [0016cd3]
+- Updated dependencies [499b890]
+- Updated dependencies [aa2c9a0]
+    - @dexto/core@1.5.4
+
+## 1.5.3
+
+### Patch Changes
+
+- 4f00295: Added spawn-agent tools and explore agent.
+- Updated dependencies [4f00295]
+- Updated dependencies [69c944c]
+    - @dexto/core@1.5.3
+
+## 1.5.2
+
+### Patch Changes
+
+- 91acb03: Fix typo in agents.md detection
+- Updated dependencies [8a85ea4]
+- Updated dependencies [527f3f9]
+    - @dexto/core@1.5.2
+
+## 1.5.1
+
+### Patch Changes
+
+- a25d3ee: Add shell command execution (`!command` shortcut), token counting display, and auto-discovery of agent instruction files (agent.md, claude.md, gemini.md)
+- bfcc7b1: PostgreSQL improvements and privacy mode
+
+    **PostgreSQL enhancements:**
+    - Add connection resilience for serverless databases (Neon, Supabase, etc.) with automatic retry on connection failures
+    - Support custom PostgreSQL schemas via `options.schema` config
+    - Add schema name validation to prevent SQL injection
+    - Improve connection pool error handling to prevent process crashes
+
+    **Privacy mode:**
+    - Add `--privacy-mode` CLI flag to hide file paths from output (useful for screen recording/sharing)
+    - Can also be enabled via `DEXTO_PRIVACY_MODE=true` environment variable
+
+    **Session improvements:**
+    - Add message deduplication in history provider to handle data corruption gracefully
+    - Add warning when conversation history hits 10k message limit
+    - Improve session deletion to ensure messages are always cleaned up
+
+    **Other fixes:**
+    - Sanitize explicit `agentId` for filesystem safety
+    - Change verbose flush logs to debug level
+    - Export `BaseTypedEventEmitter` from events module
+
+- 4aabdb7: Fix claude caching, added gpt-5.2 models and reasoning effort options in user flows.
+- Updated dependencies [bfcc7b1]
+- Updated dependencies [4aabdb7]
+    - @dexto/core@1.5.1
+
 ## 1.5.0
 
 ### Minor Changes

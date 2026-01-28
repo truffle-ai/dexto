@@ -16,12 +16,16 @@ export const mapErrorTypeToStatus = (type: ErrorType): number => {
     switch (type) {
         case ErrorType.USER:
             return 400;
-        case ErrorType.NOT_FOUND:
-            return 404;
+        case ErrorType.PAYMENT_REQUIRED:
+            return 402;
         case ErrorType.FORBIDDEN:
             return 403;
+        case ErrorType.NOT_FOUND:
+            return 404;
         case ErrorType.TIMEOUT:
             return 408;
+        case ErrorType.CONFLICT:
+            return 409;
         case ErrorType.RATE_LIMIT:
             return 429;
         case ErrorType.SYSTEM:

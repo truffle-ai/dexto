@@ -35,6 +35,10 @@ interface ProviderOption {
 /**
  * Provider configuration registry
  * Organized by category for better UX
+ *
+ * Note: dexto is NOT included here - it's a transparent routing layer,
+ * not a user-selectable provider. When logged into Dexto, requests are
+ * automatically routed through the Dexto gateway.
  */
 export const PROVIDER_REGISTRY: Partial<Record<LLMProvider, ProviderOption>> = {
     google: {
@@ -111,6 +115,22 @@ export const PROVIDER_REGISTRY: Partial<Record<LLMProvider, ProviderOption>> = {
         category: 'cloud',
         apiKeyUrl: 'https://dashboard.cohere.com/api-keys',
         envVar: 'COHERE_API_KEY',
+    },
+    minimax: {
+        value: 'minimax',
+        label: 'MiniMax',
+        hint: 'M2.1 coding-focused models',
+        category: 'cloud',
+        apiKeyUrl: 'https://platform.minimax.io/docs/faq/about-apis',
+        envVar: 'MINIMAX_API_KEY',
+    },
+    glm: {
+        value: 'glm',
+        label: 'GLM (Zhipu)',
+        hint: 'GLM-4.7 series models',
+        category: 'cloud',
+        apiKeyUrl: 'https://open.bigmodel.cn/',
+        envVar: 'ZHIPU_API_KEY',
     },
     openrouter: {
         value: 'openrouter',

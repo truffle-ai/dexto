@@ -575,6 +575,26 @@ export class ApprovalManager {
     }
 
     /**
+     * Auto-approve pending requests that match a predicate.
+     * Used when a pattern is remembered to auto-approve other parallel requests
+     * that would now match the same pattern.
+     *
+     * @param predicate Function that returns true for requests that should be auto-approved
+     * @param responseData Optional data to include in the auto-approval response
+     * @returns Number of requests that were auto-approved
+     */
+    autoApprovePendingRequests(
+        predicate: (request: ApprovalRequest) => boolean,
+        responseData?: Record<string, unknown>
+    ): number {
+        const count = this.handler?.autoApprovePending?.(predicate, responseData) ?? 0;
+        if (count > 0) {
+            this.logger.info(`Auto-approved ${count} pending request(s) due to matching pattern`);
+        }
+        return count;
+    }
+
+    /**
      * Get current configuration
      */
     getConfig(): ApprovalManagerConfig {

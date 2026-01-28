@@ -24,6 +24,7 @@ export enum LLMErrorCode {
     // Limits
     TOKENS_EXCEEDED = 'llm_tokens_exceeded',
     RATE_LIMIT_EXCEEDED = 'llm_rate_limit_exceeded',
+    INSUFFICIENT_CREDITS = 'llm_insufficient_credits',
 
     // Operations
     SWITCH_FAILED = 'llm_switch_failed',

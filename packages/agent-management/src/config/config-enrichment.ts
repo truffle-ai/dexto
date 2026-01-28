@@ -5,8 +5,9 @@
  * This layer runs before agent initialization and injects explicit paths
  * into the configuration, eliminating the need for core services to resolve paths themselves.
  *
- * Also discovers command prompts from:
- * - Local: <projectRoot>/commands/ (in dev mode or dexto-project context)
+ * Also discovers command prompts from (in priority order):
+ * - Local: <projectRoot>/commands/ (dexto-source dev mode or dexto-project only)
+ * - Local: <cwd>/.dexto/commands/
  * - Global: ~/.dexto/commands/
  *
  * Core services now require explicit paths - this enrichment layer provides them.
@@ -15,16 +16,32 @@
 import { getDextoPath } from '../utils/path.js';
 import type { AgentConfig } from '@dexto/core';
 import * as path from 'path';
-import { discoverCommandPrompts } from './discover-prompts.js';
+import { discoverCommandPrompts, discoverAgentInstructionFile } from './discover-prompts.js';
+import {
+    discoverClaudeCodePlugins,
+    loadClaudeCodePlugin,
+    discoverStandaloneSkills,
+} from '../plugins/index.js';
 
 // Re-export for backwards compatibility
-export { discoverCommandPrompts } from './discover-prompts.js';
+export { discoverCommandPrompts, discoverAgentInstructionFile } from './discover-prompts.js';
 
 /**
  * Derives an agent ID from config or file path for per-agent isolation.
- * Priority: agentCard.name > filename (without extension) > 'coding-agent'
+ * Priority: explicit agentId > agentCard.name > filename (without extension) > 'coding-agent'
  */
 export function deriveAgentId(config: AgentConfig, configPath?: string): string {
+    // 0. If agentId is explicitly set in config, use it (highest priority)
+    if (config.agentId) {
+        // Sanitize for filesystem use (same as agentCard.name)
+        const sanitizedId = config.agentId
+            .toLowerCase()
+            .replace(/[^a-z0-9-_]/g, '-')
+            .replace(/-+/g, '-')
+            .replace(/^-|-$/g, '');
+        return sanitizedId || 'coding-agent';
+    }
+
     // 1. Try agentCard.name if available
     if (config.agentCard?.name) {
         // Sanitize name for filesystem use (remove spaces, special chars)
@@ -59,6 +76,14 @@ export interface EnrichAgentConfigOptions {
     isInteractiveCli?: boolean;
     /** Override log level (defaults to 'error' for SDK, CLI/server can override to 'info') */
     logLevel?: 'error' | 'warn' | 'info' | 'debug';
+    /** Skip Claude Code plugin discovery (useful for subagents that don't need plugins) */
+    skipPluginDiscovery?: boolean;
+    /**
+     * Bundled plugin paths from image definition.
+     * These are absolute paths to plugin directories that are discovered alongside
+     * user/project plugins.
+     */
+    bundledPlugins?: string[];
 }
 
 /**
@@ -84,11 +109,16 @@ export function enrichAgentConfig(
     // Handle backward compatibility: boolean arg was isInteractiveCli
     const opts: EnrichAgentConfigOptions =
         typeof options === 'boolean' ? { isInteractiveCli: options } : options;
-    const { isInteractiveCli = false, logLevel = 'error' } = opts;
+    const {
+        isInteractiveCli = false,
+        logLevel = 'error',
+        skipPluginDiscovery = false,
+        bundledPlugins = [],
+    } = opts;
     const agentId = deriveAgentId(config, configPath);
 
     // Generate per-agent paths
-    const logPath = getDextoPath('logs', `${agentId}.log`);
+    // Note: file logging is session-scoped (see core SessionManager) so we don't set a per-agent log file here.
     const dbPath = getDextoPath('database', `${agentId}.db`);
     const blobPath = getDextoPath('blobs', agentId);
 
@@ -101,26 +131,11 @@ export function enrichAgentConfig(
     // Enrich logger config: only provide if not set
     if (!config.logger) {
         // User didn't specify logger - provide defaults based on mode
-        // Interactive CLI: only file (console would interfere with chat UI)
-        // Other modes: console + file
+        // Interactive CLI: console transport is disabled to prevent interference with Ink UI
+        // File logging is session-scoped (see core SessionManager), so we do NOT add a file transport here.
         const transports = isInteractiveCli
-            ? [
-                  {
-                      type: 'file' as const,
-                      path: logPath,
-                      maxSize: 10 * 1024 * 1024, // 10MB
-                      maxFiles: 5,
-                  },
-              ]
-            : [
-                  { type: 'console' as const, colorize: true },
-                  {
-                      type: 'file' as const,
-                      path: logPath,
-                      maxSize: 10 * 1024 * 1024, // 10MB
-                      maxFiles: 5,
-                  },
-              ];
+            ? [{ type: 'silent' as const }]
+            : [{ type: 'console' as const, colorize: true }];
 
         enriched.logger = {
             level: logLevel,
@@ -188,6 +203,157 @@ export function enrichAgentConfig(
         );
 
         enriched.prompts = [...existingPrompts, ...filteredDiscovered];
+    }
+
+    // Discover and load Claude Code plugins (skip for subagents to avoid duplicate warnings)
+    if (!skipPluginDiscovery) {
+        // Build set of existing file paths for deduplication
+        // This prevents duplicate prompts when same file appears in config and plugins/skills
+        const existingPromptPaths = new Set<string>();
+        for (const prompt of enriched.prompts ?? []) {
+            if (prompt.type === 'file') {
+                existingPromptPaths.add(path.resolve(prompt.file));
+            }
+        }
+
+        const discoveredPlugins = discoverClaudeCodePlugins(undefined, bundledPlugins);
+        for (const plugin of discoveredPlugins) {
+            const loaded = loadClaudeCodePlugin(plugin);
+
+            // Log warnings for unsupported features
+            // Note: Logging happens at enrichment time since we don't have a logger instance
+            // Warnings are stored in the loaded plugin and can be accessed by callers
+            for (const warning of loaded.warnings) {
+                console.warn(`[plugin] ${warning}`);
+            }
+
+            // Add commands/skills as prompts with namespace
+            // Note: Both commands and skills are user-invocable by default (per schema).
+            // SKILL.md frontmatter can override with `user-invocable: false` if needed.
+            for (const cmd of loaded.commands) {
+                const resolvedPath = path.resolve(cmd.file);
+                if (existingPromptPaths.has(resolvedPath)) {
+                    continue; // Skip duplicate
+                }
+                existingPromptPaths.add(resolvedPath);
+
+                const promptEntry = {
+                    type: 'file' as const,
+                    file: cmd.file,
+                    namespace: cmd.namespace,
+                };
+
+                // Add to enriched prompts
+                enriched.prompts = enriched.prompts ?? [];
+                enriched.prompts.push(promptEntry);
+            }
+
+            // Merge MCP config into mcpServers
+            // Note: Plugin MCP config is loosely typed; users are responsible for valid server configs
+            if (loaded.mcpConfig?.mcpServers) {
+                enriched.mcpServers = {
+                    ...enriched.mcpServers,
+                    ...(loaded.mcpConfig.mcpServers as typeof enriched.mcpServers),
+                };
+            }
+
+            // Auto-add custom tool providers declared by Dexto-native plugins
+            // These are added to customTools config if not already explicitly configured
+            if (loaded.customToolProviders.length > 0) {
+                for (const providerType of loaded.customToolProviders) {
+                    // Check if already configured in customTools
+                    const alreadyConfigured = enriched.customTools?.some(
+                        (tool) =>
+                            typeof tool === 'object' && tool !== null && tool.type === providerType
+                    );
+
+                    if (!alreadyConfigured) {
+                        enriched.customTools = enriched.customTools ?? [];
+                        // Add with default config (just the type)
+                        enriched.customTools.push({ type: providerType } as Record<
+                            string,
+                            unknown
+                        >);
+                    }
+                }
+            }
+        }
+
+        // Discover standalone skills from ~/.dexto/skills/ and <cwd>/.dexto/skills/
+        // These are bare skill directories with SKILL.md files (not full plugins)
+        // Unlike plugin commands, standalone skills don't need namespace prefixing -
+        // the id from frontmatter or directory name is used directly.
+        const standaloneSkills = discoverStandaloneSkills();
+        for (const skill of standaloneSkills) {
+            const resolvedPath = path.resolve(skill.skillFile);
+            if (existingPromptPaths.has(resolvedPath)) {
+                continue; // Skip duplicate
+            }
+            existingPromptPaths.add(resolvedPath);
+
+            const promptEntry = {
+                type: 'file' as const,
+                file: skill.skillFile,
+                // No namespace for standalone skills - they use id directly
+                // (unlike plugin commands which need plugin:command naming)
+            };
+
+            enriched.prompts = enriched.prompts ?? [];
+            enriched.prompts.push(promptEntry);
+        }
+    }
+
+    // Discover agent instruction file (AGENTS.md, CLAUDE.md, GEMINI.md) in cwd
+    // Add as a file contributor to system prompt if found
+    const instructionFile = discoverAgentInstructionFile();
+    if (instructionFile) {
+        // Add file contributor to system prompt config
+        // Use a low priority (5) so it runs early but after any base prompt
+        const fileContributor = {
+            id: 'discovered-instructions',
+            type: 'file' as const,
+            priority: 5,
+            enabled: true,
+            files: [instructionFile],
+            options: {
+                includeFilenames: true,
+                errorHandling: 'skip' as const,
+                maxFileSize: 100000,
+            },
+        };
+
+        // Handle different systemPrompt config shapes
+        if (!config.systemPrompt) {
+            // No system prompt - create one with just the file contributor
+            enriched.systemPrompt = {
+                contributors: [fileContributor],
+            };
+        } else if (typeof config.systemPrompt === 'string') {
+            // String system prompt - convert to object with both static and file contributors
+            enriched.systemPrompt = {
+                contributors: [
+                    {
+                        id: 'inline',
+                        type: 'static' as const,
+                        content: config.systemPrompt,
+                        priority: 0,
+                        enabled: true,
+                    },
+                    fileContributor,
+                ],
+            };
+        } else if ('contributors' in config.systemPrompt) {
+            // Already structured - add file contributor if not already present
+            const existingContributors = config.systemPrompt.contributors ?? [];
+            const hasDiscoveredInstructions = existingContributors.some(
+                (c) => c.id === 'discovered-instructions'
+            );
+            if (!hasDiscoveredInstructions) {
+                enriched.systemPrompt = {
+                    contributors: [...existingContributors, fileContributor],
+                };
+            }
+        }
     }
 
     return enriched;

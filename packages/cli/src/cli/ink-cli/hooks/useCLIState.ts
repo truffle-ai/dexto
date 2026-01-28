@@ -7,8 +7,20 @@
 
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useStdout } from 'ink';
-import { getModelDisplayName, type DextoAgent, type QueuedMessage } from '@dexto/core';
-import type { Message, StartupInfo, UIState, InputState, SessionState } from '../state/types.js';
+import {
+    getModelDisplayName,
+    isUserMessage,
+    type DextoAgent,
+    type QueuedMessage,
+} from '@dexto/core';
+import type {
+    Message,
+    StartupInfo,
+    UIState,
+    InputState,
+    SessionState,
+    TodoItem,
+} from '../state/types.js';
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
 import { useAgentEvents } from './useAgentEvents.js';
 import { useInputOrchestrator, type Key } from './useInputOrchestrator.js';
@@ -18,7 +30,7 @@ import type { OverlayContainerHandle } from '../containers/OverlayContainer.js';
 import { useTextBuffer, type TextBuffer } from '../components/shared/text-buffer.js';
 
 // Re-export types for backwards compatibility
-export type { UIState, InputState, SessionState } from '../state/types.js';
+export type { UIState, InputState, SessionState, TodoItem } from '../state/types.js';
 
 export interface UseCLIStateProps {
     agent: DextoAgent;
@@ -42,6 +54,9 @@ export interface CLIStateReturn {
     // Queued messages (messages waiting to be processed)
     queuedMessages: QueuedMessage[];
     setQueuedMessages: React.Dispatch<React.SetStateAction<QueuedMessage[]>>;
+    // Todo items for workflow tracking
+    todos: TodoItem[];
+    setTodos: React.Dispatch<React.SetStateAction<TodoItem[]>>;
     ui: UIState;
     setUi: React.Dispatch<React.SetStateAction<UIState>>;
     input: InputState;
@@ -85,12 +100,15 @@ export function useCLIState({
     const [dequeuedBuffer, setDequeuedBuffer] = useState<Message[]>([]);
     // Queued messages - messages waiting to be processed (uses core type)
     const [queuedMessages, setQueuedMessages] = useState<QueuedMessage[]>([]);
+    // Todo items for workflow tracking (populated via service:event from todo tools)
+    const [todos, setTodos] = useState<TodoItem[]>([]);
 
     // UI state
     const [ui, setUi] = useState<UIState>({
         isProcessing: false,
         isCancelling: false,
         isThinking: false,
+        isCompacting: false,
         activeOverlay: 'none',
         exitWarningShown: false,
         exitWarningTimestamp: null,
@@ -107,6 +125,9 @@ export function useCLIState({
         },
         promptAddWizard: null,
         autoApproveEdits: false,
+        todoExpanded: true, // Default to expanded to show full todo list
+        planModeActive: false,
+        planModeInitialized: false,
     });
 
     // Input state
@@ -163,14 +184,19 @@ export function useCLIState({
 
     // Setup event bus subscriptions for non-streaming events
     // (streaming events are handled directly via agent.stream() iterator in InputContainer)
+    // Also handles external triggers (run:invoke) from scheduler, A2A, API
     useAgentEvents({
         agent,
         setMessages,
+        setPendingMessages,
         setUi,
         setSession,
+        setInput,
         setApproval,
         setApprovalQueue,
         setQueuedMessages,
+        currentSessionId: session.id,
+        buffer,
     });
 
     // Create input handlers for the orchestrator
@@ -203,6 +229,11 @@ export function useCLIState({
         },
     });
 
+    // Clear todos when session changes (todos are per-session)
+    useEffect(() => {
+        setTodos([]);
+    }, [session.id]);
+
     // Hydrate conversation history when resuming a session
     useEffect(() => {
         if (!initialSessionId || !session.hasActiveSession || messages.length > 0) {
@@ -217,6 +248,26 @@ export function useCLIState({
                 if (!history?.length || cancelled) return;
                 const historyMessages = convertHistoryToUIMessages(history, initialSessionId);
                 setMessages(historyMessages);
+
+                // Extract user messages for input history (arrow up navigation)
+                const userInputHistory = history
+                    .filter(isUserMessage)
+                    .map((msg) =>
+                        msg.content
+                            .filter(
+                                (part): part is { type: 'text'; text: string } =>
+                                    part.type === 'text'
+                            )
+                            .map((part) => part.text)
+                            .join('\n')
+                    )
+                    .filter((text) => text.trim().length > 0);
+
+                setInput((prev) => ({
+                    ...prev,
+                    history: userInputHistory,
+                    historyIndex: -1,
+                }));
             } catch (error) {
                 if (cancelled) return;
                 setMessages((prev) => [
@@ -250,6 +301,8 @@ export function useCLIState({
         setDequeuedBuffer,
         queuedMessages,
         setQueuedMessages,
+        todos,
+        setTodos,
         ui,
         setUi,
         input,

@@ -110,20 +110,6 @@ async function cleanRoot(): Promise<void> {
     }
 }
 
-async function cleanStorage(): Promise<void> {
-    console.log('\n💾 Cleaning storage');
-    const storagePath = path.join(rootDir, '.dexto');
-
-    if (await fs.pathExists(storagePath)) {
-        try {
-            await fs.remove(storagePath);
-            console.log(`✅ Removed: .dexto storage`);
-        } catch (err) {
-            console.error(`⚠️  Failed to remove storage:`, err);
-        }
-    }
-}
-
 async function main(): Promise<void> {
     console.log('🧹 Starting comprehensive cleanup...\n');
     console.log('This will remove:');
@@ -137,10 +123,12 @@ async function main(): Promise<void> {
     try {
         await cleanPackages();
         await cleanRoot();
-        await cleanStorage();
+        // NOTE: cleanStorage() is NOT called here to preserve conversation history
+        // Use `pnpm clean:storage` explicitly if you need to wipe .dexto
 
         console.log('\n✨ Cleanup completed successfully!');
         console.log('Run "pnpm install" if you need to reinstall dependencies.');
+        console.log('Note: .dexto storage was preserved. Use "pnpm clean:storage" to wipe it.');
     } catch (err) {
         console.error('\n❌ Cleanup failed:', err);
         process.exit(1);

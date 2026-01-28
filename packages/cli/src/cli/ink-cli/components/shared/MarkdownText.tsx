@@ -14,6 +14,7 @@ import { Text, Box, useStdout } from 'ink';
 import chalk from 'chalk';
 import wrapAnsi from 'wrap-ansi';
 import stringWidth from 'string-width';
+import { highlight, supportsLanguage } from 'cli-highlight';
 
 // ============================================================================
 // Inline Markdown Parsing
@@ -192,8 +193,8 @@ const WrappedParagraphInternal: React.FC<WrappedParagraphProps> = ({
         const segments = parseInlineMarkdown(text);
         const ansiString = segmentsToAnsi(segments, defaultColor);
 
-        // Calculate available width
-        const prefixWidth = bulletPrefix && isFirstParagraph ? stringWidth(bulletPrefix) : 0;
+        // Calculate available width - always account for bullet indent since all lines get it
+        const prefixWidth = bulletPrefix ? stringWidth(bulletPrefix) : 0;
         const availableWidth = Math.max(20, terminalWidth - prefixWidth);
 
         // Word-wrap the ANSI string
@@ -207,17 +208,16 @@ const WrappedParagraphInternal: React.FC<WrappedParagraphProps> = ({
     }, [text, defaultColor, bulletPrefix, isFirstParagraph, terminalWidth]);
 
     // Calculate indent for continuation lines (spaces to align with first line content)
-    const continuationIndent =
-        bulletPrefix && isFirstParagraph ? ' '.repeat(stringWidth(bulletPrefix)) : '';
+    // All lines get indentation when bulletPrefix is provided, for consistent left margin
+    const indentSpaces = bulletPrefix ? ' '.repeat(stringWidth(bulletPrefix)) : '';
 
     return (
         <>
             {wrappedLines.map((line, i) => {
                 const isFirstLine = i === 0;
+                // First line of first paragraph gets bullet, all other lines get space indent
                 const prefix =
-                    isFirstLine && bulletPrefix && isFirstParagraph
-                        ? bulletPrefix
-                        : continuationIndent;
+                    isFirstLine && isFirstParagraph && bulletPrefix ? bulletPrefix : indentSpaces;
 
                 return (
                     <Box key={i}>
@@ -584,15 +584,39 @@ const RenderCodeBlockInternal: React.FC<RenderCodeBlockProps> = ({
     language,
     isPending,
 }) => {
+    // Memoize the highlighted code to avoid re-highlighting on every render
+    const highlightedCode = useMemo(() => {
+        const code = lines.join('\n');
+
+        // If we have a language and it's supported, use syntax highlighting
+        if (language && supportsLanguage(language)) {
+            try {
+                return highlight(code, { language, ignoreIllegals: true });
+            } catch {
+                // Fall back to plain cyan if highlighting fails
+                return chalk.cyan(code);
+            }
+        }
+
+        // If no language specified, try auto-detection
+        if (!language && code.trim()) {
+            try {
+                return highlight(code, { ignoreIllegals: true });
+            } catch {
+                // Fall back to plain cyan if auto-detection fails
+                return chalk.cyan(code);
+            }
+        }
+
+        // Fallback: plain cyan text
+        return chalk.cyan(code);
+    }, [lines, language]);
+
     return (
         <Box flexDirection="column" marginTop={1} marginBottom={1}>
             {language && <Text color="gray">{language}</Text>}
             <Box flexDirection="column" paddingLeft={1}>
-                {lines.map((line, i) => (
-                    <Text key={i} color="cyan">
-                        {line}
-                    </Text>
-                ))}
+                <Text>{highlightedCode}</Text>
                 {isPending && <Text color="gray">...</Text>}
             </Box>
         </Box>

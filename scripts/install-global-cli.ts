@@ -27,6 +27,8 @@ const PACKAGES = [
     { name: '@dexto/registry', path: 'packages/registry' },
     { name: '@dexto/tools-filesystem', path: 'packages/tools-filesystem' },
     { name: '@dexto/tools-process', path: 'packages/tools-process' },
+    { name: '@dexto/tools-todo', path: 'packages/tools-todo' },
+    { name: '@dexto/tools-plan', path: 'packages/tools-plan' },
     { name: '@dexto/image-local', path: 'packages/image-local' },
     { name: '@dexto/agent-management', path: 'packages/agent-management' },
     { name: '@dexto/server', path: 'packages/server' },
@@ -197,12 +199,29 @@ async function main() {
         }
         console.log('  ✓ All packages published');
 
-        // Uninstall existing global dexto
+        // Uninstall existing global dexto (both npm and pnpm)
         console.log('🗑️  Removing existing global dexto...');
+        let removedAny = false;
         try {
             execSync('npm uninstall -g dexto', { stdio: 'ignore' });
-            console.log('  ✓ Removed existing installation');
+            console.log('  ✓ Removed npm global installation');
+            removedAny = true;
         } catch {
+            // npm global not installed
+        }
+        try {
+            // Remove pnpm global link if it exists
+            const pnpmBinDir = execSync('pnpm bin -g', { encoding: 'utf-8' }).trim();
+            const pnpmDextoPath = join(pnpmBinDir, 'dexto');
+            if (existsSync(pnpmDextoPath)) {
+                rmSync(pnpmDextoPath, { force: true });
+                console.log('  ✓ Removed pnpm global link');
+                removedAny = true;
+            }
+        } catch {
+            // pnpm not available or no global link
+        }
+        if (!removedAny) {
             console.log('  (no existing installation)');
         }
 

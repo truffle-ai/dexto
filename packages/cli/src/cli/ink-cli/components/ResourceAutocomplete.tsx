@@ -113,7 +113,7 @@ const ResourceAutocompleteInner = forwardRef<ResourceAutocompleteHandle, Resourc
         // Combined state to guarantee single render on navigation
         const [selection, setSelection] = useState({ index: 0, offset: 0 });
         const selectedIndexRef = useRef(0);
-        const MAX_VISIBLE_ITEMS = 8;
+        const MAX_VISIBLE_ITEMS = 5;
 
         // Update selection AND scroll offset in a single state update
         // This guarantees exactly one render per navigation action
@@ -170,6 +170,11 @@ const ResourceAutocompleteInner = forwardRef<ResourceAutocompleteHandle, Resourc
                 cancelled = true;
             };
         }, [isVisible, agent]);
+
+        // NOTE: Auto-close logic is handled synchronously in TextBufferInput.tsx
+        // (on backspace deleting @ and on space after @). We don't use useEffect here
+        // because React batches state updates, causing race conditions where isVisible
+        // and searchQuery update at different times.
 
         // Extract query from @mention (everything after @)
         const mentionQuery = useMemo(() => {
@@ -338,37 +343,20 @@ const ResourceAutocompleteInner = forwardRef<ResourceAutocompleteHandle, Resourc
                         resource.name || uriParts[uriParts.length - 1] || resource.uri;
                     const isImage = (resource.mimeType || '').startsWith('image/');
 
+                    // Truncate URI for display (show last 40 chars with ellipsis)
+                    const truncatedUri =
+                        resource.uri.length > 50 ? '…' + resource.uri.slice(-49) : resource.uri;
+
                     return (
-                        <Box key={resource.uri} paddingX={0} paddingY={0}>
-                            <Box flexDirection="column">
-                                <Box>
-                                    {isImage && (
-                                        <Text color={isSelected ? 'cyan' : 'gray'}>🖼️ </Text>
-                                    )}
-                                    <Text color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>
-                                        {displayName}
-                                    </Text>
-                                    {resource.serverName && (
-                                        <Box marginLeft={1}>
-                                            <Text color={isSelected ? 'white' : 'gray'}>
-                                                [{resource.serverName}]
-                                            </Text>
-                                        </Box>
-                                    )}
-                                </Box>
-                                <Box marginLeft={isImage ? 3 : 0}>
-                                    <Text color={isSelected ? 'white' : 'gray'}>
-                                        {resource.uri}
-                                    </Text>
-                                </Box>
-                                {resource.description && (
-                                    <Box marginLeft={isImage ? 3 : 0}>
-                                        <Text color={isSelected ? 'white' : 'gray'}>
-                                            {resource.description}
-                                        </Text>
-                                    </Box>
-                                )}
-                            </Box>
+                        <Box key={resource.uri}>
+                            {isImage && <Text color={isSelected ? 'cyan' : 'gray'}>🖼️ </Text>}
+                            <Text color={isSelected ? 'cyan' : 'white'} bold={isSelected}>
+                                {displayName}
+                            </Text>
+                            {resource.serverName && (
+                                <Text color="gray"> [{resource.serverName}]</Text>
+                            )}
+                            <Text color="gray"> {truncatedUri}</Text>
                         </Box>
                     );
                 })}

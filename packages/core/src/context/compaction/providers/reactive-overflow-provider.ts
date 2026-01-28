@@ -9,6 +9,30 @@ export const ReactiveOverflowConfigSchema = z
     .object({
         type: z.literal('reactive-overflow'),
         enabled: z.boolean().default(true).describe('Enable or disable compaction'),
+        /**
+         * Maximum context tokens before compaction triggers.
+         * When set, overrides the model's context window for compaction threshold.
+         * Useful for capping context size below the model's maximum limit.
+         */
+        maxContextTokens: z
+            .number()
+            .positive()
+            .optional()
+            .describe(
+                'Maximum context tokens before compaction triggers. Overrides model context window when set.'
+            ),
+        /**
+         * Percentage of context window that triggers compaction (0.1 to 1.0).
+         * Default is 1.0 (100%), meaning compaction triggers when context is full.
+         */
+        thresholdPercent: z
+            .number()
+            .min(0.1)
+            .max(1.0)
+            .default(1.0)
+            .describe(
+                'Percentage of context window that triggers compaction (0.1 to 1.0, default 1.0)'
+            ),
         preserveLastNTurns: z
             .number()
             .int()

@@ -207,4 +207,46 @@ mcpServers:
             })
         );
     });
+
+    it('expands ${{dexto.project_dir}} template variable', async () => {
+        const yamlContent = `
+llm:
+  provider: 'test-provider'
+  model: 'test-model'
+customTools:
+  - type: plan-tools
+    basePath: '\${{dexto.project_dir}}/plans'
+`;
+        await fs.writeFile(tmpFile, yamlContent);
+
+        const config = await loadAgentConfig(tmpFile);
+
+        // project_dir should be expanded to the context-aware .dexto path
+        const basePath = (config.customTools as any)?.[0]?.basePath as string;
+        expect(basePath).toBeDefined();
+        expect(basePath).toContain('.dexto');
+        expect(basePath).toContain('plans');
+        // Should be an absolute path
+        expect(path.isAbsolute(basePath)).toBe(true);
+    });
+
+    it('throws error on path traversal in project_dir template expansion', async () => {
+        const yamlContent = `
+llm:
+  provider: 'test-provider'
+  model: 'test-model'
+customTools:
+  - type: plan-tools
+    basePath: '\${{dexto.project_dir}}/../../../etc/passwd'
+`;
+        await fs.writeFile(tmpFile, yamlContent);
+
+        await expect(loadAgentConfig(tmpFile)).rejects.toThrow(
+            expect.objectContaining({
+                code: ConfigErrorCode.PARSE_ERROR,
+                scope: ErrorScope.CONFIG,
+                type: ErrorType.USER,
+            })
+        );
+    });
 });

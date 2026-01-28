@@ -1,5 +1,135 @@
 # @dexto/core
 
+## 1.5.6
+
+### Patch Changes
+
+- 042f4f0: ### CLI Improvements
+    - Add `/export` command to export conversations as Markdown or JSON
+    - Add `Ctrl+T` toggle for task list visibility during processing
+    - Improve task list UI with collapsible view near the processing message
+    - Fix race condition causing duplicate rendering (mainly visible with explore tool)
+    - Don't truncate `pattern` and `question` args in tool output display
+
+    ### Bug Fixes
+    - Fix build script to preserve `.dexto` storage (conversations, logs) during clean builds
+    - Fix `@dexto/tools-todo` versioning - add to fixed version group in changeset config
+
+    ### Configuration Changes
+    - Remove approval timeout defaults - now waits indefinitely (better UX for CLI)
+    - Add package versioning guidelines to AGENTS.md
+
+## 1.5.5
+
+### Patch Changes
+
+- 63fa083: Session and context management fixes:
+    - Remove continuation session logic after compaction, now sticks to same session
+    - `/clear` continues same session and resets context (frees up AI context window)
+    - `/new` command creates new session with fresh context and clears screen
+    - Add context tokens remaining to footer, align context calculations everywhere
+    - Fix context calculation logic by including cache read tokens
+
+    Other improvements:
+    - Fix code block syntax highlighting in terminal (uses cli-highlight)
+    - Make terminal the default mode during onboarding
+    - Reduce OTEL dependency bloat by replacing auto-instrumentation with specific packages (47 MB saved: 65 MB → 18 MB)
+
+- 6df3ca9: Updated readme. Removed stale filesystem and process tool from dexto/core.
+
+## 1.5.4
+
+### Patch Changes
+
+- 0016cd3: Bug fixes and updates for compaction. Also added UI enhancements for compaction.
+- 499b890: Fix model override persistence after compaction and improve context token tracking
+
+    **Bug Fixes:**
+    - Fix model override resetting to config model after compaction (now respects session overrides)
+
+    **Context Tracking Improvements:**
+    - New algorithm uses actual `input_tokens` and `output_tokens` from LLM responses as source of truth
+    - Self-correcting estimates: inaccuracies auto-correct when next LLM response arrives
+    - Handles pruning automatically (next response's input_tokens reflects pruned state)
+    - `/context` and compaction decisions now share common calculation logic
+    - Removed `outputBuffer` concept in favor of single configurable threshold
+    - Default compaction threshold lowered to 90%
+
+    **New `/context` Command:**
+    - Interactive overlay with stacked token bar visualization
+    - Breakdown by component: system prompt, tools, messages, free space, auto-compact buffer
+    - Expandable per-tool token details
+    - Shows pruned tool count and compaction history
+
+    **Observability:**
+    - Comparison logging between estimated vs actual tokens for calibration
+    - `dexto_llm_tokens_consumed` metric now includes estimated input tokens and accuracy metrics
+
+- aa2c9a0: - new --dev flag for using dev mode with the CLI (for maintainers) (sets DEXTO_DEV_MODE=true and ensures local files are used)
+    - improved bash tool descriptions
+    - fixed explore agent task description getting truncated
+    - fixed some alignment issues
+    - fix search/find tools not asking approval for working outside directory
+    - add sound feature (sounds when approval reqd, when loop done)
+        - configurable in `preferences.yml` (on by default) and in `~/.dexto/sounds`, instructions in comment in `~/.dexto/preferences.yml`
+    - add new `env` system prompt contributor that includes info about os, working directory, git status. useful for coding agent to get enough context to improve cmd construction without unnecessary directory shifts
+    - support for loading `.claude/commands` and `.cursor/commands` global and local commands in addition to `.dexto/commands`
+
+## 1.5.3
+
+### Patch Changes
+
+- 4f00295: Added spawn-agent tools and explore agent.
+- 69c944c: File integrity & performance improvements, approval system fixes, and developer experience enhancements
+
+    ### File System Improvements
+    - **File integrity protection**: Store file hashes to prevent edits from corrupting files when content changes between operations (resolves #516)
+    - **Performance optimization**: Disable backups and remove redundant reads, switch to async non-blocking reads for faster file writes
+
+    ### Approval System Fixes
+    - **Coding agent auto-approve**: Fix auto-approve not working due to incorrect tool names in auto-approve policies
+    - **Parallel tool calls**: Fix multiple parallel same-tool calls requiring redundant approvals - now checks all waiting approvals and resolves ones affected by newly approved commands
+    - **Refactored CLI approval handler**: Decoupled approval handler pattern from server for better separation of concerns
+
+    ### Shell & Scripting Fixes
+    - **Bash mode aliases**: Fix bash mode not honoring zsh aliases
+    - **Script improvements**: Miscellaneous script improvements for better developer experience
+
+## 1.5.2
+
+### Patch Changes
+
+- 8a85ea4: Fix maxsteps in agent loop causing early termination
+- 527f3f9: Fixes for interactive CLI
+
+## 1.5.1
+
+### Patch Changes
+
+- bfcc7b1: PostgreSQL improvements and privacy mode
+
+    **PostgreSQL enhancements:**
+    - Add connection resilience for serverless databases (Neon, Supabase, etc.) with automatic retry on connection failures
+    - Support custom PostgreSQL schemas via `options.schema` config
+    - Add schema name validation to prevent SQL injection
+    - Improve connection pool error handling to prevent process crashes
+
+    **Privacy mode:**
+    - Add `--privacy-mode` CLI flag to hide file paths from output (useful for screen recording/sharing)
+    - Can also be enabled via `DEXTO_PRIVACY_MODE=true` environment variable
+
+    **Session improvements:**
+    - Add message deduplication in history provider to handle data corruption gracefully
+    - Add warning when conversation history hits 10k message limit
+    - Improve session deletion to ensure messages are always cleaned up
+
+    **Other fixes:**
+    - Sanitize explicit `agentId` for filesystem safety
+    - Change verbose flush logs to debug level
+    - Export `BaseTypedEventEmitter` from events module
+
+- 4aabdb7: Fix claude caching, added gpt-5.2 models and reasoning effort options in user flows.
+
 ## 1.5.0
 
 ### Minor Changes

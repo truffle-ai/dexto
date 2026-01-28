@@ -20,6 +20,8 @@ export interface DextoLoggerConfig {
     component: DextoLogComponent;
     /** Agent ID for multi-agent isolation */
     agentId: string;
+    /** Optional session ID for associating logs with a session */
+    sessionId?: string;
     /** Transport instances */
     transports: ILoggerTransport[];
     /** Shared level reference (internal - for child loggers to share parent's level) */
@@ -34,6 +36,7 @@ export class DextoLogger implements IDextoLogger {
     private levelRef: { value: LogLevel };
     private component: DextoLogComponent;
     private agentId: string;
+    private sessionId: string | undefined;
     private transports: ILoggerTransport[];
 
     // Log level hierarchy for filtering
@@ -52,6 +55,7 @@ export class DextoLogger implements IDextoLogger {
         this.levelRef = config._levelRef ?? { value: config.level };
         this.component = config.component;
         this.agentId = config.agentId;
+        this.sessionId = config.sessionId;
         this.transports = config.transports;
     }
 
@@ -104,6 +108,7 @@ export class DextoLogger implements IDextoLogger {
             timestamp: new Date().toISOString(),
             component: this.component,
             agentId: this.agentId,
+            ...(this.sessionId !== undefined && { sessionId: this.sessionId }),
             context,
         };
 
@@ -170,6 +175,7 @@ export class DextoLogger implements IDextoLogger {
             level: this.levelRef.value, // Initial value (will be overridden by _levelRef)
             component,
             agentId: this.agentId,
+            ...(this.sessionId !== undefined && { sessionId: this.sessionId }),
             transports: this.transports,
             _levelRef: this.levelRef, // Share the same level reference
         });

@@ -399,27 +399,157 @@ async function resolveBlobReferenceToParts(
     }
 }
 
+// ============= TOKEN ESTIMATION =============
+// These functions provide rough token estimates using heuristics.
+// Used for context management, compaction decisions, and UI display.
+// Actual token counts come from the LLM API response.
+
 /**
- * Simple token estimation using length/4 heuristic.
+ * Estimate tokens for a text string.
+ * Uses the common heuristic of ~4 characters per token.
+ */
+export function estimateStringTokens(text: string): number {
+    if (!text) return 0;
+    return Math.round(text.length / 4);
+}
+
+/**
+ * Estimate tokens for an image.
+ * Images use a fixed token budget regardless of dimensions.
+ * Based on typical LLM pricing (~1000 tokens per image).
+ */
+export function estimateImageTokens(): number {
+    return 1000;
+}
+
+/**
+ * Estimate tokens for a file based on its content.
+ * If content is available, estimates based on text length.
+ * Falls back to a default estimate if no content provided.
+ */
+export function estimateFileTokens(content?: string): number {
+    if (content) {
+        return estimateStringTokens(content);
+    }
+    // Fallback for when content is not available
+    return 1000;
+}
+
+/**
+ * Estimate tokens for a content part (text, image, or file).
+ */
+export function estimateContentPartTokens(part: ContentPart): number {
+    if (part.type === 'text') {
+        return estimateStringTokens(part.text);
+    }
+    if (part.type === 'image') {
+        return estimateImageTokens();
+    }
+    if (part.type === 'file') {
+        // File parts use a simple fallback since:
+        // 1. After first LLM call, we use actual token counts for the bulk of estimation
+        // 2. This only affects the "new messages" delta and /context display
+        // 3. File attachments in tool results are relatively rare
+        return 1000;
+    }
+    return 0;
+}
+
+/**
+ * Estimate tokens for an array of messages.
  * Used for telemetry/logging only - actual token counts come from the LLM API.
- *
- * @param messages Messages to estimate tokens for
- * @returns Estimated token count
  */
 export function estimateMessagesTokens(messages: readonly InternalMessage[]): number {
-    return messages.reduce((sum, msg) => {
-        if (Array.isArray(msg.content)) {
-            return (
-                sum +
-                msg.content.reduce((partSum, part) => {
-                    if (part.type === 'text') return partSum + Math.ceil(part.text.length / 4);
-                    if (part.type === 'image' || part.type === 'file') return partSum + 1000;
-                    return partSum;
-                }, 0)
-            );
+    let total = 0;
+    for (const msg of messages) {
+        if (!Array.isArray(msg.content)) continue;
+        for (const part of msg.content) {
+            total += estimateContentPartTokens(part);
         }
-        return sum;
-    }, 0);
+    }
+    return total;
+}
+
+/**
+ * Tool definition interface for token estimation.
+ * Matches the structure used by both ToolManager and getContextTokenEstimate.
+ */
+export interface ToolDefinition {
+    name?: string;
+    description?: string;
+    parameters?: unknown;
+}
+
+/**
+ * Estimate tokens for tool definitions.
+ * Returns both total and per-tool breakdown for UI display.
+ */
+export function estimateToolsTokens(tools: Record<string, ToolDefinition>): {
+    total: number;
+    perTool: Array<{ name: string; tokens: number }>;
+} {
+    const perTool: Array<{ name: string; tokens: number }> = [];
+    let total = 0;
+    for (const [key, tool] of Object.entries(tools)) {
+        const toolName = tool.name || key;
+        const toolDescription = tool.description || '';
+        const toolSchema = JSON.stringify(tool.parameters || {});
+        const tokens = estimateStringTokens(toolName + toolDescription + toolSchema);
+        perTool.push({ name: toolName, tokens });
+        total += tokens;
+    }
+    return { total, perTool };
+}
+
+/**
+ * Result of context token estimation with breakdown.
+ */
+export interface ContextTokenEstimate {
+    /** Total estimated tokens */
+    total: number;
+    /** Breakdown by category */
+    breakdown: {
+        systemPrompt: number;
+        messages: number;
+        tools: {
+            total: number;
+            perTool: Array<{ name: string; tokens: number }>;
+        };
+    };
+}
+
+/**
+ * Estimate total context tokens for LLM calls.
+ * This is the single source of truth for context token estimation,
+ * used by both /context overlay and compaction pre-check.
+ *
+ * IMPORTANT: The `preparedHistory` parameter must be the result of
+ * `ContextManager.prepareHistory()` or `getFormattedMessagesForLLM()`.
+ * This ensures messages are properly filtered (compacted messages removed)
+ * and pruned tool outputs are replaced with placeholders.
+ *
+ * @param systemPrompt The system prompt string
+ * @param preparedHistory Message history AFTER filterCompacted and pruning
+ * @param tools Optional tool definitions - if not provided, tools are not counted
+ * @returns Token estimate with total and breakdown
+ */
+export function estimateContextTokens(
+    systemPrompt: string,
+    preparedHistory: readonly InternalMessage[],
+    tools?: Record<string, ToolDefinition>
+): ContextTokenEstimate {
+    const systemPromptTokens = estimateStringTokens(systemPrompt);
+    const messagesTokens = estimateMessagesTokens(preparedHistory);
+    const toolsEstimate = tools ? estimateToolsTokens(tools) : { total: 0, perTool: [] };
+
+    return {
+        total: systemPromptTokens + toolsEstimate.total + messagesTokens,
+        breakdown: {
+            systemPrompt: systemPromptTokens,
+            messages: messagesTokens,
+            tools: toolsEstimate,
+        },
+    };
 }
 
 /**
@@ -768,15 +898,45 @@ export function filterMessagesByLLMCapabilities(
     logger: IDextoLogger
 ): InternalMessage[] {
     try {
-        return messages.map((message) => {
+        let totalImagesFiltered = 0;
+        let totalFilesFiltered = 0;
+
+        const filteredMessages = messages.map((message) => {
             // Only filter user messages with array content (multimodal)
             if (message.role !== 'user' || !Array.isArray(message.content)) {
                 return message;
             }
 
+            let imagesInMessage = 0;
+            let filesInMessage = 0;
+
             const filteredContent = message.content.filter((part) => {
-                // Keep text and image parts
-                if (part.type === 'text' || part.type === 'image') {
+                // Keep text parts
+                if (part.type === 'text') {
+                    return true;
+                }
+
+                // Filter image parts based on LLM capabilities
+                if (part.type === 'image') {
+                    const mimeType = part.mimeType ?? 'image/jpeg';
+                    const validation = validateModelFileSupport(
+                        config.provider,
+                        config.model,
+                        mimeType
+                    );
+                    // Only filter if model explicitly doesn't support this file type
+                    // Keep content if validation errored or is unknown
+                    if (validation.isSupported) {
+                        return true;
+                    }
+                    if (validation.error?.includes('does not support')) {
+                        imagesInMessage++;
+                        return false;
+                    }
+                    // Unknown file type or validation error - keep the content and warn
+                    logger.warn(
+                        `Could not validate image support for ${config.model}: ${validation.error}`
+                    );
                     return true;
                 }
 
@@ -787,11 +947,27 @@ export function filterMessagesByLLMCapabilities(
                         config.model,
                         part.mimeType
                     );
-                    return validation.isSupported;
+                    // Only filter if model explicitly doesn't support this file type
+                    // Keep content if validation errored or is unknown
+                    if (validation.isSupported) {
+                        return true;
+                    }
+                    if (validation.error?.includes('does not support')) {
+                        filesInMessage++;
+                        return false;
+                    }
+                    // Unknown file type or validation error - keep the content and warn
+                    logger.warn(
+                        `Could not validate file support for ${config.model}: ${validation.error}`
+                    );
+                    return true;
                 }
 
                 return true; // Keep unknown part types
             });
+
+            totalImagesFiltered += imagesInMessage;
+            totalFilesFiltered += filesInMessage;
 
             // If all content was filtered out, add a placeholder text
             if (filteredContent.length === 0) {
@@ -806,6 +982,20 @@ export function filterMessagesByLLMCapabilities(
                 content: filteredContent,
             };
         });
+
+        // Log summary of filtered content
+        if (totalImagesFiltered > 0) {
+            logger.info(
+                `Filtered ${totalImagesFiltered} image${totalImagesFiltered > 1 ? 's' : ''} for ${config.model} since it doesn't support images`
+            );
+        }
+        if (totalFilesFiltered > 0) {
+            logger.info(
+                `Filtered ${totalFilesFiltered} file${totalFilesFiltered > 1 ? 's' : ''} for ${config.model} since it doesn't support that file type`
+            );
+        }
+
+        return filteredMessages;
     } catch (error) {
         // If filtering fails, return original messages to avoid breaking the flow
         logger.warn(`Failed to filter messages by LLM capabilities: ${String(error)}`);
@@ -1728,21 +1918,27 @@ export function toTextForToolMessage(content: InternalMessage['content']): strin
 
 /**
  * Filter history to exclude messages before the most recent summary.
- * This implements read-time compression.
+ * This implements read-time compression for inline compaction.
  *
- * When a summary message exists (with metadata.isSummary === true),
- * this function returns only the summary message and everything after it.
- * This effectively hides old messages from the LLM while preserving them in storage.
+ * Used by:
+ * - TurnExecutor for inline compaction during agentic turns (overflow handling)
+ * - DextoAgent.getContextStats() for accurate token/message counts
+ *
+ * When a summary message exists (with metadata.isSummary === true or
+ * metadata.isSessionSummary === true), this function returns only the
+ * summary message and everything after it. This effectively hides old
+ * messages from the LLM while preserving them in storage.
  *
  * @param history The full conversation history
  * @returns Filtered history starting from the most recent summary (or full history if no summary)
  */
 export function filterCompacted(history: readonly InternalMessage[]): InternalMessage[] {
     // Find the most recent summary message (search backwards for efficiency)
+    // Check for both old isSummary marker and new isSessionSummary marker
     let summaryIndex = -1;
     for (let i = history.length - 1; i >= 0; i--) {
         const msg = history[i];
-        if (msg?.metadata?.isSummary === true) {
+        if (msg?.metadata?.isSummary === true || msg?.metadata?.isSessionSummary === true) {
             summaryIndex = i;
             break;
         }
@@ -1753,8 +1949,34 @@ export function filterCompacted(history: readonly InternalMessage[]): InternalMe
         return history.slice();
     }
 
-    // Return summary + everything after it
-    return history.slice(summaryIndex);
+    // Get the summary message (we know it exists since we found the index)
+    const summaryMessage = history[summaryIndex]!;
+
+    // Get the count of messages that were summarized (stored in metadata)
+    // The preserved messages are between the summarized portion and the summary
+    // Clamp to valid range: 0 <= originalMessageCount <= summaryIndex
+    // For legacy summaries without metadata, default to summaryIndex (no preserved messages)
+    const rawCount = summaryMessage.metadata?.originalMessageCount;
+    const originalMessageCount =
+        typeof rawCount === 'number' && rawCount >= 0 && rawCount <= summaryIndex
+            ? rawCount
+            : summaryIndex;
+
+    // Layout after compaction:
+    // [summarized..., preserved..., summary, afterSummary...]
+    //  ^-- indices 0 to (originalMessageCount-1)
+    //              ^-- indices originalMessageCount to (summaryIndex-1)
+    //                          ^-- index summaryIndex
+    //                                   ^-- indices (summaryIndex+1) onwards
+
+    // Get preserved messages (messages between summarized portion and summary)
+    const preservedMessages = history.slice(originalMessageCount, summaryIndex);
+
+    // Get any messages added after the summary (rare but possible)
+    const messagesAfterSummary = history.slice(summaryIndex + 1);
+
+    // Return: summary + preserved + afterSummary
+    return [summaryMessage, ...preservedMessages, ...messagesAfterSummary];
 }
 
 /**

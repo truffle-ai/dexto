@@ -266,6 +266,11 @@ function generateMetadata(definition: ImageDefinition, coreVersion: string): str
         metadata.extends = definition.extends;
     }
 
+    // Include bundled plugins if present
+    if (definition.bundledPlugins && definition.bundledPlugins.length > 0) {
+        metadata.bundledPlugins = definition.bundledPlugins;
+    }
+
     return `/**
  * Image metadata
  * Generated at build time

@@ -1213,6 +1213,7 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
                                                 pendingApproval={pendingApproval}
                                                 onApprovalApprove={approvalHandlers?.onApprove}
                                                 onApprovalDeny={approvalHandlers?.onDeny}
+                                                sessionId={currentSessionId}
                                             />
                                         </div>
                                         {/* Sticky input dock inside scroll viewport */}

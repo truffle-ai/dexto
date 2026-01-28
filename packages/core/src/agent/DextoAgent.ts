@@ -4,6 +4,7 @@ import { setMaxListeners } from 'events';
 import { MCPManager } from '../mcp/manager.js';
 import { ToolManager } from '../tools/tool-manager.js';
 import { SystemPromptManager } from '../systemPrompt/manager.js';
+import { SkillsContributor } from '../systemPrompt/contributors.js';
 import { ResourceManager, expandMessageReferences } from '../resources/index.js';
 import { expandBlobReferences } from '../context/utils.js';
 import type { InternalMessage } from '../context/types.js';
@@ -35,7 +36,7 @@ import {
     getSupportedProviders,
     getDefaultModelForProvider,
     getProviderFromModel,
-    LLM_REGISTRY,
+    getAllModelsForProvider,
     ModelInfo,
 } from '../llm/registry.js';
 import type { LLMProvider } from '../llm/types.js';
@@ -176,6 +177,11 @@ export class DextoAgent {
     // Active stream controllers per session - allows cancel() to abort iterators
     private activeStreamControllers: Map<string, AbortController> = new Map();
 
+    // Host overrides for service initialization (e.g. session logger factory)
+    private serviceOverrides?: {
+        sessionLoggerFactory?: import('../session/session-manager.js').SessionLoggerFactory;
+    };
+
     // Logger instance for this agent (dependency injection)
     public readonly logger: IDextoLogger;
 
@@ -191,7 +197,9 @@ export class DextoAgent {
     constructor(
         config: AgentConfig,
         private configPath?: string,
-        options?: LLMValidationOptions
+        options?: LLMValidationOptions & {
+            sessionLoggerFactory?: import('../session/session-manager.js').SessionLoggerFactory;
+        }
     ) {
         // Validate and transform the input config using appropriate schema
         const schema =
@@ -207,6 +215,13 @@ export class DextoAgent {
             agentId: this.config.agentId,
             component: DextoLogComponent.AGENT,
         });
+
+        // Capture host overrides to apply during start() when services are created.
+        if (options?.sessionLoggerFactory) {
+            this.serviceOverrides = {
+                sessionLoggerFactory: options.sessionLoggerFactory,
+            };
+        }
 
         // Create event bus early so it's available for approval handler creation
         this.agentEventBus = new AgentEventBus();
@@ -236,7 +251,8 @@ export class DextoAgent {
                 this.config,
                 this.configPath,
                 this.logger,
-                this.agentEventBus
+                this.agentEventBus,
+                this.serviceOverrides
             );
 
             // Validate all required services are provided
@@ -288,19 +304,9 @@ export class DextoAgent {
                 services: services,
             });
 
-            // Set agent reference for custom tools (must be done before tool initialization)
-            // This allows custom tool providers to wire up bidirectional communication
-            services.toolManager.setAgent(this);
-
-            // Initialize toolManager now that agent reference is set
-            // Custom tools need agent access for bidirectional communication
-            await services.toolManager.initialize();
-
-            // Initialize search service from services
-            this.searchService = services.searchService;
-
             // Initialize prompts manager (aggregates MCP, internal, starter prompts)
             // File prompts automatically resolve custom slash commands
+            // Must be initialized before toolManager so invoke_skill tool can access prompts
             const promptManager = new PromptManager(
                 this.mcpManager,
                 this.resourceManager,
@@ -311,6 +317,34 @@ export class DextoAgent {
             );
             await promptManager.initialize();
             Object.assign(this, { promptManager });
+
+            // Set agent reference for custom tools (must be done before tool initialization)
+            // This allows custom tool providers to wire up bidirectional communication
+            services.toolManager.setAgent(this);
+
+            // Set prompt manager for invoke_skill tool (must be done before tool initialization)
+            services.toolManager.setPromptManager(promptManager);
+
+            // Add skills contributor to system prompt if invoke_skill is enabled
+            // This lists available skills so the LLM knows what it can invoke
+            if (this.config.internalTools?.includes('invoke_skill')) {
+                const skillsContributor = new SkillsContributor(
+                    'skills',
+                    50, // Priority after memories (40) but before most other content
+                    promptManager,
+                    this.logger
+                );
+                services.systemPromptManager.addContributor(skillsContributor);
+                this.logger.debug('Added SkillsContributor to system prompt');
+            }
+
+            // Initialize toolManager now that agent and promptManager references are set
+            // Custom tools need agent access for bidirectional communication
+            // invoke_skill tool needs promptManager access
+            await services.toolManager.initialize();
+
+            // Initialize search service from services
+            this.searchService = services.searchService;
 
             // Note: Telemetry is initialized in createAgentServices() before services are created
             // This ensures decorators work correctly on all services
@@ -590,8 +624,11 @@ export class DextoAgent {
             );
         }
 
-        // Find the llm:response event (final response)
-        const responseEvent = events.find((e) => e.name === 'llm:response');
+        // Find the last llm:response event (final response after all tool calls)
+        const responseEvents = events.filter(
+            (e): e is Extract<StreamingEvent, { name: 'llm:response' }> => e.name === 'llm:response'
+        );
+        const responseEvent = responseEvents[responseEvents.length - 1];
         if (!responseEvent || responseEvent.name !== 'llm:response') {
             // Get current LLM config for error context
             const llmConfig = this.stateManager.getLLMConfig(sessionId);
@@ -836,6 +873,25 @@ export class DextoAgent {
         });
         listeners.push({ event: 'tool:running', listener: toolRunningListener });
 
+        // Context compaction events - emitted when context is being compacted
+        const contextCompactingListener = (data: AgentEventMap['context:compacting']) => {
+            if (data.sessionId !== sessionId) return;
+            eventQueue.push({ name: 'context:compacting', ...data });
+        };
+        this.agentEventBus.on('context:compacting', contextCompactingListener, {
+            signal: cleanupSignal,
+        });
+        listeners.push({ event: 'context:compacting', listener: contextCompactingListener });
+
+        const contextCompactedListener = (data: AgentEventMap['context:compacted']) => {
+            if (data.sessionId !== sessionId) return;
+            eventQueue.push({ name: 'context:compacted', ...data });
+        };
+        this.agentEventBus.on('context:compacted', contextCompactedListener, {
+            signal: cleanupSignal,
+        });
+        listeners.push({ event: 'context:compacted', listener: contextCompactedListener });
+
         // Message queue events (for mid-task user guidance)
         const messageQueuedListener = (data: AgentEventMap['message:queued']) => {
             if (data.sessionId !== sessionId) return;
@@ -854,6 +910,16 @@ export class DextoAgent {
             signal: cleanupSignal,
         });
         listeners.push({ event: 'message:dequeued', listener: messageDequeuedListener });
+
+        // Service events - extensible pattern for non-core services (e.g., sub-agent progress)
+        const serviceEventListener = (data: AgentEventMap['service:event']) => {
+            if (data.sessionId !== sessionId) return;
+            eventQueue.push({ name: 'service:event', ...data });
+        };
+        this.agentEventBus.on('service:event', serviceEventListener, {
+            signal: cleanupSignal,
+        });
+        listeners.push({ event: 'service:event', listener: serviceEventListener });
 
         // Run lifecycle event - emitted when TurnExecutor truly finishes
         // This is when we close the iterator (not on llm:response)
@@ -1039,7 +1105,10 @@ export class DextoAgent {
                         (await this.sessionManager.createSession(sessionId));
 
                     // Call session.stream() directly with ALL content parts
-                    await session.stream(contentParts, signal ? { signal } : undefined);
+                    const _streamResult = await session.stream(
+                        contentParts,
+                        signal ? { signal } : undefined
+                    );
 
                     // Increment message count
                     this.sessionManager
@@ -1266,6 +1335,8 @@ export class DextoAgent {
      */
     public async endSession(sessionId: string): Promise<void> {
         this.ensureStarted();
+        // Clear session-level auto-approve tools to prevent memory leak
+        this.toolManager.clearSessionAutoApproveTools(sessionId);
         return this.sessionManager.endSession(sessionId);
     }
 
@@ -1276,6 +1347,8 @@ export class DextoAgent {
      */
     public async deleteSession(sessionId: string): Promise<void> {
         this.ensureStarted();
+        // Clear session-level auto-approve tools to prevent memory leak
+        this.toolManager.clearSessionAutoApproveTools(sessionId);
         return this.sessionManager.deleteSession(sessionId);
     }
 
@@ -1512,15 +1585,286 @@ export class DextoAgent {
         });
     }
 
+    /**
+     * Manually compact the context for a session.
+     *
+     * Compaction generates a summary of older messages and adds it to the conversation history.
+     * When the context is loaded, filterCompacted() will exclude messages before the summary,
+     * effectively reducing the context window while preserving the full history in storage.
+     *
+     * @param sessionId Session ID of the session to compact (required)
+     * @returns Compaction result with stats, or null if compaction was skipped
+     */
+    public async compactContext(sessionId: string): Promise<{
+        /** The session that was compacted */
+        sessionId: string;
+        /** Estimated tokens in context after compaction (includes system prompt, tools, and messages) */
+        compactedContextTokens: number;
+        /** Number of messages before compaction */
+        originalMessages: number;
+        /** Number of messages after compaction (summary + preserved) */
+        compactedMessages: number;
+    } | null> {
+        this.ensureStarted();
+
+        if (!sessionId || typeof sessionId !== 'string') {
+            throw AgentError.apiValidationError(
+                'sessionId is required and must be a non-empty string'
+            );
+        }
+
+        const session = await this.sessionManager.getSession(sessionId);
+        if (!session) {
+            throw SessionError.notFound(sessionId);
+        }
+
+        // Get compaction strategy from the session's LLM service
+        const llmService = session.getLLMService();
+        const compactionStrategy = llmService.getCompactionStrategy();
+
+        if (!compactionStrategy) {
+            this.logger.warn(
+                `Compaction strategy not configured for session ${sessionId} - skipping manual compaction`
+            );
+            return null;
+        }
+
+        // Get history and generate summary
+        const contextManager = session.getContextManager();
+        const history = await contextManager.getHistory();
+
+        if (history.length < 4) {
+            this.logger.debug(`Compaction skipped for session ${sessionId} - history too short`);
+            return null;
+        }
+
+        // Get full context estimate BEFORE compaction (includes system prompt, tools, messages)
+        // This uses the same calculation as /context command for consistency
+        const contributorContext = { mcpManager: this.mcpManager };
+        const tools = await llmService.getAllTools();
+        const beforeEstimate = await contextManager.getContextTokenEstimate(
+            contributorContext,
+            tools
+        );
+        const originalTokens = beforeEstimate.estimated;
+        const originalMessages = beforeEstimate.stats.filteredMessageCount;
+
+        // Emit compacting event
+        this.agentEventBus.emit('context:compacting', {
+            estimatedTokens: originalTokens,
+            sessionId,
+        });
+
+        // Generate summary message(s)
+        const summaryMessages = await compactionStrategy.compact(history);
+
+        if (summaryMessages.length === 0) {
+            this.logger.debug(`Compaction skipped for session ${sessionId} - nothing to compact`);
+            this.agentEventBus.emit('context:compacted', {
+                originalTokens,
+                compactedTokens: originalTokens,
+                originalMessages,
+                compactedMessages: originalMessages,
+                strategy: compactionStrategy.name,
+                reason: 'manual',
+                sessionId,
+            });
+            return null;
+        }
+
+        // Add summary to history - filterCompacted() will exclude pre-summary messages at read-time
+        for (const summary of summaryMessages) {
+            await contextManager.addMessage(summary);
+        }
+
+        // Reset actual token tracking since context has fundamentally changed
+        // The formula (lastInput + lastOutput + newEstimate) is no longer valid after compaction
+        contextManager.resetActualTokenTracking();
+
+        // Get full context estimate AFTER compaction (uses pure estimation since actuals were reset)
+        // This ensures /context will show the same value
+        const afterEstimate = await contextManager.getContextTokenEstimate(
+            contributorContext,
+            tools
+        );
+        const compactedTokens = afterEstimate.estimated;
+        const compactedMessages = afterEstimate.stats.filteredMessageCount;
+
+        this.agentEventBus.emit('context:compacted', {
+            originalTokens,
+            compactedTokens,
+            originalMessages,
+            compactedMessages,
+            strategy: compactionStrategy.name,
+            reason: 'manual',
+            sessionId,
+        });
+
+        this.logger.info(
+            `Compaction complete for session ${sessionId}: ` +
+                `${originalMessages} messages → ${compactedMessages} messages (~${compactedTokens} tokens)`
+        );
+
+        return {
+            sessionId,
+            compactedContextTokens: compactedTokens,
+            originalMessages,
+            compactedMessages,
+        };
+    }
+
+    /**
+     * Get context usage statistics for a session.
+     * Useful for monitoring context window usage and compaction status.
+     *
+     * @param sessionId Session ID (required)
+     * @returns Context statistics including token estimates and message counts
+     */
+    public async getContextStats(sessionId: string): Promise<{
+        estimatedTokens: number;
+        /** Last actual token count from LLM API (null if no calls made yet) */
+        actualTokens: number | null;
+        /** Effective max context tokens (after applying maxContextTokens override and thresholdPercent) */
+        maxContextTokens: number;
+        /** The model's raw context window before any config overrides */
+        modelContextWindow: number;
+        /** Configured threshold percent (0.0-1.0), defaults to 1.0 */
+        thresholdPercent: number;
+        usagePercent: number;
+        messageCount: number;
+        filteredMessageCount: number;
+        prunedToolCount: number;
+        hasSummary: boolean;
+        /** Current model identifier */
+        model: string;
+        /** Display name for the model */
+        modelDisplayName: string;
+        /** Detailed breakdown of context usage by category */
+        breakdown: {
+            systemPrompt: number;
+            tools: {
+                total: number;
+                /** Per-tool token estimates */
+                perTool: Array<{ name: string; tokens: number }>;
+            };
+            messages: number;
+        };
+        /** Calculation basis showing how the estimate was computed */
+        calculationBasis?: {
+            /** 'actuals' = used lastInput + lastOutput + newEstimate, 'estimate' = pure estimation */
+            method: 'actuals' | 'estimate';
+            /** Last actual input tokens from API (if method is 'actuals') */
+            lastInputTokens?: number;
+            /** Last actual output tokens from API (if method is 'actuals') */
+            lastOutputTokens?: number;
+            /** Estimated tokens for new messages since last call (if method is 'actuals') */
+            newMessagesEstimate?: number;
+        };
+    }> {
+        this.ensureStarted();
+
+        if (!sessionId || typeof sessionId !== 'string') {
+            throw AgentError.apiValidationError(
+                'sessionId is required and must be a non-empty string'
+            );
+        }
+
+        const session = await this.sessionManager.getSession(sessionId);
+        if (!session) {
+            throw SessionError.notFound(sessionId);
+        }
+
+        const contextManager = session.getContextManager();
+
+        // Get token estimate using ContextManager's method (single source of truth)
+        const contributorContext = { mcpManager: this.mcpManager };
+        const llmService = session.getLLMService();
+        const tools = await llmService.getAllTools();
+
+        const tokenEstimate = await contextManager.getContextTokenEstimate(
+            contributorContext,
+            tools
+        );
+
+        // Get raw history for hasSummary check
+        const history = await contextManager.getHistory();
+        // Get the effective max context tokens (compaction threshold takes priority)
+        const runtimeConfig = this.stateManager.getRuntimeConfig(sessionId);
+        const compactionConfig = runtimeConfig.compaction;
+        const modelContextWindow = contextManager.getMaxInputTokens();
+        let maxContextTokens = modelContextWindow;
+
+        // Apply compaction config overrides (same logic as vercel.ts)
+        // 1. maxContextTokens caps the context window (e.g., use 50K even if model supports 200K)
+        if (compactionConfig?.maxContextTokens !== undefined) {
+            maxContextTokens = Math.min(maxContextTokens, compactionConfig.maxContextTokens);
+        }
+        // 2. thresholdPercent triggers compaction early (default 90% to avoid context rot)
+        const thresholdPercent = compactionConfig?.thresholdPercent ?? 0.9;
+        if (thresholdPercent < 1.0) {
+            maxContextTokens = Math.floor(maxContextTokens * thresholdPercent);
+        }
+
+        // Check if there's a summary in history (old isSummary or new isSessionSummary marker)
+        const hasSummary = history.some(
+            (msg) => msg.metadata?.isSummary === true || msg.metadata?.isSessionSummary === true
+        );
+
+        // Get model info for display
+        const llmConfig = runtimeConfig.llm;
+        const { getModelDisplayName } = await import('../llm/registry.js');
+        const modelDisplayName = getModelDisplayName(llmConfig.model, llmConfig.provider);
+
+        // Always use the calculated estimate (which includes lastInput + lastOutput + newMessages when actuals available)
+        const estimatedTokens = tokenEstimate.estimated;
+
+        const autoCompactBuffer =
+            thresholdPercent > 0 && thresholdPercent < 1.0
+                ? Math.floor((maxContextTokens * (1 - thresholdPercent)) / thresholdPercent)
+                : 0;
+        const totalTokenSpace = maxContextTokens + autoCompactBuffer;
+        const usedTokens = estimatedTokens + autoCompactBuffer;
+
+        return {
+            estimatedTokens,
+            actualTokens: tokenEstimate.actual,
+            maxContextTokens,
+            modelContextWindow,
+            thresholdPercent,
+            usagePercent:
+                totalTokenSpace > 0 ? Math.round((usedTokens / totalTokenSpace) * 100) : 0,
+            messageCount: tokenEstimate.stats.originalMessageCount,
+            filteredMessageCount: tokenEstimate.stats.filteredMessageCount,
+            prunedToolCount: tokenEstimate.stats.prunedToolCount,
+            hasSummary,
+            model: llmConfig.model,
+            modelDisplayName,
+            breakdown: {
+                systemPrompt: tokenEstimate.breakdown.systemPrompt,
+                tools: tokenEstimate.breakdown.tools,
+                messages: tokenEstimate.breakdown.messages,
+            },
+            ...(tokenEstimate.calculationBasis && {
+                calculationBasis: tokenEstimate.calculationBasis,
+            }),
+        };
+    }
+
     // ============= LLM MANAGEMENT =============
 
     /**
      * Gets the current LLM configuration with all defaults applied.
+     * @param sessionId Optional session ID to get config for specific session
      * @returns Current LLM configuration
      */
-    public getCurrentLLMConfig(): ValidatedLLMConfig {
+    public getCurrentLLMConfig(sessionId?: string): ValidatedLLMConfig {
         this.ensureStarted();
-        return structuredClone(this.stateManager.getLLMConfig());
+        if (sessionId !== undefined && (!sessionId || typeof sessionId !== 'string')) {
+            throw AgentError.apiValidationError(
+                'sessionId must be a non-empty string when provided'
+            );
+        }
+        return structuredClone(this.stateManager.getLLMConfig(sessionId));
     }
 
     /**
@@ -1651,7 +1995,7 @@ export class DextoAgent {
      * ```
      */
     public getSupportedProviders(): LLMProvider[] {
-        return getSupportedProviders() as LLMProvider[];
+        return getSupportedProviders();
     }
 
     /**
@@ -1671,18 +2015,17 @@ export class DextoAgent {
      * const hasDefault = models.google.some(model => model.isDefault);
      * ```
      */
-    public getSupportedModels(): Record<LLMProvider, Array<ModelInfo & { isDefault: boolean }>> {
-        const result = {} as Record<LLMProvider, Array<ModelInfo & { isDefault: boolean }>>;
+    public getSupportedModels(): Record<
+        LLMProvider,
+        Array<ModelInfo & { isDefault: boolean; originalProvider?: LLMProvider }>
+    > {
+        const result = {} as Record<
+            LLMProvider,
+            Array<ModelInfo & { isDefault: boolean; originalProvider?: LLMProvider }>
+        >;
 
-        const providers = getSupportedProviders() as LLMProvider[];
-        for (const provider of providers) {
-            const defaultModel = getDefaultModelForProvider(provider);
-            const providerInfo = LLM_REGISTRY[provider];
-
-            result[provider] = providerInfo.models.map((model) => ({
-                ...model,
-                isDefault: model.name === defaultModel,
-            }));
+        for (const provider of this.getSupportedProviders()) {
+            result[provider] = this.getSupportedModelsForProvider(provider);
         }
 
         return result;
@@ -1691,6 +2034,8 @@ export class DextoAgent {
     /**
      * Gets supported models for a specific provider.
      * Returns model information including metadata for the specified provider only.
+     * For gateway providers like 'dexto' with supportsAllRegistryModels, returns
+     * all models from all accessible providers with their original provider info.
      *
      * @param provider The provider to get models for
      * @returns Array of model information for the specified provider
@@ -1709,14 +2054,20 @@ export class DextoAgent {
      */
     public getSupportedModelsForProvider(
         provider: LLMProvider
-    ): Array<ModelInfo & { isDefault: boolean }> {
-        const defaultModel = getDefaultModelForProvider(provider);
-        const providerInfo = LLM_REGISTRY[provider];
+    ): Array<ModelInfo & { isDefault: boolean; originalProvider?: LLMProvider }> {
+        const models = getAllModelsForProvider(provider);
 
-        return providerInfo.models.map((model) => ({
-            ...model,
-            isDefault: model.name === defaultModel,
-        }));
+        return models.map((model) => {
+            // For inherited models, get default from the original provider
+            const originalProvider =
+                'originalProvider' in model ? model.originalProvider : provider;
+            const defaultModel = getDefaultModelForProvider(originalProvider ?? provider);
+
+            return {
+                ...model,
+                isDefault: model.name === defaultModel,
+            };
+        });
     }
 
     /**
@@ -2282,10 +2633,11 @@ export class DextoAgent {
      * - Prompt key resolution (resolving aliases)
      * - Argument normalization (including special _context field)
      * - Prompt execution and flattening
+     * - Returning per-prompt overrides (allowedTools, model) for the invoker to apply
      *
      * @param name The prompt name or alias
      * @param options Optional configuration for prompt resolution
-     * @returns Promise resolving to the resolved text and resource URIs
+     * @returns Promise resolving to the resolved text, resource URIs, and optional overrides
      */
     public async resolvePrompt(
         name: string,
@@ -2293,7 +2645,7 @@ export class DextoAgent {
             context?: string;
             args?: Record<string, unknown>;
         } = {}
-    ): Promise<{ text: string; resources: string[] }> {
+    ): Promise<import('../prompts/index.js').ResolvedPromptResult> {
         this.ensureStarted();
         return await this.promptManager.resolvePrompt(name, options);
     }

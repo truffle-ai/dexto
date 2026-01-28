@@ -29,6 +29,7 @@ import { QueuedMessagesDisplay } from '../chat/QueuedMessagesDisplay.js';
 import { StatusBar } from '../StatusBar.js';
 import { HistorySearchBar } from '../HistorySearchBar.js';
 import { Footer } from '../Footer.js';
+import { TodoPanel } from '../TodoPanel.js';
 import {
     VirtualizedList,
     SCROLL_TO_ITEM_END,
@@ -85,6 +86,8 @@ export function AlternateBufferCLI({
         setDequeuedBuffer,
         queuedMessages,
         setQueuedMessages,
+        todos,
+        setTodos,
         ui,
         setUi,
         input,
@@ -165,24 +168,34 @@ export function AlternateBufferCLI({
     }, [selectionHintVisible]);
 
     // Get terminal dimensions - updates on resize
-    const { rows: terminalHeight } = useTerminalSize();
+    const { rows: terminalHeight, columns: terminalWidth } = useTerminalSize();
 
     // Build list data: header as first item, then finalized + pending + dequeued buffer
     // In alternate buffer mode, everything is re-rendered anyway, so we combine all
     // Order: finalized messages → pending/streaming → dequeued user messages (guarantees order)
+    // IMPORTANT: Deduplicate by ID to prevent race condition where a message appears in both
+    // finalized (messages) and pending during the brief window between setState calls
     const listData = useMemo<ListItem[]>(() => {
         const items: ListItem[] = [{ type: 'header' }];
+        const seenIds = new Set<string>();
+
         for (const msg of visibleMessages) {
             items.push({ type: 'message', message: msg });
+            seenIds.add(msg.id);
         }
-        // Add pending/streaming messages
+        // Add pending/streaming messages (skip if already in finalized - race condition guard)
         for (const msg of pendingMessages) {
-            items.push({ type: 'message', message: msg });
+            if (!seenIds.has(msg.id)) {
+                items.push({ type: 'message', message: msg });
+                seenIds.add(msg.id);
+            }
         }
         // Add dequeued buffer (user messages waiting to be flushed to finalized)
         // These render AFTER pending to guarantee correct visual order
         for (const msg of dequeuedBuffer) {
-            items.push({ type: 'message', message: msg });
+            if (!seenIds.has(msg.id)) {
+                items.push({ type: 'message', message: msg });
+            }
         }
         return items;
     }, [visibleMessages, pendingMessages, dequeuedBuffer]);
@@ -200,9 +213,9 @@ export function AlternateBufferCLI({
                     />
                 );
             }
-            return <MessageItem message={item.message} />;
+            return <MessageItem message={item.message} terminalWidth={terminalWidth} />;
         },
-        [session.modelName, session.id, session.hasActiveSession, startupInfo]
+        [session.modelName, session.id, session.hasActiveSession, startupInfo, terminalWidth]
     );
 
     // Smart height estimation based on item type and content
@@ -276,9 +289,21 @@ export function AlternateBufferCLI({
                     agent={agent}
                     isProcessing={ui.isProcessing}
                     isThinking={ui.isThinking}
+                    isCompacting={ui.isCompacting}
                     approvalQueueCount={approvalQueue.length}
                     copyModeEnabled={ui.copyModeEnabled}
                     isAwaitingApproval={approval !== null}
+                    todoExpanded={ui.todoExpanded}
+                    hasTodos={todos.some((t) => t.status !== 'completed')}
+                    planModeActive={ui.planModeActive}
+                    autoApproveEdits={ui.autoApproveEdits}
+                />
+
+                {/* Todo panel - shown below status bar */}
+                <TodoPanel
+                    todos={todos}
+                    isExpanded={ui.todoExpanded}
+                    isProcessing={ui.isProcessing}
                 />
 
                 {/* Selection hint when user tries to select without Option key */}
@@ -311,6 +336,7 @@ export function AlternateBufferCLI({
                     setQueuedMessages={setQueuedMessages}
                     setApproval={setApproval}
                     setApprovalQueue={setApprovalQueue}
+                    setTodos={setTodos}
                     agent={agent}
                     inputService={inputService}
                     onKeyboardScroll={handleKeyboardScroll}
@@ -347,9 +373,13 @@ export function AlternateBufferCLI({
 
                 {/* Footer status line */}
                 <Footer
+                    agent={agent}
+                    sessionId={session.id}
                     modelName={session.modelName}
                     cwd={process.cwd()}
                     autoApproveEdits={ui.autoApproveEdits}
+                    planModeActive={ui.planModeActive}
+                    isShellMode={buffer.text.startsWith('!')}
                 />
 
                 {/* History search bar (Ctrl+R) - shown at very bottom */}

@@ -25,8 +25,9 @@ export async function createMcpTransport(
                 'SSE transport requires HTTP response context and should be created per-request'
             );
         default: {
+            // Use stateless mode (no session management) for better compatibility
+            // with clients like OpenAI that may not properly handle Mcp-Session-Id headers
             return new StreamableHTTPServerTransport({
-                sessionIdGenerator: randomUUID,
                 enableJsonResponse: true,
             }) as Transport;
         }

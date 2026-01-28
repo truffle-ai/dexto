@@ -41,6 +41,12 @@ export interface CommandDefinition {
 }
 
 /**
+ * No-op handler for overlay-only commands.
+ * Used by commands in ALWAYS_OVERLAY that are handled entirely by the overlay system.
+ */
+export const overlayOnlyHandler = async (): Promise<CommandHandlerResult> => true;
+
+/**
  * Parse arguments respecting quotes and escape sequences
  */
 function parseQuotedArguments(input: string): string[] {
@@ -83,10 +89,21 @@ function parseQuotedArguments(input: string): string[] {
 }
 
 /**
- * Parses user input to determine if it's a slash command or a regular prompt
+ * Parses user input to determine if it's a slash command, shell command, or regular prompt
  */
 export function parseInput(input: string): CommandResult {
     const trimmed = input.trim();
+
+    // Check if it's a shell command (! prefix)
+    if (trimmed.startsWith('!')) {
+        const shellCommand = trimmed.slice(1).trim();
+        return {
+            type: 'command',
+            command: 'shell',
+            args: [shellCommand],
+            rawInput: trimmed,
+        };
+    }
 
     // Check if it's a slash command
     if (trimmed.startsWith('/')) {
@@ -170,6 +187,7 @@ export function displayAllCommands(commands: CommandDefinition[]): void {
         'Session Management',
         'Model Management',
         'MCP Management',
+        'Plugin Management',
         'Tool Management',
         'Prompt Management',
         'System',

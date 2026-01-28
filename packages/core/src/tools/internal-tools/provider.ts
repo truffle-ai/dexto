@@ -4,6 +4,7 @@ import type { DextoAgent } from '../../agent/DextoAgent.js';
 import { ToolError } from '../errors.js';
 import { convertZodSchemaToJsonSchema } from '../../utils/schema.js';
 import { InternalToolsServices, getInternalToolInfo, type AgentFeature } from './registry.js';
+import type { PromptManager } from '../../prompts/prompt-manager.js';
 import type { InternalToolsConfig, CustomToolsConfig } from '../schemas.js';
 import { customToolRegistry, type ToolCreationContext } from '../custom-tool-registry.js';
 import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
@@ -54,6 +55,23 @@ export class InternalToolsProvider {
      */
     setAgent(agent: DextoAgent): void {
         this.agent = agent;
+    }
+
+    /**
+     * Set prompt manager after construction (avoids circular dependency)
+     * Must be called before initialize() if invoke_skill tool is enabled
+     */
+    setPromptManager(promptManager: PromptManager): void {
+        this.services.promptManager = promptManager;
+    }
+
+    /**
+     * Set task forker for context:fork skill execution (late-binding)
+     * Called by agent-spawner custom tool provider after RuntimeService is created.
+     * This enables invoke_skill to fork execution to an isolated subagent.
+     */
+    setTaskForker(taskForker: import('./registry.js').TaskForker): void {
+        this.services.taskForker = taskForker;
     }
 
     /**
@@ -156,7 +174,11 @@ export class InternalToolsProvider {
         const context: ToolCreationContext = {
             logger: this.logger,
             agent: this.agent,
-            services: this.services, // Includes approvalManager for tools that need approval flows
+            services: {
+                ...this.services,
+                // Include storageManager from agent services for custom tools that need persistence
+                storageManager: this.agent.services?.storageManager,
+            },
         };
 
         for (const toolConfig of this.customToolConfigs) {
@@ -242,7 +264,8 @@ export class InternalToolsProvider {
         toolName: string,
         args: Record<string, unknown>,
         sessionId?: string,
-        abortSignal?: AbortSignal
+        abortSignal?: AbortSignal,
+        toolCallId?: string
     ): Promise<unknown> {
         // Check internal tools first, then custom tools
         const tool = this.internalTools.get(toolName) || this.customTools.get(toolName);
@@ -273,6 +296,7 @@ export class InternalToolsProvider {
             const context: ToolExecutionContext = {
                 sessionId,
                 abortSignal,
+                toolCallId,
             };
             const result = await tool.execute(validationResult.data, context);
             return result;

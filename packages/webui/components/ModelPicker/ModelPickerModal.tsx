@@ -1,3 +1,17 @@
+/**
+ * Model Picker Modal
+ *
+ * Allows users to browse and switch between LLM models across providers.
+ *
+ * TODO: Implement "Run via" toggle for featured models
+ * - Show a single model card with toggle buttons: "Dexto / Direct / OpenRouter"
+ * - Toggle changes both provider AND model ID (e.g., dexto uses OpenRouter IDs,
+ *   direct uses native IDs like claude-sonnet-4-5 vs anthropic/claude-sonnet-4.5)
+ * - Disable toggles when credentials are missing (e.g., no ANTHROPIC_API_KEY)
+ * - Requires a curated mapping table for featured models (provider/model pairs per backend)
+ * - See feature-plans/holistic-dexto-auth-analysis/13-model-id-namespaces-and-mapping.md
+ * - See feature-plans/holistic-dexto-auth-analysis/14-webui-effective-credentials-and-routing-awareness.md
+ */
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import {
     useLLMCatalog,
@@ -11,6 +25,7 @@ import {
     type CustomModel,
 } from '../hooks/useLLM';
 import { useLocalModels, useDeleteInstalledModel, type LocalModel } from '../hooks/useModels';
+import { useDextoAuth } from '../hooks/useDextoAuth';
 import {
     CustomModelForm,
     type CustomModelFormData,
@@ -100,6 +115,9 @@ export default function ModelPickerModal() {
         isLoading: loading,
         error: catalogError,
     } = useLLMCatalog({ enabled: open });
+
+    // Load dexto auth status (for checking if user can use dexto provider)
+    const { data: dextoAuthStatus } = useDextoAuth(open);
 
     // Load custom models from API (always enabled so trigger shows correct icon)
     const { data: customModels = [] } = useCustomModels();
@@ -472,7 +490,15 @@ export default function ModelPickerModal() {
             }
         }
 
-        if (!skipApiKeyCheck && provider && !provider.hasApiKey && !customApiKey) {
+        // Dexto provider requires OAuth login via CLI, not manual API key entry
+        // Check canUse from auth status API (requires both authentication AND API key)
+        if (!skipApiKeyCheck && providerId === 'dexto') {
+            if (!dextoAuthStatus?.canUse) {
+                setError('Run `dexto login` or `/login` from the CLI to authenticate with Dexto');
+                return;
+            }
+        } else if (!skipApiKeyCheck && provider && !provider.hasApiKey && !customApiKey) {
+            // Other providers - show API key modal if no key configured
             setPendingSelection({ provider: providerId, model });
             setPendingKeyProvider(providerId);
             setKeyModalOpen(true);
@@ -741,6 +767,9 @@ export default function ModelPickerModal() {
                             <Bot className="h-4 w-4" />
                         )}
                         <span className="text-sm">{triggerLabel}</span>
+                        {currentLLM?.viaDexto && (
+                            <span className="text-xs text-muted-foreground">via Dexto</span>
+                        )}
                         <ChevronDown
                             className={cn('h-3 w-3 transition-transform', open && 'rotate-180')}
                         />
@@ -990,7 +1019,7 @@ export default function ModelPickerModal() {
                                                                 )}
                                                             </div>
                                                             <div className="flex items-center gap-1 flex-shrink-0">
-                                                                {model.supportedFileTypes.includes(
+                                                                {model.supportedFileTypes?.includes(
                                                                     'image'
                                                                 ) && (
                                                                     <span
@@ -1018,7 +1047,7 @@ export default function ModelPickerModal() {
                                                                         </svg>
                                                                     </span>
                                                                 )}
-                                                                {model.supportedFileTypes.includes(
+                                                                {model.supportedFileTypes?.includes(
                                                                     'pdf'
                                                                 ) && (
                                                                     <span

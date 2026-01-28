@@ -139,13 +139,15 @@ export function DiffPreview({ data, headerType }: DiffPreviewProps) {
 
 interface CreateFilePreviewProps {
     data: FileDisplayData;
+    /** Custom header text (defaults to "Create file") */
+    header?: string;
 }
 
 /**
- * Preview for write_file (new file creation)
+ * Preview for write_file (new file creation) or plan review
  * Shows full file content with line numbers, white text
  */
-export function CreateFilePreview({ data }: CreateFilePreviewProps) {
+export function CreateFilePreview({ data, header = 'Create file' }: CreateFilePreviewProps) {
     const { path, content, lineCount } = data;
 
     if (!content) {
@@ -154,7 +156,7 @@ export function CreateFilePreview({ data }: CreateFilePreviewProps) {
             <Box flexDirection="column" marginBottom={1}>
                 <Box marginBottom={0}>
                     <Text color="cyan" bold>
-                        Create file
+                        {header}
                     </Text>
                 </Box>
                 <Box flexDirection="column" borderStyle="round" borderColor="gray" paddingX={1}>
@@ -173,7 +175,7 @@ export function CreateFilePreview({ data }: CreateFilePreviewProps) {
             {/* Header - standalone line */}
             <Box marginBottom={0}>
                 <Text color="cyan" bold>
-                    Create file
+                    {header}
                 </Text>
             </Box>
 

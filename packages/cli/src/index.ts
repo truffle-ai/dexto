@@ -18,8 +18,27 @@ import { withAnalytics, safeExit, ExitSignal } from './analytics/wrapper.js';
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json');
 
+// Set CLI version for Dexto Gateway usage tracking
+process.env.DEXTO_CLI_VERSION = pkg.version;
+
+// Populate DEXTO_API_KEY for Dexto gateway routing
+// Resolution order in getDextoApiKey():
+//   1. Explicit env var (CI, testing, account override)
+//   2. auth.json from `dexto login`
+import { isDextoAuthEnabled } from '@dexto/agent-management';
+if (isDextoAuthEnabled()) {
+    const { getDextoApiKey } = await import('./cli/auth/index.js');
+    const dextoApiKey = await getDextoApiKey();
+    if (dextoApiKey) {
+        process.env.DEXTO_API_KEY = dextoApiKey;
+    }
+}
+
 import {
     logger,
+    DextoLogger,
+    FileTransport,
+    DextoLogComponent,
     getProviderFromModel,
     getAllSupportedModels,
     DextoAgent,
@@ -34,16 +53,13 @@ import {
     globalPreferencesExist,
     loadGlobalPreferences,
     resolveBundledScript,
+    getDextoPath,
 } from '@dexto/agent-management';
 import type { ValidatedAgentConfig } from '@dexto/core';
 import { startHonoApiServer } from './api/server-hono.js';
 import { validateCliOptions, handleCliOptionsError } from './cli/utils/options.js';
 import { validateAgentConfig } from './cli/utils/config-validation.js';
-import {
-    applyCLIOverrides,
-    applyUserPreferences,
-    checkAgentCompatibility,
-} from './config/cli-overrides.js';
+import { applyCLIOverrides, applyUserPreferences } from './config/cli-overrides.js';
 import { enrichAgentConfig } from '@dexto/agent-management';
 import { getPort } from './utils/port-utils.js';
 import {
@@ -64,6 +80,30 @@ import {
     handleListAgentsCommand,
     type ListAgentsCommandOptionsInput,
     handleWhichCommand,
+    handleSyncAgentsCommand,
+    shouldPromptForSync,
+    markSyncDismissed,
+    clearSyncDismissed,
+    type SyncAgentsCommandOptions,
+    handleLoginCommand,
+    handleLogoutCommand,
+    handleStatusCommand,
+    handleBillingStatusCommand,
+    handlePluginListCommand,
+    handlePluginInstallCommand,
+    handlePluginUninstallCommand,
+    handlePluginValidateCommand,
+    // Marketplace handlers
+    handleMarketplaceAddCommand,
+    handleMarketplaceRemoveCommand,
+    handleMarketplaceUpdateCommand,
+    handleMarketplaceListCommand,
+    handleMarketplacePluginsCommand,
+    handleMarketplaceInstallCommand,
+    type PluginListCommandOptionsInput,
+    type PluginInstallCommandOptionsInput,
+    type MarketplaceListCommandOptionsInput,
+    type MarketplaceInstallCommandOptionsInput,
 } from './cli/commands/index.js';
 import {
     handleSessionListCommand,
@@ -73,6 +113,7 @@ import {
 } from './cli/commands/session-commands.js';
 import { requiresSetup } from './cli/utils/setup-utils.js';
 import { checkForFileInCurrentDirectory, FileNotFoundError } from './cli/utils/package-mgmt.js';
+import { checkForUpdates, displayUpdateNotification } from './cli/utils/version-check.js';
 import { resolveWebRoot } from './web.js';
 import { initializeMcpServer, createMcpTransport } from '@dexto/server';
 import { createAgentCard } from '@dexto/core';
@@ -83,6 +124,10 @@ const program = new Command();
 
 // Initialize analytics early (no-op if disabled)
 await initAnalytics({ appVersion: pkg.version });
+
+// Start version check early (non-blocking)
+// We'll check the result later and display notification for interactive modes
+const versionCheckPromise = checkForUpdates(pkg.version);
 
 /**
  * Recursively removes null values from an object.
@@ -137,6 +182,7 @@ program
     .option('--skip-setup', 'Skip global setup validation (useful for MCP mode, automation)')
     .option('-m, --model <model>', 'Specify the LLM model to use')
     .option('--auto-approve', 'Always approve tool executions without confirmation prompts')
+    .option('--no-elicitation', 'Disable elicitation (agent cannot prompt user for input)')
     .option('-c, --continue', 'Continue most recent session (requires -p/prompt)')
     .option('-r, --resume <sessionId>', 'Resume specific session (requires -p/prompt)')
     .option(
@@ -149,6 +195,10 @@ program
     .option(
         '--image <package>',
         'Image package to load (e.g., @dexto/image-local). Overrides config image field.'
+    )
+    .option(
+        '--dev',
+        '[maintainers] Use local ./agents instead of ~/.dexto (for dexto repo development)'
     )
     .enablePositionalOptions();
 
@@ -362,27 +412,238 @@ program
         })
     );
 
+// 10) `sync-agents` SUB-COMMAND
+program
+    .command('sync-agents')
+    .description('Sync installed agents with bundled versions')
+    .option('--list', 'List agent status without updating')
+    .option('--force', 'Update all agents without prompting')
+    .action(
+        withAnalytics('sync-agents', async (options: Partial<SyncAgentsCommandOptions>) => {
+            try {
+                await handleSyncAgentsCommand(options);
+                safeExit('sync-agents', 0);
+            } catch (err) {
+                if (err instanceof ExitSignal) throw err;
+                console.error(`❌ dexto sync-agents command failed: ${err}`);
+                safeExit('sync-agents', 1, 'error');
+            }
+        })
+    );
+
+// 11) `plugin` SUB-COMMAND
+const pluginCommand = program.command('plugin').description('Manage plugins');
+
+pluginCommand
+    .command('list')
+    .description('List installed plugins')
+    .option('--verbose', 'Show detailed plugin information')
+    .action(
+        withAnalytics('plugin list', async (options: PluginListCommandOptionsInput) => {
+            try {
+                await handlePluginListCommand(options);
+                safeExit('plugin list', 0);
+            } catch (err) {
+                if (err instanceof ExitSignal) throw err;
+                console.error(`❌ dexto plugin list command failed: ${err}`);
+                safeExit('plugin list', 1, 'error');
+            }
+        })
+    );
+
+pluginCommand
+    .command('install')
+    .description('Install a plugin from a local directory')
+    .requiredOption('--path <path>', 'Path to the plugin directory')
+    .option('--scope <scope>', 'Installation scope: user, project, or local', 'user')
+    .option('--force', 'Force overwrite if already installed')
+    .action(
+        withAnalytics('plugin install', async (options: PluginInstallCommandOptionsInput) => {
+            try {
+                await handlePluginInstallCommand(options);
+                safeExit('plugin install', 0);
+            } catch (err) {
+                if (err instanceof ExitSignal) throw err;
+                console.error(`❌ dexto plugin install command failed: ${err}`);
+                safeExit('plugin install', 1, 'error');
+            }
+        })
+    );
+
+pluginCommand
+    .command('uninstall <name>')
+    .description('Uninstall a plugin by name')
+    .action(
+        withAnalytics('plugin uninstall', async (name: string) => {
+            try {
+                await handlePluginUninstallCommand({ name });
+                safeExit('plugin uninstall', 0);
+            } catch (err) {
+                if (err instanceof ExitSignal) throw err;
+                console.error(`❌ dexto plugin uninstall command failed: ${err}`);
+                safeExit('plugin uninstall', 1, 'error');
+            }
+        })
+    );
+
+pluginCommand
+    .command('validate [path]')
+    .description('Validate a plugin directory structure')
+    .action(
+        withAnalytics('plugin validate', async (path?: string) => {
+            try {
+                await handlePluginValidateCommand({ path: path || '.' });
+                safeExit('plugin validate', 0);
+            } catch (err) {
+                if (err instanceof ExitSignal) throw err;
+                console.error(`❌ dexto plugin validate command failed: ${err}`);
+                safeExit('plugin validate', 1, 'error');
+            }
+        })
+    );
+
+// 12) `plugin marketplace` SUB-COMMANDS
+const marketplaceCommand = pluginCommand
+    .command('marketplace')
+    .alias('market')
+    .description('Manage plugin marketplaces');
+
+marketplaceCommand
+    .command('add <source>')
+    .description('Add a marketplace (GitHub: owner/repo, git URL, or local path)')
+    .option('--name <name>', 'Custom name for the marketplace')
+    .action(
+        withAnalytics(
+            'plugin marketplace add',
+            async (source: string, options: { name?: string }) => {
+                try {
+                    await handleMarketplaceAddCommand({ source, name: options.name });
+                    safeExit('plugin marketplace add', 0);
+                } catch (err) {
+                    if (err instanceof ExitSignal) throw err;
+                    console.error(`❌ dexto plugin marketplace add command failed: ${err}`);
+                    safeExit('plugin marketplace add', 1, 'error');
+                }
+            }
+        )
+    );
+
+marketplaceCommand
+    .command('list')
+    .description('List registered marketplaces')
+    .option('--verbose', 'Show detailed marketplace information')
+    .action(
+        withAnalytics(
+            'plugin marketplace list',
+            async (options: MarketplaceListCommandOptionsInput) => {
+                try {
+                    await handleMarketplaceListCommand(options);
+                    safeExit('plugin marketplace list', 0);
+                } catch (err) {
+                    if (err instanceof ExitSignal) throw err;
+                    console.error(`❌ dexto plugin marketplace list command failed: ${err}`);
+                    safeExit('plugin marketplace list', 1, 'error');
+                }
+            }
+        )
+    );
+
+marketplaceCommand
+    .command('remove <name>')
+    .alias('rm')
+    .description('Remove a registered marketplace')
+    .action(
+        withAnalytics('plugin marketplace remove', async (name: string) => {
+            try {
+                await handleMarketplaceRemoveCommand({ name });
+                safeExit('plugin marketplace remove', 0);
+            } catch (err) {
+                if (err instanceof ExitSignal) throw err;
+                console.error(`❌ dexto plugin marketplace remove command failed: ${err}`);
+                safeExit('plugin marketplace remove', 1, 'error');
+            }
+        })
+    );
+
+marketplaceCommand
+    .command('update [name]')
+    .description('Update marketplace(s) from remote (git pull)')
+    .action(
+        withAnalytics('plugin marketplace update', async (name?: string) => {
+            try {
+                await handleMarketplaceUpdateCommand({ name });
+                safeExit('plugin marketplace update', 0);
+            } catch (err) {
+                if (err instanceof ExitSignal) throw err;
+                console.error(`❌ dexto plugin marketplace update command failed: ${err}`);
+                safeExit('plugin marketplace update', 1, 'error');
+            }
+        })
+    );
+
+marketplaceCommand
+    .command('plugins [marketplace]')
+    .description('List plugins available in marketplaces')
+    .option('--verbose', 'Show plugin descriptions')
+    .action(
+        withAnalytics(
+            'plugin marketplace plugins',
+            async (marketplace?: string, options?: { verbose?: boolean }) => {
+                try {
+                    await handleMarketplacePluginsCommand({
+                        marketplace,
+                        verbose: options?.verbose,
+                    });
+                    safeExit('plugin marketplace plugins', 0);
+                } catch (err) {
+                    if (err instanceof ExitSignal) throw err;
+                    console.error(`❌ dexto plugin marketplace plugins command failed: ${err}`);
+                    safeExit('plugin marketplace plugins', 1, 'error');
+                }
+            }
+        )
+    );
+
+marketplaceCommand
+    .command('install <plugin>')
+    .description('Install a plugin from marketplace (plugin or plugin@marketplace)')
+    .option('--scope <scope>', 'Installation scope: user, project, or local', 'user')
+    .option('--force', 'Force reinstall if already exists')
+    .action(
+        withAnalytics(
+            'plugin marketplace install',
+            async (plugin: string, options: MarketplaceInstallCommandOptionsInput) => {
+                try {
+                    await handleMarketplaceInstallCommand({ ...options, plugin });
+                    safeExit('plugin marketplace install', 0);
+                } catch (err) {
+                    if (err instanceof ExitSignal) throw err;
+                    console.error(`❌ dexto plugin marketplace install command failed: ${err}`);
+                    safeExit('plugin marketplace install', 1, 'error');
+                }
+            }
+        )
+    );
+
 // Helper to bootstrap a minimal agent for non-interactive session/search ops
 async function bootstrapAgentFromGlobalOpts() {
     const globalOpts = program.opts();
     const resolvedPath = await resolveAgentPath(globalOpts.agent, globalOpts.autoInstall !== false);
     const rawConfig = await loadAgentConfig(resolvedPath);
     const mergedConfig = applyCLIOverrides(rawConfig, globalOpts);
-    const enrichedConfig = enrichAgentConfig(mergedConfig, resolvedPath, {
-        logLevel: 'info', // CLI uses info-level logging for visibility
-    });
 
-    // Load image dynamically if specified (same priority as main command)
+    // Load image first to get bundled plugins
     // Priority: CLI flag > Agent config > Environment variable > Default
-    // Images are optional, but default to image-local for convenience
     const imageName =
         globalOpts.image || // --image flag
-        enrichedConfig.image || // image field in agent config
+        mergedConfig.image || // image field in agent config
         process.env.DEXTO_IMAGE || // DEXTO_IMAGE env var
         '@dexto/image-local'; // Default for convenience
 
+    let imageMetadata: { bundledPlugins?: string[] } | null = null;
     try {
-        await import(imageName);
+        const imageModule = await import(imageName);
+        imageMetadata = imageModule.imageMetadata || null;
     } catch (_err) {
         console.error(`❌ Failed to load image '${imageName}'`);
         console.error(
@@ -392,6 +653,12 @@ async function bootstrapAgentFromGlobalOpts() {
         );
         safeExit('bootstrap', 1, 'image-load-failed');
     }
+
+    // Enrich config with bundled plugins from image
+    const enrichedConfig = enrichAgentConfig(mergedConfig, resolvedPath, {
+        logLevel: 'info', // CLI uses info-level logging for visibility
+        bundledPlugins: imageMetadata?.bundledPlugins || [],
+    });
 
     // Override approval config for read-only commands (never run conversations)
     // This avoids needing to set up unused approval handlers
@@ -459,7 +726,7 @@ async function getMostRecentSessionId(
     return mostRecentId;
 }
 
-// 10) `session` SUB-COMMAND
+// 11) `session` SUB-COMMAND
 const sessionCommand = program.command('session').description('Manage chat sessions');
 
 sessionCommand
@@ -521,7 +788,7 @@ sessionCommand
         })
     );
 
-// 11) `search` SUB-COMMAND
+// 12) `search` SUB-COMMAND
 program
     .command('search')
     .description('Search session history')
@@ -582,7 +849,119 @@ program
         )
     );
 
-// 12) `mcp` SUB-COMMAND
+// 13) `auth` SUB-COMMAND GROUP
+const authCommand = program.command('auth').description('Manage authentication');
+
+authCommand
+    .command('login')
+    .description('Login to Dexto')
+    .option('--api-key <key>', 'Use Dexto API key instead of browser login')
+    .option('--no-interactive', 'Disable interactive prompts')
+    .action(
+        withAnalytics('auth login', async (options: { apiKey?: string; interactive?: boolean }) => {
+            try {
+                await handleLoginCommand(options);
+                safeExit('auth login', 0);
+            } catch (err) {
+                if (err instanceof ExitSignal) throw err;
+                console.error(`❌ dexto auth login command failed: ${err}`);
+                safeExit('auth login', 1, 'error');
+            }
+        })
+    );
+
+authCommand
+    .command('logout')
+    .description('Logout from Dexto')
+    .option('--force', 'Skip confirmation prompt')
+    .option('--no-interactive', 'Disable interactive prompts')
+    .action(
+        withAnalytics(
+            'auth logout',
+            async (options: { force?: boolean; interactive?: boolean }) => {
+                try {
+                    await handleLogoutCommand(options);
+                    safeExit('auth logout', 0);
+                } catch (err) {
+                    if (err instanceof ExitSignal) throw err;
+                    console.error(`❌ dexto auth logout command failed: ${err}`);
+                    safeExit('auth logout', 1, 'error');
+                }
+            }
+        )
+    );
+
+authCommand
+    .command('status')
+    .description('Show authentication status')
+    .action(
+        withAnalytics('auth status', async () => {
+            try {
+                await handleStatusCommand();
+                safeExit('auth status', 0);
+            } catch (err) {
+                if (err instanceof ExitSignal) throw err;
+                console.error(`❌ dexto auth status command failed: ${err}`);
+                safeExit('auth status', 1, 'error');
+            }
+        })
+    );
+
+// Also add convenience aliases at root level
+program
+    .command('login')
+    .description('Login to Dexto (alias for `dexto auth login`)')
+    .option('--api-key <key>', 'Use Dexto API key instead of browser login')
+    .option('--no-interactive', 'Disable interactive prompts')
+    .action(
+        withAnalytics('login', async (options: { apiKey?: string; interactive?: boolean }) => {
+            try {
+                await handleLoginCommand(options);
+                safeExit('login', 0);
+            } catch (err) {
+                if (err instanceof ExitSignal) throw err;
+                console.error(`❌ dexto login command failed: ${err}`);
+                safeExit('login', 1, 'error');
+            }
+        })
+    );
+
+program
+    .command('logout')
+    .description('Logout from Dexto (alias for `dexto auth logout`)')
+    .option('--force', 'Skip confirmation prompt')
+    .option('--no-interactive', 'Disable interactive prompts')
+    .action(
+        withAnalytics('logout', async (options: { force?: boolean; interactive?: boolean }) => {
+            try {
+                await handleLogoutCommand(options);
+                safeExit('logout', 0);
+            } catch (err) {
+                if (err instanceof ExitSignal) throw err;
+                console.error(`❌ dexto logout command failed: ${err}`);
+                safeExit('logout', 1, 'error');
+            }
+        })
+    );
+
+// 14) `billing` COMMAND
+program
+    .command('billing')
+    .description('Show billing status and credit balance')
+    .action(
+        withAnalytics('billing', async () => {
+            try {
+                await handleBillingStatusCommand();
+                safeExit('billing', 0);
+            } catch (err) {
+                if (err instanceof ExitSignal) throw err;
+                console.error(`❌ dexto billing command failed: ${err}`);
+                safeExit('billing', 1, 'error');
+            }
+        })
+    );
+
+// 15) `mcp` SUB-COMMAND
 // For now, this mode simply aggregates and re-expose tools from configured MCP servers (no agent)
 // dexto --mode mcp will be moved to this sub-command in the future
 program
@@ -672,7 +1051,7 @@ program
         )
     );
 
-// 13) Main dexto CLI - Interactive/One shot (CLI/HEADLESS) or run in other modes (--mode web/server/mcp)
+// 16) Main dexto CLI - Interactive/One shot (CLI/HEADLESS) or run in other modes (--mode web/server/mcp)
 program
     .argument(
         '[prompt...]',
@@ -721,6 +1100,11 @@ program
                 }
 
                 const opts = program.opts();
+
+                // Set dev mode early to use local repo agents instead of ~/.dexto
+                if (opts.dev) {
+                    process.env.DEXTO_DEV_MODE = 'true';
+                }
 
                 // ——— LOAD DEFAULT MODE FROM PREFERENCES ———
                 // If --mode was not explicitly provided on CLI, use defaultMode from preferences
@@ -916,9 +1300,9 @@ program
                     let mergedConfig = applyCLIOverrides(rawConfig, opts as CLIConfigOverrides);
 
                     // ——— PREFERENCE-AWARE CONFIG HANDLING ———
-                    // For coding-agent (no explicit agent specified): Apply user preferences
-                    // For specific agents: Check compatibility and warn if needed
-                    const isDefaultAgent = !opts.agent;
+                    // User's LLM preferences from preferences.yml apply to ALL agents
+                    // See feature-plans/auto-update.md section 8.11 - Three-Layer LLM Resolution
+                    const agentId = opts.agent ?? 'coding-agent';
                     let preferences: Awaited<ReturnType<typeof loadGlobalPreferences>> | null =
                         null;
 
@@ -931,12 +1315,56 @@ program
                         }
                     }
 
+                    // Check if user is configured for Dexto credits but not authenticated
+                    // This can happen if user logged out after setting up with Dexto
+                    // Now that preferences apply to ALL agents, we check for any agent
+                    // Only run this check when Dexto auth feature is enabled
+                    if (isDextoAuthEnabled()) {
+                        const { checkDextoAuthState } = await import(
+                            './cli/utils/dexto-auth-check.js'
+                        );
+                        const authCheck = await checkDextoAuthState(
+                            opts.interactive !== false,
+                            agentId
+                        );
+
+                        if (!authCheck.shouldContinue) {
+                            if (authCheck.action === 'login') {
+                                // User wants to log in - run login flow then restart
+                                const { handleLoginCommand } = await import(
+                                    './cli/commands/auth/login.js'
+                                );
+                                await handleLoginCommand({ interactive: true });
+
+                                // Verify key was actually provisioned (provisionKeys silently catches errors)
+                                const { canUseDextoProvider } = await import(
+                                    './cli/utils/dexto-setup.js'
+                                );
+                                if (!(await canUseDextoProvider())) {
+                                    console.error(
+                                        '\n❌ API key provisioning failed. Please try again or run `dexto setup` to use a different provider.\n'
+                                    );
+                                    safeExit('main', 1, 'dexto-key-provisioning-failed');
+                                }
+                                // After login, continue with startup (preferences unchanged, now authenticated)
+                            } else if (authCheck.action === 'setup') {
+                                // User wants to configure different provider - run setup
+                                const { handleSetupCommand } = await import(
+                                    './cli/commands/setup.js'
+                                );
+                                await handleSetupCommand({ interactive: true, force: true });
+                                // Reload preferences after setup
+                                preferences = await loadGlobalPreferences();
+                            } else {
+                                // User cancelled
+                                safeExit('main', 0, 'dexto-auth-check-cancelled');
+                            }
+                        }
+                    }
+
                     // Check for pending API key setup (user skipped during initial setup)
-                    if (
-                        isDefaultAgent &&
-                        preferences?.setup?.apiKeyPending &&
-                        opts.interactive !== false
-                    ) {
+                    // Since preferences now apply to ALL agents, this check runs for any agent
+                    if (preferences?.setup?.apiKeyPending && opts.interactive !== false) {
                         // Check if API key is still missing (user may have set it manually)
                         const configuredApiKey = resolveApiKeyForProvider(preferences.llm.provider);
                         if (!configuredApiKey) {
@@ -978,100 +1406,51 @@ program
                         }
                     }
 
-                    if (isDefaultAgent && preferences) {
-                        // Default-agent: Apply user's LLM preferences at runtime
-                        // This ensures the base agent always uses user's preferred model/provider
+                    // Apply user's LLM preferences to ALL agents (not just the default)
+                    // See feature-plans/auto-update.md section 8.11 - Three-Layer LLM Resolution:
+                    //   local.llm ?? preferences.llm ?? bundled.llm
+                    // The preferences.llm acts as a "global .local.yml" for LLM settings
+                    if (preferences?.llm?.provider && preferences?.llm?.model) {
                         mergedConfig = applyUserPreferences(mergedConfig, preferences);
-                        logger.debug('Applied user preferences to coding-agent', {
+                        logger.debug(`Applied user preferences to ${agentId}`, {
                             provider: preferences.llm.provider,
                             model: preferences.llm.model,
                         });
-                    } else if (!isDefaultAgent && mergedConfig.llm) {
-                        // Specific agent: Check if user has the required provider configured
-                        const agentProvider = mergedConfig.llm.provider;
-                        const resolvedApiKey = resolveApiKeyForProvider(agentProvider);
-                        const compatibility = checkAgentCompatibility(
-                            mergedConfig,
-                            preferences,
-                            resolvedApiKey
-                        );
-
-                        if (!compatibility.compatible && opts.interactive !== false) {
-                            // User is missing API key for the agent's provider
-                            if (
-                                !compatibility.userHasApiKey &&
-                                preferences?.llm?.provider &&
-                                preferences?.llm?.model
-                            ) {
-                                // User has a default LLM configured - offer choice
-                                const { promptForMissingAgentApiKey } = await import(
-                                    './cli/utils/api-key-setup.js'
-                                );
-
-                                const result = await promptForMissingAgentApiKey(
-                                    compatibility.agentProvider,
-                                    compatibility.agentModel,
-                                    preferences.llm.provider,
-                                    preferences.llm.model
-                                );
-
-                                if (result.action === 'cancel') {
-                                    safeExit('main', 0, 'agent-api-key-cancelled');
-                                }
-
-                                if (result.action === 'use-default') {
-                                    // Apply user's default LLM to the agent config
-                                    mergedConfig = applyUserPreferences(mergedConfig, preferences);
-                                    // Also resolve the actual API key from environment
-                                    // (preferences store env var reference like $GOOGLE_API_KEY, not the actual key)
-                                    const userApiKey = resolveApiKeyForProvider(
-                                        preferences.llm.provider
-                                    );
-                                    if (userApiKey) {
-                                        mergedConfig.llm.apiKey = userApiKey;
-                                    }
-                                    logger.debug(
-                                        'Applied user preferences to agent (user chose default)',
-                                        {
-                                            provider: preferences.llm.provider,
-                                            model: preferences.llm.model,
-                                        }
-                                    );
-                                }
-
-                                if (result.action === 'add-key' && result.apiKey) {
-                                    // User added the API key - update the config
-                                    mergedConfig.llm.apiKey = result.apiKey;
-                                    logger.debug('Applied new API key to agent config');
-                                }
-                            } else {
-                                // No default LLM to fall back to - show warnings only
-                                console.log(chalk.yellow('\n⚠️  Agent Compatibility Notice:'));
-                                for (const warning of compatibility.warnings) {
-                                    console.log(chalk.yellow(`   ${warning}`));
-                                }
-                                if (compatibility.instructions.length > 0) {
-                                    console.log(chalk.dim('\n   To fix:'));
-                                    for (const instruction of compatibility.instructions) {
-                                        console.log(chalk.dim(`   ${instruction}`));
-                                    }
-                                }
-                                console.log(''); // Empty line for spacing
-                            }
-                        }
                     }
 
                     // Clean up null values from config (can happen from YAML files with explicit nulls)
                     // This prevents "Expected string, received null" errors for optional fields
                     const cleanedConfig = cleanNullValues(mergedConfig);
 
-                    // Enrich config with per-agent paths BEFORE validation
+                    // Load image first to get bundled plugins
+                    // Priority: CLI flag > Agent config > Environment variable > Default
+                    const imageNameForEnrichment =
+                        opts.image || // --image flag
+                        cleanedConfig.image || // image field in agent config
+                        process.env.DEXTO_IMAGE || // DEXTO_IMAGE env var
+                        '@dexto/image-local'; // Default for convenience
+
+                    let imageMetadataForEnrichment: { bundledPlugins?: string[] } | null = null;
+                    try {
+                        const imageModule = await import(imageNameForEnrichment);
+                        imageMetadataForEnrichment = imageModule.imageMetadata || null;
+                        logger.debug(`Loaded image for enrichment: ${imageNameForEnrichment}`);
+                    } catch (err) {
+                        console.error(`❌ Failed to load image '${imageNameForEnrichment}'`);
+                        if (err instanceof Error) {
+                            logger.debug(`Image load error: ${err.message}`);
+                        }
+                        safeExit('main', 1, 'image-load-failed');
+                    }
+
+                    // Enrich config with per-agent paths and bundled plugins BEFORE validation
                     // Enrichment adds filesystem paths to storage (schema has in-memory defaults)
                     // Interactive CLI mode: only log to file (console would interfere with chat UI)
                     const isInteractiveCli = opts.mode === 'cli' && !headlessInput;
                     const enrichedConfig = enrichAgentConfig(cleanedConfig, resolvedPath, {
                         isInteractiveCli,
                         logLevel: 'info', // CLI uses info-level logging for visibility
+                        bundledPlugins: imageMetadataForEnrichment?.bundledPlugins || [],
                     });
 
                     // Validate enriched config with interactive setup if needed (for API key issues)
@@ -1079,7 +1458,7 @@ program
                     const validationResult = await validateAgentConfig(
                         enrichedConfig,
                         opts.interactive !== false,
-                        { strict: !isInteractiveMode }
+                        { strict: !isInteractiveMode, agentPath: resolvedPath }
                     );
 
                     if (validationResult.success && validationResult.config) {
@@ -1098,40 +1477,16 @@ program
                         safeExit('main', 1, 'config-validation-failed');
                     }
 
-                    // ——— LOAD IMAGE DYNAMICALLY (if specified) ———
-                    // Priority: CLI flag > Agent config > Environment variable > Default
-                    // Images are optional, but default to image-local for convenience
-                    const imageName =
-                        opts.image || // --image flag
-                        validatedConfig.image || // image field in agent config
-                        process.env.DEXTO_IMAGE || // DEXTO_IMAGE env var
-                        '@dexto/image-local'; // Default for convenience
-
-                    try {
-                        await import(imageName);
-                        logger.debug(`Loaded image: ${imageName}`);
-                    } catch (err) {
-                        console.error(`❌ Failed to load image '${imageName}'`);
-                        console.error(
-                            `💡 Install it with: ${
-                                existsSync('package.json') ? 'npm install' : 'npm install -g'
-                            } ${imageName}`
-                        );
-                        if (err instanceof Error) {
-                            logger.debug(`Image load error: ${err.message}`);
-                        }
-                        safeExit('main', 1, 'image-load-failed');
-                    }
-
                     // Validate that if config specifies an image, it matches what was loaded
                     // Skip this check if user explicitly provided --image flag (intentional override)
+                    // Note: Image was already loaded earlier before enrichment
                     if (
                         !opts.image &&
                         validatedConfig.image &&
-                        validatedConfig.image !== imageName
+                        validatedConfig.image !== imageNameForEnrichment
                     ) {
                         console.error(
-                            `❌ Config specifies image '${validatedConfig.image}' but '${imageName}' was loaded instead`
+                            `❌ Config specifies image '${validatedConfig.image}' but '${imageNameForEnrichment}' was loaded instead`
                         );
                         console.error(
                             `💡 Either remove 'image' from config or ensure it matches the loaded image`
@@ -1157,11 +1512,13 @@ program
                         console.error(
                             '❌ Manual approval and elicitation are not supported in headless CLI mode (pipes/scripts).'
                         );
-                        console.error('💡 Use interactive CLI mode, or update your config:');
                         console.error(
-                            '   - Set toolConfirmation.mode to "auto-approve" or "auto-deny"'
+                            '💡 Use interactive CLI mode, or skip approvals by running `dexto --auto-approve` and disabling elicitation in your config.'
                         );
-                        console.error('   - Set elicitation.enabled to false');
+                        console.error(
+                            '   - toolConfirmation.mode: auto-approve (or auto-deny for strict denial policies)'
+                        );
+                        console.error('   - elicitation.enabled: false');
                         safeExit('main', 1, 'approval-unsupported-headless');
                     }
 
@@ -1176,13 +1533,17 @@ program
                             `❌ Manual approval and elicitation are not supported in "${opts.mode}" mode.`
                         );
                         console.error(
-                            `💡 These features require interactive UI and are only supported in: ${supportedModes.join(', ')}`
+                            `💡 These features require interactive UI and are only supported in: ${supportedModes.join(
+                                ', '
+                            )}`
                         );
-                        console.error('   Update your config:');
                         console.error(
-                            '   - Set toolConfirmation.mode to "auto-approve" or "auto-deny"'
+                            '💡 Run `dexto --auto-approve` or configure your agent to skip approvals when running headlessly.'
                         );
-                        console.error('   - Set elicitation.enabled to false');
+                        console.error(
+                            '   toolConfirmation.mode: auto-approve (or auto-deny if you want to deny certain tools)'
+                        );
+                        console.error('   elicitation.enabled: false');
                         safeExit('main', 1, 'approval-unsupported-mode');
                     }
                 }
@@ -1191,8 +1552,6 @@ program
                 let agent: DextoAgent;
                 let derivedAgentId: string;
                 try {
-                    console.error(`🚀 Initializing Dexto with config: ${resolvedPath}`);
-
                     // Set run mode for tool confirmation provider
                     process.env.DEXTO_RUN_MODE = opts.mode;
 
@@ -1209,8 +1568,32 @@ program
                     // Config is already enriched and validated - ready for agent creation
                     // DextoAgent will parse/validate again (parse-twice pattern)
                     // isInteractiveMode is already defined above for validateAgentConfig
+                    const sessionLoggerFactory: import('@dexto/core').SessionLoggerFactory = ({
+                        baseLogger,
+                        agentId,
+                        sessionId,
+                    }) => {
+                        // Sanitize sessionId to prevent path traversal attacks
+                        // Allow only alphanumeric, dots, hyphens, and underscores
+                        const safeSessionId = sessionId.replace(/[^a-zA-Z0-9._-]/g, '_');
+                        const logFilePath = getDextoPath(
+                            'logs',
+                            path.join(agentId, `${safeSessionId}.log`)
+                        );
+
+                        // Standalone per-session file logger.
+                        return new DextoLogger({
+                            level: baseLogger.getLevel(),
+                            agentId,
+                            sessionId,
+                            component: DextoLogComponent.SESSION,
+                            transports: [new FileTransport({ path: logFilePath })],
+                        });
+                    };
+
                     agent = new DextoAgent(validatedConfig, resolvedPath, {
                         strict: !isInteractiveMode,
+                        sessionLoggerFactory,
                     });
 
                     // Start the agent (initialize async services)
@@ -1243,31 +1626,21 @@ program
                     case 'cli': {
                         // Set up approval handler for interactive CLI if manual mode OR elicitation enabled
                         // Note: Headless CLI with manual mode is blocked by validation above
-                        // Ink CLI uses ApprovalCoordinator (same as server/web mode) to coordinate
-                        // approval requests with React UI components
                         const needsHandler =
                             !headlessInput &&
                             (validatedConfig.toolConfirmation?.mode === 'manual' ||
                                 validatedConfig.elicitation.enabled);
 
                         if (needsHandler) {
-                            const { createManualApprovalHandler, ApprovalCoordinator } =
-                                await import('@dexto/server');
-                            const approvalCoordinator = new ApprovalCoordinator();
-                            const handler = createManualApprovalHandler(approvalCoordinator);
+                            // CLI uses its own approval handler that works directly with AgentEventBus
+                            // This avoids the indirection of ApprovalCoordinator (designed for HTTP flows)
+                            const { createCLIApprovalHandler } = await import(
+                                './cli/approval/index.js'
+                            );
+                            const handler = createCLIApprovalHandler(agent.agentEventBus);
                             agent.setApprovalHandler(handler);
 
-                            // Bridge approval events between coordinator and agent event bus for Ink CLI
-                            // Forward requests from coordinator to event bus (for UI to receive)
-                            approvalCoordinator.on('approval:request', (request) => {
-                                agent.agentEventBus.emit('approval:request', request);
-                            });
-                            // Forward responses from event bus to coordinator (for handler to receive)
-                            agent.agentEventBus.on('approval:response', (response) => {
-                                approvalCoordinator.emitResponse(response);
-                            });
-
-                            logger.debug('Event-based approval handler configured for Ink CLI');
+                            logger.debug('CLI approval handler configured for Ink CLI');
                         }
 
                         // Start the agent now that approval handler is configured
@@ -1443,6 +1816,25 @@ program
                             const session = await agent.createSession();
                             const cliSessionId: string = session.id;
 
+                            // Check for updates (will be shown in Ink header)
+                            const cliUpdateInfo = await versionCheckPromise;
+
+                            // Check if installed agents differ from bundled and prompt to sync
+                            const needsSync = await shouldPromptForSync(pkg.version);
+                            if (needsSync) {
+                                const shouldSync = await p.confirm({
+                                    message: 'Agent config updates available. Sync now?',
+                                    initialValue: true,
+                                });
+
+                                if (p.isCancel(shouldSync) || !shouldSync) {
+                                    await markSyncDismissed(pkg.version);
+                                } else {
+                                    await handleSyncAgentsCommand({ force: true, quiet: true });
+                                    await clearSyncDismissed();
+                                }
+                            }
+
                             // Interactive mode - use Ink CLI with session support
                             // Suppress console output before starting Ink UI
                             const originalConsole = {
@@ -1462,7 +1854,9 @@ program
                                 const { startInkCliRefactored } = await import(
                                     './cli/ink-cli/InkCLIRefactored.js'
                                 );
-                                await startInkCliRefactored(agent, cliSessionId);
+                                await startInkCliRefactored(agent, cliSessionId, {
+                                    updateInfo: cliUpdateInfo ?? undefined,
+                                });
                             } catch (error) {
                                 inkError = error;
                             } finally {
@@ -1528,6 +1922,12 @@ program
 
                         console.log(chalk.green(`✅ Server running at ${serverUrl}`));
 
+                        // Show update notification if available
+                        const webUpdateInfo = await versionCheckPromise;
+                        if (webUpdateInfo) {
+                            displayUpdateNotification(webUpdateInfo);
+                        }
+
                         // Open WebUI in browser if webRoot is available
                         if (webRoot) {
                             try {
@@ -1563,6 +1963,12 @@ program
                         console.log('  POST /api/reset - Reset conversation');
                         console.log('  GET  /api/mcp/servers - List MCP servers');
                         console.log('  SSE support available for real-time events');
+
+                        // Show update notification if available
+                        const serverUpdateInfo = await versionCheckPromise;
+                        if (serverUpdateInfo) {
+                            displayUpdateNotification(serverUpdateInfo);
+                        }
                         break;
                     }
 
@@ -1626,5 +2032,5 @@ program
         )
     );
 
-// 14) PARSE & EXECUTE
+// 17) PARSE & EXECUTE
 program.parseAsync(process.argv);

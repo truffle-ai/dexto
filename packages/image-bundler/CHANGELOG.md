@@ -1,5 +1,68 @@
 # @dexto/image-bundler
 
+## 1.5.6
+
+### Patch Changes
+
+- 042f4f0: ### CLI Improvements
+    - Add `/export` command to export conversations as Markdown or JSON
+    - Add `Ctrl+T` toggle for task list visibility during processing
+    - Improve task list UI with collapsible view near the processing message
+    - Fix race condition causing duplicate rendering (mainly visible with explore tool)
+    - Don't truncate `pattern` and `question` args in tool output display
+
+    ### Bug Fixes
+    - Fix build script to preserve `.dexto` storage (conversations, logs) during clean builds
+    - Fix `@dexto/tools-todo` versioning - add to fixed version group in changeset config
+
+    ### Configuration Changes
+    - Remove approval timeout defaults - now waits indefinitely (better UX for CLI)
+    - Add package versioning guidelines to AGENTS.md
+
+- Updated dependencies [042f4f0]
+    - @dexto/core@1.5.6
+
+## 1.5.5
+
+### Patch Changes
+
+- Updated dependencies [63fa083]
+- Updated dependencies [6df3ca9]
+    - @dexto/core@1.5.5
+
+## 1.5.4
+
+### Patch Changes
+
+- Updated dependencies [0016cd3]
+- Updated dependencies [499b890]
+- Updated dependencies [aa2c9a0]
+    - @dexto/core@1.5.4
+
+## 1.5.3
+
+### Patch Changes
+
+- Updated dependencies [4f00295]
+- Updated dependencies [69c944c]
+    - @dexto/core@1.5.3
+
+## 1.5.2
+
+### Patch Changes
+
+- Updated dependencies [8a85ea4]
+- Updated dependencies [527f3f9]
+    - @dexto/core@1.5.2
+
+## 1.5.1
+
+### Patch Changes
+
+- Updated dependencies [bfcc7b1]
+- Updated dependencies [4aabdb7]
+    - @dexto/core@1.5.1
+
 ## 1.5.0
 
 ### Minor Changes

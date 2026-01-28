@@ -58,7 +58,7 @@ export function CapabilityIcons({
 
     return (
         <div className={cn('flex items-center gap-1', className)}>
-            {supportedFileTypes.includes('image') && (
+            {supportedFileTypes?.includes('image') && (
                 <CapabilityBadge
                     icon={<Eye className={iconSize} />}
                     label="Vision / Image support"
@@ -66,7 +66,7 @@ export function CapabilityIcons({
                 />
             )}
 
-            {supportedFileTypes.includes('pdf') && (
+            {supportedFileTypes?.includes('pdf') && (
                 <CapabilityBadge
                     icon={<FileText className={iconSize} />}
                     label="PDF support"
@@ -74,7 +74,7 @@ export function CapabilityIcons({
                 />
             )}
 
-            {supportedFileTypes.includes('audio') && (
+            {supportedFileTypes?.includes('audio') && (
                 <CapabilityBadge
                     icon={<Mic className={iconSize} />}
                     label="Audio support"

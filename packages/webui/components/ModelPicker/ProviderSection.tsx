@@ -119,8 +119,10 @@ export function ProviderSection({
                             // Build description lines for tooltip
                             const priceLines = formatPricingLines(model.pricing || undefined);
                             const descriptionLines = [
-                                `Max tokens: ${model.maxInputTokens.toLocaleString()}`,
-                                model.supportedFileTypes.length > 0 &&
+                                model.maxInputTokens &&
+                                    `Max tokens: ${model.maxInputTokens.toLocaleString()}`,
+                                Array.isArray(model.supportedFileTypes) &&
+                                    model.supportedFileTypes.length > 0 &&
                                     `Supports: ${model.supportedFileTypes.join(', ')}`,
                                 model.default && 'Default model',
                                 !hasApiKey && 'API key required',

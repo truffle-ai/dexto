@@ -839,6 +839,86 @@ describe('StreamProcessor', () => {
             });
         });
 
+        test('subtracts cached input tokens from inputTokens when cachedInputTokens is present', async () => {
+            const mocks = createMocks();
+            const processor = new StreamProcessor(
+                mocks.contextManager,
+                mocks.eventBus,
+                mocks.resourceManager,
+                mocks.abortController.signal,
+                mocks.config,
+                mocks.logger,
+                true
+            );
+
+            const events = [
+                { type: 'text-delta', text: 'Response' },
+                {
+                    type: 'finish',
+                    finishReason: 'stop',
+                    totalUsage: {
+                        inputTokens: 1000,
+                        outputTokens: 50,
+                        totalTokens: 1050,
+                        cachedInputTokens: 900,
+                    },
+                },
+            ];
+
+            const result = await processor.process(() => createMockStream(events) as never);
+
+            expect(result.usage).toEqual({
+                inputTokens: 100,
+                outputTokens: 50,
+                totalTokens: 1050,
+                cacheReadTokens: 900,
+                cacheWriteTokens: 0,
+            });
+        });
+
+        test('avoids double-counting cache write tokens when only cachedInputTokens are present', async () => {
+            const mocks = createMocks();
+            const processor = new StreamProcessor(
+                mocks.contextManager,
+                mocks.eventBus,
+                mocks.resourceManager,
+                mocks.abortController.signal,
+                mocks.config,
+                mocks.logger,
+                true
+            );
+
+            const events = [
+                { type: 'text-delta', text: 'Response' },
+                {
+                    type: 'finish',
+                    finishReason: 'stop',
+                    providerMetadata: {
+                        anthropic: {
+                            cacheCreationInputTokens: 100,
+                            cacheReadInputTokens: 900,
+                        },
+                    },
+                    totalUsage: {
+                        inputTokens: 1100,
+                        outputTokens: 50,
+                        totalTokens: 1150,
+                        cachedInputTokens: 900,
+                    },
+                },
+            ];
+
+            const result = await processor.process(() => createMockStream(events) as never);
+
+            expect(result.usage).toEqual({
+                inputTokens: 100,
+                outputTokens: 50,
+                totalTokens: 1150,
+                cacheReadTokens: 900,
+                cacheWriteTokens: 100,
+            });
+        });
+
         test('updates assistant message with usage', async () => {
             const mocks = createMocks();
             const processor = new StreamProcessor(
@@ -871,6 +951,75 @@ describe('StreamProcessor', () => {
                     cacheWriteTokens: 0,
                 },
             });
+        });
+
+        test('persists reasoning text to assistant message', async () => {
+            const mocks = createMocks();
+            const processor = new StreamProcessor(
+                mocks.contextManager,
+                mocks.eventBus,
+                mocks.resourceManager,
+                mocks.abortController.signal,
+                mocks.config,
+                mocks.logger,
+                true
+            );
+
+            const events = [
+                { type: 'reasoning-delta', text: 'Let me think...' },
+                { type: 'reasoning-delta', text: ' about this carefully.' },
+                { type: 'text-delta', text: 'Here is my answer' },
+                {
+                    type: 'finish',
+                    finishReason: 'stop',
+                    totalUsage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
+                },
+            ];
+
+            await processor.process(() => createMockStream(events) as never);
+
+            // Verify reasoning is persisted to the assistant message
+            expect(mocks.contextManager.updateAssistantMessage).toHaveBeenCalledWith(
+                'msg-1',
+                expect.objectContaining({
+                    reasoning: 'Let me think... about this carefully.',
+                })
+            );
+        });
+
+        test('persists reasoning metadata (providerMetadata) to assistant message', async () => {
+            const mocks = createMocks();
+            const processor = new StreamProcessor(
+                mocks.contextManager,
+                mocks.eventBus,
+                mocks.resourceManager,
+                mocks.abortController.signal,
+                mocks.config,
+                mocks.logger,
+                true
+            );
+
+            const providerMetadata = { openai: { itemId: 'item-123' } };
+            const events = [
+                { type: 'reasoning-delta', text: 'Thinking...', providerMetadata },
+                { type: 'text-delta', text: 'Answer' },
+                {
+                    type: 'finish',
+                    finishReason: 'stop',
+                    totalUsage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
+                },
+            ];
+
+            await processor.process(() => createMockStream(events) as never);
+
+            // Verify reasoning metadata is persisted
+            expect(mocks.contextManager.updateAssistantMessage).toHaveBeenCalledWith(
+                'msg-1',
+                expect.objectContaining({
+                    reasoning: 'Thinking...',
+                    reasoningMetadata: providerMetadata,
+                })
+            );
         });
 
         test('emits llm:response with content, usage, provider, model', async () => {

@@ -7,6 +7,15 @@ import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
 import type { ToolDisplayData, ContentPart, McpConnectionStatus, McpServerType } from '@dexto/core';
 
 /**
+ * Update information for version check
+ */
+export interface UpdateInfo {
+    current: string;
+    latest: string;
+    updateCommand: string;
+}
+
+/**
  * Startup information displayed in CLI header
  */
 export interface StartupInfo {
@@ -14,6 +23,10 @@ export interface StartupInfo {
     failedConnections: string[];
     toolCount: number;
     logFile: string | null;
+    /** Update info if a newer version is available */
+    updateInfo?: UpdateInfo | undefined;
+    /** True if installed agents differ from bundled and user should sync */
+    needsAgentSync?: boolean | undefined;
 }
 
 /**
@@ -116,8 +129,8 @@ export interface LogConfigStyledData {
 export interface RunSummaryStyledData {
     /** Duration in milliseconds */
     durationMs: number;
-    /** Output tokens used */
-    outputTokens: number;
+    /** Total tokens used (lastInput + cumulativeOutput) */
+    totalTokens: number;
 }
 
 export interface PromptsStyledData {
@@ -167,6 +180,47 @@ export type StyledData =
     | ShortcutsStyledData;
 
 /**
+ * Sub-agent progress data for spawn_agent tool calls
+ */
+export interface SubAgentProgress {
+    /** Short task description */
+    task: string;
+    /** Agent ID (e.g., 'explore-agent') */
+    agentId: string;
+    /** Number of tools called by the sub-agent */
+    toolsCalled: number;
+    /** Current tool being executed */
+    currentTool: string;
+    /** Current tool arguments (optional) */
+    currentArgs?: Record<string, unknown> | undefined;
+    /** Cumulative token usage from the sub-agent (updated on each llm:response) */
+    tokenUsage?: {
+        input: number;
+        output: number;
+        total: number;
+    };
+}
+
+/**
+ * Todo status for workflow tracking
+ */
+export type TodoStatus = 'pending' | 'in_progress' | 'completed';
+
+/**
+ * Todo item for workflow tracking
+ */
+export interface TodoItem {
+    id: string;
+    sessionId: string;
+    content: string;
+    activeForm: string;
+    status: TodoStatus;
+    position: number;
+    createdAt: Date | string;
+    updatedAt: Date | string;
+}
+
+/**
  * Message in the chat interface
  *
  * TODO: Consolidate with InternalMessage from @dexto/core. Currently we have two
@@ -195,6 +249,8 @@ export interface Message {
     toolDisplayData?: ToolDisplayData;
     /** Content parts for tool result rendering */
     toolContent?: ContentPart[];
+    /** Sub-agent progress data (for spawn_agent tool calls) */
+    subAgentProgress?: SubAgentProgress;
 }
 
 /**
@@ -279,7 +335,15 @@ export type OverlayType =
     | 'prompt-list'
     | 'prompt-add-choice'
     | 'prompt-add-wizard'
-    | 'prompt-delete-selector';
+    | 'prompt-delete-selector'
+    | 'session-rename'
+    | 'context-stats'
+    | 'export-wizard'
+    | 'plugin-manager'
+    | 'plugin-list'
+    | 'plugin-actions'
+    | 'marketplace-browser'
+    | 'marketplace-add';
 
 /**
  * MCP server type for custom wizard (null = not yet selected)
@@ -337,6 +401,7 @@ export interface UIState {
     isProcessing: boolean;
     isCancelling: boolean; // True when cancellation is in progress
     isThinking: boolean; // True when LLM is thinking (before streaming starts)
+    isCompacting: boolean; // True when context is being compacted
     activeOverlay: OverlayType;
     exitWarningShown: boolean; // True when first Ctrl+C was pressed (pending second to exit)
     exitWarningTimestamp: number | null; // Timestamp of first Ctrl+C for timeout
@@ -347,6 +412,10 @@ export interface UIState {
     historySearch: HistorySearchState; // Ctrl+R reverse history search
     promptAddWizard: PromptAddWizardState | null; // Prompt add wizard state
     autoApproveEdits: boolean; // True when edit mode is on (auto-approve edit_file/write_file)
+    todoExpanded: boolean; // True when todo list is expanded (shows all tasks), false when collapsed (shows current task only)
+    // Plan mode state (Shift+Tab toggle)
+    planModeActive: boolean; // True when plan mode indicator is shown
+    planModeInitialized: boolean; // True after first message sent in plan mode (prevents re-injection)
 }
 
 /**

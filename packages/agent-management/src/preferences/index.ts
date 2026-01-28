@@ -5,6 +5,7 @@ export type {
     PreferenceLLM,
     PreferenceDefaults,
     PreferenceSetup,
+    PreferenceSounds,
 } from './schemas.js';
 
 export {
@@ -12,6 +13,7 @@ export {
     PreferenceLLMSchema,
     PreferenceDefaultsSchema,
     PreferenceSetupSchema,
+    PreferenceSoundsSchema,
 } from './schemas.js';
 
 export { PREFERENCES_FILE } from './constants.js';

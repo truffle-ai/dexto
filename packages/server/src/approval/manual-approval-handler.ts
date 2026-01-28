@@ -150,6 +150,45 @@ export function createManualApprovalHandler(coordinator: ApprovalCoordinator): A
         getPendingRequests: (): ApprovalRequest[] => {
             return Array.from(pendingApprovals.values()).map((p) => p.request);
         },
+
+        /**
+         * Auto-approve pending requests that match a predicate.
+         * Used when a pattern is remembered to auto-approve other parallel requests
+         * that would now match the same pattern.
+         */
+        autoApprovePending: (
+            predicate: (request: ApprovalRequest) => boolean,
+            responseData?: Record<string, unknown>
+        ): number => {
+            let count = 0;
+
+            // Find all pending approvals that match the predicate
+            for (const [approvalId, pending] of pendingApprovals) {
+                if (predicate(pending.request)) {
+                    // Clean up the pending state
+                    pending.cleanup();
+                    pendingApprovals.delete(approvalId);
+
+                    // Create auto-approval response
+                    const autoApproveResponse: ApprovalResponse = {
+                        approvalId,
+                        status: ApprovalStatus.APPROVED,
+                        sessionId: pending.request.sessionId,
+                        message: 'Auto-approved due to matching remembered pattern',
+                        data: responseData,
+                    };
+
+                    // Emit response so UI can update
+                    coordinator.emitResponse(autoApproveResponse);
+
+                    // Resolve the pending promise
+                    pending.resolve(autoApproveResponse);
+                    count++;
+                }
+            }
+
+            return count;
+        },
     });
 
     return handler;

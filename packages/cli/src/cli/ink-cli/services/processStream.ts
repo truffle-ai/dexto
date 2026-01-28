@@ -28,12 +28,8 @@ import type { Message, UIState, ToolStatus } from '../state/types.js';
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
 import { generateMessageId } from '../utils/idGenerator.js';
 import { checkForSplit } from '../utils/streamSplitter.js';
-import {
-    getToolDisplayName,
-    formatToolArgsForDisplay,
-    getToolTypeBadge,
-} from '../utils/messageFormatting.js';
-import { isEditWriteTool } from '../utils/toolUtils.js';
+import { formatToolHeader } from '../utils/messageFormatting.js';
+import { isAutoApprovableInEditMode } from '../utils/toolUtils.js';
 import { capture } from '../../../analytics/index.js';
 import chalk from 'chalk';
 
@@ -64,6 +60,8 @@ export interface ProcessStreamSetters {
     /** Setter for dequeued buffer (user messages waiting to render after pending) */
     setDequeuedBuffer: React.Dispatch<React.SetStateAction<Message[]>>;
     setUi: React.Dispatch<React.SetStateAction<UIState>>;
+    /** Setter for session state (for session switch on compaction) */
+    setSession: React.Dispatch<React.SetStateAction<import('../state/types.js').SessionState>>;
     /** Setter for queued messages (cleared when dequeued) */
     setQueuedMessages: React.Dispatch<React.SetStateAction<import('@dexto/core').QueuedMessage[]>>;
     /** Setter for current approval request (for approval UI) */
@@ -82,6 +80,10 @@ export interface ProcessStreamOptions {
     autoApproveEditsRef: { current: boolean };
     /** Event bus for emitting auto-approval responses */
     eventBus: import('@dexto/core').AgentEventBus;
+    /** Sound notification service for playing sounds on events */
+    soundService?: import('../utils/soundNotification.js').SoundNotificationService;
+    /** Optional setter for todos (from service:event todo updates) */
+    setTodos?: React.Dispatch<React.SetStateAction<import('../state/types.js').TodoItem[]>>;
 }
 
 /**
@@ -90,7 +92,10 @@ export interface ProcessStreamOptions {
 interface StreamState {
     messageId: string | null;
     content: string;
-    outputTokens: number;
+    /** Input tokens from most recent LLM response (replaced, not summed) */
+    lastInputTokens: number;
+    /** Cumulative output tokens across all LLM responses in this turn */
+    cumulativeOutputTokens: number;
     /** Content that has been finalized (moved to Static) */
     finalizedContent: string;
     /** Counter for generating unique IDs for split messages */
@@ -126,17 +131,23 @@ export async function processStream(
         setPendingMessages,
         setDequeuedBuffer,
         setUi,
+        setSession: _setSession,
         setQueuedMessages,
         setApproval,
         setApprovalQueue,
     } = setters;
     const useStreaming = options?.useStreaming ?? true;
 
+    // Link approval IDs to tool call IDs so we can finalize tool UI when an approval
+    // is cancelled/denied (otherwise tool messages can remain stuck in "Waiting...").
+    const approvalIdToToolCallId = new Map<string, string>();
+
     // Track streaming state (synchronous, not React state)
     const state: StreamState = {
         messageId: null,
         content: '',
-        outputTokens: 0,
+        lastInputTokens: 0,
+        cumulativeOutputTokens: 0,
         finalizedContent: '',
         splitCounter: 0,
         textFinalizedBeforeTool: false,
@@ -345,7 +356,8 @@ export async function processStream(
                     setUi((prev) => ({ ...prev, isThinking: true }));
                     state.messageId = null;
                     state.content = '';
-                    state.outputTokens = 0;
+                    state.lastInputTokens = 0;
+                    state.cumulativeOutputTokens = 0;
                     state.finalizedContent = '';
                     state.splitCounter = 0;
                     state.textFinalizedBeforeTool = false;
@@ -428,9 +440,18 @@ export async function processStream(
                         setUi((prev) => ({ ...prev, isThinking: false }));
                     }
 
-                    // Accumulate token usage
-                    if (event.tokenUsage?.outputTokens) {
-                        state.outputTokens += event.tokenUsage.outputTokens;
+                    // Track token usage: replace input (last context), accumulate output
+                    // Subtract cacheWriteTokens to exclude system prompt on first call
+                    if (event.tokenUsage) {
+                        const rawInputTokens = event.tokenUsage.inputTokens ?? 0;
+                        const cacheWriteTokens = event.tokenUsage.cacheWriteTokens ?? 0;
+                        const inputTokens = Math.max(0, rawInputTokens - cacheWriteTokens);
+                        if (inputTokens > 0) {
+                            state.lastInputTokens = inputTokens;
+                        }
+                        if (event.tokenUsage.outputTokens) {
+                            state.cumulativeOutputTokens += event.tokenUsage.outputTokens;
+                        }
                     }
 
                     // Track token usage analytics
@@ -438,6 +459,18 @@ export async function processStream(
                         event.tokenUsage &&
                         (event.tokenUsage.inputTokens || event.tokenUsage.outputTokens)
                     ) {
+                        // Calculate estimate accuracy if both estimate and actual are available
+                        let estimateAccuracyPercent: number | undefined;
+                        if (
+                            event.estimatedInputTokens !== undefined &&
+                            event.tokenUsage.inputTokens
+                        ) {
+                            const diff = event.estimatedInputTokens - event.tokenUsage.inputTokens;
+                            estimateAccuracyPercent = Math.round(
+                                (diff / event.tokenUsage.inputTokens) * 100
+                            );
+                        }
+
                         capture('dexto_llm_tokens_consumed', {
                             source: 'cli',
                             sessionId: event.sessionId,
@@ -449,6 +482,8 @@ export async function processStream(
                             totalTokens: event.tokenUsage.totalTokens,
                             cacheReadTokens: event.tokenUsage.cacheReadTokens,
                             cacheWriteTokens: event.tokenUsage.cacheWriteTokens,
+                            estimatedInputTokens: event.estimatedInputTokens,
+                            estimateAccuracyPercent,
                         });
                     }
 
@@ -554,25 +589,17 @@ export async function processStream(
                         ? `tool-${event.callId}`
                         : generateMessageId('tool');
 
-                    // Get friendly display name, format args, and tool type badge
-                    const displayName = getToolDisplayName(event.toolName);
-                    const argsFormatted = formatToolArgsForDisplay(
+                    // Format tool header using shared utility
+                    const { header: toolContent } = formatToolHeader(
                         event.toolName,
-                        event.args || {}
+                        (event.args as Record<string, unknown>) || {}
                     );
-                    const badge = getToolTypeBadge(event.toolName);
 
-                    // Extract description if present
+                    // Add description if present (dim styling, on new line)
+                    let finalToolContent = toolContent;
                     const description = event.args?.description;
-
-                    // Format: toolName(args) [badge]
-                    // If description exists, add it on a new line with dim styling
-                    let toolContent = argsFormatted
-                        ? `${displayName}(${argsFormatted}) [${badge}]`
-                        : `${displayName}() [${badge}]`;
-
                     if (description && typeof description === 'string') {
-                        toolContent += `\n${chalk.dim(description)}`;
+                        finalToolContent += `\n${chalk.dim(description)}`;
                     }
 
                     // Tool calls start in 'pending' state (don't know if approval needed yet)
@@ -581,7 +608,7 @@ export async function processStream(
                     addToPending({
                         id: toolMessageId,
                         role: 'tool',
-                        content: toolContent,
+                        content: finalToolContent,
                         timestamp: new Date(),
                         toolStatus: 'pending',
                     });
@@ -655,6 +682,25 @@ export async function processStream(
                         });
                     }
 
+                    // Handle plan_review tool results - update UI state when plan is approved
+                    if (event.toolName === 'plan_review' && event.success !== false) {
+                        try {
+                            const planReviewResult = event.rawResult as {
+                                approved?: boolean;
+                            } | null;
+                            if (planReviewResult?.approved) {
+                                // User approved the plan - disable plan mode
+                                setUi((prev) => ({
+                                    ...prev,
+                                    planModeActive: false,
+                                    planModeInitialized: false,
+                                }));
+                            }
+                        } catch {
+                            // Silently ignore parsing errors - plan mode state remains unchanged
+                        }
+                    }
+
                     // Track tool result analytics
                     capture('dexto_tool_result', {
                         source: 'cli',
@@ -720,7 +766,8 @@ export async function processStream(
 
                 case 'run:complete': {
                     const { durationMs } = event;
-                    const { outputTokens } = state;
+                    // Total = lastInput + cumulativeOutput (avoids double-counting shared context)
+                    const totalTokens = state.lastInputTokens + state.cumulativeOutputTokens;
 
                     // Ensure any remaining pending messages are finalized
                     finalizeAllPending();
@@ -729,7 +776,7 @@ export async function processStream(
                     // IMPORTANT: Ink's <Static> tracks rendered items by array position, not key.
                     // Inserting in the middle shifts existing items, causing them to re-render.
                     // Always append to avoid duplicate rendering.
-                    if (durationMs > 0 || outputTokens > 0) {
+                    if (durationMs > 0 || totalTokens > 0) {
                         const summaryMessage = {
                             id: generateMessageId('summary'),
                             role: 'system' as const,
@@ -738,7 +785,7 @@ export async function processStream(
                             styledType: 'run-summary' as const,
                             styledData: {
                                 durationMs,
-                                outputTokens,
+                                totalTokens,
                             },
                         };
 
@@ -750,7 +797,11 @@ export async function processStream(
                         isProcessing: false,
                         isCancelling: false,
                         isThinking: false,
+                        isCompacting: false,
                     }));
+
+                    // Play completion sound to notify user task is done
+                    options.soundService?.playCompleteSound();
                     break;
                 }
 
@@ -797,6 +848,9 @@ export async function processStream(
                     break;
                 }
 
+                // Note: context:compacting and context:compacted are handled in useAgentEvents.ts
+                // as the single source of truth for both manual /compact and auto-compaction
+
                 case 'approval:request': {
                     // Handle approval requests in processStream (NOT useAgentEvents) to ensure
                     // proper ordering - text messages must be added BEFORE approval UI shows.
@@ -812,7 +866,7 @@ export async function processStream(
                         // Type is narrowed - metadata is now ToolConfirmationMetadata
                         const { toolName } = event.metadata;
 
-                        if (isEditWriteTool(toolName)) {
+                        if (isAutoApprovableInEditMode(toolName)) {
                             // Auto-approve immediately - emit response and let tool:running handle status
                             eventBus.emit('approval:response', {
                                 approvalId: event.approvalId,
@@ -831,6 +885,7 @@ export async function processStream(
                             ? event.metadata.toolCallId
                             : undefined;
                     if (toolCallId) {
+                        approvalIdToToolCallId.set(event.approvalId, toolCallId);
                         updatePendingStatus(`tool-${toolCallId}`, 'pending_approval');
                     }
 
@@ -864,6 +919,153 @@ export async function processStream(
                             setUi((prev) => ({ ...prev, activeOverlay: 'approval' }));
                             return newApproval;
                         });
+
+                        // Play approval sound to notify user
+                        options.soundService?.playApprovalSound();
+                    }
+                    break;
+                }
+
+                case 'approval:response': {
+                    // Handle approval responses.
+                    //
+                    // 1) Dismiss auto-approved parallel tool calls (existing behavior)
+                    // 2) Finalize tool UI immediately for denied/cancelled approvals so tool
+                    //    messages don't remain stuck in "Waiting..." (pending_approval).
+
+                    const { approvalId } = event;
+
+                    const toolCallId = approvalIdToToolCallId.get(approvalId);
+                    if (toolCallId) {
+                        approvalIdToToolCallId.delete(approvalId);
+
+                        // If the tool was waiting for approval and gets denied/cancelled,
+                        // we may not get a corresponding llm:tool-result event (the tool never ran).
+                        // Finalize it here so the UI reflects the outcome immediately.
+                        if (event.status !== ApprovalStatus.APPROVED) {
+                            finalizeMessage(`tool-${toolCallId}`, {
+                                toolStatus: 'finished',
+                                toolResult: 'Cancelled',
+                                isError: true,
+                            });
+                        }
+                    }
+
+                    // Step 1: Remove from queue if present
+                    setApprovalQueue((queue) => queue.filter((a) => a.approvalId !== approvalId));
+
+                    // Step 2: If this is the current approval, dismiss and show next
+                    // We use the same pattern as completeApproval in OverlayContainer:
+                    // setApprovalQueue as coordinator, calling setApproval inside
+                    setApproval((currentApproval) => {
+                        if (currentApproval?.approvalId !== approvalId) {
+                            return currentApproval; // Not current, nothing to do
+                        }
+
+                        // Current approval was responded to - show next or close
+                        // Note: queue was already filtered in Step 1, so we read updated queue
+                        setApprovalQueue((queue) => {
+                            if (queue.length > 0) {
+                                const [next, ...rest] = queue;
+                                setApproval(next!);
+                                setUi((prev) => ({ ...prev, activeOverlay: 'approval' }));
+                                return rest;
+                            } else {
+                                setUi((prev) => ({ ...prev, activeOverlay: 'none' }));
+                                return [];
+                            }
+                        });
+
+                        return null; // Clear current while setApprovalQueue handles next
+                    });
+
+                    break;
+                }
+
+                case 'service:event': {
+                    // Handle service events - extensible pattern for non-core services
+                    debug.log('SERVICE-EVENT received', {
+                        service: event.service,
+                        eventType: event.event,
+                        toolCallId: event.toolCallId,
+                        sessionId: event.sessionId,
+                    });
+
+                    // Handle agent-spawner progress events
+                    if (event.service === 'agent-spawner' && event.event === 'progress') {
+                        const { toolCallId, data } = event;
+                        // Guard against null/non-object data payloads
+                        if (toolCallId && data && typeof data === 'object') {
+                            // Update the tool message with sub-agent progress
+                            const toolMessageId = `tool-${toolCallId}`;
+                            const progressData = data as {
+                                task: string;
+                                agentId: string;
+                                toolsCalled: number;
+                                currentTool: string;
+                                currentArgs?: Record<string, unknown>;
+                                tokenUsage?: {
+                                    input: number;
+                                    output: number;
+                                    total: number;
+                                };
+                            };
+                            debug.log('SERVICE-EVENT updating progress', {
+                                toolMessageId,
+                                toolsCalled: progressData.toolsCalled,
+                                currentTool: progressData.currentTool,
+                                tokenUsage: progressData.tokenUsage,
+                            });
+                            updatePending(toolMessageId, {
+                                subAgentProgress: {
+                                    task: progressData.task,
+                                    agentId: progressData.agentId,
+                                    toolsCalled: progressData.toolsCalled,
+                                    currentTool: progressData.currentTool,
+                                    ...(progressData.currentArgs && {
+                                        currentArgs: progressData.currentArgs,
+                                    }),
+                                    ...(progressData.tokenUsage && {
+                                        tokenUsage: progressData.tokenUsage,
+                                    }),
+                                },
+                            });
+                        }
+                    }
+
+                    // Handle todo update events
+                    if (event.service === 'todo' && event.event === 'updated') {
+                        const { data, sessionId } = event;
+                        if (data && typeof data === 'object' && sessionId) {
+                            const todoData = data as {
+                                todos?: Array<{
+                                    id: string;
+                                    sessionId: string;
+                                    content: string;
+                                    activeForm: string;
+                                    status: 'pending' | 'in_progress' | 'completed';
+                                    position: number;
+                                    createdAt: Date | string;
+                                    updatedAt: Date | string;
+                                }>;
+                                stats?: { created: number; updated: number; deleted: number };
+                            };
+                            if (!Array.isArray(todoData.todos)) {
+                                debug.log('SERVICE-EVENT todo updated: invalid payload', {
+                                    sessionId,
+                                });
+                                break;
+                            }
+                            debug.log('SERVICE-EVENT todo updated', {
+                                sessionId,
+                                todoCount: todoData.todos.length,
+                                stats: todoData.stats,
+                            });
+                            // Update todos state via the setter passed in options
+                            if (options.setTodos) {
+                                options.setTodos(todoData.todos);
+                            }
+                        }
                     }
                     break;
                 }

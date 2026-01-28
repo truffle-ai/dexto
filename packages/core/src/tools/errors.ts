@@ -35,14 +35,20 @@ export class ToolError {
 
     /**
      * Tool execution denied by user/policy
+     * @param toolName - Name of the tool that was denied
+     * @param sessionId - Optional session ID
+     * @param userMessage - Optional message from user (e.g., feedback for plan review)
      */
-    static executionDenied(toolName: string, sessionId?: string) {
+    static executionDenied(toolName: string, sessionId?: string, userMessage?: string) {
+        const message = userMessage
+            ? `Tool '${toolName}' was denied. ${userMessage}`
+            : `Tool '${toolName}' execution was denied by the user`;
         return new DextoRuntimeError(
             ToolErrorCode.EXECUTION_DENIED,
             ErrorScope.TOOLS,
             ErrorType.FORBIDDEN,
-            `Tool '${toolName}' execution was denied by the user`,
-            { toolName, sessionId }
+            message,
+            { toolName, sessionId, userMessage }
         );
     }
 
@@ -91,6 +97,25 @@ export class ToolError {
             ErrorType.USER,
             `Tool '${toolName}' validation failed: ${reason}`,
             { toolName, reason, ...context }
+        );
+    }
+
+    /**
+     * File was modified between preview and execute.
+     * This is a safety check to prevent corrupting user edits.
+     */
+    static fileModifiedSincePreview(toolName: string, filePath: string) {
+        return new DextoRuntimeError(
+            ToolErrorCode.FILE_MODIFIED_SINCE_PREVIEW,
+            ErrorScope.TOOLS,
+            ErrorType.USER,
+            `File '${filePath}' was modified since the preview was generated. Please read the file again and retry the operation.`,
+            {
+                toolName,
+                filePath,
+                recovery:
+                    'Read the file with read_file tool to get current content, then retry the edit.',
+            }
         );
     }
 

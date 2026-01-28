@@ -35,6 +35,7 @@ import { QueuedMessagesDisplay } from '../chat/QueuedMessagesDisplay.js';
 import { StatusBar } from '../StatusBar.js';
 import { HistorySearchBar } from '../HistorySearchBar.js';
 import { Footer } from '../Footer.js';
+import { TodoPanel } from '../TodoPanel.js';
 
 // Containers
 import { InputContainer, type InputContainerHandle } from '../../containers/InputContainer.js';
@@ -64,6 +65,8 @@ export function StaticCLI({
         setDequeuedBuffer,
         queuedMessages,
         setQueuedMessages,
+        todos,
+        setTodos,
         ui,
         setUi,
         input,
@@ -150,13 +153,22 @@ export function StaticCLI({
                 hasActiveSession={session.hasActiveSession}
                 startupInfo={startupInfo}
             />,
-            ...visibleMessages.map((msg) => <MessageItem key={msg.id} message={msg} />),
+            ...visibleMessages.map((msg) => (
+                <MessageItem key={msg.id} message={msg} terminalWidth={terminalWidth} />
+            )),
         ];
         return items;
-    }, [visibleMessages, session.modelName, session.id, session.hasActiveSession, startupInfo]);
+    }, [
+        visibleMessages,
+        session.modelName,
+        session.id,
+        session.hasActiveSession,
+        startupInfo,
+        terminalWidth,
+    ]);
 
     return (
-        <Box flexDirection="column">
+        <Box flexDirection="column" width={terminalWidth}>
             {/* Static: header + finalized messages - rendered once to terminal scrollback */}
             {/* Key changes on resize to force full re-render after terminal clear */}
             <Static key={staticRemountKey} items={staticItems}>
@@ -165,13 +177,13 @@ export function StaticCLI({
 
             {/* Dynamic: pending/streaming messages - re-rendered on updates */}
             {pendingMessages.map((message) => (
-                <MessageItem key={message.id} message={message} />
+                <MessageItem key={message.id} message={message} terminalWidth={terminalWidth} />
             ))}
 
             {/* Dequeued buffer: user messages waiting to be flushed to finalized */}
             {/* Rendered AFTER pending to guarantee correct visual order */}
             {dequeuedBuffer.map((message) => (
-                <MessageItem key={message.id} message={message} />
+                <MessageItem key={message.id} message={message} terminalWidth={terminalWidth} />
             ))}
 
             {/* Controls area */}
@@ -180,9 +192,21 @@ export function StaticCLI({
                     agent={agent}
                     isProcessing={ui.isProcessing}
                     isThinking={ui.isThinking}
+                    isCompacting={ui.isCompacting}
                     approvalQueueCount={approvalQueue.length}
                     copyModeEnabled={ui.copyModeEnabled}
                     isAwaitingApproval={approval !== null}
+                    todoExpanded={ui.todoExpanded}
+                    hasTodos={todos.some((t) => t.status !== 'completed')}
+                    planModeActive={ui.planModeActive}
+                    autoApproveEdits={ui.autoApproveEdits}
+                />
+
+                {/* Todo panel - shown below status bar */}
+                <TodoPanel
+                    todos={todos}
+                    isExpanded={ui.todoExpanded}
+                    isProcessing={ui.isProcessing}
                 />
 
                 {/* Queued messages display (shows when messages are pending) */}
@@ -205,6 +229,7 @@ export function StaticCLI({
                     setQueuedMessages={setQueuedMessages}
                     setApproval={setApproval}
                     setApprovalQueue={setApprovalQueue}
+                    setTodos={setTodos}
                     agent={agent}
                     inputService={inputService}
                     useStreaming={useStreaming}
@@ -241,9 +266,13 @@ export function StaticCLI({
 
                 {/* Footer status line */}
                 <Footer
+                    agent={agent}
+                    sessionId={session.id}
                     modelName={session.modelName}
                     cwd={process.cwd()}
                     autoApproveEdits={ui.autoApproveEdits}
+                    planModeActive={ui.planModeActive}
+                    isShellMode={buffer.text.startsWith('!')}
                 />
 
                 {/* History search bar (Ctrl+R) - shown at very bottom */}

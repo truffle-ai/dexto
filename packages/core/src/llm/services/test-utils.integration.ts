@@ -162,6 +162,8 @@ export const TestConfigs = {
             groq: 'llama-3.1-8b-instant',
             xai: 'grok-beta',
             cohere: 'command-r',
+            minimax: 'MiniMax-M2.1',
+            glm: 'glm-4.7',
             'openai-compatible': 'gpt-5-mini',
             openrouter: 'anthropic/claude-3.5-haiku', // OpenRouter model format: provider/model
             litellm: 'gpt-4', // LiteLLM model names follow the provider's convention
@@ -170,6 +172,7 @@ export const TestConfigs = {
             bedrock: 'anthropic.claude-3-5-haiku-20241022-v1:0', // Bedrock uses AWS credentials, not API keys
             local: 'llama-3.2-3b-q4', // Native node-llama-cpp GGUF models
             ollama: 'llama3.2', // Ollama server models
+            dexto: 'anthropic/claude-4.5-sonnet', // Dexto gateway (OpenRouter model format)
         };
 
         return {

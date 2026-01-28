@@ -118,7 +118,7 @@ export class ChatSession {
      */
     private currentRunController: AbortController | null = null;
 
-    private logger: IDextoLogger;
+    public readonly logger: IDextoLogger;
 
     /**
      * Creates a new ChatSession instance.
@@ -265,7 +265,8 @@ export class ChatSession {
             this.id,
             this.services.resourceManager, // Pass ResourceManager for blob storage
             this.logger, // Pass logger for dependency injection
-            compactionStrategy // Pass compaction strategy
+            compactionStrategy, // Pass compaction strategy
+            runtimeConfig.compaction // Pass compaction config for threshold settings
         );
 
         this.logger.debug(`ChatSession ${this.id}: Services initialized with storage`);
@@ -324,15 +325,15 @@ export class ChatSession {
      *
      * @param content - String or ContentPart[] (text, images, files)
      * @param options - { signal?: AbortSignal }
-     * @returns Promise that resolves to the AI's response text
+     * @returns Promise that resolves to object with text response
      *
      * @example
      * ```typescript
      * // Text only
-     * const response = await session.stream('What is the weather?');
+     * const { text } = await session.stream('What is the weather?');
      *
      * // Multiple images
-     * const response = await session.stream([
+     * const { text } = await session.stream([
      *     { type: 'text', text: 'Compare these images' },
      *     { type: 'image', image: base64Data1, mimeType: 'image/png' },
      *     { type: 'image', image: base64Data2, mimeType: 'image/png' }
@@ -342,7 +343,7 @@ export class ChatSession {
     public async stream(
         content: ContentInput,
         options?: { signal?: AbortSignal }
-    ): Promise<string> {
+    ): Promise<{ text: string }> {
         // Normalize content to ContentPart[]
         const parts: ContentPart[] =
             typeof content === 'string' ? [{ type: 'text', text: content }] : content;
@@ -415,12 +416,12 @@ export class ChatSession {
             }
 
             // Call LLM service stream
-            const response = await this.llmService.stream(modifiedParts, { signal });
+            const streamResult = await this.llmService.stream(modifiedParts, { signal });
 
             // Execute beforeResponse plugins
             const llmConfig = this.services.stateManager.getLLMConfig(this.id);
             const beforeResponsePayload: BeforeResponsePayload = {
-                content: response,
+                content: streamResult.text,
                 provider: llmConfig.provider,
                 model: llmConfig.model,
                 sessionId: this.id,
@@ -439,7 +440,9 @@ export class ChatSession {
                 }
             );
 
-            return modifiedResponsePayload.content;
+            return {
+                text: modifiedResponsePayload.content,
+            };
         } catch (error) {
             // If this was an intentional cancellation, return partial response from history
             const aborted =
@@ -456,13 +459,28 @@ export class ChatSession {
                 try {
                     const history = await this.getHistory();
                     const lastAssistant = history.filter((m) => m.role === 'assistant').pop();
-                    if (lastAssistant && typeof lastAssistant.content === 'string') {
-                        return lastAssistant.content;
+                    if (lastAssistant) {
+                        if (typeof lastAssistant.content === 'string') {
+                            return { text: lastAssistant.content };
+                        }
+                        // Handle multimodal content (ContentPart[]) - extract text parts
+                        if (Array.isArray(lastAssistant.content)) {
+                            const text = lastAssistant.content
+                                .filter(
+                                    (part): part is { type: 'text'; text: string } =>
+                                        part.type === 'text'
+                                )
+                                .map((part) => part.text)
+                                .join('');
+                            if (text) {
+                                return { text };
+                            }
+                        }
                     }
                 } catch {
                     this.logger.debug('Failed to retrieve partial response from history on cancel');
                 }
-                return '';
+                return { text: '' };
             }
 
             // Check if this is a plugin blocking error
@@ -490,7 +508,7 @@ export class ChatSession {
                     );
                 }
 
-                return error.message;
+                return { text: error.message };
             }
 
             this.logger.error(
@@ -567,8 +585,7 @@ export class ChatSession {
      * @see {@link ContextManager.resetConversation} for the underlying implementation
      */
     public async reset(): Promise<void> {
-        // Reset history via history provider
-        await this.historyProvider.clearHistory();
+        await this.llmService.getContextManager().resetConversation();
 
         // Emit agent-level event with session context
         this.services.agentEventBus.emit('session:reset', {
@@ -636,7 +653,8 @@ export class ChatSession {
                 this.id,
                 this.services.resourceManager,
                 this.logger,
-                compactionStrategy // Pass compaction strategy
+                compactionStrategy, // Pass compaction strategy
+                runtimeConfig.compaction // Pass compaction config for threshold settings
             );
 
             // Replace the LLM service
@@ -673,6 +691,12 @@ export class ChatSession {
             this.logger.debug(
                 `ChatSession ${this.id}: Memory cleanup completed (chat history preserved)`
             );
+
+            // Note: We do NOT call this.logger.destroy() here because the session logger
+            // is created via createChild() which shares transports with the parent logger.
+            // Destroying the child would close shared transports and break logging for
+            // other sessions. The child logger will be garbage collected when the
+            // session object is discarded.
         } catch (error) {
             this.logger.error(
                 `Error during ChatSession cleanup for session ${this.id}: ${error instanceof Error ? error.message : String(error)}`

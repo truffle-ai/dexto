@@ -17,6 +17,7 @@ import { useChatStore, generateMessageId } from '../stores/chatStore.js';
 import { useAgentStore } from '../stores/agentStore.js';
 import { useApprovalStore } from '../stores/approvalStore.js';
 import { usePreferenceStore } from '../stores/preferenceStore.js';
+import { useTodoStore } from '../stores/todoStore.js';
 import type { ClientEventBus } from './EventBus.js';
 import { captureTokenUsage } from '../analytics/capture.js';
 
@@ -134,7 +135,7 @@ function handleLLMChunk(event: EventByName<'llm:chunk'>): void {
  * 3. Multi-turn: assistant message already in messages array → update it
  */
 function handleLLMResponse(event: EventByName<'llm:response'>): void {
-    const { sessionId, content, tokenUsage, model, provider } = event;
+    const { sessionId, content, tokenUsage, model, provider, estimatedInputTokens } = event;
     const chatStore = useChatStore.getState();
     const sessionState = chatStore.getSessionState(sessionId);
     const finalContent = typeof content === 'string' ? content : '';
@@ -151,6 +152,13 @@ function handleLLMResponse(event: EventByName<'llm:response'>): void {
 
         // Track token usage analytics before returning
         if (tokenUsage && (tokenUsage.inputTokens || tokenUsage.outputTokens)) {
+            // Calculate estimate accuracy if both estimate and actual are available
+            let estimateAccuracyPercent: number | undefined;
+            if (estimatedInputTokens !== undefined && tokenUsage.inputTokens) {
+                const diff = estimatedInputTokens - tokenUsage.inputTokens;
+                estimateAccuracyPercent = Math.round((diff / tokenUsage.inputTokens) * 100);
+            }
+
             captureTokenUsage({
                 sessionId,
                 provider,
@@ -161,6 +169,8 @@ function handleLLMResponse(event: EventByName<'llm:response'>): void {
                 totalTokens: tokenUsage.totalTokens,
                 cacheReadTokens: tokenUsage.cacheReadTokens,
                 cacheWriteTokens: tokenUsage.cacheWriteTokens,
+                estimatedInputTokens,
+                estimateAccuracyPercent,
             });
         }
         return;
@@ -209,6 +219,13 @@ function handleLLMResponse(event: EventByName<'llm:response'>): void {
 
     // Track token usage analytics (at end, after all processing)
     if (tokenUsage && (tokenUsage.inputTokens || tokenUsage.outputTokens)) {
+        // Calculate estimate accuracy if both estimate and actual are available
+        let estimateAccuracyPercent: number | undefined;
+        if (estimatedInputTokens !== undefined && tokenUsage.inputTokens) {
+            const diff = estimatedInputTokens - tokenUsage.inputTokens;
+            estimateAccuracyPercent = Math.round((diff / tokenUsage.inputTokens) * 100);
+        }
+
         captureTokenUsage({
             sessionId,
             provider,
@@ -219,6 +236,8 @@ function handleLLMResponse(event: EventByName<'llm:response'>): void {
             totalTokens: tokenUsage.totalTokens,
             cacheReadTokens: tokenUsage.cacheReadTokens,
             cacheWriteTokens: tokenUsage.cacheWriteTokens,
+            estimatedInputTokens,
+            estimateAccuracyPercent,
         });
     }
 }
@@ -613,14 +632,69 @@ function handleMessageDequeued(event: EventByName<'message:dequeued'>): void {
 }
 
 /**
- * context:compacted - Context was compacted
+ * context:compacted - Context was compacted (inline compaction)
  * Log for now (future: add to activity store)
  */
 function handleContextCompacted(event: EventByName<'context:compacted'>): void {
     console.debug(
-        `[handlers] Context compacted: ${event.originalTokens.toLocaleString()} → ${event.compactedTokens.toLocaleString()} tokens`,
-        `(${event.originalMessages} → ${event.compactedMessages} messages) via ${event.strategy}`
+        `[handlers] Context compacted: ${event.originalTokens.toLocaleString()} → ${event.compactedTokens.toLocaleString()} tokens (${event.originalMessages} → ${event.compactedMessages} messages) via ${event.strategy}`
     );
+}
+
+/**
+ * service:event - Extensible service event for non-core services
+ * Handles agent-spawner progress events and todo update events
+ */
+function handleServiceEvent(event: EventByName<'service:event'>): void {
+    const { service, event: eventType, toolCallId, sessionId, data } = event;
+
+    // Handle agent-spawner progress events
+    if (service === 'agent-spawner' && eventType === 'progress' && toolCallId && sessionId) {
+        const chatStore = useChatStore.getState();
+        const progressData = data as {
+            task: string;
+            agentId: string;
+            toolsCalled: number;
+            currentTool: string;
+            currentArgs?: Record<string, unknown>;
+        };
+
+        // Find and update the tool message
+        const messages = chatStore.getMessages(sessionId);
+        const toolMessage = messages.find((m) => m.role === 'tool' && m.toolCallId === toolCallId);
+
+        if (toolMessage) {
+            chatStore.updateMessage(sessionId, toolMessage.id, {
+                subAgentProgress: {
+                    task: progressData.task,
+                    agentId: progressData.agentId,
+                    toolsCalled: progressData.toolsCalled,
+                    currentTool: progressData.currentTool,
+                    currentArgs: progressData.currentArgs,
+                },
+            });
+        }
+    }
+
+    // Handle todo update events
+    if (service === 'todo' && eventType === 'updated' && sessionId) {
+        const todoData = data as {
+            todos: Array<{
+                id: string;
+                sessionId: string;
+                content: string;
+                activeForm: string;
+                status: 'pending' | 'in_progress' | 'completed';
+                position: number;
+                createdAt: Date | string;
+                updatedAt: Date | string;
+            }>;
+            stats: { created: number; updated: number; deleted: number };
+        };
+
+        // Update todo store with new todos
+        useTodoStore.getState().setTodos(sessionId, todoData.todos);
+    }
 }
 
 // =============================================================================
@@ -648,6 +722,7 @@ export function registerHandlers(): void {
     handlers.set('session:title-updated', handleSessionTitleUpdated);
     handlers.set('message:dequeued', handleMessageDequeued);
     handlers.set('context:compacted', handleContextCompacted);
+    handlers.set('service:event', handleServiceEvent);
 }
 
 /**
@@ -714,4 +789,5 @@ export {
     handleSessionTitleUpdated,
     handleMessageDequeued,
     handleContextCompacted,
+    handleServiceEvent,
 };

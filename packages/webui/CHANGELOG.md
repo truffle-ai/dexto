@@ -1,5 +1,124 @@
 # @dexto/webui
 
+## 1.5.6
+
+### Patch Changes
+
+- 042f4f0: ### CLI Improvements
+    - Add `/export` command to export conversations as Markdown or JSON
+    - Add `Ctrl+T` toggle for task list visibility during processing
+    - Improve task list UI with collapsible view near the processing message
+    - Fix race condition causing duplicate rendering (mainly visible with explore tool)
+    - Don't truncate `pattern` and `question` args in tool output display
+
+    ### Bug Fixes
+    - Fix build script to preserve `.dexto` storage (conversations, logs) during clean builds
+    - Fix `@dexto/tools-todo` versioning - add to fixed version group in changeset config
+
+    ### Configuration Changes
+    - Remove approval timeout defaults - now waits indefinitely (better UX for CLI)
+    - Add package versioning guidelines to AGENTS.md
+
+- Updated dependencies [042f4f0]
+    - @dexto/client-sdk@1.5.6
+    - @dexto/analytics@1.5.6
+    - @dexto/registry@1.5.6
+    - @dexto/core@1.5.6
+
+## 1.5.5
+
+### Patch Changes
+
+- 9ab3eac: Added todo tools.
+- 63fa083: Session and context management fixes:
+    - Remove continuation session logic after compaction, now sticks to same session
+    - `/clear` continues same session and resets context (frees up AI context window)
+    - `/new` command creates new session with fresh context and clears screen
+    - Add context tokens remaining to footer, align context calculations everywhere
+    - Fix context calculation logic by including cache read tokens
+
+    Other improvements:
+    - Fix code block syntax highlighting in terminal (uses cli-highlight)
+    - Make terminal the default mode during onboarding
+    - Reduce OTEL dependency bloat by replacing auto-instrumentation with specific packages (47 MB saved: 65 MB → 18 MB)
+
+- Updated dependencies [63fa083]
+- Updated dependencies [6df3ca9]
+    - @dexto/core@1.5.5
+    - @dexto/registry@1.5.5
+    - @dexto/analytics@1.5.5
+    - @dexto/client-sdk@1.5.5
+
+## 1.5.4
+
+### Patch Changes
+
+- 499b890: Fix model override persistence after compaction and improve context token tracking
+
+    **Bug Fixes:**
+    - Fix model override resetting to config model after compaction (now respects session overrides)
+
+    **Context Tracking Improvements:**
+    - New algorithm uses actual `input_tokens` and `output_tokens` from LLM responses as source of truth
+    - Self-correcting estimates: inaccuracies auto-correct when next LLM response arrives
+    - Handles pruning automatically (next response's input_tokens reflects pruned state)
+    - `/context` and compaction decisions now share common calculation logic
+    - Removed `outputBuffer` concept in favor of single configurable threshold
+    - Default compaction threshold lowered to 90%
+
+    **New `/context` Command:**
+    - Interactive overlay with stacked token bar visualization
+    - Breakdown by component: system prompt, tools, messages, free space, auto-compact buffer
+    - Expandable per-tool token details
+    - Shows pruned tool count and compaction history
+
+    **Observability:**
+    - Comparison logging between estimated vs actual tokens for calibration
+    - `dexto_llm_tokens_consumed` metric now includes estimated input tokens and accuracy metrics
+
+- Updated dependencies [0016cd3]
+- Updated dependencies [499b890]
+- Updated dependencies [aa2c9a0]
+    - @dexto/core@1.5.4
+    - @dexto/analytics@1.5.4
+    - @dexto/client-sdk@1.5.4
+    - @dexto/registry@1.5.4
+
+## 1.5.3
+
+### Patch Changes
+
+- 4f00295: Added spawn-agent tools and explore agent.
+- Updated dependencies [4f00295]
+- Updated dependencies [69c944c]
+    - @dexto/core@1.5.3
+    - @dexto/analytics@1.5.3
+    - @dexto/client-sdk@1.5.3
+    - @dexto/registry@1.5.3
+
+## 1.5.2
+
+### Patch Changes
+
+- Updated dependencies [8a85ea4]
+- Updated dependencies [527f3f9]
+    - @dexto/core@1.5.2
+    - @dexto/analytics@1.5.2
+    - @dexto/client-sdk@1.5.2
+    - @dexto/registry@1.5.2
+
+## 1.5.1
+
+### Patch Changes
+
+- 4aabdb7: Fix claude caching, added gpt-5.2 models and reasoning effort options in user flows.
+- Updated dependencies [bfcc7b1]
+- Updated dependencies [4aabdb7]
+    - @dexto/core@1.5.1
+    - @dexto/analytics@1.5.1
+    - @dexto/client-sdk@1.5.1
+    - @dexto/registry@1.5.1
+
 ## 1.5.0
 
 ### Minor Changes

@@ -20,6 +20,7 @@ export const CUSTOM_MODEL_PROVIDERS = [
     'ollama',
     'local',
     'vertex',
+    'dexto',
 ] as const;
 export type CustomModelProvider = (typeof CUSTOM_MODEL_PROVIDERS)[number];
 
@@ -33,6 +34,7 @@ export type CustomModelProvider = (typeof CUSTOM_MODEL_PROVIDERS)[number];
  * - ollama: optional baseURL (defaults to http://localhost:11434)
  * - local: no baseURL, uses local GGUF files via node-llama-cpp
  * - vertex: no baseURL, uses Google Cloud ADC
+ * - dexto: OpenRouter gateway using Dexto credits, requires auth login, uses OpenRouter model IDs
  *
  * TODO: For hosted deployments, API keys should be stored in a secure
  * key management service (e.g., AWS Secrets Manager, HashiCorp Vault)
@@ -53,6 +55,9 @@ export const CustomModelSchema = z
         // File path for local GGUF models. Required when provider is 'local'.
         // Stores the absolute path to the .gguf file on disk.
         filePath: z.string().optional(),
+        // OpenAI reasoning effort level for reasoning-capable models (o1, o3, codex, gpt-5.x).
+        // Controls how many reasoning tokens the model generates before producing a response.
+        reasoningEffort: z.enum(['none', 'minimal', 'low', 'medium', 'high', 'xhigh']).optional(),
     })
     .superRefine((data, ctx) => {
         // baseURL is required for openai-compatible and litellm

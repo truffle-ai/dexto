@@ -31,12 +31,15 @@ const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
     groq: 'Groq',
     xai: 'Grok',
     cohere: 'Cohere',
+    minimax: 'MiniMax',
+    glm: 'GLM',
     openrouter: 'OpenRouter',
     'openai-compatible': 'Custom',
     litellm: 'LiteLLM',
     glama: 'Glama',
     local: 'Local',
     ollama: 'Ollama',
+    dexto: 'Dexto',
 };
 
 // Parse display name into provider and model parts
@@ -49,6 +52,7 @@ function parseModelName(
     // For multi-vendor or custom model providers, show the full display name without parsing
     if (
         provider === 'openrouter' ||
+        provider === 'dexto' ||
         provider === 'openai-compatible' ||
         provider === 'litellm' ||
         provider === 'glama' ||
@@ -110,8 +114,10 @@ export function ModelCard({
               : provider === 'openai-compatible'
                 ? 'Custom Model'
                 : `Provider: ${providerInfo?.name}`,
-        `Max tokens: ${model.maxInputTokens.toLocaleString()}`,
-        model.supportedFileTypes.length > 0 && `Supports: ${model.supportedFileTypes.join(', ')}`,
+        model.maxInputTokens && `Max tokens: ${model.maxInputTokens.toLocaleString()}`,
+        Array.isArray(model.supportedFileTypes) &&
+            model.supportedFileTypes.length > 0 &&
+            `Supports: ${model.supportedFileTypes.join(', ')}`,
         !hasApiKey && 'API key required (click to add)',
         ...priceLines,
     ].filter(Boolean) as string[];

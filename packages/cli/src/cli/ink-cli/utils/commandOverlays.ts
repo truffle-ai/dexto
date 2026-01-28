@@ -20,6 +20,12 @@ const ALWAYS_OVERLAY: Record<string, OverlayType> = {
     stream: 'stream-selector',
     tools: 'tool-browser',
     mcp: 'mcp-server-list',
+    rename: 'session-rename',
+    context: 'context-stats',
+    ctx: 'context-stats', // alias
+    tokens: 'context-stats', // alias
+    export: 'export-wizard',
+    plugin: 'plugin-manager',
 };
 
 /**

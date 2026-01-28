@@ -279,6 +279,7 @@ export class CustomPromptProvider implements PromptProvider {
 
                     prompts.push({
                         name: record.name,
+                        displayName: record.name,
                         title: record.title,
                         description: record.description,
                         source: 'custom',

@@ -31,3 +31,13 @@ export {
 
 // ID generation
 export { generateMessageId } from './idGenerator.js';
+
+// Sound notifications
+export {
+    playNotificationSound,
+    SoundNotificationService,
+    initializeSoundService,
+    getSoundService,
+    type SoundType,
+    type SoundConfig,
+} from './soundNotification.js';

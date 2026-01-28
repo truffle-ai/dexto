@@ -41,6 +41,10 @@ export async function verifyApiKey(
                 return await verifyOpenRouter(apiKey);
             case 'glama':
                 return await verifyGlama(apiKey);
+            case 'minimax':
+                return await verifyMiniMax(apiKey);
+            case 'glm':
+                return await verifyGLM(apiKey);
             case 'openai-compatible':
             case 'litellm':
                 // For custom endpoints, we can't verify without a baseURL
@@ -210,6 +214,44 @@ async function verifyOpenRouter(apiKey: string): Promise<VerificationResult> {
  */
 async function verifyGlama(apiKey: string): Promise<VerificationResult> {
     const response = await fetch('https://glama.ai/api/gateway/openai/v1/models', {
+        method: 'GET',
+        headers: {
+            Authorization: `Bearer ${apiKey}`,
+        },
+    });
+
+    if (response.ok) {
+        return { success: true, modelUsed: 'models-list' };
+    }
+
+    const error = await parseErrorResponse(response);
+    return { success: false, error };
+}
+
+/**
+ * Verify MiniMax API key using the OpenAI-compatible models endpoint
+ */
+async function verifyMiniMax(apiKey: string): Promise<VerificationResult> {
+    const response = await fetch('https://api.minimax.chat/v1/models', {
+        method: 'GET',
+        headers: {
+            Authorization: `Bearer ${apiKey}`,
+        },
+    });
+
+    if (response.ok) {
+        return { success: true, modelUsed: 'models-list' };
+    }
+
+    const error = await parseErrorResponse(response);
+    return { success: false, error };
+}
+
+/**
+ * Verify GLM (Zhipu) API key using the OpenAI-compatible models endpoint
+ */
+async function verifyGLM(apiKey: string): Promise<VerificationResult> {
+    const response = await fetch('https://open.bigmodel.cn/api/paas/v4/models', {
         method: 'GET',
         headers: {
             Authorization: `Bearer ${apiKey}`,

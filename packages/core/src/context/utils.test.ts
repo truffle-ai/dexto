@@ -21,8 +21,15 @@ import {
     fileTypesToMimePatterns,
     filterCompacted,
     sanitizeToolResultToContentWithBlobs,
+    estimateStringTokens,
+    estimateImageTokens,
+    estimateFileTokens,
+    estimateContentPartTokens,
+    estimateMessagesTokens,
+    estimateToolsTokens,
+    estimateContextTokens,
 } from './utils.js';
-import { InternalMessage } from './types.js';
+import { InternalMessage, ContentPart, FilePart } from './types.js';
 import { LLMContext } from '../llm/types.js';
 import * as registry from '../llm/registry.js';
 import { createMockLogger } from '../logger/v2/test-utils.js';
@@ -406,6 +413,10 @@ describe('filterMessagesByLLMCapabilities', () => {
             config.model,
             'application/pdf'
         );
+        // Verify logging
+        expect(mockLogger.info).toHaveBeenCalledWith(
+            "Filtered 1 file for gpt-3.5-turbo since it doesn't support that file type"
+        );
     });
 
     test('should keep supported file attachments for models that support them', () => {
@@ -472,6 +483,10 @@ describe('filterMessagesByLLMCapabilities', () => {
         const result1 = filterMessagesByLLMCapabilities(messages, config1, mockLogger);
 
         expect(result1[0]!.content).toEqual([{ type: 'text', text: 'Transcribe this audio' }]);
+        // Verify logging for filtered audio
+        expect(mockLogger.info).toHaveBeenCalledWith(
+            "Filtered 1 file for gpt-5 since it doesn't support that file type"
+        );
 
         // Test with gpt-4o-audio-preview (should keep audio)
         const config2: LLMContext = { provider: 'openai', model: 'gpt-4o-audio-preview' };
@@ -484,10 +499,10 @@ describe('filterMessagesByLLMCapabilities', () => {
     });
 
     test('should add placeholder text when all content is filtered out', () => {
-        // Mock validation to reject all files
+        // Mock validation to reject all files with proper error format
         mockValidateModelFileSupport.mockReturnValue({
             isSupported: false,
-            error: 'File type not supported by current LLM',
+            error: "Model 'gpt-3.5-turbo' (openai) does not support pdf files",
         });
 
         const messages: InternalMessage[] = [
@@ -511,6 +526,45 @@ describe('filterMessagesByLLMCapabilities', () => {
         expect(result[0]!.content).toEqual([
             { type: 'text', text: '[File attachment removed - not supported by gpt-3.5-turbo]' },
         ]);
+        // Verify logging
+        expect(mockLogger.info).toHaveBeenCalledWith(
+            "Filtered 1 file for gpt-3.5-turbo since it doesn't support that file type"
+        );
+    });
+
+    test('should keep files when validation returns unknown error (internal error)', () => {
+        // Mock validation to return an internal error (not "does not support")
+        mockValidateModelFileSupport.mockReturnValue({
+            isSupported: false,
+            error: 'Unknown error validating model file support',
+        });
+
+        const messages: InternalMessage[] = [
+            {
+                role: 'user',
+                content: [
+                    { type: 'text', text: 'Analyze this' },
+                    {
+                        type: 'file',
+                        data: 'data',
+                        mimeType: 'application/pdf',
+                        filename: 'doc.pdf',
+                    },
+                ],
+            },
+        ];
+
+        const config: LLMContext = { provider: 'openai', model: 'gpt-3.5-turbo' };
+
+        const result = filterMessagesByLLMCapabilities(messages, config, mockLogger);
+
+        // File should be KEPT when validation errored (unknown error)
+        expect(result[0]?.content).toEqual(messages[0]?.content);
+        // Should log a warning instead of info
+        expect(mockLogger.warn).toHaveBeenCalledWith(
+            'Could not validate file support for gpt-3.5-turbo: Unknown error validating model file support'
+        );
+        expect(mockLogger.info).not.toHaveBeenCalled();
     });
 
     test('should only filter user messages with array content', () => {
@@ -543,7 +597,7 @@ describe('filterMessagesByLLMCapabilities', () => {
         // Mock validation to reject the file
         mockValidateModelFileSupport.mockReturnValue({
             isSupported: false,
-            error: 'PDF not supported',
+            error: "Model 'gpt-3.5-turbo' (openai) does not support pdf files",
         });
 
         const config: LLMContext = { provider: 'openai', model: 'gpt-3.5-turbo' };
@@ -555,6 +609,10 @@ describe('filterMessagesByLLMCapabilities', () => {
         expect(result[1]).toEqual(messages[1]); // assistant unchanged
         expect(result[2]).toEqual(messages[2]); // tool unchanged
         expect(result[3]!.content).toEqual([{ type: 'text', text: 'Analyze this' }]); // user message filtered
+        // Verify logging for filtered file
+        expect(mockLogger.info).toHaveBeenCalledWith(
+            "Filtered 1 file for gpt-3.5-turbo since it doesn't support that file type"
+        );
     });
 
     test('should keep unknown part types unchanged', () => {
@@ -610,6 +668,190 @@ describe('filterMessagesByLLMCapabilities', () => {
         expect(result[0]!.content).toEqual([
             { type: 'text', text: '[File attachment removed - not supported by gpt-5]' },
         ]);
+    });
+
+    test('should filter out images for models that do not support vision (e.g., glm-4.7)', () => {
+        // Mock validation to reject images for models like glm-4.7 which has supportedFileTypes: []
+        mockValidateModelFileSupport.mockReturnValue({
+            isSupported: false,
+            error: 'Model glm-4.7 (dexto) does not support image files',
+        });
+
+        const messages: InternalMessage[] = [
+            {
+                role: 'user',
+                content: [
+                    { type: 'text', text: 'Describe these screenshots' },
+                    { type: 'image', image: 'base64data1', mimeType: 'image/png' },
+                    { type: 'image', image: 'base64data2', mimeType: 'image/jpeg' },
+                ],
+            },
+        ];
+
+        const config: LLMContext = { provider: 'dexto', model: 'z-ai/glm-4.7' };
+
+        const result = filterMessagesByLLMCapabilities(messages, config, mockLogger);
+
+        // Both images should be filtered out, only text remains
+        expect(result[0]!.content).toEqual([{ type: 'text', text: 'Describe these screenshots' }]);
+        // Verify validation was called for each image
+        expect(mockValidateModelFileSupport).toHaveBeenCalledTimes(2);
+        expect(mockValidateModelFileSupport).toHaveBeenCalledWith(
+            'dexto',
+            'z-ai/glm-4.7',
+            'image/png'
+        );
+        expect(mockValidateModelFileSupport).toHaveBeenCalledWith(
+            'dexto',
+            'z-ai/glm-4.7',
+            'image/jpeg'
+        );
+        // Verify logging
+        expect(mockLogger.info).toHaveBeenCalledWith(
+            "Filtered 2 images for z-ai/glm-4.7 since it doesn't support images"
+        );
+    });
+
+    test('should filter out images for minimax model which does not support vision', () => {
+        // Mock validation to reject images for minimax-m2.1 which has supportedFileTypes: []
+        mockValidateModelFileSupport.mockReturnValue({
+            isSupported: false,
+            error: 'Model minimax-m2.1 (dexto) does not support image files',
+        });
+
+        const messages: InternalMessage[] = [
+            {
+                role: 'user',
+                content: [
+                    { type: 'text', text: 'Analyze this image' },
+                    { type: 'image', image: 'screenshotdata', mimeType: 'image/png' },
+                ],
+            },
+        ];
+
+        const config: LLMContext = { provider: 'dexto', model: 'minimax/minimax-m2.1' };
+
+        const result = filterMessagesByLLMCapabilities(messages, config, mockLogger);
+
+        expect(result[0]!.content).toEqual([{ type: 'text', text: 'Analyze this image' }]);
+        expect(mockValidateModelFileSupport).toHaveBeenCalledWith(
+            'dexto',
+            'minimax/minimax-m2.1',
+            'image/png'
+        );
+        // Verify logging
+        expect(mockLogger.info).toHaveBeenCalledWith(
+            "Filtered 1 image for minimax/minimax-m2.1 since it doesn't support images"
+        );
+    });
+
+    test('should keep images for models that support vision (e.g., gpt-4o)', () => {
+        // Mock validation to accept images for gpt-4o which has supportedFileTypes: ['pdf', 'image']
+        mockValidateModelFileSupport.mockReturnValue({
+            isSupported: true,
+            fileType: 'image',
+        });
+
+        const messages: InternalMessage[] = [
+            {
+                role: 'user',
+                content: [
+                    { type: 'text', text: 'What do you see?' },
+                    { type: 'image', image: 'base64data', mimeType: 'image/png' },
+                ],
+            },
+        ];
+
+        const config: LLMContext = { provider: 'openai', model: 'gpt-4o' };
+
+        const result = filterMessagesByLLMCapabilities(messages, config, mockLogger);
+
+        // Images should be kept for vision-capable models
+        expect(result).toEqual(messages);
+        expect(mockValidateModelFileSupport).toHaveBeenCalledWith('openai', 'gpt-4o', 'image/png');
+    });
+
+    test('should filter images and keep text when switching from vision to non-vision model', () => {
+        // Simulate: conversation started with Claude (supports images), switched to glm-4.7 (no vision)
+        // First message had images, second is text only
+        const messages: InternalMessage[] = [
+            {
+                role: 'user',
+                content: [
+                    { type: 'text', text: 'Look at this screenshot and help me debug' },
+                    { type: 'image', image: 'errorScreenshot', mimeType: 'image/png' },
+                ],
+            },
+            {
+                role: 'assistant',
+                content: [{ type: 'text', text: 'I can see the issue. The error is...' }],
+            },
+            {
+                role: 'user',
+                content: [
+                    { type: 'text', text: 'Thanks! Can you also check this log file?' },
+                    { type: 'file', data: 'logdata', mimeType: 'text/plain', filename: 'app.log' },
+                ],
+            },
+        ];
+
+        // Mock validation to reject both images and files for glm-4.7
+        mockValidateModelFileSupport.mockReturnValue({
+            isSupported: false,
+            error: "Model 'z-ai/glm-4.7' (dexto) does not support image files",
+        });
+
+        const config: LLMContext = { provider: 'dexto', model: 'z-ai/glm-4.7' };
+
+        const result = filterMessagesByLLMCapabilities(messages, config, mockLogger);
+
+        // First user message: image should be filtered, text kept
+        expect(result[0]!.content).toEqual([
+            { type: 'text', text: 'Look at this screenshot and help me debug' },
+        ]);
+
+        // Assistant message unchanged (not array content)
+        expect(result[1]).toEqual(messages[1]);
+
+        // Second user message: file should be filtered, text kept
+        expect(result[2]!.content).toEqual([
+            { type: 'text', text: 'Thanks! Can you also check this log file?' },
+        ]);
+    });
+
+    test('should handle images without explicit mimeType (defaults to image/jpeg)', () => {
+        // Some image parts may not have mimeType set
+        mockValidateModelFileSupport.mockReturnValue({
+            isSupported: false,
+            error: "Model 'minimax/minimax-m2.1' (dexto) does not support image files",
+        });
+
+        const messages: InternalMessage[] = [
+            {
+                role: 'user',
+                content: [
+                    { type: 'text', text: 'Describe this' },
+                    // Image without mimeType
+                    { type: 'image', image: 'base64data' },
+                ],
+            },
+        ];
+
+        const config: LLMContext = { provider: 'dexto', model: 'minimax/minimax-m2.1' };
+
+        const result = filterMessagesByLLMCapabilities(messages, config, mockLogger);
+
+        // Image should still be filtered (uses default image/jpeg)
+        expect(result[0]!.content).toEqual([{ type: 'text', text: 'Describe this' }]);
+        expect(mockValidateModelFileSupport).toHaveBeenCalledWith(
+            'dexto',
+            'minimax/minimax-m2.1',
+            'image/jpeg'
+        );
+        // Verify logging
+        expect(mockLogger.info).toHaveBeenCalledWith(
+            "Filtered 1 image for minimax/minimax-m2.1 since it doesn't support images"
+        );
     });
 });
 
@@ -1149,13 +1391,15 @@ describe('filterCompacted', () => {
     });
 
     it('should return summary and messages after it when summary exists', () => {
+        // Layout: [summarized, summarized, summary, afterSummary, afterSummary]
+        // originalMessageCount=2 means first 2 messages were summarized
         const messages = [
             { role: 'user', content: 'Old message 1' },
             { role: 'assistant', content: 'Old response 1' },
             {
                 role: 'assistant',
                 content: 'Summary of conversation',
-                metadata: { isSummary: true },
+                metadata: { isSummary: true, originalMessageCount: 2 },
             },
             { role: 'user', content: 'New message' },
             { role: 'assistant', content: 'New response' },
@@ -1171,11 +1415,21 @@ describe('filterCompacted', () => {
     });
 
     it('should use most recent summary when multiple exist', () => {
+        // Layout: [summarized, firstSummary, preserved, secondSummary, afterSummary]
+        // The second summary at index 3 summarized messages 0-2 (originalMessageCount=3)
         const messages = [
             { role: 'user', content: 'Very old' },
-            { role: 'assistant', content: 'First summary', metadata: { isSummary: true } },
+            {
+                role: 'assistant',
+                content: 'First summary',
+                metadata: { isSummary: true, originalMessageCount: 1 },
+            },
             { role: 'user', content: 'Medium old' },
-            { role: 'assistant', content: 'Second summary', metadata: { isSummary: true } },
+            {
+                role: 'assistant',
+                content: 'Second summary',
+                metadata: { isSummary: true, originalMessageCount: 3 },
+            },
             { role: 'user', content: 'Recent message' },
         ] as unknown as InternalMessage[];
 
@@ -1218,16 +1472,48 @@ describe('filterCompacted', () => {
     });
 
     it('should handle summary at the end of history', () => {
+        // Layout: [summarized, summarized, summary]
+        // originalMessageCount=2 means first 2 messages were summarized, no preserved messages
         const messages = [
             { role: 'user', content: 'Old message' },
             { role: 'assistant', content: 'Old response' },
-            { role: 'assistant', content: 'Final summary', metadata: { isSummary: true } },
+            {
+                role: 'assistant',
+                content: 'Final summary',
+                metadata: { isSummary: true, originalMessageCount: 2 },
+            },
         ] as unknown as InternalMessage[];
 
         const result = filterCompacted(messages);
 
         expect(result).toHaveLength(1);
         expect(result[0]?.content).toBe('Final summary');
+    });
+
+    it('should preserve messages between summarized portion and summary', () => {
+        // This is the typical case after compaction:
+        // Layout: [summarized, summarized, preserved, preserved, summary]
+        // originalMessageCount=2 means first 2 messages were summarized
+        // Messages at indices 2,3 should be preserved
+        const messages = [
+            { role: 'user', content: 'Old message 1' },
+            { role: 'assistant', content: 'Old response 1' },
+            { role: 'user', content: 'Recent message' },
+            { role: 'assistant', content: 'Recent response' },
+            {
+                role: 'system',
+                content: 'Summary',
+                metadata: { isSummary: true, originalMessageCount: 2 },
+            },
+        ] as unknown as InternalMessage[];
+
+        const result = filterCompacted(messages);
+
+        // Should return: [summary, preserved1, preserved2]
+        expect(result).toHaveLength(3);
+        expect(result[0]?.content).toBe('Summary');
+        expect(result[1]?.content).toBe('Recent message');
+        expect(result[2]?.content).toBe('Recent response');
     });
 });
 
@@ -1426,5 +1712,333 @@ describe('sanitizeToolResultToContentWithBlobs', () => {
             expect(result).toHaveLength(1);
             expect(result![0]?.type).toBe('text');
         });
+    });
+});
+
+describe('Token Estimation Functions', () => {
+    describe('estimateStringTokens', () => {
+        it('should return 0 for empty string', () => {
+            expect(estimateStringTokens('')).toBe(0);
+        });
+
+        it('should return 0 for null/undefined', () => {
+            expect(estimateStringTokens(null as unknown as string)).toBe(0);
+            expect(estimateStringTokens(undefined as unknown as string)).toBe(0);
+        });
+
+        it('should estimate ~4 chars per token', () => {
+            // 100 chars should be ~25 tokens
+            const text = 'a'.repeat(100);
+            expect(estimateStringTokens(text)).toBe(25);
+        });
+
+        it('should round to nearest integer', () => {
+            // 10 chars = 2.5 -> rounds to 3
+            expect(estimateStringTokens('a'.repeat(10))).toBe(3);
+            // 8 chars = 2 -> exactly 2
+            expect(estimateStringTokens('a'.repeat(8))).toBe(2);
+        });
+
+        it('should handle realistic text content', () => {
+            const systemPrompt = `You are a helpful coding assistant. 
+            You help users write, debug, and understand code.
+            Always provide clear explanations.`;
+            // ~150 chars -> ~38 tokens
+            const tokens = estimateStringTokens(systemPrompt);
+            expect(tokens).toBeGreaterThan(30);
+            expect(tokens).toBeLessThan(50);
+        });
+    });
+
+    describe('estimateImageTokens', () => {
+        it('should return fixed 1000 tokens for images', () => {
+            expect(estimateImageTokens()).toBe(1000);
+        });
+    });
+
+    describe('estimateFileTokens', () => {
+        it('should estimate based on content when provided', () => {
+            const content = 'a'.repeat(400); // 400 chars = 100 tokens
+            expect(estimateFileTokens(content)).toBe(100);
+        });
+
+        it('should return 1000 when no content provided', () => {
+            expect(estimateFileTokens()).toBe(1000);
+            expect(estimateFileTokens(undefined)).toBe(1000);
+        });
+    });
+
+    describe('estimateContentPartTokens', () => {
+        it('should estimate text parts using string estimation', () => {
+            const textPart = { type: 'text' as const, text: 'a'.repeat(100) };
+            expect(estimateContentPartTokens(textPart)).toBe(25);
+        });
+
+        it('should estimate image parts as 1000 tokens', () => {
+            const imagePart = {
+                type: 'image' as const,
+                image: 'base64data',
+                mimeType: 'image/png' as const,
+            };
+            expect(estimateContentPartTokens(imagePart)).toBe(1000);
+        });
+
+        it('should return fallback for file parts', () => {
+            // File data could be base64-encoded or binary, so we use a conservative fallback
+            const filePart = {
+                type: 'file' as const,
+                data: 'some-file-data',
+                mimeType: 'text/plain' as const,
+            };
+            expect(estimateContentPartTokens(filePart)).toBe(1000);
+        });
+
+        it('should return fallback for file parts with binary data', () => {
+            // Binary data also uses fallback (can't easily estimate tokens from bytes)
+            const filePart: FilePart = {
+                type: 'file',
+                data: new Uint8Array([1, 2, 3]),
+                mimeType: 'application/pdf',
+            };
+            expect(estimateContentPartTokens(filePart)).toBe(1000);
+        });
+
+        it('should return 0 for unknown part types', () => {
+            const unknownPart = { type: 'unknown' } as unknown as ContentPart;
+            expect(estimateContentPartTokens(unknownPart)).toBe(0);
+        });
+    });
+
+    describe('estimateMessagesTokens', () => {
+        it('should return 0 for empty messages array', () => {
+            expect(estimateMessagesTokens([])).toBe(0);
+        });
+
+        it('should estimate single text message', () => {
+            const messages: InternalMessage[] = [
+                {
+                    role: 'user',
+                    content: [{ type: 'text', text: 'a'.repeat(100) }],
+                },
+            ];
+            expect(estimateMessagesTokens(messages)).toBe(25);
+        });
+
+        it('should sum tokens across multiple messages', () => {
+            const messages: InternalMessage[] = [
+                {
+                    role: 'user',
+                    content: [{ type: 'text', text: 'a'.repeat(100) }], // 25 tokens
+                },
+                {
+                    role: 'assistant',
+                    content: [{ type: 'text', text: 'a'.repeat(200) }], // 50 tokens
+                },
+            ];
+            expect(estimateMessagesTokens(messages)).toBe(75);
+        });
+
+        it('should sum tokens across multiple content parts', () => {
+            const messages: InternalMessage[] = [
+                {
+                    role: 'user',
+                    content: [
+                        { type: 'text', text: 'a'.repeat(100) }, // 25 tokens
+                        { type: 'image', image: 'base64', mimeType: 'image/png' as const }, // 1000 tokens
+                    ],
+                },
+            ];
+            expect(estimateMessagesTokens(messages)).toBe(1025);
+        });
+
+        it('should handle messages with non-array content', () => {
+            const messages: InternalMessage[] = [
+                {
+                    role: 'user',
+                    content: 'plain string content' as any, // Not an array - should be skipped
+                },
+            ];
+            expect(estimateMessagesTokens(messages)).toBe(0);
+        });
+
+        it('should handle mixed content types', () => {
+            const messages: InternalMessage[] = [
+                {
+                    role: 'user',
+                    content: [
+                        { type: 'text', text: 'Hello' }, // ~1-2 tokens
+                        { type: 'image', image: 'base64', mimeType: 'image/png' as const }, // 1000 tokens
+                        { type: 'file', data: 'base64', mimeType: 'application/pdf' as const }, // 1000 tokens
+                    ],
+                },
+            ];
+            const tokens = estimateMessagesTokens(messages);
+            expect(tokens).toBeGreaterThanOrEqual(2001); // At least 2000 + some text
+        });
+    });
+});
+
+// Note: getOutputBuffer and DEFAULT_OUTPUT_BUFFER were removed from overflow.ts
+// The output buffer concept was flawed - input and output tokens have separate limits
+// in LLM APIs, so reserving input space for output was unnecessary.
+
+describe('estimateToolsTokens', () => {
+    it('should return 0 total for empty tools object', () => {
+        const result = estimateToolsTokens({});
+        expect(result.total).toBe(0);
+        expect(result.perTool).toEqual([]);
+    });
+
+    it('should estimate tokens for single tool', () => {
+        const tools = {
+            search: {
+                name: 'search',
+                description: 'Search the web for information',
+                parameters: { type: 'object', properties: { query: { type: 'string' } } },
+            },
+        };
+        const result = estimateToolsTokens(tools);
+        expect(result.total).toBeGreaterThan(0);
+        expect(result.perTool).toHaveLength(1);
+        expect(result.perTool[0]?.name).toBe('search');
+        expect(result.perTool[0]?.tokens).toBeGreaterThan(0);
+    });
+
+    it('should estimate tokens for multiple tools', () => {
+        const tools = {
+            read_file: {
+                name: 'read_file',
+                description: 'Read a file from disk',
+                parameters: { type: 'object', properties: { path: { type: 'string' } } },
+            },
+            write_file: {
+                name: 'write_file',
+                description: 'Write content to a file',
+                parameters: {
+                    type: 'object',
+                    properties: { path: { type: 'string' }, content: { type: 'string' } },
+                },
+            },
+        };
+        const result = estimateToolsTokens(tools);
+        expect(result.total).toBeGreaterThan(0);
+        expect(result.perTool).toHaveLength(2);
+        // Total should equal sum of per-tool tokens
+        const sumOfPerTool = result.perTool.reduce((sum, t) => sum + t.tokens, 0);
+        expect(result.total).toBe(sumOfPerTool);
+    });
+
+    it('should use key as tool name when name property is missing', () => {
+        const tools = {
+            my_tool: {
+                description: 'A tool without a name property',
+                parameters: {},
+            },
+        };
+        const result = estimateToolsTokens(tools);
+        expect(result.perTool[0]?.name).toBe('my_tool');
+    });
+
+    it('should handle tools with complex parameters', () => {
+        const tools = {
+            complex_tool: {
+                name: 'complex_tool',
+                description: 'A tool with complex nested parameters',
+                parameters: {
+                    type: 'object',
+                    properties: {
+                        nested: {
+                            type: 'object',
+                            properties: {
+                                array: { type: 'array', items: { type: 'string' } },
+                                number: { type: 'number' },
+                            },
+                        },
+                    },
+                },
+            },
+        };
+        const result = estimateToolsTokens(tools);
+        // Complex parameters should result in more tokens
+        expect(result.total).toBeGreaterThan(20);
+    });
+});
+
+describe('estimateContextTokens', () => {
+    it('should return total and breakdown with all components', () => {
+        const systemPrompt = 'You are a helpful assistant.';
+        const messages: InternalMessage[] = [
+            { role: 'user', content: [{ type: 'text', text: 'Hello!' }] },
+        ];
+        const tools = {
+            search: {
+                name: 'search',
+                description: 'Search the web',
+                parameters: {},
+            },
+        };
+
+        const result = estimateContextTokens(systemPrompt, messages, tools);
+
+        expect(result.total).toBeGreaterThan(0);
+        expect(result.breakdown.systemPrompt).toBeGreaterThan(0);
+        expect(result.breakdown.messages).toBeGreaterThan(0);
+        expect(result.breakdown.tools.total).toBeGreaterThan(0);
+        expect(result.breakdown.tools.perTool).toHaveLength(1);
+    });
+
+    it('should return 0 for tools when no tools provided', () => {
+        const systemPrompt = 'You are helpful.';
+        const messages: InternalMessage[] = [
+            { role: 'user', content: [{ type: 'text', text: 'Hi' }] },
+        ];
+
+        const result = estimateContextTokens(systemPrompt, messages);
+
+        expect(result.breakdown.tools.total).toBe(0);
+        expect(result.breakdown.tools.perTool).toEqual([]);
+    });
+
+    it('should have total equal to sum of breakdown components', () => {
+        const systemPrompt = 'System instructions here.';
+        const messages: InternalMessage[] = [
+            { role: 'user', content: [{ type: 'text', text: 'User message' }] },
+            { role: 'assistant', content: [{ type: 'text', text: 'Assistant response' }] },
+        ];
+        const tools = {
+            tool1: { name: 'tool1', description: 'First tool', parameters: {} },
+            tool2: { name: 'tool2', description: 'Second tool', parameters: {} },
+        };
+
+        const result = estimateContextTokens(systemPrompt, messages, tools);
+
+        const expectedTotal =
+            result.breakdown.systemPrompt +
+            result.breakdown.messages +
+            result.breakdown.tools.total;
+        expect(result.total).toBe(expectedTotal);
+    });
+
+    it('should handle empty messages array', () => {
+        const systemPrompt = 'System prompt';
+        const messages: InternalMessage[] = [];
+
+        const result = estimateContextTokens(systemPrompt, messages);
+
+        expect(result.breakdown.messages).toBe(0);
+        expect(result.breakdown.systemPrompt).toBeGreaterThan(0);
+        expect(result.total).toBe(result.breakdown.systemPrompt);
+    });
+
+    it('should handle empty system prompt', () => {
+        const systemPrompt = '';
+        const messages: InternalMessage[] = [
+            { role: 'user', content: [{ type: 'text', text: 'Hello' }] },
+        ];
+
+        const result = estimateContextTokens(systemPrompt, messages);
+
+        expect(result.breakdown.systemPrompt).toBe(0);
+        expect(result.breakdown.messages).toBeGreaterThan(0);
     });
 });

@@ -1,6 +1,11 @@
 import { describe, test, expect } from 'vitest';
-import { applyCLIOverrides, type CLIConfigOverrides } from './cli-overrides.js';
+import {
+    applyCLIOverrides,
+    applyUserPreferences,
+    type CLIConfigOverrides,
+} from './cli-overrides.js';
 import type { AgentConfig } from '@dexto/core';
+// Note: applyUserPreferences accepts Partial<GlobalPreferences> since it only uses the llm field
 
 function clone<T>(obj: T): T {
     return JSON.parse(JSON.stringify(obj));
@@ -123,5 +128,107 @@ describe('CLI Overrides', () => {
 
         expect(result.toolConfirmation?.mode).toBe('auto-approve');
         expect(result.toolConfirmation?.timeout).toBe(120000); // Existing fields preserved
+    });
+});
+
+describe('applyUserPreferences', () => {
+    const baseAgentConfig: AgentConfig = {
+        systemPrompt: 'test agent',
+        llm: {
+            provider: 'anthropic',
+            model: 'claude-haiku-4-5-20251001',
+            apiKey: '$ANTHROPIC_API_KEY',
+        },
+    };
+
+    test('applies user preferences fully (provider, model, apiKey)', () => {
+        const preferences = {
+            llm: {
+                provider: 'openai' as const,
+                model: 'gpt-5-mini',
+                apiKey: '$OPENAI_API_KEY',
+            },
+        };
+
+        const result = applyUserPreferences(clone(baseAgentConfig), preferences);
+
+        expect(result.llm.provider).toBe('openai');
+        expect(result.llm.model).toBe('gpt-5-mini');
+        expect(result.llm.apiKey).toBe('$OPENAI_API_KEY');
+    });
+
+    test('applies dexto provider preferences', () => {
+        const preferences = {
+            llm: {
+                provider: 'dexto' as const,
+                model: 'anthropic/claude-sonnet-4',
+                apiKey: '$DEXTO_API_KEY',
+            },
+        };
+
+        const result = applyUserPreferences(clone(baseAgentConfig), preferences);
+
+        expect(result.llm.provider).toBe('dexto');
+        expect(result.llm.model).toBe('anthropic/claude-sonnet-4');
+        expect(result.llm.apiKey).toBe('$DEXTO_API_KEY');
+    });
+
+    test('without llm preferences -> returns config unchanged', () => {
+        const preferences = {};
+
+        const result = applyUserPreferences(clone(baseAgentConfig), preferences);
+
+        expect(result.llm.provider).toBe('anthropic');
+        expect(result.llm.model).toBe('claude-haiku-4-5-20251001');
+        expect(result.llm.apiKey).toBe('$ANTHROPIC_API_KEY');
+    });
+
+    test('preserves agent apiKey if user has no apiKey configured', () => {
+        const preferences = {
+            llm: {
+                provider: 'anthropic' as const,
+                model: 'claude-sonnet-4-5-20250929',
+                // No apiKey specified
+            },
+        };
+
+        const result = applyUserPreferences(clone(baseAgentConfig), preferences);
+
+        expect(result.llm.provider).toBe('anthropic');
+        expect(result.llm.model).toBe('claude-sonnet-4-5-20250929');
+        expect(result.llm.apiKey).toBe('$ANTHROPIC_API_KEY'); // Original preserved
+    });
+
+    test('applies baseURL if provided in preferences', () => {
+        const preferences = {
+            llm: {
+                provider: 'openai-compatible' as const,
+                model: 'local-model',
+                apiKey: 'test-key',
+                baseURL: 'http://localhost:8080/v1',
+            },
+        };
+
+        const result = applyUserPreferences(clone(baseAgentConfig), preferences);
+
+        expect(result.llm.provider).toBe('openai-compatible');
+        expect(result.llm.baseURL).toBe('http://localhost:8080/v1');
+    });
+
+    test('does not mutate original config', () => {
+        const originalConfig = clone(baseAgentConfig);
+        const preferences = {
+            llm: {
+                provider: 'openai' as const,
+                model: 'gpt-5-mini',
+                apiKey: '$OPENAI_API_KEY',
+            },
+        };
+
+        applyUserPreferences(originalConfig, preferences);
+
+        // Original should be unchanged
+        expect(originalConfig.llm.provider).toBe('anthropic');
+        expect(originalConfig.llm.model).toBe('claude-haiku-4-5-20251001');
     });
 });

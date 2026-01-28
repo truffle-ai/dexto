@@ -71,10 +71,30 @@ export function Header({ modelName, sessionId, hasActiveSession, startupInfo }: 
                 </Box>
             )}
 
-            {/* Log file */}
-            {startupInfo.logFile && (
+            {/* Log file (only shown in dev mode) */}
+            {startupInfo.logFile && process.env.DEXTO_DEV_MODE === 'true' && (
                 <Box flexDirection="row">
                     <Text color="gray">Logs: {startupInfo.logFile}</Text>
+                </Box>
+            )}
+
+            {/* Update available notification */}
+            {startupInfo.updateInfo && (
+                <Box marginTop={1} flexDirection="row">
+                    <Text color="yellow">
+                        ⬆️ Update available: {startupInfo.updateInfo.current} →{' '}
+                        {startupInfo.updateInfo.latest}
+                    </Text>
+                    <Text color="gray"> • Run: </Text>
+                    <Text color="cyan">{startupInfo.updateInfo.updateCommand}</Text>
+                </Box>
+            )}
+
+            {/* Agent sync notification */}
+            {startupInfo.needsAgentSync && (
+                <Box marginTop={startupInfo.updateInfo ? 0 : 1} flexDirection="row">
+                    <Text color="yellow">🔄 Agent configs have updates available. Run: </Text>
+                    <Text color="cyan">dexto sync-agents</Text>
                 </Box>
             )}
 

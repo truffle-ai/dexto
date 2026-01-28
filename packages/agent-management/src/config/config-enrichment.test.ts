@@ -4,6 +4,14 @@ import type { AgentConfig } from '@dexto/core';
 // Mock the discover-prompts module (separate file, so mock works!)
 vi.mock('./discover-prompts.js', () => ({
     discoverCommandPrompts: vi.fn(() => []),
+    discoverAgentInstructionFile: vi.fn(() => null),
+}));
+
+// Mock the plugins module to prevent real filesystem discovery
+vi.mock('../plugins/index.js', () => ({
+    discoverClaudeCodePlugins: vi.fn(() => []),
+    loadClaudeCodePlugin: vi.fn(() => ({ manifest: {}, commands: [], warnings: [] })),
+    discoverStandaloneSkills: vi.fn(() => []),
 }));
 
 // Import after mock is set up
@@ -18,6 +26,48 @@ describe('enrichAgentConfig', () => {
     beforeEach(() => {
         vi.mocked(discoverCommandPrompts).mockReset();
         vi.mocked(discoverCommandPrompts).mockReturnValue([]);
+    });
+
+    describe('logger defaults', () => {
+        it('should default to silent logger in interactive CLI mode (session logs are handled in core)', () => {
+            const baseConfig: AgentConfig = {
+                llm: {
+                    provider: 'openai',
+                    model: 'gpt-5',
+                    apiKey: 'test-key',
+                },
+                systemPrompt: 'You are a helpful assistant.',
+            };
+
+            const enriched = enrichAgentConfig(baseConfig, 'test-agent', {
+                isInteractiveCli: true,
+            });
+
+            expect(enriched.logger).toEqual({
+                level: 'error',
+                transports: [{ type: 'silent' }],
+            });
+        });
+
+        it('should default to console logger in non-interactive mode (session logs are handled in core)', () => {
+            const baseConfig: AgentConfig = {
+                llm: {
+                    provider: 'openai',
+                    model: 'gpt-5',
+                    apiKey: 'test-key',
+                },
+                systemPrompt: 'You are a helpful assistant.',
+            };
+
+            const enriched = enrichAgentConfig(baseConfig, 'test-agent', {
+                isInteractiveCli: false,
+            });
+
+            expect(enriched.logger).toEqual({
+                level: 'error',
+                transports: [{ type: 'console', colorize: true }],
+            });
+        });
     });
 
     describe('prompt deduplication', () => {

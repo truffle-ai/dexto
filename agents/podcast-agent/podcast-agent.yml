@@ -170,7 +170,7 @@ storage:
 
 toolConfirmation:
   mode: auto-approve
-  timeout: 30000
+  # timeout: omitted = infinite wait
   allowedToolsStorage: memory
 
 # Prompts - podcast and audio generation examples shown as clickable buttons in WebUI

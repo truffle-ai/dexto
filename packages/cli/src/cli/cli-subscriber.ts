@@ -48,6 +48,8 @@ export class CLISubscriber implements EventSubscriber {
         });
         eventBus.on('llm:error', (payload) => this.onError(payload.error));
         eventBus.on('session:reset', this.onConversationReset.bind(this));
+        eventBus.on('context:compacting', this.onContextCompacting.bind(this));
+        eventBus.on('context:compacted', this.onContextCompacted.bind(this));
     }
 
     /**
@@ -167,13 +169,41 @@ export class CLISubscriber implements EventSubscriber {
         logger.info('🔄 Conversation history cleared.', null, 'blue');
     }
 
+    onContextCompacting(payload: AgentEventMap['context:compacting']): void {
+        // Output to stderr (doesn't interfere with stdout response stream)
+        process.stderr.write(
+            `[📦 Compacting context (~${payload.estimatedTokens.toLocaleString()} tokens)...]\n`
+        );
+    }
+
+    onContextCompacted(payload: AgentEventMap['context:compacted']): void {
+        const { originalTokens, compactedTokens, originalMessages, compactedMessages, reason } =
+            payload;
+        const reductionPercent =
+            originalTokens > 0
+                ? Math.round(((originalTokens - compactedTokens) / originalTokens) * 100)
+                : 0;
+
+        // Output to stderr (doesn't interfere with stdout response stream)
+        process.stderr.write(
+            `[📦 Context compacted (${reason}): ${originalTokens.toLocaleString()} → ~${compactedTokens.toLocaleString()} tokens (${reductionPercent}% reduction), ${originalMessages} → ${compactedMessages} messages]\n`
+        );
+    }
+
     /**
      * Capture LLM token usage analytics
      */
     private captureTokenUsage(payload: AgentEventMap['llm:response']): void {
-        const { tokenUsage, provider, model, sessionId } = payload;
+        const { tokenUsage, provider, model, sessionId, estimatedInputTokens } = payload;
         if (!tokenUsage || (!tokenUsage.inputTokens && !tokenUsage.outputTokens)) {
             return;
+        }
+
+        // Calculate estimate accuracy if both estimate and actual are available
+        let estimateAccuracyPercent: number | undefined;
+        if (estimatedInputTokens !== undefined && tokenUsage.inputTokens) {
+            const diff = estimatedInputTokens - tokenUsage.inputTokens;
+            estimateAccuracyPercent = Math.round((diff / tokenUsage.inputTokens) * 100);
         }
 
         capture('dexto_llm_tokens_consumed', {
@@ -187,6 +217,8 @@ export class CLISubscriber implements EventSubscriber {
             totalTokens: tokenUsage.totalTokens,
             cacheReadTokens: tokenUsage.cacheReadTokens,
             cacheWriteTokens: tokenUsage.cacheWriteTokens,
+            estimatedInputTokens,
+            estimateAccuracyPercent,
         });
     }
 

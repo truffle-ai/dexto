@@ -4,7 +4,10 @@
  * Error classes for process execution and management
  */
 
-import { DextoRuntimeError, ErrorScope, ErrorType } from '@dexto/core';
+import { DextoRuntimeError, ErrorType } from '@dexto/core';
+
+/** Error scope for process operations */
+const PROCESS_SCOPE = 'process';
 import { ProcessErrorCode } from './error-codes.js';
 
 export interface ProcessErrorContext {
@@ -28,7 +31,7 @@ export class ProcessError {
     static invalidCommand(command: string, reason: string): DextoRuntimeError {
         return new DextoRuntimeError(
             ProcessErrorCode.INVALID_COMMAND,
-            ErrorScope.PROCESS,
+            PROCESS_SCOPE,
             ErrorType.USER,
             `Invalid command: ${command}. ${reason}`,
             { command, reason }
@@ -41,7 +44,7 @@ export class ProcessError {
     static commandBlocked(command: string, reason: string): DextoRuntimeError {
         return new DextoRuntimeError(
             ProcessErrorCode.COMMAND_BLOCKED,
-            ErrorScope.PROCESS,
+            PROCESS_SCOPE,
             ErrorType.FORBIDDEN,
             `Command is blocked: ${command}. ${reason}`,
             { command, reason }
@@ -54,7 +57,7 @@ export class ProcessError {
     static commandTooLong(length: number, maxLength: number): DextoRuntimeError {
         return new DextoRuntimeError(
             ProcessErrorCode.COMMAND_TOO_LONG,
-            ErrorScope.PROCESS,
+            PROCESS_SCOPE,
             ErrorType.USER,
             `Command too long: ${length} characters. Maximum allowed: ${maxLength}`,
             { length, maxLength }
@@ -67,7 +70,7 @@ export class ProcessError {
     static commandInjection(command: string, pattern: string): DextoRuntimeError {
         return new DextoRuntimeError(
             ProcessErrorCode.INJECTION_DETECTED,
-            ErrorScope.PROCESS,
+            PROCESS_SCOPE,
             ErrorType.FORBIDDEN,
             `Potential command injection detected in: ${command}. Pattern: ${pattern}`,
             { command, pattern }
@@ -80,7 +83,7 @@ export class ProcessError {
     static approvalRequired(command: string, reason?: string): DextoRuntimeError {
         return new DextoRuntimeError(
             ProcessErrorCode.APPROVAL_REQUIRED,
-            ErrorScope.PROCESS,
+            PROCESS_SCOPE,
             ErrorType.FORBIDDEN,
             `Command requires approval: ${command}${reason ? `. ${reason}` : ''}`,
             { command, reason },
@@ -94,7 +97,7 @@ export class ProcessError {
     static approvalDenied(command: string): DextoRuntimeError {
         return new DextoRuntimeError(
             ProcessErrorCode.APPROVAL_DENIED,
-            ErrorScope.PROCESS,
+            PROCESS_SCOPE,
             ErrorType.FORBIDDEN,
             `Command approval denied by user: ${command}`,
             { command }
@@ -107,7 +110,7 @@ export class ProcessError {
     static executionFailed(command: string, cause: string): DextoRuntimeError {
         return new DextoRuntimeError(
             ProcessErrorCode.EXECUTION_FAILED,
-            ErrorScope.PROCESS,
+            PROCESS_SCOPE,
             ErrorType.SYSTEM,
             `Command execution failed: ${command}. ${cause}`,
             { command, cause }
@@ -120,7 +123,7 @@ export class ProcessError {
     static timeout(command: string, timeout: number): DextoRuntimeError {
         return new DextoRuntimeError(
             ProcessErrorCode.TIMEOUT,
-            ErrorScope.PROCESS,
+            PROCESS_SCOPE,
             ErrorType.TIMEOUT,
             `Command timed out after ${timeout}ms: ${command}`,
             { command, timeout },
@@ -134,7 +137,7 @@ export class ProcessError {
     static permissionDenied(command: string): DextoRuntimeError {
         return new DextoRuntimeError(
             ProcessErrorCode.PERMISSION_DENIED,
-            ErrorScope.PROCESS,
+            PROCESS_SCOPE,
             ErrorType.FORBIDDEN,
             `Permission denied: ${command}`,
             { command }
@@ -147,7 +150,7 @@ export class ProcessError {
     static commandNotFound(command: string): DextoRuntimeError {
         return new DextoRuntimeError(
             ProcessErrorCode.COMMAND_NOT_FOUND,
-            ErrorScope.PROCESS,
+            PROCESS_SCOPE,
             ErrorType.NOT_FOUND,
             `Command not found: ${command}`,
             { command },
@@ -161,7 +164,7 @@ export class ProcessError {
     static invalidWorkingDirectory(path: string, reason: string): DextoRuntimeError {
         return new DextoRuntimeError(
             ProcessErrorCode.WORKING_DIRECTORY_INVALID,
-            ErrorScope.PROCESS,
+            PROCESS_SCOPE,
             ErrorType.USER,
             `Invalid working directory: ${path}. ${reason}`,
             { path, reason }
@@ -174,7 +177,7 @@ export class ProcessError {
     static processNotFound(processId: string): DextoRuntimeError {
         return new DextoRuntimeError(
             ProcessErrorCode.PROCESS_NOT_FOUND,
-            ErrorScope.PROCESS,
+            PROCESS_SCOPE,
             ErrorType.NOT_FOUND,
             `Process not found: ${processId}`,
             { processId }
@@ -187,7 +190,7 @@ export class ProcessError {
     static tooManyProcesses(current: number, max: number): DextoRuntimeError {
         return new DextoRuntimeError(
             ProcessErrorCode.TOO_MANY_PROCESSES,
-            ErrorScope.PROCESS,
+            PROCESS_SCOPE,
             ErrorType.USER,
             `Too many concurrent processes: ${current}. Maximum allowed: ${max}`,
             { current, max },
@@ -201,7 +204,7 @@ export class ProcessError {
     static killFailed(processId: string, cause: string): DextoRuntimeError {
         return new DextoRuntimeError(
             ProcessErrorCode.KILL_FAILED,
-            ErrorScope.PROCESS,
+            PROCESS_SCOPE,
             ErrorType.SYSTEM,
             `Failed to kill process ${processId}: ${cause}`,
             { processId, cause }
@@ -214,7 +217,7 @@ export class ProcessError {
     static outputBufferFull(processId: string, size: number, maxSize: number): DextoRuntimeError {
         return new DextoRuntimeError(
             ProcessErrorCode.OUTPUT_BUFFER_FULL,
-            ErrorScope.PROCESS,
+            PROCESS_SCOPE,
             ErrorType.SYSTEM,
             `Output buffer full for process ${processId}: ${size} bytes. Maximum: ${maxSize}`,
             { processId, size, maxSize },
@@ -228,7 +231,7 @@ export class ProcessError {
     static invalidConfig(reason: string): DextoRuntimeError {
         return new DextoRuntimeError(
             ProcessErrorCode.INVALID_CONFIG,
-            ErrorScope.PROCESS,
+            PROCESS_SCOPE,
             ErrorType.USER,
             `Invalid Process configuration: ${reason}`,
             { reason }
@@ -241,7 +244,7 @@ export class ProcessError {
     static notInitialized(): DextoRuntimeError {
         return new DextoRuntimeError(
             ProcessErrorCode.SERVICE_NOT_INITIALIZED,
-            ErrorScope.PROCESS,
+            PROCESS_SCOPE,
             ErrorType.SYSTEM,
             'ProcessService has not been initialized',
             {},

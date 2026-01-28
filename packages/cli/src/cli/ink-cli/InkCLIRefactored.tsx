@@ -18,7 +18,15 @@ import { enableBracketedPaste, disableBracketedPaste } from './utils/bracketedPa
 import type { StartupInfo } from './state/types.js';
 
 // Contexts (keyboard/mouse providers)
-import { KeypressProvider, MouseProvider, ScrollProvider } from './contexts/index.js';
+import {
+    KeypressProvider,
+    MouseProvider,
+    ScrollProvider,
+    SoundProvider,
+} from './contexts/index.js';
+
+// Sound notification
+import type { SoundNotificationService } from './utils/soundNotification.js';
 
 // Components
 import { ErrorBoundary } from './components/ErrorBoundary.js';
@@ -39,12 +47,13 @@ interface InkCLIProps {
     agent: DextoAgent;
     initialSessionId: string | null;
     startupInfo: StartupInfo;
+    soundService: SoundNotificationService | null;
 }
 
 /**
  * Inner component that wraps the mode-specific component with providers
  */
-function InkCLIInner({ agent, initialSessionId, startupInfo }: InkCLIProps) {
+function InkCLIInner({ agent, initialSessionId, startupInfo, soundService }: InkCLIProps) {
     // Selection hint callback for alternate buffer mode
     const [, setSelectionHintShown] = useState(false);
 
@@ -57,26 +66,30 @@ function InkCLIInner({ agent, initialSessionId, startupInfo }: InkCLIProps) {
 
     if (USE_ALTERNATE_BUFFER) {
         return (
-            <ScrollProvider onSelectionAttempt={handleSelectionAttempt}>
-                <AlternateBufferCLI
-                    agent={agent}
-                    initialSessionId={initialSessionId}
-                    startupInfo={startupInfo}
-                    onSelectionAttempt={handleSelectionAttempt}
-                    useStreaming={streaming}
-                />
-            </ScrollProvider>
+            <SoundProvider soundService={soundService}>
+                <ScrollProvider onSelectionAttempt={handleSelectionAttempt}>
+                    <AlternateBufferCLI
+                        agent={agent}
+                        initialSessionId={initialSessionId}
+                        startupInfo={startupInfo}
+                        onSelectionAttempt={handleSelectionAttempt}
+                        useStreaming={streaming}
+                    />
+                </ScrollProvider>
+            </SoundProvider>
         );
     }
 
     // Static mode - no ScrollProvider needed
     return (
-        <StaticCLI
-            agent={agent}
-            initialSessionId={initialSessionId}
-            startupInfo={startupInfo}
-            useStreaming={streaming}
-        />
+        <SoundProvider soundService={soundService}>
+            <StaticCLI
+                agent={agent}
+                initialSessionId={initialSessionId}
+                startupInfo={startupInfo}
+                useStreaming={streaming}
+            />
+        </SoundProvider>
     );
 }
 
@@ -88,7 +101,12 @@ function InkCLIInner({ agent, initialSessionId, startupInfo }: InkCLIProps) {
  * - KeypressProvider for unified keyboard input
  * - MouseProvider (only in alternate buffer mode)
  */
-export function InkCLIRefactored({ agent, initialSessionId, startupInfo }: InkCLIProps) {
+export function InkCLIRefactored({
+    agent,
+    initialSessionId,
+    startupInfo,
+    soundService,
+}: InkCLIProps) {
     return (
         <ErrorBoundary>
             <KeypressProvider>
@@ -98,6 +116,7 @@ export function InkCLIRefactored({ agent, initialSessionId, startupInfo }: InkCL
                         agent={agent}
                         initialSessionId={initialSessionId}
                         startupInfo={startupInfo}
+                        soundService={soundService}
                     />
                 </MouseProvider>
             </KeypressProvider>
@@ -106,11 +125,22 @@ export function InkCLIRefactored({ agent, initialSessionId, startupInfo }: InkCL
 }
 
 /**
+ * Options for starting the Ink CLI
+ */
+export interface InkCLIOptions {
+    /** Update info if a newer version is available */
+    updateInfo?: { current: string; latest: string; updateCommand: string } | undefined;
+    /** True if installed agents differ from bundled and user should sync */
+    needsAgentSync?: boolean | undefined;
+}
+
+/**
  * Start the modern Ink-based CLI
  */
 export async function startInkCliRefactored(
     agent: DextoAgent,
-    initialSessionId: string | null
+    initialSessionId: string | null,
+    options: InkCLIOptions = {}
 ): Promise<void> {
     registerGracefulShutdown(() => agent, { inkMode: true });
 
@@ -118,13 +148,56 @@ export async function startInkCliRefactored(
     // This wraps pastes with escape sequences that our KeypressContext handles
     enableBracketedPaste();
 
-    const startupInfo = await getStartupInfo(agent);
+    // The UI can render before any session is created.
+    const baseStartupInfo = await getStartupInfo(agent, initialSessionId);
+
+    const startupInfo = {
+        ...baseStartupInfo,
+        updateInfo: options.updateInfo,
+        needsAgentSync: options.needsAgentSync,
+    };
+
+    // Initialize sound service from preferences
+    const { SoundNotificationService } = await import('./utils/soundNotification.js');
+    const { globalPreferencesExist, loadGlobalPreferences } = await import(
+        '@dexto/agent-management'
+    );
+
+    let soundService: SoundNotificationService | null = null;
+    // Initialize sound config with defaults (enabled by default even without preferences file)
+    let soundConfig = {
+        enabled: true,
+        onApprovalRequired: true,
+        onTaskComplete: true,
+    };
+    // Override with user preferences if they exist
+    if (globalPreferencesExist()) {
+        try {
+            const preferences = await loadGlobalPreferences();
+            soundConfig = {
+                enabled: preferences.sounds?.enabled ?? soundConfig.enabled,
+                onApprovalRequired:
+                    preferences.sounds?.onApprovalRequired ?? soundConfig.onApprovalRequired,
+                onTaskComplete: preferences.sounds?.onTaskComplete ?? soundConfig.onTaskComplete,
+            };
+        } catch (error) {
+            // Log at debug level to help troubleshoot sound configuration issues
+            // Continue with default sounds - this is non-critical functionality
+            agent.logger.debug(
+                `Sound preferences could not be loaded: ${error instanceof Error ? error.message : String(error)}`
+            );
+        }
+    }
+    if (soundConfig.enabled) {
+        soundService = new SoundNotificationService(soundConfig);
+    }
 
     const inkApp = render(
         <InkCLIRefactored
             agent={agent}
             initialSessionId={initialSessionId}
             startupInfo={startupInfo}
+            soundService={soundService}
         />,
         {
             exitOnCtrlC: false,
