@@ -64,6 +64,7 @@ export type AgentServices = {
  * @param configPath Optional path to the config file (for relative path resolution)
  * @param logger Logger instance for this agent (dependency injection)
  * @param agentEventBus Pre-created event bus from DextoAgent constructor
+ * @param overrides Optional service overrides for customization (e.g., sessionLoggerFactory)
  * @returns All the initialized services required for a Dexto agent
  */
 export async function createAgentServices(

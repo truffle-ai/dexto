@@ -258,6 +258,15 @@ export class SessionManager {
                 sessionLogger
             );
             await session.init();
+
+            // Restore LLM override if present so session uses the correct model
+            const sessionData = await this.services.storageManager
+                .getDatabase()
+                .get<SessionData>(sessionKey);
+            if (sessionData?.llmOverride) {
+                this.services.stateManager.updateLLM(sessionData.llmOverride, id);
+            }
+
             this.sessions.set(id, session);
             this.logger.info(`Restored session from storage: ${id}`);
             return session;
