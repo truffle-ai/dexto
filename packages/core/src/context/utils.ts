@@ -898,11 +898,17 @@ export function filterMessagesByLLMCapabilities(
     logger: IDextoLogger
 ): InternalMessage[] {
     try {
-        return messages.map((message) => {
+        let totalImagesFiltered = 0;
+        let totalFilesFiltered = 0;
+
+        const filteredMessages = messages.map((message) => {
             // Only filter user messages with array content (multimodal)
             if (message.role !== 'user' || !Array.isArray(message.content)) {
                 return message;
             }
+
+            let imagesInMessage = 0;
+            let filesInMessage = 0;
 
             const filteredContent = message.content.filter((part) => {
                 // Keep text parts
@@ -918,7 +924,11 @@ export function filterMessagesByLLMCapabilities(
                         config.model,
                         mimeType
                     );
-                    return validation.isSupported;
+                    if (validation.isSupported) {
+                        return true;
+                    }
+                    imagesInMessage++;
+                    return false;
                 }
 
                 // Filter file parts based on LLM capabilities
@@ -928,11 +938,18 @@ export function filterMessagesByLLMCapabilities(
                         config.model,
                         part.mimeType
                     );
-                    return validation.isSupported;
+                    if (validation.isSupported) {
+                        return true;
+                    }
+                    filesInMessage++;
+                    return false;
                 }
 
                 return true; // Keep unknown part types
             });
+
+            totalImagesFiltered += imagesInMessage;
+            totalFilesFiltered += filesInMessage;
 
             // If all content was filtered out, add a placeholder text
             if (filteredContent.length === 0) {
@@ -947,6 +964,20 @@ export function filterMessagesByLLMCapabilities(
                 content: filteredContent,
             };
         });
+
+        // Log summary of filtered content
+        if (totalImagesFiltered > 0) {
+            logger.info(
+                `Filtered ${totalImagesFiltered} image${totalImagesFiltered > 1 ? 's' : ''} for ${config.model} since it doesn't support images`
+            );
+        }
+        if (totalFilesFiltered > 0) {
+            logger.info(
+                `Filtered ${totalFilesFiltered} file${totalFilesFiltered > 1 ? 's' : ''} for ${config.model} since it doesn't support that file type`
+            );
+        }
+
+        return filteredMessages;
     } catch (error) {
         // If filtering fails, return original messages to avoid breaking the flow
         logger.warn(`Failed to filter messages by LLM capabilities: ${String(error)}`);

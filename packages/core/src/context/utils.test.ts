@@ -413,6 +413,10 @@ describe('filterMessagesByLLMCapabilities', () => {
             config.model,
             'application/pdf'
         );
+        // Verify logging
+        expect(mockLogger.info).toHaveBeenCalledWith(
+            "Filtered 1 file for gpt-3.5-turbo since it doesn't support that file type"
+        );
     });
 
     test('should keep supported file attachments for models that support them', () => {
@@ -479,6 +483,10 @@ describe('filterMessagesByLLMCapabilities', () => {
         const result1 = filterMessagesByLLMCapabilities(messages, config1, mockLogger);
 
         expect(result1[0]!.content).toEqual([{ type: 'text', text: 'Transcribe this audio' }]);
+        // Verify logging for filtered audio
+        expect(mockLogger.info).toHaveBeenCalledWith(
+            "Filtered 1 file for gpt-5 since it doesn't support that file type"
+        );
 
         // Test with gpt-4o-audio-preview (should keep audio)
         const config2: LLMContext = { provider: 'openai', model: 'gpt-4o-audio-preview' };
@@ -518,6 +526,10 @@ describe('filterMessagesByLLMCapabilities', () => {
         expect(result[0]!.content).toEqual([
             { type: 'text', text: '[File attachment removed - not supported by gpt-3.5-turbo]' },
         ]);
+        // Verify logging
+        expect(mockLogger.info).toHaveBeenCalledWith(
+            "Filtered 1 file for gpt-3.5-turbo since it doesn't support that file type"
+        );
     });
 
     test('should only filter user messages with array content', () => {
@@ -562,6 +574,10 @@ describe('filterMessagesByLLMCapabilities', () => {
         expect(result[1]).toEqual(messages[1]); // assistant unchanged
         expect(result[2]).toEqual(messages[2]); // tool unchanged
         expect(result[3]!.content).toEqual([{ type: 'text', text: 'Analyze this' }]); // user message filtered
+        // Verify logging for filtered file
+        expect(mockLogger.info).toHaveBeenCalledWith(
+            "Filtered 1 file for gpt-3.5-turbo since it doesn't support that file type"
+        );
     });
 
     test('should keep unknown part types unchanged', () => {
@@ -655,6 +671,10 @@ describe('filterMessagesByLLMCapabilities', () => {
             'z-ai/glm-4.7',
             'image/jpeg'
         );
+        // Verify logging
+        expect(mockLogger.info).toHaveBeenCalledWith(
+            "Filtered 2 images for z-ai/glm-4.7 since it doesn't support images"
+        );
     });
 
     test('should filter out images for minimax model which does not support vision', () => {
@@ -683,6 +703,10 @@ describe('filterMessagesByLLMCapabilities', () => {
             'dexto',
             'minimax/minimax-m2.1',
             'image/png'
+        );
+        // Verify logging
+        expect(mockLogger.info).toHaveBeenCalledWith(
+            "Filtered 1 image for minimax/minimax-m2.1 since it doesn't support images"
         );
     });
 
@@ -788,6 +812,10 @@ describe('filterMessagesByLLMCapabilities', () => {
             'dexto',
             'minimax/minimax-m2.1',
             'image/jpeg'
+        );
+        // Verify logging
+        expect(mockLogger.info).toHaveBeenCalledWith(
+            "Filtered 1 image for minimax/minimax-m2.1 since it doesn't support images"
         );
     });
 });
