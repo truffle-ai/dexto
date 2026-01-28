@@ -122,6 +122,14 @@ describe('LLM Registry Core Functions', () => {
 
             // Cohere models
             expect(getProviderFromModel('cohere/command-a-03-2025')).toBe('cohere');
+
+            // MiniMax models
+            expect(getProviderFromModel('minimax/minimax-m2.1')).toBe('minimax');
+            expect(getProviderFromModel('MiniMax-M2.1')).toBe('minimax');
+            expect(getProviderFromModel('M2-her')).toBe('minimax');
+
+            // GLM models (Zhipu)
+            expect(getProviderFromModel('z-ai/glm-4.7')).toBe('glm');
         });
 
         it('handles case insensitivity for OpenRouter format models', () => {
