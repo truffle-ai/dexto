@@ -333,7 +333,7 @@ async function handleQuickStart(): Promise<void> {
             apiKeySkipped: false,
         });
 
-        showSetupComplete('local', model, defaultMode, false);
+        await showSetupComplete('local', model, defaultMode, false);
         return;
     }
 
@@ -417,7 +417,7 @@ async function handleQuickStart(): Promise<void> {
         apiKeySkipped,
     });
 
-    showSetupComplete(provider, model, defaultMode, apiKeySkipped);
+    await showSetupComplete(provider, model, defaultMode, apiKeySkipped);
 }
 
 /**
@@ -572,7 +572,7 @@ async function handleDextoProviderSetup(): Promise<void> {
         defaultMode,
     });
 
-    showSetupComplete(provider, selectedModel, defaultMode, false);
+    await showSetupComplete(provider, selectedModel, defaultMode, false);
 }
 
 /**
@@ -990,7 +990,7 @@ async function saveWizardPreferences(state: SetupWizardState): Promise<void> {
         apiKeySkipped,
     });
 
-    showSetupComplete(provider, model, defaultMode, apiKeySkipped);
+    await showSetupComplete(provider, model, defaultMode, apiKeySkipped);
 }
 
 /**
@@ -1106,7 +1106,7 @@ async function showSettingsMenu(): Promise<void> {
 
         // Exit conditions
         if (p.isCancel(action) || action === 'exit') {
-            p.outro(chalk.gray('Settings closed'));
+            p.outro(`Run ${chalk.cyan('dexto')} to start Dexto`);
             return;
         }
 
@@ -1262,6 +1262,27 @@ async function changeModel(currentProvider?: LLMProvider): Promise<void> {
 
     const apiKeyVar = getProviderEnvVar(provider);
     const needsApiKey = requiresApiKey(provider);
+    const hasKey = hasApiKeyConfigured(provider);
+
+    // Check if API key is needed and missing - prompt for it
+    if (needsApiKey && !hasKey) {
+        const result = await interactiveApiKeySetup(provider, {
+            exitOnCancel: false,
+            model,
+        });
+
+        if (result.cancelled) {
+            p.log.warn('Model change cancelled');
+            return;
+        }
+
+        // If user skipped API key setup, still allow model change but warn
+        if (result.skipped || !result.success) {
+            p.log.warn(
+                `API key setup was skipped. You'll need to configure ${apiKeyVar} before using this model.`
+            );
+        }
+    }
 
     const llmUpdate: {
         provider: LLMProvider;
@@ -1588,12 +1609,12 @@ async function promptForBaseURL(provider: LLMProvider): Promise<string | null> {
 /**
  * Show setup complete message
  */
-function showSetupComplete(
+async function showSetupComplete(
     provider: LLMProvider,
     model: string,
     defaultMode: string,
     apiKeySkipped: boolean = false
-): void {
+): Promise<void> {
     const modeCommand = defaultMode === 'web' ? 'dexto' : `dexto --mode ${defaultMode}`;
     const isLocalProvider = provider === 'local' || provider === 'ollama';
 

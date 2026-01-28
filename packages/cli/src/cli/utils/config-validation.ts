@@ -17,6 +17,7 @@ import {
     loadGlobalPreferences,
     saveGlobalPreferences,
 } from '@dexto/agent-management';
+import { handleSyncAgentsCommand } from '../commands/sync-agents.js';
 
 export interface ValidationResult {
     success: boolean;
@@ -42,7 +43,7 @@ export interface ValidationResult {
 export async function validateAgentConfig(
     config: AgentConfig,
     interactive: boolean = false,
-    validationOptions?: LLMValidationOptions
+    validationOptions?: LLMValidationOptions & { agentPath?: string }
 ): Promise<ValidationResult> {
     // Use appropriate schema based on validation options
     // Default to strict validation unless explicitly relaxed
@@ -83,7 +84,7 @@ export async function validateAgentConfig(
     }
 
     // Other validation errors - show options
-    return await handleOtherErrors(errors);
+    return await handleOtherErrors(errors, validationOptions?.agentPath);
 }
 
 /**
@@ -134,7 +135,7 @@ async function handleApiKeyError(
     }
 
     if (action === 'edit') {
-        showManualEditInstructions();
+        showManualEditInstructions(undefined);
         return { success: false, errors, skipped: true };
     }
 
@@ -213,7 +214,7 @@ async function handleBaseURLError(
     }
 
     if (action === 'edit') {
-        showManualEditInstructions();
+        showManualEditInstructions(undefined);
         return { success: false, errors, skipped: true };
     }
 
@@ -307,7 +308,7 @@ async function interactiveBaseURLSetup(
 /**
  * Handle non-API-key validation errors interactively
  */
-async function handleOtherErrors(errors: string[]): Promise<ValidationResult> {
+async function handleOtherErrors(errors: string[], agentPath?: string): Promise<ValidationResult> {
     console.log(chalk.rgb(255, 165, 0)('\n⚠️  Configuration issues detected:\n'));
     for (const error of errors) {
         console.log(chalk.red(`  • ${error}`));
@@ -318,6 +319,11 @@ async function handleOtherErrors(errors: string[]): Promise<ValidationResult> {
         message: 'How would you like to proceed?',
         options: [
             {
+                value: 'sync' as const,
+                label: 'Sync agent config',
+                hint: 'Update from bundled registry (recommended)',
+            },
+            {
                 value: 'skip' as const,
                 label: 'Continue anyway',
                 hint: 'Try to start despite errors (may fail)',
@@ -327,11 +333,6 @@ async function handleOtherErrors(errors: string[]): Promise<ValidationResult> {
                 label: 'Edit configuration manually',
                 hint: 'Show file path and instructions',
             },
-            {
-                value: 'setup' as const,
-                label: 'Run setup again',
-                hint: 'Reconfigure from scratch',
-            },
         ],
     });
 
@@ -340,13 +341,23 @@ async function handleOtherErrors(errors: string[]): Promise<ValidationResult> {
         return { success: false, errors, skipped: true };
     }
 
-    if (action === 'edit') {
-        showManualEditInstructions();
-        return { success: false, errors, skipped: true };
+    if (action === 'sync') {
+        try {
+            // Run sync-agents to update the agent config
+            await handleSyncAgentsCommand({ force: true, quiet: false });
+            // After sync, retry validation
+            p.log.info('Agent config synced. Please run dexto again to verify.');
+            return { success: false, errors, skipped: true };
+        } catch (error) {
+            p.log.error(
+                `Failed to sync agent: ${error instanceof Error ? error.message : String(error)}`
+            );
+            return { success: false, errors, skipped: true };
+        }
     }
 
-    if (action === 'setup') {
-        p.log.info('Run: dexto setup --force');
+    if (action === 'edit') {
+        showManualEditInstructions(agentPath);
         return { success: false, errors, skipped: true };
     }
 
@@ -380,21 +391,34 @@ function showNextSteps(): void {
 /**
  * Show manual edit instructions
  */
-function showManualEditInstructions(): void {
+function showManualEditInstructions(agentPath?: string): void {
     const prefsPath = getGlobalPreferencesPath();
+    const configPaths = [`  ${chalk.cyan('Global preferences:')} ${prefsPath}`];
+
+    if (agentPath) {
+        configPaths.push(`  ${chalk.cyan('Agent config:')} ${agentPath}`);
+    } else {
+        configPaths.push(`  ${chalk.cyan('Agent configs:')} ~/.dexto/agents/*/`);
+    }
 
     p.note(
         [
             `Your configuration files:`,
             ``,
-            `  ${chalk.cyan('Global preferences:')} ${prefsPath}`,
-            `  ${chalk.cyan('Agent configs:')} ~/.dexto/agents/*/`,
+            ...configPaths,
             ``,
             `Edit the appropriate file and run dexto again.`,
             ``,
             chalk.gray('Example commands:'),
-            chalk.gray(`  code ${prefsPath}     # Open in VS Code`),
-            chalk.gray(`  nano ${prefsPath}     # Edit in terminal`),
+            ...(agentPath
+                ? [
+                      chalk.gray(`  code ${agentPath}     # Open in VS Code`),
+                      chalk.gray(`  nano ${agentPath}     # Edit in terminal`),
+                  ]
+                : [
+                      chalk.gray(`  code ${prefsPath}     # Open in VS Code`),
+                      chalk.gray(`  nano ${prefsPath}     # Edit in terminal`),
+                  ]),
         ].join('\n'),
         'Manual Configuration'
     );
