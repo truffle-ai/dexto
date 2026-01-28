@@ -559,7 +559,7 @@ describe('filterMessagesByLLMCapabilities', () => {
         const result = filterMessagesByLLMCapabilities(messages, config, mockLogger);
 
         // File should be KEPT when validation errored (unknown error)
-        expect(result[0]!.content).toEqual(messages[0].content);
+        expect(result[0]?.content).toEqual(messages[0]?.content);
         // Should log a warning instead of info
         expect(mockLogger.warn).toHaveBeenCalledWith(
             'Could not validate file support for gpt-3.5-turbo: Unknown error validating model file support'
