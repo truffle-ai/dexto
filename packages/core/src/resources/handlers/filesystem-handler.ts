@@ -244,11 +244,6 @@ export class FileSystemResourceHandler implements InternalResourceHandler {
         }
         if (!this.isPathAllowed(canonical)) return;
 
-        const basename = path.basename(canonical).toLowerCase();
-        if (this.shouldIgnoreDirectory(basename)) {
-            return;
-        }
-
         // Skip blob storage directories to avoid conflicts with BlobResourceHandler
         if (this.isBlobStorageDirectory(canonical)) {
             return;
@@ -286,6 +281,11 @@ export class FileSystemResourceHandler implements InternalResourceHandler {
             }
 
             if (stat.isDirectory()) {
+                const basename = path.basename(canonical).toLowerCase();
+                if (this.shouldIgnoreDirectory(basename)) {
+                    return;
+                }
+
                 const entries = await fs.readdir(canonical);
                 for (const entry of entries) {
                     const entryPath = path.join(canonical, entry);
