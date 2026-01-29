@@ -316,6 +316,11 @@ export class FileSystemResourceHandler implements InternalResourceHandler {
             '.cache',
             '.vscode',
             '.idea',
+            '.changeset',
+            '.github',
+            '.husky',
+            'tmp',
+            'temp',
         ];
         return ignoredDirectories.includes(basename);
     }

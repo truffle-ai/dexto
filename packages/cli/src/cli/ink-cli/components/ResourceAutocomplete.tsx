@@ -12,6 +12,7 @@ import path from 'path';
 import type { Key } from '../hooks/useInputOrchestrator.js';
 import type { ResourceMetadata } from '@dexto/core';
 import type { DextoAgent } from '@dexto/core';
+import { centerTruncatePath } from '../utils/messageFormatting.js';
 
 export interface ResourceAutocompleteHandle {
     handleInput: (input: string, key: Key) => boolean;
@@ -24,6 +25,15 @@ interface ResourceAutocompleteProps {
     onLoadIntoInput?: (text: string) => void; // New prop for Tab key
     onClose: () => void;
     agent: DextoAgent;
+}
+
+/**
+ * Unified display item (can be file or directory)
+ */
+interface DisplayItem {
+    path: string; // Relative path (e.g., "packages/cli/src/file.ts" or "packages/")
+    isDirectory: boolean;
+    resource?: ResourceMetadata; // Defined for files, undefined for directories
 }
 
 /**
@@ -191,30 +201,126 @@ const ResourceAutocompleteInner = forwardRef<ResourceAutocompleteHandle, Resourc
             return '';
         }, [searchQuery]);
 
-        // Filter and sort resources (no limit - scrolling handles it)
-        const filteredResources = useMemo(() => {
-            const matched = resources.filter((r) => matchesQuery(r, mentionQuery));
-            return sortResources(matched, mentionQuery);
+        // Extract directories and create display items (hybrid search)
+        const displayItems = useMemo(() => {
+            const items: DisplayItem[] = [];
+            const directories = new Set<string>();
+
+            // Process each resource to extract paths and directories
+            resources.forEach((resource) => {
+                // Convert URI to relative path
+                let relativePath = resource.uri;
+                const rawUri = relativePath.replace(/^(fs|file):\/\//, '');
+
+                if (path.isAbsolute(rawUri)) {
+                    try {
+                        const relPath = path.relative(process.cwd(), rawUri);
+                        if (relPath && !relPath.startsWith('..')) {
+                            relativePath = relPath;
+                        } else {
+                            // Outside cwd, use name as fallback
+                            const uriParts = resource.uri.split(/[\\/]/);
+                            relativePath =
+                                resource.name || uriParts[uriParts.length - 1] || resource.uri;
+                        }
+                    } catch {
+                        return; // Skip if path conversion fails
+                    }
+                }
+
+                // Add file item
+                items.push({
+                    path: relativePath,
+                    isDirectory: false,
+                    resource,
+                });
+
+                // Extract all parent directories (1-2 levels deep)
+                const segments = relativePath.split(path.sep).filter(Boolean);
+                for (let i = 0; i < Math.min(segments.length - 1, 2); i++) {
+                    const dirPath = segments.slice(0, i + 1).join(path.sep) + path.sep;
+                    directories.add(dirPath);
+                }
+            });
+
+            // Add directory items
+            directories.forEach((dirPath) => {
+                items.push({
+                    path: dirPath,
+                    isDirectory: true,
+                });
+            });
+
+            // Filter by query
+            const filtered = items.filter((item) => {
+                if (!mentionQuery) return true; // Show all when no query
+
+                const lowerQuery = mentionQuery.toLowerCase();
+                const lowerPath = item.path.toLowerCase();
+                const pathParts = item.path.split(path.sep).filter(Boolean);
+                const lastSegment = pathParts[pathParts.length - 1]?.toLowerCase() || '';
+
+                // Match against filename/dirname or full path
+                return lastSegment.includes(lowerQuery) || lowerPath.includes(lowerQuery);
+            });
+
+            // Sort by relevance
+            return filtered.sort((a, b) => {
+                if (!mentionQuery) {
+                    // No query: directories first, then alphabetically
+                    if (a.isDirectory !== b.isDirectory) {
+                        return a.isDirectory ? -1 : 1;
+                    }
+                    return a.path.localeCompare(b.path);
+                }
+
+                const lowerQuery = mentionQuery.toLowerCase();
+                const aPathParts = a.path.split(path.sep).filter(Boolean);
+                const bPathParts = b.path.split(path.sep).filter(Boolean);
+                const aLastSegment = aPathParts[aPathParts.length - 1]?.toLowerCase() || '';
+                const bLastSegment = bPathParts[bPathParts.length - 1]?.toLowerCase() || '';
+
+                // Score by match quality
+                const aStartsWith = aLastSegment.startsWith(lowerQuery);
+                const bStartsWith = bLastSegment.startsWith(lowerQuery);
+                const aIncludes = aLastSegment.includes(lowerQuery);
+                const bIncludes = bLastSegment.includes(lowerQuery);
+
+                // Priority 1: Prefix matches
+                if (aStartsWith && !bStartsWith) return -1;
+                if (!aStartsWith && bStartsWith) return 1;
+
+                // Priority 2: Substring matches
+                if (aIncludes && !bIncludes) return -1;
+                if (!aIncludes && bIncludes) return 1;
+
+                // Priority 3: Shallower paths first
+                const depthDiff = aPathParts.length - bPathParts.length;
+                if (depthDiff !== 0) return depthDiff;
+
+                // Priority 4: Alphabetically
+                return a.path.localeCompare(b.path);
+            });
         }, [resources, mentionQuery]);
 
         // Track items length for reset detection
-        const prevItemsLengthRef = useRef(filteredResources.length);
-        const itemsChanged = filteredResources.length !== prevItemsLengthRef.current;
+        const prevItemsLengthRef = useRef(displayItems.length);
+        const itemsChanged = displayItems.length !== prevItemsLengthRef.current;
 
         // Derive clamped selection values during render (always valid, no setState needed)
         // This prevents the double-render that was causing flickering
         const selectedIndex = itemsChanged
             ? 0
-            : Math.min(selection.index, Math.max(0, filteredResources.length - 1));
+            : Math.min(selection.index, Math.max(0, displayItems.length - 1));
         const scrollOffset = itemsChanged
             ? 0
-            : Math.min(selection.offset, Math.max(0, filteredResources.length - MAX_VISIBLE_ITEMS));
+            : Math.min(selection.offset, Math.max(0, displayItems.length - MAX_VISIBLE_ITEMS));
 
         // Sync state only when items actually changed AND state differs
         // This effect runs AFTER render, updating state for next user interaction
         useEffect(() => {
             if (itemsChanged) {
-                prevItemsLengthRef.current = filteredResources.length;
+                prevItemsLengthRef.current = displayItems.length;
                 // Only setState if values actually differ (prevents unnecessary re-render)
                 if (selection.index !== 0 || selection.offset !== 0) {
                     selectedIndexRef.current = 0;
@@ -223,12 +329,12 @@ const ResourceAutocompleteInner = forwardRef<ResourceAutocompleteHandle, Resourc
                     selectedIndexRef.current = 0;
                 }
             }
-        }, [itemsChanged, filteredResources.length, selection.index, selection.offset]);
+        }, [itemsChanged, displayItems.length, selection.index, selection.offset]);
 
         // Calculate visible items based on scroll offset
         const visibleResources = useMemo(() => {
-            return filteredResources.slice(scrollOffset, scrollOffset + MAX_VISIBLE_ITEMS);
-        }, [filteredResources, scrollOffset, MAX_VISIBLE_ITEMS]);
+            return displayItems.slice(scrollOffset, scrollOffset + MAX_VISIBLE_ITEMS);
+        }, [displayItems, scrollOffset, MAX_VISIBLE_ITEMS]);
 
         // Expose handleInput method via ref
         useImperativeHandle(
@@ -243,7 +349,7 @@ const ResourceAutocompleteInner = forwardRef<ResourceAutocompleteHandle, Resourc
                         return true;
                     }
 
-                    const itemsLength = filteredResources.length;
+                    const itemsLength = displayItems.length;
                     if (itemsLength === 0) return false;
 
                     if (key.upArrow) {
@@ -256,46 +362,42 @@ const ResourceAutocompleteInner = forwardRef<ResourceAutocompleteHandle, Resourc
                         return true;
                     }
 
-                    // Tab to load into input (for editing before selection)
+                    // Tab to load into input (for editing/browsing)
                     if (key.tab) {
-                        const resource = filteredResources[selectedIndexRef.current];
-                        if (!resource) return false;
+                        const item = displayItems[selectedIndexRef.current];
+                        if (!item) return false;
 
-                        // Get the @ position and construct the text to load
                         const atIndex = searchQuery.lastIndexOf('@');
-                        const uriParts = resource.uri.split(/[\\/]/);
-                        let reference =
-                            resource.name || uriParts[uriParts.length - 1] || resource.uri;
-
-                        // If it's an absolute path, use relative path as reference
-                        const rawUri = resource.uri.replace(/^(fs|file):\/\//, ''); // Stripped prefix
-                        if (path.isAbsolute(rawUri)) {
-                            try {
-                                const relativePath = path.relative(process.cwd(), rawUri);
-                                // Prioritize relative path for local files to avoid ambiguity
-                                reference = relativePath;
-                            } catch {
-                                // Keep default
-                            }
-                        }
+                        const reference = item.path; // Already a relative path
 
                         if (atIndex >= 0) {
                             const before = searchQuery.slice(0, atIndex + 1);
                             onLoadIntoInput?.(`${before}${reference}`);
                         } else {
-                            // Fallback: just append @resource
                             onLoadIntoInput?.(`${searchQuery}@${reference}`);
                         }
                         return true;
                     }
 
-                    // Enter to select
+                    // Enter to select (directories drill down, files select)
                     if (key.return) {
-                        const resource = filteredResources[selectedIndexRef.current];
-                        if (resource) {
-                            onSelectResource(resource);
-                            return true;
+                        const item = displayItems[selectedIndexRef.current];
+                        if (!item) return false;
+
+                        if (item.isDirectory) {
+                            // Drill down into directory
+                            const atIndex = searchQuery.lastIndexOf('@');
+                            if (atIndex >= 0) {
+                                const before = searchQuery.slice(0, atIndex + 1);
+                                onLoadIntoInput?.(`${before}${item.path}`);
+                            } else {
+                                onLoadIntoInput?.(`${searchQuery}@${item.path}`);
+                            }
+                        } else if (item.resource) {
+                            // Select the file resource
+                            onSelectResource(item.resource);
                         }
+                        return true;
                     }
 
                     // Don't consume other keys (typing, backspace, etc.)
@@ -304,7 +406,7 @@ const ResourceAutocompleteInner = forwardRef<ResourceAutocompleteHandle, Resourc
             }),
             [
                 isVisible,
-                filteredResources,
+                displayItems,
                 selectedIndexRef,
                 searchQuery,
                 onClose,
@@ -324,7 +426,7 @@ const ResourceAutocompleteInner = forwardRef<ResourceAutocompleteHandle, Resourc
             );
         }
 
-        if (filteredResources.length === 0) {
+        if (displayItems.length === 0) {
             return (
                 <Box paddingX={0} paddingY={0}>
                     <Text color="gray">
@@ -336,50 +438,28 @@ const ResourceAutocompleteInner = forwardRef<ResourceAutocompleteHandle, Resourc
             );
         }
 
-        const totalItems = filteredResources.length;
-
         return (
-            <Box flexDirection="column">
-                <Box paddingX={0} paddingY={0}>
-                    <Text color="yellowBright" bold>
-                        Resources ({selectedIndex + 1}/{totalItems}) - ↑↓ navigate, Tab load, Enter
-                        select, Esc close
-                    </Text>
-                </Box>
-                {visibleResources.map((resource, visibleIndex) => {
+            <Box flexDirection="column" paddingLeft={2}>
+                {visibleResources.map((item, visibleIndex) => {
                     const actualIndex = scrollOffset + visibleIndex;
                     const isSelected = actualIndex === selectedIndex;
-                    const uriParts = resource.uri.split(/[\\/]/);
-                    const displayName =
-                        resource.name || uriParts[uriParts.length - 1] || resource.uri;
-                    const isImage = (resource.mimeType || '').startsWith('image/');
 
-                    // Show relative path for absolute file URIs
-                    let displayUri = resource.uri;
-                    const rawUriForDisplay = displayUri.replace(/^(fs|file):\/\//, ''); // Stripped prefix
+                    // Use center truncation for long paths
+                    const displayPath = centerTruncatePath(item.path, 60);
 
-                    if (path.isAbsolute(rawUriForDisplay)) {
-                        try {
-                            displayUri = path.relative(process.cwd(), rawUriForDisplay);
-                        } catch {
-                            // Fallback to original if relative fails
-                        }
-                    }
-
-                    // Truncate URI for display (show last 50 chars with ellipsis if still long)
-                    const truncatedUri =
-                        displayUri.length > 50 ? '…' + displayUri.slice(-49) : displayUri;
+                    // Check if it's an image file
+                    const isImage = item.resource?.mimeType?.startsWith('image/');
 
                     return (
-                        <Box key={resource.uri}>
-                            {isImage && <Text color={isSelected ? 'cyan' : 'gray'}>🖼️ </Text>}
-                            <Text color={isSelected ? 'cyan' : 'white'} bold={isSelected}>
-                                {displayName}
+                        <Box key={item.path}>
+                            <Text color={isSelected ? 'cyan' : 'gray'}>
+                                {isSelected ? '❯ ' : '  '}
                             </Text>
-                            {resource.serverName && (
-                                <Text color="gray"> [{resource.serverName}]</Text>
-                            )}
-                            <Text color="gray"> {truncatedUri}</Text>
+                            <Text color={isSelected ? 'cyan' : 'white'} bold={isSelected}>
+                                {isImage && '🖼️  '}
+                                {displayPath}
+                                {item.resource?.serverName && ` [${item.resource.serverName}]`}
+                            </Text>
                         </Box>
                     );
                 })}
