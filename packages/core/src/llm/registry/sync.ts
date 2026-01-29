@@ -1,5 +1,5 @@
-import type { LLMProvider, SupportedFileType } from './types.js';
-import type { ModelInfo } from './registry.js';
+import type { LLMProvider, SupportedFileType } from '../types.js';
+import type { ModelInfo } from './index.js';
 
 export const MODELS_DEV_URL = 'https://models.dev/api.json';
 export const OPENROUTER_MODELS_URL = 'https://openrouter.ai/api/v1/models';

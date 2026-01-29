@@ -1,5 +1,5 @@
-import type { LLMProvider, SupportedFileType } from './types.js';
-import type { ModelInfo } from './registry.js';
+import type { LLMProvider, SupportedFileType } from '../types.js';
+import type { ModelInfo } from './index.js';
 
 type ManualModelInfo = Omit<ModelInfo, 'supportedFileTypes'> & {
     supportedFileTypes: SupportedFileType[];

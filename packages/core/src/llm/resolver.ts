@@ -15,7 +15,7 @@ import {
     supportsCustomModels,
     hasAllRegistryModelsSupport,
     transformModelNameForProvider,
-} from './registry.js';
+} from './registry/index.js';
 import {
     lookupOpenRouterModel,
     refreshOpenRouterModelCache,

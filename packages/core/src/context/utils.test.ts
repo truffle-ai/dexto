@@ -31,11 +31,11 @@ import {
 } from './utils.js';
 import { InternalMessage, ContentPart, FilePart } from './types.js';
 import { LLMContext } from '../llm/types.js';
-import * as registry from '../llm/registry.js';
+import * as registry from '../llm/registry/index.js';
 import { createMockLogger } from '../logger/v2/test-utils.js';
 
 // Mock the registry module
-vi.mock('../llm/registry.js');
+vi.mock('../llm/registry/index.js');
 const mockValidateModelFileSupport = vi.mocked(registry.validateModelFileSupport);
 
 // Create a mock logger for tests

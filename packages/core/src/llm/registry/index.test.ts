@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { LLM_PROVIDERS } from './types.js';
+import { LLM_PROVIDERS } from '../types.js';
 import {
     LLM_REGISTRY,
     getSupportedProviders,
@@ -24,17 +24,17 @@ import {
     getAllModelsForProvider,
     isModelValidForProvider,
     hasAllRegistryModelsSupport,
-} from './registry.js';
-import { LLMErrorCode } from './error-codes.js';
-import { ErrorScope, ErrorType } from '../errors/types.js';
-import type { IDextoLogger } from '../logger/v2/types.js';
+} from './index.js';
+import { LLMErrorCode } from '../error-codes.js';
+import { ErrorScope, ErrorType } from '../../errors/types.js';
+import type { IDextoLogger } from '../../logger/v2/types.js';
 
 // Mock the OpenRouter model registry
-vi.mock('./providers/openrouter-model-registry.js', () => ({
+vi.mock('../providers/openrouter-model-registry.js', () => ({
     getOpenRouterModelContextLength: vi.fn(),
 }));
 
-import { getOpenRouterModelContextLength } from './providers/openrouter-model-registry.js';
+import { getOpenRouterModelContextLength } from '../providers/openrouter-model-registry.js';
 
 const mockLogger: IDextoLogger = {
     debug: vi.fn(),

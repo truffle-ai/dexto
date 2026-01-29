@@ -16,7 +16,7 @@
  */
 
 import type { LLMProvider } from '../types.js';
-import { isReasoningCapableModel } from '../registry.js';
+import { isReasoningCapableModel } from '../registry/index.js';
 
 export type ReasoningEffort = 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
 

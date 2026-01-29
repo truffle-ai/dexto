@@ -13,7 +13,7 @@ import {
     isValidProviderModel,
     getMaxInputTokensForModel,
     requiresApiKey,
-} from './registry.js';
+} from './registry/index.js';
 import { LLM_PROVIDERS } from './types.js';
 
 /**

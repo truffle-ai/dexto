@@ -1,6 +1,6 @@
 export * from './errors.js';
 export * from './error-codes.js';
-export * from './registry.js';
+export * from './registry/index.js';
 export * from './curation.js';
 export * from './validation.js';
 export * from './types.js';
@@ -22,7 +22,7 @@ export {
     loadLlmRegistryCache,
     getLlmRegistryAutoUpdateStatus,
     type LlmRegistryAutoUpdateStatus,
-} from './registry-auto-update.js';
+} from './registry/auto-update.js';
 
 // Local model providers
 export * from './providers/local/index.js';

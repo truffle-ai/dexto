@@ -13,21 +13,21 @@
  * For now, keeping SDK dependency is simpler and auto-updates with SDK releases.
  */
 
-import { LLMConfig } from './schemas.js';
-import { LLMError } from './errors.js';
-import { LLMErrorCode } from './error-codes.js';
-import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
-import { ErrorScope, ErrorType } from '../errors/types.js';
+import { LLMConfig } from '../schemas.js';
+import { LLMError } from '../errors.js';
+import { LLMErrorCode } from '../error-codes.js';
+import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
+import { ErrorScope, ErrorType } from '../../errors/types.js';
 import {
     LLM_PROVIDERS,
     type LLMProvider,
     type SupportedFileType,
     type TokenUsage,
-} from './types.js';
-import type { IDextoLogger } from '../logger/v2/types.js';
-import { getOpenRouterModelContextLength } from './providers/openrouter-model-registry.js';
-import { MODELS_BY_PROVIDER } from './registry-models.generated.js';
-import { MANUAL_MODELS_BY_PROVIDER } from './registry-models.manual.js';
+} from '../types.js';
+import type { IDextoLogger } from '../../logger/v2/types.js';
+import { getOpenRouterModelContextLength } from '../providers/openrouter-model-registry.js';
+import { MODELS_BY_PROVIDER } from './models.generated.js';
+import { MANUAL_MODELS_BY_PROVIDER } from './models.manual.js';
 
 const LEGACY_MODEL_ID_ALIASES: Partial<Record<LLMProvider, Record<string, string>>> = {
     anthropic: {

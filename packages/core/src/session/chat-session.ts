@@ -26,7 +26,7 @@ import { PluginErrorCode } from '../plugins/error-codes.js';
 import type { InternalMessage, ContentPart } from '../context/types.js';
 import type { UserMessageInput } from './message-queue.js';
 import type { ContentInput } from '../agent/types.js';
-import { getModelPricing, calculateCost } from '../llm/registry.js';
+import { getModelPricing, calculateCost } from '../llm/registry/index.js';
 
 /**
  * Represents an isolated conversation session within a Dexto agent.

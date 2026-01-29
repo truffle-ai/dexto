@@ -508,7 +508,7 @@ async function handleDextoProviderSetup(): Promise<void> {
     // Model selection - show popular models in OpenRouter format
     // NOTE: This list is intentionally hardcoded (not from registry) to include
     // curated hints for onboarding UX. Keep model IDs in sync with:
-    // packages/core/src/llm/registry.ts (LLM_REGISTRY.dexto.models)
+    // packages/core/src/llm/registry/index.ts (LLM_REGISTRY.dexto.models)
     const model = await p.select({
         message: 'Select a model to start with',
         options: [

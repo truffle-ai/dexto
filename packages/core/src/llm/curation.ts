@@ -1,6 +1,6 @@
 import type { LLMProvider } from './types.js';
-import type { ModelInfo } from './registry.js';
-import { LLM_REGISTRY } from './registry.js';
+import type { ModelInfo } from './registry/index.js';
+import { LLM_REGISTRY } from './registry/index.js';
 import { CURATED_MODEL_IDS_BY_PROVIDER } from './curation-config.js';
 
 type CuratedModelsOptions = {
