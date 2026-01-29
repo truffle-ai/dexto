@@ -38,6 +38,7 @@ const CurrentQuerySchema = z
             .optional()
             .describe('Session identifier to retrieve session-specific LLM configuration'),
     })
+    .strict()
     .describe('Query parameters for getting current LLM configuration');
 
 const CatalogQuerySchema = z
@@ -97,6 +98,7 @@ const CatalogQuerySchema = z
             .default('grouped')
             .describe('Response format mode (grouped by provider or flat list)'),
     })
+    .strict()
     .describe('Query parameters for filtering and formatting the LLM catalog');
 
 // Combine LLM updates schema with sessionId for API requests
