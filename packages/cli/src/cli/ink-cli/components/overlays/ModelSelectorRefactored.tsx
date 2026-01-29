@@ -732,11 +732,9 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                 // Show action buttons for selected custom models
                 const showActions = isSelected && item.isCustom;
 
-                // Show original provider for gateway models (e.g., dexto showing openai models)
-                const providerDisplay =
-                    item.originalProvider && item.originalProvider !== item.provider
-                        ? `${getLLMProviderDisplayName(item.originalProvider)} via ${getLLMProviderDisplayName(item.provider)}`
-                        : getLLMProviderDisplayName(item.provider);
+                // Keep the UI label simple: show the actual provider being selected.
+                // Gateway routing details are intentionally hidden from the main picker.
+                const providerDisplay = getLLMProviderDisplayName(item.provider);
 
                 return (
                     <Box
