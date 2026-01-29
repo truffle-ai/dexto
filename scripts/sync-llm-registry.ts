@@ -138,6 +138,7 @@ function parseModelsDevApi(json: unknown): ModelsDevApi {
             );
 
             const parsedModel: ModelsDevModel = {
+                ...m,
                 id: requireString(
                     m.id ?? modelId,
                     `models.dev model '${providerId}/${modelId}'.id`
@@ -148,19 +149,19 @@ function parseModelsDevApi(json: unknown): ModelsDevApi {
                 ),
                 attachment: Boolean(m.attachment),
                 limit: {
+                    ...limit,
                     context: requireNumber(
                         limit.context,
                         `models.dev model '${providerId}/${modelId}'.limit.context`
                     ),
                     input: typeof limit.input === 'number' ? limit.input : undefined,
                     output: typeof limit.output === 'number' ? limit.output : undefined,
-                    ...limit,
                 },
                 modalities: isRecord(m.modalities)
                     ? {
+                          ...m.modalities,
                           input: parseModalitiesArray(m.modalities.input),
                           output: parseModalitiesArray(m.modalities.output),
-                          ...m.modalities,
                       }
                     : undefined,
                 cost:
@@ -168,6 +169,7 @@ function parseModelsDevApi(json: unknown): ModelsDevApi {
                     typeof m.cost.input === 'number' &&
                     typeof m.cost.output === 'number'
                         ? {
+                              ...m.cost,
                               input: m.cost.input,
                               output: m.cost.output,
                               cache_read:
@@ -179,10 +181,8 @@ function parseModelsDevApi(json: unknown): ModelsDevApi {
                                       ? m.cost.cache_write
                                       : undefined,
                               context_over_200k: m.cost.context_over_200k,
-                              ...m.cost,
                           }
                         : undefined,
-                ...m,
             };
 
             parsedProvider.models[modelId] = parsedModel;
