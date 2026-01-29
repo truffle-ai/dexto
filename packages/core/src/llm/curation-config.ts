@@ -8,8 +8,7 @@ import type { LLMProvider } from './types.js';
  *
  * Notes:
  * - IDs must match `ModelInfo.name` in the registry for that provider.
- * - If an ID is not found (upstream churn), runtime will fall back to a heuristic curated set
- *   so UI/onboarding never goes empty.
+ * - IDs are validated in tests to ensure they exist (so curated UI/onboarding doesn’t silently go empty).
  */
 export const CURATED_MODEL_IDS_BY_PROVIDER: Partial<Record<LLMProvider, string[]>> = {
     openai: ['gpt-5', 'gpt-5-mini', 'gpt-4.1', 'gpt-4.1-mini', 'gpt-4o', 'o4-mini', 'o3-mini'],
@@ -30,5 +29,18 @@ export const CURATED_MODEL_IDS_BY_PROVIDER: Partial<Record<LLMProvider, string[]
         'anthropic.claude-sonnet-4-5-20250929-v1:0',
         'anthropic.claude-haiku-4-5-20251001-v1:0',
         'amazon.nova-pro-v1:0',
+    ],
+    dexto: [
+        'anthropic/claude-haiku-4.5',
+        'anthropic/claude-sonnet-4.5',
+        'anthropic/claude-opus-4.5',
+        'openai/gpt-5.2',
+        'openai/gpt-5.2-codex',
+        'google/gemini-3-pro-preview',
+        'google/gemini-3-flash-preview',
+        'qwen/qwen3-coder:free',
+        'deepseek/deepseek-r1-0528:free',
+        'z-ai/glm-4.7',
+        'minimax/minimax-m2.1',
     ],
 };
