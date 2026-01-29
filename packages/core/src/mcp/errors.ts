@@ -50,6 +50,20 @@ export class MCPError {
     }
 
     /**
+     * MCP authentication required
+     */
+    static authenticationRequired(serverName: string, reason?: string) {
+        return new DextoRuntimeError(
+            MCPErrorCode.AUTH_REQUIRED,
+            ErrorScope.MCP,
+            ErrorType.THIRD_PARTY,
+            `Authentication required for MCP server '${serverName}'${reason ? `: ${reason}` : ''}`,
+            { serverName, reason },
+            'Authenticate with the MCP server using the CLI /mcp flow'
+        );
+    }
+
+    /**
      * MCP duplicate server name
      */
     static duplicateName(name: string, existingName: string) {

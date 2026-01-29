@@ -47,6 +47,8 @@ function getStatusIcon(status: McpConnectionStatus): string {
             return '🟢';
         case 'disconnected':
             return '⚪';
+        case 'auth-required':
+            return '🔐';
         case 'error':
             return '🔴';
     }
@@ -61,6 +63,8 @@ function getStatusText(status: McpConnectionStatus): string {
             return 'connected';
         case 'disconnected':
             return 'disabled';
+        case 'auth-required':
+            return 'auth required';
         case 'error':
             return 'failed';
     }
@@ -103,7 +107,8 @@ const McpServerList = forwardRef<McpServerListHandle, McpServerListProps>(functi
                 const order: Record<McpConnectionStatus, number> = {
                     connected: 0,
                     disconnected: 1,
-                    error: 2,
+                    'auth-required': 2,
+                    error: 3,
                 };
                 return order[a.status] - order[b.status];
             });
@@ -159,7 +164,9 @@ const McpServerList = forwardRef<McpServerListHandle, McpServerListProps>(functi
                             ? 'green'
                             : server.status === 'disconnected'
                               ? 'gray'
-                              : 'red'
+                              : server.status === 'auth-required'
+                                ? 'yellow'
+                                : 'red'
                     }
                 >
                     [{statusText}]

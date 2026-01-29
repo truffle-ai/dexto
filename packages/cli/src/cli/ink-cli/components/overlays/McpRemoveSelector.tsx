@@ -69,6 +69,8 @@ const McpRemoveSelector = forwardRef<McpRemoveSelectorHandle, McpRemoveSelectorP
                     return '🔌';
                 case 'disconnected':
                     return '⏸️';
+                case 'auth-required':
+                    return '🔐';
                 case 'error':
                     return '❌';
             }
@@ -81,6 +83,8 @@ const McpRemoveSelector = forwardRef<McpRemoveSelectorHandle, McpRemoveSelectorP
                     return 'Connected';
                 case 'disconnected':
                     return 'Disabled';
+                case 'auth-required':
+                    return 'Auth required';
                 case 'error':
                     return 'Failed';
             }
@@ -99,7 +103,9 @@ const McpRemoveSelector = forwardRef<McpRemoveSelectorHandle, McpRemoveSelectorP
                             ? 'green'
                             : server.status === 'disconnected'
                               ? 'gray'
-                              : 'red'
+                              : server.status === 'auth-required'
+                                ? 'yellow'
+                                : 'red'
                     }
                 >
                     {' '}

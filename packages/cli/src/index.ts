@@ -1606,9 +1606,19 @@ program
                         });
                     };
 
+                    const mcpAuthProviderFactory =
+                        opts.mode === 'cli'
+                            ? (
+                                  await import('./cli/mcp/oauth-factory.js')
+                              ).createMcpAuthProviderFactory({
+                                  logger,
+                              })
+                            : null;
+
                     agent = new DextoAgent(validatedConfig, resolvedPath, {
                         strict: !isInteractiveMode,
                         sessionLoggerFactory,
+                        mcpAuthProviderFactory,
                     });
 
                     // Start the agent (initialize async services)
