@@ -922,9 +922,11 @@ export function validateModelFileSupport(
  * @param config The validated LLM configuration.
  * @param logger Optional logger instance for logging.
  * @returns The effective maximum input token count for the LLM.
- * @throws {Error}
- * If `baseURL` is set but `maxInputTokens` is missing (indicating a Zod validation inconsistency).
- * Or if `baseURL` is not set, but model isn't found in registry.
+ *
+ * Notes:
+ * - If `baseURL` is set but `maxInputTokens` is missing, this logs a warning and falls back to
+ *   `DEFAULT_MAX_INPUT_TOKENS`.
+ * - If `baseURL` is not set and the model isn't found in the registry, this throws.
  * TODO: make more readable
  */
 export function getEffectiveMaxInputTokens(config: LLMConfig, logger: IDextoLogger): number {

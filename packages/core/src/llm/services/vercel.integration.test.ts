@@ -2,7 +2,7 @@ import { describe, test, expect } from 'vitest';
 import {
     createTestEnvironment,
     TestConfigs,
-    requiresApiKey,
+    providerRequiresApiKey,
     cleanupTestEnvironment,
 } from './test-utils.integration.js';
 import { ErrorScope, ErrorType } from '@core/errors/index.js';
@@ -25,7 +25,8 @@ describe('Vercel AI SDK LLM Service Integration', () => {
 
     const canRunProvider = (provider: LLMProvider): boolean => {
         if (!RUN_EXTERNAL_LLM_TESTS) return false;
-        return !requiresApiKey(provider) || Boolean(resolveApiKeyForProvider(provider));
+        if (!providerRequiresApiKey(provider)) return true;
+        return Boolean(resolveApiKeyForProvider(provider));
     };
 
     const canRunDefaultProvider = canRunProvider(defaultProvider);
