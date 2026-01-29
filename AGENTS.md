@@ -118,14 +118,14 @@ Dexto infers its execution environment to enable context-aware defaults and path
 
 Dexto’s supported models live in core and are primarily sourced from `models.dev`.
 
-- **Registry source of truth:** `packages/core/src/llm/registry.ts` (consumes the generated snapshot + any manual overlays).
-- **Generated snapshot:** `packages/core/src/llm/registry-models.generated.ts` (generated from `models.dev` via `scripts/sync-llm-registry.ts`).
+- **Registry source of truth:** `packages/core/src/llm/registry/index.ts` (consumes the generated snapshot + any manual overlays).
+- **Generated snapshot:** `packages/core/src/llm/registry/models.generated.ts` (generated from `models.dev` via `scripts/sync-llm-registry.ts`).
   - Update: `pnpm run sync-llm-registry`
   - Verify clean repo (CI-style): `pnpm run sync-llm-registry:check`
-- **Manual overlays / missing models:** `packages/core/src/llm/registry-models.manual.ts` (e.g. models missing capability metadata upstream).
+- **Manual overlays / missing models:** `packages/core/src/llm/registry/models.manual.ts` (e.g. models missing capability metadata upstream).
 - **Curation for UI/onboarding:** `packages/core/src/llm/curation-config.ts` (explicit curated model IDs; used by `/llm/catalog?scope=curated` and default pickers).
-- **Runtime auto-update (Node-only):** `packages/core/src/llm/registry-auto-update.ts` caches a fetched registry at `~/.dexto/cache/llm-registry-models.json` (disable with `DEXTO_LLM_REGISTRY_DISABLE_FETCH=1`).
-- **Dexto gateway provider:** `dexto` is not on `models.dev` (it’s an OpenRouter proxy), so its model list is maintained in `packages/core/src/llm/registry.ts`.
+- **Runtime auto-update (Node-only):** `packages/core/src/llm/registry/auto-update.ts` caches a fetched registry at `~/.dexto/cache/llm-registry-models.json` (disable with `DEXTO_LLM_REGISTRY_DISABLE_FETCH=1`).
+- **Dexto gateway provider:** `dexto` is not on `models.dev` (it’s an OpenRouter proxy), so its model list is maintained in `packages/core/src/llm/registry/index.ts`.
 
 ## Zod / Schema Design
 
