@@ -692,8 +692,9 @@ async function wizardStepProvider(state: SetupWizardState): Promise<SetupWizardS
     const provider = await selectProvider();
 
     if (provider === null) {
-        p.cancel('Setup cancelled');
-        process.exit(0);
+        // Treat prompt cancellation as "back" to avoid accidentally exiting the setup wizard.
+        // Users can still cancel setup from the initial setup type step.
+        return { ...state, step: 'setupType', provider: undefined };
     }
 
     if (provider === '_back') {
@@ -794,8 +795,8 @@ async function wizardStepReasoningEffort(state: SetupWizardState): Promise<Setup
     });
 
     if (p.isCancel(result)) {
-        p.cancel('Setup cancelled');
-        process.exit(0);
+        // Treat prompt cancellation as "back" to avoid accidentally exiting the setup wizard.
+        return { ...state, step: 'model', reasoningEffort: undefined };
     }
 
     if (result === '_back') {
@@ -914,8 +915,7 @@ async function selectModelWithBack(provider: LLMProvider): Promise<string | '_ba
         });
 
         if (p.isCancel(result)) {
-            p.cancel('Setup cancelled');
-            process.exit(0);
+            return '_back';
         }
 
         return result as string | '_back';
