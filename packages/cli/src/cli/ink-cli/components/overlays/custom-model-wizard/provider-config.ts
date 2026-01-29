@@ -552,6 +552,19 @@ export function getAvailableProviders(): CustomModelProvider[] {
 }
 
 /**
+ * Maps a provider-selection menu index to the selected provider, using the same
+ * provider ordering as the UI.
+ *
+ * This avoids subtle bugs when the displayed ordering differs from the base
+ * CUSTOM_MODEL_PROVIDERS array (e.g. feature-flagged reordering).
+ */
+export function getProviderByMenuIndex(index: number): CustomModelProvider | undefined {
+    const providers = getAvailableProviders();
+    if (index < 0 || index >= providers.length) return undefined;
+    return providers[index];
+}
+
+/**
  * Check if a provider has async validation.
  */
 export function hasAsyncValidation(provider: CustomModelProvider): boolean {

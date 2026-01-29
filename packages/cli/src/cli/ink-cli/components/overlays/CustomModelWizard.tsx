@@ -21,7 +21,6 @@ import type { Key } from '../../hooks/useInputOrchestrator.js';
 import {
     saveCustomModel,
     deleteCustomModel,
-    CUSTOM_MODEL_PROVIDERS,
     type CustomModel,
     type CustomModelProvider,
     saveProviderApiKey,
@@ -35,6 +34,7 @@ import { logger, type LLMProvider } from '@dexto/core';
 import {
     getProviderConfig,
     getAvailableProviders,
+    getProviderByMenuIndex,
     runAsyncValidation,
 } from './custom-model-wizard/provider-config.js';
 import {
@@ -108,6 +108,7 @@ const CustomModelWizard = forwardRef<CustomModelWizardHandle, CustomModelWizardP
                 if (initialModel) {
                     // Editing mode - pre-populate from initialModel
                     const provider = initialModel.provider ?? 'openai-compatible';
+                    const providers = getAvailableProviders();
                     setSelectedProvider(provider);
                     setOriginalName(initialModel.name);
                     setValues({
@@ -119,7 +120,8 @@ const CustomModelWizard = forwardRef<CustomModelWizardHandle, CustomModelWizardP
                     });
                     setCurrentStep(0);
                     setCurrentInput(initialModel.name);
-                    setProviderIndex(CUSTOM_MODEL_PROVIDERS.indexOf(provider));
+                    const idx = providers.indexOf(provider);
+                    setProviderIndex(idx >= 0 ? idx : 0);
                 } else {
                     // Adding mode - reset everything
                     setSelectedProvider(null);
@@ -136,7 +138,7 @@ const CustomModelWizard = forwardRef<CustomModelWizardHandle, CustomModelWizardP
         }, [isVisible, initialModel]);
 
         const handleProviderSelect = useCallback(() => {
-            const provider = CUSTOM_MODEL_PROVIDERS[providerIndex];
+            const provider = getProviderByMenuIndex(providerIndex);
             if (provider) {
                 setSelectedProvider(provider);
                 setCurrentStep(0);
