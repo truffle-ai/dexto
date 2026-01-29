@@ -172,6 +172,7 @@ function tryLoadCacheFromDisk(
 let refreshPromise: Promise<void> | null = null;
 let lastRefreshAttemptAt: number | null = null;
 let lastFetchedAt: number | null = null;
+let lastSource: 'snapshot' | 'cache' | 'remote' = 'snapshot';
 let autoRefreshStarted = false;
 
 export type LlmRegistryAutoUpdateStatus = {
@@ -193,7 +194,7 @@ export function getLlmRegistryAutoUpdateStatus(): LlmRegistryAutoUpdateStatus {
         cachePath,
         lastFetchedAt: fetchedAt,
         isFresh: lastFetchedAt ? isFresh(now, lastFetchedAt, getTtlMs()) : false,
-        source: lastFetchedAt ? 'cache' : 'snapshot',
+        source: lastSource,
     };
 }
 
@@ -202,6 +203,7 @@ export function loadLlmRegistryCache(options?: { logger?: LogLike }): boolean {
     if (!cache) return false;
     applyModelsByProvider(cache.modelsByProvider);
     lastFetchedAt = cache.fetchedAt;
+    lastSource = 'cache';
     return true;
 }
 
@@ -260,6 +262,7 @@ export async function refreshLlmRegistryCache(options?: {
         await writeCacheFile(cachePath, modelsByProvider);
         applyModelsByProvider(modelsByProvider);
         lastFetchedAt = Date.now();
+        lastSource = 'remote';
         log?.debug?.(`Refreshed LLM registry cache (${cachePath})`);
     })()
         .catch((e) => {
