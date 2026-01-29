@@ -8559,7 +8559,8 @@
                             "enum": [
                               "connected",
                               "disconnected",
-                              "error"
+                              "error",
+                              "auth-required"
                             ],
                             "description": "Server status"
                           }
