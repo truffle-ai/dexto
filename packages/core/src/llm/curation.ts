@@ -27,6 +27,7 @@ export function getCuratedModelsForProvider(
     if (models.length === 0) return [];
 
     const max = options?.max ?? DEFAULT_MAX;
+    if (max <= 0) return [];
 
     const curatedIds = CURATED_MODEL_IDS_BY_PROVIDER[provider];
     if (!Array.isArray(curatedIds) || curatedIds.length === 0) {

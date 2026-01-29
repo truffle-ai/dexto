@@ -381,8 +381,8 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 maxInputTokens: 202752,
                 supportedFileTypes: [],
                 pricing: {
-                    inputPerM: 0.4,
-                    outputPerM: 1.5,
+                    inputPerM: 0.27,
+                    outputPerM: 1.1,
                     currency: 'USD',
                     unit: 'per_million_tokens',
                 },
@@ -393,8 +393,8 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 maxInputTokens: 196608,
                 supportedFileTypes: [],
                 pricing: {
-                    inputPerM: 0.27,
-                    outputPerM: 1.1,
+                    inputPerM: 0.2,
+                    outputPerM: 0.6,
                     currency: 'USD',
                     unit: 'per_million_tokens',
                 },
@@ -442,7 +442,12 @@ export function stripBedrockRegionPrefix(model: string): string {
  */
 export function getDefaultModelForProvider(provider: LLMProvider): string | null {
     const providerInfo = LLM_REGISTRY[provider];
-    return providerInfo.models.find((m) => m.default)?.name || providerInfo.models[0]?.name || null;
+    const explicit = providerInfo.models.find((m) => m.default)?.name;
+    if (explicit) return explicit;
+    if (providerInfo.models.length === 0) return null;
+
+    const sorted = [...providerInfo.models].sort((a, b) => a.name.localeCompare(b.name));
+    return sorted[0]?.name ?? null;
 }
 
 /**
@@ -518,10 +523,10 @@ export function isValidProviderModel(provider: LLMProvider, model: string): bool
 /**
  * Infers the LLM provider from the model name by searching the registry.
  * Matches the model name (case-insensitive) against all registered models.
- * Returns the provider name if found, or 'unknown' if not found.
  *
  * @param model The model name (e.g., 'gpt-5-mini', 'claude-sonnet-4-5-20250929')
- * @returns The inferred provider name ('openai', 'anthropic', etc.), or 'unknown' if no match is found.
+ * @returns The inferred provider name ('openai', 'anthropic', etc.)
+ * @throws {DextoRuntimeError} If no matching provider can be inferred, or if the model is an OpenRouter-format ID.
  */
 export function getProviderFromModel(model: string): LLMProvider {
     if (model.includes('/')) {
@@ -612,9 +617,9 @@ const OPENROUTER_PREFIX_BY_PROVIDER: Partial<Record<LLMProvider, string>> = {
     glm: 'z-ai',
 };
 
-const OPENROUTER_MODEL_ID_SET = new Set(
-    MODELS_BY_PROVIDER.openrouter.map((m) => m.name.toLowerCase())
-);
+function getOpenRouterModelIdSet(): Set<string> {
+    return new Set(LLM_REGISTRY.openrouter.models.map((m) => m.name.toLowerCase()));
+}
 
 export function getOpenRouterCandidateModelIds(
     model: string,
@@ -646,8 +651,9 @@ export function getOpenRouterCandidateModelIds(
 }
 
 function pickExistingOpenRouterModelId(candidates: string[]): string | null {
+    const openrouterSet = getOpenRouterModelIdSet();
     for (const candidate of candidates) {
-        if (OPENROUTER_MODEL_ID_SET.has(candidate.toLowerCase())) {
+        if (openrouterSet.has(candidate.toLowerCase())) {
             return candidate;
         }
     }
@@ -967,7 +973,7 @@ export function getEffectiveMaxInputTokens(config: LLMConfig, logger: IDextoLogg
                 );
                 return configuredMaxInputTokens;
             }
-        } catch (error: any) {
+        } catch (error: unknown) {
             // Handle registry lookup failures during override check
             if (error instanceof DextoRuntimeError && error.code === LLMErrorCode.MODEL_UNKNOWN) {
                 logger.warn(
@@ -978,8 +984,9 @@ export function getEffectiveMaxInputTokens(config: LLMConfig, logger: IDextoLogg
                 return configuredMaxInputTokens;
             } else {
                 // Re-throw unexpected errors
+                const errorMessage = error instanceof Error ? error.message : String(error);
                 logger.error(
-                    `Unexpected error during registry lookup for maxInputTokens override check: ${error}`
+                    `getEffectiveMaxInputTokens: unexpected error during maxInputTokens override check: ${errorMessage}`
                 );
                 throw error;
             }
@@ -1014,7 +1021,7 @@ export function getEffectiveMaxInputTokens(config: LLMConfig, logger: IDextoLogg
             `Using maxInputTokens from registry for ${config.provider}/${config.model}: ${registryMaxInputTokens}`
         );
         return registryMaxInputTokens;
-    } catch (error: any) {
+    } catch (error: unknown) {
         // Handle registry lookup failures gracefully (e.g., typo in validated config)
         if (error instanceof DextoRuntimeError && error.code === LLMErrorCode.MODEL_UNKNOWN) {
             // For providers that support custom models, use default instead of throwing
@@ -1032,7 +1039,10 @@ export function getEffectiveMaxInputTokens(config: LLMConfig, logger: IDextoLogg
             throw LLMError.unknownModel(config.provider, config.model);
         } else {
             // Re-throw unexpected errors during registry lookup
-            logger.error(`Unexpected error during registry lookup for maxInputTokens: ${error}`);
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            logger.error(
+                `getEffectiveMaxInputTokens: unexpected error during registry lookup for maxInputTokens: ${errorMessage}`
+            );
             throw error;
         }
     }
