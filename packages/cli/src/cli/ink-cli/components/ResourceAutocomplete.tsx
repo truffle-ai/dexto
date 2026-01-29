@@ -261,7 +261,20 @@ const ResourceAutocompleteInner = forwardRef<ResourceAutocompleteHandle, Resourc
                 const lastSegment = pathParts[pathParts.length - 1]?.toLowerCase() || '';
 
                 // Match against filename/dirname or full path
-                return lastSegment.includes(lowerQuery) || lowerPath.includes(lowerQuery);
+                if (lastSegment.includes(lowerQuery) || lowerPath.includes(lowerQuery)) {
+                    return true;
+                }
+
+                // Also match against resource name and description (for files)
+                if (item.resource) {
+                    const lowerName = (item.resource.name || '').toLowerCase();
+                    const lowerDescription = (item.resource.description || '').toLowerCase();
+                    if (lowerName.includes(lowerQuery) || lowerDescription.includes(lowerQuery)) {
+                        return true;
+                    }
+                }
+
+                return false;
             });
 
             // Sort by relevance
