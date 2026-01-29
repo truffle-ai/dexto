@@ -46,8 +46,8 @@ export function Footer({
     } | null>(null);
 
     // Provider is session-scoped because /model can switch LLM per session.
-    const provider = agent.getCurrentLLMConfig(sessionId ?? undefined).provider;
-    const providerLabel = getLLMProviderDisplayName(provider);
+    const provider = sessionId ? agent.getCurrentLLMConfig(sessionId).provider : null;
+    const providerLabel = provider ? getLLMProviderDisplayName(provider) : null;
 
     useEffect(() => {
         if (!sessionId) {
@@ -116,7 +116,7 @@ export function Footer({
                 </Box>
                 <Box>
                     <Text color="cyan">{displayModelName}</Text>
-                    <Text color="gray"> ({providerLabel})</Text>
+                    {providerLabel && <Text color="gray"> ({providerLabel})</Text>}
                 </Box>
             </Box>
 
