@@ -1145,6 +1145,8 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     activeOverlay: 'none',
                     selectedMcpServer: null,
                     mcpWizardServerType: null,
+                    isProcessing: true,
+                    isCancelling: false,
                 }));
                 buffer.setText('');
                 setInput((prev) => ({ ...prev, historyIndex: -1 }));
@@ -1226,6 +1228,39 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             },
                         ]);
                     }
+                } else if (action.type === 'authenticate') {
+                    setMessages((prev) => [
+                        ...prev,
+                        {
+                            id: generateMessageId('system'),
+                            role: 'system',
+                            content: `🔐 Authenticating ${server.name}...`,
+                            timestamp: new Date(),
+                        },
+                    ]);
+
+                    try {
+                        await agent.restartMcpServer(server.name);
+                        setMessages((prev) => [
+                            ...prev,
+                            {
+                                id: generateMessageId('system'),
+                                role: 'system',
+                                content: `✅ Authenticated ${server.name}`,
+                                timestamp: new Date(),
+                            },
+                        ]);
+                    } catch (error) {
+                        setMessages((prev) => [
+                            ...prev,
+                            {
+                                id: generateMessageId('error'),
+                                role: 'system',
+                                content: `❌ Failed to authenticate server: ${error instanceof Error ? error.message : String(error)}`,
+                                timestamp: new Date(),
+                            },
+                        ]);
+                    }
                 } else if (action.type === 'delete') {
                     setMessages((prev) => [
                         ...prev,
@@ -1274,6 +1309,13 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         ]);
                     }
                 }
+
+                setUi((prev) => ({
+                    ...prev,
+                    isProcessing: false,
+                    isCancelling: false,
+                    isThinking: false,
+                }));
             },
             [setUi, setInput, setMessages, agent, buffer]
         );

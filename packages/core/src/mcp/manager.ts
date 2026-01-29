@@ -3,7 +3,12 @@ import { ValidatedServerConfigs, ValidatedMcpServerConfig } from './schemas.js';
 import type { IDextoLogger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
 import { GetPromptResult, ReadResourceResult, Prompt } from '@modelcontextprotocol/sdk/types.js';
-import { IMCPClient, MCPResolvedResource, MCPResourceSummary } from './types.js';
+import {
+    IMCPClient,
+    MCPResolvedResource,
+    MCPResourceSummary,
+    McpAuthProviderFactory,
+} from './types.js';
 import { ToolSet } from '../tools/types.js';
 import { MCPError } from './errors.js';
 import { eventBus } from '../events/index.js';
@@ -74,6 +79,7 @@ export class MCPManager {
     private resourceCache: Map<string, ResourceCacheEntry> = new Map();
     private sanitizedNameToServerMap: Map<string, string> = new Map();
     private approvalManager: ApprovalManager | null = null; // Will be set by service initializer
+    private authProviderFactory: McpAuthProviderFactory | null = null;
     private logger: IDextoLogger;
 
     // Use a distinctive delimiter that won't appear in normal server/tool names
@@ -82,6 +88,15 @@ export class MCPManager {
 
     constructor(logger: IDextoLogger) {
         this.logger = logger.createChild(DextoLogComponent.MCP);
+    }
+
+    setAuthProviderFactory(factory: McpAuthProviderFactory | null): void {
+        this.authProviderFactory = factory;
+        for (const [_name, client] of this.clients.entries()) {
+            if (client instanceof MCPClient) {
+                client.setAuthProviderFactory(factory);
+            }
+        }
     }
 
     /**
@@ -674,8 +689,10 @@ export class MCPManager {
                     successfulConnections.push(name);
                 })
                 .catch((error) => {
+                    const errorMessage = error instanceof Error ? error.message : String(error);
+                    this.connectionErrors[name] = errorMessage;
                     this.logger.debug(
-                        `Handled connection error for '${name}' during initialization: ${error.message}`
+                        `Handled connection error for '${name}' during initialization: ${errorMessage}`
                     );
                 });
             connectionPromises.push(connectPromise);
@@ -712,6 +729,7 @@ export class MCPManager {
         }
 
         const client = new MCPClient(this.logger);
+        client.setAuthProviderFactory(this.authProviderFactory);
         try {
             this.logger.info(`Attempting to connect to new server '${name}'...`);
             await client.connect(config, name);
@@ -751,6 +769,18 @@ export class MCPManager {
      */
     getFailedConnections(): { [key: string]: string } {
         return this.connectionErrors;
+    }
+
+    getFailedConnectionError(name: string): string | undefined {
+        return this.connectionErrors[name];
+    }
+
+    getAuthProvider(name: string) {
+        const client = this.clients.get(name);
+        if (client instanceof MCPClient) {
+            return client.getCurrentAuthProvider();
+        }
+        return null;
     }
 
     /**

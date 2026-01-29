@@ -74,6 +74,7 @@ export async function createAgentServices(
     agentEventBus: AgentEventBus,
     overrides?: {
         sessionLoggerFactory?: import('../session/session-manager.js').SessionLoggerFactory;
+        mcpAuthProviderFactory?: import('../mcp/types.js').McpAuthProviderFactory | null;
     }
 ): Promise<AgentServices> {
     // 0. Initialize telemetry FIRST (before any decorated classes are instantiated)
@@ -120,6 +121,9 @@ export async function createAgentServices(
 
     // 4. Initialize MCP manager
     const mcpManager = new MCPManager(logger);
+    if (overrides?.mcpAuthProviderFactory) {
+        mcpManager.setAuthProviderFactory(overrides.mcpAuthProviderFactory);
+    }
     await mcpManager.initializeFromConfig(config.mcpServers);
 
     // 4.1 - Wire approval manager into MCP manager for elicitation support

@@ -173,6 +173,7 @@ export class DextoAgent {
     // Approval handler for manual tool confirmation and elicitation
     // Set via setApprovalHandler() before start() if needed
     private approvalHandler?: ApprovalHandler | undefined;
+    private mcpAuthProviderFactory: import('../mcp/types.js').McpAuthProviderFactory | null = null;
 
     // Active stream controllers per session - allows cancel() to abort iterators
     private activeStreamControllers: Map<string, AbortController> = new Map();
@@ -180,6 +181,7 @@ export class DextoAgent {
     // Host overrides for service initialization (e.g. session logger factory)
     private serviceOverrides?: {
         sessionLoggerFactory?: import('../session/session-manager.js').SessionLoggerFactory;
+        mcpAuthProviderFactory?: import('../mcp/types.js').McpAuthProviderFactory | null;
     };
 
     // Logger instance for this agent (dependency injection)
@@ -199,6 +201,7 @@ export class DextoAgent {
         private configPath?: string,
         options?: LLMValidationOptions & {
             sessionLoggerFactory?: import('../session/session-manager.js').SessionLoggerFactory;
+            mcpAuthProviderFactory?: import('../mcp/types.js').McpAuthProviderFactory | null;
         }
     ) {
         // Validate and transform the input config using appropriate schema
@@ -217,10 +220,24 @@ export class DextoAgent {
         });
 
         // Capture host overrides to apply during start() when services are created.
+        const serviceOverrides: {
+            sessionLoggerFactory?: import('../session/session-manager.js').SessionLoggerFactory;
+            mcpAuthProviderFactory?: import('../mcp/types.js').McpAuthProviderFactory | null;
+        } = {};
+
         if (options?.sessionLoggerFactory) {
-            this.serviceOverrides = {
-                sessionLoggerFactory: options.sessionLoggerFactory,
-            };
+            serviceOverrides.sessionLoggerFactory = options.sessionLoggerFactory;
+        }
+        if (options && 'mcpAuthProviderFactory' in options) {
+            serviceOverrides.mcpAuthProviderFactory = options.mcpAuthProviderFactory ?? null;
+        }
+
+        if (Object.keys(serviceOverrides).length > 0) {
+            this.serviceOverrides = serviceOverrides;
+        }
+
+        if (options?.mcpAuthProviderFactory) {
+            this.mcpAuthProviderFactory = options.mcpAuthProviderFactory;
         }
 
         // Create event bus early so it's available for approval handler creation
@@ -254,6 +271,10 @@ export class DextoAgent {
                 this.agentEventBus,
                 this.serviceOverrides
             );
+
+            if (this.mcpAuthProviderFactory) {
+                services.mcpManager.setAuthProviderFactory(this.mcpAuthProviderFactory);
+            }
 
             // Validate all required services are provided
             for (const service of requiredServices) {
@@ -2307,6 +2328,11 @@ export class DextoAgent {
         }
     }
 
+    public getMcpAuthProvider(name: string) {
+        this.ensureStarted();
+        return this.mcpManager.getAuthProvider(name);
+    }
+
     /**
      * Executes a tool from any source (MCP servers, custom tools, or internal tools).
      * This is the unified interface for tool execution that can handle all tool types.
@@ -2399,7 +2425,12 @@ export class DextoAgent {
         } else if (connectedClients.has(name)) {
             status = 'connected';
         } else {
-            status = 'error';
+            const errorMessage = this.mcpManager.getFailedConnectionError(name);
+            if (errorMessage?.includes('Authentication required')) {
+                status = 'auth-required';
+            } else {
+                status = 'error';
+            }
         }
 
         const result: McpServerStatus = {
@@ -2440,7 +2471,12 @@ export class DextoAgent {
             } else if (connectedClients.has(name)) {
                 status = 'connected';
             } else {
-                status = 'error';
+                const errorMessage = this.mcpManager.getFailedConnectionError(name);
+                if (errorMessage?.includes('Authentication required')) {
+                    status = 'auth-required';
+                } else {
+                    status = 'error';
+                }
             }
 
             const server: McpServerStatus = {
@@ -2826,6 +2862,15 @@ export class DextoAgent {
         }
 
         this.logger.debug('Approval handler registered');
+    }
+
+    public setMcpAuthProviderFactory(
+        factory: import('../mcp/types.js').McpAuthProviderFactory | null
+    ): void {
+        this.mcpAuthProviderFactory = factory;
+        if (this._isStarted && this.services) {
+            this.services.mcpManager.setAuthProviderFactory(factory);
+        }
     }
 
     /**

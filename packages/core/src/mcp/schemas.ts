@@ -9,7 +9,12 @@ export type McpServerType = (typeof MCP_SERVER_TYPES)[number];
 export const MCP_CONNECTION_MODES = ['strict', 'lenient'] as const;
 export type McpConnectionMode = (typeof MCP_CONNECTION_MODES)[number];
 
-export const MCP_CONNECTION_STATUSES = ['connected', 'disconnected', 'error'] as const;
+export const MCP_CONNECTION_STATUSES = [
+    'connected',
+    'disconnected',
+    'error',
+    'auth-required',
+] as const;
 export type McpConnectionStatus = (typeof MCP_CONNECTION_STATUSES)[number];
 
 /**
