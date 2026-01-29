@@ -340,26 +340,12 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 displayName: 'Gemini 3 Pro',
                 maxInputTokens: 1048576,
                 supportedFileTypes: ['pdf', 'image', 'audio'],
-                pricing: {
-                    inputPerM: 2.0,
-                    outputPerM: 12.0,
-                    cacheReadPerM: 0.2,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
             },
             {
                 name: 'google/gemini-3-flash-preview',
                 displayName: 'Gemini 3 Flash',
                 maxInputTokens: 1048576,
                 supportedFileTypes: ['pdf', 'image', 'audio'],
-                pricing: {
-                    inputPerM: 0.5,
-                    outputPerM: 3.0,
-                    cacheReadPerM: 0.05,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
             },
             // Free models (via OpenRouter)
             {
