@@ -7,6 +7,7 @@ import React, { useEffect, useState } from 'react';
 import path from 'node:path';
 import { Box, Text } from 'ink';
 import { getModelDisplayName, type DextoAgent } from '@dexto/core';
+import { getLLMProviderDisplayName } from '../utils/llm-provider-display.js';
 
 interface FooterProps {
     agent: DextoAgent;
@@ -45,7 +46,8 @@ export function Footer({
     } | null>(null);
 
     // Provider is session-scoped because /model can switch LLM per session.
-    const viaDexto = agent.getCurrentLLMConfig(sessionId ?? undefined).provider === 'dexto';
+    const provider = agent.getCurrentLLMConfig(sessionId ?? undefined).provider;
+    const providerLabel = getLLMProviderDisplayName(provider);
 
     useEffect(() => {
         if (!sessionId) {
@@ -114,7 +116,7 @@ export function Footer({
                 </Box>
                 <Box>
                     <Text color="cyan">{displayModelName}</Text>
-                    {viaDexto && <Text color="gray"> via Dexto</Text>}
+                    <Text color="gray"> ({providerLabel})</Text>
                 </Box>
             </Box>
 
