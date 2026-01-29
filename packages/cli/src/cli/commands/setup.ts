@@ -937,9 +937,9 @@ async function selectModelWithBack(provider: LLMProvider): Promise<string | '_ba
                 label: m.displayName || m.name,
             }));
 
-        const customModelHint = supportsCustomModels(provider)
-            ? chalk.gray('Tip: Use /models command after setup to access custom models')
-            : undefined;
+        if (supportsCustomModels(provider)) {
+            p.log.info(chalk.gray('Tip: You can add custom model IDs later via /models'));
+        }
 
         const result = await p.select({
             message: `Select a model for ${getProviderDisplayName(provider)}`,
@@ -957,10 +957,6 @@ async function selectModelWithBack(provider: LLMProvider): Promise<string | '_ba
                 },
             ],
         });
-
-        if (customModelHint) {
-            p.log.info(customModelHint);
-        }
 
         if (p.isCancel(result)) {
             return '_back';
@@ -1626,9 +1622,9 @@ async function selectModel(provider: LLMProvider): Promise<string | null> {
                 label: m.displayName || m.name,
             }));
 
-        const customModelHint = supportsCustomModels(provider)
-            ? chalk.gray('Tip: Use /models command after setup to access custom models')
-            : undefined;
+        if (supportsCustomModels(provider)) {
+            p.log.info(chalk.gray('Tip: You can add custom model IDs later via /models'));
+        }
 
         const selected = await p.select({
             message: `Select a model for ${getProviderDisplayName(provider)}`,
@@ -1642,10 +1638,6 @@ async function selectModel(provider: LLMProvider): Promise<string | null> {
             ],
             initialValue: defaultModel.name,
         });
-
-        if (customModelHint) {
-            p.log.info(customModelHint);
-        }
 
         if (p.isCancel(selected)) {
             return null;
