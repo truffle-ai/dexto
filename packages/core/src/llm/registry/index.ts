@@ -612,6 +612,48 @@ const OPENROUTER_PREFIX_BY_PROVIDER: Partial<Record<LLMProvider, string>> = {
     glm: 'z-ai',
 };
 
+const OPENROUTER_MODEL_ID_SET = new Set(
+    MODELS_BY_PROVIDER.openrouter.map((m) => m.name.toLowerCase())
+);
+
+export function getOpenRouterCandidateModelIds(
+    model: string,
+    originalProvider: LLMProvider
+): string[] {
+    if (model.includes('/')) return [model];
+
+    const prefix = OPENROUTER_PREFIX_BY_PROVIDER[originalProvider];
+    if (!prefix) return [];
+
+    // Anthropic IDs include dates and use dashes in "X-Y" version segments.
+    // OpenRouter uses dotted versions and typically omits the date suffix.
+    if (originalProvider === 'anthropic') {
+        const noDate = model.replace(/-\d{8}.*$/i, '');
+        const dotted = noDate.replace(/-(\d)-(\d)\b/g, '-$1.$2');
+        return [`${prefix}/${dotted}`, `${prefix}/${noDate}`, `${prefix}/${model}`];
+    }
+
+    // Google Gemini: some models use a "-001" suffix on OpenRouter, but others don't.
+    // Prefer whichever exists in the OpenRouter catalog snapshot.
+    if (originalProvider === 'google') {
+        if (!/^gemini-/i.test(model)) {
+            return [`${prefix}/${model}`];
+        }
+        return [`${prefix}/${model}`, `${prefix}/${model}-001`];
+    }
+
+    return [`${prefix}/${model}`];
+}
+
+function pickExistingOpenRouterModelId(candidates: string[]): string | null {
+    for (const candidate of candidates) {
+        if (OPENROUTER_MODEL_ID_SET.has(candidate.toLowerCase())) {
+            return candidate;
+        }
+    }
+    return null;
+}
+
 function findModelInfo(provider: LLMProvider, model: string): ModelInfo | null {
     const providerInfo = LLM_REGISTRY[provider];
     const normalizedModel = getNormalizedModelIdForLookup(provider, model);
@@ -710,25 +752,10 @@ export function transformModelNameForProvider(
         return model;
     }
 
-    const prefix = OPENROUTER_PREFIX_BY_PROVIDER[originalProvider];
-    if (!prefix) return model;
+    const candidates = getOpenRouterCandidateModelIds(model, originalProvider);
+    if (candidates.length === 0) return model;
 
-    // Anthropic IDs include dates and use dashes in "X-Y" version segments.
-    // OpenRouter uses dotted versions and typically omits the date suffix.
-    if (originalProvider === 'anthropic') {
-        const noDate = model.replace(/-\d{8}.*$/i, '');
-        const dotted = noDate.replace(/-(\d)-(\d)\b/g, '-$1.$2');
-        return `${prefix}/${dotted}`;
-    }
-
-    // Google Gemini: stable models frequently have a "-001" suffix on OpenRouter.
-    if (originalProvider === 'google') {
-        const needs001 =
-            /^gemini-/i.test(model) && !/-001$/i.test(model) && !/preview/i.test(model);
-        return `${prefix}/${needs001 ? `${model}-001` : model}`;
-    }
-
-    return `${prefix}/${model}`;
+    return pickExistingOpenRouterModelId(candidates) ?? candidates[0]!;
 }
 
 /**

@@ -20,10 +20,12 @@ import {
     getModelPricing,
     getModelDisplayName,
     transformModelNameForProvider,
+    getOpenRouterCandidateModelIds,
     getAllModelsForProvider,
     isModelValidForProvider,
     hasAllRegistryModelsSupport,
 } from './index.js';
+import { MODELS_BY_PROVIDER } from './models.generated.js';
 import { LLMErrorCode } from '../error-codes.js';
 import { ErrorScope, ErrorType } from '../../errors/types.js';
 import type { IDextoLogger } from '../../logger/v2/types.js';
@@ -105,6 +107,28 @@ describe('LLM Registry Core Functions', () => {
             expect(() => getProviderFromModel('anthropic/claude-opus-4.5')).toThrow();
             expect(() => getProviderFromModel('openai/gpt-5-mini')).toThrow();
             expect(() => getProviderFromModel('x-ai/grok-4')).toThrow();
+        });
+    });
+
+    describe('transformModelNameForProvider (gateway IDs)', () => {
+        it('chooses an OpenRouter catalog ID when a candidate exists', () => {
+            const openrouterSet = new Set(
+                MODELS_BY_PROVIDER.openrouter.map((m) => m.name.toLowerCase())
+            );
+
+            const samples = [
+                { provider: 'anthropic' as const, model: 'claude-sonnet-4-5-20250929' },
+                { provider: 'google' as const, model: 'gemini-2.0-flash' },
+                { provider: 'google' as const, model: 'gemini-2.5-pro' },
+            ];
+
+            for (const { provider, model } of samples) {
+                const candidates = getOpenRouterCandidateModelIds(model, provider);
+                expect(candidates.some((c) => openrouterSet.has(c.toLowerCase()))).toBe(true);
+
+                const transformed = transformModelNameForProvider(model, provider, 'openrouter');
+                expect(openrouterSet.has(transformed.toLowerCase())).toBe(true);
+            }
         });
     });
 
