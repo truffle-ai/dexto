@@ -540,7 +540,15 @@ export function getProviderLabel(provider: CustomModelProvider): string {
  */
 export function getAvailableProviders(): CustomModelProvider[] {
     const dextoEnabled = isDextoAuthEnabled();
-    return CUSTOM_MODEL_PROVIDERS.filter((provider) => provider !== 'dexto' || dextoEnabled);
+    const providers = CUSTOM_MODEL_PROVIDERS.filter(
+        (provider) => provider !== 'dexto' || dextoEnabled
+    );
+    if (!dextoEnabled) {
+        return providers;
+    }
+    // When enabled, put Dexto first for better UX.
+    const withoutDexto = providers.filter((p) => p !== 'dexto');
+    return ['dexto', ...withoutDexto];
 }
 
 /**
