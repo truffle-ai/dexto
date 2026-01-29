@@ -103,6 +103,60 @@
     "matchIds": ["domain-checker"]
   },
   {
+    "id": "swiggy-food",
+    "name": "Swiggy Food",
+    "description": "Order food with restaurant search, menus, cart management, and checkout",
+    "category": "productivity",
+    "icon": "🍔",
+    "config": {
+      "type": "http",
+      "url": "https://mcp.swiggy.com/food",
+      "timeout": 30000
+    },
+    "tags": ["swiggy", "food", "delivery", "ordering"],
+    "isOfficial": true,
+    "isInstalled": false,
+    "author": "Swiggy",
+    "homepage": "https://github.com/Swiggy/swiggy-mcp-server-manifest",
+    "matchIds": ["swiggy-food", "swiggy_food"]
+  },
+  {
+    "id": "swiggy-instamart",
+    "name": "Swiggy Instamart",
+    "description": "Shop groceries with product search, cart management, and checkout",
+    "category": "productivity",
+    "icon": "🛒",
+    "config": {
+      "type": "http",
+      "url": "https://mcp.swiggy.com/im",
+      "timeout": 30000
+    },
+    "tags": ["swiggy", "instamart", "groceries", "delivery"],
+    "isOfficial": true,
+    "isInstalled": false,
+    "author": "Swiggy",
+    "homepage": "https://github.com/Swiggy/swiggy-mcp-server-manifest",
+    "matchIds": ["swiggy-instamart", "swiggy_instamart"]
+  },
+  {
+    "id": "swiggy-dineout",
+    "name": "Swiggy Dineout",
+    "description": "Find restaurants, check availability, and book tables",
+    "category": "productivity",
+    "icon": "🍽️",
+    "config": {
+      "type": "http",
+      "url": "https://mcp.swiggy.com/dineout",
+      "timeout": 30000
+    },
+    "tags": ["swiggy", "dineout", "reservations", "restaurants"],
+    "isOfficial": true,
+    "isInstalled": false,
+    "author": "Swiggy",
+    "homepage": "https://github.com/Swiggy/swiggy-mcp-server-manifest",
+    "matchIds": ["swiggy-dineout", "swiggy_dineout"]
+  },
+  {
     "id": "linear",
     "name": "Linear",
     "description": "Manage Linear issues, projects, and workflows",

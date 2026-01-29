@@ -313,8 +313,38 @@ export class FileSystemService {
     async searchContent(pattern: string, options: GrepOptions = {}): Promise<SearchResult> {
         await this.ensureInitialized();
 
-        const searchPath: string = options.path || this.config.workingDirectory || process.cwd();
-        const globPattern = options.glob || '**/*';
+        const basePath: string = options.path || this.config.workingDirectory || process.cwd();
+        let searchPath: string;
+        let globPattern: string;
+
+        const baseValidation = await this.pathValidator.validatePath(basePath);
+        if (!baseValidation.isValid || !baseValidation.normalizedPath) {
+            throw FileSystemError.invalidPath(basePath, baseValidation.error || 'Unknown error');
+        }
+        const resolvedPath = baseValidation.normalizedPath;
+
+        // Check if the provided path is a file or directory
+        try {
+            const stats = await fs.stat(resolvedPath);
+
+            if (stats.isFile()) {
+                // If path is a file, extract directory and use filename in glob pattern
+                searchPath = path.dirname(resolvedPath);
+                const fileName = path.basename(resolvedPath);
+                // Escape special glob characters in filename
+                const escapedFileName = fileName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                globPattern = options.glob || escapedFileName;
+            } else {
+                // If path is a directory, use it as-is
+                searchPath = resolvedPath;
+                globPattern = options.glob || '**/*';
+            }
+        } catch {
+            // If stat fails, assume it's a directory (for backwards compatibility)
+            searchPath = resolvedPath;
+            globPattern = options.glob || '**/*';
+        }
+
         const maxResults = options.maxResults || DEFAULT_MAX_SEARCH_RESULTS;
         const contextLines = options.contextLines || 0;
 

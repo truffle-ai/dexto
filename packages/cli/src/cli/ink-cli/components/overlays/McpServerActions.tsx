@@ -17,7 +17,7 @@ import type { Key } from '../../hooks/useInputOrchestrator.js';
 import type { McpServerStatus } from '@dexto/core';
 import { BaseSelector, type BaseSelectorHandle } from '../base/BaseSelector.js';
 
-export type McpServerActionType = 'enable' | 'disable' | 'delete' | 'back';
+export type McpServerActionType = 'enable' | 'disable' | 'authenticate' | 'delete' | 'back';
 
 export interface McpServerAction {
     type: McpServerActionType;
@@ -91,6 +91,16 @@ const McpServerActions = forwardRef<McpServerActionsHandle, McpServerActionsProp
                     label: 'Enable server',
                     icon: '▶️',
                     color: 'green',
+                });
+            }
+
+            if (server.status === 'auth-required') {
+                actions.push({
+                    id: 'authenticate',
+                    type: 'authenticate',
+                    label: 'Authenticate server',
+                    icon: '🔐',
+                    color: 'yellow',
                 });
             }
 
