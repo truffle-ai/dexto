@@ -28,8 +28,10 @@ describe('Vercel AI SDK LLM Service Integration', () => {
         return !requiresApiKey(provider) || Boolean(resolveApiKeyForProvider(provider));
     };
 
-    const t = canRunProvider(defaultProvider) ? test.concurrent : test.skip;
-    const skipTests = !canRunProvider(defaultProvider);
+    const canRunDefaultProvider = canRunProvider(defaultProvider);
+    const canRunOpenAI = canRunProvider('openai');
+    const t = canRunDefaultProvider ? test.concurrent : test.skip;
+    const skipTests = !canRunDefaultProvider;
 
     // Normal operation tests
     t(
@@ -254,7 +256,7 @@ describe('Vercel AI SDK LLM Service Integration', () => {
     );
 
     // Positive media/file tests (OpenAI via Vercel)
-    (requiresApiKey('openai') ? test.concurrent : test.skip)(
+    (canRunOpenAI ? test.concurrent : test.skip)(
         'openai via vercel: image input works',
         async () => {
             const openaiConfig = TestConfigs.createVercelConfig('openai');
@@ -292,7 +294,7 @@ describe('Vercel AI SDK LLM Service Integration', () => {
         60000
     );
 
-    (requiresApiKey('openai') ? test.concurrent : test.skip)(
+    (canRunOpenAI ? test.concurrent : test.skip)(
         'openai via vercel: pdf file input works',
         async () => {
             const openaiConfig = TestConfigs.createVercelConfig('openai');
@@ -329,7 +331,7 @@ describe('Vercel AI SDK LLM Service Integration', () => {
         60000
     );
 
-    (requiresApiKey('openai') ? test.concurrent : test.skip)(
+    (canRunOpenAI ? test.concurrent : test.skip)(
         'openai via vercel: streaming with image works',
         async () => {
             const openaiConfig = TestConfigs.createVercelConfig('openai');
