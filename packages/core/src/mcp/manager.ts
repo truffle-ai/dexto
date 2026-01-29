@@ -689,17 +689,19 @@ export class MCPManager {
                     successfulConnections.push(name);
                 })
                 .catch((error) => {
-                    const errorMessage = error instanceof Error ? error.message : String(error);
-                    const errorCode =
-                        error && typeof error === 'object' && 'code' in error
-                            ? String((error as { code?: unknown }).code)
-                            : undefined;
-                    this.connectionErrors[name] = {
-                        message: errorMessage,
-                        ...(errorCode ? { code: errorCode } : {}),
-                    };
+                    if (!this.connectionErrors[name]) {
+                        const errorMessage = error instanceof Error ? error.message : String(error);
+                        const errorCode =
+                            error && typeof error === 'object' && 'code' in error
+                                ? String((error as { code?: unknown }).code)
+                                : undefined;
+                        this.connectionErrors[name] = {
+                            message: errorMessage,
+                            ...(errorCode ? { code: errorCode } : {}),
+                        };
+                    }
                     this.logger.debug(
-                        `Handled connection error for '${name}' during initialization: ${errorMessage}`
+                        `Handled connection error for '${name}' during initialization: ${error instanceof Error ? error.message : String(error)}`
                     );
                 });
             connectionPromises.push(connectPromise);
