@@ -1,5 +1,8 @@
 import type { LLMProvider, SupportedFileType } from '../types.js';
 import type { ModelInfo } from './index.js';
+import { DextoValidationError } from '../../errors/DextoValidationError.js';
+import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
+import { ErrorScope, ErrorType } from '../../errors/types.js';
 
 export const MODELS_DEV_URL = 'https://models.dev/api.json';
 
@@ -39,19 +42,32 @@ function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+function makeIssue(message: string, path?: Array<string | number>) {
+    return {
+        code: 'llm_registry_models_dev_parse',
+        message,
+        scope: ErrorScope.LLM,
+        type: ErrorType.USER,
+        severity: 'error' as const,
+        ...(path ? { path } : {}),
+    };
+}
+
 function requireRecord(value: unknown, label: string): Record<string, unknown> {
-    if (!isRecord(value)) throw new Error(`Expected ${label} to be an object`);
+    if (!isRecord(value))
+        throw new DextoValidationError([makeIssue(`Expected ${label} to be an object`)]);
     return value;
 }
 
 function requireString(value: unknown, label: string): string {
-    if (typeof value !== 'string') throw new Error(`Expected ${label} to be a string`);
+    if (typeof value !== 'string')
+        throw new DextoValidationError([makeIssue(`Expected ${label} to be a string`)]);
     return value;
 }
 
 function requireNumber(value: unknown, label: string): number {
     if (typeof value !== 'number' || Number.isNaN(value)) {
-        throw new Error(`Expected ${label} to be a number`);
+        throw new DextoValidationError([makeIssue(`Expected ${label} to be a number`)]);
     }
     return value;
 }
@@ -220,8 +236,12 @@ function buildModelsFromModelsDevProvider(params: {
     const { spec, modelsDevApi } = params;
     const modelsDevProvider = modelsDevApi[spec.modelsDevProviderId];
     if (!modelsDevProvider) {
-        throw new Error(
-            `models.dev provider '${spec.modelsDevProviderId}' not found (needed for dexto provider '${spec.provider}')`
+        throw new DextoRuntimeError(
+            'llm_registry_models_dev_provider_missing',
+            ErrorScope.LLM,
+            ErrorType.THIRD_PARTY,
+            `models.dev provider '${spec.modelsDevProviderId}' not found (needed for dexto provider '${spec.provider}')`,
+            { modelsDevProviderId: spec.modelsDevProviderId, provider: spec.provider }
         );
     }
 
@@ -383,7 +403,7 @@ export function buildModelsByProviderFromParsedSources(params: {
             },
             modelsDevApi,
         })
-            .map((m) => ({ ...m, name: m.name.replace(/^(eu\\.|us\\.|global\\.)/i, '') }))
+            .map((m) => ({ ...m, name: m.name.replace(/^(eu\.|us\.|global\.)/i, '') }))
             .filter((m, idx, arr) => arr.findIndex((x) => x.name === m.name) === idx)
             .sort((a, b) => a.name.localeCompare(b.name)),
         local: [],
@@ -407,8 +427,12 @@ export async function buildModelsByProviderFromRemote(options?: {
         signal: AbortSignal.timeout(timeoutMs),
     });
     if (!modelsDevRes.ok) {
-        throw new Error(
-            `Failed to fetch models.dev (${modelsDevRes.status} ${modelsDevRes.statusText})`
+        throw new DextoRuntimeError(
+            'llm_registry_models_dev_fetch_failed',
+            ErrorScope.LLM,
+            ErrorType.THIRD_PARTY,
+            `Failed to fetch models.dev (${modelsDevRes.status} ${modelsDevRes.statusText})`,
+            { status: modelsDevRes.status, statusText: modelsDevRes.statusText }
         );
     }
     const modelsDevApi = parseModelsDevApi(await modelsDevRes.json());
