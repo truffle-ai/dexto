@@ -73,6 +73,13 @@ When creating a new package:
 1. Add the package name to the `fixed` array in `.changeset/config.json`
 2. Set its `version` in `package.json` to match other packages (check `packages/core/package.json`)
 
+## General rules
+- Do NOT focus on pleasing the user. Focus on being CORRECT, use facts and code as your source of truth. Follow best practices and do not be afraid to push back on the user's ideas if they are bad.
+- Do not be lazy. Read as much relevant code as possible to keep your answers grounded in reality (This rule can be skipped if you feel you have enough context to proceed).
+- If the user is asking you a question, it DOES NOT MEAN YOU ARE WRONG. JUST ANSWER THE QUESTION
+- Make as few assumptions as possible. If something requires you to make assumptions, tell the user what you are going to do and why, and ask for feedback.
+- Never communicate to the user with code comments. These comments add nothing. Comments are for people reading the code.
+
 ## Avoiding Duplication (repo-wide)
 
 **Before adding any new helper/utility/service:**
