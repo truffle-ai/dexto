@@ -84,8 +84,7 @@ function applyModelsByProvider(modelsByProvider: Record<LLMProvider, ModelInfo[]
             } else {
                 // Be conservative when applying remote updates:
                 // - Prefer remote for core metadata (tokens/pricing/capabilities)
-                // - Preserve existing fields when the remote is missing them (notably openrouterId),
-                //   to avoid breaking gateway routing due to transient mapping gaps.
+                // - Preserve existing fields when the remote is missing them.
                 const name = updated.name ?? m.name;
                 const maxInputTokens =
                     typeof updated.maxInputTokens === 'number' && updated.maxInputTokens > 0
@@ -96,7 +95,6 @@ function applyModelsByProvider(modelsByProvider: Record<LLMProvider, ModelInfo[]
                     : m.supportedFileTypes;
 
                 const displayName = updated.displayName ?? m.displayName;
-                const openrouterId = updated.openrouterId ?? m.openrouterId;
                 const pricing = updated.pricing ?? m.pricing;
 
                 merged.push({
@@ -104,7 +102,6 @@ function applyModelsByProvider(modelsByProvider: Record<LLMProvider, ModelInfo[]
                     maxInputTokens,
                     supportedFileTypes,
                     ...(displayName ? { displayName } : {}),
-                    ...(openrouterId ? { openrouterId } : {}),
                     ...(pricing ? { pricing } : {}),
                 });
             }

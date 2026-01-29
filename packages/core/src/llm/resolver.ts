@@ -1,7 +1,6 @@
 import { Result, hasErrors, splitIssues, ok, fail, zodToIssues } from '../utils/result.js';
 import { Issue, ErrorScope, ErrorType } from '@core/errors/types.js';
 import { LLMErrorCode } from './error-codes.js';
-import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
 
 import { type ValidatedLLMConfig, type LLMUpdates, type LLMConfig } from './schemas.js';
 import { LLMConfigSchema } from './schemas.js';
@@ -14,7 +13,6 @@ import {
     supportsBaseURL,
     supportsCustomModels,
     hasAllRegistryModelsSupport,
-    transformModelNameForProvider,
 } from './registry/index.js';
 import {
     lookupOpenRouterModel,
@@ -60,10 +58,10 @@ export async function resolveLLMConfig(
 ): Promise<{ candidate: LLMConfig; warnings: Issue<LLMUpdateContext>[] }> {
     const warnings: Issue<LLMUpdateContext>[] = [];
 
-    // Provider inference (if not provided, infer from model or previous provider)
+    // Provider inference (if not provided, infer from native model IDs or fall back to previous provider)
     const provider =
         updates.provider ??
-        (updates.model
+        (updates.model && !updates.model.includes('/')
             ? (() => {
                   try {
                       return getProviderFromModel(updates.model);
@@ -120,35 +118,26 @@ export async function resolveLLMConfig(
         });
     }
 
-    // Gateway model transformation
-    // When targeting a gateway provider (dexto/openrouter), transform native model names
-    // to OpenRouter format (e.g., "claude-sonnet-4-5-20250929" -> "anthropic/claude-sonnet-4.5")
-    if (hasAllRegistryModelsSupport(provider) && !model.includes('/')) {
-        try {
-            const originalProvider = getProviderFromModel(model);
-            model = transformModelNameForProvider(model, originalProvider, provider);
-            logger.debug(
-                `Transformed model for ${provider}: ${updates.model ?? previous.model} -> ${model}`
-            );
-        } catch (error: unknown) {
-            if (error instanceof DextoRuntimeError) {
-                // If the model is known but missing an OpenRouter mapping, fail loudly.
-                // Passing through an un-prefixed model to a gateway provider will almost certainly break.
-                if (error.code === LLMErrorCode.MODEL_OPENROUTER_MAPPING_MISSING) {
-                    warnings.push({
-                        code: error.code,
-                        message: error.message,
-                        severity: 'error',
-                        scope: ErrorScope.LLM,
-                        type: ErrorType.SYSTEM,
-                        context: { provider, model },
-                    });
-                }
-            }
-            // Model not in registry - pass through as-is, gateway may accept custom model IDs
-            logger.debug(
-                `Model '${model}' not in registry, passing through to ${provider} without transformation`
-            );
+    // Gateway providers require OpenRouter-format IDs.
+    // If the user is switching providers (but not explicitly setting a model),
+    // pick the gateway's default model to avoid surprising validation errors.
+    if (
+        provider !== previous.provider &&
+        updates.model == null &&
+        hasAllRegistryModelsSupport(provider) &&
+        !model.includes('/')
+    ) {
+        const defaultGatewayModel = getDefaultModelForProvider(provider);
+        if (defaultGatewayModel) {
+            model = defaultGatewayModel;
+            warnings.push({
+                code: LLMErrorCode.MODEL_INCOMPATIBLE,
+                message: `Model set to default '${model}' for provider '${provider}'`,
+                severity: 'warning',
+                scope: ErrorScope.LLM,
+                type: ErrorType.USER,
+                context: { provider, model },
+            });
         }
     }
 

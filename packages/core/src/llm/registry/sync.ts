@@ -2,7 +2,6 @@ import type { LLMProvider, SupportedFileType } from '../types.js';
 import type { ModelInfo } from './index.js';
 
 export const MODELS_DEV_URL = 'https://models.dev/api.json';
-export const OPENROUTER_MODELS_URL = 'https://openrouter.ai/api/v1/models';
 
 type ModelsDevApi = Record<string, ModelsDevProvider>;
 type ModelsDevProvider = {
@@ -34,12 +33,6 @@ type ModelsDevModel = {
               context_over_200k?: unknown;
           }
         | undefined;
-};
-
-type OpenRouterModel = {
-    id: string;
-    name: string;
-    context_length?: number;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -161,38 +154,6 @@ export function parseModelsDevApi(json: unknown): ModelsDevApi {
     return api;
 }
 
-export function parseOpenRouterModels(json: unknown): OpenRouterModel[] {
-    const root = requireRecord(json, 'OpenRouter /models response');
-    const data = root.data;
-    if (!Array.isArray(data))
-        throw new Error(`Expected OpenRouter /models response 'data' to be an array`);
-
-    const models: OpenRouterModel[] = [];
-    for (const entry of data) {
-        if (!isRecord(entry)) continue;
-        const id = entry.id;
-        const name = entry.name;
-        if (typeof id !== 'string' || typeof name !== 'string') continue;
-        const context_length =
-            typeof entry.context_length === 'number' ? entry.context_length : undefined;
-        models.push({
-            id,
-            name,
-            ...(typeof context_length === 'number' ? { context_length } : {}),
-        });
-    }
-    return models;
-}
-
-function normalizeDisplayName(name: string): string {
-    return name
-        .toLowerCase()
-        .replace(/\(latest\)/g, '')
-        .replace(/\s+v\d+\b/g, (m) => m.trim())
-        .replace(/\s+/g, ' ')
-        .trim();
-}
-
 function getSupportedFileTypesFromModel(
     provider: LLMProvider,
     model: ModelsDevModel
@@ -232,7 +193,7 @@ function getPricing(model: ModelsDevModel): ModelInfo['pricing'] | undefined {
 function modelToModelInfo(
     provider: LLMProvider,
     model: ModelsDevModel,
-    options: { defaultModelId?: string; openrouterId?: string }
+    options: { defaultModelId?: string }
 ): ModelInfo {
     const pricing = getPricing(model);
     return {
@@ -241,67 +202,8 @@ function modelToModelInfo(
         maxInputTokens: model.limit.input ?? model.limit.context,
         supportedFileTypes: getSupportedFileTypesFromModel(provider, model),
         ...(pricing ? { pricing } : {}),
-        ...(options.openrouterId ? { openrouterId: options.openrouterId } : {}),
         ...(options.defaultModelId === model.id ? { default: true } : {}),
     };
-}
-
-function groupOpenRouterModelsByPrefix(models: OpenRouterModel[]): Map<string, OpenRouterModel[]> {
-    const map = new Map<string, OpenRouterModel[]>();
-    for (const model of models) {
-        const [prefix] = model.id.split('/');
-        if (!prefix) continue;
-        const existing = map.get(prefix) ?? [];
-        existing.push(model);
-        map.set(prefix, existing);
-    }
-    return map;
-}
-
-function findOpenRouterIdForModel(params: {
-    openrouterPrefix: string;
-    modelsDevModel: ModelsDevModel;
-    openrouterByPrefix: Map<string, OpenRouterModel[]>;
-}): string | undefined {
-    const { openrouterPrefix, modelsDevModel, openrouterByPrefix } = params;
-
-    const candidates = openrouterByPrefix.get(openrouterPrefix) ?? [];
-    if (candidates.length === 0) return undefined;
-
-    const targetName = normalizeDisplayName(modelsDevModel.name);
-
-    const byName = candidates.filter((m) => normalizeDisplayName(m.name) === targetName);
-    if (byName.length === 1) return byName[0]?.id;
-    if (byName.length > 1) {
-        const wanted = modelsDevModel.limit.context;
-        const exactContext = byName.find((m) => m.context_length === wanted);
-        return exactContext?.id ?? byName[0]?.id;
-    }
-
-    const openrouterIds = new Set(candidates.map((m) => m.id));
-    const direct = `${openrouterPrefix}/${modelsDevModel.id}`;
-    if (openrouterIds.has(direct)) return direct;
-
-    // Google/Gemini often uses a "-001" suffix on OpenRouter IDs
-    if (openrouterPrefix.toLowerCase() === 'google') {
-        const with001 = `${openrouterPrefix}/${modelsDevModel.id}-001`;
-        if (openrouterIds.has(with001)) return with001;
-    }
-
-    const withoutLatest = `${openrouterPrefix}/${modelsDevModel.id.replace(/-chat-latest$/i, '-chat')}`;
-    if (openrouterIds.has(withoutLatest)) return withoutLatest;
-
-    const withoutGeneralLatest = `${openrouterPrefix}/${modelsDevModel.id.replace(/-latest$/i, '')}`;
-    if (openrouterIds.has(withoutGeneralLatest)) return withoutGeneralLatest;
-
-    if (openrouterPrefix.toLowerCase() === 'anthropic') {
-        const noDate = modelsDevModel.id.replace(/-\d{8}.*$/i, '');
-        const dotted = noDate.replace(/-(\d)-(\d)\b/g, '-$1.$2');
-        const anthroCandidate = `${openrouterPrefix}/${dotted}`;
-        if (openrouterIds.has(anthroCandidate)) return anthroCandidate;
-    }
-
-    return undefined;
 }
 
 type ProviderBuildSpec = {
@@ -309,15 +211,13 @@ type ProviderBuildSpec = {
     modelsDevProviderId: string;
     includeModelId: (id: string) => boolean;
     defaultModelId?: string;
-    openrouterPrefix?: string;
 };
 
 function buildModelsFromModelsDevProvider(params: {
     spec: ProviderBuildSpec;
     modelsDevApi: ModelsDevApi;
-    openrouterByPrefix: Map<string, OpenRouterModel[]>;
 }): ModelInfo[] {
-    const { spec, modelsDevApi, openrouterByPrefix } = params;
+    const { spec, modelsDevApi } = params;
     const modelsDevProvider = modelsDevApi[spec.modelsDevProviderId];
     if (!modelsDevProvider) {
         throw new Error(
@@ -328,19 +228,8 @@ function buildModelsFromModelsDevProvider(params: {
     const results: ModelInfo[] = [];
     for (const [modelId, model] of Object.entries(modelsDevProvider.models)) {
         if (!spec.includeModelId(modelId)) continue;
-
-        const openrouterId =
-            spec.openrouterPrefix && spec.provider !== 'vertex' && spec.provider !== 'bedrock'
-                ? findOpenRouterIdForModel({
-                      openrouterPrefix: spec.openrouterPrefix,
-                      modelsDevModel: model,
-                      openrouterByPrefix,
-                  })
-                : undefined;
-
-        const options: { defaultModelId?: string; openrouterId?: string } = {
+        const options: { defaultModelId?: string } = {
             ...(spec.defaultModelId ? { defaultModelId: spec.defaultModelId } : {}),
-            ...(openrouterId ? { openrouterId } : {}),
         };
 
         results.push(modelToModelInfo(spec.provider, model, options));
@@ -352,10 +241,8 @@ function buildModelsFromModelsDevProvider(params: {
 
 export function buildModelsByProviderFromParsedSources(params: {
     modelsDevApi: ModelsDevApi;
-    openrouterModels: OpenRouterModel[];
 }): Record<LLMProvider, ModelInfo[]> {
-    const { modelsDevApi, openrouterModels } = params;
-    const openrouterByPrefix = groupOpenRouterModelsByPrefix(openrouterModels);
+    const { modelsDevApi } = params;
 
     const defaults: Partial<Record<LLMProvider, string>> = {
         openai: 'gpt-5-mini',
@@ -381,6 +268,7 @@ export function buildModelsByProviderFromParsedSources(params: {
         glm: (id: string) => id.startsWith('glm-'),
         vertex: (_id: string) => true,
         bedrock: (_id: string) => true,
+        openrouter: (_id: string) => true,
     } as const;
 
     const modelsByProvider: Record<LLMProvider, ModelInfo[]> = {
@@ -390,10 +278,8 @@ export function buildModelsByProviderFromParsedSources(params: {
                 modelsDevProviderId: 'openai',
                 ...(defaults.openai ? { defaultModelId: defaults.openai } : {}),
                 includeModelId: include.openai,
-                openrouterPrefix: 'openai',
             },
             modelsDevApi,
-            openrouterByPrefix,
         }),
         'openai-compatible': [],
         anthropic: buildModelsFromModelsDevProvider({
@@ -402,10 +288,8 @@ export function buildModelsByProviderFromParsedSources(params: {
                 modelsDevProviderId: 'anthropic',
                 ...(defaults.anthropic ? { defaultModelId: defaults.anthropic } : {}),
                 includeModelId: include.anthropic,
-                openrouterPrefix: 'anthropic',
             },
             modelsDevApi,
-            openrouterByPrefix,
         }),
         google: buildModelsFromModelsDevProvider({
             spec: {
@@ -413,10 +297,8 @@ export function buildModelsByProviderFromParsedSources(params: {
                 modelsDevProviderId: 'google',
                 ...(defaults.google ? { defaultModelId: defaults.google } : {}),
                 includeModelId: include.google,
-                openrouterPrefix: 'google',
             },
             modelsDevApi,
-            openrouterByPrefix,
         }),
         groq: buildModelsFromModelsDevProvider({
             spec: {
@@ -426,7 +308,6 @@ export function buildModelsByProviderFromParsedSources(params: {
                 includeModelId: include.groq,
             },
             modelsDevApi,
-            openrouterByPrefix,
         }),
         xai: buildModelsFromModelsDevProvider({
             spec: {
@@ -434,10 +315,8 @@ export function buildModelsByProviderFromParsedSources(params: {
                 modelsDevProviderId: 'xai',
                 ...(defaults.xai ? { defaultModelId: defaults.xai } : {}),
                 includeModelId: include.xai,
-                openrouterPrefix: 'x-ai',
             },
             modelsDevApi,
-            openrouterByPrefix,
         }),
         cohere: buildModelsFromModelsDevProvider({
             spec: {
@@ -445,10 +324,8 @@ export function buildModelsByProviderFromParsedSources(params: {
                 modelsDevProviderId: 'cohere',
                 ...(defaults.cohere ? { defaultModelId: defaults.cohere } : {}),
                 includeModelId: include.cohere,
-                openrouterPrefix: 'cohere',
             },
             modelsDevApi,
-            openrouterByPrefix,
         }),
         minimax: buildModelsFromModelsDevProvider({
             spec: {
@@ -456,10 +333,8 @@ export function buildModelsByProviderFromParsedSources(params: {
                 modelsDevProviderId: 'minimax',
                 ...(defaults.minimax ? { defaultModelId: defaults.minimax } : {}),
                 includeModelId: include.minimax,
-                openrouterPrefix: 'minimax',
             },
             modelsDevApi,
-            openrouterByPrefix,
         }),
         glm: buildModelsFromModelsDevProvider({
             spec: {
@@ -467,12 +342,17 @@ export function buildModelsByProviderFromParsedSources(params: {
                 modelsDevProviderId: 'zhipuai',
                 ...(defaults.glm ? { defaultModelId: defaults.glm } : {}),
                 includeModelId: include.glm,
-                openrouterPrefix: 'z-ai',
             },
             modelsDevApi,
-            openrouterByPrefix,
         }),
-        openrouter: [],
+        openrouter: buildModelsFromModelsDevProvider({
+            spec: {
+                provider: 'openrouter',
+                modelsDevProviderId: 'openrouter',
+                includeModelId: include.openrouter,
+            },
+            modelsDevApi,
+        }),
         litellm: [],
         glama: [],
         vertex: [
@@ -484,7 +364,6 @@ export function buildModelsByProviderFromParsedSources(params: {
                     includeModelId: include.vertex,
                 },
                 modelsDevApi,
-                openrouterByPrefix,
             }),
             ...buildModelsFromModelsDevProvider({
                 spec: {
@@ -493,7 +372,6 @@ export function buildModelsByProviderFromParsedSources(params: {
                     includeModelId: include.vertex,
                 },
                 modelsDevApi,
-                openrouterByPrefix,
             }),
         ].sort((a, b) => a.name.localeCompare(b.name)),
         bedrock: buildModelsFromModelsDevProvider({
@@ -504,7 +382,6 @@ export function buildModelsByProviderFromParsedSources(params: {
                 includeModelId: include.bedrock,
             },
             modelsDevApi,
-            openrouterByPrefix,
         })
             .map((m) => ({ ...m, name: m.name.replace(/^(eu\\.|us\\.|global\\.)/i, '') }))
             .filter((m, idx, arr) => arr.findIndex((x) => x.name === m.name) === idx)
@@ -519,7 +396,6 @@ export function buildModelsByProviderFromParsedSources(params: {
 
 export async function buildModelsByProviderFromRemote(options?: {
     modelsDevUrl?: string;
-    openrouterModelsUrl?: string;
     userAgent?: string;
     timeoutMs?: number;
 }): Promise<Record<LLMProvider, ModelInfo[]>> {
@@ -537,16 +413,5 @@ export async function buildModelsByProviderFromRemote(options?: {
     }
     const modelsDevApi = parseModelsDevApi(await modelsDevRes.json());
 
-    const openrouterRes = await fetch(options?.openrouterModelsUrl ?? OPENROUTER_MODELS_URL, {
-        headers: { 'User-Agent': userAgent },
-        signal: AbortSignal.timeout(timeoutMs),
-    });
-    if (!openrouterRes.ok) {
-        throw new Error(
-            `Failed to fetch OpenRouter models (${openrouterRes.status} ${openrouterRes.statusText})`
-        );
-    }
-    const openrouterModels = parseOpenRouterModels(await openrouterRes.json());
-
-    return buildModelsByProviderFromParsedSources({ modelsDevApi, openrouterModels });
+    return buildModelsByProviderFromParsedSources({ modelsDevApi });
 }

@@ -1,13 +1,12 @@
 #!/usr/bin/env tsx
 /**
- * Syncs Dexto's built-in LLM model registry from models.dev + OpenRouter's public catalog.
+ * Syncs Dexto's built-in LLM model registry from models.dev.
  *
  * Why:
  * - `packages/core/src/llm/registry/index.ts` used to hardcode many models (tokens/pricing/modalities),
  *   which is painful to maintain.
  * - models.dev provides a maintained, cross-provider model catalog.
- * - OpenRouter's public catalog is used to map "native" model IDs to OpenRouter model IDs for
- *   gateway providers (openrouter/dexto).
+ * - models.dev provides gateway catalogs (e.g. OpenRouter) including pricing and modalities.
  *
  * Usage:
  *   pnpm run sync-llm-registry        # regenerate the committed snapshot
@@ -30,7 +29,6 @@ const CHECK_MODE = process.argv.includes('--check');
 const OUTPUT_PATH = path.join(__dirname, '../packages/core/src/llm/registry/models.generated.ts');
 
 const MODELS_DEV_URL = 'https://models.dev/api.json';
-const OPENROUTER_MODELS_URL = 'https://openrouter.ai/api/v1/models';
 
 type ModelsDevApi = Record<string, ModelsDevProvider>;
 type ModelsDevProvider = {
@@ -65,13 +63,6 @@ type ModelsDevModel = {
               [k: string]: unknown;
           }
         | undefined;
-    [k: string]: unknown;
-};
-
-type OpenRouterModel = {
-    id: string;
-    name: string;
-    context_length?: number;
     [k: string]: unknown;
 };
 
@@ -203,25 +194,6 @@ function parseModelsDevApi(json: unknown): ModelsDevApi {
     return api;
 }
 
-function parseOpenRouterModels(json: unknown): OpenRouterModel[] {
-    const root = requireRecord(json, 'OpenRouter /models response');
-    const data = root.data;
-    if (!Array.isArray(data)) {
-        throw new Error(`Expected OpenRouter /models response 'data' to be an array`);
-    }
-    const models: OpenRouterModel[] = [];
-    for (const entry of data) {
-        if (!isRecord(entry)) continue;
-        const id = entry.id;
-        const name = entry.name;
-        if (typeof id !== 'string' || typeof name !== 'string') continue;
-        const context_length =
-            typeof entry.context_length === 'number' ? entry.context_length : undefined;
-        models.push({ id, name, context_length, ...entry });
-    }
-    return models;
-}
-
 type DextoProvider =
     | 'openai'
     | 'openai-compatible'
@@ -258,18 +230,8 @@ type GeneratedModelInfo = {
     supportedFileTypes: DextoSupportedFileType[];
     displayName?: string;
     pricing?: GeneratedModelPricing;
-    openrouterId?: string;
     default?: boolean;
 };
-
-function normalizeDisplayName(name: string): string {
-    return name
-        .toLowerCase()
-        .replace(/\(latest\)/g, '')
-        .replace(/\s+v\d+\b/g, (m) => m.trim()) // keep "v2" token but normalize spacing
-        .replace(/\s+/g, ' ')
-        .trim();
-}
 
 function getSupportedFileTypesFromModel(
     provider: DextoProvider,
@@ -311,7 +273,6 @@ function modelToGeneratedModel(
     options: {
         provider: DextoProvider;
         defaultModelId?: string;
-        openrouterId?: string;
     }
 ): GeneratedModelInfo {
     return {
@@ -320,71 +281,8 @@ function modelToGeneratedModel(
         maxInputTokens: model.limit.input ?? model.limit.context,
         supportedFileTypes: getSupportedFileTypesFromModel(options.provider, model),
         pricing: getPricing(model),
-        openrouterId: options.openrouterId,
         ...(options.defaultModelId === model.id ? { default: true } : {}),
     };
-}
-
-function groupOpenRouterModelsByPrefix(models: OpenRouterModel[]): Map<string, OpenRouterModel[]> {
-    const map = new Map<string, OpenRouterModel[]>();
-    for (const model of models) {
-        const [prefix] = model.id.split('/');
-        if (!prefix) continue;
-        const existing = map.get(prefix) ?? [];
-        existing.push(model);
-        map.set(prefix, existing);
-    }
-    return map;
-}
-
-function findOpenRouterIdForModel(params: {
-    openrouterPrefix: string;
-    modelsDevModel: ModelsDevModel;
-    openrouterByPrefix: Map<string, OpenRouterModel[]>;
-}): string | undefined {
-    const { openrouterPrefix, modelsDevModel, openrouterByPrefix } = params;
-
-    const candidates = openrouterByPrefix.get(openrouterPrefix) ?? [];
-    if (candidates.length === 0) return undefined;
-
-    const targetName = normalizeDisplayName(modelsDevModel.name);
-
-    // 1) Exact name match (best effort)
-    const byName = candidates.filter((m) => normalizeDisplayName(m.name) === targetName);
-    if (byName.length === 1) return byName[0]?.id;
-    if (byName.length > 1) {
-        // Prefer matching context length, if present
-        const wanted = modelsDevModel.limit.context;
-        const exactContext = byName.find((m) => m.context_length === wanted);
-        return exactContext?.id ?? byName[0]?.id;
-    }
-
-    // 2) Common ID patterns
-    const openrouterIds = new Set(candidates.map((m) => m.id));
-    const direct = `${openrouterPrefix}/${modelsDevModel.id}`;
-    if (openrouterIds.has(direct)) return direct;
-
-    // Google/Gemini often uses a "-001" suffix on OpenRouter IDs
-    if (openrouterPrefix.toLowerCase() === 'google') {
-        const with001 = `${openrouterPrefix}/${modelsDevModel.id}-001`;
-        if (openrouterIds.has(with001)) return with001;
-    }
-
-    const withoutLatest = `${openrouterPrefix}/${modelsDevModel.id.replace(/-chat-latest$/i, '-chat')}`;
-    if (openrouterIds.has(withoutLatest)) return withoutLatest;
-
-    const withoutGeneralLatest = `${openrouterPrefix}/${modelsDevModel.id.replace(/-latest$/i, '')}`;
-    if (openrouterIds.has(withoutGeneralLatest)) return withoutGeneralLatest;
-
-    // Anthropic-style: "4-5" -> "4.5" (OpenRouter uses dots)
-    if (openrouterPrefix.toLowerCase() === 'anthropic') {
-        const noDate = modelsDevModel.id.replace(/-\d{8}.*$/i, '');
-        const dotted = noDate.replace(/-(\d)-(\d)\b/g, '-$1.$2');
-        const anthroCandidate = `${openrouterPrefix}/${dotted}`;
-        if (openrouterIds.has(anthroCandidate)) return anthroCandidate;
-    }
-
-    return undefined;
 }
 
 function buildModelsFromModelsDevProvider(params: {
@@ -393,18 +291,8 @@ function buildModelsFromModelsDevProvider(params: {
     modelsDevProviderId: string;
     defaultModelId?: string;
     includeModelId: (modelId: string) => boolean;
-    openrouterPrefix?: string;
-    openrouterByPrefix: Map<string, OpenRouterModel[]>;
 }): GeneratedModelInfo[] {
-    const {
-        provider,
-        modelsDevApi,
-        modelsDevProviderId,
-        defaultModelId,
-        includeModelId,
-        openrouterPrefix,
-        openrouterByPrefix,
-    } = params;
+    const { provider, modelsDevApi, modelsDevProviderId, defaultModelId, includeModelId } = params;
 
     const modelsDevProvider = modelsDevApi[modelsDevProviderId];
     if (!modelsDevProvider) {
@@ -416,17 +304,7 @@ function buildModelsFromModelsDevProvider(params: {
     const results: GeneratedModelInfo[] = [];
     for (const [modelId, model] of Object.entries(modelsDevProvider.models)) {
         if (!includeModelId(modelId)) continue;
-
-        const openrouterId =
-            openrouterPrefix && provider !== 'vertex' && provider !== 'bedrock'
-                ? findOpenRouterIdForModel({
-                      openrouterPrefix,
-                      modelsDevModel: model,
-                      openrouterByPrefix,
-                  })
-                : undefined;
-
-        results.push(modelToGeneratedModel(model, { provider, defaultModelId, openrouterId }));
+        results.push(modelToGeneratedModel(model, { provider, defaultModelId }));
     }
 
     results.sort((a, b) => a.name.localeCompare(b.name));
@@ -457,18 +335,6 @@ async function syncLlmRegistry() {
     const modelsDevText = await loadModelsDevApiJsonText();
     const modelsDevJson = parseModelsDevApi(JSON.parse(modelsDevText));
 
-    const openrouterRes = await fetch(OPENROUTER_MODELS_URL, {
-        headers: { 'User-Agent': 'dexto-sync-llm-registry' },
-        signal: AbortSignal.timeout(30_000),
-    });
-    if (!openrouterRes.ok) {
-        throw new Error(
-            `Failed to fetch OpenRouter models (${openrouterRes.status} ${openrouterRes.statusText})`
-        );
-    }
-    const openrouterModels = parseOpenRouterModels(await openrouterRes.json());
-    const openrouterByPrefix = groupOpenRouterModelsByPrefix(openrouterModels);
-
     const defaults: Partial<Record<DextoProvider, string>> = {
         openai: 'gpt-5-mini',
         anthropic: 'claude-haiku-4-5-20251001',
@@ -494,6 +360,7 @@ async function syncLlmRegistry() {
         glm: (id: string) => id.startsWith('glm-'),
         vertex: (_id: string) => true,
         bedrock: (_id: string) => true,
+        openrouter: (_id: string) => true,
     } as const;
 
     const modelsByProvider: Record<DextoProvider, GeneratedModelInfo[]> = {
@@ -503,8 +370,6 @@ async function syncLlmRegistry() {
             modelsDevProviderId: 'openai',
             defaultModelId: defaults.openai,
             includeModelId: include.openai,
-            openrouterPrefix: 'openai',
-            openrouterByPrefix,
         }),
         'openai-compatible': [],
         anthropic: buildModelsFromModelsDevProvider({
@@ -513,8 +378,6 @@ async function syncLlmRegistry() {
             modelsDevProviderId: 'anthropic',
             defaultModelId: defaults.anthropic,
             includeModelId: include.anthropic,
-            openrouterPrefix: 'anthropic',
-            openrouterByPrefix,
         }),
         google: buildModelsFromModelsDevProvider({
             provider: 'google',
@@ -522,8 +385,6 @@ async function syncLlmRegistry() {
             modelsDevProviderId: 'google',
             defaultModelId: defaults.google,
             includeModelId: include.google,
-            openrouterPrefix: 'google',
-            openrouterByPrefix,
         }),
         groq: buildModelsFromModelsDevProvider({
             provider: 'groq',
@@ -531,7 +392,6 @@ async function syncLlmRegistry() {
             modelsDevProviderId: 'groq',
             defaultModelId: defaults.groq,
             includeModelId: include.groq,
-            openrouterByPrefix,
         }),
         xai: buildModelsFromModelsDevProvider({
             provider: 'xai',
@@ -539,8 +399,6 @@ async function syncLlmRegistry() {
             modelsDevProviderId: 'xai',
             defaultModelId: defaults.xai,
             includeModelId: include.xai,
-            openrouterPrefix: 'x-ai',
-            openrouterByPrefix,
         }),
         cohere: buildModelsFromModelsDevProvider({
             provider: 'cohere',
@@ -548,8 +406,6 @@ async function syncLlmRegistry() {
             modelsDevProviderId: 'cohere',
             defaultModelId: defaults.cohere,
             includeModelId: include.cohere,
-            openrouterPrefix: 'cohere',
-            openrouterByPrefix,
         }),
         minimax: buildModelsFromModelsDevProvider({
             provider: 'minimax',
@@ -557,8 +413,6 @@ async function syncLlmRegistry() {
             modelsDevProviderId: 'minimax',
             defaultModelId: defaults.minimax,
             includeModelId: include.minimax,
-            openrouterPrefix: 'minimax',
-            openrouterByPrefix,
         }),
         glm: buildModelsFromModelsDevProvider({
             provider: 'glm',
@@ -566,10 +420,14 @@ async function syncLlmRegistry() {
             modelsDevProviderId: 'zhipuai',
             defaultModelId: defaults.glm,
             includeModelId: include.glm,
-            openrouterPrefix: 'z-ai',
-            openrouterByPrefix,
         }),
-        openrouter: [],
+        openrouter: buildModelsFromModelsDevProvider({
+            provider: 'openrouter',
+            modelsDevApi: modelsDevJson,
+            modelsDevProviderId: 'openrouter',
+            defaultModelId: undefined,
+            includeModelId: include.openrouter,
+        }),
         litellm: [],
         glama: [],
         vertex: [
@@ -579,7 +437,6 @@ async function syncLlmRegistry() {
                 modelsDevProviderId: 'google-vertex',
                 defaultModelId: defaults.vertex,
                 includeModelId: include.vertex,
-                openrouterByPrefix,
             }),
             ...buildModelsFromModelsDevProvider({
                 provider: 'vertex',
@@ -587,7 +444,6 @@ async function syncLlmRegistry() {
                 modelsDevProviderId: 'google-vertex-anthropic',
                 defaultModelId: undefined,
                 includeModelId: include.vertex,
-                openrouterByPrefix,
             }),
         ].sort((a, b) => a.name.localeCompare(b.name)),
         bedrock: buildModelsFromModelsDevProvider({
@@ -596,7 +452,6 @@ async function syncLlmRegistry() {
             modelsDevProviderId: 'amazon-bedrock',
             defaultModelId: defaults.bedrock,
             includeModelId: include.bedrock,
-            openrouterByPrefix,
         })
             // Normalize AWS region-prefixed IDs to the canonical unprefixed ID.
             .map((m) => ({ ...m, name: m.name.replace(/^(eu\\.|us\\.|global\\.)/i, '') }))

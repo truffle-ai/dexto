@@ -18,7 +18,6 @@ export const MANUAL_MODELS_BY_PROVIDER = {
             displayName: 'GPT-4o Audio Preview',
             maxInputTokens: 128000,
             supportedFileTypes: ['audio'],
-            openrouterId: 'openai/gpt-4o-audio-preview',
             pricing: {
                 inputPerM: 2.5,
                 outputPerM: 10.0,
