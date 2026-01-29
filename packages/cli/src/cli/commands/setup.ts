@@ -237,7 +237,7 @@ export async function handleSetupCommand(options: Partial<CLISetupOptionsInput>)
 
     // Handle quick start
     if (validated.quickStart) {
-        await handleQuickStart();
+        await handleQuickStart({ onCancel: 'exit' });
         return;
     }
 
@@ -254,171 +254,203 @@ export async function handleSetupCommand(options: Partial<CLISetupOptionsInput>)
 /**
  * Quick start flow - pick a free provider with minimal prompts
  */
-async function handleQuickStart(): Promise<void> {
+type QuickStartCancelBehavior = 'exit' | 'back';
+
+interface QuickStartOptions {
+    onCancel: QuickStartCancelBehavior;
+}
+
+async function handleQuickStart(
+    options: QuickStartOptions = { onCancel: 'exit' }
+): Promise<'completed' | 'cancelled'> {
     console.log(chalk.cyan('\n🚀 Quick Start\n'));
 
     p.intro(chalk.cyan('Quick Setup'));
 
-    // Let user pick from popular free providers
-    const quickProvider = await p.select({
-        message: 'Choose a provider',
-        options: [
-            {
-                value: 'google' as const,
-                label: `${chalk.green('●')} Google Gemini`,
-                hint: 'Free, 1M+ context (recommended)',
-            },
-            {
-                value: 'groq' as const,
-                label: `${chalk.green('●')} Groq`,
-                hint: 'Free, ultra-fast',
-            },
-            {
-                value: 'local' as const,
-                label: `${chalk.cyan('●')} Local Models`,
-                hint: 'Free, private, runs on your machine',
-            },
-        ],
-    });
+    while (true) {
+        // Let user pick from popular free providers
+        const quickProvider = await p.select({
+            message: 'Choose a provider',
+            options: [
+                {
+                    value: 'google' as const,
+                    label: `${chalk.green('●')} Google Gemini`,
+                    hint: 'Free, 1M+ context (recommended)',
+                },
+                {
+                    value: 'groq' as const,
+                    label: `${chalk.green('●')} Groq`,
+                    hint: 'Free, ultra-fast',
+                },
+                {
+                    value: 'local' as const,
+                    label: `${chalk.cyan('●')} Local Models`,
+                    hint: 'Free, private, runs on your machine',
+                },
+                { value: '_back' as const, label: chalk.gray('← Back'), hint: 'Return' },
+            ],
+        });
 
-    if (p.isCancel(quickProvider)) {
-        p.cancel('Setup cancelled');
-        process.exit(0);
-    }
-
-    // Handle local models with dedicated setup flow
-    if (quickProvider === 'local') {
-        const localResult = await setupLocalModels();
-        if (!hasSelectedModel(localResult)) {
-            p.cancel('Setup cancelled');
-            process.exit(0);
+        if (p.isCancel(quickProvider) || quickProvider === '_back') {
+            if (options.onCancel === 'exit') {
+                p.cancel('Setup cancelled');
+            }
+            return 'cancelled';
         }
-        const model = getModelFromResult(localResult);
 
-        // CLI mode confirmation for local
+        // Handle local models with dedicated setup flow
+        if (quickProvider === 'local') {
+            const localResult = await setupLocalModels();
+            if (!hasSelectedModel(localResult)) {
+                if (options.onCancel === 'exit') {
+                    p.cancel('Setup cancelled');
+                    return 'cancelled';
+                }
+                continue;
+            }
+            const model = getModelFromResult(localResult);
+
+            // CLI mode confirmation for local
+            const useCli = await p.confirm({
+                message: 'Start in Terminal mode? (You can change this later)',
+                initialValue: true,
+            });
+
+            if (p.isCancel(useCli)) {
+                if (options.onCancel === 'exit') {
+                    p.cancel('Setup cancelled');
+                    return 'cancelled';
+                }
+                continue;
+            }
+
+            const defaultMode = useCli ? 'cli' : await selectDefaultMode();
+            if (defaultMode === null) {
+                if (options.onCancel === 'exit') {
+                    p.cancel('Setup cancelled');
+                    return 'cancelled';
+                }
+                continue;
+            }
+
+            // Sync the active model for local provider
+            await setActiveModel(model);
+
+            const preferences = createInitialPreferences({
+                provider: 'local',
+                model,
+                defaultMode,
+                setupCompleted: true,
+                apiKeyPending: false,
+            });
+
+            await saveGlobalPreferences(preferences);
+
+            capture('dexto_setup', {
+                provider: 'local',
+                model,
+                setupMode: 'interactive',
+                setupVariant: 'quick-start',
+                defaultMode,
+                apiKeySkipped: false,
+            });
+
+            await showSetupComplete('local', model, defaultMode, false);
+            return 'completed';
+        }
+
+        // Cloud provider flow (google or groq)
+        const provider: LLMProvider = quickProvider;
+        const model =
+            getDefaultModelForProvider(provider) ||
+            (provider === 'google' ? 'gemini-2.5-pro' : 'llama-3.3-70b-versatile');
+        const apiKeyVar = getProviderEnvVar(provider);
+        let apiKeySkipped = false;
+
+        // Check if API key exists
+        const hasKey = hasApiKeyConfigured(provider);
+
+        if (!hasKey) {
+            const providerName = getProviderDisplayName(provider);
+            p.note(
+                `${providerName} is ${chalk.green('free')} to use!\n\n` +
+                    `We'll help you get an API key in just a few seconds.`,
+                'Free AI Access'
+            );
+
+            const result = await interactiveApiKeySetup(provider, {
+                exitOnCancel: false, // Don't exit - allow skipping
+                model,
+            });
+
+            if (result.cancelled) {
+                if (options.onCancel === 'exit') {
+                    p.cancel('Setup cancelled');
+                    return 'cancelled';
+                }
+                continue;
+            }
+
+            if (result.skipped || !result.success) {
+                apiKeySkipped = true;
+            }
+        } else {
+            p.log.success(`API key for ${getProviderDisplayName(provider)} already configured`);
+        }
+
+        // CLI mode confirmation
         const useCli = await p.confirm({
             message: 'Start in Terminal mode? (You can change this later)',
             initialValue: true,
         });
 
         if (p.isCancel(useCli)) {
-            p.cancel('Setup cancelled');
-            process.exit(0);
+            if (options.onCancel === 'exit') {
+                p.cancel('Setup cancelled');
+                return 'cancelled';
+            }
+            continue;
         }
 
         const defaultMode = useCli ? 'cli' : await selectDefaultMode();
+
+        // Handle cancellation
         if (defaultMode === null) {
-            p.cancel('Setup cancelled');
-            process.exit(0);
+            if (options.onCancel === 'exit') {
+                p.cancel('Setup cancelled');
+                return 'cancelled';
+            }
+            continue;
         }
 
-        // Sync the active model for local provider
-        await setActiveModel(model);
-
-        const preferences = createInitialPreferences({
-            provider: 'local',
+        // Save preferences
+        const preferencesOptions: CreatePreferencesOptions = {
+            provider,
             model,
             defaultMode,
             setupCompleted: true,
-            apiKeyPending: false,
-        });
+            apiKeyPending: apiKeySkipped,
+        };
+        // Only include apiKeyVar if not skipped
+        if (!apiKeySkipped) {
+            preferencesOptions.apiKeyVar = apiKeyVar;
+        }
+        const preferences = createInitialPreferences(preferencesOptions);
 
         await saveGlobalPreferences(preferences);
 
         capture('dexto_setup', {
-            provider: 'local',
+            provider,
             model,
             setupMode: 'interactive',
             setupVariant: 'quick-start',
             defaultMode,
-            apiKeySkipped: false,
+            apiKeySkipped,
         });
 
-        await showSetupComplete('local', model, defaultMode, false);
-        return;
+        await showSetupComplete(provider, model, defaultMode, apiKeySkipped);
+        return 'completed';
     }
-
-    // Cloud provider flow (google or groq)
-    const provider: LLMProvider = quickProvider;
-    const model =
-        getDefaultModelForProvider(provider) ||
-        (provider === 'google' ? 'gemini-2.5-pro' : 'llama-3.3-70b-versatile');
-    const apiKeyVar = getProviderEnvVar(provider);
-    let apiKeySkipped = false;
-
-    // Check if API key exists
-    const hasKey = hasApiKeyConfigured(provider);
-
-    if (!hasKey) {
-        const providerName = getProviderDisplayName(provider);
-        p.note(
-            `${providerName} is ${chalk.green('free')} to use!\n\n` +
-                `We'll help you get an API key in just a few seconds.`,
-            'Free AI Access'
-        );
-
-        const result = await interactiveApiKeySetup(provider, {
-            exitOnCancel: false, // Don't exit - allow skipping
-            model,
-        });
-
-        if (result.cancelled) {
-            p.cancel('Setup cancelled');
-            process.exit(0);
-        }
-
-        if (result.skipped || !result.success) {
-            apiKeySkipped = true;
-        }
-    } else {
-        p.log.success(`API key for ${getProviderDisplayName(provider)} already configured`);
-    }
-
-    // CLI mode confirmation
-    const useCli = await p.confirm({
-        message: 'Start in Terminal mode? (You can change this later)',
-        initialValue: true,
-    });
-
-    if (p.isCancel(useCli)) {
-        p.cancel('Setup cancelled');
-        process.exit(0);
-    }
-
-    const defaultMode = useCli ? 'cli' : await selectDefaultMode();
-
-    // Handle cancellation
-    if (defaultMode === null) {
-        p.cancel('Setup cancelled');
-        process.exit(0);
-    }
-
-    // Save preferences
-    const preferencesOptions: CreatePreferencesOptions = {
-        provider,
-        model,
-        defaultMode,
-        setupCompleted: true,
-        apiKeyPending: apiKeySkipped,
-    };
-    // Only include apiKeyVar if not skipped
-    if (!apiKeySkipped) {
-        preferencesOptions.apiKeyVar = apiKeyVar;
-    }
-    const preferences = createInitialPreferences(preferencesOptions);
-
-    await saveGlobalPreferences(preferences);
-
-    capture('dexto_setup', {
-        provider,
-        model,
-        setupMode: 'interactive',
-        setupVariant: 'quick-start',
-        defaultMode,
-        apiKeySkipped,
-    });
-
-    await showSetupComplete(provider, model, defaultMode, apiKeySkipped);
 }
 
 /**
@@ -676,7 +708,10 @@ async function wizardStepSetupType(state: SetupWizardState): Promise<SetupWizard
 
     if (setupType === 'quick') {
         // Quick start bypasses the wizard - handle it directly
-        await handleQuickStart();
+        const result = await handleQuickStart({ onCancel: 'back' });
+        if (result === 'cancelled') {
+            return { ...state, step: 'setupType' };
+        }
         return { ...state, step: 'complete', quickStartHandled: true };
     }
 
