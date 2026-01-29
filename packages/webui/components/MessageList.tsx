@@ -804,307 +804,412 @@ export default function MessageList({
                                                         )}
 
                                                     {Array.isArray(msg.content) &&
-                                                        msg.content.map((part, partIdx) => {
-                                                            const partKey = `${msgKey}-part-${partIdx}`;
-                                                            if (part.type === 'text') {
-                                                                return (
-                                                                    <MessageContentWithResources
-                                                                        key={partKey}
-                                                                        text={
-                                                                            (part as TextPart).text
-                                                                        }
-                                                                        isUser={isUser}
-                                                                        onOpenImage={openImageModal}
-                                                                        resourceSet={resourceSet}
-                                                                    />
-                                                                );
-                                                            }
-                                                            // Handle UI resource parts (MCP-UI interactive content)
-                                                            if (isUIResourcePart(part)) {
-                                                                return (
-                                                                    <div
-                                                                        key={partKey}
-                                                                        className="my-2"
-                                                                    >
-                                                                        <UIResourceRendererWrapper
-                                                                            resource={part}
-                                                                            onAction={(action) => {
-                                                                                console.log(
-                                                                                    'MCP-UI Action:',
-                                                                                    action
-                                                                                );
-                                                                            }}
-                                                                        />
-                                                                    </div>
-                                                                );
-                                                            }
-                                                            // Handle image parts
-                                                            if (isImagePart(part)) {
-                                                                const src = resolveMediaSrc(part);
-                                                                if (
-                                                                    src &&
-                                                                    isSafeMediaUrl(src, 'image')
-                                                                ) {
-                                                                    return (
-                                                                        <img
-                                                                            key={partKey}
-                                                                            src={src}
-                                                                            alt="Message attachment"
-                                                                            className="mt-2 max-h-60 w-full rounded-lg border border-border object-contain cursor-pointer"
-                                                                            onClick={() =>
-                                                                                openImageModal(
-                                                                                    src,
-                                                                                    'Message attachment'
-                                                                                )
-                                                                            }
-                                                                        />
-                                                                    );
+                                                        (() => {
+                                                            // Group content by type for smart rendering
+                                                            const textParts: Array<{
+                                                                part: TextPart;
+                                                                idx: number;
+                                                            }> = [];
+                                                            const imageParts: Array<{
+                                                                src: string;
+                                                                idx: number;
+                                                            }> = [];
+                                                            const uiResourceParts: Array<{
+                                                                part: UIResourcePart;
+                                                                idx: number;
+                                                            }> = [];
+                                                            const otherParts: Array<{
+                                                                part: any;
+                                                                idx: number;
+                                                            }> = [];
+
+                                                            msg.content.forEach((part, idx) => {
+                                                                if (part.type === 'text') {
+                                                                    textParts.push({
+                                                                        part: part as TextPart,
+                                                                        idx,
+                                                                    });
+                                                                } else if (isUIResourcePart(part)) {
+                                                                    uiResourceParts.push({
+                                                                        part,
+                                                                        idx,
+                                                                    });
+                                                                } else if (isImagePart(part)) {
+                                                                    const src =
+                                                                        resolveMediaSrc(part);
+                                                                    if (
+                                                                        src &&
+                                                                        isSafeMediaUrl(src, 'image')
+                                                                    ) {
+                                                                        imageParts.push({
+                                                                            src,
+                                                                            idx,
+                                                                        });
+                                                                    }
+                                                                } else {
+                                                                    otherParts.push({ part, idx });
                                                                 }
+                                                            });
+
+                                                            return (
+                                                                <>
+                                                                    {/* Render text parts */}
+                                                                    {textParts.map(
+                                                                        ({ part, idx }) => (
+                                                                            <MessageContentWithResources
+                                                                                key={`${msgKey}-text-${idx}`}
+                                                                                text={part.text}
+                                                                                isUser={isUser}
+                                                                                onOpenImage={
+                                                                                    openImageModal
+                                                                                }
+                                                                                resourceSet={
+                                                                                    resourceSet
+                                                                                }
+                                                                            />
+                                                                        )
+                                                                    )}
+
+                                                                    {/* Render images in a grid */}
+                                                                    {imageParts.length > 0 && (
+                                                                        <div
+                                                                            className={cn(
+                                                                                'grid gap-2 mt-2',
+                                                                                imageParts.length ===
+                                                                                    1
+                                                                                    ? 'grid-cols-1'
+                                                                                    : imageParts.length ===
+                                                                                        2
+                                                                                      ? 'grid-cols-2'
+                                                                                      : 'grid-cols-3'
+                                                                            )}
+                                                                        >
+                                                                            {imageParts.map(
+                                                                                ({ src, idx }) => (
+                                                                                    <img
+                                                                                        key={`${msgKey}-img-${idx}`}
+                                                                                        src={src}
+                                                                                        alt={`Attachment ${idx + 1}`}
+                                                                                        className="rounded-lg border border-border object-cover cursor-pointer w-full h-32 sm:h-40"
+                                                                                        onClick={() =>
+                                                                                            openImageModal(
+                                                                                                src,
+                                                                                                `Attachment ${idx + 1}`
+                                                                                            )
+                                                                                        }
+                                                                                    />
+                                                                                )
+                                                                            )}
+                                                                        </div>
+                                                                    )}
+
+                                                                    {/* Render UI resources */}
+                                                                    {uiResourceParts.map(
+                                                                        ({ part, idx }) => (
+                                                                            <div
+                                                                                key={`${msgKey}-ui-${idx}`}
+                                                                                className="my-2"
+                                                                            >
+                                                                                <UIResourceRendererWrapper
+                                                                                    resource={part}
+                                                                                    onAction={(
+                                                                                        action
+                                                                                    ) => {
+                                                                                        console.log(
+                                                                                            'MCP-UI Action:',
+                                                                                            action
+                                                                                        );
+                                                                                    }}
+                                                                                />
+                                                                            </div>
+                                                                        )
+                                                                    )}
+
+                                                                    {/* Render other parts (videos, audio, files) */}
+                                                                    {otherParts.map(
+                                                                        ({ part, idx }) => {
+                                                                            const partKey = `${msgKey}-other-${idx}`;
+
+                                                                            const videoInfo =
+                                                                                getVideoInfo(part);
+                                                                            if (videoInfo) {
+                                                                                const {
+                                                                                    src,
+                                                                                    filename,
+                                                                                    mimeType,
+                                                                                } = videoInfo;
+                                                                                return (
+                                                                                    <div
+                                                                                        key={
+                                                                                            partKey
+                                                                                        }
+                                                                                        className="my-2 flex flex-col gap-2 p-3 rounded-lg border border-border bg-muted/50"
+                                                                                    >
+                                                                                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                                                                            <FileVideo
+                                                                                                className={cn(
+                                                                                                    'h-4 w-4',
+                                                                                                    isUser
+                                                                                                        ? undefined
+                                                                                                        : 'text-muted-foreground'
+                                                                                                )}
+                                                                                            />
+                                                                                            <span>
+                                                                                                Video
+                                                                                                attachment
+                                                                                            </span>
+                                                                                        </div>
+                                                                                        <div className="w-full max-w-md">
+                                                                                            <video
+                                                                                                controls
+                                                                                                src={
+                                                                                                    src
+                                                                                                }
+                                                                                                className="w-full max-h-[360px] rounded-lg bg-black"
+                                                                                                preload="metadata"
+                                                                                            />
+                                                                                        </div>
+                                                                                        {(filename ||
+                                                                                            mimeType) && (
+                                                                                            <div className="flex flex-col text-xs">
+                                                                                                {filename && (
+                                                                                                    <span
+                                                                                                        className={cn(
+                                                                                                            'truncate',
+                                                                                                            isUser
+                                                                                                                ? 'text-primary-foreground/80'
+                                                                                                                : 'text-muted-foreground'
+                                                                                                        )}
+                                                                                                    >
+                                                                                                        {
+                                                                                                            filename
+                                                                                                        }
+                                                                                                    </span>
+                                                                                                )}
+                                                                                                {mimeType && (
+                                                                                                    <span
+                                                                                                        className={cn(
+                                                                                                            isUser
+                                                                                                                ? 'text-primary-foreground/70'
+                                                                                                                : 'text-muted-foreground/80'
+                                                                                                        )}
+                                                                                                    >
+                                                                                                        {
+                                                                                                            mimeType
+                                                                                                        }
+                                                                                                    </span>
+                                                                                                )}
+                                                                                            </div>
+                                                                                        )}
+                                                                                    </div>
+                                                                                );
+                                                                            }
+                                                                            if (isFilePart(part)) {
+                                                                                const filePart =
+                                                                                    part;
+                                                                                if (
+                                                                                    filePart.mimeType.startsWith(
+                                                                                        'audio/'
+                                                                                    )
+                                                                                ) {
+                                                                                    const src =
+                                                                                        resolveMediaSrc(
+                                                                                            filePart
+                                                                                        );
+                                                                                    return (
+                                                                                        <div
+                                                                                            key={
+                                                                                                partKey
+                                                                                            }
+                                                                                            className="my-2 flex items-center gap-2 p-3 rounded-lg border border-border bg-muted/50"
+                                                                                        >
+                                                                                            <FileAudio
+                                                                                                className={cn(
+                                                                                                    'h-5 w-5',
+                                                                                                    isUser
+                                                                                                        ? undefined
+                                                                                                        : 'text-muted-foreground'
+                                                                                                )}
+                                                                                            />
+                                                                                            <audio
+                                                                                                controls
+                                                                                                src={
+                                                                                                    src
+                                                                                                }
+                                                                                                className="flex-1 h-8"
+                                                                                            />
+                                                                                            {filePart.filename && (
+                                                                                                <span
+                                                                                                    className={cn(
+                                                                                                        'text-sm truncate max-w-[120px]',
+                                                                                                        isUser
+                                                                                                            ? 'text-primary-foreground/80'
+                                                                                                            : 'text-muted-foreground'
+                                                                                                    )}
+                                                                                                >
+                                                                                                    {
+                                                                                                        filePart.filename
+                                                                                                    }
+                                                                                                </span>
+                                                                                            )}
+                                                                                        </div>
+                                                                                    );
+                                                                                } else {
+                                                                                    // Non-audio files (PDFs, etc.)
+                                                                                    return (
+                                                                                        <div
+                                                                                            key={
+                                                                                                partKey
+                                                                                            }
+                                                                                            className="my-2 flex items-center gap-2 p-3 rounded-lg border border-border bg-muted/50"
+                                                                                        >
+                                                                                            <File
+                                                                                                className={cn(
+                                                                                                    'h-5 w-5',
+                                                                                                    isUser
+                                                                                                        ? undefined
+                                                                                                        : 'text-muted-foreground'
+                                                                                                )}
+                                                                                            />
+                                                                                            <span
+                                                                                                className={cn(
+                                                                                                    'text-sm font-medium',
+                                                                                                    isUser
+                                                                                                        ? undefined
+                                                                                                        : undefined
+                                                                                                )}
+                                                                                            >
+                                                                                                {filePart.filename ||
+                                                                                                    `${filePart.mimeType} file`}
+                                                                                            </span>
+                                                                                            <span
+                                                                                                className={cn(
+                                                                                                    'text-xs',
+                                                                                                    isUser
+                                                                                                        ? 'text-primary-foreground/70'
+                                                                                                        : 'text-muted-foreground'
+                                                                                                )}
+                                                                                            >
+                                                                                                {
+                                                                                                    filePart.mimeType
+                                                                                                }
+                                                                                            </span>
+                                                                                        </div>
+                                                                                    );
+                                                                                }
+                                                                            }
+                                                                            return null;
+                                                                        }
+                                                                    )}
+                                                                </>
+                                                            );
+                                                        })()}
+                                                    {/* Display imageData attachments if not already in content array */}
+                                                    {isUserMessage(msg) &&
+                                                        msg.imageData &&
+                                                        !Array.isArray(msg.content) &&
+                                                        (() => {
+                                                            const src = `data:${msg.imageData.mimeType};base64,${msg.imageData.image}`;
+                                                            if (!isValidDataUri(src, 'image')) {
                                                                 return null;
                                                             }
-
-                                                            const videoInfo = getVideoInfo(part);
-                                                            if (videoInfo) {
-                                                                const { src, filename, mimeType } =
-                                                                    videoInfo;
-                                                                return (
-                                                                    <div
-                                                                        key={partKey}
-                                                                        className="my-2 flex flex-col gap-2 p-3 rounded-lg border border-border bg-muted/50"
-                                                                    >
+                                                            return (
+                                                                <img
+                                                                    src={src}
+                                                                    alt="attachment"
+                                                                    className="mt-2 max-h-60 w-full rounded-lg border border-border object-contain"
+                                                                />
+                                                            );
+                                                        })()}
+                                                    {/* Display fileData attachments if not already in content array */}
+                                                    {isUserMessage(msg) &&
+                                                        msg.fileData &&
+                                                        !Array.isArray(msg.content) && (
+                                                            <div className="mt-2">
+                                                                {msg.fileData.mimeType.startsWith(
+                                                                    'video/'
+                                                                ) ? (
+                                                                    <div className="flex flex-col gap-2 p-3 rounded-lg border border-border bg-muted/50 max-w-md">
                                                                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                                                            <FileVideo
-                                                                                className={cn(
-                                                                                    'h-4 w-4',
-                                                                                    isUser
-                                                                                        ? undefined
-                                                                                        : 'text-muted-foreground'
-                                                                                )}
-                                                                            />
+                                                                            <FileVideo className="h-4 w-4" />
                                                                             <span>
                                                                                 Video attachment
                                                                             </span>
                                                                         </div>
-                                                                        <div className="w-full max-w-md">
-                                                                            <video
-                                                                                controls
-                                                                                src={src}
-                                                                                className="w-full max-h-[360px] rounded-lg bg-black"
-                                                                                preload="metadata"
-                                                                            />
+                                                                        {(() => {
+                                                                            const videoSrc = `data:${msg.fileData.mimeType};base64,${msg.fileData.data}`;
+                                                                            return isValidDataUri(
+                                                                                videoSrc,
+                                                                                'video'
+                                                                            ) ? (
+                                                                                <video
+                                                                                    controls
+                                                                                    src={videoSrc}
+                                                                                    className="w-full max-h-[360px] rounded-lg bg-black"
+                                                                                    preload="metadata"
+                                                                                />
+                                                                            ) : (
+                                                                                <div className="text-xs text-red-500">
+                                                                                    Invalid video
+                                                                                    data
+                                                                                </div>
+                                                                            );
+                                                                        })()}
+                                                                        <div className="flex items-center gap-2 text-xs text-muted-foreground/90">
+                                                                            <span className="font-medium truncate">
+                                                                                {msg.fileData
+                                                                                    .filename ||
+                                                                                    `${msg.fileData.mimeType} file`}
+                                                                            </span>
+                                                                            <span className="opacity-70">
+                                                                                {
+                                                                                    msg.fileData
+                                                                                        .mimeType
+                                                                                }
+                                                                            </span>
                                                                         </div>
-                                                                        {(filename || mimeType) && (
-                                                                            <div className="flex flex-col text-xs">
-                                                                                {filename && (
-                                                                                    <span
-                                                                                        className={cn(
-                                                                                            'truncate',
-                                                                                            isUser
-                                                                                                ? 'text-primary-foreground/80'
-                                                                                                : 'text-muted-foreground'
-                                                                                        )}
-                                                                                    >
-                                                                                        {filename}
-                                                                                    </span>
-                                                                                )}
-                                                                                {mimeType && (
-                                                                                    <span
-                                                                                        className={cn(
-                                                                                            isUser
-                                                                                                ? 'text-primary-foreground/70'
-                                                                                                : 'text-muted-foreground/80'
-                                                                                        )}
-                                                                                    >
-                                                                                        {mimeType}
-                                                                                    </span>
-                                                                                )}
-                                                                            </div>
-                                                                        )}
                                                                     </div>
-                                                                );
-                                                            }
-                                                            if (isFilePart(part)) {
-                                                                const filePart = part;
-                                                                if (
-                                                                    filePart.mimeType.startsWith(
-                                                                        'audio/'
-                                                                    )
-                                                                ) {
-                                                                    const src =
-                                                                        resolveMediaSrc(filePart);
-                                                                    return (
-                                                                        <div
-                                                                            key={partKey}
-                                                                            className="my-2 flex items-center gap-2 p-3 rounded-lg border border-border bg-muted/50"
-                                                                        >
-                                                                            <FileAudio
-                                                                                className={cn(
-                                                                                    'h-5 w-5',
-                                                                                    isUser
-                                                                                        ? undefined
-                                                                                        : 'text-muted-foreground'
-                                                                                )}
-                                                                            />
-                                                                            <audio
-                                                                                controls
-                                                                                src={src}
-                                                                                className="flex-1 h-8"
-                                                                            />
-                                                                            {filePart.filename && (
-                                                                                <span
-                                                                                    className={cn(
-                                                                                        'text-sm truncate max-w-[120px]',
-                                                                                        isUser
-                                                                                            ? 'text-primary-foreground/80'
-                                                                                            : 'text-muted-foreground'
-                                                                                    )}
-                                                                                >
-                                                                                    {
-                                                                                        filePart.filename
-                                                                                    }
+                                                                ) : msg.fileData.mimeType.startsWith(
+                                                                      'audio/'
+                                                                  ) ? (
+                                                                    <div className="relative w-fit border border-border rounded-lg p-2 bg-muted/50 flex items-center gap-2 group">
+                                                                        <FileAudio className="h-4 w-4" />
+                                                                        {(() => {
+                                                                            const audioSrc = `data:${msg.fileData.mimeType};base64,${msg.fileData.data}`;
+                                                                            return isValidDataUri(
+                                                                                audioSrc,
+                                                                                'audio'
+                                                                            ) ? (
+                                                                                <audio
+                                                                                    controls
+                                                                                    src={audioSrc}
+                                                                                    className="h-8"
+                                                                                />
+                                                                            ) : (
+                                                                                <span className="text-xs text-red-500">
+                                                                                    Invalid audio
+                                                                                    data
                                                                                 </span>
-                                                                            )}
-                                                                        </div>
-                                                                    );
-                                                                } else {
-                                                                    // Non-audio files (PDFs, etc.)
-                                                                    return (
-                                                                        <div
-                                                                            key={partKey}
-                                                                            className="my-2 flex items-center gap-2 p-3 rounded-lg border border-border bg-muted/50"
-                                                                        >
-                                                                            <File
-                                                                                className={cn(
-                                                                                    'h-5 w-5',
-                                                                                    isUser
-                                                                                        ? undefined
-                                                                                        : 'text-muted-foreground'
-                                                                                )}
-                                                                            />
-                                                                            <span
-                                                                                className={cn(
-                                                                                    'text-sm font-medium',
-                                                                                    isUser
-                                                                                        ? undefined
-                                                                                        : undefined
-                                                                                )}
-                                                                            >
-                                                                                {filePart.filename ||
-                                                                                    `${filePart.mimeType} file`}
-                                                                            </span>
-                                                                            <span
-                                                                                className={cn(
-                                                                                    'text-xs',
-                                                                                    isUser
-                                                                                        ? 'text-primary-foreground/70'
-                                                                                        : 'text-muted-foreground'
-                                                                                )}
-                                                                            >
-                                                                                {filePart.mimeType}
-                                                                            </span>
-                                                                        </div>
-                                                                    );
-                                                                }
-                                                            }
-                                                            return null;
-                                                        })}
-                                                </>
-                                            )}
-                                            {/* Display imageData attachments if not already in content array */}
-                                            {isUserMessage(msg) &&
-                                                msg.imageData &&
-                                                !Array.isArray(msg.content) &&
-                                                (() => {
-                                                    const src = `data:${msg.imageData.mimeType};base64,${msg.imageData.image}`;
-                                                    if (!isValidDataUri(src, 'image')) {
-                                                        return null;
-                                                    }
-                                                    return (
-                                                        <img
-                                                            src={src}
-                                                            alt="attachment"
-                                                            className="mt-2 max-h-60 w-full rounded-lg border border-border object-contain"
-                                                        />
-                                                    );
-                                                })()}
-                                            {/* Display fileData attachments if not already in content array */}
-                                            {isUserMessage(msg) &&
-                                                msg.fileData &&
-                                                !Array.isArray(msg.content) && (
-                                                    <div className="mt-2">
-                                                        {msg.fileData.mimeType.startsWith(
-                                                            'video/'
-                                                        ) ? (
-                                                            <div className="flex flex-col gap-2 p-3 rounded-lg border border-border bg-muted/50 max-w-md">
-                                                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                                                    <FileVideo className="h-4 w-4" />
-                                                                    <span>Video attachment</span>
-                                                                </div>
-                                                                {(() => {
-                                                                    const videoSrc = `data:${msg.fileData.mimeType};base64,${msg.fileData.data}`;
-                                                                    return isValidDataUri(
-                                                                        videoSrc,
-                                                                        'video'
-                                                                    ) ? (
-                                                                        <video
-                                                                            controls
-                                                                            src={videoSrc}
-                                                                            className="w-full max-h-[360px] rounded-lg bg-black"
-                                                                            preload="metadata"
-                                                                        />
-                                                                    ) : (
-                                                                        <div className="text-xs text-red-500">
-                                                                            Invalid video data
-                                                                        </div>
-                                                                    );
-                                                                })()}
-                                                                <div className="flex items-center gap-2 text-xs text-muted-foreground/90">
-                                                                    <span className="font-medium truncate">
-                                                                        {msg.fileData.filename ||
-                                                                            `${msg.fileData.mimeType} file`}
-                                                                    </span>
-                                                                    <span className="opacity-70">
-                                                                        {msg.fileData.mimeType}
-                                                                    </span>
-                                                                </div>
-                                                            </div>
-                                                        ) : msg.fileData.mimeType.startsWith(
-                                                              'audio/'
-                                                          ) ? (
-                                                            <div className="relative w-fit border border-border rounded-lg p-2 bg-muted/50 flex items-center gap-2 group">
-                                                                <FileAudio className="h-4 w-4" />
-                                                                {(() => {
-                                                                    const audioSrc = `data:${msg.fileData.mimeType};base64,${msg.fileData.data}`;
-                                                                    return isValidDataUri(
-                                                                        audioSrc,
-                                                                        'audio'
-                                                                    ) ? (
-                                                                        <audio
-                                                                            controls
-                                                                            src={audioSrc}
-                                                                            className="h-8"
-                                                                        />
-                                                                    ) : (
-                                                                        <span className="text-xs text-red-500">
-                                                                            Invalid audio data
+                                                                            );
+                                                                        })()}
+                                                                    </div>
+                                                                ) : (
+                                                                    <div className="flex items-center gap-2 p-3 rounded-lg border border-border bg-muted/50">
+                                                                        <File className="h-5 w-5" />
+                                                                        <span className="text-sm font-medium">
+                                                                            {msg.fileData
+                                                                                .filename ||
+                                                                                `${msg.fileData.mimeType} file`}
                                                                         </span>
-                                                                    );
-                                                                })()}
-                                                            </div>
-                                                        ) : (
-                                                            <div className="flex items-center gap-2 p-3 rounded-lg border border-border bg-muted/50">
-                                                                <File className="h-5 w-5" />
-                                                                <span className="text-sm font-medium">
-                                                                    {msg.fileData.filename ||
-                                                                        `${msg.fileData.mimeType} file`}
-                                                                </span>
-                                                                <span className="text-xs text-primary-foreground/70">
-                                                                    {msg.fileData.mimeType}
-                                                                </span>
+                                                                        <span className="text-xs text-primary-foreground/70">
+                                                                            {msg.fileData.mimeType}
+                                                                        </span>
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                         )}
-                                                    </div>
-                                                )}
+                                                </>
+                                            )}
                                         </div>
                                     </div>
                                     {/* Metadata bar: show for user messages always, for AI only on last message of run */}

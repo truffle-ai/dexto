@@ -74,6 +74,7 @@ import { serverRegistry } from '@/lib/serverRegistry';
 import { buildConfigFromRegistryEntry, hasEmptyOrPlaceholderValue } from '@/lib/serverConfig';
 import type { McpServerConfig } from '@dexto/core';
 import type { ServerRegistryEntry } from '@dexto/registry';
+import type { Attachment } from '../lib/attachment-types.js';
 
 interface ChatAppProps {
     sessionId?: string;
@@ -357,12 +358,12 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
     }, [exportContent]);
 
     const handleSend = useCallback(
-        async (content: string, imageData?: any, fileData?: any) => {
+        async (content: string, attachments?: Attachment[]) => {
             setIsSendingMessage(true);
             setErrorMessage(null);
 
             try {
-                await sendMessage(content, imageData, fileData);
+                await sendMessage(content, attachments);
                 // After sending, position the new user message near the top,
                 // then enable followStreaming to follow the assistant reply.
                 setTimeout(() => {
@@ -707,6 +708,16 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
 
     // Ctrl/Cmd + Shift + E to export config
     useHotkeys('mod+shift+e', () => setExportOpen(true), { preventDefault: true });
+
+    // Focus input area
+    useHotkeys(
+        'mod+i',
+        () => {
+            const textarea = document.querySelector('#input-area textarea') as HTMLTextAreaElement;
+            textarea?.focus();
+        },
+        { preventDefault: true }
+    );
 
     // Ctrl/Cmd + / to show shortcuts
     useHotkeys('mod+slash', () => setShowShortcuts(true), { preventDefault: true });

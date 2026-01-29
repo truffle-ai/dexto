@@ -152,6 +152,18 @@ export interface ImageAttachedEvent {
 }
 
 /**
+ * File rejected event.
+ * Emitted when a file attachment is rejected due to validation failure.
+ */
+export interface FileRejectedEvent {
+    source: AnalyticsSource;
+    sessionId: string;
+    reason: 'size_limit' | 'type_unsupported' | 'count_limit' | 'duplicate' | 'total_size_limit';
+    fileType: string;
+    fileSizeBytes?: number | undefined;
+}
+
+/**
  * Shared analytics event map containing events supported by ALL platforms.
  * CLI and WebUI extend this map with platform-specific events.
  *
@@ -170,6 +182,7 @@ export interface SharedAnalyticsEventMap {
     dexto_agent_switched: AgentSwitchedEvent;
     dexto_mcp_server_connected: MCPServerConnectedEvent;
     dexto_image_attached: ImageAttachedEvent;
+    dexto_file_rejected: FileRejectedEvent;
 }
 
 export type SharedAnalyticsEventName = keyof SharedAnalyticsEventMap;
