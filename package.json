@@ -53,8 +53,6 @@
         "sync-openapi-docs:check": "tsx scripts/generate-openapi-spec.ts --check",
         "sync-llm-registry": "tsx scripts/sync-llm-registry.ts",
         "sync-llm-registry:check": "tsx scripts/sync-llm-registry.ts --check",
-        "check-openrouter-transform": "tsx --tsconfig packages/core/tsconfig.json scripts/check-openrouter-transform.ts",
-        "check-openrouter-transform:check": "tsx --tsconfig packages/core/tsconfig.json scripts/check-openrouter-transform.ts --check",
         "start": "pnpm -C packages/cli start",
         "test": "vitest run",
         "test:ci": "vitest run --coverage",

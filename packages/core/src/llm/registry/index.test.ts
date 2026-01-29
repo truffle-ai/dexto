@@ -111,23 +111,67 @@ describe('LLM Registry Core Functions', () => {
     });
 
     describe('transformModelNameForProvider (gateway IDs)', () => {
-        it('chooses an OpenRouter catalog ID when a candidate exists', () => {
+        it('transforms to an OpenRouter catalog ID when one exists in the snapshot', () => {
             const openrouterSet = new Set(
                 MODELS_BY_PROVIDER.openrouter.map((m) => m.name.toLowerCase())
             );
 
-            const samples = [
-                { provider: 'anthropic' as const, model: 'claude-sonnet-4-5-20250929' },
-                { provider: 'google' as const, model: 'gemini-2.0-flash' },
-                { provider: 'google' as const, model: 'gemini-2.5-pro' },
-            ];
+            const providersToCheck = [
+                'openai',
+                'anthropic',
+                'google',
+                'xai',
+                'cohere',
+                'minimax',
+                'glm',
+            ] as const;
 
-            for (const { provider, model } of samples) {
-                const candidates = getOpenRouterCandidateModelIds(model, provider);
-                expect(candidates.some((c) => openrouterSet.has(c.toLowerCase()))).toBe(true);
+            const failures: Array<{
+                provider: (typeof providersToCheck)[number];
+                model: string;
+                transformed: string;
+                candidates: string[];
+            }> = [];
 
-                const transformed = transformModelNameForProvider(model, provider, 'openrouter');
-                expect(openrouterSet.has(transformed.toLowerCase())).toBe(true);
+            for (const provider of providersToCheck) {
+                for (const m of MODELS_BY_PROVIDER[provider]) {
+                    if (m.name.includes('/')) continue;
+
+                    const candidates = getOpenRouterCandidateModelIds(m.name, provider);
+                    const anyCandidateExists = candidates.some((c) =>
+                        openrouterSet.has(c.toLowerCase())
+                    );
+                    if (!anyCandidateExists) continue;
+
+                    const transformed = transformModelNameForProvider(
+                        m.name,
+                        provider,
+                        'openrouter'
+                    );
+                    if (!openrouterSet.has(transformed.toLowerCase())) {
+                        failures.push({
+                            provider,
+                            model: m.name,
+                            transformed,
+                            candidates,
+                        });
+                    }
+                }
+            }
+
+            if (failures.length > 0) {
+                const sample = failures
+                    .slice(0, 50)
+                    .map(
+                        (f) =>
+                            `${f.provider}/${f.model} -> ${f.transformed} (candidates: ${f.candidates.join(
+                                ', '
+                            )})`
+                    )
+                    .join('\n');
+                throw new Error(
+                    `OpenRouter transform drift detected for ${failures.length} model(s):\n${sample}`
+                );
             }
         });
     });
