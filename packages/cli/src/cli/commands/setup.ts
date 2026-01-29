@@ -572,6 +572,11 @@ async function handleDextoProviderSetup(): Promise<void> {
                 label: 'Minimax M2.1',
                 hint: 'Fast model with 196k context',
             },
+            {
+                value: 'moonshotai/kimi-k2.5',
+                label: 'Kimi K2.5',
+                hint: 'Multimodal coding model, 262k context',
+            },
         ],
     });
 

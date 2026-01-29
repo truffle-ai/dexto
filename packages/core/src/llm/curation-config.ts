@@ -42,5 +42,6 @@ export const CURATED_MODEL_IDS_BY_PROVIDER: Partial<Record<LLMProvider, string[]
         'deepseek/deepseek-r1-0528:free',
         'z-ai/glm-4.7',
         'minimax/minimax-m2.1',
+        'moonshotai/kimi-k2.5',
     ],
 };

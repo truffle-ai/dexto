@@ -421,6 +421,18 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                     unit: 'per_million_tokens',
                 },
             },
+            {
+                name: 'moonshotai/kimi-k2.5',
+                displayName: 'Kimi K2.5',
+                maxInputTokens: 262144,
+                supportedFileTypes: ['image'],
+                pricing: {
+                    inputPerM: 0.5,
+                    outputPerM: 2.5,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
         ],
         baseURLSupport: 'none',
         supportedFileTypes: ['pdf', 'image', 'audio'],
