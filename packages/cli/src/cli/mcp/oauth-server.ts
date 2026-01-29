@@ -2,9 +2,18 @@ import { createServer } from 'node:http';
 import { URL } from 'node:url';
 import { ensurePortAvailable } from './oauth-utils.js';
 
+function escapeHtml(value: string): string {
+    return value
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
 export async function createMcpCallbackServer(redirectUrl: string): Promise<string> {
     const parsed = new URL(redirectUrl);
-    const port = Number(parsed.port || 80);
+    const port = Number(parsed.port || 8080);
     if (!Number.isFinite(port) || port <= 0) {
         throw new Error(`Invalid redirect port: ${parsed.port}`);
     }
@@ -44,8 +53,8 @@ export async function createMcpCallbackServer(redirectUrl: string): Promise<stri
                     <html>
                       <body>
                         <h1>Authorization Failed</h1>
-                        <p>Error: ${error}</p>
-                        ${errorDescription ? `<p>${errorDescription}</p>` : ''}
+                        <p>Error: ${escapeHtml(error)}</p>
+                        ${errorDescription ? `<p>${escapeHtml(errorDescription)}</p>` : ''}
                       </body>
                     </html>
                 `);

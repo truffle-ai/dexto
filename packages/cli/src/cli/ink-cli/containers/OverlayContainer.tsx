@@ -1180,6 +1180,12 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                                         timestamp: new Date(),
                                     },
                                 ]);
+                                setUi((prev) => ({
+                                    ...prev,
+                                    isProcessing: false,
+                                    isCancelling: false,
+                                    isThinking: false,
+                                }));
                                 return;
                             }
                         } else {

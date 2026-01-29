@@ -26,6 +26,7 @@ import { validateInputForLLM } from '../llm/validation.js';
 import { LLMError } from '../llm/errors.js';
 import { AgentError } from './errors.js';
 import { MCPError } from '../mcp/errors.js';
+import { MCPErrorCode } from '../mcp/error-codes.js';
 import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
 import { DextoValidationError } from '../errors/DextoValidationError.js';
 import { ensureOk } from '@core/errors/result-bridge.js';
@@ -2398,7 +2399,10 @@ export class DextoAgent {
      */
     public getMcpFailedConnections(): Record<string, string> {
         this.ensureStarted();
-        return this.mcpManager.getFailedConnections();
+        const failures = this.mcpManager.getFailedConnections();
+        return Object.fromEntries(
+            Object.entries(failures).map(([name, error]) => [name, error.message])
+        );
     }
 
     /**
@@ -2425,8 +2429,8 @@ export class DextoAgent {
         } else if (connectedClients.has(name)) {
             status = 'connected';
         } else {
-            const errorMessage = this.mcpManager.getFailedConnectionError(name);
-            if (errorMessage?.includes('Authentication required')) {
+            const errorCode = this.mcpManager.getFailedConnectionErrorCode(name);
+            if (errorCode === MCPErrorCode.AUTH_REQUIRED) {
                 status = 'auth-required';
             } else {
                 status = 'error';
@@ -2440,7 +2444,7 @@ export class DextoAgent {
             status,
         };
         if (failedConnections[name]) {
-            result.error = failedConnections[name];
+            result.error = failedConnections[name].message;
         }
         return result;
     }
@@ -2471,8 +2475,8 @@ export class DextoAgent {
             } else if (connectedClients.has(name)) {
                 status = 'connected';
             } else {
-                const errorMessage = this.mcpManager.getFailedConnectionError(name);
-                if (errorMessage?.includes('Authentication required')) {
+                const errorCode = this.mcpManager.getFailedConnectionErrorCode(name);
+                if (errorCode === MCPErrorCode.AUTH_REQUIRED) {
                     status = 'auth-required';
                 } else {
                     status = 'error';
@@ -2486,7 +2490,7 @@ export class DextoAgent {
                 status,
             };
             if (failedConnections[name]) {
-                server.error = failedConnections[name];
+                server.error = failedConnections[name].message;
             }
             servers.push(server);
         }

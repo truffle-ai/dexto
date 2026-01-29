@@ -11,7 +11,7 @@ const DEFAULT_CLIENT_METADATA = {
     token_endpoint_auth_method: 'none',
 };
 
-export function createMcpAuthProviderFactory(options: {
+export function createMcpAuthProviderFactory(_options: {
     logger?: typeof coreLogger;
 }): McpAuthProviderFactory {
     return (serverName: string, config: ValidatedMcpServerConfig) => {

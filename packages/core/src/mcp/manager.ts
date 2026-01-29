@@ -71,7 +71,7 @@ type ToolCacheEntry = {
 
 export class MCPManager {
     private clients: Map<string, IMCPClient> = new Map();
-    private connectionErrors: { [key: string]: string } = {};
+    private connectionErrors: { [key: string]: { message: string; code?: string } } = {};
     private configCache: Map<string, ValidatedMcpServerConfig> = new Map(); // Store original configs for restart
     private toolCache: Map<string, ToolCacheEntry> = new Map();
     private toolConflicts: Set<string> = new Set(); // Track which tool names have conflicts
@@ -690,7 +690,14 @@ export class MCPManager {
                 })
                 .catch((error) => {
                     const errorMessage = error instanceof Error ? error.message : String(error);
-                    this.connectionErrors[name] = errorMessage;
+                    const errorCode =
+                        error && typeof error === 'object' && 'code' in error
+                            ? String((error as { code?: unknown }).code)
+                            : undefined;
+                    this.connectionErrors[name] = {
+                        message: errorMessage,
+                        ...(errorCode ? { code: errorCode } : {}),
+                    };
                     this.logger.debug(
                         `Handled connection error for '${name}' during initialization: ${errorMessage}`
                     );
@@ -706,7 +713,9 @@ export class MCPManager {
         );
         if (failedStrictServers.length > 0) {
             const strictErrors = failedStrictServers
-                .map((name) => `${name}: ${this.connectionErrors[name] || 'Unknown error'}`)
+                .map(
+                    (name) => `${name}: ${this.connectionErrors[name]?.message ?? 'Unknown error'}`
+                )
                 .join('; ');
             throw MCPError.connectionFailed('strict servers', strictErrors);
         }
@@ -748,7 +757,14 @@ export class MCPManager {
             this.logger.info(`Successfully connected and cached new server '${name}'`);
         } catch (error) {
             const errorMsg = error instanceof Error ? error.message : String(error);
-            this.connectionErrors[name] = errorMsg;
+            const errorCode =
+                error && typeof error === 'object' && 'code' in error
+                    ? String((error as { code?: unknown }).code)
+                    : undefined;
+            this.connectionErrors[name] = {
+                message: errorMsg,
+                ...(errorCode ? { code: errorCode } : {}),
+            };
             this.logger.error(`Failed to connect to new server '${name}': ${errorMsg}`);
             this.clients.delete(name);
             throw MCPError.connectionFailed(name, errorMsg);
@@ -767,12 +783,16 @@ export class MCPManager {
      * Get the errors from failed connections
      * @returns Map of server names to error messages
      */
-    getFailedConnections(): { [key: string]: string } {
+    getFailedConnections(): { [key: string]: { message: string; code?: string } } {
         return this.connectionErrors;
     }
 
     getFailedConnectionError(name: string): string | undefined {
-        return this.connectionErrors[name];
+        return this.connectionErrors[name]?.message;
+    }
+
+    getFailedConnectionErrorCode(name: string): string | undefined {
+        return this.connectionErrors[name]?.code;
     }
 
     getAuthProvider(name: string) {
@@ -893,7 +913,14 @@ export class MCPManager {
             eventBus.emit('mcp:server-restarted', { serverName: name });
         } catch (error) {
             const errorMsg = error instanceof Error ? error.message : String(error);
-            this.connectionErrors[name] = errorMsg;
+            const errorCode =
+                error && typeof error === 'object' && 'code' in error
+                    ? String((error as { code?: unknown }).code)
+                    : undefined;
+            this.connectionErrors[name] = {
+                message: errorMsg,
+                ...(errorCode ? { code: errorCode } : {}),
+            };
             this.logger.error(`Failed to restart server '${name}': ${errorMsg}`);
             // Note: Config remains in cache for potential retry
             throw MCPError.connectionFailed(name, errorMsg);

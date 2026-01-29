@@ -74,27 +74,20 @@ export function createMcpOAuthProvider(config: McpOAuthClientConfig): McpAuthPro
             return result;
         },
         async invalidateCredentials(scope) {
+            const store = await loadMcpAuthStore(config.serverId);
+            const updated = { ...store };
+
             if (scope === 'all' || scope === 'tokens') {
-                const store = await loadMcpAuthStore(config.serverId);
-                await saveMcpAuthStore(config.serverId, {
-                    ...store,
-                    tokens: undefined,
-                });
+                updated.tokens = undefined;
             }
             if (scope === 'all' || scope === 'client') {
-                const store = await loadMcpAuthStore(config.serverId);
-                await saveMcpAuthStore(config.serverId, {
-                    ...store,
-                    clientInformation: undefined,
-                });
+                updated.clientInformation = undefined;
             }
             if (scope === 'all' || scope === 'verifier') {
-                const store = await loadMcpAuthStore(config.serverId);
-                await saveMcpAuthStore(config.serverId, {
-                    ...store,
-                    codeVerifier: undefined,
-                });
+                updated.codeVerifier = undefined;
             }
+
+            await saveMcpAuthStore(config.serverId, updated);
         },
     } satisfies McpAuthProvider;
 }

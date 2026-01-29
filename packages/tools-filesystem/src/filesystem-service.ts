@@ -317,9 +317,14 @@ export class FileSystemService {
         let searchPath: string;
         let globPattern: string;
 
+        const baseValidation = await this.pathValidator.validatePath(basePath);
+        if (!baseValidation.isValid || !baseValidation.normalizedPath) {
+            throw FileSystemError.invalidPath(basePath, baseValidation.error || 'Unknown error');
+        }
+        const resolvedPath = baseValidation.normalizedPath;
+
         // Check if the provided path is a file or directory
         try {
-            const resolvedPath = path.resolve(basePath);
             const stats = await fs.stat(resolvedPath);
 
             if (stats.isFile()) {
@@ -336,7 +341,7 @@ export class FileSystemService {
             }
         } catch {
             // If stat fails, assume it's a directory (for backwards compatibility)
-            searchPath = path.resolve(basePath);
+            searchPath = resolvedPath;
             globPattern = options.glob || '**/*';
         }
 
