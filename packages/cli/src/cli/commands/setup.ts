@@ -888,62 +888,37 @@ async function selectModelWithBack(provider: LLMProvider): Promise<string | '_ba
             return '_back';
         }
 
-        while (true) {
-            const curatedOptions = curatedModels
-                .slice(0, 8)
-                .filter((m) => m.name !== defaultModel.name)
-                .map((m) => ({
-                    value: m.name,
-                    label: m.displayName || m.name,
-                }));
+        const curatedOptions = curatedModels
+            .slice(0, 8)
+            .filter((m) => m.name !== defaultModel.name)
+            .map((m) => ({
+                value: m.name,
+                label: m.displayName || m.name,
+            }));
 
-            const result = await p.select({
-                message: `Select a model for ${getProviderDisplayName(provider)}`,
-                options: [
-                    {
-                        value: defaultModel.name,
-                        label: defaultModel.displayName || defaultModel.name,
-                        hint: '(recommended)',
-                    },
-                    ...curatedOptions,
-                    {
-                        value: '_custom' as const,
-                        label: 'Other model…',
-                        hint: 'Enter a specific model ID',
-                    },
-                    {
-                        value: '_back' as const,
-                        label: chalk.gray('← Back'),
-                        hint: 'Change provider',
-                    },
-                ],
-            });
+        const result = await p.select({
+            message: `Select a model for ${getProviderDisplayName(provider)}`,
+            options: [
+                {
+                    value: defaultModel.name,
+                    label: defaultModel.displayName || defaultModel.name,
+                    hint: '(recommended)',
+                },
+                ...curatedOptions,
+                {
+                    value: '_back' as const,
+                    label: chalk.gray('← Back'),
+                    hint: 'Change provider',
+                },
+            ],
+        });
 
-            if (p.isCancel(result)) {
-                p.cancel('Setup cancelled');
-                process.exit(0);
-            }
-
-            if (result === '_custom') {
-                p.log.info(chalk.gray('Press Ctrl+C to go back'));
-                const model = await p.text({
-                    message: `Enter model name for ${getProviderDisplayName(provider)}`,
-                    placeholder: defaultModel.name,
-                    validate: (value) => {
-                        if (!value.trim()) return 'Model name is required';
-                        return undefined;
-                    },
-                });
-
-                if (p.isCancel(model)) {
-                    continue;
-                }
-
-                return String(model).trim();
-            }
-
-            return result as string | '_back';
+        if (p.isCancel(result)) {
+            p.cancel('Setup cancelled');
+            process.exit(0);
         }
+
+        return result as string | '_back';
     }
 
     // For providers that accept any model, show text input with back hint
@@ -1612,36 +1587,12 @@ async function selectModel(provider: LLMProvider): Promise<string | null> {
                     hint: '(recommended)',
                 },
                 ...curatedOptions,
-                {
-                    value: '_custom' as const,
-                    label: 'Other model…',
-                    hint: 'Enter a specific model ID',
-                },
             ],
             initialValue: defaultModel.name,
         });
 
         if (p.isCancel(selected)) {
             return null;
-        }
-
-        if (selected === '_custom') {
-            const modelInput = await p.text({
-                message: `Enter model name for ${getProviderDisplayName(provider)}`,
-                placeholder: defaultModel.name,
-                validate: (value) => {
-                    if (!value || value.trim().length === 0) {
-                        return 'Model name is required';
-                    }
-                    return undefined;
-                },
-            });
-
-            if (p.isCancel(modelInput)) {
-                return null;
-            }
-
-            return modelInput.trim();
         }
 
         return selected as string;
@@ -1743,6 +1694,7 @@ async function showSetupComplete(
         ...(isLocalProvider
             ? [`  Run ${chalk.cyan('dexto setup')} again to manage local models`]
             : []),
+        `  In the interactive CLI, run ${chalk.cyan('/model')} to switch models`,
         `  Run ${chalk.cyan('dexto --help')} for more options`,
     ].join('\n');
 
