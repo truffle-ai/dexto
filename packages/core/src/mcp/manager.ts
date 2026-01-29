@@ -896,6 +896,7 @@ export class MCPManager {
         // Reconnect with original config
         try {
             const newClient = new MCPClient(this.logger);
+            newClient.setAuthProviderFactory(this.authProviderFactory);
             await newClient.connect(config, name);
 
             // Set approval manager if available

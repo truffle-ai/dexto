@@ -77,6 +77,8 @@ export function createMcpOAuthProvider(config: McpOAuthClientConfig): McpAuthPro
             const store = await loadMcpAuthStore(config.serverId);
             const updated = { ...store };
 
+            authorizationCode = undefined;
+
             if (scope === 'all' || scope === 'tokens') {
                 updated.tokens = undefined;
             }

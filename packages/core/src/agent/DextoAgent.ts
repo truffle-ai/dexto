@@ -2330,6 +2330,9 @@ export class DextoAgent {
     }
 
     public getMcpAuthProvider(name: string) {
+        if (!name || typeof name !== 'string') {
+            throw AgentError.apiValidationError('name is required and must be a non-empty string');
+        }
         this.ensureStarted();
         return this.mcpManager.getAuthProvider(name);
     }

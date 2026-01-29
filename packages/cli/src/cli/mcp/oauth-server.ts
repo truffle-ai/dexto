@@ -73,6 +73,11 @@ export async function createMcpCallbackServer(redirectUrl: string): Promise<stri
             res.end('Missing authorization code');
         });
 
+        server.on('error', (err) => {
+            reject(err);
+            server.close();
+        });
+
         server.listen(port, () => {
             console.log(`🔐 Awaiting MCP OAuth callback on ${redirectUrl}`);
         });
