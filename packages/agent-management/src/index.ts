@@ -85,6 +85,7 @@ export {
     loadAgentConfig,
     enrichAgentConfig,
     deriveAgentId,
+    discoverAgentInstructionFile,
     addPromptToAgentConfig,
     removePromptFromAgentConfig,
     deletePromptByMetadata,
