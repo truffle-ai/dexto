@@ -29,7 +29,7 @@ export function LLMConfigSection({
 }: LLMConfigSectionProps) {
     const [showApiKey, setShowApiKey] = useState(false);
     const { data: capabilities } = useModelCapabilities(
-        (value.provider as any) ?? null,
+        value.provider ?? null,
         value.model ?? null
     );
     const reasoningPresets = capabilities?.reasoning?.supportedPresets ?? [];
@@ -59,7 +59,9 @@ export function LLMConfigSection({
                     <select
                         id="provider"
                         value={value.provider || ''}
-                        onChange={(e) => handleChange('provider', e.target.value)}
+                        onChange={(e) =>
+                            handleChange('provider', e.target.value as LLMConfig['provider'])
+                        }
                         aria-invalid={!!errors['llm.provider']}
                         className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive"
                     >
