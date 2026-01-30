@@ -109,22 +109,23 @@ Proposed shape (conceptual):
 ```yaml
 llm:
   reasoning:
-    mode: auto    # off | auto | on
-    level: medium # low | medium | high (simple)
+    # A single primary knob: pick a reasoning preset.
+    # This is provider/model dependent but should start from a familiar set:
+    # auto | off | low | medium | high | max
+    #
+    # Some models may expose extra presets (e.g. OpenAI: minimal/xhigh).
+    preset: medium
 
     # Advanced (optional):
-    # Choose an explicit preset when the provider supports more than low/medium/high
-    # (e.g. OpenAI: minimal/xhigh, Anthropic: max).
-    variant: xhigh
-    effort: high          # provider-specific effort enum when supported
-    budgetTokens: 8192    # provider-specific budget when supported
+    # Only needed for budget-based providers (Anthropic/Gemini-like), when you want an explicit token budget.
+    # This should override the preset's derived budget.
+    budgetTokens: 8192
 ```
 
 Notes:
-- `mode` and `level` are the "simple" abstraction.
-- `variant` is an optional “named preset” escape hatch (provider/model dependent).
-- `effort` and `budgetTokens` are optional advanced overrides.
-- If both `level` and `effort/budgetTokens` are set, the advanced values win (explicit > derived).
+- `preset` is the simple abstraction and should be what most users touch.
+- `budgetTokens` is the single advanced escape hatch (only for budget-based providers).
+- If both `preset` and `budgetTokens` are set, `budgetTokens` wins.
 - Reasoning *display* should not be part of agent config; treat it as a UI preference (WebUI/CLI).
 
 No backwards compatibility required:
@@ -138,22 +139,22 @@ We should support BOTH:
 
 Recommendation:
 - Add a `/reasoning` interactive command to:
-  - show current reasoning mode/level
-  - show provider/model-derived concrete settings (e.g. resolved budget, resolved effort)
-  - toggle mode and cycle level
-  - open an "advanced" flow (set exact budget/effort) if the user wants.
+  - show current reasoning preset
+  - show provider/model-resolved concrete settings (e.g. resolved budget or resolved effort)
+  - cycle presets
+  - optionally set an explicit `budgetTokens` if the user wants.
 
 Important constraint:
 - Tab/Shift+Tab are already heavily used in Ink CLI (`packages/cli/src/cli/ink-cli/hooks/useInputOrchestrator.ts`),
   so a Tab-based toggle is likely a conflict. Prefer slash-command-based toggles or a carefully chosen keybind.
   opencode uses `ctrl+t` for cycling model “variants” (including reasoning presets). For Dexto, `ctrl+t`
-  looks like a viable candidate for “cycle reasoning level/variant” (but we should confirm it doesn’t
+  looks like a viable candidate for “cycle reasoning preset” (but we should confirm it doesn’t
   conflict with existing Ink keybindings).
 
 ### 2.3 WebUI interaction
 
 WebUI already displays reasoning. We should add:
-- A lightweight session-level toggle/level control (similar to other CLIs).
+- A lightweight session-level reasoning preset control (similar to other CLIs).
 - An agent-level default in the Agent Editor (so reasoning can be saved into YAML config).
 
 ---
@@ -255,9 +256,36 @@ Notes on the opencode reference:
   provider, so the effective providerOptions “namespace” can be that provider ID instead of a single global key.
   (Dexto likely shouldn’t copy that exact pattern; better to keep a stable mapping layer.)
 
+### 4.4 API surface choice matters: OpenAI “Responses” vs “Chat Completions”
+
+OpenAI has two relevant API surfaces in the AI SDK:
+- **Responses**: `createOpenAI()(modelId)` or `createOpenAI().responses(modelId)`
+- **Chat Completions**: `createOpenAI().chat(modelId)`
+
+Why it matters for reasoning:
+- Presets may want to set additional OpenAI-specific knobs that are only present/meaningful in Responses
+  (e.g. `reasoningSummary`, `textVerbosity`, `include: ['reasoning.encrypted_content']`).
+  - `~/Projects/external/ai/packages/openai/src/responses/openai-responses-options.ts`
+- “Interleaved reasoning” as `reasoning_content`/`reasoning_details` continuity fields is an
+  OpenAI-compatible/gateway pattern, not the OpenAI native Responses wire format.
+
+Current Dexto state:
+- `openai`: uses `createOpenAI()(model)` which selects the Responses API by default.
+  - `packages/core/src/llm/services/factory.ts:65-68`
+- `openrouter` and `dexto`: currently use `createOpenAI(...).chat(model)` (OpenAI chat shim over a gateway baseURL).
+  - `packages/core/src/llm/services/factory.ts:79-84`
+  - `packages/core/src/llm/services/factory.ts:109-135`
+
+Implication:
+- For OpenRouter-style gateways (including Dexto gateway), we should treat them as their own providers
+  (`@openrouter/ai-sdk-provider` or `@ai-sdk/openai-compatible`), so we can:
+  - send the correct providerOptions namespace
+  - support interleaved reasoning fields when the model requires it
+  - support gateway-specific reasoning knobs
+
 ---
 
-## 5) Reasoning control translation (mode/level -> providerOptions)
+## 5) Reasoning control translation (preset -> providerOptions)
 
 We need one core translator that:
 - reads validated `llm.reasoning` config
@@ -267,11 +295,8 @@ We need one core translator that:
 ### 5.1 Proposed translation rules
 
 Inputs:
-- `reasoning.mode`: off | auto | on
-- `reasoning.level`: low | medium | high
-- `reasoning.variant`: optional advanced preset name (model/provider dependent)
-- `reasoning.effort`: optional advanced override
-- `reasoning.budgetTokens`: optional advanced override
+- `reasoning.preset`: auto | off | low | medium | high | max | ... (model/provider dependent)
+- `reasoning.budgetTokens`: optional advanced override (budget-based providers only)
 - model capabilities (reasoning supported? interleaved? param compatibility?)
 
 Outputs:
@@ -279,10 +304,9 @@ Outputs:
 - plus warnings (log once per run) when config is requested but unsupported.
 
 Resolution precedence (recommended):
-1) `variant` (explicit preset name) if present and supported for this model/provider.
-2) `effort` / `budgetTokens` (explicit numeric/enum override).
-3) `level` (low/medium/high) mapped to a provider/model-specific preset.
-4) default behavior (mode=auto): do nothing unless the model/provider has a known safe default.
+1) `budgetTokens` (explicit numeric override) when supported.
+2) `preset` mapped to a provider/model-specific request body.
+3) default behavior (`preset=auto`): do nothing unless the model/provider has a known safe default.
 
 ### 5.2 Provider-specific notes (AI SDK references)
 
@@ -291,6 +315,9 @@ OpenAI (effort-based):
   `~/Projects/external/ai/packages/openai/src/chat/openai-chat-language-model.ts:150-175`
 - The AI SDK removes unsupported params for reasoning models (temperature/topP/logprobs):
   `~/Projects/external/ai/packages/openai/src/chat/openai-chat-language-model.ts:179-220`
+- OpenAI “Responses” API exposes additional knobs that are useful for presets:
+  - `reasoningSummary`, `textVerbosity`, `include: ['reasoning.encrypted_content']`, etc.
+  - `~/Projects/external/ai/packages/openai/src/responses/openai-responses-options.ts`
 
 Anthropic (budget-based "thinking"):
 - Provider option is `anthropic.thinking: { type: 'enabled'|'disabled', budgetTokens? }`:
@@ -331,6 +358,10 @@ Two related (but not identical) “interleaved” concepts exist in the wild:
 In this plan, “interleaved reasoning” refers to (2), because that’s what the models.dev capability metadata
 is encoding via `interleaved.field`.
 
+Important: this is primarily a concern for OpenAI-compatible / gateway-style chat APIs (including OpenRouter-style
+gateways) where the model expects a `reasoning_content`/`reasoning_details` continuity field. It is NOT how OpenAI’s
+native Responses API represents reasoning continuity.
+
 models.dev expresses this capability, and opencode uses it to rewrite messages.
 
 ### 6.2 What we should do in Dexto
@@ -361,8 +392,8 @@ Phase 0 - Align on registry/capabilities
 
 Phase 1 - New config + UI surfaces
 - Replace `llm.reasoningEffort` with `llm.reasoning` schema.
-- WebUI: add a "Reasoning" control that adapts to capabilities (effort vs budget vs none).
-- CLI: add `/reasoning` command for toggle + level + advanced config.
+- WebUI: add a "Reasoning preset" control that adapts to capabilities (effort-based vs budget-based vs none).
+- CLI: add `/reasoning` command for preset selection + optional `budgetTokens`.
 
 Phase 2 - ProviderOptions refactor (single source of truth)
 - Replace `packages/core/src/llm/executor/provider-options.ts` with capability-driven translation:
