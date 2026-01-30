@@ -55,8 +55,10 @@ function getCachePath(): string {
     return getDextoGlobalPath(CACHE_SUBDIR, CACHE_FILENAME);
 }
 
-function isModelInfoArray(value: unknown): value is ModelInfo[] {
-    return Array.isArray(value);
+function isModelInfo(value: unknown): value is ModelInfo {
+    if (typeof value !== 'object' || value === null) return false;
+    const name = (value as { name?: unknown }).name;
+    return typeof name === 'string' && name.trim() !== '';
 }
 
 function applyModelsByProvider(modelsByProvider: Record<LLMProvider, ModelInfo[]>): void {
@@ -136,7 +138,7 @@ function normalizeModelsByProvider(raw: Record<string, unknown>): Record<LLMProv
     const out = {} as Record<LLMProvider, ModelInfo[]>;
     for (const p of LLM_PROVIDERS) {
         const value = raw[p];
-        out[p] = isModelInfoArray(value) ? (value as ModelInfo[]) : [];
+        out[p] = Array.isArray(value) ? (value.filter(isModelInfo) as ModelInfo[]) : [];
     }
     return out;
 }

@@ -5,11 +5,13 @@ import { resolveAndValidateLLMConfig } from './resolver.js';
 import { LLMConfigSchema } from './schemas.js';
 
 const mockLogger = createMockLogger();
+const TEST_OPENAI_API_KEY = 'test-openai-key';
+const TEST_DEXTO_API_KEY = 'test-dexto-key';
 
 const baseConfig = LLMConfigSchema.parse({
     provider: 'openai',
     model: 'gpt-5',
-    apiKey: 'sk-test-1234567890',
+    apiKey: TEST_OPENAI_API_KEY,
     maxIterations: 10,
     maxInputTokens: 128000,
     maxOutputTokens: 4096,
@@ -41,7 +43,7 @@ describe('resolveAndValidateLLMConfig', () => {
     it('returns a validation error for gateway providers when model ID is not OpenRouter-format', async () => {
         const result = await resolveAndValidateLLMConfig(
             baseConfig,
-            { provider: 'dexto', model: 'gpt-5', apiKey: 'dexto-test-1234567890' },
+            { provider: 'dexto', model: 'gpt-5', apiKey: TEST_DEXTO_API_KEY },
             mockLogger
         );
 

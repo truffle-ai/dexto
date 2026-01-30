@@ -72,6 +72,36 @@ describe('llm registry auto-update', () => {
         expect(autoUpdate.loadLlmRegistryCache({ logger: mockLogger })).toBe(false);
     });
 
+    it('loadLlmRegistryCache ignores malformed model entries (missing name) instead of throwing', async () => {
+        const registry = await import('./index.js');
+        const autoUpdate = await import('./auto-update.js');
+        const { cachePath } = autoUpdate.getLlmRegistryAutoUpdateStatus();
+
+        registry.LLM_REGISTRY.openai.models = [
+            {
+                name: 'gpt-5',
+                maxInputTokens: 1000,
+                supportedFileTypes: [],
+                default: true,
+            },
+        ] satisfies ModelInfo[];
+
+        await writeCacheFile(cachePath, {
+            schemaVersion: 1,
+            fetchedAt: new Date().toISOString(),
+            modelsByProvider: {
+                openai: [
+                    // Missing name would previously throw via m.name.toLowerCase() during merge.
+                    { maxInputTokens: 123, supportedFileTypes: [] },
+                ],
+            },
+        });
+
+        expect(autoUpdate.loadLlmRegistryCache({ logger: mockLogger })).toBe(true);
+
+        expect(registry.LLM_REGISTRY.openai.models.map((m) => m.name)).toEqual(['gpt-5']);
+    });
+
     it('loadLlmRegistryCache applies cached models and preserves stable merge behavior', async () => {
         const registry = await import('./index.js');
         const autoUpdate = await import('./auto-update.js');
