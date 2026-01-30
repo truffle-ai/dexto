@@ -25,6 +25,7 @@ interface ToolBrowserProps {
     isVisible: boolean;
     onClose: () => void;
     agent: DextoAgent;
+    sessionId: string | null;
 }
 
 export interface ToolBrowserHandle {
@@ -37,18 +38,22 @@ interface ToolInfo {
     source: 'internal' | 'mcp';
     serverName: string | undefined;
     inputSchema: Record<string, unknown> | undefined;
+    isEnabled: boolean;
+    isAutoApproved: boolean;
 }
 
-type ViewMode = 'list' | 'detail';
+type ViewMode = 'list' | 'list-actions' | 'detail' | 'config' | 'scope';
+
+type ListAction = 'view' | 'config' | 'back';
 
 const MAX_VISIBLE_ITEMS = 12;
-const MAX_DETAIL_LINES = 15;
+const LIST_ACTIONS: ListAction[] = ['view', 'config', 'back'];
 
 /**
  * Tool browser with search and detail views
  */
 const ToolBrowser = forwardRef<ToolBrowserHandle, ToolBrowserProps>(function ToolBrowser(
-    { isVisible, onClose, agent },
+    { isVisible, onClose, agent, sessionId },
     ref
 ) {
     const { columns, rows } = useTerminalSize();
@@ -61,17 +66,34 @@ const ToolBrowser = forwardRef<ToolBrowserHandle, ToolBrowserProps>(function Too
     const [selectedTool, setSelectedTool] = useState<ToolInfo | null>(null);
     const [detailScrollOffset, setDetailScrollOffset] = useState(0);
     const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
+    const [listActionsIndex, setListActionsIndex] = useState(0);
+    const [configIndex, setConfigIndex] = useState(0);
+    const [scopeToolName, setScopeToolName] = useState<string | null>(null);
+    const [scopeNextEnabled, setScopeNextEnabled] = useState<boolean>(true);
+    const [scopeTarget, setScopeTarget] = useState<'session' | 'global'>('session');
     const selectedIndexRef = useRef(selectedIndex);
     const viewModeRef = useRef(viewMode);
     const detailScrollOffsetRef = useRef(detailScrollOffset);
     const detailMaxScrollOffsetRef = useRef(0);
     const selectedToolRef = useRef<ToolInfo | null>(null);
+    const toolsRef = useRef<ToolInfo[]>([]);
+    const listActionsIndexRef = useRef(listActionsIndex);
+    const configIndexRef = useRef(configIndex);
+    const scopeTargetRef = useRef(scopeTarget);
+    const scopeNextEnabledRef = useRef(scopeNextEnabled);
+    const scopeToolNameRef = useRef(scopeToolName);
 
     // Keep refs in sync
     selectedIndexRef.current = selectedIndex;
     viewModeRef.current = viewMode;
     detailScrollOffsetRef.current = detailScrollOffset;
     selectedToolRef.current = selectedTool;
+    toolsRef.current = tools;
+    listActionsIndexRef.current = listActionsIndex;
+    configIndexRef.current = configIndex;
+    scopeTargetRef.current = scopeTarget;
+    scopeNextEnabledRef.current = scopeNextEnabled;
+    scopeToolNameRef.current = scopeToolName;
 
     // Fetch tools from agent
     useEffect(() => {
@@ -84,16 +106,22 @@ const ToolBrowser = forwardRef<ToolBrowserHandle, ToolBrowserProps>(function Too
         setScrollOffset(0);
         setViewMode('list');
         setSelectedTool(null);
+        setListActionsIndex(0);
+        setConfigIndex(0);
 
         const fetchTools = async () => {
             try {
-                const [allTools, mcpTools] = await Promise.all([
+                const [allTools, mcpTools, enabledTools, autoApprovedTools] = await Promise.all([
                     agent.getAllTools(),
                     agent.getAllMcpTools(),
+                    agent.getEnabledTools(sessionId || undefined),
+                    sessionId ? agent.getSessionAutoApproveTools(sessionId) : Promise.resolve([]),
                 ]);
 
                 const toolList: ToolInfo[] = [];
                 const mcpToolNames = new Set(Object.keys(mcpTools));
+                const enabledToolNames = new Set(Object.keys(enabledTools));
+                const autoApprovedToolNames = new Set(autoApprovedTools ?? []);
 
                 for (const [toolName, toolInfo] of Object.entries(allTools)) {
                     const isMcpTool = mcpToolNames.has(toolName) || toolName.startsWith('mcp--');
@@ -113,6 +141,8 @@ const ToolBrowser = forwardRef<ToolBrowserHandle, ToolBrowserProps>(function Too
                         source: isMcpTool ? 'mcp' : 'internal',
                         serverName,
                         inputSchema: toolInfo.parameters as Record<string, unknown> | undefined,
+                        isEnabled: enabledToolNames.has(toolName),
+                        isAutoApproved: autoApprovedToolNames.has(toolName),
                     });
                 }
 
@@ -141,7 +171,7 @@ const ToolBrowser = forwardRef<ToolBrowserHandle, ToolBrowserProps>(function Too
         return () => {
             cancelled = true;
         };
-    }, [isVisible, agent]);
+    }, [isVisible, agent, sessionId]);
 
     // Filter tools based on search query
     const filteredTools = useMemo((): ToolInfo[] => {
@@ -174,15 +204,142 @@ const ToolBrowser = forwardRef<ToolBrowserHandle, ToolBrowserProps>(function Too
         }
     }, [selectedIndex, scrollOffset]);
 
-    // Handle showing tool details
-    const showToolDetails = (tool: ToolInfo) => {
+    const openListActions = (tool: ToolInfo) => {
+        setSelectedTool(tool);
+        setListActionsIndex(0);
+        setViewMode('list-actions');
+    };
+
+    const openToolDetails = (tool: ToolInfo) => {
         setSelectedTool(tool);
         setViewMode('detail');
         setDetailScrollOffset(0);
     };
 
-    // Handle going back to list
-    const goBackToList = () => {
+    const openConfigMenu = (tool: ToolInfo) => {
+        setSelectedTool(tool);
+        setConfigIndex(0);
+        setViewMode('config');
+    };
+
+    const openScopePrompt = (tool: ToolInfo) => {
+        const nextEnabled = !tool.isEnabled;
+        const nextScope = sessionId ? 'session' : 'global';
+
+        setSelectedTool(tool);
+        setScopeToolName(tool.name);
+        setScopeNextEnabled(nextEnabled);
+        setScopeTarget(nextScope);
+        setViewMode('scope');
+
+        scopeToolNameRef.current = tool.name;
+        scopeNextEnabledRef.current = nextEnabled;
+        scopeTargetRef.current = nextScope;
+    };
+
+    const closeScopePrompt = () => {
+        setViewMode('config');
+        setScopeToolName(null);
+    };
+
+    const applyToolToggle = async (overrideTarget?: 'session' | 'global') => {
+        const targetToolName =
+            scopeToolNameRef.current ?? scopeToolName ?? selectedToolRef.current?.name;
+        if (!targetToolName) return;
+
+        const effectiveTarget = overrideTarget ?? scopeTargetRef.current;
+        const nextEnabled = scopeNextEnabledRef.current;
+
+        const updatedTools = toolsRef.current.map((tool) => {
+            if (tool.name !== targetToolName) {
+                return tool;
+            }
+
+            const updatedTool = { ...tool, isEnabled: nextEnabled };
+            if (!nextEnabled && tool.isAutoApproved) {
+                updatedTool.isAutoApproved = false;
+            }
+
+            return updatedTool;
+        });
+
+        setTools(updatedTools);
+        const updatedSelected = updatedTools.find((tool) => tool.name === targetToolName) ?? null;
+        setSelectedTool(updatedSelected);
+
+        const autoApprovedTools = updatedTools
+            .filter((tool) => tool.isAutoApproved)
+            .map((tool) => tool.name);
+
+        if (sessionId) {
+            agent.setSessionAutoApproveTools(sessionId, autoApprovedTools);
+        }
+
+        const disabledTools = updatedTools
+            .filter((tool) => !tool.isEnabled)
+            .map((tool) => tool.name);
+
+        if (effectiveTarget === 'session' && sessionId) {
+            agent.setSessionDisabledTools(sessionId, disabledTools);
+        } else if (effectiveTarget === 'global') {
+            try {
+                const { updateAgentPreferences, saveAgentPreferences, agentPreferencesExist } =
+                    await import('@dexto/agent-management');
+
+                if (agentPreferencesExist(agent.config.agentId)) {
+                    await updateAgentPreferences(agent.config.agentId, {
+                        tools: { disabled: disabledTools },
+                    });
+                } else {
+                    await saveAgentPreferences(agent.config.agentId, {
+                        tools: { disabled: disabledTools },
+                    });
+                }
+
+                agent.setGlobalDisabledTools(disabledTools);
+            } catch (_error) {
+                // If we can't persist, still keep session state so user sees effect
+                if (sessionId) {
+                    agent.setSessionDisabledTools(sessionId, disabledTools);
+                }
+            }
+        }
+
+        closeScopePrompt();
+    };
+
+    const toggleAutoApprove = () => {
+        if (!sessionId) return;
+
+        const updatedTools = toolsRef.current.map((tool) =>
+            tool.name === selectedToolRef.current?.name
+                ? { ...tool, isAutoApproved: !tool.isAutoApproved }
+                : tool
+        );
+
+        const updatedSelected = updatedTools.find(
+            (tool) => tool.name === selectedToolRef.current?.name
+        );
+
+        setTools(updatedTools);
+        setSelectedTool(updatedSelected ?? null);
+
+        const autoApprovedTools = updatedTools
+            .filter((tool) => tool.isAutoApproved)
+            .map((tool) => tool.name);
+
+        agent.setSessionAutoApproveTools(sessionId, autoApprovedTools);
+    };
+
+    const closeConfigMenu = () => {
+        setViewMode('list-actions');
+    };
+
+    const closeDetailView = () => {
+        setViewMode('list-actions');
+    };
+
+    const closeListActions = () => {
         setViewMode('list');
         setSelectedTool(null);
     };
@@ -194,13 +351,70 @@ const ToolBrowser = forwardRef<ToolBrowserHandle, ToolBrowserProps>(function Too
             handleInput: (input: string, key: Key): boolean => {
                 if (!isVisible) return false;
 
-                // In detail view (use ref to get latest value)
-                if (viewModeRef.current === 'detail') {
+                // Scope selection view
+                if (viewModeRef.current === 'scope') {
                     if (key.escape || key.backspace || key.delete) {
-                        goBackToList();
+                        closeScopePrompt();
                         return true;
                     }
-                    // Handle scrolling in detail view - check refs before setState to avoid flicker
+                    if (key.upArrow || key.downArrow) {
+                        setScopeTarget((prev) => (prev === 'session' ? 'global' : 'session'));
+                        return true;
+                    }
+                    if (key.return) {
+                        if (scopeTargetRef.current === 'session' && !sessionId) {
+                            setScopeTarget('global');
+                            scopeTargetRef.current = 'global';
+                            void applyToolToggle('global');
+                            return true;
+                        }
+                        void applyToolToggle();
+                        return true;
+                    }
+                    return true;
+                }
+
+                // Config menu view
+                if (viewModeRef.current === 'config') {
+                    if (key.escape || key.backspace || key.delete) {
+                        closeConfigMenu();
+                        return true;
+                    }
+                    if (key.upArrow) {
+                        const nextIndex = (configIndexRef.current - 1 + 3) % 3;
+                        setConfigIndex(nextIndex);
+                        return true;
+                    }
+                    if (key.downArrow) {
+                        const nextIndex = (configIndexRef.current + 1) % 3;
+                        setConfigIndex(nextIndex);
+                        return true;
+                    }
+                    if (key.return) {
+                        const tool = selectedToolRef.current;
+                        if (tool) {
+                            if (configIndexRef.current === 0) {
+                                openScopePrompt(tool);
+                            } else if (configIndexRef.current === 1) {
+                                if (sessionId && tool.isEnabled) {
+                                    toggleAutoApprove();
+                                }
+                            } else {
+                                closeConfigMenu();
+                            }
+                        }
+                        return true;
+                    }
+                    return true;
+                }
+
+                // Detail view
+                if (viewModeRef.current === 'detail') {
+                    if (key.escape || key.backspace || key.delete) {
+                        closeDetailView();
+                        return true;
+                    }
+
                     if (key.upArrow) {
                         if (detailScrollOffsetRef.current > 0) {
                             setDetailScrollOffset((prev) => prev - 1);
@@ -232,11 +446,54 @@ const ToolBrowser = forwardRef<ToolBrowserHandle, ToolBrowserProps>(function Too
                         }
                         return true;
                     }
-                    return true; // Consume all input in detail view
+                    if (key.return) {
+                        const tool = selectedToolRef.current;
+                        if (tool) {
+                            openConfigMenu(tool);
+                        }
+                        return true;
+                    }
+                    return true;
+                }
+
+                // List action menu view
+                if (viewModeRef.current === 'list-actions') {
+                    if (key.escape || key.backspace || key.delete) {
+                        closeListActions();
+                        return true;
+                    }
+                    if (key.upArrow) {
+                        const nextIndex =
+                            (listActionsIndexRef.current - 1 + LIST_ACTIONS.length) %
+                            LIST_ACTIONS.length;
+                        setListActionsIndex(nextIndex);
+                        return true;
+                    }
+                    if (key.downArrow) {
+                        const nextIndex = (listActionsIndexRef.current + 1) % LIST_ACTIONS.length;
+                        setListActionsIndex(nextIndex);
+                        return true;
+                    }
+                    if (key.return) {
+                        const tool = selectedToolRef.current;
+                        const action = LIST_ACTIONS[listActionsIndexRef.current];
+                        if (!tool) {
+                            closeListActions();
+                            return true;
+                        }
+                        if (action === 'view') {
+                            openToolDetails(tool);
+                        } else if (action === 'config') {
+                            openConfigMenu(tool);
+                        } else {
+                            closeListActions();
+                        }
+                        return true;
+                    }
+                    return true;
                 }
 
                 // In list view
-                // Escape closes
                 if (key.escape) {
                     onClose();
                     return true;
@@ -285,7 +542,7 @@ const ToolBrowser = forwardRef<ToolBrowserHandle, ToolBrowserProps>(function Too
                 if (key.return && itemsLength > 0) {
                     const tool = filteredTools[selectedIndexRef.current];
                     if (tool) {
-                        showToolDetails(tool);
+                        openListActions(tool);
                         return true;
                     }
                 }
@@ -293,7 +550,7 @@ const ToolBrowser = forwardRef<ToolBrowserHandle, ToolBrowserProps>(function Too
                 return false;
             },
         }),
-        [isVisible, filteredTools, onClose, viewMode]
+        [isVisible, filteredTools, onClose, sessionId]
     );
 
     if (!isVisible) return null;
@@ -306,10 +563,18 @@ const ToolBrowser = forwardRef<ToolBrowserHandle, ToolBrowserProps>(function Too
         );
     }
 
-    // Detail view
+    if (viewMode === 'list-actions' && selectedTool) {
+        return (
+            <ToolActionsMenu
+                tool={selectedTool}
+                columns={columns}
+                listActionsIndex={listActionsIndex}
+            />
+        );
+    }
+
     if (viewMode === 'detail' && selectedTool) {
-        // Calculate max visible lines based on terminal height
-        const maxVisibleLines = Math.min(18, Math.max(5, rows - 6)); // Cap at 18 to reduce flicker
+        const maxVisibleLines = Math.min(18, Math.max(5, rows - 6));
         return (
             <ToolDetailView
                 tool={selectedTool}
@@ -322,9 +587,31 @@ const ToolBrowser = forwardRef<ToolBrowserHandle, ToolBrowserProps>(function Too
         );
     }
 
+    if (viewMode === 'config' && selectedTool) {
+        return (
+            <ToolSettingsView
+                tool={selectedTool}
+                columns={columns}
+                configIndex={configIndex}
+                sessionAvailable={Boolean(sessionId)}
+            />
+        );
+    }
+
+    if (viewMode === 'scope' && selectedTool) {
+        return (
+            <ToolScopeView
+                tool={selectedTool}
+                columns={columns}
+                scopeTarget={scopeTarget}
+                scopeNextEnabled={scopeNextEnabled}
+                sessionAvailable={Boolean(sessionId)}
+            />
+        );
+    }
+
     // List view
     const visibleTools = filteredTools.slice(scrollOffset, scrollOffset + MAX_VISIBLE_ITEMS);
-    // Show counts based on filtered results, not total
     const filteredInternalCount = filteredTools.filter((t) => t.source === 'internal').length;
     const filteredMcpCount = filteredTools.filter((t) => t.source === 'mcp').length;
 
@@ -342,7 +629,10 @@ const ToolBrowser = forwardRef<ToolBrowserHandle, ToolBrowserProps>(function Too
                 </Text>
             </Box>
             <Box paddingX={0} paddingY={0}>
-                <Text color="gray">↑↓ navigate, Enter view details, Esc close</Text>
+                <Text color="gray">↑↓ navigate · Enter options · Esc close</Text>
+            </Box>
+            <Box paddingX={0} paddingY={0}>
+                <Text color="gray">Type to search · Backspace to delete</Text>
             </Box>
 
             {/* Search input */}
@@ -382,6 +672,11 @@ const ToolBrowser = forwardRef<ToolBrowserHandle, ToolBrowserProps>(function Too
                                 [{tool.source === 'internal' ? 'Internal' : 'MCP'}]
                             </Text>
                             {tool.serverName && <Text color="gray"> ({tool.serverName})</Text>}
+                            <Text color={tool.isEnabled ? 'green' : 'red'}>
+                                {' '}
+                                {tool.isEnabled ? 'Enabled' : 'Disabled'}
+                            </Text>
+                            {tool.isAutoApproved && <Text color="yellow"> [auto-approved]</Text>}
                         </Box>
                     );
                 })
@@ -473,24 +768,17 @@ function buildDetailLineData(tool: ToolInfo, maxWidth: number): DetailLineType[]
 
                 // Parameter description (wrapped)
                 if (description) {
-                    const paramDescLines = wrapText(description, maxWidth - 6).split('\n');
-                    for (const paramDescLine of paramDescLines) {
-                        lines.push({ type: 'param-desc', text: paramDescLine });
+                    const descLines = wrapText(description, maxWidth - 2).split('\n');
+                    for (const descLine of descLines) {
+                        lines.push({ type: 'param-desc', text: descLine });
                     }
                 }
 
                 // Enum values
-                if (enumValues) {
+                if (enumValues && enumValues.length > 0) {
                     lines.push({ type: 'param-enum', values: enumValues });
                 }
-
-                // Empty line between parameters
-                lines.push({ type: 'empty' });
             }
-        } else {
-            // Empty line before "no parameters"
-            lines.push({ type: 'empty' });
-            lines.push({ type: 'param-desc', text: 'No parameters' });
         }
     }
 
@@ -498,9 +786,9 @@ function buildDetailLineData(tool: ToolInfo, maxWidth: number): DetailLineType[]
 }
 
 /**
- * Render a single detail line from data
+ * Render a detail line based on type
  */
-function renderDetailLine(line: DetailLineType, index: number): React.ReactNode {
+function renderDetailLine(line: DetailLineType, _index: number): React.ReactElement {
     switch (line.type) {
         case 'title':
             return (
@@ -510,13 +798,10 @@ function renderDetailLine(line: DetailLineType, index: number): React.ReactNode 
             );
         case 'source':
             return (
-                <>
-                    <Text color="gray">Source: </Text>
-                    <Text color={line.source === 'internal' ? 'magenta' : 'blue'}>
-                        {line.source === 'internal' ? 'Internal' : 'MCP'}
-                    </Text>
-                    {line.serverName && <Text color="gray"> (server: {line.serverName})</Text>}
-                </>
+                <Text color={line.source === 'internal' ? 'magenta' : 'blue'}>
+                    {line.source === 'internal' ? 'Internal Tool' : 'MCP Tool'}
+                    {line.serverName ? ` (${line.serverName})` : ''}
+                </Text>
             );
         case 'empty':
             return <Text> </Text>;
@@ -555,9 +840,45 @@ function renderDetailLine(line: DetailLineType, index: number): React.ReactNode 
     }
 }
 
-/**
- * Tool detail view component with scrolling support
- */
+function ToolActionsMenu({
+    tool,
+    columns,
+    listActionsIndex,
+}: {
+    tool: ToolInfo;
+    columns: number;
+    listActionsIndex: number;
+}) {
+    return (
+        <Box flexDirection="column" width={columns}>
+            <Box paddingX={0} paddingY={0}>
+                <Text color="cyan" bold>
+                    Tool Options
+                </Text>
+                <Text color="gray"> {tool.name}</Text>
+            </Box>
+            <Box paddingX={0} paddingY={0}>
+                <Text color={listActionsIndex === 0 ? 'cyan' : 'gray'}>
+                    {listActionsIndex === 0 ? '▶ ' : '  '}View details
+                </Text>
+            </Box>
+            <Box paddingX={0} paddingY={0}>
+                <Text color={listActionsIndex === 1 ? 'cyan' : 'gray'}>
+                    {listActionsIndex === 1 ? '▶ ' : '  '}Edit tool settings
+                </Text>
+            </Box>
+            <Box paddingX={0} paddingY={0}>
+                <Text color={listActionsIndex === 2 ? 'cyan' : 'gray'}>
+                    {listActionsIndex === 2 ? '▶ ' : '  '}Back
+                </Text>
+            </Box>
+            <Box paddingX={0} paddingY={0}>
+                <Text color="gray">↑↓ select · Enter confirm · Esc back</Text>
+            </Box>
+        </Box>
+    );
+}
+
 function ToolDetailView({
     tool,
     columns,
@@ -590,12 +911,11 @@ function ToolDetailView({
 
     return (
         <Box flexDirection="column" width={columns}>
-            {/* Header */}
             <Box paddingX={0} paddingY={0}>
                 <Text color="cyan" bold>
                     Tool Details
                 </Text>
-                <Text color="gray"> - ↑↓ scroll, c copy schema, Esc back</Text>
+                <Text color="gray"> - ↑↓ scroll, c copy schema, Enter settings, Esc back</Text>
                 {copyFeedback && (
                     <Text color="green" bold>
                         {' '}
@@ -632,6 +952,125 @@ function ToolDetailView({
                         ? `↓ ${totalLines - clampedOffset - maxVisibleLines} more below`
                         : ' '}
                 </Text>
+            </Box>
+        </Box>
+    );
+}
+
+function ToolSettingsView({
+    tool,
+    columns,
+    configIndex,
+    sessionAvailable,
+}: {
+    tool: ToolInfo;
+    columns: number;
+    configIndex: number;
+    sessionAvailable: boolean;
+}) {
+    const autoApproveDisabled = !tool.isEnabled;
+    const autoApproveUnavailable = !sessionAvailable || autoApproveDisabled;
+
+    return (
+        <Box flexDirection="column" width={columns}>
+            <Box paddingX={0} paddingY={0}>
+                <Text color="cyan" bold>
+                    Tool Settings
+                </Text>
+                <Text color="gray"> {tool.name}</Text>
+            </Box>
+            <Box paddingX={0} paddingY={0}>
+                <Text color="gray">Status: </Text>
+                <Text color={tool.isEnabled ? 'green' : 'red'}>
+                    {tool.isEnabled ? 'Enabled' : 'Disabled'}
+                </Text>
+                <Text color="gray"> · Auto-approve: </Text>
+                <Text color={tool.isAutoApproved ? 'green' : 'red'}>
+                    {tool.isAutoApproved ? 'On' : 'Off'}
+                </Text>
+                <Text color="gray"> (session)</Text>
+            </Box>
+            {autoApproveDisabled && (
+                <Box paddingX={0} paddingY={0}>
+                    <Text color="yellow">Enable the tool to allow auto-approve.</Text>
+                </Box>
+            )}
+            <Box paddingX={0} paddingY={0}>
+                <Text color={configIndex === 0 ? 'cyan' : 'gray'}>
+                    {configIndex === 0 ? '▶ ' : '  '}
+                    {tool.isEnabled ? 'Disable tool' : 'Enable tool'}
+                </Text>
+            </Box>
+            <Box paddingX={0} paddingY={0}>
+                <Text
+                    color={
+                        configIndex === 1 ? (autoApproveUnavailable ? 'yellow' : 'cyan') : 'gray'
+                    }
+                >
+                    {configIndex === 1 ? '▶ ' : '  '}
+                    {tool.isAutoApproved
+                        ? 'Disable auto-approve (session)'
+                        : 'Enable auto-approve (session)'}
+                </Text>
+            </Box>
+            {!sessionAvailable && (
+                <Box paddingX={0} paddingY={0}>
+                    <Text color="yellow">Auto-approve requires an active session.</Text>
+                </Box>
+            )}
+            <Box paddingX={0} paddingY={0}>
+                <Text color={configIndex === 2 ? 'cyan' : 'gray'}>
+                    {configIndex === 2 ? '▶ ' : '  '}Back
+                </Text>
+            </Box>
+            <Box paddingX={0} paddingY={0}>
+                <Text color="gray">↑↓ select · Enter confirm · Esc back</Text>
+            </Box>
+        </Box>
+    );
+}
+
+function ToolScopeView({
+    tool,
+    columns,
+    scopeTarget,
+    scopeNextEnabled,
+    sessionAvailable,
+}: {
+    tool: ToolInfo;
+    columns: number;
+    scopeTarget: 'session' | 'global';
+    scopeNextEnabled: boolean;
+    sessionAvailable: boolean;
+}) {
+    return (
+        <Box flexDirection="column" width={columns}>
+            <Box paddingX={0} paddingY={0}>
+                <Text color="cyan" bold>
+                    {scopeNextEnabled ? 'Enable Tool' : 'Disable Tool'}
+                </Text>
+                <Text color="gray"> {tool.name}</Text>
+            </Box>
+            <Box paddingX={0} paddingY={0}>
+                <Text color="gray">Apply to:</Text>
+            </Box>
+            <Box paddingX={0} paddingY={0}>
+                <Text color={scopeTarget === 'session' ? 'cyan' : 'gray'}>
+                    {scopeTarget === 'session' ? '▶ ' : '  '}Session (default)
+                </Text>
+            </Box>
+            <Box paddingX={0} paddingY={0}>
+                <Text color={scopeTarget === 'global' ? 'cyan' : 'gray'}>
+                    {scopeTarget === 'global' ? '▶ ' : '  '}Global (persisted)
+                </Text>
+            </Box>
+            {!sessionAvailable && scopeTarget === 'session' && (
+                <Box paddingX={0} paddingY={0}>
+                    <Text color="yellow">No active session; switching to global.</Text>
+                </Box>
+            )}
+            <Box paddingX={0} paddingY={0}>
+                <Text color="gray">↑↓ choose scope · Enter confirm · Esc back</Text>
             </Box>
         </Box>
     );

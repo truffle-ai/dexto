@@ -1663,7 +1663,7 @@ export class DextoAgent {
         // Get full context estimate BEFORE compaction (includes system prompt, tools, messages)
         // This uses the same calculation as /context command for consistency
         const contributorContext = { mcpManager: this.mcpManager };
-        const tools = await llmService.getAllTools();
+        const tools = await llmService.getEnabledTools();
         const beforeEstimate = await contextManager.getContextTokenEstimate(
             contributorContext,
             tools
@@ -1801,7 +1801,7 @@ export class DextoAgent {
         // Get token estimate using ContextManager's method (single source of truth)
         const contributorContext = { mcpManager: this.mcpManager };
         const llmService = session.getLLMService();
-        const tools = await llmService.getAllTools();
+        const tools = await llmService.getEnabledTools();
 
         const tokenEstimate = await contextManager.getContextTokenEstimate(
             contributorContext,
@@ -2383,6 +2383,57 @@ export class DextoAgent {
     public async getAllTools(): Promise<ToolSet> {
         this.ensureStarted();
         return await this.toolManager.getAllTools();
+    }
+
+    /**
+     * Gets tools enabled for LLM context (applies session overrides + global preferences).
+     */
+    public async getEnabledTools(sessionId?: string): Promise<ToolSet> {
+        this.ensureStarted();
+        return this.toolManager.filterToolsForSession(
+            await this.toolManager.getAllTools(),
+            sessionId
+        );
+    }
+
+    /**
+     * Get global disabled tools (agent preferences).
+     */
+    public getGlobalDisabledTools(): string[] {
+        this.ensureStarted();
+        return this.toolManager.getGlobalDisabledTools();
+    }
+
+    /**
+     * Set global disabled tools (agent preferences).
+     */
+    public setGlobalDisabledTools(toolNames: string[]): void {
+        this.ensureStarted();
+        this.toolManager.setGlobalDisabledTools(toolNames);
+    }
+
+    /**
+     * Set session-level disabled tools (session override).
+     */
+    public setSessionDisabledTools(sessionId: string, toolNames: string[]): void {
+        this.ensureStarted();
+        this.toolManager.setSessionDisabledTools(sessionId, toolNames);
+    }
+
+    /**
+     * Get session-level auto-approve tools.
+     */
+    public getSessionAutoApproveTools(sessionId: string): string[] {
+        this.ensureStarted();
+        return this.toolManager.getSessionUserAutoApproveTools(sessionId) ?? [];
+    }
+
+    /**
+     * Set session-level auto-approve tools (user selection).
+     */
+    public setSessionAutoApproveTools(sessionId: string, toolNames: string[]): void {
+        this.ensureStarted();
+        this.toolManager.setSessionUserAutoApproveTools(sessionId, toolNames);
     }
 
     /**

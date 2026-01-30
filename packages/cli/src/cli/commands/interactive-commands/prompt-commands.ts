@@ -280,7 +280,11 @@ function createPromptCommand(promptInfo: PromptInfo): CommandDefinition {
                         try {
                             agent.toolManager.setSessionAutoApproveTools(
                                 ctx.sessionId,
-                                result.allowedTools
+                                result.allowedTools.map((tool) =>
+                                    tool.startsWith('mcp--') && !tool.includes('--', 5)
+                                        ? `mcp--${tool}`
+                                        : tool
+                                )
                             );
                         } catch (toolError) {
                             console.log(

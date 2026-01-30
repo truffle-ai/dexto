@@ -3,11 +3,17 @@
 import { existsSync } from 'fs';
 import { promises as fs } from 'fs';
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
+import path from 'path';
 import { getDextoGlobalPath } from '../utils/path.js';
 import { logger } from '@dexto/core';
 import { DextoValidationError, DextoRuntimeError } from '@dexto/core';
 import type { LLMProvider } from '@dexto/core';
-import { GlobalPreferencesSchema, type GlobalPreferences } from './schemas.js';
+import {
+    AgentPreferencesSchema,
+    GlobalPreferencesSchema,
+    type AgentPreferences,
+    type GlobalPreferences,
+} from './schemas.js';
 import { PREFERENCES_FILE } from './constants.js';
 import { PreferenceError } from './errors.js';
 
@@ -64,6 +70,127 @@ const PREFERENCES_FILE_HEADER = `# Dexto Global Preferences
 #   Set sounds.enabled: false to disable all sounds.
 
 `;
+
+/**
+ * Header comment for agent preferences file
+ */
+const AGENT_PREFERENCES_FILE_HEADER = `# Dexto Agent Preferences
+# Stored per-agent to customize runtime behavior without changing base config.
+# Tool control:
+#   tools.disabled: list of tool names to exclude from LLM context.
+
+`;
+
+/**
+ * Resolve the agent preferences file path for an agent ID.
+ */
+export function getAgentPreferencesPath(agentId: string): string {
+    const filename = `${agentId}.preferences.yml`;
+    return getDextoGlobalPath(path.join('agents', filename));
+}
+
+/**
+ * Load agent preferences from ~/.dexto/agents/<agentId>.preferences.yml
+ */
+export async function loadAgentPreferences(agentId: string): Promise<AgentPreferences> {
+    const preferencesPath = getAgentPreferencesPath(agentId);
+
+    if (!existsSync(preferencesPath)) {
+        throw PreferenceError.fileNotFound(preferencesPath);
+    }
+
+    try {
+        const fileContent = await fs.readFile(preferencesPath, 'utf-8');
+        const rawPreferences = parseYaml(fileContent);
+
+        const validation = AgentPreferencesSchema.safeParse(rawPreferences);
+        if (!validation.success) {
+            throw PreferenceError.validationFailed(validation.error);
+        }
+
+        logger.debug(`Loaded agent preferences from: ${preferencesPath}`);
+        return validation.data;
+    } catch (error) {
+        if (error instanceof DextoValidationError || error instanceof DextoRuntimeError) {
+            throw error;
+        }
+
+        throw PreferenceError.fileReadError(
+            preferencesPath,
+            error instanceof Error ? error.message : String(error)
+        );
+    }
+}
+
+/**
+ * Save agent preferences to ~/.dexto/agents/<agentId>.preferences.yml
+ */
+export async function saveAgentPreferences(
+    agentId: string,
+    preferences: AgentPreferences
+): Promise<void> {
+    const preferencesPath = getAgentPreferencesPath(agentId);
+
+    const validation = AgentPreferencesSchema.safeParse(preferences);
+    if (!validation.success) {
+        throw PreferenceError.validationFailed(validation.error);
+    }
+
+    try {
+        logger.debug(`Saving agent preferences to: ${preferencesPath}`);
+
+        await fs.mkdir(path.dirname(preferencesPath), { recursive: true });
+
+        const yamlContent = stringifyYaml(preferences, {
+            indent: 2,
+            lineWidth: 100,
+            minContentWidth: 20,
+        });
+
+        await fs.writeFile(preferencesPath, AGENT_PREFERENCES_FILE_HEADER + yamlContent, 'utf-8');
+
+        logger.debug(
+            `✓ Saved agent preferences ${JSON.stringify(preferences)} to: ${preferencesPath}`
+        );
+    } catch (error) {
+        throw PreferenceError.fileWriteError(
+            preferencesPath,
+            error instanceof Error ? error.message : String(error)
+        );
+    }
+}
+
+/**
+ * Check if agent preferences exist (for first-time detection)
+ */
+export function agentPreferencesExist(agentId: string): boolean {
+    const preferencesPath = getAgentPreferencesPath(agentId);
+    return existsSync(preferencesPath);
+}
+
+/**
+ * Update agent preferences with partial updates
+ */
+export async function updateAgentPreferences(
+    agentId: string,
+    updates: Partial<AgentPreferences>
+): Promise<AgentPreferences> {
+    const existing = await loadAgentPreferences(agentId);
+    const merged = {
+        ...existing,
+        ...updates,
+        tools: updates.tools ? { ...existing.tools, ...updates.tools } : existing.tools,
+    };
+
+    const validation = AgentPreferencesSchema.safeParse(merged);
+    if (!validation.success) {
+        throw PreferenceError.validationFailed(validation.error);
+    }
+
+    await saveAgentPreferences(agentId, validation.data);
+
+    return validation.data;
+}
 
 /**
  * Save global preferences to ~/.dexto/preferences.yml

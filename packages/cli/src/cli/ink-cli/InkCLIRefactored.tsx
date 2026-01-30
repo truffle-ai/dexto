@@ -159,9 +159,12 @@ export async function startInkCliRefactored(
 
     // Initialize sound service from preferences
     const { SoundNotificationService } = await import('./utils/soundNotification.js');
-    const { globalPreferencesExist, loadGlobalPreferences } = await import(
-        '@dexto/agent-management'
-    );
+    const {
+        globalPreferencesExist,
+        loadGlobalPreferences,
+        agentPreferencesExist,
+        loadAgentPreferences,
+    } = await import('@dexto/agent-management');
 
     let soundService: SoundNotificationService | null = null;
     // Initialize sound config with defaults (enabled by default even without preferences file)
@@ -190,6 +193,18 @@ export async function startInkCliRefactored(
     }
     if (soundConfig.enabled) {
         soundService = new SoundNotificationService(soundConfig);
+    }
+
+    // Initialize tool preferences (per-agent)
+    if (agentPreferencesExist(agent.config.agentId)) {
+        try {
+            const preferences = await loadAgentPreferences(agent.config.agentId);
+            agent.setGlobalDisabledTools(preferences.tools?.disabled ?? []);
+        } catch (error) {
+            agent.logger.debug(
+                `Agent tool preferences could not be loaded: ${error instanceof Error ? error.message : String(error)}`
+            );
+        }
     }
 
     const inkApp = render(

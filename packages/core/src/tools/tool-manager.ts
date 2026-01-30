@@ -97,6 +97,10 @@ export class ToolManager {
     // When a skill with allowedTools is invoked, those tools are auto-approved (skip confirmation)
     // This is ADDITIVE - other tools are NOT blocked, they just go through normal approval flow
     private sessionAutoApproveTools: Map<string, string[]> = new Map();
+    // Session-level auto-approve tools set by users (UI)
+    private sessionUserAutoApproveTools: Map<string, string[]> = new Map();
+    private sessionDisabledTools: Map<string, string[]> = new Map();
+    private globalDisabledTools: string[] = [];
 
     constructor(
         mcpManager: MCPManager,
@@ -224,6 +228,32 @@ export class ToolManager {
     }
 
     /**
+     * Set session-level auto-approve tools chosen by the user.
+     */
+    setSessionUserAutoApproveTools(sessionId: string, autoApproveTools: string[]): void {
+        if (autoApproveTools.length === 0) {
+            this.clearSessionUserAutoApproveTools(sessionId);
+            return;
+        }
+        this.sessionUserAutoApproveTools.set(sessionId, autoApproveTools);
+        this.logger.info(
+            `Session user auto-approve tools set for '${sessionId}': ${autoApproveTools.length} tools`
+        );
+        this.logger.debug(`User auto-approve tools: ${autoApproveTools.join(', ')}`);
+    }
+
+    /**
+     * Clear session-level auto-approve tools chosen by the user.
+     */
+    clearSessionUserAutoApproveTools(sessionId: string): void {
+        const hadAutoApprove = this.sessionUserAutoApproveTools.has(sessionId);
+        this.sessionUserAutoApproveTools.delete(sessionId);
+        if (hadAutoApprove) {
+            this.logger.info(`Session user auto-approve tools cleared for '${sessionId}'`);
+        }
+    }
+
+    /**
      * Clear session-level auto-approve tools.
      * Call this when the session ends or when the skill completes.
      *
@@ -237,6 +267,87 @@ export class ToolManager {
         }
     }
 
+    hasSessionUserAutoApproveTools(sessionId: string): boolean {
+        return this.sessionUserAutoApproveTools.has(sessionId);
+    }
+
+    // ============= ENABLED/DISABLED TOOLS =============
+
+    /**
+     * Set global disabled tools (agent-level preferences).
+     */
+    setGlobalDisabledTools(toolNames: string[]): void {
+        this.globalDisabledTools = [...toolNames];
+        this.logger.info('Global disabled tools updated', {
+            count: toolNames.length,
+        });
+
+        this.agentEventBus.emit('tools:enabled-updated', {
+            scope: 'global',
+            disabledTools: [...this.globalDisabledTools],
+        });
+    }
+
+    getGlobalDisabledTools(): string[] {
+        return [...this.globalDisabledTools];
+    }
+
+    /**
+     * Set session-level disabled tools (overrides global list).
+     */
+    setSessionDisabledTools(sessionId: string, toolNames: string[]): void {
+        if (toolNames.length === 0) {
+            this.clearSessionDisabledTools(sessionId);
+            return;
+        }
+        this.sessionDisabledTools.set(sessionId, [...toolNames]);
+        this.logger.info('Session disabled tools updated', {
+            sessionId,
+            count: toolNames.length,
+        });
+        this.agentEventBus.emit('tools:enabled-updated', {
+            scope: 'session',
+            sessionId,
+            disabledTools: [...toolNames],
+        });
+    }
+
+    /**
+     * Clear session-level disabled tools.
+     */
+    clearSessionDisabledTools(sessionId: string): void {
+        const hadOverrides = this.sessionDisabledTools.has(sessionId);
+        this.sessionDisabledTools.delete(sessionId);
+        if (hadOverrides) {
+            this.logger.info('Session disabled tools cleared', { sessionId });
+        }
+    }
+
+    /**
+     * Get disabled tools for a session (session override wins).
+     */
+    getDisabledTools(sessionId?: string): string[] {
+        if (sessionId && this.sessionDisabledTools.has(sessionId)) {
+            return this.sessionDisabledTools.get(sessionId) ?? [];
+        }
+
+        return this.globalDisabledTools;
+    }
+
+    /**
+     * Filter a tool set based on disabled tools for a session.
+     */
+    filterToolsForSession(toolSet: ToolSet, sessionId?: string): ToolSet {
+        const disabled = new Set(this.getDisabledTools(sessionId));
+        if (disabled.size === 0) {
+            return toolSet;
+        }
+
+        return Object.fromEntries(
+            Object.entries(toolSet).filter(([toolName]) => !disabled.has(toolName))
+        );
+    }
+
     /**
      * Check if a session has auto-approve tools set.
      *
@@ -248,13 +359,30 @@ export class ToolManager {
     }
 
     /**
-     * Get the auto-approve tools for a session.
+     * Get the auto-approve tools for a session (skill-provided list).
      *
      * @param sessionId The session ID to check
      * @returns Array of auto-approve tool names, or undefined if none set
      */
     getSessionAutoApproveTools(sessionId: string): string[] | undefined {
         return this.sessionAutoApproveTools.get(sessionId);
+    }
+
+    /**
+     * Get the user auto-approve tools for a session.
+     */
+    getSessionUserAutoApproveTools(sessionId: string): string[] | undefined {
+        return this.sessionUserAutoApproveTools.get(sessionId);
+    }
+
+    /**
+     * Combined auto-approve list for a session.
+     */
+    getCombinedSessionAutoApproveTools(sessionId: string): string[] {
+        return [
+            ...(this.sessionAutoApproveTools.get(sessionId) ?? []),
+            ...(this.sessionUserAutoApproveTools.get(sessionId) ?? []),
+        ];
     }
 
     /**
@@ -266,8 +394,8 @@ export class ToolManager {
      * @returns true if the tool should be auto-approved
      */
     private isToolAutoApprovedForSession(sessionId: string, toolName: string): boolean {
-        const autoApproveTools = this.sessionAutoApproveTools.get(sessionId);
-        if (!autoApproveTools) {
+        const autoApproveTools = this.getCombinedSessionAutoApproveTools(sessionId);
+        if (autoApproveTools.length === 0) {
             return false;
         }
         // Check if tool matches any auto-approve pattern
