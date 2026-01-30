@@ -11,6 +11,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'GPT-3.5-turbo',
             maxInputTokens: 16385,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.5,
                 outputPerM: 1.5,
@@ -24,6 +26,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'GPT-4',
             maxInputTokens: 8192,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 30,
                 outputPerM: 60,
@@ -36,6 +40,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'GPT-4 Turbo',
             maxInputTokens: 128000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 10,
                 outputPerM: 30,
@@ -48,6 +54,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'GPT-4.1',
             maxInputTokens: 1047576,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 2,
                 outputPerM: 8,
@@ -61,6 +69,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'GPT-4.1 mini',
             maxInputTokens: 1047576,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.4,
                 outputPerM: 1.6,
@@ -74,6 +84,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'GPT-4.1 nano',
             maxInputTokens: 1047576,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.1,
                 outputPerM: 0.4,
@@ -87,6 +99,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'GPT-4o',
             maxInputTokens: 128000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 2.5,
                 outputPerM: 10,
@@ -100,6 +114,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'GPT-4o (2024-05-13)',
             maxInputTokens: 128000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 5,
                 outputPerM: 15,
@@ -112,6 +128,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'GPT-4o (2024-08-06)',
             maxInputTokens: 128000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 2.5,
                 outputPerM: 10,
@@ -125,6 +143,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'GPT-4o (2024-11-20)',
             maxInputTokens: 128000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 2.5,
                 outputPerM: 10,
@@ -138,6 +158,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'GPT-4o mini',
             maxInputTokens: 128000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.15,
                 outputPerM: 0.6,
@@ -151,6 +173,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'GPT-5',
             maxInputTokens: 272000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: true,
+            supportsTemperature: false,
             pricing: {
                 inputPerM: 1.25,
                 outputPerM: 10,
@@ -164,6 +188,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'GPT-5 Chat (latest)',
             maxInputTokens: 272000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 1.25,
                 outputPerM: 10,
@@ -176,6 +202,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'GPT-5-Codex',
             maxInputTokens: 272000,
             supportedFileTypes: ['image'],
+            reasoning: true,
+            supportsTemperature: false,
             pricing: {
                 inputPerM: 1.25,
                 outputPerM: 10,
@@ -189,6 +217,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'GPT-5 Mini',
             maxInputTokens: 272000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: true,
+            supportsTemperature: false,
             pricing: {
                 inputPerM: 0.25,
                 outputPerM: 2,
@@ -203,6 +233,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'GPT-5 Nano',
             maxInputTokens: 272000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: true,
+            supportsTemperature: false,
             pricing: {
                 inputPerM: 0.05,
                 outputPerM: 0.4,
@@ -216,6 +248,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'GPT-5 Pro',
             maxInputTokens: 272000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: true,
+            supportsTemperature: false,
             pricing: {
                 inputPerM: 15,
                 outputPerM: 120,
@@ -228,6 +262,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'GPT-5.1',
             maxInputTokens: 272000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: true,
+            supportsTemperature: false,
             pricing: {
                 inputPerM: 1.25,
                 outputPerM: 10,
@@ -241,6 +277,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'GPT-5.1 Chat',
             maxInputTokens: 128000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: true,
+            supportsTemperature: false,
             pricing: {
                 inputPerM: 1.25,
                 outputPerM: 10,
@@ -254,6 +292,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'GPT-5.1 Codex',
             maxInputTokens: 272000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: true,
+            supportsTemperature: false,
             pricing: {
                 inputPerM: 1.25,
                 outputPerM: 10,
@@ -267,6 +307,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'GPT-5.1 Codex Max',
             maxInputTokens: 272000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: true,
+            supportsTemperature: false,
             pricing: {
                 inputPerM: 1.25,
                 outputPerM: 10,
@@ -280,6 +322,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'GPT-5.1 Codex mini',
             maxInputTokens: 272000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: true,
+            supportsTemperature: false,
             pricing: {
                 inputPerM: 0.25,
                 outputPerM: 2,
@@ -293,6 +337,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'GPT-5.2',
             maxInputTokens: 272000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: true,
+            supportsTemperature: false,
             pricing: {
                 inputPerM: 1.75,
                 outputPerM: 14,
@@ -306,6 +352,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'GPT-5.2 Chat',
             maxInputTokens: 128000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: true,
+            supportsTemperature: false,
             pricing: {
                 inputPerM: 1.75,
                 outputPerM: 14,
@@ -319,6 +367,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'GPT-5.2 Codex',
             maxInputTokens: 272000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: true,
+            supportsTemperature: false,
             pricing: {
                 inputPerM: 1.75,
                 outputPerM: 14,
@@ -332,6 +382,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'GPT-5.2 Pro',
             maxInputTokens: 272000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: true,
+            supportsTemperature: false,
             pricing: {
                 inputPerM: 21,
                 outputPerM: 168,
@@ -344,6 +396,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'o1',
             maxInputTokens: 200000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: true,
+            supportsTemperature: false,
             pricing: {
                 inputPerM: 15,
                 outputPerM: 60,
@@ -357,6 +411,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'o1-mini',
             maxInputTokens: 128000,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: false,
             pricing: {
                 inputPerM: 1.1,
                 outputPerM: 4.4,
@@ -370,6 +426,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'o1-preview',
             maxInputTokens: 128000,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 15,
                 outputPerM: 60,
@@ -383,6 +441,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'o1-pro',
             maxInputTokens: 200000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: true,
+            supportsTemperature: false,
             pricing: {
                 inputPerM: 150,
                 outputPerM: 600,
@@ -395,6 +455,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'o3',
             maxInputTokens: 200000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: true,
+            supportsTemperature: false,
             pricing: {
                 inputPerM: 2,
                 outputPerM: 8,
@@ -408,6 +470,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'o3-deep-research',
             maxInputTokens: 200000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: true,
+            supportsTemperature: false,
             pricing: {
                 inputPerM: 10,
                 outputPerM: 40,
@@ -421,6 +485,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'o3-mini',
             maxInputTokens: 200000,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: false,
             pricing: {
                 inputPerM: 1.1,
                 outputPerM: 4.4,
@@ -434,6 +500,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'o3-pro',
             maxInputTokens: 200000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: true,
+            supportsTemperature: false,
             pricing: {
                 inputPerM: 20,
                 outputPerM: 80,
@@ -446,6 +514,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'o4-mini',
             maxInputTokens: 200000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: true,
+            supportsTemperature: false,
             pricing: {
                 inputPerM: 1.1,
                 outputPerM: 4.4,
@@ -459,6 +529,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'o4-mini-deep-research',
             maxInputTokens: 200000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: true,
+            supportsTemperature: false,
             pricing: {
                 inputPerM: 2,
                 outputPerM: 8,
@@ -475,6 +547,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Claude Haiku 3.5',
             maxInputTokens: 200000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.8,
                 outputPerM: 4,
@@ -489,6 +563,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Claude Haiku 3.5 (latest)',
             maxInputTokens: 200000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.8,
                 outputPerM: 4,
@@ -503,6 +579,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Claude Sonnet 3.5',
             maxInputTokens: 200000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 3,
                 outputPerM: 15,
@@ -517,6 +595,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Claude Sonnet 3.5 v2',
             maxInputTokens: 200000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 3,
                 outputPerM: 15,
@@ -531,6 +611,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Claude Sonnet 3.7',
             maxInputTokens: 200000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 3,
                 outputPerM: 15,
@@ -545,6 +627,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Claude Sonnet 3.7 (latest)',
             maxInputTokens: 200000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 3,
                 outputPerM: 15,
@@ -559,6 +643,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Claude Haiku 3',
             maxInputTokens: 200000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.25,
                 outputPerM: 1.25,
@@ -573,6 +659,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Claude Opus 3',
             maxInputTokens: 200000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 15,
                 outputPerM: 75,
@@ -587,6 +675,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Claude Sonnet 3',
             maxInputTokens: 200000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 3,
                 outputPerM: 15,
@@ -601,6 +691,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Claude Haiku 4.5 (latest)',
             maxInputTokens: 200000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 1,
                 outputPerM: 5,
@@ -615,6 +707,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Claude Haiku 4.5',
             maxInputTokens: 200000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 1,
                 outputPerM: 5,
@@ -630,6 +724,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Claude Opus 4 (latest)',
             maxInputTokens: 200000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 15,
                 outputPerM: 75,
@@ -644,6 +740,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Claude Opus 4.1 (latest)',
             maxInputTokens: 200000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 15,
                 outputPerM: 75,
@@ -658,6 +756,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Claude Opus 4.1',
             maxInputTokens: 200000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 15,
                 outputPerM: 75,
@@ -672,6 +772,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Claude Opus 4',
             maxInputTokens: 200000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 15,
                 outputPerM: 75,
@@ -686,6 +788,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Claude Opus 4.5 (latest)',
             maxInputTokens: 200000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 5,
                 outputPerM: 25,
@@ -700,6 +804,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Claude Opus 4.5',
             maxInputTokens: 200000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 5,
                 outputPerM: 25,
@@ -714,6 +820,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Claude Sonnet 4 (latest)',
             maxInputTokens: 200000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 3,
                 outputPerM: 15,
@@ -728,6 +836,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Claude Sonnet 4',
             maxInputTokens: 200000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 3,
                 outputPerM: 15,
@@ -742,6 +852,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Claude Sonnet 4.5 (latest)',
             maxInputTokens: 200000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 3,
                 outputPerM: 15,
@@ -756,6 +868,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Claude Sonnet 4.5',
             maxInputTokens: 200000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 3,
                 outputPerM: 15,
@@ -772,6 +886,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Gemini 1.5 Flash',
             maxInputTokens: 1000000,
             supportedFileTypes: ['image', 'audio'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.075,
                 outputPerM: 0.3,
@@ -785,6 +901,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Gemini 1.5 Flash-8B',
             maxInputTokens: 1000000,
             supportedFileTypes: ['image', 'audio'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.0375,
                 outputPerM: 0.15,
@@ -798,6 +916,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Gemini 1.5 Pro',
             maxInputTokens: 1000000,
             supportedFileTypes: ['image', 'audio'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 1.25,
                 outputPerM: 5,
@@ -811,6 +931,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Gemini 2.0 Flash',
             maxInputTokens: 1048576,
             supportedFileTypes: ['pdf', 'image', 'audio'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.1,
                 outputPerM: 0.4,
@@ -824,6 +946,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Gemini 2.0 Flash Lite',
             maxInputTokens: 1048576,
             supportedFileTypes: ['pdf', 'image', 'audio'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.075,
                 outputPerM: 0.3,
@@ -836,6 +960,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Gemini 2.5 Flash',
             maxInputTokens: 1048576,
             supportedFileTypes: ['pdf', 'image', 'audio'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.3,
                 outputPerM: 2.5,
@@ -849,6 +975,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Gemini 2.5 Flash Image',
             maxInputTokens: 32768,
             supportedFileTypes: ['image'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.3,
                 outputPerM: 30,
@@ -862,6 +990,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Gemini 2.5 Flash Image (Preview)',
             maxInputTokens: 32768,
             supportedFileTypes: ['image'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.3,
                 outputPerM: 30,
@@ -875,6 +1005,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Gemini 2.5 Flash Lite',
             maxInputTokens: 1048576,
             supportedFileTypes: ['pdf', 'image', 'audio'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.1,
                 outputPerM: 0.4,
@@ -888,6 +1020,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Gemini 2.5 Flash Lite Preview 06-17',
             maxInputTokens: 1048576,
             supportedFileTypes: ['pdf', 'image', 'audio'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.1,
                 outputPerM: 0.4,
@@ -901,6 +1035,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Gemini 2.5 Flash Lite Preview 09-25',
             maxInputTokens: 1048576,
             supportedFileTypes: ['pdf', 'image', 'audio'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.1,
                 outputPerM: 0.4,
@@ -914,6 +1050,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Gemini 2.5 Flash Preview 04-17',
             maxInputTokens: 1048576,
             supportedFileTypes: ['pdf', 'image', 'audio'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.15,
                 outputPerM: 0.6,
@@ -927,6 +1065,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Gemini 2.5 Flash Preview 05-20',
             maxInputTokens: 1048576,
             supportedFileTypes: ['pdf', 'image', 'audio'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.15,
                 outputPerM: 0.6,
@@ -940,6 +1080,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Gemini 2.5 Flash Preview 09-25',
             maxInputTokens: 1048576,
             supportedFileTypes: ['pdf', 'image', 'audio'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.3,
                 outputPerM: 2.5,
@@ -953,6 +1095,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Gemini 2.5 Flash Preview TTS',
             maxInputTokens: 8000,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: false,
             pricing: {
                 inputPerM: 0.5,
                 outputPerM: 10,
@@ -965,6 +1109,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Gemini 2.5 Pro',
             maxInputTokens: 1048576,
             supportedFileTypes: ['pdf', 'image', 'audio'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 1.25,
                 outputPerM: 10,
@@ -978,6 +1124,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Gemini 2.5 Pro Preview 05-06',
             maxInputTokens: 1048576,
             supportedFileTypes: ['pdf', 'image', 'audio'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 1.25,
                 outputPerM: 10,
@@ -991,6 +1139,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Gemini 2.5 Pro Preview 06-05',
             maxInputTokens: 1048576,
             supportedFileTypes: ['pdf', 'image', 'audio'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 1.25,
                 outputPerM: 10,
@@ -1004,6 +1154,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Gemini 2.5 Pro Preview TTS',
             maxInputTokens: 8000,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: false,
             pricing: {
                 inputPerM: 1,
                 outputPerM: 20,
@@ -1016,6 +1168,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Gemini 3 Flash Preview',
             maxInputTokens: 1048576,
             supportedFileTypes: ['pdf', 'image', 'audio'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.5,
                 outputPerM: 3,
@@ -1030,6 +1184,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Gemini 3 Pro Preview',
             maxInputTokens: 1000000,
             supportedFileTypes: ['pdf', 'image', 'audio'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 2,
                 outputPerM: 12,
@@ -1043,6 +1199,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Gemini Embedding 001',
             maxInputTokens: 2048,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: false,
             pricing: {
                 inputPerM: 0.15,
                 outputPerM: 0,
@@ -1055,6 +1213,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Gemini Flash Latest',
             maxInputTokens: 1048576,
             supportedFileTypes: ['pdf', 'image', 'audio'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.3,
                 outputPerM: 2.5,
@@ -1068,6 +1228,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Gemini Flash-Lite Latest',
             maxInputTokens: 1048576,
             supportedFileTypes: ['pdf', 'image', 'audio'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.1,
                 outputPerM: 0.4,
@@ -1081,6 +1243,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Gemini Live 2.5 Flash',
             maxInputTokens: 128000,
             supportedFileTypes: ['image', 'audio'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.5,
                 outputPerM: 2,
@@ -1093,6 +1257,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Gemini Live 2.5 Flash Preview Native Audio',
             maxInputTokens: 131072,
             supportedFileTypes: ['audio'],
+            reasoning: true,
+            supportsTemperature: false,
             pricing: {
                 inputPerM: 0.5,
                 outputPerM: 2,
@@ -1107,6 +1273,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'DeepSeek R1 Distill Llama 70B',
             maxInputTokens: 131072,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.75,
                 outputPerM: 0.99,
@@ -1119,6 +1287,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Gemma 2 9B',
             maxInputTokens: 8192,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.2,
                 outputPerM: 0.2,
@@ -1131,6 +1301,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Llama 3.1 8B Instant',
             maxInputTokens: 131072,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.05,
                 outputPerM: 0.08,
@@ -1143,6 +1315,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Llama 3.3 70B Versatile',
             maxInputTokens: 131072,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.59,
                 outputPerM: 0.79,
@@ -1156,6 +1330,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Llama Guard 3 8B',
             maxInputTokens: 8192,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.2,
                 outputPerM: 0.2,
@@ -1168,6 +1344,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Llama 3 70B',
             maxInputTokens: 8192,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.59,
                 outputPerM: 0.79,
@@ -1180,6 +1358,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Llama 3 8B',
             maxInputTokens: 8192,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.05,
                 outputPerM: 0.08,
@@ -1192,6 +1372,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Llama 4 Maverick 17B',
             maxInputTokens: 131072,
             supportedFileTypes: ['image'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.2,
                 outputPerM: 0.6,
@@ -1204,6 +1386,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Llama 4 Scout 17B',
             maxInputTokens: 131072,
             supportedFileTypes: ['image'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.11,
                 outputPerM: 0.34,
@@ -1216,6 +1400,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Llama Guard 4 12B',
             maxInputTokens: 131072,
             supportedFileTypes: ['image'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.2,
                 outputPerM: 0.2,
@@ -1228,6 +1414,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Mistral Saba 24B',
             maxInputTokens: 32768,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.79,
                 outputPerM: 0.79,
@@ -1240,6 +1428,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Kimi K2 Instruct',
             maxInputTokens: 131072,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 1,
                 outputPerM: 3,
@@ -1252,6 +1442,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Kimi K2 Instruct 0905',
             maxInputTokens: 262144,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 1,
                 outputPerM: 3,
@@ -1264,6 +1456,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'GPT OSS 120B',
             maxInputTokens: 131072,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.15,
                 outputPerM: 0.6,
@@ -1276,6 +1470,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'GPT OSS 20B',
             maxInputTokens: 131072,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.075,
                 outputPerM: 0.3,
@@ -1288,6 +1484,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Qwen QwQ 32B',
             maxInputTokens: 131072,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.29,
                 outputPerM: 0.39,
@@ -1300,6 +1498,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Qwen3 32B',
             maxInputTokens: 131072,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.29,
                 outputPerM: 0.59,
@@ -1314,6 +1514,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Grok 2',
             maxInputTokens: 131072,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 2,
                 outputPerM: 10,
@@ -1327,6 +1529,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Grok 2 (1212)',
             maxInputTokens: 131072,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 2,
                 outputPerM: 10,
@@ -1340,6 +1544,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Grok 2 Latest',
             maxInputTokens: 131072,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 2,
                 outputPerM: 10,
@@ -1353,6 +1559,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Grok 2 Vision',
             maxInputTokens: 8192,
             supportedFileTypes: ['image'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 2,
                 outputPerM: 10,
@@ -1366,6 +1574,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Grok 2 Vision (1212)',
             maxInputTokens: 8192,
             supportedFileTypes: ['image'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 2,
                 outputPerM: 10,
@@ -1379,6 +1589,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Grok 2 Vision Latest',
             maxInputTokens: 8192,
             supportedFileTypes: ['image'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 2,
                 outputPerM: 10,
@@ -1392,6 +1604,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Grok 3',
             maxInputTokens: 131072,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 3,
                 outputPerM: 15,
@@ -1405,6 +1619,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Grok 3 Fast',
             maxInputTokens: 131072,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 5,
                 outputPerM: 25,
@@ -1418,6 +1634,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Grok 3 Fast Latest',
             maxInputTokens: 131072,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 5,
                 outputPerM: 25,
@@ -1431,6 +1649,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Grok 3 Latest',
             maxInputTokens: 131072,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 3,
                 outputPerM: 15,
@@ -1444,6 +1664,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Grok 3 Mini',
             maxInputTokens: 131072,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.3,
                 outputPerM: 0.5,
@@ -1457,6 +1679,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Grok 3 Mini Fast',
             maxInputTokens: 131072,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.6,
                 outputPerM: 4,
@@ -1470,6 +1694,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Grok 3 Mini Fast Latest',
             maxInputTokens: 131072,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.6,
                 outputPerM: 4,
@@ -1483,6 +1709,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Grok 3 Mini Latest',
             maxInputTokens: 131072,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.3,
                 outputPerM: 0.5,
@@ -1496,6 +1724,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Grok 4',
             maxInputTokens: 256000,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 3,
                 outputPerM: 15,
@@ -1510,6 +1740,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Grok 4.1 Fast',
             maxInputTokens: 2000000,
             supportedFileTypes: ['image'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.2,
                 outputPerM: 0.5,
@@ -1523,6 +1755,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Grok 4.1 Fast (Non-Reasoning)',
             maxInputTokens: 2000000,
             supportedFileTypes: ['image'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.2,
                 outputPerM: 0.5,
@@ -1536,6 +1770,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Grok 4 Fast',
             maxInputTokens: 2000000,
             supportedFileTypes: ['image'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.2,
                 outputPerM: 0.5,
@@ -1549,6 +1785,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Grok 4 Fast (Non-Reasoning)',
             maxInputTokens: 2000000,
             supportedFileTypes: ['image'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.2,
                 outputPerM: 0.5,
@@ -1562,6 +1800,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Grok Beta',
             maxInputTokens: 131072,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 5,
                 outputPerM: 15,
@@ -1575,6 +1815,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Grok Code Fast 1',
             maxInputTokens: 256000,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.2,
                 outputPerM: 1.5,
@@ -1588,6 +1830,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Grok Vision Beta',
             maxInputTokens: 8192,
             supportedFileTypes: ['image'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 5,
                 outputPerM: 15,
@@ -1603,6 +1847,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Command A',
             maxInputTokens: 256000,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 2.5,
                 outputPerM: 10,
@@ -1616,6 +1862,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Command A Reasoning',
             maxInputTokens: 256000,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 2.5,
                 outputPerM: 10,
@@ -1628,6 +1876,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Command A Translate',
             maxInputTokens: 8000,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 2.5,
                 outputPerM: 10,
@@ -1640,6 +1890,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Command A Vision',
             maxInputTokens: 128000,
             supportedFileTypes: ['image'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 2.5,
                 outputPerM: 10,
@@ -1652,6 +1904,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Command R',
             maxInputTokens: 128000,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.15,
                 outputPerM: 0.6,
@@ -1664,6 +1918,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Command R+',
             maxInputTokens: 128000,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 2.5,
                 outputPerM: 10,
@@ -1676,6 +1932,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Command R7B',
             maxInputTokens: 128000,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.0375,
                 outputPerM: 0.15,
@@ -1690,6 +1948,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'MiniMax-M2',
             maxInputTokens: 196608,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.3,
                 outputPerM: 1.2,
@@ -1702,6 +1962,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'MiniMax-M2.1',
             maxInputTokens: 204800,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.3,
                 outputPerM: 1.2,
@@ -1717,6 +1979,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'GLM-4.5',
             maxInputTokens: 131072,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.6,
                 outputPerM: 2.2,
@@ -1731,6 +1995,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'GLM-4.5-Air',
             maxInputTokens: 131072,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.2,
                 outputPerM: 1.1,
@@ -1745,6 +2011,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'GLM-4.5-Flash',
             maxInputTokens: 131072,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -1759,6 +2027,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'GLM-4.5V',
             maxInputTokens: 64000,
             supportedFileTypes: ['image'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.6,
                 outputPerM: 1.8,
@@ -1771,6 +2041,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'GLM-4.6',
             maxInputTokens: 204800,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.6,
                 outputPerM: 2.2,
@@ -1785,6 +2057,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'GLM-4.6V',
             maxInputTokens: 128000,
             supportedFileTypes: ['image'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.3,
                 outputPerM: 0.9,
@@ -1797,6 +2071,9 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'GLM-4.7',
             maxInputTokens: 204800,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
+            supportsInterleaved: true,
             pricing: {
                 inputPerM: 0.6,
                 outputPerM: 2.2,
@@ -1812,6 +2089,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'GLM-4.7-Flash',
             maxInputTokens: 200000,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -1828,6 +2107,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Claude Haiku 3.5',
             maxInputTokens: 200000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.8,
                 outputPerM: 4,
@@ -1842,6 +2123,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Claude Sonnet 3.7',
             maxInputTokens: 200000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 15,
                 outputPerM: 75,
@@ -1856,6 +2139,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Claude Haiku 4.5',
             maxInputTokens: 200000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 1,
                 outputPerM: 5,
@@ -1870,6 +2155,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Claude Opus 4',
             maxInputTokens: 200000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 15,
                 outputPerM: 75,
@@ -1884,6 +2171,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Claude Opus 4.1',
             maxInputTokens: 200000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 15,
                 outputPerM: 75,
@@ -1898,6 +2187,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Claude Opus 4.5',
             maxInputTokens: 200000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 5,
                 outputPerM: 25,
@@ -1912,6 +2203,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Claude Sonnet 4',
             maxInputTokens: 200000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 3,
                 outputPerM: 15,
@@ -1926,6 +2219,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Claude Sonnet 4.5',
             maxInputTokens: 1000000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 3,
                 outputPerM: 15,
@@ -1940,6 +2235,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Trinity Large Preview',
             maxInputTokens: 131072,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -1952,6 +2249,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Trinity Mini',
             maxInputTokens: 131072,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -1964,6 +2263,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Dolphin3.0 Mistral 24B',
             maxInputTokens: 32768,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -1976,6 +2277,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Dolphin3.0 R1 Mistral 24B',
             maxInputTokens: 32768,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -1988,6 +2291,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'DeepSeek V3 0324',
             maxInputTokens: 16384,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -2000,6 +2305,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'DeepSeek-V3.1',
             maxInputTokens: 163840,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.2,
                 outputPerM: 0.8,
@@ -2012,6 +2319,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Deepseek R1 0528 Qwen3 8B (free)',
             maxInputTokens: 131072,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -2024,6 +2333,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'R1 0528 (free)',
             maxInputTokens: 163840,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -2036,6 +2347,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'DeepSeek R1 Distill Llama 70B',
             maxInputTokens: 8192,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -2048,6 +2361,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'DeepSeek R1 Distill Qwen 14B',
             maxInputTokens: 64000,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -2060,6 +2375,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'R1 (free)',
             maxInputTokens: 163840,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -2072,6 +2389,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'DeepSeek V3 Base (free)',
             maxInputTokens: 163840,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -2084,6 +2403,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'DeepSeek V3.1 Terminus',
             maxInputTokens: 131072,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.27,
                 outputPerM: 1,
@@ -2096,6 +2417,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'DeepSeek V3.1 Terminus (exacto)',
             maxInputTokens: 131072,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.27,
                 outputPerM: 1,
@@ -2108,6 +2431,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'DeepSeek V3.2',
             maxInputTokens: 163840,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.28,
                 outputPerM: 0.4,
@@ -2120,6 +2445,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'DeepSeek V3.2 Speciale',
             maxInputTokens: 163840,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.27,
                 outputPerM: 0.41,
@@ -2132,6 +2459,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Qwerky 72B',
             maxInputTokens: 32768,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -2144,6 +2473,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Gemini 2.0 Flash',
             maxInputTokens: 1048576,
             supportedFileTypes: ['pdf', 'image', 'audio'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.1,
                 outputPerM: 0.4,
@@ -2157,6 +2488,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Gemini 2.0 Flash Experimental (free)',
             maxInputTokens: 1048576,
             supportedFileTypes: ['image'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -2169,6 +2502,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Gemini 2.5 Flash',
             maxInputTokens: 1048576,
             supportedFileTypes: ['pdf', 'image', 'audio'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.3,
                 outputPerM: 2.5,
@@ -2182,6 +2517,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Gemini 2.5 Flash Lite',
             maxInputTokens: 1048576,
             supportedFileTypes: ['pdf', 'image', 'audio'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.1,
                 outputPerM: 0.4,
@@ -2195,6 +2532,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Gemini 2.5 Flash Lite Preview 09-25',
             maxInputTokens: 1048576,
             supportedFileTypes: ['pdf', 'image', 'audio'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.1,
                 outputPerM: 0.4,
@@ -2208,6 +2547,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Gemini 2.5 Flash Preview 09-25',
             maxInputTokens: 1048576,
             supportedFileTypes: ['pdf', 'image', 'audio'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.3,
                 outputPerM: 2.5,
@@ -2221,6 +2562,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Gemini 2.5 Pro',
             maxInputTokens: 1048576,
             supportedFileTypes: ['pdf', 'image', 'audio'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 1.25,
                 outputPerM: 10,
@@ -2234,6 +2577,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Gemini 2.5 Pro Preview 05-06',
             maxInputTokens: 1048576,
             supportedFileTypes: ['pdf', 'image', 'audio'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 1.25,
                 outputPerM: 10,
@@ -2247,6 +2592,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Gemini 2.5 Pro Preview 06-05',
             maxInputTokens: 1048576,
             supportedFileTypes: ['pdf', 'image', 'audio'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 1.25,
                 outputPerM: 10,
@@ -2260,6 +2607,9 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Gemini 3 Flash Preview',
             maxInputTokens: 1048576,
             supportedFileTypes: ['pdf', 'image', 'audio'],
+            reasoning: true,
+            supportsTemperature: true,
+            supportsInterleaved: true,
             pricing: {
                 inputPerM: 0.5,
                 outputPerM: 3,
@@ -2273,6 +2623,9 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Gemini 3 Pro Preview',
             maxInputTokens: 1050000,
             supportedFileTypes: ['pdf', 'image', 'audio'],
+            reasoning: true,
+            supportsTemperature: true,
+            supportsInterleaved: true,
             pricing: {
                 inputPerM: 2,
                 outputPerM: 12,
@@ -2281,22 +2634,40 @@ export const MODELS_BY_PROVIDER = {
             },
         },
         {
-            name: 'google/gemma-2-9b-it:free',
-            displayName: 'Gemma 2 9B (free)',
+            name: 'google/gemma-2-9b-it',
+            displayName: 'Gemma 2 9B',
             maxInputTokens: 8192,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
-                inputPerM: 0,
-                outputPerM: 0,
+                inputPerM: 0.03,
+                outputPerM: 0.09,
                 currency: 'USD',
                 unit: 'per_million_tokens',
             },
         },
         {
             name: 'google/gemma-3-12b-it',
-            displayName: 'Gemma 3 12B IT',
-            maxInputTokens: 96000,
+            displayName: 'Gemma 3 12B',
+            maxInputTokens: 131072,
             supportedFileTypes: ['image'],
+            reasoning: false,
+            supportsTemperature: true,
+            pricing: {
+                inputPerM: 0.03,
+                outputPerM: 0.1,
+                currency: 'USD',
+                unit: 'per_million_tokens',
+            },
+        },
+        {
+            name: 'google/gemma-3-12b-it:free',
+            displayName: 'Gemma 3 12B (free)',
+            maxInputTokens: 32768,
+            supportedFileTypes: ['image'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -2306,9 +2677,25 @@ export const MODELS_BY_PROVIDER = {
         },
         {
             name: 'google/gemma-3-27b-it',
-            displayName: 'Gemma 3 27B IT',
+            displayName: 'Gemma 3 27B',
             maxInputTokens: 96000,
             supportedFileTypes: ['image'],
+            reasoning: false,
+            supportsTemperature: true,
+            pricing: {
+                inputPerM: 0.04,
+                outputPerM: 0.15,
+                currency: 'USD',
+                unit: 'per_million_tokens',
+            },
+        },
+        {
+            name: 'google/gemma-3-27b-it:free',
+            displayName: 'Gemma 3 27B (free)',
+            maxInputTokens: 131072,
+            supportedFileTypes: ['image'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -2317,10 +2704,40 @@ export const MODELS_BY_PROVIDER = {
             },
         },
         {
-            name: 'google/gemma-3-27b-it:free',
-            displayName: 'Gemma 3 27B',
-            maxInputTokens: 131072,
+            name: 'google/gemma-3-4b-it',
+            displayName: 'Gemma 3 4B',
+            maxInputTokens: 96000,
             supportedFileTypes: ['image'],
+            reasoning: false,
+            supportsTemperature: true,
+            pricing: {
+                inputPerM: 0.01703,
+                outputPerM: 0.06815,
+                currency: 'USD',
+                unit: 'per_million_tokens',
+            },
+        },
+        {
+            name: 'google/gemma-3-4b-it:free',
+            displayName: 'Gemma 3 4B (free)',
+            maxInputTokens: 32768,
+            supportedFileTypes: ['image'],
+            reasoning: false,
+            supportsTemperature: true,
+            pricing: {
+                inputPerM: 0,
+                outputPerM: 0,
+                currency: 'USD',
+                unit: 'per_million_tokens',
+            },
+        },
+        {
+            name: 'google/gemma-3n-e2b-it:free',
+            displayName: 'Gemma 3n 2B (free)',
+            maxInputTokens: 8192,
+            supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -2330,12 +2747,14 @@ export const MODELS_BY_PROVIDER = {
         },
         {
             name: 'google/gemma-3n-e4b-it',
-            displayName: 'Gemma 3n E4B IT',
-            maxInputTokens: 8192,
-            supportedFileTypes: ['image', 'audio'],
+            displayName: 'Gemma 3n 4B',
+            maxInputTokens: 32768,
+            supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
-                inputPerM: 0,
-                outputPerM: 0,
+                inputPerM: 0.02,
+                outputPerM: 0.04,
                 currency: 'USD',
                 unit: 'per_million_tokens',
             },
@@ -2344,7 +2763,9 @@ export const MODELS_BY_PROVIDER = {
             name: 'google/gemma-3n-e4b-it:free',
             displayName: 'Gemma 3n 4B (free)',
             maxInputTokens: 8192,
-            supportedFileTypes: ['image', 'audio'],
+            supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -2357,6 +2778,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Kat Coder Pro (free)',
             maxInputTokens: 256000,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -2369,6 +2792,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Llama 3.2 11B Vision Instruct',
             maxInputTokens: 131072,
             supportedFileTypes: ['image'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -2381,6 +2806,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Llama 3.3 70B Instruct (free)',
             maxInputTokens: 65536,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -2393,6 +2820,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Llama 4 Scout (free)',
             maxInputTokens: 64000,
             supportedFileTypes: ['image'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -2405,6 +2834,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'MAI DS R1 (free)',
             maxInputTokens: 163840,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -2417,6 +2848,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'MiniMax-01',
             maxInputTokens: 1000000,
             supportedFileTypes: ['image'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.2,
                 outputPerM: 1.1,
@@ -2429,6 +2862,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'MiniMax M1',
             maxInputTokens: 1000000,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.4,
                 outputPerM: 2.2,
@@ -2441,6 +2876,9 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'MiniMax M2',
             maxInputTokens: 196600,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
+            supportsInterleaved: true,
             pricing: {
                 inputPerM: 0.28,
                 outputPerM: 1.15,
@@ -2455,6 +2893,9 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'MiniMax M2.1',
             maxInputTokens: 204800,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
+            supportsInterleaved: true,
             pricing: {
                 inputPerM: 0.3,
                 outputPerM: 1.2,
@@ -2467,6 +2908,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Codestral 2508',
             maxInputTokens: 256000,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.3,
                 outputPerM: 0.9,
@@ -2479,6 +2922,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Devstral 2 2512',
             maxInputTokens: 262144,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.15,
                 outputPerM: 0.6,
@@ -2491,6 +2936,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Devstral 2 2512 (free)',
             maxInputTokens: 262144,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -2503,6 +2950,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Devstral Medium',
             maxInputTokens: 131072,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.4,
                 outputPerM: 2,
@@ -2515,6 +2964,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Devstral Small',
             maxInputTokens: 128000,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.06,
                 outputPerM: 0.12,
@@ -2527,6 +2978,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Devstral Small 2505 (free)',
             maxInputTokens: 32768,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -2539,6 +2992,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Devstral Small 1.1',
             maxInputTokens: 131072,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.1,
                 outputPerM: 0.3,
@@ -2551,6 +3006,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Mistral 7B Instruct (free)',
             maxInputTokens: 32768,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -2563,6 +3020,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Mistral Medium 3',
             maxInputTokens: 131072,
             supportedFileTypes: ['image'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.4,
                 outputPerM: 2,
@@ -2575,6 +3034,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Mistral Medium 3.1',
             maxInputTokens: 262144,
             supportedFileTypes: ['image'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.4,
                 outputPerM: 2,
@@ -2587,6 +3048,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Mistral Nemo (free)',
             maxInputTokens: 131072,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -2599,6 +3062,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Mistral Small 3.1 24B Instruct',
             maxInputTokens: 128000,
             supportedFileTypes: ['image'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -2611,6 +3076,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Mistral Small 3.2 24B Instruct',
             maxInputTokens: 96000,
             supportedFileTypes: ['image'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -2623,6 +3090,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Mistral Small 3.2 24B (free)',
             maxInputTokens: 96000,
             supportedFileTypes: ['image'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -2635,6 +3104,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Kimi Dev 72b (free)',
             maxInputTokens: 131072,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -2647,6 +3118,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Kimi K2',
             maxInputTokens: 131072,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.55,
                 outputPerM: 2.2,
@@ -2659,6 +3132,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Kimi K2 Instruct 0905',
             maxInputTokens: 262144,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.6,
                 outputPerM: 2.5,
@@ -2671,6 +3146,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Kimi K2 Instruct 0905 (exacto)',
             maxInputTokens: 262144,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.6,
                 outputPerM: 2.5,
@@ -2683,6 +3160,9 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Kimi K2 Thinking',
             maxInputTokens: 262144,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
+            supportsInterleaved: true,
             pricing: {
                 inputPerM: 0.6,
                 outputPerM: 2.5,
@@ -2696,6 +3176,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Kimi K2 (free)',
             maxInputTokens: 32800,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -2708,6 +3190,9 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Kimi K2.5',
             maxInputTokens: 262144,
             supportedFileTypes: ['image'],
+            reasoning: true,
+            supportsTemperature: true,
+            supportsInterleaved: true,
             pricing: {
                 inputPerM: 0.6,
                 outputPerM: 3,
@@ -2721,6 +3206,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'DeepHermes 3 Llama 3 8B Preview',
             maxInputTokens: 131072,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -2733,6 +3220,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Hermes 4 405B',
             maxInputTokens: 131072,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 1,
                 outputPerM: 3,
@@ -2745,6 +3234,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Hermes 4 70B',
             maxInputTokens: 131072,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.13,
                 outputPerM: 0.4,
@@ -2757,6 +3248,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'nvidia-nemotron-nano-9b-v2',
             maxInputTokens: 131072,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.04,
                 outputPerM: 0.16,
@@ -2769,6 +3262,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'GPT-4.1',
             maxInputTokens: 1047576,
             supportedFileTypes: ['image'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 2,
                 outputPerM: 8,
@@ -2782,6 +3277,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'GPT-4.1 Mini',
             maxInputTokens: 1047576,
             supportedFileTypes: ['image'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.4,
                 outputPerM: 1.6,
@@ -2795,6 +3292,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'GPT-4o-mini',
             maxInputTokens: 128000,
             supportedFileTypes: ['image'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.15,
                 outputPerM: 0.6,
@@ -2808,6 +3307,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'GPT-5',
             maxInputTokens: 400000,
             supportedFileTypes: ['image'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 1.25,
                 outputPerM: 10,
@@ -2820,6 +3321,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'GPT-5 Chat (latest)',
             maxInputTokens: 400000,
             supportedFileTypes: ['image'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 1.25,
                 outputPerM: 10,
@@ -2832,6 +3335,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'GPT-5 Codex',
             maxInputTokens: 400000,
             supportedFileTypes: ['image'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 1.25,
                 outputPerM: 10,
@@ -2845,6 +3350,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'GPT-5 Image',
             maxInputTokens: 400000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 5,
                 outputPerM: 10,
@@ -2858,6 +3365,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'GPT-5 Mini',
             maxInputTokens: 400000,
             supportedFileTypes: ['image'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.25,
                 outputPerM: 2,
@@ -2870,6 +3379,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'GPT-5 Nano',
             maxInputTokens: 400000,
             supportedFileTypes: ['image'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.05,
                 outputPerM: 0.4,
@@ -2882,6 +3393,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'GPT-5 Pro',
             maxInputTokens: 400000,
             supportedFileTypes: ['image'],
+            reasoning: true,
+            supportsTemperature: false,
             pricing: {
                 inputPerM: 15,
                 outputPerM: 120,
@@ -2894,6 +3407,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'GPT-5.1',
             maxInputTokens: 400000,
             supportedFileTypes: ['image'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 1.25,
                 outputPerM: 10,
@@ -2907,6 +3422,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'GPT-5.1 Chat',
             maxInputTokens: 128000,
             supportedFileTypes: ['image'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 1.25,
                 outputPerM: 10,
@@ -2920,6 +3437,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'GPT-5.1-Codex',
             maxInputTokens: 400000,
             supportedFileTypes: ['image'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 1.25,
                 outputPerM: 10,
@@ -2933,6 +3452,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'GPT-5.1-Codex-Max',
             maxInputTokens: 400000,
             supportedFileTypes: ['image'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 1.1,
                 outputPerM: 9,
@@ -2946,6 +3467,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'GPT-5.1-Codex-Mini',
             maxInputTokens: 400000,
             supportedFileTypes: ['image'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.25,
                 outputPerM: 2,
@@ -2959,6 +3482,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'GPT-5.2',
             maxInputTokens: 400000,
             supportedFileTypes: ['image'],
+            reasoning: true,
+            supportsTemperature: false,
             pricing: {
                 inputPerM: 1.75,
                 outputPerM: 14,
@@ -2972,6 +3497,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'GPT-5.2 Chat',
             maxInputTokens: 128000,
             supportedFileTypes: ['image'],
+            reasoning: true,
+            supportsTemperature: false,
             pricing: {
                 inputPerM: 1.75,
                 outputPerM: 14,
@@ -2985,6 +3512,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'GPT-5.2-Codex',
             maxInputTokens: 400000,
             supportedFileTypes: ['image'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 1.75,
                 outputPerM: 14,
@@ -2998,6 +3527,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'GPT-5.2 Pro',
             maxInputTokens: 400000,
             supportedFileTypes: ['image'],
+            reasoning: true,
+            supportsTemperature: false,
             pricing: {
                 inputPerM: 21,
                 outputPerM: 168,
@@ -3010,6 +3541,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'GPT OSS 120B',
             maxInputTokens: 131072,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.072,
                 outputPerM: 0.28,
@@ -3022,6 +3555,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'GPT OSS 120B (exacto)',
             maxInputTokens: 131072,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.05,
                 outputPerM: 0.24,
@@ -3034,6 +3569,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'GPT OSS 20B',
             maxInputTokens: 131072,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.05,
                 outputPerM: 0.2,
@@ -3046,6 +3583,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'GPT OSS Safeguard 20B',
             maxInputTokens: 131072,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.075,
                 outputPerM: 0.3,
@@ -3058,6 +3597,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'o4 Mini',
             maxInputTokens: 200000,
             supportedFileTypes: ['image'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 1.1,
                 outputPerM: 4.4,
@@ -3071,6 +3612,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Sherlock Dash Alpha',
             maxInputTokens: 1840000,
             supportedFileTypes: ['image'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -3083,6 +3626,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Sherlock Think Alpha',
             maxInputTokens: 1840000,
             supportedFileTypes: ['image'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -3095,6 +3640,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Qwen2.5 Coder 32B Instruct',
             maxInputTokens: 32768,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -3107,6 +3654,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Qwen2.5 VL 32B Instruct (free)',
             maxInputTokens: 8192,
             supportedFileTypes: ['image'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -3119,6 +3668,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Qwen2.5 VL 72B Instruct',
             maxInputTokens: 32768,
             supportedFileTypes: ['image'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -3131,6 +3682,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Qwen2.5 VL 72B Instruct (free)',
             maxInputTokens: 32768,
             supportedFileTypes: ['image'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -3143,6 +3696,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Qwen3 14B (free)',
             maxInputTokens: 40960,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -3155,6 +3710,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Qwen3 235B A22B Instruct 2507',
             maxInputTokens: 262144,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.15,
                 outputPerM: 0.85,
@@ -3167,6 +3724,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Qwen3 235B A22B Instruct 2507 (free)',
             maxInputTokens: 262144,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -3179,6 +3738,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Qwen3 235B A22B Thinking 2507',
             maxInputTokens: 262144,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.078,
                 outputPerM: 0.312,
@@ -3191,6 +3752,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Qwen3 235B A22B (free)',
             maxInputTokens: 131072,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -3203,6 +3766,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Qwen3 30B A3B Instruct 2507',
             maxInputTokens: 262000,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.2,
                 outputPerM: 0.8,
@@ -3215,6 +3780,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Qwen3 30B A3B Thinking 2507',
             maxInputTokens: 262000,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.2,
                 outputPerM: 0.8,
@@ -3227,6 +3794,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Qwen3 30B A3B (free)',
             maxInputTokens: 40960,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -3239,6 +3808,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Qwen3 32B (free)',
             maxInputTokens: 40960,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -3251,6 +3822,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Qwen3 8B (free)',
             maxInputTokens: 40960,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -3263,6 +3836,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Qwen3 Coder',
             maxInputTokens: 262144,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.3,
                 outputPerM: 1.2,
@@ -3275,6 +3850,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Qwen3 Coder 30B A3B Instruct',
             maxInputTokens: 160000,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.07,
                 outputPerM: 0.27,
@@ -3287,6 +3864,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Qwen3 Coder Flash',
             maxInputTokens: 128000,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.3,
                 outputPerM: 1.5,
@@ -3299,6 +3878,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Qwen3 Coder (exacto)',
             maxInputTokens: 131072,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.38,
                 outputPerM: 1.53,
@@ -3311,6 +3892,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Qwen3 Coder 480B A35B Instruct (free)',
             maxInputTokens: 262144,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -3323,6 +3906,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Qwen3 Max',
             maxInputTokens: 262144,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 1.2,
                 outputPerM: 6,
@@ -3335,6 +3920,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Qwen3 Next 80B A3B Instruct',
             maxInputTokens: 262144,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.14,
                 outputPerM: 1.4,
@@ -3347,6 +3934,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Qwen3 Next 80B A3B Thinking',
             maxInputTokens: 262144,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.14,
                 outputPerM: 1.4,
@@ -3359,6 +3948,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'QwQ 32B (free)',
             maxInputTokens: 32768,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -3371,6 +3962,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Reka Flash 3',
             maxInputTokens: 32768,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -3383,6 +3976,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Sarvam-M (free)',
             maxInputTokens: 32768,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -3395,6 +3990,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'GLM Z1 32B (free)',
             maxInputTokens: 32768,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -3407,6 +4004,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'DeepSeek R1T2 Chimera (free)',
             maxInputTokens: 163840,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -3419,6 +4018,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Grok 3',
             maxInputTokens: 131072,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 3,
                 outputPerM: 15,
@@ -3433,6 +4034,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Grok 3 Beta',
             maxInputTokens: 131072,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 3,
                 outputPerM: 15,
@@ -3447,6 +4050,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Grok 3 Mini',
             maxInputTokens: 131072,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.3,
                 outputPerM: 0.5,
@@ -3461,6 +4066,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Grok 3 Mini Beta',
             maxInputTokens: 131072,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.3,
                 outputPerM: 0.5,
@@ -3475,6 +4082,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Grok 4',
             maxInputTokens: 256000,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 3,
                 outputPerM: 15,
@@ -3489,6 +4098,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Grok 4 Fast',
             maxInputTokens: 2000000,
             supportedFileTypes: ['image'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.2,
                 outputPerM: 0.5,
@@ -3503,6 +4114,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Grok 4.1 Fast',
             maxInputTokens: 2000000,
             supportedFileTypes: ['image'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.2,
                 outputPerM: 0.5,
@@ -3517,6 +4130,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Grok Code Fast 1',
             maxInputTokens: 256000,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.2,
                 outputPerM: 1.5,
@@ -3530,6 +4145,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'GLM 4.5',
             maxInputTokens: 128000,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.6,
                 outputPerM: 2.2,
@@ -3542,6 +4159,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'GLM 4.5 Air',
             maxInputTokens: 128000,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.2,
                 outputPerM: 1.1,
@@ -3554,6 +4173,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'GLM 4.5 Air (free)',
             maxInputTokens: 128000,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -3566,6 +4187,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'GLM 4.5V',
             maxInputTokens: 64000,
             supportedFileTypes: ['image'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.6,
                 outputPerM: 1.8,
@@ -3578,6 +4201,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'GLM 4.6',
             maxInputTokens: 200000,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.6,
                 outputPerM: 2.2,
@@ -3591,6 +4216,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'GLM 4.6 (exacto)',
             maxInputTokens: 200000,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.6,
                 outputPerM: 1.9,
@@ -3604,6 +4231,9 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'GLM-4.7',
             maxInputTokens: 204800,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
+            supportsInterleaved: true,
             pricing: {
                 inputPerM: 0.6,
                 outputPerM: 2.2,
@@ -3621,6 +4251,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Claude Haiku 3.5',
             maxInputTokens: 200000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.8,
                 outputPerM: 4,
@@ -3635,6 +4267,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Claude Sonnet 3.5 v2',
             maxInputTokens: 200000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 3,
                 outputPerM: 15,
@@ -3649,6 +4283,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Claude Sonnet 3.7',
             maxInputTokens: 200000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 3,
                 outputPerM: 15,
@@ -3663,6 +4299,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Claude Haiku 4.5',
             maxInputTokens: 200000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 1,
                 outputPerM: 5,
@@ -3677,6 +4315,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Claude Opus 4.1',
             maxInputTokens: 200000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 15,
                 outputPerM: 75,
@@ -3691,6 +4331,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Claude Opus 4.5',
             maxInputTokens: 200000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 5,
                 outputPerM: 25,
@@ -3705,6 +4347,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Claude Opus 4',
             maxInputTokens: 200000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 15,
                 outputPerM: 75,
@@ -3719,6 +4363,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Claude Sonnet 4.5',
             maxInputTokens: 200000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 3,
                 outputPerM: 15,
@@ -3733,6 +4379,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Claude Sonnet 4',
             maxInputTokens: 200000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 3,
                 outputPerM: 15,
@@ -3747,6 +4395,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Gemini 2.0 Flash',
             maxInputTokens: 1048576,
             supportedFileTypes: ['pdf', 'image', 'audio'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.15,
                 outputPerM: 0.6,
@@ -3760,6 +4410,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Gemini 2.0 Flash Lite',
             maxInputTokens: 1048576,
             supportedFileTypes: ['pdf', 'image', 'audio'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.075,
                 outputPerM: 0.3,
@@ -3772,6 +4424,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Gemini 2.5 Flash',
             maxInputTokens: 1048576,
             supportedFileTypes: ['pdf', 'image', 'audio'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.3,
                 outputPerM: 2.5,
@@ -3786,6 +4440,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Gemini 2.5 Flash Lite',
             maxInputTokens: 1048576,
             supportedFileTypes: ['pdf', 'image', 'audio'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.1,
                 outputPerM: 0.4,
@@ -3799,6 +4455,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Gemini 2.5 Flash Lite Preview 06-17',
             maxInputTokens: 65536,
             supportedFileTypes: ['pdf', 'image', 'audio'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.1,
                 outputPerM: 0.4,
@@ -3812,6 +4470,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Gemini 2.5 Flash Lite Preview 09-25',
             maxInputTokens: 1048576,
             supportedFileTypes: ['pdf', 'image', 'audio'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.1,
                 outputPerM: 0.4,
@@ -3825,6 +4485,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Gemini 2.5 Flash Preview 04-17',
             maxInputTokens: 1048576,
             supportedFileTypes: ['pdf', 'image', 'audio'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.15,
                 outputPerM: 0.6,
@@ -3838,6 +4500,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Gemini 2.5 Flash Preview 05-20',
             maxInputTokens: 1048576,
             supportedFileTypes: ['pdf', 'image', 'audio'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.15,
                 outputPerM: 0.6,
@@ -3851,6 +4515,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Gemini 2.5 Flash Preview 09-25',
             maxInputTokens: 1048576,
             supportedFileTypes: ['pdf', 'image', 'audio'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.3,
                 outputPerM: 2.5,
@@ -3865,6 +4531,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Gemini 2.5 Pro',
             maxInputTokens: 1048576,
             supportedFileTypes: ['pdf', 'image', 'audio'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 1.25,
                 outputPerM: 10,
@@ -3878,6 +4546,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Gemini 2.5 Pro Preview 05-06',
             maxInputTokens: 1048576,
             supportedFileTypes: ['pdf', 'image', 'audio'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 1.25,
                 outputPerM: 10,
@@ -3891,6 +4561,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Gemini 2.5 Pro Preview 06-05',
             maxInputTokens: 1048576,
             supportedFileTypes: ['pdf', 'image', 'audio'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 1.25,
                 outputPerM: 10,
@@ -3904,6 +4576,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Gemini 3 Flash Preview',
             maxInputTokens: 1048576,
             supportedFileTypes: ['pdf', 'image', 'audio'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.5,
                 outputPerM: 3,
@@ -3918,6 +4592,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Gemini 3 Pro Preview',
             maxInputTokens: 1048576,
             supportedFileTypes: ['pdf', 'image', 'audio'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 2,
                 outputPerM: 12,
@@ -3931,6 +4607,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Gemini Embedding 001',
             maxInputTokens: 2048,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: false,
             pricing: {
                 inputPerM: 0.15,
                 outputPerM: 0,
@@ -3943,6 +4621,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Gemini Flash Latest',
             maxInputTokens: 1048576,
             supportedFileTypes: ['pdf', 'image', 'audio'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.3,
                 outputPerM: 2.5,
@@ -3957,6 +4637,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Gemini Flash-Lite Latest',
             maxInputTokens: 1048576,
             supportedFileTypes: ['pdf', 'image', 'audio'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.1,
                 outputPerM: 0.4,
@@ -3970,6 +4652,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'GPT OSS 120B',
             maxInputTokens: 131072,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.09,
                 outputPerM: 0.36,
@@ -3982,6 +4666,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'GPT OSS 20B',
             maxInputTokens: 131072,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.07,
                 outputPerM: 0.25,
@@ -3994,6 +4680,9 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'GLM-4.7',
             maxInputTokens: 204800,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
+            supportsInterleaved: true,
             pricing: {
                 inputPerM: 0.6,
                 outputPerM: 2.2,
@@ -4008,6 +4697,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Jamba 1.5 Large',
             maxInputTokens: 256000,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 2,
                 outputPerM: 8,
@@ -4020,6 +4711,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Jamba 1.5 Mini',
             maxInputTokens: 256000,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.2,
                 outputPerM: 0.4,
@@ -4032,6 +4725,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Nova 2 Lite',
             maxInputTokens: 128000,
             supportedFileTypes: ['image'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.33,
                 outputPerM: 2.75,
@@ -4044,6 +4739,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Nova Lite',
             maxInputTokens: 300000,
             supportedFileTypes: ['image'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.06,
                 outputPerM: 0.24,
@@ -4057,6 +4754,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Nova Micro',
             maxInputTokens: 128000,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.035,
                 outputPerM: 0.14,
@@ -4070,6 +4769,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Nova Premier',
             maxInputTokens: 1000000,
             supportedFileTypes: ['image'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 2.5,
                 outputPerM: 12.5,
@@ -4082,6 +4783,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Nova Pro',
             maxInputTokens: 300000,
             supportedFileTypes: ['image'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.8,
                 outputPerM: 3.2,
@@ -4095,6 +4798,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Titan Text G1 - Express',
             maxInputTokens: 128000,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.2,
                 outputPerM: 0.6,
@@ -4107,6 +4812,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Titan Text G1 - Express',
             maxInputTokens: 128000,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.2,
                 outputPerM: 0.6,
@@ -4119,6 +4826,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Claude Haiku 3.5',
             maxInputTokens: 200000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.8,
                 outputPerM: 4,
@@ -4133,6 +4842,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Claude Sonnet 3.5',
             maxInputTokens: 200000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 3,
                 outputPerM: 15,
@@ -4147,6 +4858,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Claude Sonnet 3.5 v2',
             maxInputTokens: 200000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 3,
                 outputPerM: 15,
@@ -4161,6 +4874,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Claude Sonnet 3.7',
             maxInputTokens: 200000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 3,
                 outputPerM: 15,
@@ -4175,6 +4890,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Claude Haiku 3',
             maxInputTokens: 200000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.25,
                 outputPerM: 1.25,
@@ -4187,6 +4904,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Claude Opus 3',
             maxInputTokens: 200000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 15,
                 outputPerM: 75,
@@ -4199,6 +4918,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Claude Sonnet 3',
             maxInputTokens: 200000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 3,
                 outputPerM: 15,
@@ -4211,6 +4932,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Claude Haiku 4.5',
             maxInputTokens: 200000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 1,
                 outputPerM: 5,
@@ -4225,6 +4948,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Claude Instant',
             maxInputTokens: 100000,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.8,
                 outputPerM: 2.4,
@@ -4237,6 +4962,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Claude Opus 4.1',
             maxInputTokens: 200000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 15,
                 outputPerM: 75,
@@ -4251,6 +4978,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Claude Opus 4',
             maxInputTokens: 200000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 15,
                 outputPerM: 75,
@@ -4265,6 +4994,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Claude Opus 4.5',
             maxInputTokens: 200000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 5,
                 outputPerM: 25,
@@ -4279,6 +5010,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Claude Sonnet 4',
             maxInputTokens: 200000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 3,
                 outputPerM: 15,
@@ -4293,6 +5026,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Claude Sonnet 4.5',
             maxInputTokens: 200000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 3,
                 outputPerM: 15,
@@ -4308,6 +5043,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Claude 2',
             maxInputTokens: 100000,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 8,
                 outputPerM: 24,
@@ -4320,6 +5057,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Claude 2.1',
             maxInputTokens: 200000,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 8,
                 outputPerM: 24,
@@ -4332,6 +5071,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Command Light',
             maxInputTokens: 4096,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.3,
                 outputPerM: 0.6,
@@ -4344,6 +5085,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Command R+',
             maxInputTokens: 128000,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 3,
                 outputPerM: 15,
@@ -4356,6 +5099,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Command R',
             maxInputTokens: 128000,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.5,
                 outputPerM: 1.5,
@@ -4368,6 +5113,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Command',
             maxInputTokens: 4096,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 1.5,
                 outputPerM: 2,
@@ -4380,6 +5127,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'DeepSeek-R1',
             maxInputTokens: 128000,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 1.35,
                 outputPerM: 5.4,
@@ -4392,6 +5141,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'DeepSeek-V3.1',
             maxInputTokens: 163840,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.58,
                 outputPerM: 1.68,
@@ -4404,6 +5155,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Claude Opus 4.5 (Global)',
             maxInputTokens: 200000,
             supportedFileTypes: ['pdf', 'image'],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 5,
                 outputPerM: 25,
@@ -4418,6 +5171,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Google Gemma 3 12B',
             maxInputTokens: 131072,
             supportedFileTypes: ['image'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.049999999999999996,
                 outputPerM: 0.09999999999999999,
@@ -4430,6 +5185,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Google Gemma 3 27B Instruct',
             maxInputTokens: 202752,
             supportedFileTypes: ['image'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.12,
                 outputPerM: 0.2,
@@ -4442,6 +5199,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Gemma 3 4B IT',
             maxInputTokens: 128000,
             supportedFileTypes: ['image'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.04,
                 outputPerM: 0.08,
@@ -4454,6 +5213,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Llama 3.1 70B Instruct',
             maxInputTokens: 128000,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.72,
                 outputPerM: 0.72,
@@ -4466,6 +5227,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Llama 3.1 8B Instruct',
             maxInputTokens: 128000,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.22,
                 outputPerM: 0.22,
@@ -4478,6 +5241,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Llama 3.2 11B Instruct',
             maxInputTokens: 128000,
             supportedFileTypes: ['image'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.16,
                 outputPerM: 0.16,
@@ -4490,6 +5255,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Llama 3.2 1B Instruct',
             maxInputTokens: 131000,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.1,
                 outputPerM: 0.1,
@@ -4502,6 +5269,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Llama 3.2 3B Instruct',
             maxInputTokens: 131000,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.15,
                 outputPerM: 0.15,
@@ -4514,6 +5283,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Llama 3.2 90B Instruct',
             maxInputTokens: 128000,
             supportedFileTypes: ['image'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.72,
                 outputPerM: 0.72,
@@ -4526,6 +5297,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Llama 3.3 70B Instruct',
             maxInputTokens: 128000,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.72,
                 outputPerM: 0.72,
@@ -4538,6 +5311,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Llama 3 70B Instruct',
             maxInputTokens: 8192,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 2.65,
                 outputPerM: 3.5,
@@ -4550,6 +5325,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Llama 3 8B Instruct',
             maxInputTokens: 8192,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.3,
                 outputPerM: 0.6,
@@ -4562,6 +5339,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Llama 4 Maverick 17B Instruct',
             maxInputTokens: 1000000,
             supportedFileTypes: ['image'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.24,
                 outputPerM: 0.97,
@@ -4574,6 +5353,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Llama 4 Scout 17B Instruct',
             maxInputTokens: 3500000,
             supportedFileTypes: ['image'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.17,
                 outputPerM: 0.66,
@@ -4586,6 +5367,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'MiniMax M2',
             maxInputTokens: 204608,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.3,
                 outputPerM: 1.2,
@@ -4598,6 +5381,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Ministral 14B 3.0',
             maxInputTokens: 128000,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.2,
                 outputPerM: 0.2,
@@ -4610,6 +5395,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Ministral 3 8B',
             maxInputTokens: 128000,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.15,
                 outputPerM: 0.15,
@@ -4622,6 +5409,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Mistral-7B-Instruct-v0.3',
             maxInputTokens: 127000,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.11,
                 outputPerM: 0.11,
@@ -4634,6 +5423,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Mistral Large (24.02)',
             maxInputTokens: 128000,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.5,
                 outputPerM: 1.5,
@@ -4646,6 +5437,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Mixtral-8x7B-Instruct-v0.1',
             maxInputTokens: 32000,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.7,
                 outputPerM: 0.7,
@@ -4658,6 +5451,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Voxtral Mini 3B 2507',
             maxInputTokens: 128000,
             supportedFileTypes: ['audio'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.04,
                 outputPerM: 0.04,
@@ -4670,6 +5465,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Voxtral Small 24B 2507',
             maxInputTokens: 32000,
             supportedFileTypes: ['audio'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.15,
                 outputPerM: 0.35,
@@ -4682,6 +5479,9 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Kimi K2 Thinking',
             maxInputTokens: 256000,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
+            supportsInterleaved: true,
             pricing: {
                 inputPerM: 0.6,
                 outputPerM: 2.5,
@@ -4694,6 +5494,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'NVIDIA Nemotron Nano 12B v2 VL BF16',
             maxInputTokens: 128000,
             supportedFileTypes: ['image'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.2,
                 outputPerM: 0.6,
@@ -4706,6 +5508,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'NVIDIA Nemotron Nano 9B v2',
             maxInputTokens: 128000,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.06,
                 outputPerM: 0.23,
@@ -4718,6 +5522,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'gpt-oss-120b',
             maxInputTokens: 128000,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.15,
                 outputPerM: 0.6,
@@ -4730,6 +5536,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'gpt-oss-20b',
             maxInputTokens: 128000,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.07,
                 outputPerM: 0.3,
@@ -4742,6 +5550,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'GPT OSS Safeguard 120B',
             maxInputTokens: 128000,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.15,
                 outputPerM: 0.6,
@@ -4754,6 +5564,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'GPT OSS Safeguard 20B',
             maxInputTokens: 128000,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.07,
                 outputPerM: 0.2,
@@ -4766,6 +5578,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Qwen3 235B A22B 2507',
             maxInputTokens: 262144,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.22,
                 outputPerM: 0.88,
@@ -4778,6 +5592,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Qwen3 32B (dense)',
             maxInputTokens: 16384,
             supportedFileTypes: [],
+            reasoning: true,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.15,
                 outputPerM: 0.6,
@@ -4790,6 +5606,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Qwen3 Coder 30B A3B Instruct',
             maxInputTokens: 262144,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.15,
                 outputPerM: 0.6,
@@ -4802,6 +5620,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Qwen3 Coder 480B A35B Instruct',
             maxInputTokens: 131072,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.22,
                 outputPerM: 1.8,
@@ -4814,6 +5634,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Qwen/Qwen3-Next-80B-A3B-Instruct',
             maxInputTokens: 262000,
             supportedFileTypes: [],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.14,
                 outputPerM: 1.4,
@@ -4826,6 +5648,8 @@ export const MODELS_BY_PROVIDER = {
             displayName: 'Qwen/Qwen3-VL-235B-A22B-Instruct',
             maxInputTokens: 262000,
             supportedFileTypes: ['image'],
+            reasoning: false,
+            supportsTemperature: true,
             pricing: {
                 inputPerM: 0.3,
                 outputPerM: 1.5,
