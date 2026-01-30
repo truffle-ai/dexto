@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { getSupportedProviders } from '@dexto/core';
+import { isDextoAuthEnabled } from '@dexto/agent-management';
 import chalk from 'chalk';
 
 /**
@@ -8,7 +9,10 @@ import chalk from 'chalk';
  * @throws {z.ZodError} If validation fails.
  */
 export function validateCliOptions(opts: any): void {
-    const supportedProviders = getSupportedProviders().map((p) => p.toLowerCase());
+    const allProviders = getSupportedProviders();
+    const supportedProviders = allProviders
+        .filter((p) => p !== 'dexto' || isDextoAuthEnabled())
+        .map((p) => p.toLowerCase());
 
     // Base schema for primitive shape
     const cliOptionShape = z
