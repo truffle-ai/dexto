@@ -104,6 +104,55 @@ describe('Hono API Integration Tests', () => {
             });
             expect(res.status).toBe(200);
         });
+
+        it('GET /api/llm/capabilities returns reasoning support', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+
+            const res = await httpRequest(
+                testServer.baseUrl,
+                'GET',
+                '/api/llm/capabilities?provider=anthropic&model=claude-3-7-sonnet-20250219'
+            );
+            expect(res.status).toBe(200);
+            expectResponseStructure(res.body, {
+                provider: validators.string,
+                model: validators.string,
+                supportedFileTypes: validators.array,
+                reasoning: validators.object,
+            });
+
+            const reasoning = (res.body as { reasoning: unknown }).reasoning as {
+                capable: boolean;
+                supportedPresets: string[];
+                supportsBudgetTokens: boolean;
+            };
+
+            expect(reasoning.capable).toBe(true);
+            expect(reasoning.supportedPresets).toContain('auto');
+            expect(reasoning.supportedPresets).toContain('off');
+            expect(reasoning.supportedPresets).toContain('high');
+            expect(reasoning.supportsBudgetTokens).toBe(true);
+        });
+
+        it('GET /api/llm/capabilities resolves gateway providers for OpenRouter-format IDs', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+
+            const res = await httpRequest(
+                testServer.baseUrl,
+                'GET',
+                '/api/llm/capabilities?provider=dexto&model=openai/gpt-5.2-codex'
+            );
+            expect(res.status).toBe(200);
+
+            const reasoning = (res.body as { reasoning: unknown }).reasoning as {
+                capable: boolean;
+                supportedPresets: string[];
+            };
+
+            expect(reasoning.capable).toBe(true);
+            expect(reasoning.supportedPresets).toContain('max');
+            expect(reasoning.supportedPresets).toContain('xhigh');
+        });
     });
 
     describe('Sessions Routes', () => {

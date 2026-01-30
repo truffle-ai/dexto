@@ -44,6 +44,28 @@ function mapPresetToLowMediumHigh(preset: ReasoningPreset): 'low' | 'medium' | '
     }
 }
 
+function supportsOpenRouterXHigh(model: string): boolean {
+    // Best-effort. opencode exposes xhigh for codex models through OpenRouter.
+    // We keep conservative and only enable for codex-like model IDs.
+    return model.toLowerCase().includes('codex');
+}
+
+function mapPresetToOpenRouterEffort(
+    preset: ReasoningPreset,
+    model: string
+): 'low' | 'medium' | 'high' | 'xhigh' | undefined {
+    if (preset === 'xhigh') {
+        return supportsOpenRouterXHigh(model) ? 'xhigh' : 'high';
+    }
+    if (preset === 'max') {
+        return supportsOpenRouterXHigh(model) ? 'xhigh' : 'high';
+    }
+    if (preset === 'low' || preset === 'medium' || preset === 'high') {
+        return preset;
+    }
+    return undefined;
+}
+
 function mapPresetToOpenAIReasoningEffort(
     preset: ReasoningPreset,
     model: string
@@ -192,7 +214,7 @@ export function buildProviderOptions(
             return { openrouter: { includeReasoning: false } };
         }
 
-        const effort = mapPresetToLowMediumHigh(preset);
+        const effort = mapPresetToOpenRouterEffort(preset, model);
 
         return {
             openrouter: {

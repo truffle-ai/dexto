@@ -44,7 +44,17 @@ export function getReasoningSupport(provider: LLMProvider, model: string): Reaso
             // These providers support a budget-based paradigm and/or low|medium|high effort.
             // If the model isn't reasoning-capable, keep only base knobs (auto/off).
             const presets: ReasoningPreset[] = capable
-                ? ['auto', 'off', 'low', 'medium', 'high', 'max']
+                ? [
+                      'auto',
+                      'off',
+                      'low',
+                      'medium',
+                      'high',
+                      'max',
+                      // Best-effort compatibility: OpenRouter supports passing OpenAI-like reasoning efforts
+                      // for OpenAI models (and opencode exposes xhigh for codex models via OpenRouter).
+                      ...(model.toLowerCase().includes('codex') ? (['xhigh'] as const) : []),
+                  ]
                 : base;
             return { capable, supportedPresets: uniq(presets), supportsBudgetTokens: true };
         }
