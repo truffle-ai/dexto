@@ -1,5 +1,76 @@
 # @dexto/agent-management
 
+## 1.5.7
+
+### Patch Changes
+
+- 7de0cbe: Add Dexto authentication and gateway provider support
+
+    **Feature Flag**: `DEXTO_FEATURE_AUTH=true` (default OFF for gradual rollout)
+
+    ### New CLI Commands
+    - `dexto login` - OAuth browser login or `--api-key` for CI/automation
+    - `dexto logout` - Clear stored credentials
+    - `dexto auth status` - Show current auth state
+    - `dexto billing` - View credit balance and usage
+
+    ### New Provider: `dexto`
+    - Gateway provider routing requests through Dexto API
+    - Supports all OpenRouter models via `supportsAllRegistryModels` flag
+    - Curated model list shown during setup (mix of free and SOTA models)
+    - New users receive $5 credits on first login
+
+    ### Model Registry Enhancements
+    - Added `openrouterId` field to map native model names to OpenRouter format
+    - Model transformation in LLM resolver for gateway providers
+    - New `/llm/capabilities` API for accurate capability checking across providers
+
+    ### Sub-Agent Support
+    - LLM preferences now apply to ALL agents, not just default
+    - `modelLocked` feature for agents requiring specific models (e.g., explore-agent)
+    - Sub-agent resolution inherits parent LLM config including baseURL
+
+    ### Web UI
+    - Settings panel for managing Dexto API keys
+    - Model picker updated with Dexto provider support
+    - "via Dexto" visual indicator when using gateway
+
+    ### Security
+    - CSRF state validation in OAuth flow
+    - 10s timeouts on all Supabase auth fetch calls
+    - Secure credential storage in `~/.dexto/auth.json`
+
+- c4ae9e7: Added support for skills and plugins. Create a custom plugin for plan tools and skills along with support for Plan mode.
+- a2c7092: Fix command discovery, update skills permissions, and rewrite AGENTS.md
+
+    **AGENTS.md:**
+    - Fix outdated stack info: WebUI is Vite + TanStack Router/Query (not Next.js)
+    - Fix API layer location: Hono routes in packages/server (not packages/cli/src/api)
+    - Add Stack Rules section (WebUI/Server/Core constraints)
+    - Add Avoiding Duplication section (search before adding utilities)
+    - Update Zod conventions: z.input/z.output instead of z.infer
+    - Remove verbose code examples and outdated architecture diagrams
+
+    **Slash commands/skills:**
+    - Restore .claude/commands/ and .cursor/commands/ discovery paths
+    - Change `allowed-tools` to additive semantics (auto-approve listed tools, don't block others)
+    - Reset session auto-approve tools on `run:complete` event
+    - Add tests for command discovery and permissions
+
+    **Other:**
+    - Skip changeset requirement for Dependabot PRs
+
+- 1e0ac05: Added first class support for GLM and Minimax providers. Also updated setup flow with better config syncing prompts. Improved API key handling during `dexto setup` flow when switching default models.
+- eb71ec9: Updated LLM fallback handling in subagent spawn tool. Spawn tool now checks for any LLM-errors and falls back to parent's active runtime config - accounts for model switching during session runtime.
+- 1960235: Add GLM and Minimax to Dexto gateway and onboarding. Split agent logging per session. Persist /model overrides per session. Other bug fixes for message filtering.
+- Updated dependencies [7de0cbe]
+- Updated dependencies [c4ae9e7]
+- Updated dependencies [a2c7092]
+- Updated dependencies [1e0ac05]
+- Updated dependencies [ee3f1f8]
+- Updated dependencies [1960235]
+    - @dexto/core@1.5.7
+
 ## 1.5.6
 
 ### Patch Changes
