@@ -41,7 +41,7 @@ export async function resolveAndValidateLLMConfig(
         const { errors } = splitIssues(warnings);
         return fail<ValidatedLLMConfig, LLMUpdateContext>(errors);
     }
-    const result = validateLLMConfig(candidate, warnings);
+    const result = validateLLMConfig(candidate, warnings, logger);
     return result;
 }
 
@@ -141,11 +141,6 @@ export async function resolveLLMConfig(
         }
     }
 
-    // Token defaults - always use model's effective max unless explicitly provided
-    const maxInputTokens =
-        updates.maxInputTokens ??
-        getEffectiveMaxInputTokens({ provider, model, apiKey: apiKey || previous.apiKey }, logger);
-
     // BaseURL resolution
     // Note: OpenRouter baseURL is handled by the factory (fixed endpoint, no user override)
     let baseURL: string | undefined;
@@ -234,7 +229,7 @@ export async function resolveLLMConfig(
             apiKey,
             baseURL,
             maxIterations: updates.maxIterations ?? previous.maxIterations,
-            maxInputTokens,
+            maxInputTokens: updates.maxInputTokens,
             maxOutputTokens: updates.maxOutputTokens ?? previous.maxOutputTokens,
             temperature: updates.temperature ?? previous.temperature,
         },
@@ -245,13 +240,27 @@ export async function resolveLLMConfig(
 // Passes the input candidate through the schema and returns a result
 export function validateLLMConfig(
     candidate: LLMConfig,
-    warnings: Issue<LLMUpdateContext>[]
+    warnings: Issue<LLMUpdateContext>[],
+    logger: IDextoLogger
 ): Result<ValidatedLLMConfig, LLMUpdateContext> {
     // Final validation (business rules + shape)
     const parsed = LLMConfigSchema.safeParse(candidate);
     if (!parsed.success) {
         return fail<ValidatedLLMConfig, LLMUpdateContext>(zodToIssues(parsed.error, 'error'));
     }
+
+    // Token defaults: always use model's effective max unless explicitly provided.
+    const maxInputTokens =
+        parsed.data.maxInputTokens ??
+        getEffectiveMaxInputTokens(
+            {
+                provider: parsed.data.provider,
+                model: parsed.data.model,
+                apiKey: parsed.data.apiKey ?? candidate.apiKey ?? '',
+                baseURL: parsed.data.baseURL,
+            },
+            logger
+        );
 
     // Schema validation now handles apiKey non-empty validation
 
@@ -271,5 +280,5 @@ export function validateLLMConfig(
         });
     }
 
-    return ok<ValidatedLLMConfig, LLMUpdateContext>(parsed.data, warnings);
+    return ok<ValidatedLLMConfig, LLMUpdateContext>({ ...parsed.data, maxInputTokens }, warnings);
 }

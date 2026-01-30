@@ -225,11 +225,15 @@ async function writeCacheFile(
 export async function refreshLlmRegistryCache(options?: {
     logger?: LogLike;
     force?: boolean;
+    /**
+     * Test-only escape hatch to validate refresh behavior with mocks while keeping
+     * network fetch disabled by default in CI/unit tests.
+     */
+    allowInTests?: boolean;
 }): Promise<void> {
     if (
         truthyEnv('DEXTO_LLM_REGISTRY_DISABLE_FETCH') ||
-        process.env.NODE_ENV === 'test' ||
-        truthyEnv('VITEST')
+        (!options?.allowInTests && (process.env.NODE_ENV === 'test' || truthyEnv('VITEST')))
     ) {
         return;
     }
