@@ -17,7 +17,7 @@ import { createLocalLanguageModel } from '../providers/local/ai-sdk-adapter.js';
 import type { IConversationHistoryProvider } from '../../session/history/types.js';
 import type { SystemPromptManager } from '../../systemPrompt/manager.js';
 import type { IDextoLogger } from '../../logger/v2/types.js';
-import { requiresApiKey } from '../registry.js';
+import { requiresApiKey } from '../registry/index.js';
 import { getPrimaryApiKeyEnvVar, resolveApiKeyForProvider } from '../../utils/api-key-resolver.js';
 import type { CompactionConfigInput } from '../../context/compaction/schemas.js';
 

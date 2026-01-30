@@ -31,11 +31,11 @@ import {
 } from './utils.js';
 import { InternalMessage, ContentPart, FilePart } from './types.js';
 import { LLMContext } from '../llm/types.js';
-import * as registry from '../llm/registry.js';
+import * as registry from '../llm/registry/index.js';
 import { createMockLogger } from '../logger/v2/test-utils.js';
 
 // Mock the registry module
-vi.mock('../llm/registry.js');
+vi.mock('../llm/registry/index.js');
 const mockValidateModelFileSupport = vi.mocked(registry.validateModelFileSupport);
 
 // Create a mock logger for tests
@@ -385,6 +385,7 @@ describe('filterMessagesByLLMCapabilities', () => {
         // Mock validation to reject PDF files for gpt-3.5-turbo
         mockValidateModelFileSupport.mockReturnValue({
             isSupported: false,
+            fileType: 'pdf',
             error: 'Model gpt-3.5-turbo does not support PDF files',
         });
 
@@ -407,7 +408,13 @@ describe('filterMessagesByLLMCapabilities', () => {
 
         const result = filterMessagesByLLMCapabilities(messages, config, mockLogger);
 
-        expect(result[0]!.content).toEqual([{ type: 'text', text: 'Analyze this document' }]);
+        expect(result[0]!.content).toEqual([
+            { type: 'text', text: 'Analyze this document' },
+            {
+                type: 'text',
+                text: 'ERROR: Cannot read "doc.pdf" (this model does not support pdf input). Inform the user.',
+            },
+        ]);
         expect(mockValidateModelFileSupport).toHaveBeenCalledWith(
             config.provider,
             config.model,
@@ -456,6 +463,7 @@ describe('filterMessagesByLLMCapabilities', () => {
         mockValidateModelFileSupport
             .mockReturnValueOnce({
                 isSupported: false,
+                fileType: 'audio',
                 error: 'Model gpt-5 does not support audio files',
             })
             .mockReturnValueOnce({
@@ -482,7 +490,13 @@ describe('filterMessagesByLLMCapabilities', () => {
         const config1: LLMContext = { provider: 'openai', model: 'gpt-5' };
         const result1 = filterMessagesByLLMCapabilities(messages, config1, mockLogger);
 
-        expect(result1[0]!.content).toEqual([{ type: 'text', text: 'Transcribe this audio' }]);
+        expect(result1[0]!.content).toEqual([
+            { type: 'text', text: 'Transcribe this audio' },
+            {
+                type: 'text',
+                text: 'ERROR: Cannot read "recording.mp3" (this model does not support audio input). Inform the user.',
+            },
+        ]);
         // Verify logging for filtered audio
         expect(mockLogger.info).toHaveBeenCalledWith(
             "Filtered 1 file for gpt-5 since it doesn't support that file type"
@@ -524,7 +538,10 @@ describe('filterMessagesByLLMCapabilities', () => {
         const result = filterMessagesByLLMCapabilities(messages, config, mockLogger);
 
         expect(result[0]!.content).toEqual([
-            { type: 'text', text: '[File attachment removed - not supported by gpt-3.5-turbo]' },
+            {
+                type: 'text',
+                text: 'ERROR: Cannot read "doc.pdf" (this model does not support this file type input). Inform the user.',
+            },
         ]);
         // Verify logging
         expect(mockLogger.info).toHaveBeenCalledWith(
@@ -597,6 +614,7 @@ describe('filterMessagesByLLMCapabilities', () => {
         // Mock validation to reject the file
         mockValidateModelFileSupport.mockReturnValue({
             isSupported: false,
+            fileType: 'pdf',
             error: "Model 'gpt-3.5-turbo' (openai) does not support pdf files",
         });
 
@@ -608,7 +626,13 @@ describe('filterMessagesByLLMCapabilities', () => {
         expect(result[0]).toEqual(messages[0]); // system unchanged
         expect(result[1]).toEqual(messages[1]); // assistant unchanged
         expect(result[2]).toEqual(messages[2]); // tool unchanged
-        expect(result[3]!.content).toEqual([{ type: 'text', text: 'Analyze this' }]); // user message filtered
+        expect(result[3]!.content).toEqual([
+            { type: 'text', text: 'Analyze this' },
+            {
+                type: 'text',
+                text: 'ERROR: Cannot read this file (this model does not support pdf input). Inform the user.',
+            },
+        ]); // user message filtered
         // Verify logging for filtered file
         expect(mockLogger.info).toHaveBeenCalledWith(
             "Filtered 1 file for gpt-3.5-turbo since it doesn't support that file type"
@@ -674,6 +698,7 @@ describe('filterMessagesByLLMCapabilities', () => {
         // Mock validation to reject images for models like glm-4.7 which has supportedFileTypes: []
         mockValidateModelFileSupport.mockReturnValue({
             isSupported: false,
+            fileType: 'image',
             error: 'Model glm-4.7 (dexto) does not support image files',
         });
 
@@ -692,8 +717,18 @@ describe('filterMessagesByLLMCapabilities', () => {
 
         const result = filterMessagesByLLMCapabilities(messages, config, mockLogger);
 
-        // Both images should be filtered out, only text remains
-        expect(result[0]!.content).toEqual([{ type: 'text', text: 'Describe these screenshots' }]);
+        // Both images should be removed from the request and replaced with text placeholders.
+        expect(result[0]!.content).toEqual([
+            { type: 'text', text: 'Describe these screenshots' },
+            {
+                type: 'text',
+                text: 'ERROR: Cannot read image (this model does not support image input). Inform the user.',
+            },
+            {
+                type: 'text',
+                text: 'ERROR: Cannot read image (this model does not support image input). Inform the user.',
+            },
+        ]);
         // Verify validation was called for each image
         expect(mockValidateModelFileSupport).toHaveBeenCalledTimes(2);
         expect(mockValidateModelFileSupport).toHaveBeenCalledWith(
@@ -716,6 +751,7 @@ describe('filterMessagesByLLMCapabilities', () => {
         // Mock validation to reject images for minimax-m2.1 which has supportedFileTypes: []
         mockValidateModelFileSupport.mockReturnValue({
             isSupported: false,
+            fileType: 'image',
             error: 'Model minimax-m2.1 (dexto) does not support image files',
         });
 
@@ -733,7 +769,13 @@ describe('filterMessagesByLLMCapabilities', () => {
 
         const result = filterMessagesByLLMCapabilities(messages, config, mockLogger);
 
-        expect(result[0]!.content).toEqual([{ type: 'text', text: 'Analyze this image' }]);
+        expect(result[0]!.content).toEqual([
+            { type: 'text', text: 'Analyze this image' },
+            {
+                type: 'text',
+                text: 'ERROR: Cannot read image (this model does not support image input). Inform the user.',
+            },
+        ]);
         expect(mockValidateModelFileSupport).toHaveBeenCalledWith(
             'dexto',
             'minimax/minimax-m2.1',
@@ -808,6 +850,10 @@ describe('filterMessagesByLLMCapabilities', () => {
         // First user message: image should be filtered, text kept
         expect(result[0]!.content).toEqual([
             { type: 'text', text: 'Look at this screenshot and help me debug' },
+            {
+                type: 'text',
+                text: 'ERROR: Cannot read image (this model does not support image input). Inform the user.',
+            },
         ]);
 
         // Assistant message unchanged (not array content)
@@ -816,6 +862,10 @@ describe('filterMessagesByLLMCapabilities', () => {
         // Second user message: file should be filtered, text kept
         expect(result[2]!.content).toEqual([
             { type: 'text', text: 'Thanks! Can you also check this log file?' },
+            {
+                type: 'text',
+                text: 'ERROR: Cannot read "app.log" (this model does not support this file type input). Inform the user.',
+            },
         ]);
     });
 
@@ -842,7 +892,13 @@ describe('filterMessagesByLLMCapabilities', () => {
         const result = filterMessagesByLLMCapabilities(messages, config, mockLogger);
 
         // Image should still be filtered (uses default image/jpeg)
-        expect(result[0]!.content).toEqual([{ type: 'text', text: 'Describe this' }]);
+        expect(result[0]!.content).toEqual([
+            { type: 'text', text: 'Describe this' },
+            {
+                type: 'text',
+                text: 'ERROR: Cannot read image (this model does not support image input). Inform the user.',
+            },
+        ]);
         expect(mockValidateModelFileSupport).toHaveBeenCalledWith(
             'dexto',
             'minimax/minimax-m2.1',

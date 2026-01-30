@@ -41,6 +41,7 @@ import {
     DextoLogComponent,
     getProviderFromModel,
     getAllSupportedModels,
+    startLlmRegistryAutoUpdate,
     DextoAgent,
     type LLMProvider,
     isPath,
@@ -128,6 +129,10 @@ await initAnalytics({ appVersion: pkg.version });
 // Start version check early (non-blocking)
 // We'll check the result later and display notification for interactive modes
 const versionCheckPromise = checkForUpdates(pkg.version);
+
+// Start self-updating LLM registry refresh (models.dev + OpenRouter mapping).
+// Uses a cached snapshot on disk and refreshes in the background.
+startLlmRegistryAutoUpdate();
 
 /**
  * Recursively removes null values from an object.
@@ -1180,6 +1185,16 @@ program
 
                 // ——— Infer provider & API key from model ———
                 if (opts.model) {
+                    if (opts.model.includes('/')) {
+                        console.error(
+                            `❌ Model '${opts.model}' looks like an OpenRouter-format ID (provider/model).`
+                        );
+                        console.error(
+                            `   This is ambiguous for --model inference. Please also pass --provider (e.g. --provider dexto or --provider openrouter).`
+                        );
+                        safeExit('main', 1, 'ambiguous-model');
+                    }
+
                     let provider: LLMProvider;
                     try {
                         provider = getProviderFromModel(opts.model);

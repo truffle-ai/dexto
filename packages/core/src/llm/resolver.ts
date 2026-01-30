@@ -13,8 +13,7 @@ import {
     supportsBaseURL,
     supportsCustomModels,
     hasAllRegistryModelsSupport,
-    transformModelNameForProvider,
-} from './registry.js';
+} from './registry/index.js';
 import {
     lookupOpenRouterModel,
     refreshOpenRouterModelCache,
@@ -42,7 +41,7 @@ export async function resolveAndValidateLLMConfig(
         const { errors } = splitIssues(warnings);
         return fail<ValidatedLLMConfig, LLMUpdateContext>(errors);
     }
-    const result = validateLLMConfig(candidate, warnings);
+    const result = validateLLMConfig(candidate, warnings, logger);
     return result;
 }
 
@@ -59,10 +58,10 @@ export async function resolveLLMConfig(
 ): Promise<{ candidate: LLMConfig; warnings: Issue<LLMUpdateContext>[] }> {
     const warnings: Issue<LLMUpdateContext>[] = [];
 
-    // Provider inference (if not provided, infer from model or previous provider)
+    // Provider inference (if not provided, infer from native model IDs or fall back to previous provider)
     const provider =
         updates.provider ??
-        (updates.model
+        (updates.model && !updates.model.includes('/')
             ? (() => {
                   try {
                       return getProviderFromModel(updates.model);
@@ -119,28 +118,28 @@ export async function resolveLLMConfig(
         });
     }
 
-    // Gateway model transformation
-    // When targeting a gateway provider (dexto/openrouter), transform native model names
-    // to OpenRouter format (e.g., "claude-sonnet-4-5-20250929" -> "anthropic/claude-sonnet-4.5")
-    if (hasAllRegistryModelsSupport(provider) && !model.includes('/')) {
-        try {
-            const originalProvider = getProviderFromModel(model);
-            model = transformModelNameForProvider(model, originalProvider, provider);
-            logger.debug(
-                `Transformed model for ${provider}: ${updates.model ?? previous.model} -> ${model}`
-            );
-        } catch {
-            // Model not in registry - pass through as-is, gateway may accept custom model IDs
-            logger.debug(
-                `Model '${model}' not in registry, passing through to ${provider} without transformation`
-            );
+    // Gateway providers require OpenRouter-format IDs.
+    // If the user is switching providers (but not explicitly setting a model),
+    // pick the gateway's default model to avoid surprising validation errors.
+    if (
+        provider !== previous.provider &&
+        updates.model == null &&
+        hasAllRegistryModelsSupport(provider) &&
+        !model.includes('/')
+    ) {
+        const defaultGatewayModel = getDefaultModelForProvider(provider);
+        if (defaultGatewayModel) {
+            model = defaultGatewayModel;
+            warnings.push({
+                code: LLMErrorCode.MODEL_INCOMPATIBLE,
+                message: `Model set to default '${model}' for provider '${provider}'`,
+                severity: 'warning',
+                scope: ErrorScope.LLM,
+                type: ErrorType.USER,
+                context: { provider, model },
+            });
         }
     }
-
-    // Token defaults - always use model's effective max unless explicitly provided
-    const maxInputTokens =
-        updates.maxInputTokens ??
-        getEffectiveMaxInputTokens({ provider, model, apiKey: apiKey || previous.apiKey }, logger);
 
     // BaseURL resolution
     // Note: OpenRouter baseURL is handled by the factory (fixed endpoint, no user override)
@@ -230,7 +229,7 @@ export async function resolveLLMConfig(
             apiKey,
             baseURL,
             maxIterations: updates.maxIterations ?? previous.maxIterations,
-            maxInputTokens,
+            maxInputTokens: updates.maxInputTokens,
             maxOutputTokens: updates.maxOutputTokens ?? previous.maxOutputTokens,
             temperature: updates.temperature ?? previous.temperature,
         },
@@ -241,13 +240,27 @@ export async function resolveLLMConfig(
 // Passes the input candidate through the schema and returns a result
 export function validateLLMConfig(
     candidate: LLMConfig,
-    warnings: Issue<LLMUpdateContext>[]
+    warnings: Issue<LLMUpdateContext>[],
+    logger: IDextoLogger
 ): Result<ValidatedLLMConfig, LLMUpdateContext> {
     // Final validation (business rules + shape)
     const parsed = LLMConfigSchema.safeParse(candidate);
     if (!parsed.success) {
         return fail<ValidatedLLMConfig, LLMUpdateContext>(zodToIssues(parsed.error, 'error'));
     }
+
+    // Token defaults: always use model's effective max unless explicitly provided.
+    const maxInputTokens =
+        parsed.data.maxInputTokens ??
+        getEffectiveMaxInputTokens(
+            {
+                provider: parsed.data.provider,
+                model: parsed.data.model,
+                apiKey: parsed.data.apiKey ?? candidate.apiKey ?? '',
+                baseURL: parsed.data.baseURL,
+            },
+            logger
+        );
 
     // Schema validation now handles apiKey non-empty validation
 
@@ -267,5 +280,5 @@ export function validateLLMConfig(
         });
     }
 
-    return ok<ValidatedLLMConfig, LLMUpdateContext>(parsed.data, warnings);
+    return ok<ValidatedLLMConfig, LLMUpdateContext>({ ...parsed.data, maxInputTokens }, warnings);
 }

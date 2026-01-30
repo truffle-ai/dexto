@@ -2,11 +2,13 @@ import { describe, test, expect } from 'vitest';
 import {
     createTestEnvironment,
     TestConfigs,
-    requiresApiKey,
+    providerRequiresApiKey,
     cleanupTestEnvironment,
 } from './test-utils.integration.js';
 import { ErrorScope, ErrorType } from '@core/errors/index.js';
 import { LLMErrorCode } from '../error-codes.js';
+import { resolveApiKeyForProvider } from '@core/utils/api-key-resolver.js';
+import type { LLMProvider } from '@core/llm/types.js';
 
 /**
  * Vercel AI SDK LLM Service Integration Tests
@@ -17,8 +19,20 @@ import { LLMErrorCode } from '../error-codes.js';
 describe('Vercel AI SDK LLM Service Integration', () => {
     // Test with OpenAI through Vercel AI SDK by default
     const defaultProvider = 'openai';
-    const skipTests = !requiresApiKey(defaultProvider);
-    const t = skipTests ? test.skip : test.concurrent;
+    const RUN_EXTERNAL_LLM_TESTS =
+        process.env.DEXTO_RUN_EXTERNAL_LLM_TESTS === 'true' ||
+        process.env.DEXTO_RUN_EXTERNAL_LLM_TESTS === '1';
+
+    const canRunProvider = (provider: LLMProvider): boolean => {
+        if (!RUN_EXTERNAL_LLM_TESTS) return false;
+        if (!providerRequiresApiKey(provider)) return true;
+        return Boolean(resolveApiKeyForProvider(provider));
+    };
+
+    const canRunDefaultProvider = canRunProvider(defaultProvider);
+    const canRunOpenAI = canRunProvider('openai');
+    const t = canRunDefaultProvider ? test.concurrent : test.skip;
+    const skipTests = !canRunDefaultProvider;
 
     // Normal operation tests
     t(
@@ -156,7 +170,7 @@ describe('Vercel AI SDK LLM Service Integration', () => {
     );
 
     // Multiple Provider Support through Vercel AI SDK
-    (requiresApiKey('anthropic') ? test.concurrent : test.skip)(
+    (canRunProvider('anthropic') ? test.concurrent : test.skip)(
         'anthropic through vercel works normally',
         async () => {
             const anthropicConfig = TestConfigs.createVercelConfig('anthropic');
@@ -180,7 +194,7 @@ describe('Vercel AI SDK LLM Service Integration', () => {
         60000
     );
 
-    (requiresApiKey('google') ? test.concurrent : test.skip)(
+    (canRunProvider('google') ? test.concurrent : test.skip)(
         'google through vercel works normally',
         async () => {
             const googleConfig = TestConfigs.createVercelConfig('google');
@@ -243,7 +257,7 @@ describe('Vercel AI SDK LLM Service Integration', () => {
     );
 
     // Positive media/file tests (OpenAI via Vercel)
-    (requiresApiKey('openai') ? test.concurrent : test.skip)(
+    (canRunOpenAI ? test.concurrent : test.skip)(
         'openai via vercel: image input works',
         async () => {
             const openaiConfig = TestConfigs.createVercelConfig('openai');
@@ -281,7 +295,7 @@ describe('Vercel AI SDK LLM Service Integration', () => {
         60000
     );
 
-    (requiresApiKey('openai') ? test.concurrent : test.skip)(
+    (canRunOpenAI ? test.concurrent : test.skip)(
         'openai via vercel: pdf file input works',
         async () => {
             const openaiConfig = TestConfigs.createVercelConfig('openai');
@@ -318,7 +332,7 @@ describe('Vercel AI SDK LLM Service Integration', () => {
         60000
     );
 
-    (requiresApiKey('openai') ? test.concurrent : test.skip)(
+    (canRunOpenAI ? test.concurrent : test.skip)(
         'openai via vercel: streaming with image works',
         async () => {
             const openaiConfig = TestConfigs.createVercelConfig('openai');
@@ -359,7 +373,8 @@ describe('Vercel AI SDK LLM Service Integration', () => {
     if (skipTests) {
         test('Vercel AI SDK integration tests skipped - no API key', () => {
             console.warn(
-                `Vercel AI SDK integration tests skipped: ${defaultProvider.toUpperCase()}_API_KEY environment variable not found`
+                `Vercel AI SDK integration tests skipped. ` +
+                    `Set DEXTO_RUN_EXTERNAL_LLM_TESTS=1 and provide a valid ${defaultProvider.toUpperCase()}_API_KEY to run them.`
             );
             expect(true).toBe(true); // Placeholder test
         });

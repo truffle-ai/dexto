@@ -10,7 +10,7 @@ import {
 } from './types.js';
 import { isValidDisplayData, type ToolDisplayData } from '../tools/display-types.js';
 import type { IDextoLogger } from '@core/logger/v2/types.js';
-import { validateModelFileSupport } from '@core/llm/registry.js';
+import { validateModelFileSupport } from '@core/llm/registry/index.js';
 import { LLMContext } from '@core/llm/types.js';
 import { safeStringify } from '@core/utils/safe-stringify.js';
 import { getFileMediaKind, getResourceKind } from './media-helpers.js';
@@ -910,61 +910,69 @@ export function filterMessagesByLLMCapabilities(
             let imagesInMessage = 0;
             let filesInMessage = 0;
 
-            const filteredContent = message.content.filter((part) => {
-                // Keep text parts
-                if (part.type === 'text') {
-                    return true;
-                }
+            const filteredContent: ContentPart[] = message.content.flatMap(
+                (part): ContentPart[] => {
+                    // Keep text parts
+                    if (part.type === 'text') {
+                        return [part];
+                    }
 
-                // Filter image parts based on LLM capabilities
-                if (part.type === 'image') {
-                    const mimeType = part.mimeType ?? 'image/jpeg';
-                    const validation = validateModelFileSupport(
-                        config.provider,
-                        config.model,
-                        mimeType
-                    );
-                    // Only filter if model explicitly doesn't support this file type
-                    // Keep content if validation errored or is unknown
-                    if (validation.isSupported) {
-                        return true;
+                    // Filter/transform image parts based on LLM capabilities
+                    if (part.type === 'image') {
+                        const mimeType = part.mimeType ?? 'image/jpeg';
+                        const validation = validateModelFileSupport(
+                            config.provider,
+                            config.model,
+                            mimeType
+                        );
+                        if (validation.isSupported) {
+                            return [part];
+                        }
+                        if (validation.error?.includes('does not support')) {
+                            imagesInMessage++;
+                            return [
+                                {
+                                    type: 'text' as const,
+                                    text: `ERROR: Cannot read image (this model does not support image input). Inform the user.`,
+                                },
+                            ];
+                        }
+                        logger.warn(
+                            `Could not validate image support for ${config.model}: ${validation.error}`
+                        );
+                        return [part];
                     }
-                    if (validation.error?.includes('does not support')) {
-                        imagesInMessage++;
-                        return false;
-                    }
-                    // Unknown file type or validation error - keep the content and warn
-                    logger.warn(
-                        `Could not validate image support for ${config.model}: ${validation.error}`
-                    );
-                    return true;
-                }
 
-                // Filter file parts based on LLM capabilities
-                if (part.type === 'file' && part.mimeType) {
-                    const validation = validateModelFileSupport(
-                        config.provider,
-                        config.model,
-                        part.mimeType
-                    );
-                    // Only filter if model explicitly doesn't support this file type
-                    // Keep content if validation errored or is unknown
-                    if (validation.isSupported) {
-                        return true;
+                    // Filter/transform file parts based on LLM capabilities
+                    if (part.type === 'file' && part.mimeType) {
+                        const validation = validateModelFileSupport(
+                            config.provider,
+                            config.model,
+                            part.mimeType
+                        );
+                        if (validation.isSupported) {
+                            return [part];
+                        }
+                        if (validation.error?.includes('does not support')) {
+                            filesInMessage++;
+                            const name = part.filename ? `"${part.filename}"` : 'this file';
+                            const kind = validation.fileType ?? 'this file type';
+                            return [
+                                {
+                                    type: 'text' as const,
+                                    text: `ERROR: Cannot read ${name} (this model does not support ${kind} input). Inform the user.`,
+                                },
+                            ];
+                        }
+                        logger.warn(
+                            `Could not validate file support for ${config.model}: ${validation.error}`
+                        );
+                        return [part];
                     }
-                    if (validation.error?.includes('does not support')) {
-                        filesInMessage++;
-                        return false;
-                    }
-                    // Unknown file type or validation error - keep the content and warn
-                    logger.warn(
-                        `Could not validate file support for ${config.model}: ${validation.error}`
-                    );
-                    return true;
-                }
 
-                return true; // Keep unknown part types
-            });
+                    return [part]; // Keep unknown part types
+                }
+            );
 
             totalImagesFiltered += imagesInMessage;
             totalFilesFiltered += filesInMessage;

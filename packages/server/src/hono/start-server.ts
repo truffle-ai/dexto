@@ -1,7 +1,7 @@
 import type { Server } from 'node:http';
 import type { Context } from 'hono';
 import type { DextoAgent, AgentCard } from '@dexto/core';
-import { createAgentCard, logger } from '@dexto/core';
+import { createAgentCard, logger, startLlmRegistryAutoUpdate } from '@dexto/core';
 import { createDextoApp } from './index.js';
 import { createNodeServer } from './node/index.js';
 import type { DextoApp } from './types.js';
@@ -72,6 +72,9 @@ export async function startDextoServer(
     agent: DextoAgent,
     options: StartDextoServerOptions = {}
 ): Promise<StartDextoServerResult> {
+    // Keep LLM registry metadata (pricing/capabilities/limits) self-updating in server mode too.
+    startLlmRegistryAutoUpdate();
+
     const {
         port: requestedPort,
         hostname = '0.0.0.0',

@@ -38,8 +38,8 @@ import {
     getDefaultModelForProvider,
     getProviderFromModel,
     getAllModelsForProvider,
-    ModelInfo,
-} from '../llm/registry.js';
+} from '../llm/registry/index.js';
+import type { ModelInfo } from '../llm/registry/index.js';
 import type { LLMProvider } from '../llm/types.js';
 import { createAgentServices } from '../utils/service-initializer.js';
 import type { AgentConfig, ValidatedAgentConfig, LLMValidationOptions } from './schemas.js';
@@ -1834,7 +1834,7 @@ export class DextoAgent {
 
         // Get model info for display
         const llmConfig = runtimeConfig.llm;
-        const { getModelDisplayName } = await import('../llm/registry.js');
+        const { getModelDisplayName } = await import('../llm/registry/index.js');
         const modelDisplayName = getModelDisplayName(llmConfig.model, llmConfig.provider);
 
         // Always use the calculated estimate (which includes lastInput + lastOutput + newMessages when actuals available)

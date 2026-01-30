@@ -857,7 +857,7 @@ export class ContextManager<TMessage = unknown> {
         if (!allowedMediaTypes) {
             // Fall back to model capabilities from registry
             try {
-                const { getSupportedFileTypesForModel } = await import('../llm/registry.js');
+                const { getSupportedFileTypesForModel } = await import('../llm/registry/index.js');
                 const { fileTypesToMimePatterns } = await import('./utils.js');
                 const supportedFileTypes = getSupportedFileTypesForModel(
                     llmContext.provider,

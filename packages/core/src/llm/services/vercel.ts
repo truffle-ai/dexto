@@ -5,7 +5,7 @@ import type { IDextoLogger } from '../../logger/v2/types.js';
 import { DextoLogComponent } from '../../logger/v2/types.js';
 import { ToolSet } from '../../tools/types.js';
 import { ContextManager } from '../../context/manager.js';
-import { getEffectiveMaxInputTokens, getMaxInputTokensForModel } from '../registry.js';
+import { getEffectiveMaxInputTokens, getMaxInputTokensForModel } from '../registry/index.js';
 import type { ModelLimits } from '../../context/compaction/overflow.js';
 import type { CompactionConfigInput } from '../../context/compaction/schemas.js';
 import { ContentPart } from '../../context/types.js';
