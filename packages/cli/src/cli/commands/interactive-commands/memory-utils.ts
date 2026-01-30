@@ -1,10 +1,6 @@
 import { existsSync, readFileSync, writeFileSync } from 'fs';
 import * as path from 'path';
-
-/**
- * Agent instruction file names in priority order
- */
-const AGENT_INSTRUCTION_FILES = ['AGENTS.md', 'CLAUDE.md', 'GEMINI.md'] as const;
+import { discoverAgentInstructionFile } from '@dexto/agent-management';
 
 /**
  * Memory section header in the instruction file
@@ -12,19 +8,11 @@ const AGENT_INSTRUCTION_FILES = ['AGENTS.md', 'CLAUDE.md', 'GEMINI.md'] as const
 const MEMORY_SECTION_HEADER = '## Memory';
 
 /**
- * Discovers the instruction file in current directory (case-sensitive priority)
+ * Discovers the instruction file in current directory.
+ * Uses the shared discovery logic for consistent case-insensitive matching.
  */
 function findInstructionFile(): string | null {
-    const cwd = process.cwd();
-
-    for (const filename of AGENT_INSTRUCTION_FILES) {
-        const filePath = path.join(cwd, filename);
-        if (existsSync(filePath)) {
-            return filePath;
-        }
-    }
-
-    return null;
+    return discoverAgentInstructionFile();
 }
 
 /**
@@ -209,6 +197,9 @@ export function removeMemoryEntry(index: number): {
         let inMemorySection = false;
         let removed = false;
 
+        // Regex to extract bullet content: matches "- content" with any whitespace
+        const bulletRegex = /^\s*-\s*(.+)$/;
+
         for (const line of lines) {
             const trimmed = line.trim();
 
@@ -222,13 +213,24 @@ export function removeMemoryEntry(index: number): {
                 inMemorySection = false;
             }
 
-            // Skip the line to remove
-            if (inMemorySection && trimmed === `- ${entryToRemove}` && !removed) {
-                removed = true;
-                continue;
+            // Check if this line is a bullet point that matches the entry to remove
+            if (inMemorySection && !removed) {
+                const match = trimmed.match(bulletRegex);
+                if (match) {
+                    const bulletContent = match[1]?.trim();
+                    if (bulletContent === entryToRemove.trim()) {
+                        removed = true;
+                        continue; // Skip this line
+                    }
+                }
             }
 
             newLines.push(line);
+        }
+
+        // Only write to file if we actually removed something
+        if (!removed) {
+            return { success: false, filePath, error: 'Entry not found' };
         }
 
         writeFileSync(filePath, newLines.join('\n'), 'utf-8');
