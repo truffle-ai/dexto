@@ -1,23 +1,12 @@
-import { describe, expect, it, vi } from 'vitest';
-import type { IDextoLogger } from '@core/logger/v2/types.js';
+import { describe, expect, it } from 'vitest';
+import { createMockLogger } from '../logger/v2/test-utils.js';
 import { LLMErrorCode } from './error-codes.js';
 import { resolveAndValidateLLMConfig } from './resolver.js';
-import type { ValidatedLLMConfig } from './schemas.js';
+import { LLMConfigSchema } from './schemas.js';
 
-let mockLogger: IDextoLogger;
-mockLogger = {
-    debug: vi.fn(),
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    trackException: vi.fn(),
-    createChild: vi.fn(function () {
-        return this as unknown as IDextoLogger;
-    }),
-    destroy: vi.fn(),
-} as unknown as IDextoLogger;
+const mockLogger = createMockLogger();
 
-const baseConfig: ValidatedLLMConfig = {
+const baseConfig = LLMConfigSchema.parse({
     provider: 'openai',
     model: 'gpt-5',
     apiKey: 'sk-test-1234567890',
@@ -25,7 +14,7 @@ const baseConfig: ValidatedLLMConfig = {
     maxInputTokens: 128000,
     maxOutputTokens: 4096,
     temperature: 0.2,
-};
+});
 
 describe('resolveAndValidateLLMConfig', () => {
     it('returns a validation error (not a throw) for unknown models on fixed registries', async () => {
