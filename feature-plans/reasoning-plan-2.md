@@ -13,6 +13,14 @@ Non-goals (for v2):
 - Perfect parity of all provider quirks on day 1 (we want a safe best-effort baseline).
 - Preserving backwards compatibility of old config fields (user explicitly said not required).
 
+Status (as of 2026-01-30)
+- Implemented “reasoning tuning” plumbing end-to-end (config -> core -> providerOptions -> server capabilities -> WebUI/CLI config UI):
+  - `feat(llm): add reasoning presets config and provider option mapping` (`ddfcca64`)
+  - `chore(llm-registry): sync reasoning/interleaved capability metadata` (`5956ed58`)
+  - `test(cli): update setup wizard mocks for reasoning step` (`c310d4b1`)
+- OpenAPI docs must be kept in sync after server route changes:
+  - Run `pnpm run sync-openapi-docs` (updates `docs/static/openapi/openapi.json`)
+
 ---
 
 ## 0) Terminology (disambiguate early)
@@ -462,10 +470,22 @@ Phase 0 - Align on registry/capabilities
   - per-model overrides (manual overlay)
   - `getSupportedReasoningPresets()` helper consumed by UI + core translation
 
+Implementation note (DONE):
+- models.dev ingestion now includes `reasoning`, `supportsInterleaved`, and `supportsTemperature` via sync tooling +
+  regenerated snapshot (`5956ed58`).
+- reasoning tuning support is exposed via `getReasoningSupport(provider, model)` and returned from `GET /llm/capabilities`
+  (`ddfcca64`).
+
 Phase 1 - New config + UI surfaces
 - Replace `llm.reasoningEffort` with `llm.reasoning` schema.
 - WebUI: add a "Reasoning preset" control that adapts to capabilities (effort-based vs budget-based vs none).
 - CLI: add `/reasoning` command for preset selection + optional `budgetTokens`.
+
+Implementation note (PARTIAL):
+- `llm.reasoningEffort` -> `llm.reasoning?: { preset, budgetTokens? }` is complete across core + agent-management + CLI +
+  WebUI (`ddfcca64`).
+- WebUI AgentEditor uses server-resolved capabilities to render the reasoning preset control (`ddfcca64`).
+- CLI supports reasoning preset selection in setup and in the model selector overlay, but `/reasoning` is still TBD.
 
 Phase 2 - ProviderOptions refactor (single source of truth)
 - Replace `packages/core/src/llm/executor/provider-options.ts` with capability-driven translation:
@@ -474,11 +494,17 @@ Phase 2 - ProviderOptions refactor (single source of truth)
   - warnings for unsupported combinations
 - Apply reasoning controls for gateway providers too (best-effort).
 
+Implementation note (DONE):
+- providerOptions translation exists and is the current single source of truth (`ddfcca64`).
+
 Phase 3 - Provider selection correctness (important for gateways)
 - Decide where we must switch SDK providers to support required features:
   - `openai-compatible`: move to `@ai-sdk/openai-compatible` for passthrough + interleaved reasoning.
   - `openrouter`/`dexto`: consider `@openrouter/ai-sdk-provider` (or keep current if sufficient),
     based on what options we need to pass and whether passthrough is required.
+
+Implementation note (DONE):
+- core now uses `@ai-sdk/openai-compatible` + `@openrouter/ai-sdk-provider` for these providers (`ddfcca64`).
 
 Phase 4 - CLI reasoning display
 - Ink CLI: handle `llm:chunk` with `chunkType === 'reasoning'` and display it (UI design TBD).
@@ -489,9 +515,81 @@ Phase 5 - Interleaved reasoning support
 - Add regression tests mirroring opencode’s `transform.test.ts` cases (DeepSeek + tool calls).
 
 Phase 6 - Clean-up / docs
-- (Optional) Update/replace outdated notes in `feature-plans/context-calculation.md` about reasoning persistence.
+- Not required: we are not updating `feature-plans/context-calculation.md` as part of this feature.
 
 ---
+
+## 7.1 Test plan (merge gates)
+
+These are the concrete checks we should require before merging “Reasoning (Display + Tuning)”.
+
+CI / automated must-pass
+- `/quality-checks` is green (build + tests + lint + typecheck + OpenAPI docs sync).
+- OpenAPI docs are synced (route changes must regenerate `docs/static/openapi/openapi.json`).
+
+Unit tests to add (Core)
+- ProviderOptions translation (table-driven):
+  - `openai`: preset `low|medium|high|max` maps to `openai.reasoningEffort`; `xhigh` only enabled for codex-like models;
+    `off` disables reasoning knobs.
+  - `anthropic`: `budgetTokens` produces `anthropic.thinking` budget; preset maps to effort-based option (when supported);
+    `off` disables `sendReasoning`.
+  - `google` / `vertex (Gemini)`: preset/budget maps to `google.thinkingConfig` (includeThoughts + budget/level);
+    `off` disables thoughts.
+  - `bedrock`: mapping produces `bedrock.reasoningConfig`; `off` disables.
+  - `openrouter` / `dexto`: `includeReasoning` toggles correctly; preset/budget maps to OpenRouter knobs best-effort.
+  - `openai-compatible`: best-effort mapping sends an option shape that the provider will accept without throwing.
+- `getReasoningSupport(provider, model)`:
+  - returns only `['auto','off']` for non-capable models
+  - returns `supportsBudgetTokens=true` only for the providers we claim
+  - includes `xhigh` only when model indicates codex
+- Schema validation boundary:
+  - Agent config rejects `llm.reasoningEffort` (intentional breaking change).
+  - Agent config accepts `llm.reasoning` with allowed presets and optional `budgetTokens`.
+
+Unit tests to add (Registry sync)
+- `scripts/sync-llm-registry.ts` mapping:
+  - preserves boolean `reasoning`
+  - interprets `interleaved` into `supportsInterleaved`
+  - preserves `temperature` into `supportsTemperature`
+- `isReasoningCapableModel(model, provider)`:
+  - consults registry metadata when present
+  - falls back to heuristics for unknown/custom models
+
+Server/API tests to add
+- `GET /llm/capabilities` response shape includes:
+  - `supportedFileTypes` (existing)
+  - `reasoning.capable`
+  - `reasoning.supportedPresets`
+  - `reasoning.supportsBudgetTokens`
+- Gateway correctness:
+  - `provider=dexto` resolves capabilities best-effort without throwing.
+
+WebUI checks
+- Typecheck: WebUI does not import Node-only code paths from core (capabilities are fetched from server).
+- AgentEditor “Reasoning” control:
+  - renders only when capabilities indicate supported presets
+  - updates the config value to `llm.reasoning.preset`
+- Message display:
+  - existing reasoning panel continues to render `msg.reasoning` (no regression).
+
+CLI checks
+- Setup wizard:
+  - when model is reasoning-capable, reasoning preset step appears and is persisted to preferences.
+  - when not reasoning-capable, reasoning preset step is skipped.
+- Ink model selector overlay:
+  - reasoning sub-step works for reasoning-capable models and persists selection.
+
+Manual QA scenarios (end-to-end)
+- OpenAI (native):
+  - choose a reasoning-capable model (codex/o1/o3/gpt-5.*) and verify:
+    - preset changes affect usage/latency (best-effort signal)
+    - reasoning chunks/trace are captured and persisted when returned
+- Anthropic (native):
+  - verify preset or `budgetTokens` changes provider behavior; verify reasoning returned/persisted when enabled.
+- OpenRouter and Dexto gateway:
+  - verify `includeReasoning` toggles and reasoning is displayed in WebUI when provider returns it.
+- CLI display (once Phase 4 is implemented):
+  - verify reasoning chunks can be shown/hidden (toggle) without polluting normal assistant text.
 
 ## 8) Reference code pointers (Dexto)
 
