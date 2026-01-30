@@ -198,7 +198,7 @@ export class AgentManager {
      *
      * // Use the agent
      * const session = await agent.createSession();
-     * const response = await agent.generate('Write a function', { sessionId: session.id });
+     * const response = await agent.generate('Write a function', session.id);
      * ```
      */
     async loadAgent(id: string): Promise<DextoAgent> {

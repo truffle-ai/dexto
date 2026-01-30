@@ -9,3 +9,4 @@ export {
 } from './constants.js';
 export { loadState, saveState } from './state.js';
 export type { AnalyticsState } from './state.js';
+export * from './events.js';

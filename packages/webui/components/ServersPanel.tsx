@@ -1,33 +1,27 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 
 import { Button } from './ui/button';
 import {
     X,
-    Server,
     ListChecks,
     RefreshCw,
-    AlertTriangle,
     ChevronDown,
     Trash2,
-    Package,
     RotateCw,
-    FlaskConical,
+    Plus,
+    Search,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { ServerRegistryEntry } from '@/types';
+import type { ServerRegistryEntry } from '@dexto/registry';
 import type { McpServerConfig } from '@dexto/core';
 import { serverRegistry } from '@/lib/serverRegistry';
 import { buildConfigFromRegistryEntry, hasEmptyOrPlaceholderValue } from '@/lib/serverConfig';
 import ServerRegistryModal from './ServerRegistryModal';
 import { Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
 import { useAnalytics } from '@/lib/analytics/index.js';
-import {
-    useServers,
-    useServerTools,
-    useAddServer,
-    useDeleteServer,
-    useRestartServer,
-} from './hooks/useServers';
+import { useServers, useAddServer, useDeleteServer, useRestartServer } from './hooks/useServers';
+import { useAllTools, type ToolInfo } from './hooks/useTools';
+import { useAgentPath } from './hooks/useAgents';
 
 interface ServersPanelProps {
     isOpen: boolean;
@@ -45,6 +39,26 @@ interface ServersPanelProps {
     refreshTrigger?: number; // Add a trigger to force refresh
 }
 
+// Utility function to strip tool name prefixes (internal--, custom--, mcp--serverName--)
+function stripToolPrefix(toolName: string, source: 'internal' | 'custom' | 'mcp'): string {
+    if (source === 'internal' && toolName.startsWith('internal--')) {
+        return toolName.replace('internal--', '');
+    }
+    if (source === 'custom' && toolName.startsWith('custom--')) {
+        return toolName.replace('custom--', '');
+    }
+    if (source === 'mcp' && toolName.startsWith('mcp--')) {
+        // Format: mcp--serverName--toolName -> extract toolName
+        const parts = toolName.split('--');
+        if (parts.length >= 3) {
+            return parts.slice(2).join('--'); // Join remaining parts in case tool name has '--'
+        }
+        // Fallback: if format is different, just remove 'mcp--'
+        return toolName.replace('mcp--', '');
+    }
+    return toolName;
+}
+
 export default function ServersPanel({
     isOpen,
     onClose,
@@ -57,36 +71,164 @@ export default function ServersPanel({
     const variant: 'overlay' | 'inline' = variantProp ?? 'overlay';
     const analytics = useAnalytics();
 
-    const [selectedServerId, setSelectedServerId] = useState<string | null>(null);
-    const [isToolsExpanded, setIsToolsExpanded] = useState(false);
     const [isRegistryModalOpen, setIsRegistryModalOpen] = useState(false);
     const [isRegistryBusy, setIsRegistryBusy] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [expandedToolId, setExpandedToolId] = useState<string | null>(null);
+    const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
 
     // Use TanStack Query hooks
     const {
         data: servers = [],
         isLoading: isLoadingServers,
-        error: serverError,
         refetch: refetchServers,
     } = useServers(isOpen);
-
-    const {
-        data: tools = [],
-        isLoading: isLoadingTools,
-        error: toolsError,
-    } = useServerTools(selectedServerId, isOpen && !!selectedServerId);
 
     const addServerMutation = useAddServer();
     const deleteServerMutation = useDeleteServer();
     const restartServerMutation = useRestartServer();
 
-    // Auto-select first connected server when servers load
-    useEffect(() => {
-        if (servers.length > 0 && !selectedServerId) {
-            const firstConnected = servers.find((s) => s.status === 'connected');
-            setSelectedServerId(firstConnected?.id || servers[0].id);
+    // Fetch all tools from all sources (internal, custom, MCP)
+    const {
+        data: allToolsData,
+        isLoading: isLoadingAllTools,
+        refetch: refetchTools,
+    } = useAllTools(isOpen);
+
+    // Track agent path for auto-refresh on agent switch
+    const { data: agentPath } = useAgentPath();
+
+    // Unified refresh function
+    const handleRefresh = useCallback(() => {
+        refetchServers();
+        refetchTools();
+    }, [refetchServers, refetchTools]);
+
+    // Toggle section collapse
+    const toggleSection = useCallback((sectionTitle: string) => {
+        setCollapsedSections((prev) => {
+            const next = new Set(prev);
+            if (next.has(sectionTitle)) {
+                next.delete(sectionTitle);
+            } else {
+                next.add(sectionTitle);
+            }
+            return next;
+        });
+    }, []);
+
+    // Group tools by source with server info
+    const toolsBySource = useMemo(() => {
+        if (!allToolsData)
+            return {
+                internal: [],
+                custom: [],
+                mcp: new Map<
+                    string,
+                    {
+                        tools: ToolInfo[];
+                        server: { id: string; name: string; status: string } | null;
+                    }
+                >(),
+            };
+
+        const internal: ToolInfo[] = [];
+        const custom: ToolInfo[] = [];
+        const mcp = new Map<
+            string,
+            { tools: ToolInfo[]; server: { id: string; name: string; status: string } | null }
+        >();
+
+        allToolsData.tools.forEach((tool: ToolInfo) => {
+            if (tool.source === 'internal') {
+                internal.push(tool);
+            } else if (tool.source === 'custom') {
+                custom.push(tool);
+            } else if (tool.source === 'mcp' && tool.serverName) {
+                const existing = mcp.get(tool.serverName) || { tools: [], server: null };
+                existing.tools.push(tool);
+                // Try to find the actual server
+                if (!existing.server) {
+                    const server = servers.find(
+                        (s: { id: string; name: string }) => s.name === tool.serverName
+                    );
+                    existing.server = server || null;
+                }
+                mcp.set(tool.serverName, existing);
+            }
+        });
+
+        return { internal, custom, mcp };
+    }, [allToolsData, servers]);
+
+    // Filter tools based on search query and create sections
+    const filteredSections = useMemo(() => {
+        const sections: Array<{
+            title: string;
+            tools: ToolInfo[];
+            type: 'internal' | 'custom' | 'mcp';
+            server?: { id: string; name: string; status: string } | null;
+        }> = [];
+        const query = searchQuery.toLowerCase();
+
+        // Internal tools section
+        if (toolsBySource.internal.length > 0) {
+            const filtered = searchQuery
+                ? toolsBySource.internal.filter(
+                      (tool) =>
+                          tool.name.toLowerCase().includes(query) ||
+                          tool.description?.toLowerCase().includes(query)
+                  )
+                : toolsBySource.internal;
+
+            if (filtered.length > 0) {
+                sections.push({ title: 'Internal', tools: filtered, type: 'internal' });
+            }
         }
-    }, [servers, selectedServerId]);
+
+        // Custom tools section
+        if (toolsBySource.custom.length > 0) {
+            const filtered = searchQuery
+                ? toolsBySource.custom.filter(
+                      (tool) =>
+                          tool.name.toLowerCase().includes(query) ||
+                          tool.description?.toLowerCase().includes(query)
+                  )
+                : toolsBySource.custom;
+
+            if (filtered.length > 0) {
+                sections.push({ title: 'Custom', tools: filtered, type: 'custom' });
+            }
+        }
+
+        // MCP server sections
+        toolsBySource.mcp.forEach(({ tools, server }, serverName) => {
+            const serverMatches = serverName.toLowerCase().includes(query);
+            const filtered = searchQuery
+                ? serverMatches
+                    ? tools
+                    : tools.filter(
+                          (tool) =>
+                              tool.name.toLowerCase().includes(query) ||
+                              tool.description?.toLowerCase().includes(query)
+                      )
+                : tools;
+
+            if (filtered.length > 0) {
+                sections.push({
+                    title: serverName,
+                    tools: filtered,
+                    type: 'mcp',
+                    server,
+                });
+            }
+        });
+
+        return sections;
+    }, [toolsBySource, searchQuery]);
+
+    // Calculate total tool count
+    const totalToolCount = allToolsData?.totalCount || 0;
 
     const handleInstallServer = async (
         entry: ServerRegistryEntry
@@ -149,7 +291,7 @@ export default function ServersPanel({
     };
 
     const handleDeleteServer = async (serverId: string) => {
-        const server = servers.find((s) => s.id === serverId);
+        const server = servers.find((s: { id: string; name: string }) => s.id === serverId);
         if (!server) return;
 
         if (!window.confirm(`Are you sure you want to remove server "${server.name}"?`)) {
@@ -157,11 +299,6 @@ export default function ServersPanel({
         }
 
         try {
-            // If this was the selected server, deselect it
-            if (selectedServerId === serverId) {
-                setSelectedServerId(null);
-            }
-
             await deleteServerMutation.mutateAsync(serverId);
 
             // Mark corresponding registry entry as uninstalled
@@ -194,7 +331,7 @@ export default function ServersPanel({
     };
 
     const handleRestartServer = async (serverId: string) => {
-        const server = servers.find((s) => s.id === serverId);
+        const server = servers.find((s: { id: string; name: string }) => s.id === serverId);
         if (!server) return;
 
         if (!window.confirm(`Restart server "${server.name}"?`)) {
@@ -215,345 +352,345 @@ export default function ServersPanel({
         }
     };
 
-    // Handle external refresh triggers
+    // Auto-refresh on panel open, agent switch, or external trigger
+    // Consolidated from three separate useEffect hooks to prevent redundant fetches
     useEffect(() => {
-        if (refreshTrigger && isOpen) {
-            refetchServers();
+        if (isOpen) {
+            handleRefresh();
         }
-    }, [refreshTrigger, isOpen, refetchServers]);
-
-    const selectedServer = servers.find((s) => s.id === selectedServerId);
+    }, [isOpen, agentPath, refreshTrigger, handleRefresh]);
 
     // For inline variant, just return the content wrapped
     if (variant === 'inline') {
         return (
-            <aside className="h-full w-full flex flex-col bg-card">
+            <aside className="h-full w-full flex flex-col bg-card/30">
                 {/* Panel Header */}
-                <div className="flex items-center justify-between px-4 py-3 border-b border-border/50 bg-card/50 backdrop-blur-sm">
-                    <h2 className="text-sm font-semibold text-foreground">Tools & Servers</h2>
-                    <div className="flex items-center space-x-1">
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => refetchServers()}
-                            disabled={isLoadingServers}
-                            className="h-8 w-8 p-0"
-                        >
-                            <RefreshCw
-                                className={cn('h-3.5 w-3.5', isLoadingServers && 'animate-spin')}
-                            />
-                        </Button>
+                <div className="flex items-center justify-between px-4 py-3.5 shrink-0 border-b border-border/30">
+                    <button onClick={onClose} className="flex items-center gap-2 group">
+                        <h2 className="text-xs font-bold text-foreground/80 tracking-wider uppercase group-hover:text-foreground transition-colors">
+                            Tools & Servers
+                        </h2>
+                        <ChevronDown className="h-3.5 w-3.5 text-muted-foreground/50 -rotate-90 transition-transform group-hover:text-foreground/70" />
+                    </button>
+                    <div className="flex items-center gap-1">
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setIsRegistryModalOpen(true)}
+                                    className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground hover:bg-muted/40"
+                                >
+                                    <Plus className="h-4 w-4" />
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side="left">Connect MCP servers</TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={handleRefresh}
+                                    disabled={isLoadingServers || isLoadingAllTools}
+                                    className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground hover:bg-muted/40"
+                                >
+                                    <RefreshCw
+                                        className={cn(
+                                            'h-4 w-4',
+                                            (isLoadingServers || isLoadingAllTools) &&
+                                                'animate-spin'
+                                        )}
+                                    />
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side="left">Refresh</TooltipContent>
+                        </Tooltip>
                     </div>
                 </div>
 
-                {/* Add Server Actions */}
-                <div className="px-4 py-3 space-y-2 border-b border-border/30">
-                    <Button
-                        onClick={() => setIsRegistryModalOpen(true)}
-                        className="w-full h-9 text-sm font-medium"
-                        size="sm"
-                    >
-                        <Package className="mr-2 h-4 w-4" />
-                        Connect MCPs
-                    </Button>
-                    <Button
-                        onClick={() => window.open('/playground', '_blank')}
-                        className="w-full h-9 text-sm font-medium"
-                        size="sm"
-                        variant="outline"
-                    >
-                        <FlaskConical className="mr-2 h-4 w-4" />
-                        MCP Playground
-                    </Button>
-                </div>
-
-                {/* Content Area */}
-                <div className="flex-1 overflow-hidden flex flex-col">
-                    {/* Servers Section */}
-                    <div className="p-4 border-b border-border/30">
-                        <div className="flex items-center justify-between mb-3">
-                            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                                Connected Servers ({servers.length})
-                            </h3>
+                {/* Content Area - Tools List */}
+                <div className="flex-1 overflow-y-auto flex flex-col">
+                    {/* Search Bar */}
+                    <div className="px-4 pt-4 pb-3 border-b border-border/20">
+                        <div className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50 pointer-events-none" />
+                            <input
+                                type="text"
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                placeholder="Search tools..."
+                                className="w-full pl-9 pr-3 py-2 text-sm bg-background/50 border border-border/40 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all placeholder:text-muted-foreground/40"
+                            />
+                            {searchQuery && (
+                                <button
+                                    onClick={() => setSearchQuery('')}
+                                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-muted/50 rounded transition-colors"
+                                >
+                                    <X className="h-3.5 w-3.5 text-muted-foreground" />
+                                </button>
+                            )}
                         </div>
+                    </div>
 
-                        {/* Server Loading State */}
-                        {isLoadingServers && (
-                            <div className="flex items-center justify-center py-8">
-                                <div className="flex flex-col items-center space-y-2">
-                                    <RefreshCw className="h-5 w-5 animate-spin text-muted-foreground" />
-                                    <span className="text-xs text-muted-foreground">
-                                        Loading servers...
+                    {/* Tools List Container */}
+                    <div className="flex-1 overflow-y-auto px-4 py-4">
+                        {/* Loading State */}
+                        {isLoadingAllTools && (
+                            <div className="flex items-center justify-center py-16">
+                                <div className="flex flex-col items-center space-y-3">
+                                    <div className="relative">
+                                        <div className="h-8 w-8 rounded-full border-2 border-primary/20" />
+                                        <div className="absolute inset-0 h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+                                    </div>
+                                    <span className="text-xs font-medium text-muted-foreground/70">
+                                        Loading tools...
                                     </span>
                                 </div>
                             </div>
                         )}
 
-                        {/* Server Error */}
-                        {serverError && (
-                            <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 mb-3">
-                                <div className="flex items-start space-x-2">
-                                    <AlertTriangle className="h-4 w-4 text-destructive flex-shrink-0 mt-0.5" />
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-xs font-medium text-destructive">
-                                            Connection Error
-                                        </p>
-                                        <p className="text-xs text-destructive/80 mt-1">
-                                            {serverError?.message || 'Failed to load servers'}
-                                        </p>
-                                    </div>
+                        {/* No Tools Available */}
+                        {!isLoadingAllTools && totalToolCount === 0 && (
+                            <div className="text-center py-16">
+                                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-muted/30 mb-4">
+                                    <ListChecks className="h-6 w-6 text-muted-foreground/40" />
                                 </div>
-                            </div>
-                        )}
-
-                        {/* Servers List */}
-                        {!isLoadingServers && servers.length === 0 && !serverError && (
-                            <div className="text-center py-8">
-                                <Server className="h-8 w-8 text-muted-foreground/50 mx-auto mb-2" />
-                                <p className="text-xs text-muted-foreground">
-                                    No servers connected
+                                <p className="text-sm font-medium text-foreground/70 mb-1">
+                                    No tools available
                                 </p>
-                                <p className="text-xs text-muted-foreground/70 mt-1">
-                                    Connect or browse the registry
+                                <p className="text-xs text-muted-foreground/60">
+                                    Connect an MCP server to get started
                                 </p>
                             </div>
                         )}
 
-                        {servers.map((server) => (
-                            <div
-                                key={server.id}
-                                onClick={() => setSelectedServerId(server.id)}
-                                className={cn(
-                                    'p-3 rounded-lg border cursor-pointer transition-all duration-200 mb-2 last:mb-0',
-                                    selectedServerId === server.id
-                                        ? 'bg-primary/5 border-primary/20 shadow-sm'
-                                        : 'bg-background hover:bg-muted/50 border-border/50 hover:border-border'
-                                )}
-                            >
-                                <div className="flex items-center justify-between">
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex items-center space-x-2">
-                                            <div
-                                                className={cn(
-                                                    'w-2 h-2 rounded-full flex-shrink-0',
-                                                    server.status === 'connected'
-                                                        ? 'bg-green-500'
-                                                        : server.status === 'error'
-                                                          ? 'bg-red-500'
-                                                          : 'bg-yellow-500'
-                                                )}
-                                            />
-                                            <h4 className="text-sm font-medium truncate">
-                                                {server.name}
-                                            </h4>
-                                        </div>
-                                        <p className="text-xs text-muted-foreground mt-1 capitalize">
-                                            {server.status}
-                                        </p>
+                        {/* No Search Results */}
+                        {!isLoadingAllTools &&
+                            totalToolCount > 0 &&
+                            filteredSections.length === 0 && (
+                                <div className="text-center py-16">
+                                    <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-muted/30 mb-4">
+                                        <Search className="h-6 w-6 text-muted-foreground/40" />
                                     </div>
-
-                                    <div className="flex items-center gap-1">
-                                        {/* Restart button */}
-                                        {restartServerMutation.isPending &&
-                                        restartServerMutation.variables === server.id ? (
-                                            <div className="h-8 w-8 flex items-center justify-center">
-                                                <RefreshCw
-                                                    className="h-4 w-4 animate-spin text-muted-foreground"
-                                                    role="status"
-                                                    aria-label={`Restarting ${server.name}…`}
-                                                />
-                                            </div>
-                                        ) : (
-                                            <Tooltip>
-                                                <TooltipTrigger asChild>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            handleRestartServer(server.id);
-                                                        }}
-                                                        className="h-8 w-8 p-0 text-muted-foreground hover:text-primary"
-                                                        aria-label={`Restart server ${server.name}`}
-                                                        disabled={
-                                                            deleteServerMutation.isPending &&
-                                                            deleteServerMutation.variables ===
-                                                                server.id
-                                                        }
-                                                    >
-                                                        <RotateCw className="h-3.5 w-3.5" />
-                                                    </Button>
-                                                </TooltipTrigger>
-                                                <TooltipContent side="top">
-                                                    Restart server
-                                                </TooltipContent>
-                                            </Tooltip>
-                                        )}
-
-                                        {/* Delete button */}
-                                        {deleteServerMutation.isPending &&
-                                        deleteServerMutation.variables === server.id ? (
-                                            <div className="h-8 w-8 flex items-center justify-center">
-                                                <RefreshCw
-                                                    className="h-4 w-4 animate-spin text-muted-foreground"
-                                                    role="status"
-                                                    aria-label={`Removing ${server.name}…`}
-                                                />
-                                            </div>
-                                        ) : (
-                                            <Tooltip>
-                                                <TooltipTrigger asChild>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            handleDeleteServer(server.id);
-                                                        }}
-                                                        className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
-                                                        aria-label={`Remove server ${server.name}`}
-                                                        disabled={
-                                                            restartServerMutation.isPending &&
-                                                            restartServerMutation.variables ===
-                                                                server.id
-                                                        }
-                                                    >
-                                                        <Trash2 className="h-3.5 w-3.5" />
-                                                    </Button>
-                                                </TooltipTrigger>
-                                                <TooltipContent side="top">
-                                                    Remove server
-                                                </TooltipContent>
-                                            </Tooltip>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-
-                    {/* Tools Section */}
-                    {selectedServer && (
-                        <div className="flex-1 overflow-hidden flex flex-col">
-                            <div className="px-4 py-3 border-b border-border/30">
-                                <button
-                                    onClick={() => setIsToolsExpanded(!isToolsExpanded)}
-                                    className="flex items-center justify-between w-full text-left"
-                                >
-                                    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                                        Available Tools {tools.length > 0 && `(${tools.length})`}
-                                    </h3>
-                                    <ChevronDown
-                                        className={cn(
-                                            'h-3.5 w-3.5 transition-transform text-muted-foreground',
-                                            isToolsExpanded && 'rotate-180'
-                                        )}
-                                    />
-                                </button>
-                            </div>
-
-                            {isToolsExpanded && (
-                                <div className="flex-1 overflow-y-auto px-4 py-3">
-                                    {/* Tools Loading State */}
-                                    {isLoadingTools && (
-                                        <div className="flex items-center justify-center py-6">
-                                            <div className="flex flex-col items-center space-y-2">
-                                                <RefreshCw className="h-4 w-4 animate-spin text-muted-foreground" />
-                                                <span className="text-xs text-muted-foreground">
-                                                    Loading tools...
-                                                </span>
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* Tools Error */}
-                                    {toolsError && (
-                                        <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 mb-3">
-                                            <div className="flex items-start space-x-2">
-                                                <AlertTriangle className="h-4 w-4 text-destructive flex-shrink-0 mt-0.5" />
-                                                <div className="flex-1 min-w-0">
-                                                    <p className="text-xs font-medium text-destructive">
-                                                        Tools Error
-                                                    </p>
-                                                    <p className="text-xs text-destructive/80 mt-1">
-                                                        {toolsError?.message ||
-                                                            'Failed to load tools'}
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* No Tools */}
-                                    {!isLoadingTools &&
-                                        tools.length === 0 &&
-                                        !toolsError &&
-                                        selectedServer.status === 'connected' && (
-                                            <div className="text-center py-6">
-                                                <ListChecks className="h-6 w-6 text-muted-foreground/50 mx-auto mb-2" />
-                                                <p className="text-xs text-muted-foreground">
-                                                    No tools available
-                                                </p>
-                                            </div>
-                                        )}
-
-                                    {/* Server Not Connected */}
-                                    {selectedServer.status !== 'connected' && (
-                                        <div className="text-center py-6">
-                                            <AlertTriangle className="h-6 w-6 text-muted-foreground/50 mx-auto mb-2" />
-                                            <p className="text-xs text-muted-foreground">
-                                                Server not connected
-                                            </p>
-                                            <p className="text-xs text-muted-foreground/70 mt-1">
-                                                Tools unavailable
-                                            </p>
-                                        </div>
-                                    )}
-
-                                    {/* Tools List */}
-                                    {tools.map((tool) => (
-                                        <div
-                                            key={tool.name}
-                                            className="p-3 rounded-lg border border-border/50 bg-background hover:bg-muted/30 transition-colors mb-2 last:mb-0"
-                                        >
-                                            <h4 className="text-sm font-medium mb-1">
-                                                {tool.name}
-                                            </h4>
-                                            {tool.description && (
-                                                <p className="text-xs text-muted-foreground line-clamp-2 mb-2">
-                                                    {tool.description}
-                                                </p>
-                                            )}
-                                            {tool.inputSchema?.properties && (
-                                                <div className="flex flex-wrap gap-1 mt-2">
-                                                    {Object.keys(tool.inputSchema.properties)
-                                                        .slice(0, 3)
-                                                        .map((param) => (
-                                                            <span
-                                                                key={param}
-                                                                className="inline-flex items-center px-2 py-1 rounded-md bg-muted text-xs font-medium"
-                                                            >
-                                                                {param}
-                                                            </span>
-                                                        ))}
-                                                    {Object.keys(tool.inputSchema.properties)
-                                                        .length > 3 && (
-                                                        <span className="text-xs text-muted-foreground">
-                                                            +
-                                                            {Object.keys(
-                                                                tool.inputSchema.properties
-                                                            ).length - 3}{' '}
-                                                            more
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            )}
-                                        </div>
-                                    ))}
+                                    <p className="text-sm font-medium text-foreground/70 mb-1">
+                                        No tools match your search
+                                    </p>
+                                    <p className="text-xs text-muted-foreground/60 mb-3">
+                                        Try a different search term
+                                    </p>
+                                    <button
+                                        onClick={() => setSearchQuery('')}
+                                        className="text-xs font-medium text-primary hover:text-primary/80 transition-colors"
+                                    >
+                                        Clear search
+                                    </button>
                                 </div>
                             )}
-                        </div>
-                    )}
+
+                        {/* Tools Grouped by Source/Server */}
+                        {filteredSections.map((section) => {
+                            const isCollapsed = collapsedSections.has(section.title);
+                            return (
+                                <div key={section.title} className="mb-4 last:mb-0">
+                                    {/* Section Header */}
+                                    <div className="w-full flex items-center justify-between gap-2 mb-3 px-1 group transition-all duration-150">
+                                        {/* Clickable collapse/expand area */}
+                                        <button
+                                            onClick={() => toggleSection(section.title)}
+                                            className="flex items-center gap-2.5 flex-1 min-w-0 pb-2 border-b border-border/40 text-left"
+                                        >
+                                            <ChevronDown
+                                                className={cn(
+                                                    'h-4 w-4 text-muted-foreground/50 shrink-0 transition-transform duration-200',
+                                                    isCollapsed && '-rotate-90'
+                                                )}
+                                            />
+                                            <h4 className="text-base font-semibold text-foreground tracking-tight flex items-center gap-2.5">
+                                                <span className="tracking-normal">
+                                                    {section.title}
+                                                </span>
+                                                {section.type === 'mcp' && (
+                                                    <>
+                                                        <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-primary/10 text-primary text-[10px] font-semibold uppercase tracking-wider">
+                                                            MCP
+                                                        </span>
+                                                        {section.server && (
+                                                            <span
+                                                                className={cn(
+                                                                    'inline-flex items-center justify-center w-5 h-5 rounded-full',
+                                                                    section.server.status ===
+                                                                        'connected'
+                                                                        ? 'bg-green-500/10'
+                                                                        : 'bg-red-500/10'
+                                                                )}
+                                                            >
+                                                                <span
+                                                                    className={cn(
+                                                                        'w-2 h-2 rounded-full',
+                                                                        section.server.status ===
+                                                                            'connected'
+                                                                            ? 'bg-green-600 dark:bg-green-400'
+                                                                            : 'bg-red-600 dark:bg-red-400'
+                                                                    )}
+                                                                />
+                                                            </span>
+                                                        )}
+                                                    </>
+                                                )}
+                                            </h4>
+                                            <span className="text-xs text-muted-foreground/50 font-medium">
+                                                {section.tools.length}
+                                            </span>
+                                        </button>
+
+                                        {/* MCP Server Controls - outside the collapse button */}
+                                        {section.type === 'mcp' && section.server && (
+                                            <div className="flex items-center gap-0.5">
+                                                {/* Restart button */}
+                                                {restartServerMutation.isPending &&
+                                                restartServerMutation.variables ===
+                                                    section.server.id ? (
+                                                    <div className="h-6 w-6 flex items-center justify-center">
+                                                        <RefreshCw className="h-3 w-3 animate-spin text-muted-foreground" />
+                                                    </div>
+                                                ) : (
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                onClick={() =>
+                                                                    handleRestartServer(
+                                                                        section.server!.id
+                                                                    )
+                                                                }
+                                                                className="h-6 w-6 p-0 text-muted-foreground/60 hover:text-primary hover:bg-muted/50"
+                                                                disabled={
+                                                                    deleteServerMutation.isPending &&
+                                                                    deleteServerMutation.variables ===
+                                                                        section.server.id
+                                                                }
+                                                            >
+                                                                <RotateCw className="h-3 w-3" />
+                                                            </Button>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent side="left">
+                                                            Restart
+                                                        </TooltipContent>
+                                                    </Tooltip>
+                                                )}
+
+                                                {/* Delete button */}
+                                                {deleteServerMutation.isPending &&
+                                                deleteServerMutation.variables ===
+                                                    section.server.id ? (
+                                                    <div className="h-6 w-6 flex items-center justify-center">
+                                                        <RefreshCw className="h-3 w-3 animate-spin text-muted-foreground" />
+                                                    </div>
+                                                ) : (
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                onClick={() =>
+                                                                    handleDeleteServer(
+                                                                        section.server!.id
+                                                                    )
+                                                                }
+                                                                className="h-6 w-6 p-0 text-muted-foreground/60 hover:text-destructive hover:bg-muted/50"
+                                                                disabled={
+                                                                    restartServerMutation.isPending &&
+                                                                    restartServerMutation.variables ===
+                                                                        section.server.id
+                                                                }
+                                                            >
+                                                                <Trash2 className="h-3 w-3" />
+                                                            </Button>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent side="left">
+                                                            Remove
+                                                        </TooltipContent>
+                                                    </Tooltip>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Tool Items - Only show if not collapsed */}
+                                    {!isCollapsed && (
+                                        <div className="space-y-0.5 ml-2">
+                                            {section.tools.map((tool) => {
+                                                const toolId = tool.id;
+                                                const isExpanded = expandedToolId === toolId;
+
+                                                return (
+                                                    <div key={toolId}>
+                                                        <button
+                                                            onClick={() =>
+                                                                setExpandedToolId(
+                                                                    isExpanded ? null : toolId
+                                                                )
+                                                            }
+                                                            className="w-full px-3 py-2 rounded-md text-left hover:bg-muted/30 transition-all duration-150 group flex items-center justify-between gap-2"
+                                                        >
+                                                            <span className="text-sm text-foreground/90 truncate font-medium">
+                                                                {stripToolPrefix(
+                                                                    tool.name,
+                                                                    section.type
+                                                                )}
+                                                            </span>
+                                                            <ChevronDown
+                                                                className={cn(
+                                                                    'h-3.5 w-3.5 text-muted-foreground/40 shrink-0 transition-transform duration-200',
+                                                                    isExpanded && 'rotate-180'
+                                                                )}
+                                                            />
+                                                        </button>
+
+                                                        {/* Expanded Details */}
+                                                        {isExpanded && (
+                                                            <div className="px-3 py-2.5 mb-1 bg-muted/15 rounded-md ml-2">
+                                                                {tool.description && (
+                                                                    <p className="text-xs text-muted-foreground/70 mb-2.5 leading-relaxed">
+                                                                        {tool.description}
+                                                                    </p>
+                                                                )}
+                                                                {tool.inputSchema?.properties &&
+                                                                    Object.keys(
+                                                                        tool.inputSchema.properties
+                                                                    ).length > 0 && (
+                                                                        <div className="space-y-1.5">
+                                                                            <p className="text-[10px] text-muted-foreground/50 uppercase tracking-wider font-semibold">
+                                                                                Parameters
+                                                                            </p>
+                                                                            <div className="flex flex-wrap gap-1.5">
+                                                                                {Object.keys(
+                                                                                    tool.inputSchema
+                                                                                        .properties
+                                                                                ).map((param) => (
+                                                                                    <span
+                                                                                        key={param}
+                                                                                        className="inline-flex items-center px-2 py-0.5 rounded bg-muted/50 text-[10px] font-mono text-foreground/60 border border-border/20"
+                                                                                    >
+                                                                                        {param}
+                                                                                    </span>
+                                                                                ))}
+                                                                            </div>
+                                                                        </div>
+                                                                    )}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
                 </div>
 
                 {/* Server Registry Modal */}
@@ -583,339 +720,330 @@ export default function ServersPanel({
             {/* Panel - slides from right */}
             <aside
                 className={cn(
-                    'fixed top-0 right-0 z-40 h-screen w-80 bg-card border-l border-border shadow-xl transition-transform duration-300 ease-in-out flex flex-col',
+                    'fixed top-0 right-0 z-40 h-screen w-80 bg-card/95 backdrop-blur-xl border-l border-border/40 shadow-xl transition-transform duration-300 ease-in-out flex flex-col',
                     isOpen ? 'translate-x-0' : 'translate-x-full'
                 )}
             >
                 {/* Panel Header */}
-                <div className="flex items-center justify-between px-4 py-3 border-b border-border/50 bg-card/50 backdrop-blur-sm">
+                <div className="flex items-center justify-between px-4 py-3.5 shrink-0">
                     <h2 className="text-sm font-semibold text-foreground">Tools & Servers</h2>
-                    <div className="flex items-center space-x-1">
+                    <div className="flex items-center gap-1">
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setIsRegistryModalOpen(true)}
+                                    className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground hover:bg-muted/40"
+                                >
+                                    <Plus className="h-4 w-4" />
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side="left">Connect MCP servers</TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={handleRefresh}
+                                    disabled={isLoadingServers || isLoadingAllTools}
+                                    className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground hover:bg-muted/40"
+                                >
+                                    <RefreshCw
+                                        className={cn(
+                                            'h-4 w-4',
+                                            (isLoadingServers || isLoadingAllTools) &&
+                                                'animate-spin'
+                                        )}
+                                    />
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side="left">Refresh</TooltipContent>
+                        </Tooltip>
                         <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => refetchServers()}
-                            disabled={isLoadingServers}
-                            className="h-8 w-8 p-0"
+                            onClick={onClose}
+                            className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground hover:bg-muted/40"
                         >
-                            <RefreshCw
-                                className={cn('h-3.5 w-3.5', isLoadingServers && 'animate-spin')}
-                            />
-                        </Button>
-                        <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0">
-                            <X className="h-3.5 w-3.5" />
+                            <X className="h-4 w-4" />
                         </Button>
                     </div>
                 </div>
 
-                {/* Add Server Actions */}
-                <div className="px-4 py-3 space-y-2 border-b border-border/30">
-                    <Button
-                        onClick={() => setIsRegistryModalOpen(true)}
-                        className="w-full h-9 text-sm font-medium"
-                        size="sm"
-                    >
-                        <Package className="mr-2 h-4 w-4" />
-                        Connect MCPs
-                    </Button>
-                    <Button
-                        onClick={() => window.open('/playground', '_blank')}
-                        className="w-full h-9 text-sm font-medium"
-                        size="sm"
-                        variant="outline"
-                    >
-                        <FlaskConical className="mr-2 h-4 w-4" />
-                        MCP Playground
-                    </Button>
-                </div>
-
-                {/* Content Area */}
-                <div className="flex-1 overflow-hidden flex flex-col">
-                    {/* Servers Section */}
-                    <div className="p-4 border-b border-border/30">
-                        <div className="flex items-center justify-between mb-3">
-                            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                                Connected Servers ({servers.length})
-                            </h3>
+                {/* Content Area - Tools List */}
+                <div className="flex-1 overflow-y-auto flex flex-col">
+                    {/* Search Bar */}
+                    <div className="px-4 pt-3 pb-2 border-b border-border/20">
+                        <div className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50 pointer-events-none" />
+                            <input
+                                type="text"
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                placeholder="Search tools..."
+                                className="w-full pl-9 pr-3 py-2 text-sm bg-background/50 border border-border/40 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all placeholder:text-muted-foreground/40"
+                            />
+                            {searchQuery && (
+                                <button
+                                    onClick={() => setSearchQuery('')}
+                                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-muted/50 rounded transition-colors"
+                                >
+                                    <X className="h-3.5 w-3.5 text-muted-foreground" />
+                                </button>
+                            )}
                         </div>
+                    </div>
 
-                        {/* Server Loading State */}
-                        {isLoadingServers && (
-                            <div className="flex items-center justify-center py-8">
+                    {/* Tools List Container */}
+                    <div className="flex-1 overflow-y-auto px-4 py-3">
+                        {/* Loading State */}
+                        {isLoadingAllTools && (
+                            <div className="flex items-center justify-center py-12">
                                 <div className="flex flex-col items-center space-y-2">
-                                    <RefreshCw className="h-5 w-5 animate-spin text-muted-foreground" />
-                                    <span className="text-xs text-muted-foreground">
-                                        Loading servers...
+                                    <RefreshCw className="h-5 w-5 animate-spin text-muted-foreground/50" />
+                                    <span className="text-xs text-muted-foreground/70">
+                                        Loading tools...
                                     </span>
                                 </div>
                             </div>
                         )}
 
-                        {/* Server Error */}
-                        {serverError && (
-                            <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 mb-3">
-                                <div className="flex items-start space-x-2">
-                                    <AlertTriangle className="h-4 w-4 text-destructive flex-shrink-0 mt-0.5" />
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-xs font-medium text-destructive">
-                                            Connection Error
-                                        </p>
-                                        <p className="text-xs text-destructive/80 mt-1">
-                                            {serverError?.message || 'Failed to load servers'}
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Servers List */}
-                        {!isLoadingServers && servers.length === 0 && !serverError && (
-                            <div className="text-center py-8">
-                                <Server className="h-8 w-8 text-muted-foreground/50 mx-auto mb-2" />
-                                <p className="text-xs text-muted-foreground">
-                                    No servers connected
+                        {/* No Tools Available */}
+                        {!isLoadingAllTools && totalToolCount === 0 && (
+                            <div className="text-center py-12">
+                                <ListChecks className="h-8 w-8 text-muted-foreground/40 mx-auto mb-2" />
+                                <p className="text-xs text-muted-foreground/70">
+                                    No tools available
                                 </p>
-                                <p className="text-xs text-muted-foreground/70 mt-1">
-                                    Connect or browse the registry
+                                <p className="text-xs text-muted-foreground/50 mt-1">
+                                    Connect an MCP server to get started
                                 </p>
                             </div>
                         )}
 
-                        {servers.map((server) => (
-                            <div
-                                key={server.id}
-                                onClick={() => setSelectedServerId(server.id)}
-                                className={cn(
-                                    'p-3 rounded-lg border cursor-pointer transition-all duration-200 mb-2 last:mb-0',
-                                    selectedServerId === server.id
-                                        ? 'bg-primary/5 border-primary/20 shadow-sm'
-                                        : 'bg-background hover:bg-muted/50 border-border/50 hover:border-border'
-                                )}
-                            >
-                                <div className="flex items-center justify-between">
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex items-center space-x-2">
-                                            <div
-                                                className={cn(
-                                                    'w-2 h-2 rounded-full flex-shrink-0',
-                                                    server.status === 'connected'
-                                                        ? 'bg-green-500'
-                                                        : server.status === 'error'
-                                                          ? 'bg-red-500'
-                                                          : 'bg-yellow-500'
-                                                )}
-                                            />
-                                            <h4 className="text-sm font-medium truncate">
-                                                {server.name}
-                                            </h4>
-                                        </div>
-                                        <p className="text-xs text-muted-foreground mt-1 capitalize">
-                                            {server.status}
-                                        </p>
-                                    </div>
-
-                                    <div className="flex items-center gap-1">
-                                        {/* Restart button */}
-                                        {restartServerMutation.isPending &&
-                                        restartServerMutation.variables === server.id ? (
-                                            <div className="h-8 w-8 flex items-center justify-center">
-                                                <RefreshCw
-                                                    className="h-4 w-4 animate-spin text-muted-foreground"
-                                                    role="status"
-                                                    aria-label={`Restarting ${server.name}…`}
-                                                />
-                                            </div>
-                                        ) : (
-                                            <Tooltip>
-                                                <TooltipTrigger asChild>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            handleRestartServer(server.id);
-                                                        }}
-                                                        className="h-8 w-8 p-0 text-muted-foreground hover:text-primary"
-                                                        aria-label={`Restart server ${server.name}`}
-                                                        disabled={
-                                                            deleteServerMutation.isPending &&
-                                                            deleteServerMutation.variables ===
-                                                                server.id
-                                                        }
-                                                    >
-                                                        <RotateCw className="h-3.5 w-3.5" />
-                                                    </Button>
-                                                </TooltipTrigger>
-                                                <TooltipContent side="top">
-                                                    Restart server
-                                                </TooltipContent>
-                                            </Tooltip>
-                                        )}
-
-                                        {/* Delete button */}
-                                        {deleteServerMutation.isPending &&
-                                        deleteServerMutation.variables === server.id ? (
-                                            <div className="h-8 w-8 flex items-center justify-center">
-                                                <RefreshCw
-                                                    className="h-4 w-4 animate-spin text-muted-foreground"
-                                                    role="status"
-                                                    aria-label={`Removing ${server.name}…`}
-                                                />
-                                            </div>
-                                        ) : (
-                                            <Tooltip>
-                                                <TooltipTrigger asChild>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            handleDeleteServer(server.id);
-                                                        }}
-                                                        className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
-                                                        aria-label={`Remove server ${server.name}`}
-                                                        disabled={
-                                                            restartServerMutation.isPending &&
-                                                            restartServerMutation.variables ===
-                                                                server.id
-                                                        }
-                                                    >
-                                                        <Trash2 className="h-3.5 w-3.5" />
-                                                    </Button>
-                                                </TooltipTrigger>
-                                                <TooltipContent side="top">
-                                                    Remove server
-                                                </TooltipContent>
-                                            </Tooltip>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-
-                    {/* Tools Section */}
-                    {selectedServer && (
-                        <div className="flex-1 overflow-hidden flex flex-col">
-                            <div className="px-4 py-3 border-b border-border/30">
-                                <button
-                                    onClick={() => setIsToolsExpanded(!isToolsExpanded)}
-                                    className="flex items-center justify-between w-full text-left"
-                                >
-                                    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                                        Available Tools
-                                    </h3>
-                                    <ChevronDown
-                                        className={cn(
-                                            'h-3.5 w-3.5 transition-transform text-muted-foreground',
-                                            isToolsExpanded && 'rotate-180'
-                                        )}
-                                    />
-                                </button>
-                            </div>
-
-                            {isToolsExpanded && (
-                                <div className="flex-1 overflow-y-auto px-4 py-3">
-                                    {/* Tools Loading State */}
-                                    {isLoadingTools && (
-                                        <div className="flex items-center justify-center py-6">
-                                            <div className="flex flex-col items-center space-y-2">
-                                                <RefreshCw className="h-4 w-4 animate-spin text-muted-foreground" />
-                                                <span className="text-xs text-muted-foreground">
-                                                    Loading tools...
-                                                </span>
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* Tools Error */}
-                                    {toolsError && (
-                                        <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 mb-3">
-                                            <div className="flex items-start space-x-2">
-                                                <AlertTriangle className="h-4 w-4 text-destructive flex-shrink-0 mt-0.5" />
-                                                <div className="flex-1 min-w-0">
-                                                    <p className="text-xs font-medium text-destructive">
-                                                        Tools Error
-                                                    </p>
-                                                    <p className="text-xs text-destructive/80 mt-1">
-                                                        {toolsError?.message ||
-                                                            'Failed to load tools'}
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* No Tools */}
-                                    {!isLoadingTools &&
-                                        tools.length === 0 &&
-                                        !toolsError &&
-                                        selectedServer.status === 'connected' && (
-                                            <div className="text-center py-6">
-                                                <ListChecks className="h-6 w-6 text-muted-foreground/50 mx-auto mb-2" />
-                                                <p className="text-xs text-muted-foreground">
-                                                    No tools available
-                                                </p>
-                                            </div>
-                                        )}
-
-                                    {/* Server Not Connected */}
-                                    {selectedServer.status !== 'connected' && (
-                                        <div className="text-center py-6">
-                                            <AlertTriangle className="h-6 w-6 text-muted-foreground/50 mx-auto mb-2" />
-                                            <p className="text-xs text-muted-foreground">
-                                                Server not connected
-                                            </p>
-                                            <p className="text-xs text-muted-foreground/70 mt-1">
-                                                Tools unavailable
-                                            </p>
-                                        </div>
-                                    )}
-
-                                    {/* Tools List */}
-                                    {tools.map((tool) => (
-                                        <div
-                                            key={tool.name}
-                                            className="p-3 rounded-lg border border-border/50 bg-background hover:bg-muted/30 transition-colors mb-2 last:mb-0"
-                                        >
-                                            <h4 className="text-sm font-medium mb-1">
-                                                {tool.name}
-                                            </h4>
-                                            {tool.description && (
-                                                <p className="text-xs text-muted-foreground line-clamp-2 mb-2">
-                                                    {tool.description}
-                                                </p>
-                                            )}
-                                            {tool.inputSchema?.properties && (
-                                                <div className="flex flex-wrap gap-1 mt-2">
-                                                    {Object.keys(tool.inputSchema.properties)
-                                                        .slice(0, 3)
-                                                        .map((param) => (
-                                                            <span
-                                                                key={param}
-                                                                className="inline-flex items-center px-2 py-1 rounded-md bg-muted text-xs font-medium"
-                                                            >
-                                                                {param}
-                                                            </span>
-                                                        ))}
-                                                    {Object.keys(tool.inputSchema.properties)
-                                                        .length > 3 && (
-                                                        <span className="text-xs text-muted-foreground">
-                                                            +
-                                                            {Object.keys(
-                                                                tool.inputSchema.properties
-                                                            ).length - 3}{' '}
-                                                            more
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            )}
-                                        </div>
-                                    ))}
+                        {/* No Search Results */}
+                        {!isLoadingAllTools &&
+                            totalToolCount > 0 &&
+                            filteredSections.length === 0 && (
+                                <div className="text-center py-12">
+                                    <Search className="h-8 w-8 text-muted-foreground/40 mx-auto mb-2" />
+                                    <p className="text-xs text-muted-foreground/70">
+                                        No tools match your search
+                                    </p>
+                                    <button
+                                        onClick={() => setSearchQuery('')}
+                                        className="mt-2 text-xs text-primary hover:text-primary/80 transition-colors"
+                                    >
+                                        Clear search
+                                    </button>
                                 </div>
                             )}
-                        </div>
-                    )}
+
+                        {/* Tools Grouped by Source/Server */}
+                        {filteredSections.map((section) => {
+                            const isCollapsed = collapsedSections.has(section.title);
+                            return (
+                                <div key={section.title} className="mb-4 last:mb-0">
+                                    {/* Section Header */}
+                                    <div className="w-full flex items-center justify-between gap-2 mb-3 px-1 group transition-all duration-150">
+                                        {/* Clickable collapse/expand area */}
+                                        <button
+                                            onClick={() => toggleSection(section.title)}
+                                            className="flex items-center gap-2.5 flex-1 min-w-0 pb-2 border-b border-border/40 text-left"
+                                        >
+                                            <ChevronDown
+                                                className={cn(
+                                                    'h-4 w-4 text-muted-foreground/50 shrink-0 transition-transform duration-200',
+                                                    isCollapsed && '-rotate-90'
+                                                )}
+                                            />
+                                            <h4 className="text-base font-semibold text-foreground tracking-tight flex items-center gap-2.5">
+                                                <span className="tracking-normal">
+                                                    {section.title}
+                                                </span>
+                                                {section.type === 'mcp' && (
+                                                    <>
+                                                        <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-primary/10 text-primary text-[10px] font-semibold uppercase tracking-wider">
+                                                            MCP
+                                                        </span>
+                                                        {section.server && (
+                                                            <span
+                                                                className={cn(
+                                                                    'inline-flex items-center justify-center w-5 h-5 rounded-full',
+                                                                    section.server.status ===
+                                                                        'connected'
+                                                                        ? 'bg-green-500/10'
+                                                                        : 'bg-red-500/10'
+                                                                )}
+                                                            >
+                                                                <span
+                                                                    className={cn(
+                                                                        'w-2 h-2 rounded-full',
+                                                                        section.server.status ===
+                                                                            'connected'
+                                                                            ? 'bg-green-600 dark:bg-green-400'
+                                                                            : 'bg-red-600 dark:bg-red-400'
+                                                                    )}
+                                                                />
+                                                            </span>
+                                                        )}
+                                                    </>
+                                                )}
+                                            </h4>
+                                            <span className="text-xs text-muted-foreground/50 font-medium">
+                                                {section.tools.length}
+                                            </span>
+                                        </button>
+
+                                        {/* MCP Server Controls - outside the collapse button */}
+                                        {section.type === 'mcp' && section.server && (
+                                            <div className="flex items-center gap-0.5">
+                                                {/* Restart button */}
+                                                {restartServerMutation.isPending &&
+                                                restartServerMutation.variables ===
+                                                    section.server.id ? (
+                                                    <div className="h-6 w-6 flex items-center justify-center">
+                                                        <RefreshCw className="h-3 w-3 animate-spin text-muted-foreground" />
+                                                    </div>
+                                                ) : (
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                onClick={() =>
+                                                                    handleRestartServer(
+                                                                        section.server!.id
+                                                                    )
+                                                                }
+                                                                className="h-6 w-6 p-0 text-muted-foreground/60 hover:text-primary hover:bg-muted/50"
+                                                                disabled={
+                                                                    deleteServerMutation.isPending &&
+                                                                    deleteServerMutation.variables ===
+                                                                        section.server.id
+                                                                }
+                                                            >
+                                                                <RotateCw className="h-3 w-3" />
+                                                            </Button>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent side="left">
+                                                            Restart
+                                                        </TooltipContent>
+                                                    </Tooltip>
+                                                )}
+
+                                                {/* Delete button */}
+                                                {deleteServerMutation.isPending &&
+                                                deleteServerMutation.variables ===
+                                                    section.server.id ? (
+                                                    <div className="h-6 w-6 flex items-center justify-center">
+                                                        <RefreshCw className="h-3 w-3 animate-spin text-muted-foreground" />
+                                                    </div>
+                                                ) : (
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                onClick={() =>
+                                                                    handleDeleteServer(
+                                                                        section.server!.id
+                                                                    )
+                                                                }
+                                                                className="h-6 w-6 p-0 text-muted-foreground/60 hover:text-destructive hover:bg-muted/50"
+                                                                disabled={
+                                                                    restartServerMutation.isPending &&
+                                                                    restartServerMutation.variables ===
+                                                                        section.server.id
+                                                                }
+                                                            >
+                                                                <Trash2 className="h-3 w-3" />
+                                                            </Button>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent side="left">
+                                                            Remove
+                                                        </TooltipContent>
+                                                    </Tooltip>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Tool Items - Only show if not collapsed */}
+                                    {!isCollapsed && (
+                                        <div className="space-y-0.5 ml-2">
+                                            {section.tools.map((tool) => {
+                                                const toolId = tool.id;
+                                                const isExpanded = expandedToolId === toolId;
+
+                                                return (
+                                                    <div key={toolId}>
+                                                        <button
+                                                            onClick={() =>
+                                                                setExpandedToolId(
+                                                                    isExpanded ? null : toolId
+                                                                )
+                                                            }
+                                                            className="w-full px-3 py-2 rounded-md text-left hover:bg-muted/30 transition-all duration-150 group flex items-center justify-between gap-2"
+                                                        >
+                                                            <span className="text-sm text-foreground/90 truncate font-medium">
+                                                                {stripToolPrefix(
+                                                                    tool.name,
+                                                                    section.type
+                                                                )}
+                                                            </span>
+                                                            <ChevronDown
+                                                                className={cn(
+                                                                    'h-3.5 w-3.5 text-muted-foreground/40 shrink-0 transition-transform duration-200',
+                                                                    isExpanded && 'rotate-180'
+                                                                )}
+                                                            />
+                                                        </button>
+
+                                                        {/* Expanded Details */}
+                                                        {isExpanded && (
+                                                            <div className="px-3 py-2.5 mb-1 bg-muted/15 rounded-md ml-2">
+                                                                {tool.description && (
+                                                                    <p className="text-xs text-muted-foreground/70 mb-2.5 leading-relaxed">
+                                                                        {tool.description}
+                                                                    </p>
+                                                                )}
+                                                                {tool.inputSchema?.properties &&
+                                                                    Object.keys(
+                                                                        tool.inputSchema.properties
+                                                                    ).length > 0 && (
+                                                                        <div className="space-y-1.5">
+                                                                            <p className="text-[10px] text-muted-foreground/50 uppercase tracking-wider font-semibold">
+                                                                                Parameters
+                                                                            </p>
+                                                                            <div className="flex flex-wrap gap-1.5">
+                                                                                {Object.keys(
+                                                                                    tool.inputSchema
+                                                                                        .properties
+                                                                                ).map((param) => (
+                                                                                    <span
+                                                                                        key={param}
+                                                                                        className="inline-flex items-center px-2 py-0.5 rounded bg-muted/50 text-[10px] font-mono text-foreground/60 border border-border/20"
+                                                                                    >
+                                                                                        {param}
+                                                                                    </span>
+                                                                                ))}
+                                                                            </div>
+                                                                        </div>
+                                                                    )}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
                 </div>
 
                 {/* Server Registry Modal */}

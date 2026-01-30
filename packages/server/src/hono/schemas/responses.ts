@@ -173,6 +173,10 @@ export const InternalMessageSchema = z
         toolCalls: z.array(ToolCallSchema).optional().describe('Tool calls made by the assistant'),
         toolCallId: z.string().optional().describe('ID of the tool call this message responds to'),
         name: z.string().optional().describe('Name of the tool that produced this result'),
+        success: z
+            .boolean()
+            .optional()
+            .describe('Whether tool execution succeeded (present for role=tool messages)'),
     })
     .strict()
     .describe('Internal message representation');

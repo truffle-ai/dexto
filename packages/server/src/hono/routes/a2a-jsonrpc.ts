@@ -12,6 +12,8 @@ import { A2AMethodHandlers } from '../../a2a/jsonrpc/methods.js';
 import { logger } from '@dexto/core';
 import type { A2ASseEventSubscriber } from '../../events/a2a-sse-subscriber.js';
 import { a2aToInternalMessage } from '../../a2a/adapters/message.js';
+import type { Context } from 'hono';
+type GetAgentFn = (ctx: Context) => DextoAgent | Promise<DextoAgent>;
 
 /**
  * Create A2A JSON-RPC router
@@ -48,10 +50,7 @@ import { a2aToInternalMessage } from '../../a2a/adapters/message.js';
  * @param sseSubscriber SSE event subscriber for streaming methods
  * @returns Hono router with /jsonrpc endpoint
  */
-export function createA2AJsonRpcRouter(
-    getAgent: () => DextoAgent,
-    sseSubscriber: A2ASseEventSubscriber
-) {
+export function createA2AJsonRpcRouter(getAgent: GetAgentFn, sseSubscriber: A2ASseEventSubscriber) {
     const app = new Hono();
 
     /**
@@ -62,7 +61,7 @@ export function createA2AJsonRpcRouter(
      */
     app.post('/jsonrpc', async (ctx) => {
         try {
-            const agent = getAgent();
+            const agent = await getAgent(ctx);
             const requestBody = await ctx.req.json();
 
             // Check if this is a streaming method request
@@ -151,8 +150,8 @@ export function createA2AJsonRpcRouter(
      *
      * Returns information about available JSON-RPC methods.
      */
-    app.get('/jsonrpc', (ctx) => {
-        const agent = getAgent();
+    app.get('/jsonrpc', async (ctx) => {
+        const agent = await getAgent(ctx);
         const handlers = new A2AMethodHandlers(agent);
 
         return ctx.json({

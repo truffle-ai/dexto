@@ -9,7 +9,8 @@
 import { logger, DextoAgent } from '@dexto/core';
 import { EventSubscriber } from '@dexto/server';
 import { AgentEventBus } from '@dexto/core';
-import type { SanitizedToolResult } from '@dexto/core';
+import type { SanitizedToolResult, AgentEventMap } from '@dexto/core';
+import { capture } from '../analytics/index.js';
 
 /**
  * Event subscriber for CLI headless mode
@@ -41,9 +42,14 @@ export class CLISubscriber implements EventSubscriber {
             }
             // For error case (success=false), the error is handled via llm:error event
         });
-        eventBus.on('llm:response', (payload) => this.onResponse(payload.content));
+        eventBus.on('llm:response', (payload) => {
+            this.onResponse(payload.content);
+            this.captureTokenUsage(payload);
+        });
         eventBus.on('llm:error', (payload) => this.onError(payload.error));
         eventBus.on('session:reset', this.onConversationReset.bind(this));
+        eventBus.on('context:compacting', this.onContextCompacting.bind(this));
+        eventBus.on('context:compacted', this.onContextCompacted.bind(this));
     }
 
     /**
@@ -120,9 +126,23 @@ export class CLISubscriber implements EventSubscriber {
         // Clear any partial response state
         this.streamingContent = '';
 
-        // Show error to stderr for immediate user feedback (with stack for debugging)
+        // Show error to stderr for immediate user feedback
         console.error(`❌ Error: ${error.message}`);
+
+        // Show recovery guidance if available (for DextoRuntimeError)
+        if ('recovery' in error && error.recovery) {
+            const recoveryMessages = Array.isArray(error.recovery)
+                ? error.recovery
+                : [error.recovery];
+            console.error('');
+            recoveryMessages.forEach((msg) => {
+                console.error(`💡 ${msg}`);
+            });
+        }
+
+        // Show stack for debugging if available
         if (error.stack) {
+            console.error('');
             console.error(error.stack);
         }
 
@@ -131,6 +151,7 @@ export class CLISubscriber implements EventSubscriber {
             stack: error.stack,
             name: error.name,
             cause: error.cause,
+            recovery: 'recovery' in error ? error.recovery : undefined,
         });
 
         // Reject completion promise if waiting
@@ -146,6 +167,59 @@ export class CLISubscriber implements EventSubscriber {
         // Clear any partial response state
         this.streamingContent = '';
         logger.info('🔄 Conversation history cleared.', null, 'blue');
+    }
+
+    onContextCompacting(payload: AgentEventMap['context:compacting']): void {
+        // Output to stderr (doesn't interfere with stdout response stream)
+        process.stderr.write(
+            `[📦 Compacting context (~${payload.estimatedTokens.toLocaleString()} tokens)...]\n`
+        );
+    }
+
+    onContextCompacted(payload: AgentEventMap['context:compacted']): void {
+        const { originalTokens, compactedTokens, originalMessages, compactedMessages, reason } =
+            payload;
+        const reductionPercent =
+            originalTokens > 0
+                ? Math.round(((originalTokens - compactedTokens) / originalTokens) * 100)
+                : 0;
+
+        // Output to stderr (doesn't interfere with stdout response stream)
+        process.stderr.write(
+            `[📦 Context compacted (${reason}): ${originalTokens.toLocaleString()} → ~${compactedTokens.toLocaleString()} tokens (${reductionPercent}% reduction), ${originalMessages} → ${compactedMessages} messages]\n`
+        );
+    }
+
+    /**
+     * Capture LLM token usage analytics
+     */
+    private captureTokenUsage(payload: AgentEventMap['llm:response']): void {
+        const { tokenUsage, provider, model, sessionId, estimatedInputTokens } = payload;
+        if (!tokenUsage || (!tokenUsage.inputTokens && !tokenUsage.outputTokens)) {
+            return;
+        }
+
+        // Calculate estimate accuracy if both estimate and actual are available
+        let estimateAccuracyPercent: number | undefined;
+        if (estimatedInputTokens !== undefined && tokenUsage.inputTokens) {
+            const diff = estimatedInputTokens - tokenUsage.inputTokens;
+            estimateAccuracyPercent = Math.round((diff / tokenUsage.inputTokens) * 100);
+        }
+
+        capture('dexto_llm_tokens_consumed', {
+            source: 'cli',
+            sessionId,
+            provider,
+            model,
+            inputTokens: tokenUsage.inputTokens,
+            outputTokens: tokenUsage.outputTokens,
+            reasoningTokens: tokenUsage.reasoningTokens,
+            totalTokens: tokenUsage.totalTokens,
+            cacheReadTokens: tokenUsage.cacheReadTokens,
+            cacheWriteTokens: tokenUsage.cacheWriteTokens,
+            estimatedInputTokens,
+            estimateAccuracyPercent,
+        });
     }
 
     /**

@@ -13,17 +13,17 @@
         "build": "pnpm run clean && pnpm run build:packages && pnpm run copy-webui-dist",
         "build:packages": "turbo run build --filter='./packages/*'",
         "build:all": "pnpm run build:packages && pnpm run embed-webui",
-        "build:agent-management": "pnpm -C packages/agent-management build",
-        "build:analytics": "pnpm -C packages/analytics build",
-        "build:client-sdk": "pnpm -C packages/client-sdk build",
+        "build:agent-management": "turbo run build --filter='@dexto/agent-management...'",
+        "build:analytics": "turbo run build --filter='@dexto/analytics...'",
+        "build:client-sdk": "turbo run build --filter='@dexto/client-sdk...'",
         "build:check": "pnpm run typecheck && pnpm run build",
-        "build:cli": "pnpm -C packages/cli build",
-        "build:cli-only": "turbo run build --filter='dexto...'",
-        "build:core": "pnpm -C packages/core build",
-        "build:server": "pnpm -C packages/server build",
+        "build:cli": "turbo run build --filter='dexto...'",
+        "build:core": "turbo run build --filter='@dexto/core...'",
+        "build:registry": "turbo run build --filter='@dexto/registry...'",
+        "build:server": "turbo run build --filter='@dexto/server...'",
         "build:strict": "pnpm run typecheck && pnpm run build",
-        "build:webui": "pnpm -C packages/webui build",
-        "build:webui:dev": "pnpm -C packages/webui build",
+        "build:webui": "turbo run build --filter='@dexto/webui...'",
+        "build:webui:dev": "turbo run build --filter='@dexto/webui...'",
         "build-webui": "npx rimraf packages/webui/node_modules packages/webui/package-lock.json && pnpm -C packages/webui install && pnpm -C packages/webui build",
         "changeset:version": "pnpm -w changeset version && pnpm -w install --no-frozen-lockfile",
         "changeset:publish": "pnpm -w build && pnpm -w changeset publish",
@@ -31,14 +31,15 @@
         "clean:storage": "rimraf .dexto",
         "copy-webui-dist": "npx tsx scripts/copy-webui-dist.ts",
         "dev": "tsx scripts/dev-server.ts",
-        "dev:cli": "pnpm run link-cli",
+        "dev:cli": "turbo run build --filter=dexto... && cross-env DEXTO_DEV_MODE=true pnpm -C packages/cli start --mode cli",
+        "link:cli": "pnpm run link-cli",
         "embed-webui": "tsx scripts/copy-webui-dist.ts",
         "format": "prettier --write \"packages/**/*.{ts,tsx,js,jsx}\" \"scripts/**/*.ts\"",
         "format:check": "prettier --check \"packages/**/*.{ts,tsx,js,jsx}\" \"scripts/**/*.ts\"",
-        "install-cli": "pnpm run build:all && tsx scripts/install-global-cli.ts",
-        "install-cli-fast": "pnpm run build:cli-only && tsx scripts/install-global-cli.ts",
-        "link-cli": "pnpm run build:all && npm uninstall -g dexto 2>/dev/null || true && cd packages/cli && pnpm link --global",
-        "link-cli-fast": "pnpm run build:cli-only && npm uninstall -g dexto 2>/dev/null || true && cd packages/cli && pnpm link --global",
+        "install-cli": "pnpm install && pnpm run build:all && tsx scripts/install-global-cli.ts",
+        "install-cli-fast": "pnpm install && pnpm run build:cli && tsx scripts/install-global-cli.ts",
+        "link-cli": "pnpm run build:all && npm uninstall -g dexto 2>/dev/null || true && rm -f \"$(pnpm bin -g)/dexto\" 2>/dev/null || true && cd packages/cli && pnpm link --global",
+        "link-cli-fast": "pnpm run build:cli && npm uninstall -g dexto 2>/dev/null || true && rm -f \"$(pnpm bin -g)/dexto\" 2>/dev/null || true && cd packages/cli && pnpm link --global",
         "lint": "turbo run lint",
         "lint:fix": "eslint . --fix",
         "prebuild": "",
@@ -116,13 +117,14 @@
     "pnpm": {
         "overrides": {
             "tough-cookie": "^4.1.3",
-            "@modelcontextprotocol/sdk": "^1.18.1",
+            "@modelcontextprotocol/sdk": "^1.25.2",
             "@types/react": "^19",
-            "@types/react-dom": "^19"
+            "@types/react-dom": "^19",
+            "preact": "^10.27.3",
+            "qs": "^6.14.1",
+            "jws": "^3.2.3",
+            "mdast-util-to-hast": "^13.2.1"
         }
     },
-    "preinstall": "npx only-allow pnpm",
-    "dependencies": {
-        "@modelcontextprotocol/sdk": "^1.18.1"
-    }
+    "preinstall": "npx only-allow pnpm"
 }

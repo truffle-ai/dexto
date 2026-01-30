@@ -1,27 +1,9 @@
-// TODO: (migration) This file is duplicated from @dexto/core for short-term compatibility
-// This will become the primary location once path utilities are fully migrated
-
 import * as path from 'node:path';
 import { promises as fs } from 'node:fs';
 
-const DEXTO_ENV_KEYS = [
-    'OPENAI_API_KEY',
-    'ANTHROPIC_API_KEY',
-    'GOOGLE_GENERATIVE_AI_API_KEY',
-    'GROQ_API_KEY',
-    'COHERE_API_KEY',
-    'XAI_API_KEY',
-    'DEXTO_LOG_LEVEL',
-] as const;
-
-type DextoEnvKey = (typeof DEXTO_ENV_KEYS)[number];
-
-function isDextoEnvKey(value: string): value is DextoEnvKey {
-    return (DEXTO_ENV_KEYS as readonly string[]).includes(value);
-}
-
 /**
- * Update a .env file with Dexto environment variables, ensuring our section stays consistent.
+ * Update a .env file with the provided key-value pairs.
+ * Existing keys are updated in place, new keys are appended.
  */
 export async function updateEnvFile(
     envFilePath: string,
@@ -29,81 +11,42 @@ export async function updateEnvFile(
 ): Promise<void> {
     await fs.mkdir(path.dirname(envFilePath), { recursive: true });
 
-    let envLines: string[] = [];
+    let content = '';
     try {
-        const existingEnv = await fs.readFile(envFilePath, 'utf8');
-        envLines = existingEnv.split('\n');
+        content = await fs.readFile(envFilePath, 'utf8');
     } catch {
-        // File may not exist yet; start empty
+        // File doesn't exist yet
     }
 
-    const currentValues: Partial<Record<DextoEnvKey, string>> = {};
-    envLines.forEach((line) => {
-        const match = line.match(/^([A-Z0-9_]+)=(.*)$/);
-        if (match && match[1] && isDextoEnvKey(match[1])) {
-            const value = match[2] ?? '';
-            currentValues[match[1]] = value;
+    const lines = content.split('\n');
+    const updatedKeys = new Set<string>();
+
+    // Update existing keys in place
+    const updatedLines = lines.map((line) => {
+        const match = line.match(/^([A-Z_][A-Z0-9_]*)=(.*)$/);
+        if (match && match[1] && match[1] in updates) {
+            const key = match[1];
+            updatedKeys.add(key);
+            return `${key}=${updates[key]}`;
         }
+        return line;
     });
 
-    const updatedValues = Object.fromEntries(
-        DEXTO_ENV_KEYS.map((key) => {
-            const update = updates[key];
-            const current = currentValues[key];
-            const fallback = key === 'DEXTO_LOG_LEVEL' ? 'info' : '';
-            const value = update !== undefined ? update : (current ?? fallback);
-            return [key, value];
-        })
-    ) as Record<DextoEnvKey, string>;
-
-    const sectionHeader = '## Dexto env variables';
-    const headerIndex = envLines.findIndex((line) => line.trim() === sectionHeader);
-
-    let contentLines: string[];
-    if (headerIndex !== -1) {
-        const beforeSection = envLines.slice(0, headerIndex);
-
-        let sectionEnd = headerIndex + 1;
-        while (sectionEnd < envLines.length && envLines[sectionEnd]?.trim() !== '') {
-            sectionEnd++;
+    // Append new keys that weren't found
+    for (const [key, value] of Object.entries(updates)) {
+        if (!updatedKeys.has(key)) {
+            // Ensure there's a newline before appending
+            if (updatedLines.length > 0 && updatedLines[updatedLines.length - 1] !== '') {
+                updatedLines.push('');
+            }
+            updatedLines.push(`${key}=${value}`);
         }
-        if (sectionEnd < envLines.length && envLines[sectionEnd]?.trim() === '') {
-            sectionEnd++;
-        }
-
-        const afterSection = envLines.slice(sectionEnd);
-        contentLines = [...beforeSection, ...afterSection];
-    } else {
-        contentLines = envLines;
     }
 
-    const existingEnvVars: Partial<Record<DextoEnvKey, string>> = {};
-    contentLines.forEach((line) => {
-        const match = line.match(/^([A-Z0-9_]+)=(.*)$/);
-        if (match && match[1] && isDextoEnvKey(match[1])) {
-            const value = match[2] ?? '';
-            existingEnvVars[match[1]] = value;
-        }
-    });
-
-    if (contentLines.length > 0) {
-        if (contentLines[contentLines.length - 1]?.trim() !== '') {
-            contentLines.push('');
-        }
-    } else {
-        contentLines.push('');
+    // Ensure file ends with newline
+    if (updatedLines[updatedLines.length - 1] !== '') {
+        updatedLines.push('');
     }
 
-    contentLines.push(sectionHeader);
-
-    for (const key of DEXTO_ENV_KEYS) {
-        if (key in existingEnvVars && !(key in updates)) {
-            continue;
-        }
-        contentLines.push(`${key}=${updatedValues[key]}`);
-    }
-
-    contentLines.push('');
-
-    await fs.writeFile(envFilePath, contentLines.join('\n'), 'utf8');
+    await fs.writeFile(envFilePath, updatedLines.join('\n'), 'utf8');
 }

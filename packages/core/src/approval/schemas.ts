@@ -5,6 +5,8 @@
 import { z } from 'zod';
 import type { JSONSchema7 } from 'json-schema';
 import { ApprovalType, ApprovalStatus, DenialReason } from './types.js';
+import type { ToolDisplayData } from '../tools/display-types.js';
+import { isValidDisplayData } from '../tools/display-types.js';
 
 // Zod schema that validates as object but types as JSONSchema7
 const JsonSchema7Schema = z.record(z.unknown()) as z.ZodType<JSONSchema7>;
@@ -24,14 +26,30 @@ export const ApprovalStatusSchema = z.nativeEnum(ApprovalStatus);
  */
 export const DenialReasonSchema = z.nativeEnum(DenialReason);
 
+// Custom Zod schema for ToolDisplayData validation
+const ToolDisplayDataSchema = z.custom<ToolDisplayData>((val) => isValidDisplayData(val), {
+    message: 'Invalid ToolDisplayData',
+});
+
 /**
  * Tool confirmation metadata schema
  */
 export const ToolConfirmationMetadataSchema = z
     .object({
         toolName: z.string().describe('Name of the tool to confirm'),
+        toolCallId: z.string().describe('Unique tool call ID for tracking parallel tool calls'),
         args: z.record(z.unknown()).describe('Arguments for the tool'),
         description: z.string().optional().describe('Description of the tool'),
+        displayPreview: ToolDisplayDataSchema.optional().describe(
+            'Preview display data for approval UI (e.g., diff preview)'
+        ),
+        suggestedPatterns: z
+            .array(z.string())
+            .optional()
+            .describe(
+                'Suggested patterns for session approval (for bash commands). ' +
+                    'E.g., ["git push *", "git *"] for command "git push origin main"'
+            ),
     })
     .strict()
     .describe('Tool confirmation metadata');
@@ -71,6 +89,20 @@ export const ElicitationMetadataSchema = z
 export const CustomApprovalMetadataSchema = z.record(z.unknown()).describe('Custom metadata');
 
 /**
+ * Directory access metadata schema
+ * Used when a tool tries to access files outside the working directory
+ */
+export const DirectoryAccessMetadataSchema = z
+    .object({
+        path: z.string().describe('Full path being accessed'),
+        parentDir: z.string().describe('Parent directory (what gets approved for session)'),
+        operation: z.enum(['read', 'write', 'edit']).describe('Type of file operation'),
+        toolName: z.string().describe('Name of the tool requesting access'),
+    })
+    .strict()
+    .describe('Directory access metadata');
+
+/**
  * Base approval request schema
  */
 export const BaseApprovalRequestSchema = z
@@ -78,7 +110,12 @@ export const BaseApprovalRequestSchema = z
         approvalId: z.string().uuid().describe('Unique approval identifier'),
         type: ApprovalTypeSchema.describe('Type of approval'),
         sessionId: z.string().optional().describe('Session identifier'),
-        timeout: z.number().int().positive().describe('Timeout in milliseconds'),
+        timeout: z
+            .number()
+            .int()
+            .positive()
+            .optional()
+            .describe('Timeout in milliseconds (optional - no timeout if not specified)'),
         timestamp: z.date().describe('When the request was created'),
     })
     .describe('Base approval request');
@@ -116,6 +153,14 @@ export const CustomApprovalRequestSchema = BaseApprovalRequestSchema.extend({
 }).strict();
 
 /**
+ * Directory access request schema
+ */
+export const DirectoryAccessRequestSchema = BaseApprovalRequestSchema.extend({
+    type: z.literal(ApprovalType.DIRECTORY_ACCESS),
+    metadata: DirectoryAccessMetadataSchema,
+}).strict();
+
+/**
  * Discriminated union for all approval requests
  */
 export const ApprovalRequestSchema = z.discriminatedUnion('type', [
@@ -123,6 +168,7 @@ export const ApprovalRequestSchema = z.discriminatedUnion('type', [
     CommandConfirmationRequestSchema,
     ElicitationRequestSchema,
     CustomApprovalRequestSchema,
+    DirectoryAccessRequestSchema,
 ]);
 
 /**
@@ -130,7 +176,17 @@ export const ApprovalRequestSchema = z.discriminatedUnion('type', [
  */
 export const ToolConfirmationResponseDataSchema = z
     .object({
-        rememberChoice: z.boolean().optional().describe('Remember this choice'),
+        rememberChoice: z
+            .boolean()
+            .optional()
+            .describe('Remember this tool for the session (approves ALL uses of this tool)'),
+        rememberPattern: z
+            .string()
+            .optional()
+            .describe(
+                'Remember a command pattern for bash commands (e.g., "git *"). ' +
+                    'Only applicable for bash_exec tool approvals.'
+            ),
     })
     .strict()
     .describe('Tool confirmation response data');
@@ -162,6 +218,19 @@ export const ElicitationResponseDataSchema = z
 export const CustomApprovalResponseDataSchema = z
     .record(z.unknown())
     .describe('Custom response data');
+
+/**
+ * Directory access response data schema
+ */
+export const DirectoryAccessResponseDataSchema = z
+    .object({
+        rememberDirectory: z
+            .boolean()
+            .optional()
+            .describe('Remember this directory for the session (allows all file access within it)'),
+    })
+    .strict()
+    .describe('Directory access response data');
 
 /**
  * Base approval response schema
@@ -216,6 +285,13 @@ export const CustomApprovalResponseSchema = BaseApprovalResponseSchema.extend({
 }).strict();
 
 /**
+ * Directory access response schema
+ */
+export const DirectoryAccessResponseSchema = BaseApprovalResponseSchema.extend({
+    data: DirectoryAccessResponseDataSchema.optional(),
+}).strict();
+
+/**
  * Union of all approval responses
  */
 export const ApprovalResponseSchema = z.union([
@@ -223,6 +299,7 @@ export const ApprovalResponseSchema = z.union([
     CommandConfirmationResponseSchema,
     ElicitationResponseSchema,
     CustomApprovalResponseSchema,
+    DirectoryAccessResponseSchema,
 ]);
 
 /**
@@ -232,12 +309,18 @@ export const ApprovalRequestDetailsSchema = z
     .object({
         type: ApprovalTypeSchema,
         sessionId: z.string().optional(),
-        timeout: z.number().int().positive(),
+        timeout: z
+            .number()
+            .int()
+            .positive()
+            .optional()
+            .describe('Timeout in milliseconds (optional - no timeout if not specified)'),
         metadata: z.union([
             ToolConfirmationMetadataSchema,
             CommandConfirmationMetadataSchema,
             ElicitationMetadataSchema,
             CustomApprovalMetadataSchema,
+            DirectoryAccessMetadataSchema,
         ]),
     })
     .superRefine((data, ctx) => {
@@ -268,6 +351,16 @@ export const ApprovalRequestDetailsSchema = z
                 ctx.addIssue({
                     code: z.ZodIssueCode.custom,
                     message: 'Metadata must match ElicitationMetadataSchema for ELICITATION type',
+                    path: ['metadata'],
+                });
+            }
+        } else if (data.type === ApprovalType.DIRECTORY_ACCESS) {
+            const result = DirectoryAccessMetadataSchema.safeParse(data.metadata);
+            if (!result.success) {
+                ctx.addIssue({
+                    code: z.ZodIssueCode.custom,
+                    message:
+                        'Metadata must match DirectoryAccessMetadataSchema for DIRECTORY_ACCESS type',
                     path: ['metadata'],
                 });
             }

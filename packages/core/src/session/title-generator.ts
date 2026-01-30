@@ -55,15 +55,12 @@ export async function generateSessionTitle(
             sanitizeUserText(userText, 512),
         ].join('\n');
 
-        const result = await tempService.completeTask(
+        const streamResult = await tempService.stream(
             instruction,
-            controller ? { signal: controller.signal } : {},
-            undefined,
-            undefined,
-            false
+            controller ? { signal: controller.signal } : undefined
         );
 
-        const processed = postProcessTitle(result);
+        const processed = postProcessTitle(streamResult.text);
         if (!processed) {
             return { error: 'LLM returned empty title' };
         }

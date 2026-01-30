@@ -1,3 +1,19 @@
+# Changesets - Release
+#
+# NPM Authentication: Using granular access token (NPM_TOKEN secret)
+#
+# OIDC Trusted Publishing - Deferred (Jan 14, 2026)
+# We attempted OIDC-based npm publishing but reverted due to:
+#   1. Requires manual first publish for any new packages
+#   2. Requires setting up trusted publishers per-package (no org-level support)
+#   3. Early adoption phase - slow and painful setup process
+#   4. No human-in-the-loop/2FA for CI releases (security tradeoff)
+# See attempted implementation: https://github.com/truffle-ai/dexto/commit/a2ff7237186ce21f0ff36edbf7b79794432cf572
+# References:
+#   - https://docs.npmjs.com/trusted-publishers
+#   - https://github.blog/changelog/2025-12-09-npm-classic-tokens-revoked-session-based-auth-and-cli-token-management-now-available/
+# Revisit when npm OIDC matures and supports org-level configuration.
+
 name: Changesets - Release
 
 on:
@@ -8,7 +24,6 @@ on:
 permissions:
   contents: write
   packages: write
-  id-token: write
   pull-requests: write
 
 jobs:
@@ -30,21 +45,6 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
           always-auth: true
           scope: '@dexto'
-      # Rely on setup-node + NODE_AUTH_TOKEN for auth; avoid writing .npmrc manually
-      - name: Verify npm auth & registry
-        run: |
-          echo "NPM_CONFIG_USERCONFIG=${NPM_CONFIG_USERCONFIG:-$HOME/.npmrc}"
-          echo "--- .npmrc (sanitized) ---"
-          if [ -f "${NPM_CONFIG_USERCONFIG:-$HOME/.npmrc}" ]; then
-            sed -E 's/(^.*:_authToken=).*/\1*** (masked)/' "${NPM_CONFIG_USERCONFIG:-$HOME/.npmrc}" | grep -E 'registry|always-auth|@dexto' || true
-          else
-            echo "No .npmrc found at expected path"
-          fi
-          echo "npm version: $(npm --version)"
-          echo "pnpm version: $(pnpm --version)"
-          echo "registry=$(npm config get registry)"
-          echo "whoami=$(npm whoami || echo unknown)"
-          npm view dexto maintainers --json || true
       - run: pnpm install --frozen-lockfile
       - name: Version / Publish with Changesets
         uses: changesets/action@v1

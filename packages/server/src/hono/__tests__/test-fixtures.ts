@@ -1,6 +1,7 @@
 import { DextoAgent, createAgentCard } from '@dexto/core';
 import type { AgentConfig, AgentCard } from '@dexto/core';
 import type { Server as HttpServer } from 'node:http';
+import type { Context } from 'hono';
 import { createDextoApp } from '../index.js';
 import type { DextoApp } from '../types.js';
 import { createNodeServer, type NodeBridgeResult } from '../node/index.js';
@@ -90,7 +91,7 @@ export async function startTestServer(
     // Create getter functions
     // Note: For agent switching tests, getAgent needs to reference activeAgent from agentsContext
     // This is handled by the agentsContext implementation itself
-    const getAgent = () => agent;
+    const getAgent = (_ctx: Context) => agent;
     const getAgentCard = () => agentCard;
 
     // Create event subscribers and approval coordinator for test

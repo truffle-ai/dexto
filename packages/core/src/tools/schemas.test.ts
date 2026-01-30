@@ -116,22 +116,23 @@ describe('ToolConfirmationConfigSchema', () => {
         it('should apply all field defaults for empty object', () => {
             const result = ToolConfirmationConfigSchema.parse({});
 
+            // Note: timeout is now optional with no default (undefined = infinite wait)
             expect(result).toEqual({
                 mode: 'auto-approve',
-                timeout: 120000,
                 allowedToolsStorage: 'storage',
                 toolPolicies: {
                     alwaysAllow: [],
                     alwaysDeny: [],
                 },
             });
+            expect(result.timeout).toBeUndefined();
         });
 
         it('should apply field defaults for partial config', () => {
             const result1 = ToolConfirmationConfigSchema.parse({ mode: 'auto-approve' });
+            // timeout is optional - undefined when not specified
             expect(result1).toEqual({
                 mode: 'auto-approve',
-                timeout: 120000,
                 allowedToolsStorage: 'storage',
                 toolPolicies: {
                     alwaysAllow: [],
@@ -151,9 +152,9 @@ describe('ToolConfirmationConfigSchema', () => {
             });
 
             const result3 = ToolConfirmationConfigSchema.parse({ allowedToolsStorage: 'memory' });
+            // timeout is optional - undefined when not specified
             expect(result3).toEqual({
                 mode: 'auto-approve',
-                timeout: 120000,
                 allowedToolsStorage: 'memory',
                 toolPolicies: {
                     alwaysAllow: [],
@@ -250,11 +251,17 @@ describe('ToolConfirmationConfigSchema', () => {
         it('should produce validated output type', () => {
             const result: ValidatedToolConfirmationConfig = ToolConfirmationConfigSchema.parse({});
 
-            // Output type guarantees all fields are present
+            // Output type guarantees required fields are present
             expect(typeof result.mode).toBe('string');
-            expect(typeof result.timeout).toBe('number');
             expect(typeof result.allowedToolsStorage).toBe('string');
-            expect(result.timeout).toBeGreaterThan(0);
+            // timeout is optional - undefined when not specified (means infinite wait)
+            expect(result.timeout).toBeUndefined();
+
+            // When timeout is provided, it should be a positive number
+            const resultWithTimeout: ValidatedToolConfirmationConfig =
+                ToolConfirmationConfigSchema.parse({ timeout: 60000 });
+            expect(typeof resultWithTimeout.timeout).toBe('number');
+            expect(resultWithTimeout.timeout).toBeGreaterThan(0);
         });
     });
 

@@ -15,13 +15,14 @@ import { ToolManager } from '../../tools/tool-manager.js';
 import { ToolSet } from '../../tools/types.js';
 import { StreamProcessor } from './stream-processor.js';
 import { ExecutorResult } from './types.js';
+import { buildProviderOptions } from './provider-options.js';
 import { TokenUsage } from '../types.js';
 import type { IDextoLogger } from '../../logger/v2/types.js';
 import { DextoLogComponent } from '../../logger/v2/types.js';
-import type { SessionEventBus } from '../../events/index.js';
+import type { SessionEventBus, LLMFinishReason } from '../../events/index.js';
 import type { ResourceManager } from '../../resources/index.js';
 import { DynamicContributorContext } from '../../systemPrompt/types.js';
-import { LLMContext } from '../types.js';
+import { LLMContext, type LLMProvider } from '../types.js';
 import type { MessageQueueService } from '../../session/message-queue.js';
 import type { StreamProcessorConfig } from './stream-processor.js';
 import type { CoalescedMessage } from '../../session/types.js';
@@ -30,8 +31,9 @@ import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
 import { ErrorScope, ErrorType } from '../../errors/types.js';
 import { LLMErrorCode } from '../error-codes.js';
 import { toError } from '../../utils/error-conversion.js';
-import { isOverflow, type ModelLimits } from '../../context/compression/overflow.js';
-import { ReactiveOverflowStrategy } from '../../context/compression/reactive-overflow.js';
+import { isOverflow, type ModelLimits } from '../../context/compaction/overflow.js';
+import { ReactiveOverflowStrategy } from '../../context/compaction/strategies/reactive-overflow.js';
+import type { ICompactionStrategy } from '../../context/compaction/types.js';
 
 /**
  * Static cache for tool support validation.
@@ -39,6 +41,11 @@ import { ReactiveOverflowStrategy } from '../../context/compression/reactive-ove
  * Key format: "provider:model:baseURL"
  */
 const toolSupportCache = new Map<string, boolean>();
+
+/**
+ * Local providers that need tool support validation regardless of baseURL
+ */
+const LOCAL_PROVIDERS: readonly LLMProvider[] = ['ollama', 'local'] as const;
 
 /**
  * TurnExecutor orchestrates the agent loop using `stopWhen: stepCountIs(1)`.
@@ -59,8 +66,7 @@ export class TurnExecutor {
      * This allows soft cancel (abort current step) while still continuing with queued messages.
      */
     private stepAbortController: AbortController;
-    // TODO: improve compression configurability
-    private compressionStrategy: ReactiveOverflowStrategy | null = null;
+    private compactionStrategy: ICompactionStrategy | null = null;
     /**
      * Map to track approval metadata by toolCallId.
      * Used to pass approval info from tool execution to result persistence.
@@ -78,16 +84,20 @@ export class TurnExecutor {
         private resourceManager: ResourceManager,
         private sessionId: string,
         private config: {
-            maxSteps: number;
+            maxSteps?: number | undefined;
             maxOutputTokens?: number | undefined;
             temperature?: number | undefined;
             baseURL?: string | undefined;
+            // Provider-specific options
+            reasoningEffort?: 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | undefined;
         },
         private llmContext: LLMContext,
         logger: IDextoLogger,
         private messageQueue: MessageQueueService,
         private modelLimits?: ModelLimits,
-        private externalSignal?: AbortSignal
+        private externalSignal?: AbortSignal,
+        compactionStrategy?: ICompactionStrategy | null,
+        private compactionThresholdPercent: number = 1.0
     ) {
         this.logger = logger.createChild(DextoLogComponent.EXECUTOR);
         // Initial controller - will be replaced per-step in execute()
@@ -98,19 +108,25 @@ export class TurnExecutor {
         // - Soft cancel: aborts current step, but queue can continue with fresh controller
         // - Hard cancel (external aborted + clearQueue): checked explicitly in loop
 
-        // Initialize compression strategy if model limits are provided
-        if (modelLimits) {
-            this.compressionStrategy = new ReactiveOverflowStrategy(model, {}, this.logger);
+        // Use provided compaction strategy, or fallback to default behavior
+        if (compactionStrategy !== undefined) {
+            // Explicitly provided (could be null to disable, or a strategy instance)
+            this.compactionStrategy = compactionStrategy;
+        } else if (modelLimits) {
+            // Backward compatibility: create default strategy if model limits are provided
+            this.compactionStrategy = new ReactiveOverflowStrategy(model, {}, this.logger);
         }
     }
 
     /**
      * Get StreamProcessor config from TurnExecutor state.
+     * @param estimatedInputTokens Optional estimated input tokens for analytics
      */
-    private getStreamProcessorConfig(): StreamProcessorConfig {
+    private getStreamProcessorConfig(estimatedInputTokens?: number): StreamProcessorConfig {
         return {
             provider: this.llmContext.provider,
             model: this.llmContext.model,
+            ...(estimatedInputTokens !== undefined && { estimatedInputTokens }),
         };
     }
 
@@ -128,15 +144,38 @@ export class TurnExecutor {
         // Automatic cleanup when scope exits (normal, throw, or return)
         using _ = defer(() => this.cleanup());
 
+        // Track run duration
+        const startTime = Date.now();
+
         let stepCount = 0;
         let lastStepTokens: TokenUsage | null = null;
-        let lastFinishReason = 'unknown';
+        let lastFinishReason: LLMFinishReason = 'unknown';
         let lastText = '';
 
         this.eventBus.emit('llm:thinking');
 
         // Check tool support once before the loop
         const supportsTools = await this.validateToolSupport();
+
+        // Emit warning if tools are not supported
+        if (!supportsTools) {
+            const modelKey = `${this.llmContext.provider}:${this.llmContext.model}`;
+            this.eventBus.emit('llm:unsupported-input', {
+                errors: [
+                    `Model '${modelKey}' does not support tool calling.`,
+                    'You can still chat, but the model will not be able to use tools or execute commands.',
+                ],
+                provider: this.llmContext.provider,
+                model: this.llmContext.model,
+                details: {
+                    feature: 'tool-calling',
+                    supported: false,
+                },
+            });
+            this.logger.warn(
+                `Model ${modelKey} does not support tools - continuing without tool calling`
+            );
+        }
 
         // Track current abort handler to remove between iterations (prevents listener accumulation)
         let currentAbortHandler: (() => void) | null = null;
@@ -166,35 +205,77 @@ export class TurnExecutor {
                     await this.injectQueuedMessages(coalesced);
                 }
 
-                // 2. Check for compression need (reactive, based on actual tokens)
-                if (lastStepTokens && this.checkAndHandleOverflow(lastStepTokens)) {
-                    await this.compress(lastStepTokens.inputTokens ?? 0);
-                    // Continue with fresh context after compression
-                }
+                // 2. Prune old tool outputs BEFORE checking compaction
+                // This gives pruning a chance to free up space and potentially avoid compaction
+                await this.pruneOldToolOutputs();
 
                 // 3. Get formatted messages for this step
-                const prepared = await this.contextManager.getFormattedMessagesWithCompression(
+                let prepared = await this.contextManager.getFormattedMessagesForLLM(
                     contributorContext,
                     this.llmContext
                 );
 
+                // 4. PRE-CHECK: Estimate tokens and compact if over threshold BEFORE LLM call
+                // This ensures we never make an oversized call and avoids unnecessary compaction on stop steps
+                // Uses the same formula as /context overlay: lastInput + lastOutput + newMessagesEstimate
+                const toolDefinitions = supportsTools ? await this.toolManager.getAllTools() : {};
+                let estimatedTokens = await this.contextManager.getEstimatedNextInputTokens(
+                    prepared.systemPrompt,
+                    prepared.preparedHistory,
+                    toolDefinitions
+                );
+                if (this.shouldCompact(estimatedTokens)) {
+                    this.logger.debug(
+                        `Pre-check: estimated ${estimatedTokens} tokens exceeds threshold, compacting`
+                    );
+                    const didCompact = await this.compactContext(
+                        estimatedTokens,
+                        contributorContext,
+                        toolDefinitions
+                    );
+
+                    // If compaction occurred, rebuild messages (filterCompacted will handle it)
+                    if (didCompact) {
+                        prepared = await this.contextManager.getFormattedMessagesForLLM(
+                            contributorContext,
+                            this.llmContext
+                        );
+                        // Recompute token estimate after compaction for accurate analytics/metrics
+                        estimatedTokens = await this.contextManager.getEstimatedNextInputTokens(
+                            prepared.systemPrompt,
+                            prepared.preparedHistory,
+                            toolDefinitions
+                        );
+                        this.logger.debug(
+                            `Post-compaction: recomputed estimate is ${estimatedTokens} tokens`
+                        );
+                    }
+                }
+
                 this.logger.debug(`Step ${stepCount}: Starting`);
 
-                // 4. Create tools with execute callbacks and toModelOutput
+                // 5. Create tools with execute callbacks and toModelOutput
                 // Use empty object if model doesn't support tools
                 const tools = supportsTools ? await this.createTools() : {};
 
-                // 5. Execute single step with stream processing
+                // 6. Execute single step with stream processing
                 const streamProcessor = new StreamProcessor(
                     this.contextManager,
                     this.eventBus,
                     this.resourceManager,
                     this.stepAbortController.signal,
-                    this.getStreamProcessorConfig(),
+                    this.getStreamProcessorConfig(estimatedTokens),
                     this.logger,
                     streaming,
                     this.approvalMetadata
                 );
+
+                // Build provider-specific options (caching, reasoning, etc.)
+                const providerOptions = buildProviderOptions({
+                    provider: this.llmContext.provider,
+                    model: this.llmContext.model,
+                    reasoningEffort: this.config.reasoningEffort,
+                });
 
                 const result = await streamProcessor.process(() =>
                     streamText({
@@ -209,6 +290,11 @@ export class TurnExecutor {
                         ...(this.config.temperature !== undefined && {
                             temperature: this.config.temperature,
                         }),
+                        // Provider-specific options (caching, reasoning, etc.)
+                        ...(providerOptions !== undefined && {
+                            providerOptions:
+                                providerOptions as import('@ai-sdk/provider').SharedV2ProviderOptions,
+                        }),
                         // Log stream-level errors (tool errors, API errors during streaming)
                         onError: (error) => {
                             this.logger.error('Stream error', { error });
@@ -216,7 +302,7 @@ export class TurnExecutor {
                     })
                 );
 
-                // 6. Capture results for tracking and overflow check
+                // 7. Capture results for tracking and overflow check
                 lastStepTokens = result.usage;
                 lastFinishReason = result.finishReason;
                 lastText = result.text;
@@ -226,7 +312,73 @@ export class TurnExecutor {
                         `tokens=${JSON.stringify(result.usage)}`
                 );
 
-                // 7. Check termination conditions
+                // 7a. Store actual token counts for context estimation formula
+                // Formula: estimatedNextInput = lastInput + lastOutput + newMessagesEstimate
+                //
+                // Strategy: Only update tracking variables on successful calls with actual token data.
+                // - lastInput/lastOutput: ground truth from API, used as base for next estimate
+                // - lastCallMessageCount: boundary for identifying "new" messages to estimate
+                //
+                // On cancellation: Don't update anything. The partial response is saved to history,
+                // and newMessagesEstimate will include it when calculating from the last successful
+                // call's boundary. This minimizes estimation surface - we only estimate the delta
+                // since the last call that gave us actual token counts. Multiple consecutive
+                // cancellations accumulate in newMessagesEstimate until a successful call self-corrects.
+                //
+                // Tracking issue for AI SDK to support partial usage on cancel:
+                // https://github.com/vercel/ai/issues/7628
+                if (result.finishReason === 'cancelled') {
+                    // On cancellation, don't update any tracking variables.
+                    // The partial response is saved to history, and newMessagesEstimate will
+                    // include it when calculating from the last successful call's boundary.
+                    // This keeps estimation surface minimal - we only estimate the delta since
+                    // the last call that gave us actual token counts.
+                    this.logger.info(
+                        `Context estimation (cancelled): keeping last known actuals, partial response (${result.text.length} chars) will be estimated`
+                    );
+                } else if (result.usage?.inputTokens !== undefined) {
+                    const contextInputTokens = this.getContextInputTokens(result.usage);
+                    const actualInputTokens = contextInputTokens ?? result.usage.inputTokens;
+
+                    // Log verification metric: compare our estimate vs actual from API
+                    const diff = estimatedTokens - actualInputTokens;
+                    const diffPercent =
+                        actualInputTokens > 0
+                            ? ((diff / actualInputTokens) * 100).toFixed(1)
+                            : '0.0';
+                    this.logger.info(
+                        `Context estimation accuracy: estimated=${estimatedTokens}, actual=${actualInputTokens}, ` +
+                            `error=${diff} (${diffPercent}%)`
+                    );
+                    this.contextManager.setLastActualInputTokens(actualInputTokens);
+
+                    if (result.usage?.outputTokens !== undefined) {
+                        this.contextManager.setLastActualOutputTokens(result.usage.outputTokens);
+                    }
+
+                    // Record message count boundary for identifying "new" messages
+                    // Only update on successful calls - cancelled calls leave boundary unchanged
+                    // so their content is included in newMessagesEstimate
+                    await this.contextManager.recordLastCallMessageCount();
+                }
+
+                // 7b. POST-RESPONSE CHECK: Use actual inputTokens from API to detect overflow
+                // This catches cases where the LLM's response pushed us over the threshold
+                const contextInputTokens = result.usage
+                    ? this.getContextInputTokens(result.usage)
+                    : null;
+                if (contextInputTokens && this.shouldCompactFromActual(contextInputTokens)) {
+                    this.logger.debug(
+                        `Post-response: actual ${contextInputTokens} tokens exceeds threshold, compacting`
+                    );
+                    await this.compactContext(
+                        contextInputTokens,
+                        contributorContext,
+                        toolDefinitions
+                    );
+                }
+
+                // 8. Check termination conditions
                 if (result.finishReason !== 'tool-calls') {
                     // Check queue before terminating - process queued messages if any
                     // Note: Hard cancel clears the queue BEFORE aborting, so if messages exist
@@ -239,6 +391,7 @@ export class TurnExecutor {
                         await this.injectQueuedMessages(queuedOnTerminate);
                         continue; // Keep looping with fresh controller - process queued messages
                     }
+
                     this.logger.debug(`Terminating: finishReason is "${result.finishReason}"`);
                     break;
                 }
@@ -248,14 +401,12 @@ export class TurnExecutor {
                     lastFinishReason = 'cancelled';
                     break;
                 }
-                if (++stepCount >= this.config.maxSteps) {
+                stepCount++;
+                if (this.config.maxSteps !== undefined && stepCount >= this.config.maxSteps) {
                     this.logger.debug(`Terminating: reached maxSteps (${this.config.maxSteps})`);
                     lastFinishReason = 'max-steps';
                     break;
                 }
-
-                // 8. Prune old tool outputs (mark with compactedAt)
-                await this.pruneOldToolOutputs();
             }
         } catch (error) {
             // Map provider errors to DextoRuntimeError
@@ -275,6 +426,7 @@ export class TurnExecutor {
             this.eventBus.emit('run:complete', {
                 finishReason: 'error',
                 stepCount,
+                durationMs: Date.now() - startTime,
                 error: mappedError,
             });
 
@@ -291,6 +443,7 @@ export class TurnExecutor {
         this.eventBus.emit('run:complete', {
             finishReason: lastFinishReason,
             stepCount,
+            durationMs: Date.now() - startTime,
         });
 
         return {
@@ -336,8 +489,8 @@ export class TurnExecutor {
      * Validates if the current model supports tools.
      * Uses a static cache to avoid repeated validation calls.
      *
-     * For models using custom baseURL endpoints, makes a test call to verify tool support.
-     * Built-in providers without baseURL are assumed to support tools.
+     * For local providers (Ollama, local) and custom baseURL endpoints, makes a test call to verify tool support.
+     * Known cloud providers without baseURL are assumed to support tools.
      */
     private async validateToolSupport(): Promise<boolean> {
         const modelKey = `${this.llmContext.provider}:${this.llmContext.model}:${this.config.baseURL ?? ''}`;
@@ -347,15 +500,21 @@ export class TurnExecutor {
             return toolSupportCache.get(modelKey)!;
         }
 
-        // Only test tool support for providers using custom baseURL endpoints
-        // Built-in providers without baseURL have known tool support
-        if (!this.config.baseURL) {
-            this.logger.debug(`Skipping tool validation for ${modelKey} - no custom baseURL`);
+        // Local providers need validation regardless of baseURL (models have varying support)
+        const isLocalProvider = LOCAL_PROVIDERS.includes(this.llmContext.provider);
+
+        // Skip validation only for known cloud providers without custom baseURL
+        if (!this.config.baseURL && !isLocalProvider) {
+            this.logger.debug(
+                `Skipping tool validation for ${modelKey} - known cloud provider without custom baseURL`
+            );
             toolSupportCache.set(modelKey, true);
             return true;
         }
 
-        this.logger.debug(`Testing tool support for custom endpoint model: ${modelKey}`);
+        this.logger.debug(
+            `Testing tool support for ${isLocalProvider ? 'local provider' : 'custom endpoint'} model: ${modelKey}`
+        );
 
         // Create a minimal test tool
         const testTool = {
@@ -393,7 +552,9 @@ export class TurnExecutor {
             const errorMessage = error instanceof Error ? error.message : String(error);
             if (errorMessage.includes('does not support tools')) {
                 toolSupportCache.set(modelKey, false);
-                this.logger.debug(`Model ${modelKey} does not support tools`);
+                this.logger.debug(
+                    `Detected that model ${modelKey} does not support tool calling - tool functionality will be disabled`
+                );
                 return false;
             }
             // Other errors (including timeout) - assume tools are supported and let the actual call handle it
@@ -426,36 +587,84 @@ export class TurnExecutor {
                     /**
                      * Execute callback - runs the tool and returns raw result.
                      * Does NOT persist - StreamProcessor handles that on tool-result event.
+                     *
+                     * Uses Promise.race to ensure we return quickly on abort, even if the
+                     * underlying tool (especially MCP tools we don't control) keeps running.
                      */
                     execute: async (
                         args: unknown,
-                        _options: { toolCallId: string }
+                        options: { toolCallId: string }
                     ): Promise<unknown> => {
-                        this.logger.debug(`Executing tool: ${name}`);
-
-                        // Run tool via toolManager - returns result with approval metadata
-                        const executionResult = await this.toolManager.executeTool(
-                            name,
-                            args as Record<string, unknown>,
-                            this.sessionId
+                        this.logger.debug(
+                            `Executing tool: ${name} (toolCallId: ${options.toolCallId})`
                         );
 
-                        // Store approval metadata for later retrieval by StreamProcessor
-                        if (executionResult.requireApproval !== undefined) {
-                            const metadata: {
-                                requireApproval: boolean;
-                                approvalStatus?: 'approved' | 'rejected';
-                            } = {
-                                requireApproval: executionResult.requireApproval,
-                            };
-                            if (executionResult.approvalStatus !== undefined) {
-                                metadata.approvalStatus = executionResult.approvalStatus;
-                            }
-                            this.approvalMetadata.set(_options.toolCallId, metadata);
+                        const abortSignal = this.stepAbortController.signal;
+
+                        // Check if already aborted before starting
+                        if (abortSignal.aborted) {
+                            this.logger.debug(`Tool ${name} cancelled before execution`);
+                            return { error: 'Cancelled by user', cancelled: true };
                         }
 
-                        // Return just the raw result for Vercel SDK
-                        return executionResult.result;
+                        // Create abort handler for cleanup
+                        let abortHandler: (() => void) | null = null;
+
+                        // Create abort promise for Promise.race
+                        // This ensures we return quickly even if tool doesn't respect abort signal
+                        const abortPromise = new Promise<{ error: string; cancelled: true }>(
+                            (resolve) => {
+                                abortHandler = () => {
+                                    this.logger.debug(`Tool ${name} cancelled during execution`);
+                                    resolve({ error: 'Cancelled by user', cancelled: true });
+                                };
+                                abortSignal.addEventListener('abort', abortHandler, { once: true });
+                            }
+                        );
+
+                        // Race: tool execution vs abort signal
+                        try {
+                            const result = await Promise.race([
+                                (async () => {
+                                    // Run tool via toolManager - returns result with approval metadata
+                                    // toolCallId is passed for tracking parallel tool calls in the UI
+                                    // Pass abortSignal so tools can do proper cleanup (e.g., kill processes)
+                                    const executionResult = await this.toolManager.executeTool(
+                                        name,
+                                        args as Record<string, unknown>,
+                                        options.toolCallId,
+                                        this.sessionId,
+                                        abortSignal
+                                    );
+
+                                    // Store approval metadata for later retrieval by StreamProcessor
+                                    if (executionResult.requireApproval !== undefined) {
+                                        const metadata: {
+                                            requireApproval: boolean;
+                                            approvalStatus?: 'approved' | 'rejected';
+                                        } = {
+                                            requireApproval: executionResult.requireApproval,
+                                        };
+                                        if (executionResult.approvalStatus !== undefined) {
+                                            metadata.approvalStatus =
+                                                executionResult.approvalStatus;
+                                        }
+                                        this.approvalMetadata.set(options.toolCallId, metadata);
+                                    }
+
+                                    // Return just the raw result for Vercel SDK
+                                    return executionResult.result;
+                                })(),
+                                abortPromise,
+                            ]);
+
+                            return result;
+                        } finally {
+                            // Clean up abort listener to prevent memory leak
+                            if (abortHandler) {
+                                abortSignal.removeEventListener('abort', abortHandler);
+                            }
+                        }
                     },
 
                     /**
@@ -629,7 +838,7 @@ export class TurnExecutor {
     /**
      * Prunes old tool outputs by marking them with compactedAt timestamp.
      * Does NOT modify content - transformation happens at format time in
-     * ContextManager.getFormattedMessagesWithCompression().
+     * ContextManager.prepareHistory().
      *
      * Algorithm:
      * 1. Go backwards through history (most recent first)
@@ -728,68 +937,137 @@ export class TurnExecutor {
     }
 
     /**
-     * Check if context has overflowed based on actual token usage from API.
+     * Check if context should be compacted based on estimated token count.
+     * Uses the threshold percentage from compaction config to trigger earlier (e.g., at 90%).
+     *
+     * @param estimatedTokens Estimated token count from the current context
+     * @returns true if compaction is needed before making the LLM call
      */
-    private checkAndHandleOverflow(tokens: TokenUsage): boolean {
-        if (!this.modelLimits || !this.compressionStrategy) {
+    private shouldCompact(estimatedTokens: number): boolean {
+        if (!this.modelLimits || !this.compactionStrategy) {
             return false;
         }
-        return isOverflow(tokens, this.modelLimits);
+        // Use the overflow logic with threshold to trigger compaction earlier
+        return isOverflow(
+            { inputTokens: estimatedTokens },
+            this.modelLimits,
+            this.compactionThresholdPercent
+        );
     }
 
     /**
-     * Compress context using ReactiveOverflowStrategy.
+     * Check if context should be compacted based on actual token count from API response.
+     * This is a post-response check using real token counts rather than estimates.
      *
-     * Generates a summary of older messages and adds it to history.
-     * The actual token reduction happens at read-time via filterCompacted()
-     * in getFormattedMessagesWithCompression().
-     *
-     * @param originalTokens The actual input token count from API that triggered overflow
+     * @param actualTokens Actual input token count from the API response
+     * @returns true if compaction is needed
      */
-    private async compress(originalTokens: number): Promise<void> {
-        if (!this.compressionStrategy) {
-            return;
+    private shouldCompactFromActual(actualTokens: number): boolean {
+        if (!this.modelLimits || !this.compactionStrategy) {
+            return false;
+        }
+        // Use the same overflow logic but with actual tokens from API
+        return isOverflow(
+            { inputTokens: actualTokens },
+            this.modelLimits,
+            this.compactionThresholdPercent
+        );
+    }
+
+    /**
+     * Compact context by generating a summary and adding it to the same session.
+     *
+     * The summary message is added to the conversation history with `isSummary: true` metadata.
+     * When the context is loaded via getFormattedMessagesForLLM(), filterCompacted() will
+     * exclude all messages before the summary, effectively compacting the context.
+     *
+     * @param originalTokens The estimated input token count that triggered overflow
+     * @param contributorContext Context for system prompt contributors (needed for accurate token estimation)
+     * @param tools Tool definitions (needed for accurate token estimation)
+     * @returns true if compaction occurred, false if skipped
+     */
+    private async compactContext(
+        originalTokens: number,
+        contributorContext: DynamicContributorContext,
+        tools: Record<string, { name?: string; description?: string; parameters?: unknown }>
+    ): Promise<boolean> {
+        if (!this.compactionStrategy) {
+            return false;
         }
 
         this.logger.info(
-            `Context overflow detected (${originalTokens} tokens), running compression`
+            `Context overflow detected (${originalTokens} tokens), checking if compression is possible`
         );
 
         const history = await this.contextManager.getHistory();
+        const { filterCompacted } = await import('../../context/utils.js');
+        const originalFiltered = filterCompacted(history);
+        const originalMessages = originalFiltered.length;
 
-        // Generate summary message(s)
-        const summaryMessages = await this.compressionStrategy.compress(history);
-
-        if (summaryMessages.length === 0) {
-            this.logger.debug('Compression returned no summary (history too short)');
-            return;
+        // Pre-check if history is long enough for compaction (need at least 4 messages for meaningful summary)
+        if (history.length < 4) {
+            this.logger.debug('Compaction skipped: history too short to summarize');
+            return false;
         }
 
-        // Add summary to history
-        // filterCompacted() will exclude pre-summary messages at read-time
+        // Emit event BEFORE the LLM summarization call so UI shows indicator during compaction
+        this.eventBus.emit('context:compacting', {
+            estimatedTokens: originalTokens,
+        });
+
+        // Generate summary message(s) - this makes an LLM call
+        const summaryMessages = await this.compactionStrategy.compact(history);
+
+        if (summaryMessages.length === 0) {
+            // Compaction returned empty - nothing to summarize (e.g., already compacted)
+            // Still emit context:compacted to clear the UI's compacting state
+            this.logger.debug(
+                'Compaction skipped: strategy returned no summary (likely already compacted or nothing to summarize)'
+            );
+            this.eventBus.emit('context:compacted', {
+                originalTokens,
+                compactedTokens: originalTokens, // No change
+                originalMessages,
+                compactedMessages: originalMessages, // No change
+                strategy: this.compactionStrategy.name,
+                reason: 'overflow',
+            });
+            return false;
+        }
+
+        // Add summary to history - filterCompacted() will exclude pre-summary messages at read-time
         for (const summary of summaryMessages) {
             await this.contextManager.addMessage(summary);
         }
 
-        // Get filtered history to report message counts
-        const { filterCompacted, estimateMessagesTokens } = await import('../../context/utils.js');
-        const updatedHistory = await this.contextManager.getHistory();
-        const filteredHistory = filterCompacted(updatedHistory);
-        const compressedTokens = estimateMessagesTokens(filteredHistory);
+        // Reset actual token tracking since context has fundamentally changed
+        // The formula (lastInput + lastOutput + newEstimate) is no longer valid after compaction
+        this.contextManager.resetActualTokenTracking();
 
-        this.eventBus.emit('context:compressed', {
+        // Get accurate token estimate after compaction using the same method as /context command
+        // This ensures consistency between what we report and what /context shows
+        const afterEstimate = await this.contextManager.getContextTokenEstimate(
+            contributorContext,
+            tools
+        );
+        const compactedTokens = afterEstimate.estimated;
+        const compactedMessages = afterEstimate.stats.filteredMessageCount;
+
+        this.eventBus.emit('context:compacted', {
             originalTokens,
-            compressedTokens,
-            originalMessages: history.length,
-            compressedMessages: filteredHistory.length,
-            strategy: this.compressionStrategy.name,
+            compactedTokens,
+            originalMessages,
+            compactedMessages,
+            strategy: this.compactionStrategy.name,
             reason: 'overflow',
         });
 
         this.logger.info(
-            `Compression complete: ${originalTokens} → ~${compressedTokens} tokens ` +
-                `(${history.length} → ${filteredHistory.length} messages after filtering)`
+            `Compaction complete: ${originalTokens} → ~${compactedTokens} tokens ` +
+                `(${originalMessages} → ${compactedMessages} messages after filtering)`
         );
+
+        return true;
     }
 
     /**
@@ -815,6 +1093,11 @@ export class TurnExecutor {
         }
     }
 
+    private getContextInputTokens(usage: TokenUsage): number | null {
+        if (usage.inputTokens === undefined) return null;
+        return usage.inputTokens + (usage.cacheReadTokens ?? 0) + (usage.cacheWriteTokens ?? 0);
+    }
+
     /**
      * Map provider errors to DextoRuntimeError.
      */
@@ -828,6 +1111,37 @@ export class TurnExecutor {
                     ? err.responseBody
                     : JSON.stringify(err.responseBody ?? '');
 
+            if (status === 402) {
+                // Dexto gateway returns 402 with INSUFFICIENT_CREDITS when balance is low
+                // Try to extract balance from response body
+                let balance: number | undefined;
+                try {
+                    const parsed = JSON.parse(body);
+                    // Format: { error: { code: 'INSUFFICIENT_CREDITS', message: '...Balance: $X.XX...' } }
+                    const msg = parsed?.error?.message || '';
+                    const match = msg.match(/Balance:\s*\$?([\d.]+)/i);
+                    if (match) {
+                        balance = parseFloat(match[1]);
+                    }
+                } catch {
+                    // Ignore parse errors
+                }
+                return new DextoRuntimeError(
+                    LLMErrorCode.INSUFFICIENT_CREDITS,
+                    ErrorScope.LLM,
+                    ErrorType.PAYMENT_REQUIRED,
+                    `Insufficient Dexto credits${balance !== undefined ? `. Balance: $${balance.toFixed(2)}` : ''}`,
+                    {
+                        sessionId: this.sessionId,
+                        provider: this.llmContext.provider,
+                        model: this.llmContext.model,
+                        status,
+                        balance,
+                        body,
+                    },
+                    'Run `dexto billing` to check your balance'
+                );
+            }
             if (status === 429) {
                 return new DextoRuntimeError(
                     LLMErrorCode.RATE_LIMIT_EXCEEDED,

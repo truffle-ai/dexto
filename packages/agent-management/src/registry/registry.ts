@@ -3,8 +3,6 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import { logger } from '@dexto/core';
 import { resolveBundledScript, getDextoGlobalPath, copyDirectory } from '../utils/path.js';
-import { loadGlobalPreferences } from '../preferences/loader.js';
-import { writePreferencesToAgent } from '../writer.js';
 import {
     Registry,
     RegistrySchema,
@@ -19,6 +17,7 @@ import {
     removeAgentFromUserRegistry,
     addAgentToUserRegistry,
 } from './user-registry.js';
+import { loadGlobalPreferences } from '../preferences/loader.js';
 
 // Cached registry instance
 let cachedRegistry: LocalAgentRegistry | null = null;
@@ -230,9 +229,8 @@ export class LocalAgentRegistry implements AgentRegistry {
     /**
      * Install agent atomically using temp + rename pattern
      * @param agentId ID of the agent to install
-     * @param injectPreferences Whether to inject global preferences into installed agent (default: true)
      */
-    async installAgent(agentId: string, injectPreferences: boolean = true): Promise<string> {
+    async installAgent(agentId: string): Promise<string> {
         logger.info(`Installing agent: ${agentId}`);
         const registry = this.getRegistry();
         const agentData = registry.agents[agentId];
@@ -290,27 +288,6 @@ export class LocalAgentRegistry implements AgentRegistry {
 
             logger.info(`✓ Installed agent '${agentId}' to ${targetDir}`);
 
-            // Inject global preferences if requested
-            if (injectPreferences) {
-                try {
-                    const preferences = await loadGlobalPreferences();
-                    await writePreferencesToAgent(targetDir, preferences);
-                    logger.info(`✓ Applied global preferences to installed agent '${agentId}'`);
-                } catch (error) {
-                    // Log warning but don't fail installation if preference injection fails
-                    logger.warn(
-                        `Failed to inject preferences to '${agentId}': ${error instanceof Error ? error.message : String(error)}`
-                    );
-                    console.log(
-                        `⚠️  Warning: Could not apply preferences to '${agentId}' - agent will use bundled settings`
-                    );
-                }
-            } else {
-                logger.info(
-                    `Skipped preference injection for '${agentId}' (injectPreferences=false)`
-                );
-            }
-
             return this.resolveMainConfig(targetDir, agentId);
         } catch (error) {
             // Clean up temp directory on failure
@@ -338,7 +315,6 @@ export class LocalAgentRegistry implements AgentRegistry {
      * @param agentId Unique identifier for the custom agent
      * @param sourcePath Absolute path to agent YAML file or directory
      * @param metadata Agent metadata (name for display, description, author, tags, main)
-     * @param injectPreferences Whether to inject global preferences (default: true)
      * @returns Path to the installed agent's main config file
      */
     async installCustomAgentFromPath(
@@ -350,8 +326,7 @@ export class LocalAgentRegistry implements AgentRegistry {
             author: string;
             tags: string[];
             main?: string;
-        },
-        injectPreferences: boolean = true
+        }
     ): Promise<string> {
         logger.info(`Installing custom agent '${agentId}' from ${sourcePath}`);
 
@@ -479,22 +454,6 @@ export class LocalAgentRegistry implements AgentRegistry {
                 throw registryError;
             }
 
-            // Inject global preferences if requested
-            if (injectPreferences) {
-                try {
-                    const preferences = await loadGlobalPreferences();
-                    await writePreferencesToAgent(targetDir, preferences);
-                    logger.info(`✓ Applied global preferences to custom agent '${agentId}'`);
-                } catch (error) {
-                    logger.warn(
-                        `Failed to inject preferences to '${agentId}': ${error instanceof Error ? error.message : String(error)}`
-                    );
-                    console.log(
-                        `⚠️  Warning: Could not apply preferences to '${agentId}' - agent will use default settings`
-                    );
-                }
-            }
-
             return mainConfigPath;
         } catch (error) {
             // Clean up temp directory on failure
@@ -523,13 +482,8 @@ export class LocalAgentRegistry implements AgentRegistry {
      * Handles installing agent if needed
      * @param agentId ID of the agent to resolve
      * @param autoInstall Whether to automatically install missing agents from registry (default: true)
-     * @param injectPreferences Whether to inject preferences during auto-installation (default: true)
      */
-    async resolveAgent(
-        agentId: string,
-        autoInstall: boolean = true,
-        injectPreferences: boolean = true
-    ): Promise<string> {
+    async resolveAgent(agentId: string, autoInstall: boolean = true): Promise<string> {
         logger.debug(`Resolving registry agent: ${agentId}`);
 
         // 1. Check if installed
@@ -552,7 +506,7 @@ export class LocalAgentRegistry implements AgentRegistry {
         if (this.hasAgent(agentId)) {
             if (autoInstall) {
                 logger.info(`Installing agent '${agentId}' from registry...`);
-                return await this.installAgent(agentId, injectPreferences);
+                return await this.installAgent(agentId);
             } else {
                 // Agent is available in registry but auto-install is disabled
                 const registry = this.getRegistry();
@@ -601,9 +555,9 @@ export class LocalAgentRegistry implements AgentRegistry {
             const defaultAgent = preferences.defaults.defaultAgent;
             return agentId !== defaultAgent;
         } catch {
-            // If preferences can't be loaded, protect 'default-agent' as fallback
-            logger.warn('Could not load preferences, using fallback protection for default-agent');
-            return agentId !== 'default-agent';
+            // If preferences can't be loaded, protect 'coding-agent' as fallback
+            logger.warn('Could not load preferences, using fallback protection for coding-agent');
+            return agentId !== 'coding-agent';
         }
     }
 

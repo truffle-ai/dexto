@@ -14,15 +14,37 @@ interface UIResourceRendererWrapperProps {
  */
 export function UIResourceRendererWrapper({ resource, onAction }: UIResourceRendererWrapperProps) {
     // Map UIResourcePart to the format expected by @mcp-ui/client
-    const mcpResource = {
-        uri: resource.uri,
-        mimeType: resource.mimeType,
-        text: resource.content,
-        blob: resource.blob,
-        // @mcp-ui/client expects these optional fields
-        title: resource.metadata?.title,
-        preferredSize: resource.metadata?.preferredSize,
-    };
+    // MCP SDK uses discriminated unions - either text OR blob, not both
+    // Store metadata in _meta since annotations has a specific schema in MCP SDK
+    const mcpResource = resource.blob
+        ? {
+              type: 'resource' as const,
+              resource: {
+                  uri: resource.uri,
+                  blob: resource.blob,
+                  ...(resource.mimeType ? { mimeType: resource.mimeType } : {}),
+                  _meta: {
+                      ...(resource.metadata?.title ? { title: resource.metadata.title } : {}),
+                      ...(resource.metadata?.preferredSize
+                          ? { preferredSize: resource.metadata.preferredSize }
+                          : {}),
+                  },
+              },
+          }
+        : {
+              type: 'resource' as const,
+              resource: {
+                  uri: resource.uri,
+                  text: resource.content || '',
+                  ...(resource.mimeType ? { mimeType: resource.mimeType } : {}),
+                  _meta: {
+                      ...(resource.metadata?.title ? { title: resource.metadata.title } : {}),
+                      ...(resource.metadata?.preferredSize
+                          ? { preferredSize: resource.metadata.preferredSize }
+                          : {}),
+                  },
+              },
+          };
 
     // Handle UI actions from the rendered component
     const handleUIAction = async (result: { type: string; payload?: unknown }) => {

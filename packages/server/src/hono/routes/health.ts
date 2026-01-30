@@ -1,11 +1,11 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
-import type { DextoAgent } from '@dexto/core';
+import type { GetAgentFn } from '../index.js';
 
 /**
  * NOTE: If we introduce a transport-agnostic handler layer later, the logic in this module can move
  * into that layer. For now we keep the implementation inline for simplicity.
  */
-export function createHealthRouter(_getAgent: () => DextoAgent) {
+export function createHealthRouter(_getAgent: GetAgentFn) {
     const app = new OpenAPIHono();
 
     const route = createRoute({

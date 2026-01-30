@@ -184,5 +184,5 @@ pnpm test
 
 - [Main README](../../README.md) - Project overview
 - [Development Guide](../../DEVELOPMENT.md) - Development workflows
-- [Agent Configuration](../../agents/default-agent.yml) - Default agent setup
+- [Agent Configuration](../../agents/coding-agent/coding-agent.yml) - Default agent setup
 - [Core Documentation](../core/README.md) - Core library reference

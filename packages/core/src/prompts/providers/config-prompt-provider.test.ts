@@ -3,20 +3,12 @@ import { ConfigPromptProvider } from './config-prompt-provider.js';
 import type { ValidatedAgentConfig } from '../../agent/schemas.js';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { createSilentMockLogger } from '../../logger/v2/test-utils.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const FIXTURES_DIR = join(__dirname, '__fixtures__');
 
-const mockLogger = {
-    debug: () => {},
-    info: () => {},
-    warn: () => {},
-    error: () => {},
-    silly: () => {},
-    trackException: () => {},
-    createChild: () => mockLogger,
-    destroy: async () => {},
-} as any;
+const mockLogger = createSilentMockLogger();
 
 function makeAgentConfig(prompts: any[]): ValidatedAgentConfig {
     return { prompts } as ValidatedAgentConfig;
@@ -275,7 +267,7 @@ describe('ConfigPromptProvider', () => {
             expect(result2.prompts).toHaveLength(1);
         });
 
-        test('updateConfig replaces prompts', async () => {
+        test('updatePrompts replaces prompts', async () => {
             const config1 = makeAgentConfig([
                 {
                     type: 'inline',
@@ -289,21 +281,21 @@ describe('ConfigPromptProvider', () => {
             expect(result.prompts).toHaveLength(1);
             expect(result.prompts[0]?.name).toBe('config:first');
 
-            // Update config
-            const config2 = makeAgentConfig([
+            // Update prompts
+            const newPrompts = [
                 {
-                    type: 'inline',
+                    type: 'inline' as const,
                     id: 'second',
                     prompt: 'Second content',
                 },
                 {
-                    type: 'inline',
+                    type: 'inline' as const,
                     id: 'third',
                     prompt: 'Third content',
                 },
-            ]);
+            ];
 
-            provider.updateConfig(config2);
+            provider.updatePrompts(newPrompts);
             result = await provider.listPrompts();
             expect(result.prompts).toHaveLength(2);
             expect(result.prompts.map((p) => p.name)).toContain('config:second');
@@ -390,6 +382,31 @@ describe('ConfigPromptProvider', () => {
                 name: 'config:partial-test',
                 title: 'Partial Frontmatter', // From heading since not in frontmatter
                 description: 'Only id and description provided',
+                source: 'config',
+            });
+        });
+
+        test('loads Claude Code SKILL.md format (uses name: instead of id:)', async () => {
+            const config = makeAgentConfig([
+                {
+                    type: 'file',
+                    file: join(FIXTURES_DIR, 'claude-skill.md'),
+                    namespace: 'my-plugin',
+                    showInStarters: false,
+                },
+            ]);
+
+            const provider = new ConfigPromptProvider(config, mockLogger);
+            const result = await provider.listPrompts();
+
+            expect(result.prompts).toHaveLength(1);
+            expect(result.prompts[0]).toMatchObject({
+                // name: field in frontmatter should be used as id
+                name: 'config:my-plugin:test-skill',
+                // displayName is now just the skill id (without namespace prefix)
+                // commandName (computed by PromptManager) handles collision resolution
+                displayName: 'test-skill',
+                description: 'A test skill using Claude Code SKILL.md format with name field.',
                 source: 'config',
             });
         });
@@ -508,6 +525,130 @@ describe('ConfigPromptProvider', () => {
             const text = (result.messages?.[0]?.content as any).text as string;
             // $ARGUMENTS should be expanded
             expect(text).toContain('detailed style');
+        });
+
+        test('SKILL.md uses parent directory name as id (Claude Code convention)', async () => {
+            const config = makeAgentConfig([
+                {
+                    type: 'file',
+                    file: join(FIXTURES_DIR, 'my-test-skill', 'SKILL.md'),
+                    showInStarters: false,
+                },
+            ]);
+
+            const provider = new ConfigPromptProvider(config, mockLogger);
+            const result = await provider.listPrompts();
+
+            expect(result.prompts).toHaveLength(1);
+            expect(result.prompts[0]).toMatchObject({
+                // Should use directory name "my-test-skill" as id, not "SKILL"
+                name: 'config:my-test-skill',
+                displayName: 'my-test-skill',
+                description: 'Test skill using directory name as id',
+                source: 'config',
+            });
+        });
+
+        test('parses context: fork from SKILL.md frontmatter', async () => {
+            const config = makeAgentConfig([
+                {
+                    type: 'file',
+                    file: join(FIXTURES_DIR, 'my-test-skill', 'SKILL.md'),
+                    showInStarters: false,
+                },
+            ]);
+
+            const provider = new ConfigPromptProvider(config, mockLogger);
+            const result = await provider.listPrompts();
+
+            expect(result.prompts).toHaveLength(1);
+            // context should be parsed from frontmatter
+            expect(result.prompts[0]?.context).toBe('fork');
+        });
+
+        test('getPromptDefinition includes context field', async () => {
+            const config = makeAgentConfig([
+                {
+                    type: 'file',
+                    file: join(FIXTURES_DIR, 'my-test-skill', 'SKILL.md'),
+                    showInStarters: false,
+                },
+            ]);
+
+            const provider = new ConfigPromptProvider(config, mockLogger);
+            const def = await provider.getPromptDefinition('config:my-test-skill');
+
+            expect(def).toMatchObject({
+                name: 'config:my-test-skill',
+                context: 'fork',
+            });
+        });
+    });
+
+    describe('Claude Code tool name normalization', () => {
+        test('normalizes Claude Code tool names to Dexto format (case-insensitive)', async () => {
+            const config = makeAgentConfig([
+                {
+                    type: 'file',
+                    file: join(FIXTURES_DIR, 'skill-with-tools.md'),
+                    showInStarters: false,
+                },
+            ]);
+
+            const provider = new ConfigPromptProvider(config, mockLogger);
+            const def = await provider.getPromptDefinition('config:skill-with-tools');
+
+            // Should normalize: bash, Read, WRITE, edit -> Dexto names
+            // Should preserve: custom--keep_as_is (already Dexto format)
+            expect(def).not.toBeNull();
+            expect(def!.allowedTools).toEqual([
+                'custom--bash_exec',
+                'custom--read_file',
+                'custom--write_file',
+                'custom--edit_file',
+                'custom--keep_as_is',
+            ]);
+        });
+
+        test('normalizes inline prompt allowed-tools', async () => {
+            const config = makeAgentConfig([
+                {
+                    type: 'inline',
+                    id: 'inline-with-tools',
+                    title: 'Inline With Tools',
+                    prompt: 'Test prompt',
+                    'allowed-tools': ['BASH', 'Grep', 'glob', 'mcp--some_server'],
+                },
+            ]);
+
+            const provider = new ConfigPromptProvider(config, mockLogger);
+            const def = await provider.getPromptDefinition('config:inline-with-tools');
+
+            expect(def).not.toBeNull();
+            expect(def!.allowedTools).toEqual([
+                'custom--bash_exec',
+                'custom--grep_content',
+                'custom--glob_files',
+                'mcp--some_server', // MCP tools pass through unchanged
+            ]);
+        });
+
+        test('preserves unknown tool names unchanged', async () => {
+            const config = makeAgentConfig([
+                {
+                    type: 'inline',
+                    id: 'unknown-tools',
+                    title: 'Unknown Tools',
+                    prompt: 'Test prompt',
+                    'allowed-tools': ['unknown_tool', 'another-custom', 'internal--foo'],
+                },
+            ]);
+
+            const provider = new ConfigPromptProvider(config, mockLogger);
+            const def = await provider.getPromptDefinition('config:unknown-tools');
+
+            expect(def).not.toBeNull();
+            expect(def!.allowedTools).toEqual(['unknown_tool', 'another-custom', 'internal--foo']);
         });
     });
 });

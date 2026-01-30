@@ -2,16 +2,30 @@ import { DextoRuntimeError, DextoValidationError, ErrorType, zodToIssues } from 
 import { logger } from '@dexto/core';
 import { ZodError } from 'zod';
 
+// TODO: Standardize error responses across all server routes.
+// Currently, routes use inconsistent error response formats:
+// - Some throw typed errors (approvals.ts, prompts.ts) → middleware handles → standard format
+// - Others return ad-hoc shapes like { error: '...' } or { ok: false, error: '...' }
+//   (mcp.ts, webhooks.ts, sessions.ts, queue.ts, a2a-tasks.ts)
+//
+// Target: All routes should throw DextoRuntimeError/DextoValidationError for errors,
+// letting this middleware handle conversion to the standard response format.
+// See also: packages/server/src/hono/schemas/responses.ts for OpenAPI schema limitations.
+
 export const mapErrorTypeToStatus = (type: ErrorType): number => {
     switch (type) {
         case ErrorType.USER:
             return 400;
-        case ErrorType.NOT_FOUND:
-            return 404;
+        case ErrorType.PAYMENT_REQUIRED:
+            return 402;
         case ErrorType.FORBIDDEN:
             return 403;
+        case ErrorType.NOT_FOUND:
+            return 404;
         case ErrorType.TIMEOUT:
             return 408;
+        case ErrorType.CONFLICT:
+            return 409;
         case ErrorType.RATE_LIMIT:
             return 429;
         case ErrorType.SYSTEM:

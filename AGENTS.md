@@ -1,298 +1,251 @@
 # Dexto Development Guidelines for AI Assistants
 
+This repo is reviewed by automated agents (including CodeRabbit). This file is the source of truth for repo-wide conventions and review expectations.
+
+**Package manager: pnpm** (do not use npm/yarn)
+
 ## Code Quality Requirements
 
-**Pre-commit Validation** - Before completing significant tasks, prompt the user to ask if they want to run quality checks:
+Before completing significant tasks, prompt the user to ask if they want to run:
 
 ```bash
 /quality-checks
 ```
 
-This runs `scripts/quality-checks.sh` for build, tests, lint, and typecheck. Individual checks can be run separately. See `.claude/commands/quality-checks.md` for details.
+This runs `scripts/quality-checks.sh` for build, tests, lint, and typecheck. See `.claude/commands/quality-checks.md`.
 
-## General rules
-- Do NOT focus on pleasing the user. Focus on being CORRECT, use facts and code as your source of truth. Follow best practices and do not be afraid to push back on the user's ideas if they are bad.
-- Do not be lazy. Read as much relevant code as possible to keep your answers grounded in reality
-- If the user is asking you a question, it DOES NOT MEAN YOU ARE WRONG. JUST ANSWER THE QUESTION
-- Make as few assumptions as possible. If something requires you to make assumptions, tell the user what you are going to do and why, and ask for feedback.
-- Never communicate to the user with code comments. These comments add nothing. Comments are for people reading the code.
+## General Rules
 
+- Optimize for correctness. Use facts and code as the source of truth.
+- Read relevant code before recommending changes. Prefer grep/glob + direct file references over assumptions.
+- If something requires assumptions, state them and ask for confirmation.
+- Don't communicate to the user via code comments. Comments are for future readers of the code, not for explaining decisions to the user.
+
+## Stack Rules (important)
+
+These rules are intended to prevent stack fragmentation and review churn.
+
+### WebUI (`packages/webui`)
+
+- Build tool: **Vite**
+- Routing: **TanStack Router** (`@tanstack/react-router`). Do not introduce `react-router-dom` or other routing systems unless explicitly migrating.
+- Server-state/data fetching: **TanStack Query** (`@tanstack/react-query`). Prefer it for request caching, invalidation, and async state.
+- Client-side state: Zustand exists; prefer it only for genuinely client-only state (UI preferences, local toggles). Avoid duplicating server state into stores.
+
+### Server (`packages/server`)
+
+- HTTP API: **Hono** routes live in `packages/server/src/hono/routes/*.ts`.
+- Error mapping middleware: `packages/server/src/hono/middleware/error.ts`.
+
+### Core (`packages/core`)
+
+- Core is the business logic layer. Keep policy, validation boundaries, and reusable services here.
+
+### CLI (`packages/cli`)
+
+- Entry point: `packages/cli/src/cli/index.ts`
+- Static commands (e.g., `dexto init`, `dexto setup`): `packages/cli/src/cli/commands/`
+- Interactive CLI commands (e.g., `/help`, `/compact`): `packages/cli/src/cli/commands/interactive-commands/`
+- Ink-based UI components: `packages/cli/src/cli/ink-cli/`
+
+### Other Important Packages
+
+- **`@dexto/client-sdk`**: Lightweight type-safe client for the Dexto API (Hono-based). Use for external integrations.
+- **`@dexto/agent-management`**: Agent registry, config discovery, preferences, and agent resolution logic.
+- **`@dexto/analytics`**: Shared PostHog analytics utilities for CLI and WebUI (opt-in telemetry).
+- **`@dexto/registry`**: Shared registry data (MCP server presets, etc.) for CLI and WebUI.
+- **`@dexto/tools-*`**: Modular tool packages (`tools-filesystem`, `tools-process`, `tools-todo`, `tools-plan`). Each provides a tool provider that registers with the core tool registry.
+
+### Images (`packages/image-*`)
+
+Images are pre-configured bundles of providers, tools, and defaults for specific deployment targets. They use `defineImage()` from core.
+
+- **`@dexto/image-local`**: Local development image with filesystem/process tools, SQLite storage.
+- **`@dexto/image-bundler`**: Build tool for bundling images (`dexto-bundle` CLI).
+
+Image definition files use the convention `dexto.image.ts` and register providers (blob stores, custom tools) as side-effects when imported.
+
+### Adding New Packages
+
+All `@dexto/*` packages use **fixed versioning** (shared version number).
+
+When creating a new package:
+1. Add the package name to the `fixed` array in `.changeset/config.json`
+2. Set its `version` in `package.json` to match other packages (check `packages/core/package.json`)
+
+## Avoiding Duplication (repo-wide)
+
+**Before adding any new helper/utility/service:**
+1. Search the codebase first (glob/grep for similar patterns).
+2. Prefer extending existing code over creating new.
+3. If new code is necessary, justify why existing code doesn't work.
+
+This applies everywhere (core, server, cli, webui). Violations will be flagged in review.
 
 ## Architecture & Design Patterns
 
-### API Layer Design
-- **APIs are thin wrappers around DextoAgent class** - Keep business logic in core layer
-- **No direct service communication** - API layer communicates only with DextoAgent
-- APIs should resemble code that users could write with public libraries
+### API / Server Layer
+
+- Routes should be thin wrappers around core capabilities (primarily `DextoAgent` + core services).
+- Keep business logic out of routes; keep route code focused on:
+  - request parsing/validation
+  - calling core
+  - mapping errors + returning responses
+- `DextoAgent` class should also not have too much business logic; should call helper methods within services it owns.
 
 ### Service Initialization
-- **Config file is source of truth** - Use `agents/default-agent.yml` for all configuration
-- **Override pattern for advanced use** - Use `InitializeServicesOptions` only for top-level services
-- **CLI Config Enrichment** - CLI adds per-agent paths (logs, database, blobs) via `enrichAgentConfig()` before agent initialization. See `packages/agent-management/src/config/config-enrichment.ts`
-- ✅ DO: Configure via config file for normal operation
-- ❌ DON'T: Add every internal dependency to override options
+
+- **Config file is source of truth**: Agent YAML files in `agents/` directory (e.g., `agents/coding-agent/coding-agent.yml`).
+- **Override pattern for advanced use**: use `InitializeServicesOptions` only for top-level services (avoid wiring every internal dependency).
+- **CLI Config Enrichment**: CLI adds per-agent paths (logs, database, blobs) via `enrichAgentConfig()` before agent initialization.
+  - Source: `packages/agent-management/src/config/config-enrichment.ts`
 
 ### Execution Context Detection
-Dexto automatically detects execution environment to enable context-aware behavior. Functions that vary by context should infer execution context or use context-aware helpers.
 
-**Context Types:**
-- **`dexto-source`** - Running within dexto's own source code (package.name === 'dexto')
-- **`dexto-project`** - Running in a project that depends on dexto (has dexto in dependencies)
-- **`global-cli`** - Running as global CLI or in non-dexto project
+Dexto infers its execution environment to enable context-aware defaults and path resolution. Use these utilities when behavior should differ based on how dexto is running.
 
-**Usage Patterns:**
-- Path resolution: `packages/core/src/utils/path.ts` - `getDextoPath()`, `getDextoEnvPath()`
-- Environment loading: `packages/core/src/utils/env.ts` - `loadEnvironmentVariables()`
-- Agent resolution: `packages/core/src/config/agent-resolver.ts` - context-specific defaults
-- API key setup: `packages/cli/src/cli/utils/api-key-setup.ts` - context-aware instructions
+**Context types:**
+- `dexto-source`: Running within the dexto monorepo itself (development)
+- `dexto-project`: Running in a project that has dexto as a dependency
+- `global-cli`: Running as globally installed CLI or in a non-dexto project
 
-**Key Functions (`packages/core/src/utils/execution-context.ts`):**
-- `getExecutionContext(startPath?)` - Detect context from directory
-- `findDextoSourceRoot(startPath?)` - Find dexto source directory (null if not found)
-- `findDextoProjectRoot(startPath?)` - Find dexto project directory (null if not found)
-- `getDextoPath(type, filename?, startPath?)` - Context-aware path resolution
-- `getDextoGlobalPath(type, filename?)` - Always returns global ~/.dexto paths
+**Key files:**
+- `packages/core/src/utils/execution-context.ts` - Context detection
+- `packages/core/src/utils/path.ts` - Context-aware path resolution
+- `packages/cli/src/cli/utils/api-key-setup.ts` - Context-aware setup UX
 
-### Schema Design (Zod)
-- **Always use `.strict()`** for configuration objects - Prevents typos and unknown fields
-- **Prefer `discriminatedUnion` over `union`** - Clearer error messages with discriminator field
-- **Describe every field** with `.describe()` - Serves as inline documentation
-- **Provide sensible defaults** with `.default()` - Simplifies consuming code
-- **Use `superRefine` for complex validation** - Cross-field validation logic
+## Zod / Schema Design
 
-### Result Pattern & Validation Architecture
+- Always use `.strict()` for configuration objects (reject typos/unknown fields).
+- Prefer `discriminatedUnion` over `union` for clearer errors.
+- Describe fields with `.describe()` where it improves usability.
+- Prefer sensible defaults via `.default()`.
+- Use `superRefine` for cross-field validation.
 
-#### Core Principles
-1. **DextoAgent as Validation Boundary** - All input validation happens at DextoAgent level
-   - Public SDK methods validate all inputs before processing
-   - Internal layers can assume data is already validated
-   - Creates clear contract between public API and internal implementation
+Type extraction conventions (repo rule):
+- Use `z.input<typeof Schema>` for raw/unvalidated input types.
+- Use `z.output<typeof Schema>` for validated/output types.
+- Do not use `z.infer` (lint-restricted).
 
-2. **Result<T,C> for Validation Layers** - Internal validation helpers return Result<T,C>; DextoAgent converts failures into typed exceptions (e.g. DextoLLMError) before exposing them
+## Result Pattern & Validation Boundary
 
-3. **API Layer Error Mapping** - Centralised Express error middleware  
-   - `DextoValidationError` (or any subclass) → 400  
-   - `DextoRuntimeError` with `ErrorType.FORBIDDEN` → 403  
-   - Any other uncaught exception → 500  
-   - Successful calls → 200 (may include warnings in `issues`)
-   - Source of truth: see `mapErrorTypeToStatus(type: ErrorType)` in `packages/cli/src/api/middleware/errorHandler.ts`. Keep this document in sync with that mapping.
+### Core Principles
 
-4. **Defensive API Validation** - API layer validates request schemas
-   - Use Zod schemas for request validation at API boundary
-   - Provides early error detection and clear error messages
-   - Prevents malformed data from reaching core logic
+- **`DextoAgent` is the validation boundary**: public-facing methods validate inputs; internal layers can assume validated inputs.
+- Internal validation helpers should return Result-style objects; public methods throw typed errors.
 
-#### Result Pattern Helpers
-Use standardized helpers from `packages/core/src/utils/result.js`:
+### Result Helpers
 
-- **`ok(data, issues?)`** - Success with optional warnings
-- **`fail(issues)`** - Failure with blocking errors  
-- **`hasErrors(issues)`** - Check if issues contain blocking errors
-- **`splitIssues(issues)`** - Separate errors from warnings
-- **`zodToIssues(zodError)`** - Convert Zod errors to Issue format
+Use standardized helpers from: `packages/core/src/utils/result.ts`
 
-#### Implementation Examples
-```typescript
-// Internal validation helper – returns Result pattern
-export function validateLLMUpdates(
-  updates: LLMUpdates
-): Result<ValidatedLLMConfig, LLMUpdateContext> {
-  if (!updates.model && !updates.provider) {
-    return fail([
-      { code: DextoErrorCode.AGENT_MISSING_LLM_INPUT, message: '...', severity: 'error', context: {} }
-    ]);
-  }
-  // … additional validation …
-  return ok(validatedConfig, warnings);
-}
+- `ok(data, issues?)`
+- `fail(issues)`
+- `hasErrors(issues)`
+- `splitIssues(issues)`
+- `zodToIssues(zodError)`
 
-// DextoAgent public method – converts Result to exception
-public async switchLLM(updates: LLMUpdates, sessionId?: string): Promise<ValidatedLLMConfig> {
-  const result = validateLLMUpdates(updates);
-  if (!result.ok) {
-    throw new DextoLLMError('Validation failed', result.issues);
-  }
-  // ... perform switch ...
-  return result.data;
-}
+## Error Handling
 
-// API endpoint – relies on exceptions + central error middleware
-app.post('/api/llm/switch', express.json(), async (req, res, next) => {
-  const validation = validateBody(LLMSwitchRequestSchema, req.body);
-  if (!validation.success) return res.status(400).json(validation.response);
+### Core Error Classes
 
-  try {
-    const data = await agent.switchLLM(validation.data);
-    return res.status(200).json({ ok: true, data });
-  } catch (err) {
-    next(err); // let the error middleware decide 4xx / 5xx
-  }
-});
-```
+- `DextoRuntimeError`: single runtime failure (I/O, network, invariant violation)
+- `DextoValidationError`: multiple validation issues
 
-### Error Handling
+### Rules
 
-**Core Error Classes:**
-- **`DextoRuntimeError`** - Single-issue errors (file not found, API failures, system errors)
-- **`DextoValidationError`** - Multiple validation issues (schema failures, input validation)
+- Avoid `throw new Error()` in `packages/core`. Prefer typed errors.
+- Non-core packages may use plain `Error` when a typed error is not available.
+- Use module-specific **error factory** pattern for new modules.
+  - Reference examples:
+    - `packages/core/src/config/errors.ts`
+    - `packages/core/src/logger/v2/errors.ts`
+    - `packages/core/src/storage/errors.ts`
+    - `packages/core/src/telemetry/errors.ts`
+- **Exemption**: Build-time CLI tools and development tooling (bundlers, compilers, build scripts) are exempt from the strict `DextoRuntimeError`/`DextoValidationError` requirement. Plain `Error` is acceptable for build tool failures to align with standard build tool practices (tsc, esbuild, vite).
 
-**When to Use Each:**
-- **Runtime errors**: File operations, network calls, system failures, business logic violations
-  - Examples: `packages/core/src/config/loader.ts`, `packages/core/src/llm/services/vercel.ts`
-- **Validation errors**: Schema validation, input parsing, configuration validation with multiple issues  
-  - Examples: `packages/core/src/agent/DextoAgent.ts` (switchLLM validation)
+### Server/API error mapping
 
-**Error Factory Pattern (REQUIRED):**
-Each module should have an error factory class that creates properly typed errors.
-- **Reference examples**: `packages/core/src/config/errors.ts`, `packages/core/src/logger/v2/errors.ts`, `packages/core/src/telemetry/errors.ts`, `packages/core/src/storage/errors.ts` - Follow this pattern for new modules
+- Source of truth: `mapErrorTypeToStatus()` in `packages/server/src/hono/middleware/error.ts`
 
-**API Integration:**
-The error middleware (`packages/cli/src/api/middleware/errorHandler.ts`) automatically maps error types to HTTP status codes.
+## Imports / ESM
 
-**❌ DON'T**: Use plain `Error` or `throw new Error()`  
-**✅ DO**: Create module-specific error factories and use typed error classes
+- In `packages/core`, local relative imports must include `.js` in the TypeScript source for Node ESM output compatibility.
+- Do not add `.js` to package imports (e.g. `zod`, `hono`, `@dexto/*`).
 
-## Code Standards
+## OpenAPI Documentation
 
-### Import Requirements
-- **All imports must end with `.js`** in core repository only for ES module compatibility
+- Never directly edit `docs/static/openapi/openapi.json` (generated file).
+- OpenAPI is generated from Hono route definitions in `packages/server/src/hono/routes/*.ts`.
 
-### OpenAPI Documentation
-- **NEVER directly modify `docs/static/openapi/openapi.json`** - This file is auto-generated
-- **Generated from server APIs** - OpenAPI spec is extracted from Hono route definitions in `packages/server/src/hono/routes/*.ts`
-- **Update process**:
-  1. Modify the route definition in `packages/server/src/hono/routes/*.ts` (add/update response schemas, parameters, etc.)
-  2. Run `pnpm run sync-openapi-docs` to regenerate `docs/static/openapi/openapi.json`
-  3. Verify the generated file includes your changes
-- **Route definitions use Zod schemas** - Use `createRoute()` from `@hono/zod-openapi` with Zod schemas for type-safe OpenAPI generation
-- **Error responses** - Follow the standard error format from `packages/server/src/hono/middleware/error.ts`:
-  - DextoRuntimeError returns: `{code, message, scope, type, context, recovery, traceId, endpoint, method}`
-  - 404 responses should document this structure in the route definition
+Update process:
+1. Modify route definitions / Zod schemas in `packages/server/src/hono/routes/*.ts`
+2. Run `pnpm run sync-openapi-docs`
+3. Verify the generated output includes your changes
 
-### Module Organization
-- **Selective index.ts strategy** - Only create index.ts files at logical module boundaries that represent cohesive public APIs
-- **✅ DO**: Add index.ts for main entry points and modules that export types/interfaces used by external consumers
-- **❌ DON'T**: Add index.ts for purely internal implementation folders
-- **Direct imports preferred** - Import directly from source files rather than through re-export chains for internal usage
-- **Avoid wildcard exports** - Prefer explicit named exports (`export { Type1, Type2 }`) over `export *` to improve tree-shaking and make dependencies explicit
-- **Watch for mega barrels** - If a barrel exports >20 symbols or pulls from >10 files, consider splitting into thematic sub-barrels with subpath exports
-- **Clear API boundaries** - index.ts files mark what's public vs internal implementation
+## Logging
 
-**TODO**: Current codebase has violations of these rules (wildcard exports in `packages/core/src/index.ts`, potential mega barrel in events) that need refactoring.
+The repo contains logger v1 and logger v2 APIs (core). Prefer patterns compatible with structured logging.
 
-### Logging Standards
-- **Use template literals** - `logger.info(\`Server running at \${url}\`)`
-- **No comma separation** - Never use `logger.error('Failed:', error)`
-- **No trailing commas** - Clean parameter lists
-- **Color usage**:
-  - green: Success, completions
-  - red: Errors, failures
-  - yellow: Warnings
-  - cyan/cyanBright: Status updates
-  - blue: Information, progress
-- **Browser compatibility**: See `packages/core/src/logger/logger.ts` for architecture notes on logger browser safety and future improvements
+- Prefer: `logger.info('Message', { contextKey: value })` (structured context as the second parameter where supported)
+- Avoid: `logger.error('Failed:', err)` style extra-arg logging; it's ambiguous across logger versions/transports.
+- Template literals are fine when interpolating values:
+  - `logger.info(\`Server running at \${url}\`)`
 
-### TypeScript Best Practices
-- **Strict null safety** - Handle null/undefined cases explicitly
-- **Proper error handling** - Use type guards and proper error messages
-- **Consistent return patterns** - All API endpoints return responses consistently
-- **Avoid `any` types** - Use specific types unless absolutely necessary
-  - **In tests**: For invalid input testing, prefer `@ts-expect-error` over `as any` to be explicit about intentional type violations
-  - **Avoid optional arguments unless needed**: Otherwise this creates spaghetti if(defined) slop. if introducing an optional, think twice.
+Colors:
+- Color formatting exists (chalk-based), but treat color choice as optional and primarily CLI-facing (don't encode “must use exact color X” rules in new code unless the existing subsystem already does).
 
-### Git and PR Standards
-- **NEVER use `git add .` or `git add -A`** - Always specify exact files: `git add file1.ts file2.ts` or `src` folders. This is to avoid untracked files
-- **ALWAYS vet the staged files before committing** - This is to catch mistakes in previous step
-- **Never include "Generated with Claude Code" footers** - In commit messages, PR descriptions, or any documentation
-- **Clean commit messages** - Focus on technical changes and business value
-- **Descriptive PR titles** - Should clearly indicate the change without AI attribution
+Browser safety:
+- `packages/core/src/logger/logger.ts` is Node-oriented (fs/path/winston). Be careful not to import Node-only runtime modules into `packages/webui` bundles. Prefer `import type` when consuming core types from the WebUI.
 
-### Documentation Standards
-- **Always request user review before committing documentation changes** - Documentation impacts user experience and should be user-approved
-- **Never auto-commit documentation updates** - Present proposed changes to user first, even for seemingly obvious updates
-- **Keep documentation user-focused** - Avoid exposing internal implementation complexity to end users
-- **Separate documentation commits** - Make documentation changes in separate commits from code changes when possible
+## TypeScript Guidelines
 
-## Application Architecture
+- Strict null safety: handle `null` / `undefined` explicitly.
+- Avoid `any` across the repo.
+  - Prefer `unknown` + type guards.
+  - If `any` is unavoidable (third-party typing gaps / boundary code), keep the usage local and justify it.
+- In tests, prefer `@ts-expect-error` over `as any` when intentionally testing invalid inputs.
+- Avoid introducing optional parameters unless necessary; prefer explicit overloads or separate functions if it improves call-site clarity.
 
-### API Layer (`packages/cli/src/api/`)
-- **Hono REST API** with Server-Sent Events (SSE) for real-time streaming
-- **Key endpoints**: `/api/message`, `/api/mcp/servers`, `/api/sessions`, `/api/llm/switch`
-- **MCP integration**: Multiple transport types (stdio, HTTP, SSE) with tool aggregation
-- **SSE events**: `llm:thinking`, `llm:chunk`, `llm:tool-call`, `llm:tool-result`, `llm:response`
-- **Session management**: Multi-session support with persistent storage
-- **A2A communication**: Agent-to-Agent via `.well-known/agent-card.json`
+## Module Organization
 
-### WebUI Layer (`packages/webui/`)
-- **Next.js 14** with App Router, React 18, TypeScript, Tailwind CSS
-- **Key components**: `ChatApp`, `MessageList`, `InputArea`, `ServersPanel`, `SessionPanel`
-- **State management**: React Context + custom hooks for SSE communication
-- **Communication**: SSE for real-time streaming, REST API for operations
-- **Multi-mode operation**: CLI, Web, Server, Discord, Telegram, MCP modes
+- Selective barrel strategy: only add `index.ts` at real public module boundaries.
+- Prefer direct imports internally; avoid deep re-export chains.
+- Avoid wildcard exports; prefer explicit named exports.
+- Watch for mega barrels (>20 symbols or >10 files) and split if needed.
 
-### Layer Interaction Flow
-```text
-User Input → WebUI → SSE/REST → API → DextoAgent → Core Services
-                ← SSE Events ← Agent Event Bus ← Core Services
-```
+## Git / PR Standards
 
-## Documentation
-- **Update documentation when making changes** - Check `/docs` folder. And README.md for core modules
-- **Never create documentation proactively** - Only when explicitly requested
+- Never use `git add .` or `git add -A`. Stage explicit files/paths only.
+- Always inspect staged files before committing.
+- Never amend commits (`git commit --amend`). Create new commits instead.
+- Don't include AI-generated footers in commits/PRs.
+- Keep commit messages technical and descriptive.
 
-### Mermaid Diagrams in Documentation (/docs folder)
-- **Use mermaid diagrams** for complex flows, architecture diagrams, and sequence diagrams
-- **ExpandableMermaid component** available for interactive diagrams:
-  ```tsx
-  import ExpandableMermaid from '@site/src/components/ExpandableMermaid';
-  
-  <ExpandableMermaid title="Event Flow Diagram">
-  ```mermaid
-  sequenceDiagram
-      participant A as User
-      participant B as System
-      A->>B: Request
-      B-->>A: Response
-  ```
-  </ExpandableMermaid>
-  ```
-- **Responsive design**: Thumbnails use full scale, modals expand to 92% viewport
-- **User experience**: Click to expand, Escape to close, hover effects
-- **Theme support**: Automatically adapts to light/dark mode
+## Documentation Changes
 
-## Testing Strategy
+- Always request user review before committing documentation changes.
+- Never auto-commit documentation updates.
+- Keep documentation user-focused; avoid exposing unnecessary internal complexity.
 
-### Test Classification
-- **Unit Tests**: `*.test.ts` - Fast tests with mocked dependencies, isolated component testing
-- **Integration Tests**: `*.integration.test.ts` - Real dependencies, cross-component testing
-- **Future**: `*.e2e.test.ts` - Full system end-to-end testing
+## Testing
 
-### Test Commands
-- `pnpm test` - Run all tests (unit + integration)
-- `pnpm run test:unit` - Run only unit tests (fast, for development)
-- `pnpm run test:integ` - Run only integration tests (thorough, for CI/releases)
-- `pnpm run test:unit:watch` - Watch mode for unit tests during development
-- `pnpm run test:integ:watch` - Watch mode for integration tests
-- `pnpm run test:unit path/to/file.test.ts` - Run a single unit test file
-- `pnpm run test:integ path/to/file.integration.test.ts` - Run a single integration test file
+Test types:
+- Unit: `*.test.ts`
+- Integration: `*.integration.test.ts`
 
-### Testing Guidelines
-- **Development workflow**: Run unit tests frequently for fast feedback
-- **Pre-commit**: Run integration tests to ensure cross-component compatibility
-- **CI/CD**: Use unit tests for PR checks, full test suite for releases
-- **Follow existing test patterns** - Check README and search codebase for test framework
-- **Verify before marking complete** - All quality checks must pass
-- **Add regression tests** - When fixing bugs, add tests to prevent recurrence
-- **Tests before style** - Ensure tests pass before fixing style checks
+Test location: Co-locate tests with source files (e.g., `foo.ts` → `foo.test.ts` in same directory).
+
+Common commands:
+- `pnpm test`
+- `pnpm run test:unit`
+- `pnpm run test:integ`
+
+When fixing bugs, add regression coverage where feasible.
 
 ## Maintaining This File
-**Important**: Keep this CLAUDE.md file updated when you discover:
-- New architectural patterns or design decisions
-- Important code conventions not covered here
-- Critical debugging or troubleshooting information
-- New quality check requirements or testing patterns
-- Significant changes to the codebase structure
 
-Add new sections or update existing ones to ensure this remains a comprehensive reference for AI assistants working on this codebase.
-
-Remember: Configuration drives behavior, APIs are thin wrappers, and quality checks are mandatory before completion.
+Keep `AGENTS.md` updated when:
+- Adding a new package: add a brief description under the appropriate Stack Rules section
+- Architecture boundaries change (server/webui/cli)
+- Repo-wide conventions change (lint/type patterns, errors, OpenAPI generation)
+- File paths referenced here move

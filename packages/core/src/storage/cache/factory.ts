@@ -1,49 +1,54 @@
 import type { Cache } from './types.js';
-import type { RedisCacheConfig, CacheConfig } from '../schemas.js';
-import { MemoryCacheStore } from './memory-cache-store.js';
 import type { IDextoLogger } from '../../logger/v2/types.js';
-import { StorageError } from '../errors.js';
-
-// Type for Redis store constructor
-interface RedisStoreConstructor {
-    new (config: RedisCacheConfig, logger: IDextoLogger): Cache;
-}
-
-// Lazy import for optional Redis dependency
-let RedisStore: RedisStoreConstructor | null = null;
+import { cacheRegistry } from './registry.js';
 
 /**
- * Create a cache store based on configuration.
- * Handles lazy loading of optional dependencies.
- * Throws StorageError.dependencyNotInstalled if required package is missing.
- * @param config Cache configuration
- * @param logger Logger instance for logging
+ * Create a cache based on configuration using the provider registry.
+ *
+ * This factory function:
+ * 1. Validates the configuration against the registered provider's schema
+ * 2. Looks up the provider in the registry
+ * 3. Calls the provider's create method to instantiate the cache
+ *
+ * The configuration type is determined at runtime by the 'type' field,
+ * which must match a registered provider. Custom providers can be registered
+ * via cacheRegistry.register() before calling this function.
+ *
+ * @param config - Cache configuration with a 'type' discriminator
+ * @param logger - Logger instance for the cache
+ * @returns A Cache implementation
+ * @throws Error if the provider type is not registered or validation fails
+ *
+ * @example
+ * ```typescript
+ * // Using built-in provider
+ * const cache = await createCache({ type: 'redis', host: 'localhost' }, logger);
+ *
+ * // Using custom provider (registered beforehand)
+ * import { cacheRegistry } from '@dexto/core';
+ * import { memcachedProvider } from './storage/memcached-provider.js';
+ *
+ * cacheRegistry.register(memcachedProvider);
+ * const cache = await createCache({ type: 'memcached', servers: ['...'] }, logger);
+ * ```
  */
-export async function createCache(config: CacheConfig, logger: IDextoLogger): Promise<Cache> {
-    switch (config.type) {
-        case 'redis':
-            return createRedisStore(config, logger);
+export async function createCache(
+    config: { type: string; [key: string]: any },
+    logger: IDextoLogger
+): Promise<Cache> {
+    // Validate config against provider schema and get provider
+    const validatedConfig = cacheRegistry.validateConfig(config);
+    const provider = cacheRegistry.get(validatedConfig.type);
 
-        case 'in-memory':
-        default:
-            logger.info('Using in-memory cache store');
-            return new MemoryCacheStore();
+    if (!provider) {
+        // This should never happen after validateConfig, but handle it defensively
+        throw new Error(`Provider '${validatedConfig.type}' not found in registry`);
     }
-}
 
-async function createRedisStore(config: RedisCacheConfig, logger: IDextoLogger): Promise<Cache> {
-    try {
-        if (!RedisStore) {
-            const module = await import('./redis-store.js');
-            RedisStore = module.RedisStore;
-        }
-        logger.info(`Connecting to Redis at ${config.host}:${config.port}`);
-        return new RedisStore(config, logger);
-    } catch (error: unknown) {
-        const err = error as NodeJS.ErrnoException;
-        if (err.code === 'ERR_MODULE_NOT_FOUND') {
-            throw StorageError.dependencyNotInstalled('Redis', 'ioredis', 'npm install ioredis');
-        }
-        throw error;
-    }
+    // Log which provider is being used
+    const providerName = provider.metadata?.displayName || validatedConfig.type;
+    logger.info(`Using ${providerName} cache`);
+
+    // Create and return the cache instance (may be async for lazy-loaded dependencies)
+    return provider.create(validatedConfig, logger);
 }

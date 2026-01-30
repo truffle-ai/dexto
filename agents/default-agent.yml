@@ -25,10 +25,10 @@ systemPrompt:
         Use these tools when appropriate to answer user queries.
         You can use multiple tools in sequence to solve complex problems.
         After each tool result, determine if you need more information or can provide a final answer.
-    - id: dateTime
+    - id: date
       type: dynamic
       priority: 10
-      source: dateTime
+      source: date
       enabled: true
 
 # Memory configuration - controls how memories are included in system prompt
@@ -77,15 +77,15 @@ storage:
     type: sqlite
     # path: ./data/dexto.db  # Optional: customize database location
   blob:
-    type: local  # 'local', 's3', 'gcs', 'azure' (s3, gcs, azure coming in future Phases)
+    type: local  # CLI provides storePath automatically
+    # storePath: ./data/blobs  # Optional: customize blob storage location (defaults to agent-specific path)
     maxBlobSize: 52428800     # 50MB per blob
     maxTotalSize: 1073741824  # 1GB total storage
-    cleanupAfterDays: 30      # Auto-cleanup blobs older than 30 days
-    # storePath: (automatically provided by CLI as ~/.dexto/blobs/<agent-id>)
+    cleanupAfterDays: 30
 
 toolConfirmation:
   mode: manual
-  timeout: 120000          # Time to wait for approval (ms)
+  # timeout: <optional>      # Time to wait for approval (ms). Omit for no timeout (wait indefinitely)
   allowedToolsStorage: memory  # 'memory' or 'storage' for persisting allowed tools
 
   # Optional: Static tool policies for fine-grained allow/deny control
@@ -107,12 +107,14 @@ toolConfirmation:
 # Allows auto-approve for tools while still supporting user input requests
 elicitation:
   enabled: true            # Enable ask_user tool and MCP server elicitations
-  timeout: 120000          # Time to wait for user input (ms)
+  # timeout: <optional>    # Time to wait for user input (ms). Omit for no timeout (wait indefinitely)
 
 # Internal tools - built-in Dexto capabilities
 internalTools:
   - ask_user  # Allows the agent to ask you questions and collect structured input
   - delegate_to_url
+  - list_resources
+  - get_resource
 
 # Internal resources configuration - manages file system access and blob storage
 # NOTE: Blob storage capacity and backend settings are in the 'storage.blob' section above

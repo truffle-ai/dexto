@@ -5,6 +5,7 @@
 // session_id, etc.) is merged automatically in analytics/index.ts.
 
 import type { ExecutionContext } from '@dexto/agent-management';
+import type { SharedAnalyticsEventMap } from '@dexto/analytics';
 
 export interface BaseEventContext {
     app?: 'dexto';
@@ -61,8 +62,6 @@ export interface CliCommandTimeoutEvent extends CliCommandBaseEvent {
 
 export type CliCommandEvent = CliCommandStartEvent | CliCommandEndEvent | CliCommandTimeoutEvent;
 
-export interface SessionStartEvent {}
-
 export interface PromptEvent {
     mode: 'cli' | 'headless';
     provider: string;
@@ -72,15 +71,18 @@ export interface PromptEvent {
 export interface SetupEvent {
     provider: string;
     model: string;
-    hadApiKeyBefore: boolean;
+    hadApiKeyBefore?: boolean;
     setupMode: 'interactive' | 'non-interactive';
+    setupVariant?: 'quick-start' | 'custom' | 'dexto';
+    defaultMode?: string;
+    hasBaseURL?: boolean;
+    apiKeySkipped?: boolean;
 }
 
 export interface InstallAgentEvent {
     agent: string;
     status: 'installed' | 'skipped' | 'failed';
     force: boolean;
-    injectPreferences: boolean;
     reason?: string;
     error_message?: string;
 }
@@ -119,8 +121,14 @@ export interface InitProjectEvent {
     providedKey: boolean;
 }
 
-export interface DextoAnalyticsEventMap {
-    dexto_session_start: SessionStartEvent;
+/**
+ * CLI analytics event map extending shared events with CLI-specific events.
+ *
+ * IMPORTANT: If an event is also tracked by WebUI, move it to SharedAnalyticsEventMap
+ * in @dexto/analytics to avoid duplication.
+ */
+export interface DextoAnalyticsEventMap extends SharedAnalyticsEventMap {
+    // CLI-specific events
     dexto_cli_command: CliCommandEvent;
     dexto_prompt: PromptEvent;
     dexto_setup: SetupEvent;

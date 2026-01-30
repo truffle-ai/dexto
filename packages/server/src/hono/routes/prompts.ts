@@ -2,6 +2,8 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { DextoAgent } from '@dexto/core';
 import { PromptError } from '@dexto/core';
 import { PromptInfoSchema, PromptDefinitionSchema } from '../schemas/responses.js';
+import type { Context } from 'hono';
+type GetAgentFn = (ctx: Context) => DextoAgent | Promise<DextoAgent>;
 
 const CustomPromptRequestSchema = z
     .object({
@@ -68,7 +70,7 @@ const ResolvePromptQuerySchema = z
     })
     .describe('Query parameters for resolving prompt templates');
 
-export function createPromptsRouter(getAgent: () => DextoAgent) {
+export function createPromptsRouter(getAgent: GetAgentFn) {
     const app = new OpenAPIHono();
 
     const listRoute = createRoute({
@@ -206,13 +208,13 @@ export function createPromptsRouter(getAgent: () => DextoAgent) {
 
     return app
         .openapi(listRoute, async (ctx) => {
-            const agent = getAgent();
+            const agent = await getAgent(ctx);
             const prompts = await agent.listPrompts();
             const list = Object.values(prompts);
             return ctx.json({ prompts: list });
         })
         .openapi(createCustomRoute, async (ctx) => {
-            const agent = getAgent();
+            const agent = await getAgent(ctx);
             const payload = ctx.req.valid('json');
             const promptArguments = payload.arguments
                 ?.map((arg) => ({
@@ -246,21 +248,21 @@ export function createPromptsRouter(getAgent: () => DextoAgent) {
             return ctx.json({ prompt }, 201);
         })
         .openapi(deleteCustomRoute, async (ctx) => {
-            const agent = getAgent();
+            const agent = await getAgent(ctx);
             const { name } = ctx.req.valid('param');
             // Hono automatically decodes path parameters, no manual decode needed
             await agent.deleteCustomPrompt(name);
             return ctx.body(null, 204);
         })
         .openapi(getPromptRoute, async (ctx) => {
-            const agent = getAgent();
+            const agent = await getAgent(ctx);
             const { name } = ctx.req.valid('param');
             const definition = await agent.getPromptDefinition(name);
             if (!definition) throw PromptError.notFound(name);
             return ctx.json({ definition });
         })
         .openapi(resolvePromptRoute, async (ctx) => {
-            const agent = getAgent();
+            const agent = await getAgent(ctx);
             const { name } = ctx.req.valid('param');
             const { context, args: argsString } = ctx.req.valid('query');
 

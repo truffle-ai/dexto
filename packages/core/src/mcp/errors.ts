@@ -22,6 +22,20 @@ export class MCPError {
     }
 
     /**
+     * MCP server disconnection failed
+     */
+    static disconnectionFailed(serverName: string, reason: string) {
+        return new DextoRuntimeError(
+            MCPErrorCode.DISCONNECTION_FAILED,
+            ErrorScope.MCP,
+            ErrorType.SYSTEM,
+            `Failed to disconnect MCP server '${serverName}': ${reason}`,
+            { serverName, reason },
+            'Try restarting the application if the server remains in an inconsistent state'
+        );
+    }
+
+    /**
      * MCP protocol error
      */
     static protocolError(message: string, details?: unknown) {
@@ -32,6 +46,20 @@ export class MCPError {
             `MCP protocol error: ${message}`,
             details,
             'Check MCP server compatibility and protocol version'
+        );
+    }
+
+    /**
+     * MCP authentication required
+     */
+    static authenticationRequired(serverName: string, reason?: string) {
+        return new DextoRuntimeError(
+            MCPErrorCode.AUTH_REQUIRED,
+            ErrorScope.MCP,
+            ErrorType.THIRD_PARTY,
+            `Authentication required for MCP server '${serverName}'${reason ? `: ${reason}` : ''}`,
+            { serverName, reason },
+            'Authenticate with the MCP server using the CLI /mcp flow'
         );
     }
 

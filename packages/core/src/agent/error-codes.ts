@@ -17,4 +17,7 @@ export enum AgentErrorCode {
 
     // API layer
     API_VALIDATION_ERROR = 'agent_api_validation_error',
+
+    // Runtime
+    STREAM_FAILED = 'agent_stream_failed',
 }

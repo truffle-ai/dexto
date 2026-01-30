@@ -1,95 +1,71 @@
-import { createContext, useContext, useState, useCallback, ReactNode } from 'react';
-// Import approval types directly from core to preserve discriminated union narrowing
-// (Omit<> breaks discriminated union type narrowing in TypeScript)
-import type { ApprovalRequest, ApprovalResponse } from '@dexto/core';
+/**
+ * Approval Context
+ *
+ * Provides approval handling functionality via React Context.
+ * Wraps the approvalStore to provide a clean API for components.
+ */
 
-// Re-export for consumers
-export type { ApprovalRequest, ApprovalResponse };
+import { createContext, useContext, useCallback, type ReactNode } from 'react';
+import { useApprovalStore } from '@/lib/stores/approvalStore';
+import type { ApprovalRequest } from '@dexto/core';
+
+// =============================================================================
+// Types
+// =============================================================================
 
 interface ApprovalContextType {
-    pendingApproval: ApprovalRequest | null;
+    /**
+     * Handle an incoming approval request (add to store)
+     */
     handleApprovalRequest: (request: ApprovalRequest) => void;
-    handleApprovalResponse: (response: ApprovalResponse) => void;
-    clearApproval: () => void;
 }
 
-const ApprovalContext = createContext<ApprovalContextType | undefined>(undefined);
+// =============================================================================
+// Context
+// =============================================================================
 
-export function ApprovalProvider({ children }: { children: ReactNode }) {
-    const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(null);
-    const [, setQueue] = useState<ApprovalRequest[]>([]);
+const ApprovalContext = createContext<ApprovalContextType | null>(null);
 
-    const processNextInQueue = useCallback(() => {
-        setQueue((prevQueue) => {
-            if (prevQueue.length > 0) {
-                const [next, ...rest] = prevQueue;
-                // Use setTimeout to avoid state update during render
-                setTimeout(() => setPendingApproval(next), 0);
-                return rest;
-            }
-            return prevQueue;
-        });
-    }, []);
+// =============================================================================
+// Provider
+// =============================================================================
 
-    const handleApprovalRequest = useCallback((request: ApprovalRequest) => {
-        setPendingApproval((current) => {
-            if (current) {
-                // Queue the request if one is already pending
-                setQueue((prev) => [...prev, request]);
-                return current;
-            }
-            return request;
-        });
-    }, []);
+interface ApprovalProviderProps {
+    children: ReactNode;
+}
 
-    const handleApprovalResponse = useCallback(
-        (response: ApprovalResponse) => {
-            setPendingApproval((current) => {
-                if (current?.approvalId === response.approvalId) {
-                    // Clear pending approval for any terminal status
-                    if (
-                        response.status === 'approved' ||
-                        response.status === 'denied' ||
-                        response.status === 'cancelled'
-                    ) {
-                        if (response.status === 'cancelled') {
-                            console.debug(
-                                `[ApprovalContext] Approval ${response.approvalId} cancelled: ${response.reason}`
-                            );
-                        }
-                        processNextInQueue();
-                        return null;
-                    }
-                }
-                return current;
-            });
+export function ApprovalProvider({ children }: ApprovalProviderProps) {
+    const addApproval = useApprovalStore((s) => s.addApproval);
+
+    const handleApprovalRequest = useCallback(
+        (request: ApprovalRequest) => {
+            addApproval(request);
         },
-        [processNextInQueue]
+        [addApproval]
     );
 
-    const clearApproval = useCallback(() => {
-        setPendingApproval(null);
-        processNextInQueue();
-    }, [processNextInQueue]);
-
     return (
-        <ApprovalContext.Provider
-            value={{
-                pendingApproval,
-                handleApprovalRequest,
-                handleApprovalResponse,
-                clearApproval,
-            }}
-        >
+        <ApprovalContext.Provider value={{ handleApprovalRequest }}>
             {children}
         </ApprovalContext.Provider>
     );
 }
 
-export function useApproval() {
+// =============================================================================
+// Hook
+// =============================================================================
+
+/**
+ * Hook to access approval handling functions
+ *
+ * @throws Error if used outside ApprovalProvider
+ */
+export function useApproval(): ApprovalContextType {
     const context = useContext(ApprovalContext);
+
     if (!context) {
-        throw new Error('useApproval must be used within ApprovalProvider');
+        throw new Error('useApproval must be used within an ApprovalProvider');
     }
+
     return context;
 }

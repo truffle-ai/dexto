@@ -1,5 +1,7 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
+import type { Context } from 'hono';
 import type { DextoAgent, AgentCard } from '@dexto/core';
+import { logger } from '@dexto/core';
 import { createHealthRouter } from './routes/health.js';
 import { createGreetingRouter } from './routes/greeting.js';
 import { createMessagesRouter } from './routes/messages.js';
@@ -17,6 +19,12 @@ import { createMemoryRouter } from './routes/memory.js';
 import { createAgentsRouter, type AgentsRouterContext } from './routes/agents.js';
 import { createApprovalsRouter } from './routes/approvals.js';
 import { createQueueRouter } from './routes/queue.js';
+import { createOpenRouterRouter } from './routes/openrouter.js';
+import { createKeyRouter } from './routes/key.js';
+import { createToolsRouter } from './routes/tools.js';
+import { createDiscoveryRouter } from './routes/discovery.js';
+import { createModelsRouter } from './routes/models.js';
+import { createDextoAuthRouter } from './routes/dexto-auth.js';
 import {
     createStaticRouter,
     createSpaFallbackHandler,
@@ -58,9 +66,15 @@ const dummyAgentsContext: AgentsRouterContext = {
     getActiveAgentId: () => undefined,
 };
 
+// Type for async getAgent with context support
+export type GetAgentFn = (ctx: Context) => DextoAgent | Promise<DextoAgent>;
+
 export type CreateDextoAppOptions = {
+    /**
+     * Prefix for API routes. Defaults to '/api'.
+     */
     apiPrefix?: string;
-    getAgent: () => DextoAgent;
+    getAgent: GetAgentFn;
     getAgentCard: () => AgentCard;
     approvalCoordinator: ApprovalCoordinator;
     webhookSubscriber: WebhookEventSubscriber;
@@ -70,10 +84,16 @@ export type CreateDextoAppOptions = {
     webRoot?: string;
     /** Runtime configuration to inject into WebUI (analytics, etc.) */
     webUIConfig?: WebUIRuntimeConfig;
+    /** Disable built-in auth middleware. Use when you have your own auth layer. */
+    disableAuth?: boolean;
 };
+
+// Default API prefix as a const literal for type inference
+const DEFAULT_API_PREFIX = '/api' as const;
 
 export function createDextoApp(options: CreateDextoAppOptions) {
     const {
+        apiPrefix,
         getAgent,
         getAgentCard,
         approvalCoordinator,
@@ -82,42 +102,70 @@ export function createDextoApp(options: CreateDextoAppOptions) {
         agentsContext,
         webRoot,
         webUIConfig,
+        disableAuth = false,
     } = options;
+
+    // Security check: Warn when auth is disabled
+    if (disableAuth) {
+        logger.warn(
+            `⚠️  Authentication disabled (disableAuth=true). createAuthMiddleware() skipped. Ensure external auth is in place.`
+        );
+    }
+
     const app = new OpenAPIHono({ strict: false });
 
     // Global CORS middleware for cross-origin requests (must be first)
     app.use('*', createCorsMiddleware());
 
     // Global authentication middleware (after CORS, before routes)
-    app.use('*', createAuthMiddleware());
+    // Can be disabled when using an external auth layer
+    if (!disableAuth) {
+        app.use('*', createAuthMiddleware());
+    }
 
     // Global error handling for all routes
     app.onError((err, ctx) => handleHonoError(ctx, err));
 
-    // Apply middleware to all /api routes
-    app.use('/api/*', prettyJsonMiddleware);
-    app.use('/api/*', redactionMiddleware);
+    // Normalize prefix: strip trailing slashes, treat '' as '/'
+    const rawPrefix = apiPrefix ?? DEFAULT_API_PREFIX;
+    const normalizedPrefix = rawPrefix === '' ? '/' : rawPrefix.replace(/\/+$/, '') || '/';
+    const middlewarePattern = normalizedPrefix === '/' ? '/*' : `${normalizedPrefix}/*`;
 
-    // Mount all API routers directly at /api for proper type inference
+    app.use(middlewarePattern, prettyJsonMiddleware);
+    app.use(middlewarePattern, redactionMiddleware);
+
+    // Cast to literal type for RPC client type inference (webui uses default '/api')
+    const routePrefix = normalizedPrefix as typeof DEFAULT_API_PREFIX;
+
+    // Mount all API routers at the configured prefix for proper type inference
     // Each router is mounted individually so Hono can properly track route types
     const fullApp = app
+        // Public health endpoint
         .route('/health', createHealthRouter(getAgent))
+        // Follows A2A discovery protocol
         .route('/', createA2aRouter(getAgentCard))
         .route('/', createA2AJsonRpcRouter(getAgent, sseSubscriber))
         .route('/', createA2ATasksRouter(getAgent, sseSubscriber))
-        .route('/api', createGreetingRouter(getAgent))
-        .route('/api', createMessagesRouter(getAgent, approvalCoordinator))
-        .route('/api', createLlmRouter(getAgent))
-        .route('/api', createSessionsRouter(getAgent))
-        .route('/api', createSearchRouter(getAgent))
-        .route('/api', createMcpRouter(getAgent))
-        .route('/api', createWebhooksRouter(getAgent, webhookSubscriber))
-        .route('/api', createPromptsRouter(getAgent))
-        .route('/api', createResourcesRouter(getAgent))
-        .route('/api', createMemoryRouter(getAgent))
-        .route('/api', createApprovalsRouter(getAgent, approvalCoordinator))
-        .route('/api', createAgentsRouter(getAgent, agentsContext || dummyAgentsContext))
-        .route('/api', createQueueRouter(getAgent));
+        // Add agent-specific routes
+        .route(routePrefix, createGreetingRouter(getAgent))
+        .route(routePrefix, createMessagesRouter(getAgent, approvalCoordinator))
+        .route(routePrefix, createLlmRouter(getAgent))
+        .route(routePrefix, createSessionsRouter(getAgent))
+        .route(routePrefix, createSearchRouter(getAgent))
+        .route(routePrefix, createMcpRouter(getAgent))
+        .route(routePrefix, createWebhooksRouter(getAgent, webhookSubscriber))
+        .route(routePrefix, createPromptsRouter(getAgent))
+        .route(routePrefix, createResourcesRouter(getAgent))
+        .route(routePrefix, createMemoryRouter(getAgent))
+        .route(routePrefix, createApprovalsRouter(getAgent, approvalCoordinator))
+        .route(routePrefix, createAgentsRouter(getAgent, agentsContext || dummyAgentsContext))
+        .route(routePrefix, createQueueRouter(getAgent))
+        .route(routePrefix, createOpenRouterRouter())
+        .route(routePrefix, createKeyRouter())
+        .route(routePrefix, createToolsRouter(getAgent))
+        .route(routePrefix, createDiscoveryRouter())
+        .route(routePrefix, createModelsRouter())
+        .route(routePrefix, createDextoAuthRouter(getAgent));
 
     // Expose OpenAPI document
     // Current approach uses @hono/zod-openapi's .doc() method for OpenAPI spec generation
@@ -206,6 +254,27 @@ export function createDextoApp(options: CreateDextoAppOptions) {
             {
                 name: 'queue',
                 description: 'Manage message queue for busy sessions',
+            },
+            {
+                name: 'openrouter',
+                description: 'OpenRouter model validation and cache management',
+            },
+            {
+                name: 'discovery',
+                description: 'Discover available providers and capabilities',
+            },
+            {
+                name: 'tools',
+                description:
+                    'List and inspect available tools from internal, custom, and MCP sources',
+            },
+            {
+                name: 'models',
+                description: 'List and manage local GGUF models and Ollama models',
+            },
+            {
+                name: 'auth',
+                description: 'Dexto authentication status and management',
             },
         ],
     });

@@ -47,10 +47,10 @@ systemPrompt:
         - After each tool interaction, decide whether additional context is needed or if you can deliver a confident answer
 
         Stay practical, keep responses focused on the user’s goal, and highlight any assumptions or risks you notice.
-    - id: dateTime
+    - id: date
       type: dynamic
       priority: 10
-      source: dateTime
+      source: date
       enabled: true
 
 # Storage configuration

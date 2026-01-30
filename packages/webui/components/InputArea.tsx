@@ -2,13 +2,7 @@ import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import ReactDOM from 'react-dom';
 import TextareaAutosize from 'react-textarea-autosize';
 import { Button } from './ui/button';
-import {
-    ChatInputContainer,
-    ButtonFooter,
-    StreamToggle,
-    AttachButton,
-    RecordButton,
-} from './ChatInput';
+import { ChatInputContainer, ButtonFooter, AttachButton, RecordButton } from './ChatInput';
 import ModelPickerModal from './ModelPicker';
 import {
     SendHorizontal,
@@ -24,6 +18,8 @@ import { Alert, AlertDescription } from './ui/alert';
 import { useChatContext } from './hooks/ChatContext';
 import { useFontsReady } from './hooks/useFontsReady';
 import { cn, filterAndSortResources } from '../lib/utils';
+import { useCurrentSessionId, useSessionProcessing } from '@/lib/stores';
+import { useCurrentLLM } from './hooks/useCurrentLLM';
 import ResourceAutocomplete from './ResourceAutocomplete';
 import type { ResourceMetadata as UIResourceMetadata } from '@dexto/core';
 import { useResources } from './hooks/useResources';
@@ -35,7 +31,7 @@ import { parseSlashInput, splitKeyValueAndPositional } from '../lib/parseSlash';
 import { useAnalytics } from '@/lib/analytics/index.js';
 import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/queryKeys';
-import { useLLMCatalog } from './hooks/useLLM';
+import { useModelCapabilities } from './hooks/useLLM';
 import { useResolvePrompt } from './hooks/usePrompts';
 import { useInputHistory } from './hooks/useInputHistory';
 import { useQueuedMessages, useRemoveQueuedMessage, useQueueMessage } from './hooks/useQueue';
@@ -80,9 +76,15 @@ export default function InputArea({
     const [isRecording, setIsRecording] = useState(false);
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
 
-    // Get current session context to ensure model switch applies to the correct session
-    const { currentSessionId, isStreaming, setStreaming, cancel, processing, currentLLM } =
-        useChatContext();
+    // Get state from centralized selectors
+    const currentSessionId = useCurrentSessionId();
+    const processing = useSessionProcessing(currentSessionId);
+
+    // Get actions from ChatContext
+    const { cancel } = useChatContext();
+
+    // Get state from stores and hooks
+    const { data: currentLLM } = useCurrentLLM(currentSessionId);
 
     // Input history for Up/Down navigation
     const { invalidateHistory, navigateUp, navigateDown, resetCursor, isBrowsing } =
@@ -192,26 +194,18 @@ export default function InputArea({
         }
     }, [text]);
 
-    // Fetch supported file types for the active model to drive Attach menu
-    const { data: catalogData } = useLLMCatalog({ mode: 'flat' });
+    // Fetch model capabilities (supported file types) via dedicated endpoint
+    // This handles gateway providers (dexto, openrouter) by resolving to underlying model capabilities
+    const { data: capabilities } = useModelCapabilities(currentLLM?.provider, currentLLM?.model);
 
-    // Extract supported file types for the current model
+    // Extract supported file types from capabilities
     useEffect(() => {
-        const provider = currentLLM?.provider;
-        const model = currentLLM?.model;
-        if (!provider || !model || !catalogData) {
+        if (capabilities?.supportedFileTypes) {
+            setSupportedFileTypes(capabilities.supportedFileTypes);
+        } else {
             setSupportedFileTypes([]);
-            return;
         }
-        // Type guard: flat mode returns { models: [...] }
-        if (!('models' in catalogData)) {
-            setSupportedFileTypes([]);
-            return;
-        }
-        const models = catalogData.models;
-        const match = models.find((m) => m.provider === provider && m.name === model);
-        setSupportedFileTypes(match?.supportedFileTypes || []);
-    }, [currentLLM?.provider, currentLLM?.model, catalogData]);
+    }, [capabilities]);
 
     // NOTE: We intentionally do not manually resize the textarea. We rely on
     // CSS max-height + overflow to keep layout stable.
@@ -645,7 +639,7 @@ export default function InputArea({
 
                 // Track file upload
                 if (currentSessionId) {
-                    analyticsRef.current.trackFileUploaded({
+                    analyticsRef.current.trackFileAttached({
                         fileType: 'application/pdf',
                         fileSizeBytes: file.size,
                         sessionId: currentSessionId,
@@ -710,7 +704,7 @@ export default function InputArea({
 
                         // Track audio recording upload
                         if (currentSessionId) {
-                            analyticsRef.current.trackFileUploaded({
+                            analyticsRef.current.trackFileAttached({
                                 fileType: mimeType,
                                 fileSizeBytes: blob.size,
                                 sessionId: currentSessionId,
@@ -776,7 +770,7 @@ export default function InputArea({
 
                 // Track image upload
                 if (currentSessionId) {
-                    analyticsRef.current.trackImageUploaded({
+                    analyticsRef.current.trackImageAttached({
                         imageType: mimeType,
                         imageSizeBytes: file.size,
                         sessionId: currentSessionId,
@@ -840,7 +834,7 @@ export default function InputArea({
 
                 // Track file upload
                 if (currentSessionId) {
-                    analyticsRef.current.trackFileUploaded({
+                    analyticsRef.current.trackFileAttached({
                         fileType: file.type,
                         fileSizeBytes: file.size,
                         sessionId: currentSessionId,
@@ -1099,18 +1093,6 @@ export default function InputArea({
                             }
                             rightButtons={
                                 <div className="flex items-center gap-2">
-                                    <div
-                                        className={cn(
-                                            'hidden',
-                                            isSessionsPanelOpen ? 'lg:block' : 'md:block'
-                                        )}
-                                    >
-                                        <StreamToggle
-                                            isStreaming={isStreaming}
-                                            onStreamingChange={setStreaming}
-                                        />
-                                    </div>
-
                                     <ModelPickerModal />
 
                                     {/* Stop/Cancel button shown when a run is in progress */}

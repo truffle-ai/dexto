@@ -8,22 +8,26 @@ import type {
     CommandConfirmationMetadataSchema,
     ElicitationMetadataSchema,
     CustomApprovalMetadataSchema,
+    DirectoryAccessMetadataSchema,
     BaseApprovalRequestSchema,
     ToolConfirmationRequestSchema,
     CommandConfirmationRequestSchema,
     ElicitationRequestSchema,
     CustomApprovalRequestSchema,
+    DirectoryAccessRequestSchema,
     ApprovalRequestSchema,
     ApprovalRequestDetailsSchema,
     ToolConfirmationResponseDataSchema,
     CommandConfirmationResponseDataSchema,
     ElicitationResponseDataSchema,
     CustomApprovalResponseDataSchema,
+    DirectoryAccessResponseDataSchema,
     BaseApprovalResponseSchema,
     ToolConfirmationResponseSchema,
     CommandConfirmationResponseSchema,
     ElicitationResponseSchema,
     CustomApprovalResponseSchema,
+    DirectoryAccessResponseSchema,
     ApprovalResponseSchema,
 } from './schemas.js';
 
@@ -49,6 +53,12 @@ export enum ApprovalType {
      * Metadata contains: schema, prompt, serverName, context
      */
     ELICITATION = 'elicitation',
+
+    /**
+     * Approval for accessing files outside the working directory
+     * Metadata contains: path, parentDir, operation, toolName
+     */
+    DIRECTORY_ACCESS = 'directory_access',
 
     /**
      * Custom approval types for extensibility
@@ -115,6 +125,12 @@ export type ElicitationMetadata = z.output<typeof ElicitationMetadataSchema>;
  */
 export type CustomApprovalMetadata = z.output<typeof CustomApprovalMetadataSchema>;
 
+/**
+ * Directory access metadata
+ * Derived from DirectoryAccessMetadataSchema
+ */
+export type DirectoryAccessMetadata = z.output<typeof DirectoryAccessMetadataSchema>;
+
 // ============================================================================
 // Request Types - Derived from Zod schemas
 // ============================================================================
@@ -148,6 +164,12 @@ export type ElicitationRequest = z.output<typeof ElicitationRequestSchema>;
  * Derived from CustomApprovalRequestSchema
  */
 export type CustomApprovalRequest = z.output<typeof CustomApprovalRequestSchema>;
+
+/**
+ * Directory access request
+ * Derived from DirectoryAccessRequestSchema
+ */
+export type DirectoryAccessRequest = z.output<typeof DirectoryAccessRequestSchema>;
 
 /**
  * Union of all approval request types
@@ -185,6 +207,12 @@ export type ElicitationResponseData = z.output<typeof ElicitationResponseDataSch
  */
 export type CustomApprovalResponseData = z.output<typeof CustomApprovalResponseDataSchema>;
 
+/**
+ * Directory access response data
+ * Derived from DirectoryAccessResponseDataSchema
+ */
+export type DirectoryAccessResponseData = z.output<typeof DirectoryAccessResponseDataSchema>;
+
 // ============================================================================
 // Response Types - Derived from Zod schemas
 // ============================================================================
@@ -218,6 +246,12 @@ export type ElicitationResponse = z.output<typeof ElicitationResponseSchema>;
  * Derived from CustomApprovalResponseSchema
  */
 export type CustomApprovalResponse = z.output<typeof CustomApprovalResponseSchema>;
+
+/**
+ * Directory access response
+ * Derived from DirectoryAccessResponseSchema
+ */
+export type DirectoryAccessResponse = z.output<typeof DirectoryAccessResponseSchema>;
 
 /**
  * Union of all approval response types
@@ -293,4 +327,26 @@ export interface ApprovalHandler {
      * @remarks Not all handlers track pending requests (e.g., auto-approve handlers)
      */
     getPending?(): string[];
+
+    /**
+     * Get full pending approval requests (optional)
+     * @returns Array of pending approval requests
+     * @remarks Not all handlers track pending requests (e.g., auto-approve handlers)
+     */
+    getPendingRequests?(): ApprovalRequest[];
+
+    /**
+     * Auto-approve pending requests that match a predicate (optional)
+     * Used when a pattern is remembered to auto-approve other parallel requests
+     * that would now match the same pattern.
+     *
+     * @param predicate Function that returns true for requests that should be auto-approved
+     * @param responseData Optional data to include in the auto-approval response
+     * @returns Number of requests that were auto-approved
+     * @remarks Not all handlers support this (e.g., auto-approve handlers don't need it)
+     */
+    autoApprovePending?(
+        predicate: (request: ApprovalRequest) => boolean,
+        responseData?: Record<string, unknown>
+    ): number;
 }

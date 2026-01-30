@@ -3,10 +3,514 @@
  * Helpers for creating and formatting messages
  */
 
-import type { DextoAgent } from '@dexto/core';
-import { getDextoPath, logger } from '@dexto/core';
+import path from 'path';
+import os from 'os';
+import type { DextoAgent, InternalMessage, ContentPart, ToolCall } from '@dexto/core';
+import { isTextPart, isAssistantMessage, isToolMessage } from '@dexto/core';
 import type { Message } from '../state/types.js';
 import { generateMessageId } from './idGenerator.js';
+
+/**
+ * Regex to detect skill invocation messages.
+ * Matches: <skill-invocation>...skill: "config:skill-name"...</skill-invocation>
+ * Works for both fork and inline skills.
+ */
+const SKILL_INVOCATION_REGEX =
+    /<skill-invocation>[\s\S]*?skill:\s*"(?:config:)?([^"]+)"[\s\S]*?<\/skill-invocation>/;
+
+/**
+ * Formats a skill invocation message for clean display.
+ * Converts verbose <skill-invocation> blocks to clean /skill-name format.
+ * Works for both fork skills (just the tag) and inline skills (tag + content).
+ *
+ * @param content - The message content to check and format
+ * @returns Formatted content if it's a skill invocation, original content otherwise
+ */
+export function formatSkillInvocationMessage(content: string): string {
+    const match = content.match(SKILL_INVOCATION_REGEX);
+    if (match) {
+        const skillName = match[1];
+        // Extract task context if present
+        const contextMatch = content.match(/Task context:\s*(.+?)(?:\n|$)/);
+        if (contextMatch) {
+            return `/${skillName} ${contextMatch[1]}`;
+        }
+        return `/${skillName}`;
+    }
+    return content;
+}
+
+/**
+ * Checks if a message content is a skill invocation.
+ */
+export function isSkillInvocationMessage(content: string): boolean {
+    return SKILL_INVOCATION_REGEX.test(content);
+}
+
+/**
+ * Convert absolute path to display-friendly relative path.
+ * Strategy:
+ * 1. If path is under cwd → relative from cwd (e.g., "src/file.ts")
+ * 2. If path is under home → use tilde (e.g., "~/Projects/file.ts")
+ * 3. Otherwise → return absolute path
+ */
+export function makeRelativePath(absolutePath: string, cwd: string = process.cwd()): string {
+    // Normalize paths for comparison
+    const normalizedPath = path.normalize(absolutePath);
+    const normalizedCwd = path.normalize(cwd);
+    const homeDir = os.homedir();
+
+    // If under cwd, return relative path
+    if (normalizedPath.startsWith(normalizedCwd + path.sep) || normalizedPath === normalizedCwd) {
+        const relative = path.relative(normalizedCwd, normalizedPath);
+        return relative || '.';
+    }
+
+    // If under home directory, use tilde
+    if (normalizedPath.startsWith(homeDir + path.sep) || normalizedPath === homeDir) {
+        return '~' + normalizedPath.slice(homeDir.length);
+    }
+
+    // Return absolute path as-is
+    return absolutePath;
+}
+
+/**
+ * Format a path for display: relative + center-truncate if needed.
+ * @param absolutePath - The absolute file path
+ * @param maxWidth - Maximum display width (default 60)
+ * @param cwd - Current working directory for relative path calculation
+ */
+export function formatPathForDisplay(
+    absolutePath: string,
+    maxWidth: number = 60,
+    cwd: string = process.cwd()
+): string {
+    // First convert to relative
+    const relativePath = makeRelativePath(absolutePath, cwd);
+
+    // If fits, return as-is
+    if (relativePath.length <= maxWidth) {
+        return relativePath;
+    }
+
+    // Apply center-truncation
+    return centerTruncatePath(relativePath, maxWidth);
+}
+
+/**
+ * Center-truncate a file path to keep the filename visible.
+ * e.g., "/Users/karaj/Projects/very/long/path/to/file.ts" → "/Users/karaj/…/to/file.ts"
+ *
+ * Strategy:
+ * 1. If path fits within maxWidth, return as-is
+ * 2. Keep first segment (root/home) and last 2 segments (parent + filename)
+ * 3. Add "…" in the middle
+ */
+export function centerTruncatePath(filePath: string, maxWidth: number): string {
+    if (filePath.length <= maxWidth) {
+        return filePath;
+    }
+
+    const sep = path.sep;
+    const segments = filePath.split(sep).filter(Boolean);
+
+    if (segments.length <= 3) {
+        // Too few segments to center-truncate, just end-truncate
+        return filePath.slice(0, maxWidth - 1) + '…';
+    }
+
+    // Keep first segment and last 2 segments
+    const first = filePath.startsWith(sep) ? sep + segments[0] : segments[0];
+    const lastTwo = segments.slice(-2).join(sep);
+
+    const truncated = `${first}${sep}…${sep}${lastTwo}`;
+
+    if (truncated.length <= maxWidth) {
+        return truncated;
+    }
+
+    // Still too long - try with just the filename
+    const filename = segments[segments.length - 1] || '';
+    const withJustFilename = `…${sep}${filename}`;
+
+    if (withJustFilename.length <= maxWidth) {
+        return withJustFilename;
+    }
+
+    // Filename itself is too long, end-truncate it
+    return filename.slice(0, maxWidth - 1) + '…';
+}
+
+/**
+ * Tool-specific display configuration.
+ * Controls how each tool is displayed in the UI - name, which args to show, etc.
+ */
+interface ToolDisplayConfig {
+    /** User-friendly display name */
+    displayName: string;
+    /** Which args to display, in order */
+    argsToShow: string[];
+    /** Primary arg shown without key name (first in argsToShow) */
+    primaryArg?: string;
+}
+
+/**
+ * Per-tool display configurations.
+ * Each tool specifies exactly which arguments to show and how.
+ */
+const TOOL_CONFIGS: Record<string, ToolDisplayConfig> = {
+    // File tools - show file_path as primary
+    read_file: { displayName: 'Read', argsToShow: ['file_path'], primaryArg: 'file_path' },
+    write_file: { displayName: 'Write', argsToShow: ['file_path'], primaryArg: 'file_path' },
+    edit_file: { displayName: 'Update', argsToShow: ['file_path'], primaryArg: 'file_path' },
+
+    // Search tools - show pattern as primary, path as secondary
+    glob_files: {
+        displayName: 'Find files',
+        argsToShow: ['pattern', 'path'],
+        primaryArg: 'pattern',
+    },
+    grep_content: {
+        displayName: 'Search files',
+        argsToShow: ['pattern', 'path'],
+        primaryArg: 'pattern',
+    },
+
+    // Bash - show command only, skip description
+    bash_exec: { displayName: 'Bash', argsToShow: ['command'], primaryArg: 'command' },
+    bash_output: {
+        displayName: 'BashOutput',
+        argsToShow: ['process_id'],
+        primaryArg: 'process_id',
+    },
+    kill_process: { displayName: 'Kill', argsToShow: ['process_id'], primaryArg: 'process_id' },
+
+    // User interaction
+    ask_user: { displayName: 'Ask', argsToShow: ['question'], primaryArg: 'question' },
+
+    // Agent spawning - handled specially in formatToolHeader for dynamic agentId
+    spawn_agent: { displayName: 'Agent', argsToShow: ['task'], primaryArg: 'task' },
+
+    // Skill invocation - handled specially in formatToolHeader to show clean skill name
+    invoke_skill: { displayName: 'Skill', argsToShow: ['skill'], primaryArg: 'skill' },
+
+    plan_create: { displayName: 'Plan', argsToShow: [] },
+    plan_read: { displayName: 'Plan', argsToShow: [] },
+    plan_update: { displayName: 'Plan', argsToShow: [] },
+    plan_review: { displayName: 'Plan', argsToShow: [] },
+
+    todo_write: { displayName: 'UpdateTasks', argsToShow: [] },
+};
+
+/**
+ * Gets the display config for a tool.
+ * Handles internal-- prefix by stripping it before lookup.
+ */
+function getToolConfig(toolName: string): ToolDisplayConfig | undefined {
+    // Try direct lookup first
+    if (TOOL_CONFIGS[toolName]) {
+        return TOOL_CONFIGS[toolName];
+    }
+    // Strip internal-- prefix and try again
+    if (toolName.startsWith('internal--')) {
+        const baseName = toolName.replace('internal--', '');
+        return TOOL_CONFIGS[baseName];
+    }
+
+    // Strip "custom--" prefix and try again
+    if (toolName.startsWith('custom--')) {
+        const baseName = toolName.replace('custom--', '');
+        return TOOL_CONFIGS[baseName];
+    }
+    return undefined;
+}
+
+/**
+ * Gets a user-friendly display name for a tool.
+ * Returns the friendly name if known, otherwise returns the original name
+ * with any "internal--" prefix stripped.
+ * MCP tools keep their server prefix for clarity (e.g., "mcp_server__tool").
+ */
+export function getToolDisplayName(toolName: string): string {
+    const config = getToolConfig(toolName);
+    if (config) {
+        return config.displayName;
+    }
+    // Strip "internal--" prefix for unknown internal tools
+    if (toolName.startsWith('internal--')) {
+        return toolName.replace('internal--', '');
+    }
+    // Strip "custom--" prefix for custom tools
+    if (toolName.startsWith('custom--')) {
+        return toolName.replace('custom--', '');
+    }
+    // MCP tools: strip mcp-- or mcp__ prefix and server name for clean display
+    if (toolName.startsWith('mcp--')) {
+        const parts = toolName.split('--');
+        if (parts.length >= 3) {
+            return parts.slice(2).join('--');
+        }
+        return toolName.substring(5);
+    }
+    if (toolName.startsWith('mcp__')) {
+        const parts = toolName.substring(5).split('__');
+        if (parts.length >= 2) {
+            return parts.slice(1).join('__');
+        }
+        return toolName.substring(5);
+    }
+    return toolName;
+}
+
+/**
+ * Gets the tool type badge for display.
+ * Returns: 'internal', MCP server name, or 'custom'
+ */
+export function getToolTypeBadge(toolName: string): string {
+    // Internal tools
+    if (toolName.startsWith('internal--') || toolName.startsWith('internal__')) {
+        return 'internal';
+    }
+
+    // MCP tools with server name
+    if (toolName.startsWith('mcp--')) {
+        const parts = toolName.split('--');
+        if (parts.length >= 3 && parts[1]) {
+            return `MCP: ${parts[1]}`; // Format: 'MCP: github', 'MCP: postgres'
+        }
+        return 'MCP';
+    }
+
+    if (toolName.startsWith('mcp__')) {
+        const parts = toolName.substring(5).split('__');
+        if (parts.length >= 2 && parts[0]) {
+            return `MCP: ${parts[0]}`; // Format: 'MCP: servername'
+        }
+        return 'MCP';
+    }
+
+    // Custom tools
+    if (toolName.startsWith('custom--')) {
+        return 'custom';
+    }
+
+    // Unknown - likely custom
+    return 'custom';
+}
+
+/**
+ * Result of formatting a tool header for display
+ */
+export interface FormattedToolHeader {
+    /** User-friendly display name (e.g., "Explore", "Read") */
+    displayName: string;
+    /** Formatted arguments string (e.g., "file.ts" or "pattern, path: /src") */
+    argsFormatted: string;
+    /** Tool type badge (e.g., "internal", "custom", "MCP: github") */
+    badge: string;
+    /** Full formatted header string (e.g., "Explore(task) [custom]") */
+    header: string;
+}
+
+/**
+ * Formats a tool call header for consistent display across CLI.
+ * Used by both tool messages and approval prompts.
+ *
+ * Handles special cases like spawn_agent (uses agentId as display name).
+ *
+ * @param toolName - Raw tool name (may include prefixes like "custom--")
+ * @param args - Tool arguments object
+ * @returns Formatted header components and full string
+ */
+export function formatToolHeader(
+    toolName: string,
+    args: Record<string, unknown> = {}
+): FormattedToolHeader {
+    let displayName = getToolDisplayName(toolName);
+    const argsFormatted = formatToolArgsForDisplay(toolName, args);
+    const badge = getToolTypeBadge(toolName);
+
+    // Normalize tool name to handle all prefixes (internal--, custom--)
+    const normalizedToolName = toolName.replace(/^(?:internal--|custom--)/, '');
+
+    // Special handling for spawn_agent: use agentId as display name
+    const isSpawnAgent = normalizedToolName === 'spawn_agent';
+    if (isSpawnAgent && args.agentId) {
+        const agentId = String(args.agentId);
+        const agentLabel = agentId.replace(/-agent$/, '');
+        displayName = agentLabel.charAt(0).toUpperCase() + agentLabel.slice(1);
+    }
+
+    // Special handling for invoke_skill: show skill as /skill-name
+    const isInvokeSkill = normalizedToolName === 'invoke_skill';
+    if (isInvokeSkill && args.skill) {
+        const skillName = String(args.skill);
+        // Extract display name from skill identifier (e.g., "config:test-fork" -> "test-fork")
+        const colonIndex = skillName.indexOf(':');
+        const displaySkillName = colonIndex >= 0 ? skillName.slice(colonIndex + 1) : skillName;
+        // Override args display to show clean slash command format
+        return {
+            displayName: 'Skill',
+            argsFormatted: `/${displaySkillName}`,
+            badge,
+            header: `Skill(/${displaySkillName})`,
+        };
+    }
+
+    // Only show badge for MCP tools (external tools worth distinguishing)
+    const isMcpTool = badge.startsWith('MCP');
+    const badgeSuffix = isMcpTool ? ` [${badge}]` : '';
+
+    // Format: DisplayName(args) [badge] (badge only for MCP)
+    const header = argsFormatted
+        ? `${displayName}(${argsFormatted})${badgeSuffix}`
+        : `${displayName}()${badgeSuffix}`;
+
+    return {
+        displayName,
+        argsFormatted,
+        badge,
+        header,
+    };
+}
+
+/**
+ * Fallback primary argument names for unknown tools.
+ * Used when we don't have a specific config for a tool.
+ */
+const FALLBACK_PRIMARY_ARGS = new Set([
+    'file_path',
+    'path',
+    'pattern',
+    'command',
+    'query',
+    'question',
+    'url',
+]);
+
+/**
+ * Arguments that are file paths and should use relative path formatting.
+ * These get converted to relative paths and center-truncated if needed.
+ */
+const PATH_ARGS = new Set(['file_path', 'path']);
+
+/**
+ * Arguments that should never be truncated (urls, task descriptions, etc.)
+ * These provide important context that users need to see in full.
+ * Note: 'command' is handled specially - single-line commands are not truncated,
+ * but multi-line commands (heredocs) are truncated to first line only.
+ */
+const NEVER_TRUNCATE_ARGS = new Set(['url', 'task', 'pattern', 'question']);
+
+/**
+ * Formats tool arguments for display.
+ * Format: ToolName(primary_arg) or ToolName(primary_arg, key: value)
+ *
+ * Uses tool-specific config to determine which args to show.
+ * - File paths: converted to relative paths, center-truncated if needed
+ * - Commands/URLs: shown in full (never truncated)
+ * - Other args: truncated at 40 chars
+ */
+export function formatToolArgsForDisplay(toolName: string, args: Record<string, unknown>): string {
+    const entries = Object.entries(args);
+    if (entries.length === 0) return '';
+
+    const config = getToolConfig(toolName);
+    const parts: string[] = [];
+
+    /**
+     * Format a single argument value for display
+     */
+    const formatArgValue = (argName: string, value: unknown): string => {
+        const strValue = typeof value === 'string' ? value : JSON.stringify(value);
+
+        // File paths: use relative path (no truncation)
+        if (PATH_ARGS.has(argName)) {
+            return makeRelativePath(strValue);
+        }
+
+        // Commands: show single-line in full, truncate multi-line (heredocs) to first line
+        if (argName === 'command') {
+            const newlineIndex = strValue.indexOf('\n');
+            if (newlineIndex === -1) {
+                // Single-line command: show in full (useful for complex pipes)
+                return strValue;
+            }
+            // Multi-line command (heredoc): show first line only
+            return strValue.slice(0, newlineIndex) + '...';
+        }
+
+        // URLs: never truncate
+        if (NEVER_TRUNCATE_ARGS.has(argName)) {
+            return strValue;
+        }
+
+        // Other args: simple truncation
+        return strValue.length > 40 ? strValue.slice(0, 37) + '...' : strValue;
+    };
+
+    if (config) {
+        // Use tool-specific config
+        for (const argName of config.argsToShow) {
+            if (!(argName in args)) continue;
+            if (argName === 'description') continue; // Skip description field
+            if (parts.length >= 3) break;
+
+            const formattedValue = formatArgValue(argName, args[argName]);
+
+            if (argName === config.primaryArg) {
+                // Primary arg without key name
+                parts.unshift(formattedValue);
+            } else {
+                // Secondary args with key name
+                parts.push(`${argName}: ${formattedValue}`);
+            }
+        }
+    } else {
+        // Fallback for unknown tools (MCP, etc.)
+        for (const [key, value] of entries) {
+            if (key === 'description') continue; // Skip description field
+            if (parts.length >= 3) break;
+
+            const formattedValue = formatArgValue(key, value);
+
+            if (FALLBACK_PRIMARY_ARGS.has(key) || PATH_ARGS.has(key)) {
+                // Primary arg without key name
+                parts.unshift(formattedValue);
+            } else {
+                // Other args with key name
+                parts.push(`${key}: ${formattedValue}`);
+            }
+        }
+    }
+
+    return parts.join(', ');
+}
+
+/**
+ * Formats tool arguments for display (compact preview).
+ * @deprecated Use formatToolArgsForDisplay instead
+ */
+export function formatToolArgsPreview(
+    args: Record<string, unknown>,
+    maxLength: number = 60
+): string {
+    const entries = Object.entries(args);
+    if (entries.length === 0) return '';
+
+    // Show key parameters in a compact format
+    const preview = entries
+        .slice(0, 3) // Max 3 params
+        .map(([key, value]) => {
+            const strValue = typeof value === 'string' ? value : JSON.stringify(value);
+            const truncated = strValue.length > 30 ? strValue.slice(0, 27) + '...' : strValue;
+            return `${key}: "${truncated}"`;
+        })
+        .join(', ');
+
+    return preview.length > maxLength ? preview.slice(0, maxLength - 3) + '...' : preview;
+}
 
 /**
  * Creates a user message
@@ -17,6 +521,20 @@ export function createUserMessage(content: string): Message {
         role: 'user',
         content,
         timestamp: new Date(),
+    };
+}
+
+/**
+ * Creates a queued user message (shown when message is queued while processing)
+ */
+export function createQueuedUserMessage(content: string, queuePosition: number): Message {
+    return {
+        id: generateMessageId('user-queued'),
+        role: 'user',
+        content,
+        timestamp: new Date(),
+        isQueued: true,
+        queuePosition,
     };
 }
 
@@ -71,48 +589,145 @@ export function createStreamingMessage(): Message {
 }
 
 /**
- * Extracts text content from message content (handles string or content parts array)
+ * Extracts text content from message content (handles ContentPart array or null)
  */
-function extractTextContent(content: any): string {
-    // Simple string content
-    if (typeof content === 'string') {
-        return content;
+function extractTextContent(content: ContentPart[] | null): string {
+    if (!content) {
+        return '';
     }
 
-    // Array of content parts (from Anthropic/OpenAI format)
-    if (Array.isArray(content)) {
-        return content
-            .filter((part: any) => part.type === 'text')
-            .map((part: any) => part.text || '')
-            .join('\n');
+    return content
+        .filter(isTextPart)
+        .map((part) => part.text)
+        .join('\n');
+}
+
+/**
+ * Generates a preview of tool result content for display
+ */
+function generateToolResultPreview(content: ContentPart[]): string {
+    const textContent = extractTextContent(content);
+    if (!textContent) return '';
+
+    const lines = textContent.split('\n');
+    const previewLines = lines.slice(0, 5);
+    let preview = previewLines.join('\n');
+
+    // Truncate if too long
+    if (preview.length > 400) {
+        preview = preview.slice(0, 397) + '...';
+    } else if (lines.length > 5) {
+        preview += '\n...';
     }
 
-    // Fallback for unexpected formats
-    return String(content);
+    return preview;
 }
 
 /**
  * Converts session history messages to UI messages
  */
-export function convertHistoryToUIMessages(history: any[], sessionId: string): Message[] {
+export function convertHistoryToUIMessages(
+    history: InternalMessage[],
+    sessionId: string
+): Message[] {
     const uiMessages: Message[] = [];
 
-    for (let index = 0; index < history.length; index++) {
-        const msg = history[index];
+    // Build a map of toolCallId -> ToolCall for looking up tool call args
+    const toolCallMap = new Map<string, ToolCall>();
+    for (const msg of history) {
+        if (isAssistantMessage(msg) && msg.toolCalls) {
+            for (const toolCall of msg.toolCalls) {
+                toolCallMap.set(toolCall.id, toolCall);
+            }
+        }
+    }
 
-        // Extract text content properly
-        const textContent = extractTextContent(msg.content);
+    history.forEach((msg, index) => {
+        const timestamp = new Date(msg.timestamp ?? Date.now() - (history.length - index) * 1000);
+
+        // Handle tool messages specially
+        if (isToolMessage(msg)) {
+            // Look up the original tool call to get args
+            const toolCall = toolCallMap.get(msg.toolCallId);
+
+            // Format tool name
+            const displayName = getToolDisplayName(msg.name);
+
+            // Format args if we have them
+            let toolContent = displayName;
+            if (toolCall) {
+                try {
+                    const args = JSON.parse(toolCall.function.arguments || '{}');
+                    const argsFormatted = formatToolArgsForDisplay(msg.name, args);
+                    if (argsFormatted) {
+                        toolContent = `${displayName}(${argsFormatted})`;
+                    }
+                } catch {
+                    // Ignore JSON parse errors
+                }
+            }
+
+            // Add tool type badge (only for MCP tools)
+            const badge = getToolTypeBadge(msg.name);
+            if (badge.startsWith('MCP')) {
+                toolContent = `${toolContent} [${badge}]`;
+            }
+
+            // Generate result preview
+            const resultPreview = generateToolResultPreview(msg.content);
+
+            uiMessages.push({
+                id: `session-${sessionId}-${index}`,
+                role: 'tool',
+                content: toolContent,
+                timestamp,
+                toolStatus: 'finished',
+                toolResult: resultPreview,
+                isError: msg.success === false,
+                // Store content parts for potential rich rendering
+                toolContent: msg.content,
+                // Restore structured display data for rich rendering (diffs, shell output, etc.)
+                ...(msg.displayData !== undefined && {
+                    toolDisplayData: msg.displayData,
+                }),
+            });
+            return;
+        }
+
+        // Handle assistant messages - skip those with only tool calls (no text content)
+        if (isAssistantMessage(msg)) {
+            const textContent = extractTextContent(msg.content);
+
+            // Skip if no text content (message was just tool calls)
+            if (!textContent) return;
+
+            uiMessages.push({
+                id: `session-${sessionId}-${index}`,
+                role: 'assistant',
+                content: textContent,
+                timestamp,
+            });
+            return;
+        }
+
+        // Handle other messages (user, system)
+        let textContent = extractTextContent(msg.content);
 
         // Skip empty messages
-        if (!textContent) continue;
+        if (!textContent) return;
+
+        // Format skill invocation messages for cleaner display
+        if (msg.role === 'user') {
+            textContent = formatSkillInvocationMessage(textContent);
+        }
 
         uiMessages.push({
             id: `session-${sessionId}-${index}`,
-            role: msg.role as 'user' | 'assistant' | 'system' | 'tool',
+            role: msg.role,
             content: textContent,
-            timestamp: new Date(msg.timestamp || Date.now() - (history.length - index) * 1000),
+            timestamp,
         });
-    }
+    });
 
     return uiMessages;
 }
@@ -120,12 +735,15 @@ export function convertHistoryToUIMessages(history: any[], sessionId: string): M
 /**
  * Collects startup information for display in header
  */
-export async function getStartupInfo(agent: DextoAgent) {
+export async function getStartupInfo(agent: DextoAgent, sessionId: string | null) {
     const connectedServers = agent.mcpManager.getClients();
     const failedConnections = agent.mcpManager.getFailedConnections();
     const tools = await agent.getAllTools();
     const toolCount = Object.keys(tools).length;
-    const logFile = logger.getLogFilePath() || getDextoPath('logs', 'dexto.log');
+    // File logging is session-scoped. If a session already exists, show its log file.
+    const logFile = sessionId
+        ? ((await agent.getSession(sessionId))?.logger.getLogFilePath() ?? null)
+        : null;
 
     return {
         connectedServers: {

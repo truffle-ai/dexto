@@ -12,7 +12,7 @@
  * - queryClient.invalidateQueries({ queryKey: queryKeys.agents.all })
  */
 
-import type { ServerRegistryFilter } from '@/types';
+import type { ServerRegistryFilter } from '@dexto/registry';
 
 export const queryKeys = {
     // Agent-related queries
@@ -31,6 +31,7 @@ export const queryKeys = {
         current: (sessionId: string | null | undefined) =>
             ['llm', 'current', sessionId ?? null] as const,
         catalog: ['llm', 'catalog'] as const,
+        customModels: ['llm', 'customModels'] as const,
     },
 
     // Session-related queries
@@ -76,8 +77,35 @@ export const queryKeys = {
         tools: (serverId: string) => ['servers', 'tools', serverId] as const,
     },
 
+    // Tools queries (all tools from all sources)
+    tools: {
+        all: ['tools'] as const,
+    },
+
     // Message queue queries
     queue: {
         list: (sessionId: string) => ['queue', sessionId] as const,
+    },
+
+    // Approval queries
+    approvals: {
+        pending: (sessionId: string) => ['approvals', 'pending', sessionId] as const,
+    },
+
+    // Discovery queries (available providers and capabilities)
+    discovery: {
+        all: ['discovery'] as const,
+    },
+
+    // Model queries (local GGUF and Ollama)
+    models: {
+        local: ['models', 'local'] as const,
+        ollama: (baseURL?: string) => ['models', 'ollama', baseURL ?? 'default'] as const,
+        validateLocal: ['models', 'validateLocal'] as const,
+    },
+
+    // Dexto auth queries
+    dextoAuth: {
+        status: ['dextoAuth', 'status'] as const,
     },
 } as const;

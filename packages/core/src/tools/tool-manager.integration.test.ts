@@ -10,6 +10,7 @@ import type { IMCPClient } from '../mcp/types.js';
 import { AgentEventBus } from '../events/index.js';
 import { ApprovalManager } from '../approval/manager.js';
 import type { IAllowedToolsProvider } from './confirmation/allowed-tools-provider/types.js';
+import { createMockLogger } from '../logger/v2/test-utils.js';
 
 // Mock logger
 vi.mock('../logger/index.js', () => ({
@@ -30,22 +31,9 @@ describe('ToolManager Integration Tests', () => {
     let internalToolsServices: InternalToolsServices;
     let internalToolsConfig: InternalToolsConfig;
     let mockAgentEventBus: AgentEventBus;
-    let mockLogger: any;
+    const mockLogger = createMockLogger();
 
     beforeEach(() => {
-        mockLogger = {
-            debug: vi.fn(),
-            info: vi.fn(),
-            warn: vi.fn(),
-            error: vi.fn(),
-            silly: vi.fn(),
-            trackException: vi.fn(),
-            createChild: vi.fn(function (this: any) {
-                return this;
-            }),
-            destroy: vi.fn(),
-        } as any;
-
         // Create real MCPManager
         mcpManager = new MCPManager(mockLogger);
 
@@ -133,7 +121,11 @@ describe('ToolManager Integration Tests', () => {
             await toolManager.initialize();
 
             // Execute tool through complete pipeline
-            const result = await toolManager.executeTool('mcp--test_tool', { param: 'value' });
+            const result = await toolManager.executeTool(
+                'mcp--test_tool',
+                { param: 'value' },
+                'test-call-id'
+            );
 
             expect(mockClient.callTool).toHaveBeenCalledWith('test_tool', { param: 'value' });
             expect(result).toEqual({ result: 'mcp tool result' });
@@ -158,10 +150,11 @@ describe('ToolManager Integration Tests', () => {
             await toolManager.initialize();
 
             // Execute internal tool
-            const result = await toolManager.executeTool('internal--search_history', {
-                query: 'test query',
-                mode: 'messages',
-            });
+            const result = await toolManager.executeTool(
+                'internal--search_history',
+                { query: 'test query', mode: 'messages' },
+                'test-call-id'
+            );
 
             expect(internalToolsServices.searchService?.searchMessages).toHaveBeenCalledWith(
                 'test query',
@@ -219,11 +212,16 @@ describe('ToolManager Integration Tests', () => {
             expect(allTools['internal--search_history']?.description).toContain('(internal tool)');
 
             // Execute both types
-            const mcpResult = await toolManager.executeTool('mcp--file_read', { path: '/test' });
-            const internalResult = await toolManager.executeTool('internal--search_history', {
-                query: 'search test',
-                mode: 'sessions',
-            });
+            const mcpResult = await toolManager.executeTool(
+                'mcp--file_read',
+                { path: '/test' },
+                'test-call-id-1'
+            );
+            const internalResult = await toolManager.executeTool(
+                'internal--search_history',
+                { query: 'search test', mode: 'sessions' },
+                'test-call-id-2'
+            );
 
             expect(mcpResult).toEqual({ result: 'file content' });
             expect(internalResult).toEqual({
@@ -277,7 +275,7 @@ describe('ToolManager Integration Tests', () => {
                 },
                 mockLogger
             );
-            const result = await toolManager.executeTool('mcp--test_tool', {});
+            const result = await toolManager.executeTool('mcp--test_tool', {}, 'test-call-id');
 
             expect(result).toEqual({ result: 'approved result' });
         });
@@ -328,7 +326,7 @@ describe('ToolManager Integration Tests', () => {
             );
 
             const error = (await toolManager
-                .executeTool('mcp--test_tool', {})
+                .executeTool('mcp--test_tool', {}, 'test-call-id')
                 .catch((e) => e)) as DextoRuntimeError;
             expect(error).toBeInstanceOf(DextoRuntimeError);
             expect(error.code).toBe(ToolErrorCode.EXECUTION_DENIED);
@@ -434,7 +432,9 @@ describe('ToolManager Integration Tests', () => {
                 mockLogger
             );
 
-            await expect(toolManager.executeTool('mcp--failing_tool', {})).rejects.toThrow(Error);
+            await expect(
+                toolManager.executeTool('mcp--failing_tool', {}, 'test-call-id')
+            ).rejects.toThrow(Error);
         });
 
         it('should handle internal tool execution failures properly', async () => {
@@ -465,10 +465,11 @@ describe('ToolManager Integration Tests', () => {
             await toolManager.initialize();
 
             await expect(
-                toolManager.executeTool('internal--search_history', {
-                    query: 'test',
-                    mode: 'messages',
-                })
+                toolManager.executeTool(
+                    'internal--search_history',
+                    { query: 'test', mode: 'messages' },
+                    'test-call-id'
+                )
             ).rejects.toThrow(Error);
         });
     });
@@ -608,15 +609,18 @@ describe('ToolManager Integration Tests', () => {
             const sessionId = 'test-session-123';
 
             // Execute MCP tool with sessionId
-            await toolManager.executeTool('mcp--test_tool', { param: 'value' }, sessionId);
+            await toolManager.executeTool(
+                'mcp--test_tool',
+                { param: 'value' },
+                'test-call-id-1',
+                sessionId
+            );
 
             // Execute internal tool with sessionId
             await toolManager.executeTool(
                 'internal--search_history',
-                {
-                    query: 'test',
-                    mode: 'messages',
-                },
+                { query: 'test', mode: 'messages' },
+                'test-call-id-2',
                 sessionId
             );
 

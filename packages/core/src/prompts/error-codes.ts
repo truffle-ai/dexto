@@ -14,4 +14,5 @@ export enum PromptErrorCode {
     PROMPT_MISSING_TEXT = 'prompt_missing_text',
     PROMPT_MISSING_REQUIRED_ARGUMENTS = 'prompt_missing_required_arguments',
     PROMPT_ALREADY_EXISTS = 'prompt_already_exists',
+    PROMPT_CONFIG_INVALID = 'prompt_config_invalid',
 }

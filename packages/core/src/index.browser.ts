@@ -12,13 +12,32 @@ export type { Issue, Severity, DextoErrorCode } from './errors/types.js';
 // Context/message types (used by webui package)
 export type {
     InternalMessage,
+    SystemMessage,
+    UserMessage,
+    AssistantMessage,
+    ToolMessage,
     TextPart,
     FilePart,
     ImageData,
     FileData,
     UIResourcePart,
+    ContentPart,
+    ToolCall,
+    ToolApprovalStatus,
 } from './context/types.js';
 // Note: ImagePart not exported - only used internally in core package
+
+// Message type guards (used by CLI and webui packages)
+export {
+    isSystemMessage,
+    isUserMessage,
+    isAssistantMessage,
+    isToolMessage,
+    isTextPart,
+    isImagePart,
+    isFilePart,
+    isUIResourcePart,
+} from './context/types.js';
 
 // Context utilities (used by webui package for media kind detection)
 export { getFileMediaKind, getResourceKind } from './context/media-helpers.js';

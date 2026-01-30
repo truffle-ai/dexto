@@ -5,7 +5,8 @@
  */
 
 import React, { useState, useEffect, forwardRef, useRef, useImperativeHandle } from 'react';
-import { Text, type Key } from 'ink';
+import { Text } from 'ink';
+import type { Key } from '../../hooks/useInputOrchestrator.js';
 import type { DextoAgent, SessionMetadata } from '@dexto/core';
 import { logger } from '@dexto/core';
 import { BaseSelector, type BaseSelectorHandle } from '../base/BaseSelector.js';
@@ -124,11 +125,11 @@ const SessionSelector = forwardRef<SessionSelectorHandle, SessionSelectorProps>(
         const formatSession = (session: SessionOption): string => {
             const parts: string[] = [];
 
-            // Add title if available, otherwise use "Session" as fallback
+            // Add title if available, otherwise use "New Session" as fallback
             if (session.metadata?.title) {
                 parts.push(session.metadata.title);
             } else {
-                parts.push('Session');
+                parts.push('New Session');
             }
 
             // Always show short ID

@@ -8,13 +8,20 @@
     "@dexto/client-sdk",
     "@dexto/agent-management",
     "@dexto/analytics",
+    "@dexto/registry",
     "@dexto/server",
-    "@dexto/webui"
+    "@dexto/webui",
+    "@dexto/image-bundler",
+    "@dexto/image-local",
+    "@dexto/tools-filesystem",
+    "@dexto/tools-process",
+    "@dexto/tools-todo",
+    "@dexto/tools-plan"
   ]],
   "linked": [],
   "access": "public",
   "baseBranch": "main",
   "updateInternalDependencies": "patch",
   "bumpVersionsWithWorkspaceProtocolOnly": true,
-  "ignore": []
+  "ignore": ["dexto-examples"]
 }

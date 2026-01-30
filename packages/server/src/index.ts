@@ -1,5 +1,6 @@
 export * from './hono/index.js';
 export * from './hono/node/index.js';
+export * from './hono/start-server.js';
 export type { DextoApp } from './hono/types.js';
 export * from './events/webhook-subscriber.js';
 export * from './events/a2a-sse-subscriber.js';

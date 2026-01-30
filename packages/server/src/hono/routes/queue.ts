@@ -1,6 +1,8 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
-import type { DextoAgent } from '@dexto/core';
+import type { DextoAgent, ContentPart } from '@dexto/core';
 import { ContentPartSchema } from '../schemas/responses.js';
+import type { Context } from 'hono';
+type GetAgentFn = (ctx: Context) => DextoAgent | Promise<DextoAgent>;
 
 // Schema for queued message in responses
 const QueuedMessageSchema = z
@@ -13,40 +15,47 @@ const QueuedMessageSchema = z
     .strict()
     .describe('A message waiting in the queue');
 
-// Schema for queue message request body
-// TODO: Refactor to use z.union() or z.discriminatedUnion() so the "at least one required"
-// constraint is visible in OpenAPI spec. Currently .refine() only validates at runtime.
+// ContentPart schemas matching @dexto/core types
+// TODO: Same as messages.ts - Zod-inferred types don't exactly match core's ContentInput
+// due to exactOptionalPropertyTypes. We cast to ContentPart after validation.
+const TextPartSchema = z
+    .object({
+        type: z.literal('text').describe('Content type identifier'),
+        text: z.string().describe('Text content'),
+    })
+    .describe('Text content part');
+
+const ImagePartSchema = z
+    .object({
+        type: z.literal('image').describe('Content type identifier'),
+        image: z.string().describe('Base64-encoded image data or URL'),
+        mimeType: z.string().optional().describe('MIME type (e.g., image/png)'),
+    })
+    .describe('Image content part');
+
+const FilePartSchema = z
+    .object({
+        type: z.literal('file').describe('Content type identifier'),
+        data: z.string().describe('Base64-encoded file data or URL'),
+        mimeType: z.string().describe('MIME type (e.g., application/pdf)'),
+        filename: z.string().optional().describe('Optional filename'),
+    })
+    .describe('File content part');
+
+const QueueContentPartSchema = z
+    .discriminatedUnion('type', [TextPartSchema, ImagePartSchema, FilePartSchema])
+    .describe('Content part - text, image, or file');
+
+// Schema for queue message request body - matches messages.ts MessageBodySchema
 const QueueMessageBodySchema = z
     .object({
-        message: z.string().optional().describe('Text message to queue'),
-        imageData: z
-            .object({
-                image: z.string().describe('Base64-encoded image data'),
-                mimeType: z.string().describe('MIME type of the image'),
-            })
-            .optional()
-            .describe('Optional image data'),
-        fileData: z
-            .object({
-                data: z.string().describe('Base64-encoded file data'),
-                mimeType: z.string().describe('MIME type of the file'),
-                filename: z.string().optional().describe('Optional filename'),
-            })
-            .optional()
-            .describe('Optional file data'),
+        content: z
+            .union([z.string(), z.array(QueueContentPartSchema)])
+            .describe('Message content - string for text, or ContentPart[] for multimodal'),
     })
-    .refine(
-        (data) => {
-            const msg = (data.message ?? '').trim();
-            return msg.length > 0 || !!data.imageData || !!data.fileData;
-        },
-        { message: 'Must provide either message text, image data, or file data' }
-    )
-    .describe(
-        'Request body for queueing a message. At least one of message, imageData, or fileData must be provided.'
-    );
+    .describe('Request body for queueing a message');
 
-export function createQueueRouter(getAgent: () => DextoAgent) {
+export function createQueueRouter(getAgent: GetAgentFn) {
     const app = new OpenAPIHono();
 
     // GET /queue/:sessionId - Get all queued messages
@@ -177,7 +186,7 @@ export function createQueueRouter(getAgent: () => DextoAgent) {
 
     return app
         .openapi(getQueueRoute, async (ctx) => {
-            const agent = getAgent();
+            const agent = await getAgent(ctx);
             const { sessionId } = ctx.req.valid('param');
 
             const messages = await agent.getQueuedMessages(sessionId);
@@ -187,35 +196,17 @@ export function createQueueRouter(getAgent: () => DextoAgent) {
             });
         })
         .openapi(queueMessageRoute, async (ctx) => {
-            const agent = getAgent();
+            const agent = await getAgent(ctx);
             const { sessionId } = ctx.req.valid('param');
-            const { message, imageData, fileData } = ctx.req.valid('json');
+            const { content: rawContent } = ctx.req.valid('json');
 
-            // Build content array from input
-            const content: Array<
-                | { type: 'text'; text: string }
-                | { type: 'image'; image: string; mimeType: string }
-                | { type: 'file'; data: string; mimeType: string; filename?: string }
-            > = [];
-
-            if (message?.trim()) {
-                content.push({ type: 'text', text: message.trim() });
-            }
-            if (imageData) {
-                content.push({
-                    type: 'image',
-                    image: imageData.image,
-                    mimeType: imageData.mimeType,
-                });
-            }
-            if (fileData) {
-                content.push({
-                    type: 'file',
-                    data: fileData.data,
-                    mimeType: fileData.mimeType,
-                    ...(fileData.filename && { filename: fileData.filename }),
-                });
-            }
+            // Normalize content to array format and cast to ContentPart[]
+            // (same exactOptionalPropertyTypes issue as messages.ts - see TODO there)
+            const content = (
+                typeof rawContent === 'string'
+                    ? [{ type: 'text' as const, text: rawContent }]
+                    : rawContent
+            ) as ContentPart[];
 
             const result = await agent.queueMessage(sessionId, { content });
             return ctx.json(
@@ -228,7 +219,7 @@ export function createQueueRouter(getAgent: () => DextoAgent) {
             );
         })
         .openapi(removeQueuedMessageRoute, async (ctx) => {
-            const agent = getAgent();
+            const agent = await getAgent(ctx);
             const { sessionId, messageId } = ctx.req.valid('param');
 
             const removed = await agent.removeQueuedMessage(sessionId, messageId);
@@ -238,7 +229,7 @@ export function createQueueRouter(getAgent: () => DextoAgent) {
             return ctx.json({ removed: true, id: messageId });
         })
         .openapi(clearQueueRoute, async (ctx) => {
-            const agent = getAgent();
+            const agent = await getAgent(ctx);
             const { sessionId } = ctx.req.valid('param');
 
             const count = await agent.clearMessageQueue(sessionId);

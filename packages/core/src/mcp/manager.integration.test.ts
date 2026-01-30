@@ -1,10 +1,11 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { MCPManager } from './manager.js';
 import { MCPClient } from './mcp-client.js';
 import { McpServerConfigSchema } from './schemas.js';
 import type { MCPResolvedResource } from './types.js';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
+import { createMockLogger } from '../logger/v2/test-utils.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -27,21 +28,9 @@ const RESOURCES_DEMO_PATH = resolve(
 
 describe('MCPManager Integration Tests', () => {
     let manager: MCPManager;
-    let mockLogger: any;
+    const mockLogger = createMockLogger();
 
     beforeEach(() => {
-        mockLogger = {
-            debug: vi.fn(),
-            info: vi.fn(),
-            warn: vi.fn(),
-            error: vi.fn(),
-            silly: vi.fn(),
-            trackException: vi.fn(),
-            createChild: vi.fn(function (this: any) {
-                return this;
-            }),
-            destroy: vi.fn(),
-        } as any;
         manager = new MCPManager(mockLogger);
     });
 

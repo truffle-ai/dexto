@@ -205,7 +205,7 @@ Before any release:
 **Solution**: Commit or stash all changes before publishing. Use `--no-git-checks` flag for testing only.
 
 ### Issue: Authentication error when publishing
-**Solution**: Ensure NPM_TOKEN is set in GitHub Secrets or authenticate locally with `npm login`.
+**Solution**: CI uses `NPM_TOKEN` secret (granular access token). Ensure the token is valid and has publish permissions for `@dexto` scope. For local publishing, use `npm login`.
 
 ## Version History
 

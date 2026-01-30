@@ -129,11 +129,18 @@ describe('requiresSetup', () => {
                     apiKey: '$GOOGLE_GENERATIVE_AI_API_KEY',
                 },
                 defaults: {
-                    defaultAgent: 'default-agent',
+                    defaultAgent: 'coding-agent',
                     defaultMode: 'web',
                 },
                 setup: {
                     completed: true,
+                    apiKeyPending: false,
+                    baseURLPending: false,
+                },
+                sounds: {
+                    enabled: true,
+                    onApprovalRequired: true,
+                    onTaskComplete: true,
                 },
             });
 
@@ -151,11 +158,18 @@ describe('requiresSetup', () => {
                     apiKey: '$GOOGLE_GENERATIVE_AI_API_KEY',
                 },
                 defaults: {
-                    defaultAgent: 'default-agent',
+                    defaultAgent: 'coding-agent',
                     defaultMode: 'web',
                 },
                 setup: {
                     completed: true,
+                    apiKeyPending: false,
+                    baseURLPending: false,
+                },
+                sounds: {
+                    enabled: true,
+                    onApprovalRequired: true,
+                    onTaskComplete: true,
                 },
             });
 
@@ -173,11 +187,18 @@ describe('requiresSetup', () => {
                     apiKey: '$GOOGLE_GENERATIVE_AI_API_KEY',
                 },
                 defaults: {
-                    defaultAgent: 'default-agent',
+                    defaultAgent: 'coding-agent',
                     defaultMode: 'web',
                 },
                 setup: {
                     completed: false,
+                    apiKeyPending: false,
+                    baseURLPending: false,
+                },
+                sounds: {
+                    enabled: true,
+                    onApprovalRequired: true,
+                    onTaskComplete: true,
                 },
             });
 
@@ -200,6 +221,13 @@ describe('requiresSetup', () => {
                 },
                 setup: {
                     completed: true,
+                    apiKeyPending: false,
+                    baseURLPending: false,
+                },
+                sounds: {
+                    enabled: true,
+                    onApprovalRequired: true,
+                    onTaskComplete: true,
                 },
             });
 

@@ -9,15 +9,24 @@ import React, {
 } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useChat, Message, ErrorMessage, StreamStatus } from './useChat';
-import { useGreeting } from './useGreeting';
+import { useChat, Message, UIUserMessage, UIAssistantMessage, UIToolMessage } from './useChat';
+import { useApproval } from './ApprovalContext';
+import { usePendingApprovals } from './useApprovals';
 import type { FilePart, ImagePart, TextPart, UIResourcePart } from '../../types';
-import type { SanitizedToolResult } from '@dexto/core';
+import type { SanitizedToolResult, ApprovalRequest } from '@dexto/core';
 import { getResourceKind } from '@dexto/core';
 import { useAnalytics } from '@/lib/analytics/index.js';
 import { queryKeys } from '@/lib/queryKeys.js';
 import { client } from '@/lib/client.js';
 import { useMutation } from '@tanstack/react-query';
+import {
+    useAgentStore,
+    useSessionStore,
+    useChatStore,
+    useCurrentSessionId,
+    useIsWelcomeState,
+    useSessionMessages,
+} from '@/lib/stores/index.js';
 
 // Helper to get history endpoint type (workaround for string literal path)
 type HistoryEndpoint = (typeof client.api.sessions)[':sessionId']['history'];
@@ -37,30 +46,11 @@ interface ChatContextType {
         imageData?: { image: string; mimeType: string },
         fileData?: { data: string; mimeType: string; filename?: string }
     ) => void;
-    status: StreamStatus;
     reset: () => void;
-    currentSessionId: string | null;
     switchSession: (sessionId: string) => void;
     loadSessionHistory: (sessionId: string) => Promise<void>;
-    // Active LLM config for the current session (UI source of truth)
-    currentLLM: {
-        provider: string;
-        model: string;
-        displayName?: string;
-        baseURL?: string;
-    } | null;
-    refreshCurrentLLM: () => Promise<void>;
-    isWelcomeState: boolean;
     returnToWelcome: () => void;
-    isStreaming: boolean;
-    setStreaming: (streaming: boolean) => void;
-    processing: boolean;
     cancel: (sessionId?: string) => void;
-    // Error state
-    activeError: ErrorMessage | null;
-    clearError: () => void;
-    // Greeting state
-    greeting: string | null;
 }
 
 // Helper function to fetch and convert session history to UI messages
@@ -88,18 +78,13 @@ function convertHistoryToMessages(history: HistoryMessage[], sessionId: string):
 
     for (let index = 0; index < history.length; index++) {
         const msg = history[index];
-        const baseMessage: Message = {
-            id: `session-${sessionId}-${index}`,
-            role: msg.role,
-            content: msg.content,
-            createdAt: msg.timestamp ?? Date.now() - (history.length - index) * 1000,
-            sessionId: sessionId,
-            // Preserve token usage, reasoning, model, and provider metadata from storage
-            tokenUsage: msg.tokenUsage,
-            reasoning: msg.reasoning,
-            model: msg.model,
-            provider: msg.provider,
-        };
+        const createdAt = msg.timestamp ?? Date.now() - (history.length - index) * 1000;
+        const baseId = `session-${sessionId}-${index}`;
+
+        // Skip system messages - they're not shown in UI
+        if (msg.role === 'system') {
+            continue;
+        }
 
         const deriveResources = (
             content: Array<TextPart | ImagePart | FilePart | UIResourcePart>
@@ -142,10 +127,35 @@ function convertHistoryToMessages(history: HistoryMessage[], sessionId: string):
         };
 
         if (msg.role === 'assistant') {
+            // Create assistant message
             if (msg.content) {
-                uiMessages.push(baseMessage);
+                // Extract text content from string or ContentPart array
+                let textContent: string | null = null;
+                if (typeof msg.content === 'string') {
+                    textContent = msg.content;
+                } else if (Array.isArray(msg.content)) {
+                    // Extract text from ContentPart array
+                    const textParts = msg.content
+                        .filter((part): part is TextPart => part.type === 'text')
+                        .map((part) => part.text);
+                    textContent = textParts.length > 0 ? textParts.join('\n') : null;
+                }
+
+                const assistantMessage: UIAssistantMessage = {
+                    id: baseId,
+                    role: 'assistant',
+                    content: textContent,
+                    createdAt,
+                    sessionId,
+                    tokenUsage: msg.tokenUsage,
+                    reasoning: msg.reasoning,
+                    model: msg.model,
+                    provider: msg.provider,
+                };
+                uiMessages.push(assistantMessage);
             }
 
+            // Create tool messages for tool calls
             if (msg.toolCalls && msg.toolCalls.length > 0) {
                 msg.toolCalls.forEach((toolCall: ToolCall, toolIndex: number) => {
                     let toolArgs: Record<string, unknown> = {};
@@ -161,19 +171,15 @@ function convertHistoryToMessages(history: HistoryMessage[], sessionId: string):
                     }
                     const toolName = toolCall.function?.name || 'unknown';
 
-                    const toolMessage: Message = {
-                        id: `session-${sessionId}-${index}-tool-${toolIndex}`,
+                    const toolMessage: UIToolMessage = {
+                        id: `${baseId}-tool-${toolIndex}`,
                         role: 'tool',
                         content: null,
-                        createdAt:
-                            (msg.timestamp ?? Date.now() - (history.length - index) * 1000) +
-                            toolIndex,
+                        createdAt: createdAt + toolIndex,
                         sessionId,
                         toolName,
                         toolArgs,
-                        toolResult: undefined,
-                        toolResultMeta: undefined,
-                        toolResultSuccess: undefined,
+                        toolCallId: toolCall.id,
                     };
 
                     if (typeof toolCall.id === 'string' && toolCall.id.length > 0) {
@@ -199,12 +205,16 @@ function convertHistoryToMessages(history: HistoryMessage[], sessionId: string):
                   : [];
 
             const inferredResources = deriveResources(normalizedContent);
+            // Extract success status from stored message (defaults to true for backwards compatibility)
+            const success =
+                'success' in msg && typeof msg.success === 'boolean' ? msg.success : true;
             const sanitizedFromHistory: SanitizedToolResult = {
                 content: normalizedContent,
                 ...(inferredResources ? { resources: inferredResources } : {}),
                 meta: {
                     toolName,
                     toolCallId: toolCallId ?? `tool-${index}`,
+                    success,
                 },
             };
 
@@ -222,33 +232,62 @@ function convertHistoryToMessages(history: HistoryMessage[], sessionId: string):
                     : undefined;
 
             if (toolCallId && pendingToolCalls.has(toolCallId)) {
+                // Update existing tool message with result
                 const messageIndex = pendingToolCalls.get(toolCallId)!;
+                const existingMessage = uiMessages[messageIndex] as UIToolMessage;
                 uiMessages[messageIndex] = {
-                    ...uiMessages[messageIndex],
+                    ...existingMessage,
                     toolResult: sanitizedFromHistory,
                     toolResultMeta: sanitizedFromHistory.meta,
-                    // Preserve approval metadata from history
+                    toolResultSuccess: sanitizedFromHistory.meta?.success,
                     ...(requireApproval !== undefined && { requireApproval }),
                     ...(approvalStatus !== undefined && { approvalStatus }),
                 };
             } else {
-                uiMessages.push({
-                    ...baseMessage,
+                // Create new tool message with result
+                const toolMessage: UIToolMessage = {
+                    id: baseId,
                     role: 'tool',
                     content: null,
+                    createdAt,
+                    sessionId,
                     toolName,
+                    toolCallId,
                     toolResult: sanitizedFromHistory,
                     toolResultMeta: sanitizedFromHistory.meta,
-                    // Preserve approval metadata from history
+                    toolResultSuccess: sanitizedFromHistory.meta?.success,
                     ...(requireApproval !== undefined && { requireApproval }),
                     ...(approvalStatus !== undefined && { approvalStatus }),
-                });
+                };
+                uiMessages.push(toolMessage);
             }
 
             continue;
         }
 
-        uiMessages.push(baseMessage);
+        // User message (only remaining case after system/assistant/tool handled)
+        if (msg.role === 'user') {
+            const userMessage: UIUserMessage = {
+                id: baseId,
+                role: 'user',
+                content: msg.content,
+                createdAt,
+                sessionId,
+            };
+            uiMessages.push(userMessage);
+        }
+    }
+
+    // Mark any tool calls that never received results as failed (incomplete)
+    // This happens when a run was interrupted or crashed before tool completion
+    for (const [_callId, messageIndex] of pendingToolCalls) {
+        const msg = uiMessages[messageIndex];
+        if (msg && msg.role === 'tool' && msg.toolResult === undefined) {
+            uiMessages[messageIndex] = {
+                ...msg,
+                toolResultSuccess: false, // Mark as failed so UI doesn't show "running"
+            };
+        }
     }
 
     return uiMessages;
@@ -261,119 +300,70 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     const analytics = useAnalytics();
     const queryClient = useQueryClient();
 
-    // Start with no session - pure welcome state
-    const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
-    const [isWelcomeState, setIsWelcomeState] = useState(true);
-    const [isStreaming, setIsStreaming] = useState(true); // Default to streaming enabled
+    // Get state from stores using centralized selectors
+    const currentSessionId = useCurrentSessionId();
+    const isWelcomeState = useIsWelcomeState();
+
+    // Local state for UI flow control only (not shared/persisted state)
     const [isSwitchingSession, setIsSwitchingSession] = useState(false); // Guard against rapid session switches
     const [isCreatingSession, setIsCreatingSession] = useState(false); // Guard against double auto-creation
     const lastSwitchedSessionRef = useRef<string | null>(null); // Track last switched session to prevent duplicate switches
     const newSessionWithMessageRef = useRef<string | null>(null); // Track new sessions that already have first message sent
     const currentSessionIdRef = useRef<string | null>(null); // Synchronous session ID (updates before React state to prevent race conditions)
 
-    // Session-scoped state (survives navigation)
-    const [sessionErrors, setSessionErrors] = useState<Map<string, ErrorMessage>>(new Map());
-    const [processingSessions, setProcessingSessions] = useState<Set<string>>(new Set());
-    const [sessionStatuses, setSessionStatuses] = useState<Map<string, StreamStatus>>(new Map());
+    // Session abort controllers for cancellation
     const sessionAbortControllersRef = useRef<Map<string, AbortController>>(new Map());
 
-    // Helper functions for session-scoped state
-    const setSessionError = useCallback((sessionId: string, error: ErrorMessage | null) => {
-        setSessionErrors((prev) => {
-            const next = new Map(prev);
-            if (error) {
-                next.set(sessionId, error);
-            } else {
-                next.delete(sessionId);
-            }
-            return next;
-        });
-    }, []);
-
-    const setSessionProcessing = useCallback((sessionId: string, isProcessing: boolean) => {
-        setProcessingSessions((prev) => {
-            const next = new Set(prev);
-            if (isProcessing) {
-                next.add(sessionId);
-            } else {
-                next.delete(sessionId);
-            }
-            return next;
-        });
-    }, []);
-
-    const setSessionStatus = useCallback((sessionId: string, status: StreamStatus) => {
-        setSessionStatuses((prev) => {
-            const next = new Map(prev);
-            next.set(sessionId, status);
-            return next;
-        });
-    }, []);
-
-    const getSessionAbortController = useCallback((sessionId: string): AbortController => {
-        const existing = sessionAbortControllersRef.current.get(sessionId);
-        if (existing) {
-            return existing;
-        }
-        const controller = new AbortController();
-        sessionAbortControllersRef.current.set(sessionId, controller);
-        return controller;
-    }, []);
-
-    const abortSession = useCallback((sessionId: string) => {
-        const controller = sessionAbortControllersRef.current.get(sessionId);
-        if (controller) {
-            controller.abort();
-            sessionAbortControllersRef.current.delete(sessionId);
-        }
-    }, []);
-
-    // Get current session's state
-    const activeError = currentSessionId ? sessionErrors.get(currentSessionId) || null : null;
-    const processing = currentSessionId ? processingSessions.has(currentSessionId) : false;
-    const status = currentSessionId ? sessionStatuses.get(currentSessionId) || 'idle' : 'idle';
-
+    // useChat hook manages abort controllers internally
     const {
-        messages,
         sendMessage: originalSendMessage,
         reset: originalReset,
-        setMessages,
         cancel,
-    } = useChat(currentSessionIdRef, {
-        setSessionError,
-        setSessionProcessing,
-        setSessionStatus,
-        getSessionAbortController,
-        abortSession,
-    });
+    } = useChat(currentSessionIdRef, sessionAbortControllersRef);
 
-    // Fetch current LLM config using TanStack Query
-    const { data: currentLLMData, refetch: refetchCurrentLLM } = useQuery({
-        queryKey: queryKeys.llm.current(currentSessionId),
-        queryFn: async () => {
-            const response = await client.api.llm.current.$get({
-                query: currentSessionId ? { sessionId: currentSessionId } : {},
-            });
-            if (!response.ok) {
-                throw new Error('Failed to fetch current LLM config');
+    // Restore pending approvals when session changes (e.g., after page refresh)
+    const { handleApprovalRequest } = useApproval();
+    const { data: pendingApprovalsData } = usePendingApprovals(currentSessionId);
+    const restoredApprovalsRef = useRef<Set<string>>(new Set());
+
+    useEffect(() => {
+        if (!pendingApprovalsData?.approvals || pendingApprovalsData.approvals.length === 0) {
+            return;
+        }
+
+        // Restore any pending approvals that haven't been restored yet
+        for (const approval of pendingApprovalsData.approvals) {
+            // Skip if we've already restored this approval
+            if (restoredApprovalsRef.current.has(approval.approvalId)) {
+                continue;
             }
-            const data = await response.json();
-            const cfg = data.config || data;
-            return {
-                provider: cfg.provider,
-                model: cfg.model,
-                displayName: cfg.displayName,
-                baseURL: cfg.baseURL,
-            };
-        },
-        enabled: true, // Always fetch when sessionId changes
-        retry: false, // Don't retry on error - UI can still operate
-    });
 
-    const currentLLM = currentLLMData ?? null;
+            // Mark as restored before calling handler to prevent duplicates
+            restoredApprovalsRef.current.add(approval.approvalId);
 
-    // Get greeting from API
-    const { greeting } = useGreeting(currentSessionId);
+            // Convert API response format to ApprovalRequest format
+            // TODO: The API returns a simplified format without full metadata because
+            // ApprovalCoordinator only tracks approval IDs, not the full request data.
+            // To fix properly: store full ApprovalRequest in ApprovalCoordinator when
+            // requests are created, then return that data from GET /api/approvals.
+            handleApprovalRequest({
+                approvalId: approval.approvalId,
+                type: approval.type,
+                sessionId: approval.sessionId,
+                timeout: approval.timeout,
+                timestamp: new Date(approval.timestamp),
+                metadata: approval.metadata,
+            } as ApprovalRequest);
+        }
+    }, [pendingApprovalsData, handleApprovalRequest]);
+
+    // Clear restored approvals tracking when session changes
+    useEffect(() => {
+        restoredApprovalsRef.current.clear();
+    }, [currentSessionId]);
+
+    // Messages from centralized selector (stable reference, handles null session)
+    const messages = useSessionMessages(currentSessionId);
 
     // Mutation for generating session title
     const { mutate: generateTitle } = useMutation({
@@ -448,7 +438,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                     currentSessionIdRef.current = sessionId;
 
                     // Send message BEFORE navigating
-                    originalSendMessage(content, imageData, fileData, sessionId, isStreaming);
+                    originalSendMessage(content, imageData, fileData, sessionId);
 
                     // Navigate - this will trigger switchSession via ChatApp useEffect
                     navigate({ to: `/chat/${sessionId}`, replace: true });
@@ -470,17 +460,15 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
             // Only send if we're using an existing session (not a newly created one)
             if (sessionId && !isNewSession) {
-                originalSendMessage(content, imageData, fileData, sessionId, isStreaming);
+                originalSendMessage(content, imageData, fileData, sessionId);
             }
 
             // Track message sent
             if (sessionId) {
-                const provider = currentLLM?.provider || 'unknown';
-                const model = currentLLM?.model || 'unknown';
                 analytics.trackMessageSent({
                     sessionId,
-                    provider,
-                    model,
+                    provider: 'unknown', // Provider/model tracking moved to component level
+                    model: 'unknown',
                     hasImage: !!imageData,
                     hasFile: !!fileData,
                     messageLength: content.length,
@@ -495,10 +483,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             isWelcomeState,
             isCreatingSession,
             createAutoSession,
-            isStreaming,
             navigate,
             analytics,
-            currentLLM,
             generateTitle,
         ]
     );
@@ -508,7 +494,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         if (currentSessionId) {
             // Track conversation reset
             const messageCount = messages.filter((m) => m.sessionId === currentSessionId).length;
-            analytics.trackConversationReset({
+            analytics.trackSessionReset({
                 sessionId: currentSessionId,
                 messageCount,
             });
@@ -516,13 +502,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             originalReset(currentSessionId);
         }
     }, [originalReset, currentSessionId, analytics, messages]);
-
-    // Clear error for current session
-    const clearError = useCallback(() => {
-        if (currentSessionId) {
-            setSessionError(currentSessionId, null);
-        }
-    }, [currentSessionId, setSessionError]);
 
     // Load session history when switching sessions
     const { data: sessionHistoryData } = useQuery({
@@ -545,12 +524,17 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     // Sync session history data to messages when it changes
     useEffect(() => {
         if (sessionHistoryData && currentSessionId) {
-            setMessages((prev) => {
-                const hasSessionMsgs = prev.some((m) => m.sessionId === currentSessionId);
-                return hasSessionMsgs ? prev : sessionHistoryData.messages;
-            });
+            const currentMessages = useChatStore.getState().getMessages(currentSessionId);
+            const hasSessionMsgs = currentMessages.some((m) => m.sessionId === currentSessionId);
+            if (!hasSessionMsgs) {
+                useChatStore
+                    .getState()
+                    .setMessages(currentSessionId, sessionHistoryData.messages as any);
+            }
             // Cancel any active run on page refresh (we can't reconnect to the stream)
             if (sessionHistoryData.isBusy) {
+                // Reset agent state since we're cancelling - we won't receive run:complete event
+                useAgentStore.getState().setIdle();
                 client.api.sessions[':sessionId'].cancel
                     .$post({
                         param: { sessionId: currentSessionId },
@@ -559,7 +543,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                     .catch((e) => console.warn('Failed to cancel busy session:', e));
             }
         }
-    }, [sessionHistoryData, currentSessionId, setMessages]);
+    }, [sessionHistoryData, currentSessionId]);
 
     const loadSessionHistory = useCallback(
         async (sessionId: string) => {
@@ -577,10 +561,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                     retry: false,
                 });
 
-                setMessages((prev) => {
-                    const hasSessionMsgs = prev.some((m) => m.sessionId === sessionId);
-                    return hasSessionMsgs ? prev : result.messages;
-                });
+                const currentMessages = useChatStore.getState().getMessages(sessionId);
+                const hasSessionMsgs = currentMessages.some((m) => m.sessionId === sessionId);
+                if (!hasSessionMsgs) {
+                    // Populate chatStore with history (cast to compatible type)
+                    useChatStore.getState().initFromHistory(sessionId, result.messages as any);
+                }
 
                 // Cancel any active run on page refresh (we can't reconnect to the stream)
                 // This ensures clean state - user can see history and send new messages
@@ -588,6 +574,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                 // - Add GET /sessions/{sessionId}/events SSE endpoint for listen-only mode
                 // - Connect to event stream when isBusy=true to resume receiving updates
                 if (result.isBusy) {
+                    // Reset agent state since we're cancelling - we won't receive run:complete event
+                    useAgentStore.getState().setIdle();
                     try {
                         await client.api.sessions[':sessionId'].cancel.$post({
                             param: { sessionId },
@@ -599,10 +587,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                 }
             } catch (error) {
                 console.error('Error loading session history:', error);
-                setMessages([]);
+                useChatStore.getState().clearMessages(sessionId);
             }
         },
-        [setMessages, queryClient]
+        [queryClient]
     );
 
     // Switch to a different session and load it on the backend
@@ -640,10 +628,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                     newSessionWithMessageRef.current = null;
                 }
 
-                // Update ref BEFORE state to prevent race conditions with streaming
+                // Update ref BEFORE store to prevent race conditions with streaming
                 currentSessionIdRef.current = sessionId;
-                setCurrentSessionId(sessionId);
-                setIsWelcomeState(false); // No longer in welcome state
+
+                // Update store (single source of truth)
+                useSessionStore.getState().setCurrentSession(sessionId);
 
                 // Mark this session as being switched to after state update succeeds
                 lastSwitchedSessionRef.current = sessionId;
@@ -666,36 +655,22 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     // Return to welcome state (no active session)
     const returnToWelcome = useCallback(() => {
         currentSessionIdRef.current = null;
-        setCurrentSessionId(null);
-        setIsWelcomeState(true);
-        setMessages([]);
-    }, [setMessages]);
+        lastSwitchedSessionRef.current = null; // Clear to allow switching to same session again
+
+        // Update store (single source of truth)
+        useSessionStore.getState().returnToWelcome();
+    }, []);
 
     return (
         <ChatContext.Provider
             value={{
                 messages,
                 sendMessage,
-                status,
                 reset,
-                currentSessionId,
                 switchSession,
                 loadSessionHistory,
-                isWelcomeState,
                 returnToWelcome,
-                isStreaming,
-                setStreaming: setIsStreaming,
-                currentLLM,
-                refreshCurrentLLM: async () => {
-                    await refetchCurrentLLM();
-                },
-                processing,
                 cancel,
-                // Error state
-                activeError,
-                clearError,
-                // Greeting state
-                greeting,
             }}
         >
             {children}

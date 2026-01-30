@@ -31,8 +31,8 @@ export GOOGLE_GENERATIVE_AI_API_KEY="your_key"
 export COHERE_API_KEY="your_key"
 ```
 
-### Agent Configuration (`default-agent.yml`)
-Agent behavior is defined in a YAML file (default: `agents/default-agent.yml`). This file specifies the LLM, tools (via MCP servers), and system prompt.
+### Agent Configuration (`coding-agent.yml`)
+Agent behavior is defined in a YAML file (default: `agents/coding-agent/coding-agent.yml`). This file specifies the LLM, tools (via MCP servers), and system prompt.
 
 **Example `agent.yml`:**
 ```yaml
@@ -93,7 +93,7 @@ systemPrompt:
     - id: current-time
       type: dynamic
       priority: 20
-      source: dateTime
+      source: date
     
     - id: mcp-resources
       type: dynamic
@@ -113,7 +113,7 @@ systemPrompt:
 **Note:** Files are always read using UTF-8 encoding.
 
 **Dynamic Contributor Sources:**
-- `dateTime`: Automatically adds current date and time
+- `date`: Automatically adds current date
 - `resources`: Includes resources from connected MCP servers (disabled by default for performance)
 
 **Use Cases for File Contributors:**
@@ -192,7 +192,7 @@ import { DextoAgent, loadAgentConfig } from '@dexto/core';
 const config = await loadAgentConfig();
 
 // Or load from a specific file
-// const config = await loadAgentConfig('./agents/default-agent.yml');
+// const config = await loadAgentConfig('./agents/coding-agent/coding-agent.yml');
 
 // Create and start the agent
 const agent = new DextoAgent(config);
@@ -202,14 +202,12 @@ await agent.start(); // Initializes services like MCP servers
 const session = await agent.createSession();
 
 // Run a single task
-const response = await agent.generate('List the 3 largest files in the current directory.', {
-  sessionId: session.id
-});
+const response = await agent.generate('List the 3 largest files in the current directory.', session.id);
 console.log(response.content);
 
 // Hold a conversation (state is maintained within the session)
-await agent.generate('Write a function that adds two numbers.', { sessionId: session.id });
-await agent.generate('Now add type annotations to it.', { sessionId: session.id });
+await agent.generate('Write a function that adds two numbers.', session.id);
+await agent.generate('Now add type annotations to it.', session.id);
 
 // Reset the conversation history
 await agent.resetConversation(session.id);

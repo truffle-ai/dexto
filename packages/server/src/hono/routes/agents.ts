@@ -21,6 +21,25 @@ import path from 'path';
 import { promises as fs } from 'fs';
 import { DextoValidationError, AgentErrorCode, ErrorScope, ErrorType } from '@dexto/core';
 import { AgentRegistryEntrySchema } from '../schemas/responses.js';
+import type { Context } from 'hono';
+type GetAgentFn = (ctx: Context) => DextoAgent | Promise<DextoAgent>;
+
+/**
+ * OpenAPI-safe version of AgentConfigSchema
+ *
+ * This simplified schema is used ONLY for OpenAPI documentation generation.
+ * Runtime validation still uses the full AgentConfigSchema with complete validation.
+ *
+ * Why: The real AgentConfigSchema uses z.lazy() for CustomToolConfigSchema,
+ * which cannot be serialized to OpenAPI JSON by @hono/zod-openapi.
+ *
+ * See lines 780 and 854 where AgentConfigSchema.safeParse() is used for actual validation.
+ */
+const AgentConfigSchemaForOpenAPI = z
+    .record(z.any())
+    .describe(
+        'Complete agent configuration. See AgentConfig type documentation for full schema details.'
+    );
 
 const AgentIdentifierSchema = z
     .object({
@@ -69,10 +88,6 @@ const CustomAgentInstallSchema = z
             })
             .strict()
             .describe('Agent metadata including description, author, and tags'),
-        injectPreferences: z
-            .boolean()
-            .default(true)
-            .describe('Whether to inject user preferences into agent config'),
     })
     .strict()
     .describe('Request body for installing a custom agent from file system')
@@ -83,7 +98,6 @@ const CustomAgentInstallSchema = z
             displayName,
             sourcePath: value.sourcePath,
             metadata: value.metadata,
-            injectPreferences: value.injectPreferences,
         };
     });
 
@@ -106,7 +120,7 @@ const CustomAgentCreateSchema = z
         author: z.string().optional().describe('Author or organization'),
         tags: z.array(z.string()).default([]).describe('Tags for discovery'),
         // Full agent configuration
-        config: AgentConfigSchema.describe('Complete agent configuration'),
+        config: AgentConfigSchemaForOpenAPI.describe('Complete agent configuration'),
     })
     .strict()
     .describe('Request body for creating a new custom agent with full configuration');
@@ -222,7 +236,7 @@ export type AgentsRouterContext = {
     getActiveAgentId: () => string | undefined;
 };
 
-export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRouterContext) {
+export function createAgentsRouter(getAgent: GetAgentFn, context: AgentsRouterContext) {
     const app = new OpenAPIHono();
     const { switchAgentById, switchAgentByPath, resolveAgentInfo, getActiveAgentId } = context;
 
@@ -553,20 +567,16 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
 
             // Check if this is a custom agent installation (has sourcePath and metadata)
             if ('sourcePath' in body && 'metadata' in body) {
-                const { id, displayName, sourcePath, metadata, injectPreferences } =
-                    body as ReturnType<typeof CustomAgentInstallSchema.parse>;
+                const { id, displayName, sourcePath, metadata } = body as ReturnType<
+                    typeof CustomAgentInstallSchema.parse
+                >;
 
-                await AgentFactory.installCustomAgent(
-                    id,
-                    sourcePath,
-                    {
-                        name: displayName,
-                        description: metadata.description,
-                        author: metadata.author,
-                        tags: metadata.tags,
-                    },
-                    injectPreferences
-                );
+                await AgentFactory.installCustomAgent(id, sourcePath, {
+                    name: displayName,
+                    description: metadata.description,
+                    author: metadata.author,
+                    tags: metadata.tags,
+                });
                 return ctx.json(
                     { installed: true as const, id, name: displayName, type: 'custom' as const },
                     201
@@ -670,17 +680,12 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
 
             try {
                 // Install the custom agent
-                await AgentFactory.installCustomAgent(
-                    id,
-                    tmpFile,
-                    {
-                        name,
-                        description,
-                        author: author || 'Custom',
-                        tags: tags || [],
-                    },
-                    false // Don't inject preferences
-                );
+                await AgentFactory.installCustomAgent(id, tmpFile, {
+                    name,
+                    description,
+                    author: author || 'Custom',
+                    tags: tags || [],
+                });
 
                 // Clean up temp file
                 await fs.unlink(tmpFile).catch(() => {});
@@ -692,8 +697,8 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
                 throw installError;
             }
         })
-        .openapi(getPathRoute, (ctx) => {
-            const agent = getAgent();
+        .openapi(getPathRoute, async (ctx) => {
+            const agent = await getAgent(ctx);
             const agentPath = agent.getAgentFilePath();
 
             const relativePath = path.basename(agentPath);
@@ -704,11 +709,11 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
                 path: agentPath,
                 relativePath,
                 name,
-                isDefault: name === 'default-agent',
+                isDefault: name === 'coding-agent',
             });
         })
         .openapi(getConfigRoute, async (ctx) => {
-            const agent = getAgent();
+            const agent = await getAgent(ctx);
 
             // Get the agent file path being used
             const agentPath = agent.getAgentFilePath();
@@ -770,7 +775,7 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
 
             // Enrich config with defaults/paths to satisfy schema requirements
             // Pass undefined for validation-only (no real file path)
-            // AgentId will be derived from agentCard.name or fall back to 'default-agent'
+            // AgentId will be derived from agentCard.name or fall back to 'coding-agent'
             const enriched = enrichAgentConfig(parsed, undefined);
 
             // Validate against schema
@@ -809,7 +814,7 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
             });
         })
         .openapi(saveConfigRoute, async (ctx) => {
-            const agent = getAgent();
+            const agent = await getAgent(ctx);
             const { yaml } = ctx.req.valid('json');
 
             // Validate YAML syntax first
@@ -913,7 +918,7 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
             }
         })
         .openapi(exportConfigRoute, async (ctx) => {
-            const agent = getAgent();
+            const agent = await getAgent(ctx);
             const { sessionId } = ctx.req.valid('query');
             const config = agent.getEffectiveConfig(sessionId);
 

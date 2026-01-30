@@ -43,7 +43,7 @@ describe('tool-output-truncator', () => {
                     { type: 'text', text: longText },
                     { type: 'image', image: 'data:image/png;base64,...' },
                 ],
-                meta: { toolName: 'test', toolCallId: '123' },
+                meta: { toolName: 'test', toolCallId: '123', success: true },
             };
 
             const result = truncateToolResult(toolResult, { maxChars: 100 });
@@ -66,7 +66,7 @@ describe('tool-output-truncator', () => {
         it('should not modify result if no truncation needed', () => {
             const toolResult: SanitizedToolResult = {
                 content: [{ type: 'text', text: 'short' }],
-                meta: { toolName: 'test', toolCallId: '123' },
+                meta: { toolName: 'test', toolCallId: '123', success: true },
             };
 
             const result = truncateToolResult(toolResult, { maxChars: 100 });

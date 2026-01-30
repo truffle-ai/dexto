@@ -45,9 +45,7 @@ const agent = new DextoAgent({
 await agent.start();
 const session = await agent.createSession();
 
-const response = await agent.generate('Explain TypeScript in one sentence.', {
-  sessionId: session.id
-});
+const response = await agent.generate('Explain TypeScript in one sentence.', session.id);
 
 console.log(response.content);
 await agent.stop();
@@ -101,7 +99,7 @@ const session = await agent.createSession();
 ### 4. Generate a Response
 
 ```typescript
-const response = await agent.generate('What is TypeScript?', { sessionId: session.id });
+const response = await agent.generate('What is TypeScript?', session.id);
 console.log(response.content);
 ```
 

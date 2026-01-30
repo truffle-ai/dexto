@@ -122,14 +122,8 @@ export const AgentFactory = {
         agentId: string,
         sourcePath: string,
         metadata: Pick<AgentMetadata, 'name' | 'description' | 'author' | 'tags'>,
-        injectPreferences?: boolean | InstallOptions
+        options?: InstallOptions
     ): Promise<string> {
-        // Handle backward compatibility: injectPreferences can be boolean or InstallOptions
-        const options: InstallOptions =
-            typeof injectPreferences === 'boolean'
-                ? { injectPreferences }
-                : injectPreferences || {};
-
         return installCustomAgent(agentId, sourcePath, metadata, options);
     },
 

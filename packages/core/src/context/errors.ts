@@ -133,6 +133,50 @@ export class ContextError {
         );
     }
 
+    static compactionInvalidType(type: string, available: string[]) {
+        return new DextoRuntimeError(
+            ContextErrorCode.COMPACTION_INVALID_TYPE,
+            ErrorScope.CONTEXT,
+            ErrorType.USER,
+            `Unknown compaction provider type: '${type}'`,
+            { type, available },
+            `Use one of the available types: ${available.join(', ')}`
+        );
+    }
+
+    static compactionValidation(type: string, errors: unknown) {
+        return new DextoRuntimeError(
+            ContextErrorCode.COMPACTION_VALIDATION,
+            ErrorScope.CONTEXT,
+            ErrorType.USER,
+            `Invalid configuration for compaction provider '${type}'`,
+            { type, errors },
+            'Check the configuration schema for this provider'
+        );
+    }
+
+    static compactionMissingLLM(type: string) {
+        return new DextoRuntimeError(
+            ContextErrorCode.COMPACTION_MISSING_LLM,
+            ErrorScope.CONTEXT,
+            ErrorType.USER,
+            `Compaction provider '${type}' requires LLM service but none provided`,
+            { type },
+            'Ensure LLM service is initialized before creating this compaction provider'
+        );
+    }
+
+    static compactionProviderAlreadyRegistered(type: string) {
+        return new DextoRuntimeError(
+            ContextErrorCode.COMPACTION_PROVIDER_ALREADY_REGISTERED,
+            ErrorScope.CONTEXT,
+            ErrorType.USER,
+            `Compaction provider '${type}' is already registered`,
+            { type },
+            'Each provider type can only be registered once'
+        );
+    }
+
     // Message lookup errors
     static messageNotFound(messageId: string) {
         return new DextoRuntimeError(

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { getSupportedProviders } from '@dexto/core';
+import { isDextoAuthEnabled } from '@dexto/agent-management';
 import chalk from 'chalk';
 
 /**
@@ -8,42 +9,52 @@ import chalk from 'chalk';
  * @throws {z.ZodError} If validation fails.
  */
 export function validateCliOptions(opts: any): void {
-    const supportedProviders = getSupportedProviders().map((p) => p.toLowerCase());
+    const allProviders = getSupportedProviders();
+    const supportedProviders = allProviders
+        .filter((p) => p !== 'dexto' || isDextoAuthEnabled())
+        .map((p) => p.toLowerCase());
 
     // Base schema for primitive shape
-    const cliOptionShape = z.object({
-        agent: z.string().min(1, 'Agent name or path must not be empty').optional(),
-        strict: z.boolean().optional().default(false),
-        verbose: z.boolean().optional().default(true),
-        mode: z.enum(['web', 'cli', 'server', 'discord', 'telegram', 'mcp'], {
-            errorMap: () => ({
-                message:
-                    'Mode must be one of "web", "cli", "server", "discord", "telegram", or "mcp"',
+    const cliOptionShape = z
+        .object({
+            agent: z.string().min(1, 'Agent name or path must not be empty').optional(),
+            strict: z.boolean().optional().default(false),
+            verbose: z.boolean().optional().default(true),
+            mode: z.enum(['web', 'cli', 'server', 'discord', 'telegram', 'mcp'], {
+                errorMap: () => ({
+                    message:
+                        'Mode must be one of "web", "cli", "server", "discord", "telegram", or "mcp"',
+                }),
             }),
-        }),
-        port: z
-            .string()
-            .refine(
-                (val) => {
-                    const port = parseInt(val, 10);
-                    return !isNaN(port) && port > 0 && port <= 65535;
-                },
-                { message: 'Port must be a number between 1 and 65535' }
-            )
-            .optional(),
-        autoApprove: z
-            .boolean()
-            .optional()
-            .default(false)
-            .describe('Automatically approve all tool executions when true'),
-        provider: z.string().optional(),
-        model: z.string().optional(),
-        interactive: z
-            .boolean()
-            .optional()
-            .default(true)
-            .describe('Enable interactive prompts (set to false with --no-interactive)'),
-    });
+            port: z
+                .string()
+                .refine(
+                    (val) => {
+                        const port = parseInt(val, 10);
+                        return !isNaN(port) && port > 0 && port <= 65535;
+                    },
+                    { message: 'Port must be a number between 1 and 65535' }
+                )
+                .optional(),
+            autoApprove: z
+                .boolean()
+                .optional()
+                .default(false)
+                .describe('Automatically approve all tool executions when true'),
+            elicitation: z
+                .boolean()
+                .optional()
+                .default(true)
+                .describe('Enable elicitation (set to false with --no-elicitation)'),
+            provider: z.string().optional(),
+            model: z.string().optional(),
+            interactive: z
+                .boolean()
+                .optional()
+                .default(true)
+                .describe('Enable interactive prompts (set to false with --no-interactive)'),
+        })
+        .strict();
 
     // Basic semantic validation
     const cliOptionSchema = cliOptionShape
@@ -95,6 +106,7 @@ export function validateCliOptions(opts: any): void {
         model: opts.model,
         interactive: opts.interactive,
         autoApprove: opts.autoApprove,
+        elicitation: opts.elicitation,
     });
 }
 
@@ -106,7 +118,7 @@ export function handleCliOptionsError(error: unknown): never {
             console.error(chalk.red(`   • Option '${fieldName}': ${err.message}`));
         });
         console.error(
-            chalk.dim(
+            chalk.gray(
                 '\nPlease check your command-line arguments or run with --help for usage details.'
             )
         );

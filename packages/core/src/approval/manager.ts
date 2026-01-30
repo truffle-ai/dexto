@@ -1,3 +1,4 @@
+import path from 'node:path';
 import type {
     ApprovalHandler,
     ApprovalRequest,
@@ -6,12 +7,14 @@ import type {
     ToolConfirmationMetadata,
     CommandConfirmationMetadata,
     ElicitationMetadata,
+    DirectoryAccessMetadata,
 } from './types.js';
 import { ApprovalType, ApprovalStatus, DenialReason } from './types.js';
 import { createApprovalRequest } from './factory.js';
 import type { IDextoLogger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
 import { ApprovalError } from './errors.js';
+import { patternCovers } from '../tools/bash-pattern-utils.js';
 
 /**
  * Configuration for the approval manager
@@ -19,11 +22,11 @@ import { ApprovalError } from './errors.js';
 export interface ApprovalManagerConfig {
     toolConfirmation: {
         mode: 'manual' | 'auto-approve' | 'auto-deny';
-        timeout: number;
+        timeout?: number; // Optional - no timeout if not specified
     };
     elicitation: {
         enabled: boolean;
-        timeout: number;
+        timeout?: number; // Optional - no timeout if not specified
     };
 }
 
@@ -65,6 +68,22 @@ export class ApprovalManager {
     private config: ApprovalManagerConfig;
     private logger: IDextoLogger;
 
+    /**
+     * Bash command patterns approved for the current session.
+     * Patterns use simple glob syntax (e.g., "git *", "npm install *").
+     * Cleared when session ends.
+     */
+    private bashPatterns: Set<string> = new Set();
+
+    /**
+     * Directories approved for file access for the current session.
+     * Stores normalized absolute paths mapped to their approval type:
+     * - 'session': No directory prompt, follows tool config (working dir + user session-approved)
+     * - 'once': Prompts each time, but tool can execute
+     * Cleared when session ends.
+     */
+    private approvedDirectories: Map<string, 'session' | 'once'> = new Map();
+
     constructor(config: ApprovalManagerConfig, logger: IDextoLogger) {
         this.config = config;
         this.logger = logger.createChild(DextoLogComponent.APPROVAL);
@@ -72,6 +91,228 @@ export class ApprovalManager {
         this.logger.debug(
             `ApprovalManager initialized with toolConfirmation.mode: ${config.toolConfirmation.mode}, elicitation.enabled: ${config.elicitation.enabled}`
         );
+    }
+
+    // ==================== Bash Pattern Methods ====================
+
+    /**
+     * Add a bash command pattern to the approved list for this session.
+     * Patterns use simple glob syntax with * as wildcard.
+     *
+     * @example
+     * ```typescript
+     * manager.addBashPattern("git *");        // Approves all git commands
+     * manager.addBashPattern("npm install *"); // Approves npm install with any package
+     * ```
+     */
+    addBashPattern(pattern: string): void {
+        this.bashPatterns.add(pattern);
+        this.logger.debug(`Added bash pattern: "${pattern}"`);
+    }
+
+    /**
+     * Check if a bash pattern key is covered by any approved pattern.
+     * Uses pattern-to-pattern covering for broader pattern support.
+     *
+     * @param patternKey The pattern key generated from the command (e.g., "git push *")
+     * @returns true if the pattern key is covered by an approved pattern
+     */
+    matchesBashPattern(patternKey: string): boolean {
+        for (const storedPattern of this.bashPatterns) {
+            if (patternCovers(storedPattern, patternKey)) {
+                this.logger.debug(
+                    `Pattern key "${patternKey}" is covered by approved pattern "${storedPattern}"`
+                );
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Clear all approved bash patterns.
+     * Should be called when session ends.
+     */
+    clearBashPatterns(): void {
+        const count = this.bashPatterns.size;
+        this.bashPatterns.clear();
+        if (count > 0) {
+            this.logger.debug(`Cleared ${count} bash patterns`);
+        }
+    }
+
+    /**
+     * Get the current set of approved bash patterns (for debugging/display).
+     */
+    getBashPatterns(): ReadonlySet<string> {
+        return this.bashPatterns;
+    }
+
+    // ==================== Directory Access Methods ====================
+
+    /**
+     * Initialize the working directory as a session-approved directory.
+     * This should be called once during setup to ensure the working directory
+     * never triggers directory access prompts.
+     *
+     * @param workingDir The working directory path
+     */
+    initializeWorkingDirectory(workingDir: string): void {
+        const normalized = path.resolve(workingDir);
+        this.approvedDirectories.set(normalized, 'session');
+        this.logger.debug(`Initialized working directory as session-approved: "${normalized}"`);
+    }
+
+    /**
+     * Add a directory to the approved list for this session.
+     * Files within this directory (including subdirectories) will be allowed.
+     *
+     * @param directory Absolute path to the directory to approve
+     * @param type The approval type:
+     *   - 'session': No directory prompt on future accesses, follows tool config
+     *   - 'once': Will prompt again on future accesses, but tool can execute this time
+     * @example
+     * ```typescript
+     * manager.addApprovedDirectory("/external/project", 'session');
+     * // Now /external/project/src/file.ts is accessible without directory prompt
+     *
+     * manager.addApprovedDirectory("/tmp/files", 'once');
+     * // Tool can access, but will prompt again next time
+     * ```
+     */
+    addApprovedDirectory(directory: string, type: 'session' | 'once' = 'session'): void {
+        const normalized = path.resolve(directory);
+        const existing = this.approvedDirectories.get(normalized);
+
+        // Don't downgrade from 'session' to 'once'
+        if (existing === 'session') {
+            this.logger.debug(
+                `Directory "${normalized}" already approved as 'session', not downgrading to '${type}'`
+            );
+            return;
+        }
+
+        this.approvedDirectories.set(normalized, type);
+        this.logger.debug(`Added approved directory: "${normalized}" (type: ${type})`);
+    }
+
+    /**
+     * Check if a file path is within any session-approved directory.
+     * This is used for PROMPTING decisions - only 'session' type directories count.
+     * Working directory and user session-approved directories return true.
+     *
+     * @param filePath The file path to check (can be relative or absolute)
+     * @returns true if the path is within a session-approved directory
+     */
+    isDirectorySessionApproved(filePath: string): boolean {
+        const normalized = path.resolve(filePath);
+
+        for (const [approvedDir, type] of this.approvedDirectories) {
+            // Only check 'session' type directories for prompting decisions
+            if (type !== 'session') continue;
+
+            const relative = path.relative(approvedDir, normalized);
+            if (!relative.startsWith('..') && !path.isAbsolute(relative)) {
+                this.logger.debug(
+                    `Path "${normalized}" is within session-approved directory "${approvedDir}"`
+                );
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Check if a file path is within any approved directory (session OR once).
+     * This is used for EXECUTION decisions - both 'session' and 'once' types count.
+     * PathValidator uses this to determine if a tool can access the path.
+     *
+     * @param filePath The file path to check (can be relative or absolute)
+     * @returns true if the path is within any approved directory
+     */
+    isDirectoryApproved(filePath: string): boolean {
+        const normalized = path.resolve(filePath);
+
+        for (const [approvedDir] of this.approvedDirectories) {
+            const relative = path.relative(approvedDir, normalized);
+            if (!relative.startsWith('..') && !path.isAbsolute(relative)) {
+                this.logger.debug(
+                    `Path "${normalized}" is within approved directory "${approvedDir}"`
+                );
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Clear all approved directories.
+     * Should be called when session ends.
+     */
+    clearApprovedDirectories(): void {
+        const count = this.approvedDirectories.size;
+        this.approvedDirectories.clear();
+        if (count > 0) {
+            this.logger.debug(`Cleared ${count} approved directories`);
+        }
+    }
+
+    /**
+     * Get the current map of approved directories with their types (for debugging/display).
+     */
+    getApprovedDirectories(): ReadonlyMap<string, 'session' | 'once'> {
+        return this.approvedDirectories;
+    }
+
+    /**
+     * Get just the directory paths that are approved (for debugging/display).
+     */
+    getApprovedDirectoryPaths(): string[] {
+        return Array.from(this.approvedDirectories.keys());
+    }
+
+    /**
+     * Clear all session-scoped approvals (bash patterns and directories).
+     * Convenience method for clearing all session state at once.
+     */
+    clearSessionApprovals(): void {
+        this.clearBashPatterns();
+        this.clearApprovedDirectories();
+        this.logger.debug('Cleared all session approvals');
+    }
+
+    /**
+     * Request directory access approval.
+     * Convenience method for directory access requests.
+     *
+     * @example
+     * ```typescript
+     * const response = await manager.requestDirectoryAccess({
+     *   path: '/external/project/src/file.ts',
+     *   parentDir: '/external/project',
+     *   operation: 'write',
+     *   toolName: 'write_file',
+     *   sessionId: 'session-123'
+     * });
+     * ```
+     */
+    async requestDirectoryAccess(
+        metadata: DirectoryAccessMetadata & { sessionId?: string; timeout?: number }
+    ): Promise<ApprovalResponse> {
+        const { sessionId, timeout, ...directoryMetadata } = metadata;
+
+        const details: ApprovalRequestDetails = {
+            type: ApprovalType.DIRECTORY_ACCESS,
+            // Use provided timeout, fallback to config timeout, or undefined (no timeout)
+            timeout: timeout !== undefined ? timeout : this.config.toolConfirmation.timeout,
+            metadata: directoryMetadata,
+        };
+
+        if (sessionId !== undefined) {
+            details.sessionId = sessionId;
+        }
+
+        return this.requestApproval(details);
     }
 
     /**
@@ -92,7 +333,7 @@ export class ApprovalManager {
     }
 
     /**
-     * Handle approval requests (tool confirmation, elicitation, command confirmation, custom)
+     * Handle approval requests (tool confirmation, elicitation, command confirmation, directory access, custom)
      * @private
      */
     private async handleApproval(request: ApprovalRequest): Promise<ApprovalResponse> {
@@ -105,7 +346,7 @@ export class ApprovalManager {
             return handler(request);
         }
 
-        // Tool/command/custom confirmations respect the configured mode
+        // Tool/command/directory-access/custom confirmations respect the configured mode
         const mode = this.config.toolConfirmation.mode;
 
         // Auto-approve mode
@@ -162,7 +403,8 @@ export class ApprovalManager {
 
         const details: ApprovalRequestDetails = {
             type: ApprovalType.TOOL_CONFIRMATION,
-            timeout: timeout ?? this.config.toolConfirmation.timeout,
+            // Use provided timeout, fallback to config timeout, or undefined (no timeout)
+            timeout: timeout !== undefined ? timeout : this.config.toolConfirmation.timeout,
             metadata: toolMetadata,
         };
 
@@ -201,7 +443,8 @@ export class ApprovalManager {
 
         const details: ApprovalRequestDetails = {
             type: ApprovalType.COMMAND_CONFIRMATION,
-            timeout: timeout ?? this.config.toolConfirmation.timeout,
+            // Use provided timeout, fallback to config timeout, or undefined (no timeout)
+            timeout: timeout !== undefined ? timeout : this.config.toolConfirmation.timeout,
             metadata: commandMetadata,
         };
 
@@ -226,7 +469,8 @@ export class ApprovalManager {
 
         const details: ApprovalRequestDetails = {
             type: ApprovalType.ELICITATION,
-            timeout: timeout ?? this.config.elicitation.timeout,
+            // Use provided timeout, fallback to config timeout, or undefined (no timeout)
+            timeout: timeout !== undefined ? timeout : this.config.elicitation.timeout,
             metadata: elicitationMetadata,
         };
 
@@ -321,6 +565,33 @@ export class ApprovalManager {
      */
     getPendingApprovals(): string[] {
         return this.handler?.getPending?.() ?? [];
+    }
+
+    /**
+     * Get full pending approval requests
+     */
+    getPendingApprovalRequests(): ApprovalRequest[] {
+        return this.handler?.getPendingRequests?.() ?? [];
+    }
+
+    /**
+     * Auto-approve pending requests that match a predicate.
+     * Used when a pattern is remembered to auto-approve other parallel requests
+     * that would now match the same pattern.
+     *
+     * @param predicate Function that returns true for requests that should be auto-approved
+     * @param responseData Optional data to include in the auto-approval response
+     * @returns Number of requests that were auto-approved
+     */
+    autoApprovePendingRequests(
+        predicate: (request: ApprovalRequest) => boolean,
+        responseData?: Record<string, unknown>
+    ): number {
+        const count = this.handler?.autoApprovePending?.(predicate, responseData) ?? 0;
+        if (count > 0) {
+            this.logger.info(`Auto-approved ${count} pending request(s) due to matching pattern`);
+        }
+        return count;
     }
 
     /**

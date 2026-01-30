@@ -2,9 +2,10 @@ import type { Cache } from './cache/types.js';
 import type { Database } from './database/types.js';
 import type { BlobStore } from './blob/types.js';
 import type { ValidatedStorageConfig } from './schemas.js';
-import { createCache } from './cache/factory.js';
-import { createDatabase } from './database/factory.js';
-import { createBlobStore } from './blob/factory.js';
+// Import from index files to ensure providers are registered
+import { createCache } from './cache/index.js';
+import { createDatabase } from './database/index.js';
+import { createBlobStore } from './blob/index.js';
 import { StorageError } from './errors.js';
 import type { IDextoLogger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';

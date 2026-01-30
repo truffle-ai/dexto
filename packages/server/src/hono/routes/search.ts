@@ -1,6 +1,8 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { DextoAgent } from '@dexto/core';
 import { MessageSearchResponseSchema, SessionSearchResponseSchema } from '../schemas/responses.js';
+import type { Context } from 'hono';
+type GetAgentFn = (ctx: Context) => DextoAgent | Promise<DextoAgent>;
 
 const MessageSearchQuery = z.object({
     q: z.string().min(1, 'Search query is required').describe('Search query string'),
@@ -26,7 +28,7 @@ const SessionSearchQuery = z.object({
     q: z.string().min(1, 'Search query is required').describe('Search query string'),
 });
 
-export function createSearchRouter(getAgent: () => DextoAgent) {
+export function createSearchRouter(getAgent: GetAgentFn) {
     const app = new OpenAPIHono();
 
     const messagesRoute = createRoute({
@@ -61,7 +63,7 @@ export function createSearchRouter(getAgent: () => DextoAgent) {
 
     return app
         .openapi(messagesRoute, async (ctx) => {
-            const agent = getAgent();
+            const agent = await getAgent(ctx);
             const { q, limit, offset, sessionId, role } = ctx.req.valid('query');
             const options = {
                 limit: limit || 20,
@@ -76,7 +78,7 @@ export function createSearchRouter(getAgent: () => DextoAgent) {
             return ctx.json(searchResults as z.output<typeof MessageSearchResponseSchema>);
         })
         .openapi(sessionsRoute, async (ctx) => {
-            const agent = getAgent();
+            const agent = await getAgent(ctx);
             const { q } = ctx.req.valid('query');
             const searchResults = await agent.searchSessions(q);
             // TODO: Improve type alignment between core and server schemas.

@@ -14,6 +14,25 @@ export const PROVIDER_API_KEY_MAP: Record<LLMProvider, string[]> = {
     groq: ['GROQ_API_KEY'],
     cohere: ['COHERE_API_KEY'],
     xai: ['XAI_API_KEY', 'X_AI_API_KEY'],
+    minimax: ['MINIMAX_API_KEY'],
+    glm: ['ZHIPU_API_KEY', 'ZHIPUAI_API_KEY'],
+    openrouter: ['OPENROUTER_API_KEY'],
+    litellm: ['LITELLM_API_KEY', 'LITELLM_KEY'],
+    glama: ['GLAMA_API_KEY'],
+    // Vertex uses ADC (Application Default Credentials), not API keys
+    // GOOGLE_APPLICATION_CREDENTIALS points to service account JSON (optional)
+    // Primary config is GOOGLE_VERTEX_PROJECT (required) + GOOGLE_VERTEX_LOCATION (optional)
+    vertex: [],
+    // Bedrock supports two auth methods:
+    // 1. AWS_BEARER_TOKEN_BEDROCK - Bedrock API key (simplest)
+    // 2. AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY + AWS_REGION (IAM credentials)
+    // AWS_SESSION_TOKEN (optional, for temporary credentials)
+    bedrock: ['AWS_BEARER_TOKEN_BEDROCK'],
+    // Local providers don't require API keys
+    local: [], // Native node-llama-cpp execution
+    ollama: [], // Ollama server (may optionally use OLLAMA_API_KEY for remote servers)
+    // Dexto gateway - requires key from `dexto login`
+    dexto: ['DEXTO_API_KEY'],
     // perplexity: ['PERPLEXITY_API_KEY'],
     // together: ['TOGETHER_API_KEY'],
     // fireworks: ['FIREWORKS_API_KEY'],

@@ -8,12 +8,15 @@
  * - /log [level] - Set or view log level
  * - /config - Show current configuration
  * - /stats - Show system statistics
+ * - /stream - Toggle streaming mode for LLM responses
  */
 
 import chalk from 'chalk';
 import { logger, type DextoAgent } from '@dexto/core';
-import type { CommandDefinition } from '../command-parser.js';
+import type { CommandDefinition, CommandHandlerResult, CommandContext } from '../command-parser.js';
 import { formatForInkCli } from '../utils/format-output.js';
+import { CommandOutputHelper } from '../utils/command-output.js';
+import type { ConfigStyledData, StatsStyledData } from '../../../ink-cli/state/types.js';
 
 /**
  * System commands for configuration and monitoring
@@ -25,7 +28,11 @@ export const systemCommands: CommandDefinition[] = [
         usage: '/log [level]',
         category: 'System',
         aliases: [],
-        handler: async (args: string[], _agent: DextoAgent): Promise<boolean | string> => {
+        handler: async (
+            args: string[],
+            _agent: DextoAgent,
+            _ctx: CommandContext
+        ): Promise<boolean | string> => {
             const validLevels = ['error', 'warn', 'info', 'http', 'verbose', 'debug', 'silly'];
             const level = args[0];
 
@@ -39,7 +46,7 @@ export const systemCommands: CommandDefinition[] = [
                 if (logFilePath) {
                     console.log(`  Log file: ${chalk.cyan(logFilePath)}`);
                 }
-                console.log(chalk.dim('\n  Available levels (from least to most verbose):'));
+                console.log(chalk.gray('\n  Available levels (from least to most verbose):'));
                 validLevels.forEach((lvl) => {
                     const isCurrent = lvl === currentLevel;
                     const marker = isCurrent ? chalk.green('▶') : ' ';
@@ -47,7 +54,7 @@ export const systemCommands: CommandDefinition[] = [
                     console.log(`  ${marker} ${levelText}`);
                 });
                 console.log(
-                    chalk.dim('\n  💡 Use /log <level> to change level (e.g., /log debug)\n')
+                    chalk.gray('\n  💡 Use /log <level> to change level (e.g., /log debug)\n')
                 );
 
                 const output = [
@@ -72,7 +79,7 @@ export const systemCommands: CommandDefinition[] = [
             } else {
                 const errorMsg = `❌ Invalid log level: ${level}\nValid levels: ${validLevels.join(', ')}`;
                 console.log(chalk.red(`❌ Invalid log level: ${chalk.bold(level)}`));
-                console.log(chalk.dim(`Valid levels: ${validLevels.join(', ')}`));
+                console.log(chalk.gray(`Valid levels: ${validLevels.join(', ')}`));
                 return formatForInkCli(errorMsg);
             }
         },
@@ -82,66 +89,73 @@ export const systemCommands: CommandDefinition[] = [
         description: 'Show current configuration',
         usage: '/config',
         category: 'System',
-        handler: async (_args: string[], agent: DextoAgent): Promise<boolean | string> => {
+        handler: async (
+            _args: string[],
+            agent: DextoAgent,
+            _ctx: CommandContext
+        ): Promise<CommandHandlerResult> => {
             try {
                 const config = agent.getEffectiveConfig();
-
-                // Build output string
-                const outputLines: string[] = ['\n⚙️  Current Configuration:\n'];
-
-                // LLM Config
-                outputLines.push('🤖 LLM:');
-                outputLines.push(`  Provider: ${config.llm.provider}`);
-                outputLines.push(`  Model: ${config.llm.model}`);
-
-                // Session Config
-                outputLines.push('\n💬 Sessions:');
-                outputLines.push(
-                    `  Max Sessions: ${config.sessions?.maxSessions?.toString() || 'Default'}`
-                );
-                outputLines.push(
-                    `  Session TTL: ${config.sessions?.sessionTTL ? `${config.sessions.sessionTTL / 1000}s` : 'Default'}`
-                );
-
-                // MCP Servers
-                outputLines.push('\n🔌 MCP Servers:');
                 const servers = Object.keys(config.mcpServers || {});
-                if (servers.length > 0) {
-                    for (const server of servers) {
-                        outputLines.push(`  ${server}`);
-                    }
-                } else {
-                    outputLines.push('  No MCP servers configured');
+
+                // Get config file path (may not exist for programmatic agents)
+                let configFilePath: string | null = null;
+                try {
+                    configFilePath = agent.getAgentFilePath();
+                } catch {
+                    // No config file path available
                 }
 
-                const output = outputLines.join('\n') + '\n';
-
-                // Log for regular CLI
-                console.log(chalk.blue('\n⚙️  Current Configuration:\n'));
-                console.log(chalk.bold('🤖 LLM:'));
-                console.log(`  Provider: ${chalk.cyan(config.llm.provider)}`);
-                console.log(`  Model: ${chalk.cyan(config.llm.model)}`);
-                console.log(chalk.bold('\n💬 Sessions:'));
-                console.log(
-                    `  Max Sessions: ${chalk.cyan(config.sessions?.maxSessions?.toString() || 'Default')}`
-                );
-                console.log(
-                    `  Session TTL: ${chalk.cyan(config.sessions?.sessionTTL ? `${config.sessions.sessionTTL / 1000}s` : 'Default')}`
-                );
-                console.log(chalk.bold('\n🔌 MCP Servers:'));
-                if (servers.length > 0) {
-                    for (const server of servers) {
-                        console.log(`  ${chalk.cyan(server)}`);
+                // Get enabled plugins
+                const pluginsEnabled: string[] = [];
+                if (config.plugins) {
+                    // Check built-in plugins
+                    if (config.plugins.contentPolicy?.enabled) {
+                        pluginsEnabled.push('contentPolicy');
                     }
-                } else {
-                    console.log(chalk.dim('  No MCP servers configured'));
+                    if (config.plugins.responseSanitizer?.enabled) {
+                        pluginsEnabled.push('responseSanitizer');
+                    }
+                    // Check custom plugins
+                    for (const plugin of config.plugins.custom || []) {
+                        if (plugin.enabled) {
+                            pluginsEnabled.push(plugin.name);
+                        }
+                    }
                 }
-                console.log();
 
-                return formatForInkCli(output);
+                // Build styled data
+                const styledData: ConfigStyledData = {
+                    configFilePath,
+                    provider: config.llm.provider,
+                    model: config.llm.model,
+                    maxTokens: config.llm.maxOutputTokens ?? null,
+                    temperature: config.llm.temperature ?? null,
+                    toolConfirmationMode: config.toolConfirmation?.mode || 'auto',
+                    maxSessions: config.sessions?.maxSessions?.toString() || 'Default',
+                    sessionTTL: config.sessions?.sessionTTL
+                        ? `${config.sessions.sessionTTL / 1000}s`
+                        : 'Default',
+                    mcpServers: servers,
+                    promptsCount: config.prompts?.length || 0,
+                    pluginsEnabled,
+                };
+
+                // Build fallback text (no console.log - interferes with Ink rendering)
+                const fallbackLines: string[] = [
+                    'Configuration:',
+                    configFilePath ? `  Config: ${configFilePath}` : '',
+                    `  LLM: ${config.llm.provider} / ${config.llm.model}`,
+                    `  Tool Confirmation: ${styledData.toolConfirmationMode}`,
+                    `  Sessions: max=${styledData.maxSessions}, ttl=${styledData.sessionTTL}`,
+                    `  MCP Servers: ${servers.length > 0 ? servers.join(', ') : 'none'}`,
+                    `  Prompts: ${styledData.promptsCount}`,
+                ].filter(Boolean);
+
+                return CommandOutputHelper.styled('config', styledData, fallbackLines.join('\n'));
             } catch (error) {
                 const errorMsg = `Failed to get configuration: ${error instanceof Error ? error.message : String(error)}`;
-                logger.error(errorMsg);
+                agent.logger.error(errorMsg);
                 return formatForInkCli(`❌ ${errorMsg}`);
             }
         },
@@ -151,66 +165,92 @@ export const systemCommands: CommandDefinition[] = [
         description: 'Show system statistics',
         usage: '/stats',
         category: 'System',
-        handler: async (_args: string[], agent: DextoAgent): Promise<boolean | string> => {
+        handler: async (
+            _args: string[],
+            agent: DextoAgent,
+            ctx: CommandContext
+        ): Promise<CommandHandlerResult> => {
             try {
-                // Build output string
-                const outputLines: string[] = ['\n📊 System Statistics:\n'];
-
                 // Session stats
                 const sessionStats = await agent.sessionManager.getSessionStats();
-                outputLines.push('💬 Sessions:');
-                outputLines.push(`  Total Sessions: ${sessionStats.totalSessions.toString()}`);
-                outputLines.push(`  In Memory: ${sessionStats.inMemorySessions.toString()}`);
-                outputLines.push(`  Max Allowed: ${sessionStats.maxSessions.toString()}`);
 
                 // MCP stats
-                outputLines.push('\n🔌 MCP Servers:');
                 const connectedServers = agent.getMcpClients().size;
                 const failedConnections = Object.keys(agent.getMcpFailedConnections()).length;
-                outputLines.push(`  Connected: ${connectedServers.toString()}`);
-                if (failedConnections > 0) {
-                    outputLines.push(`  Failed: ${failedConnections.toString()}`);
-                }
 
                 // Tools
+                let toolCount = 0;
                 try {
                     const tools = await agent.getAllMcpTools();
-                    outputLines.push(`  Available Tools: ${Object.keys(tools).length.toString()}`);
+                    toolCount = Object.keys(tools).length;
                 } catch {
-                    outputLines.push('  Available Tools: Unable to count');
+                    // Ignore - toolCount stays 0
                 }
 
-                const output = outputLines.join('\n') + '\n';
-
-                // Log for regular CLI
-                console.log(chalk.blue('\n📊 System Statistics:\n'));
-                console.log(chalk.bold('💬 Sessions:'));
-                console.log(
-                    `  Total Sessions: ${chalk.cyan(sessionStats.totalSessions.toString())}`
-                );
-                console.log(`  In Memory: ${chalk.cyan(sessionStats.inMemorySessions.toString())}`);
-                console.log(`  Max Allowed: ${chalk.cyan(sessionStats.maxSessions.toString())}`);
-                console.log(chalk.bold('\n🔌 MCP Servers:'));
-                console.log(`  Connected: ${chalk.green(connectedServers.toString())}`);
-                if (failedConnections > 0) {
-                    console.log(`  Failed: ${chalk.red(failedConnections.toString())}`);
-                }
-                try {
-                    const tools = await agent.getAllMcpTools();
-                    console.log(
-                        `  Available Tools: ${chalk.cyan(Object.keys(tools).length.toString())}`
+                // Get token usage from current session metadata
+                let tokenUsage: StatsStyledData['tokenUsage'];
+                let estimatedCost: number | undefined;
+                if (ctx.sessionId) {
+                    const sessionMetadata = await agent.sessionManager.getSessionMetadata(
+                        ctx.sessionId
                     );
-                } catch {
-                    console.log(`  Available Tools: ${chalk.dim('Unable to count')}`);
+                    if (sessionMetadata?.tokenUsage) {
+                        tokenUsage = sessionMetadata.tokenUsage;
+                    }
+                    estimatedCost = sessionMetadata?.estimatedCost;
                 }
-                console.log();
 
-                return formatForInkCli(output);
+                // Build styled data
+                const styledData: StatsStyledData = {
+                    sessions: {
+                        total: sessionStats.totalSessions,
+                        inMemory: sessionStats.inMemorySessions,
+                        maxAllowed: sessionStats.maxSessions,
+                    },
+                    mcp: {
+                        connected: connectedServers,
+                        failed: failedConnections,
+                        toolCount,
+                    },
+                    ...(tokenUsage && { tokenUsage }),
+                    ...(estimatedCost !== undefined && { estimatedCost }),
+                };
+
+                // Build fallback text
+                const fallbackLines: string[] = [
+                    'System Statistics:',
+                    `  Sessions: ${sessionStats.totalSessions} total, ${sessionStats.inMemorySessions} in memory`,
+                    `  MCP: ${connectedServers} connected, ${toolCount} tools`,
+                ];
+                if (failedConnections > 0) {
+                    fallbackLines.push(`  Failed connections: ${failedConnections}`);
+                }
+                if (tokenUsage) {
+                    fallbackLines.push(
+                        `  Tokens: ${tokenUsage.totalTokens} total (${tokenUsage.inputTokens} in, ${tokenUsage.outputTokens} out)`
+                    );
+                }
+
+                return CommandOutputHelper.styled('stats', styledData, fallbackLines.join('\n'));
             } catch (error) {
                 const errorMsg = `Failed to get statistics: ${error instanceof Error ? error.message : String(error)}`;
-                logger.error(errorMsg);
+                agent.logger.error(errorMsg);
                 return formatForInkCli(`❌ ${errorMsg}`);
             }
+        },
+    },
+    {
+        name: 'stream',
+        description: 'Toggle streaming mode for LLM responses',
+        usage: '/stream',
+        category: 'System',
+        handler: async (
+            _args: string[],
+            _agent: DextoAgent,
+            _ctx: CommandContext
+        ): Promise<boolean | string> => {
+            // Overlay is handled via commandOverlays.ts mapping
+            return true;
         },
     },
 ];

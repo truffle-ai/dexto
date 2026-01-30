@@ -120,29 +120,42 @@ describe('Install Command', () => {
             // Should not throw
             await handleInstallCommand(['test-agent'], {});
 
-            expect(installBundledAgent).toHaveBeenCalledWith('test-agent', {
-                injectPreferences: true,
-            });
+            expect(installBundledAgent).toHaveBeenCalledWith('test-agent');
         });
     });
 
     describe('Single agent installation', () => {
-        it('installs single agent and applies preferences by default', async () => {
+        it('installs single agent', async () => {
             await handleInstallCommand(['test-agent'], {});
 
-            expect(installBundledAgent).toHaveBeenCalledWith('test-agent', {
-                injectPreferences: true,
-            });
+            expect(installBundledAgent).toHaveBeenCalledWith('test-agent');
             expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('test-agent'));
         });
 
-        it('respects force flag by calling installAgent without preferences injection', async () => {
+        it('respects force flag', async () => {
             await handleInstallCommand(['test-agent'], { force: true });
 
-            // Force flag doesn't affect preference injection - that's controlled by the options parameter
-            expect(installBundledAgent).toHaveBeenCalledWith('test-agent', {
-                injectPreferences: true,
-            });
+            expect(installBundledAgent).toHaveBeenCalledWith('test-agent');
+        });
+
+        it('skips already installed agents when force is false', async () => {
+            // Mock agent as already installed
+            vi.mocked(fs.existsSync).mockReturnValue(true);
+
+            await handleInstallCommand(['test-agent'], { force: false });
+
+            expect(installBundledAgent).not.toHaveBeenCalled();
+            expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('already installed'));
+        });
+
+        it('reinstalls already installed agents when force is true', async () => {
+            // Mock agent as already installed
+            vi.mocked(fs.existsSync).mockReturnValue(true);
+
+            await handleInstallCommand(['test-agent'], { force: true });
+
+            // Should still install despite existing
+            expect(installBundledAgent).toHaveBeenCalledWith('test-agent');
         });
     });
 
@@ -151,12 +164,8 @@ describe('Install Command', () => {
             await handleInstallCommand([], { all: true });
 
             // Should install both agents from mockBundledRegistry
-            expect(installBundledAgent).toHaveBeenCalledWith('test-agent', {
-                injectPreferences: true,
-            });
-            expect(installBundledAgent).toHaveBeenCalledWith('other-agent', {
-                injectPreferences: true,
-            });
+            expect(installBundledAgent).toHaveBeenCalledWith('test-agent');
+            expect(installBundledAgent).toHaveBeenCalledWith('other-agent');
             expect(installBundledAgent).toHaveBeenCalledTimes(2);
             expect(consoleSpy).toHaveBeenCalledWith(
                 expect.stringContaining('Installing all 2 available agents')
@@ -167,16 +176,9 @@ describe('Install Command', () => {
             await handleInstallCommand(['should-be-ignored'], { all: true });
 
             // Should install bundled agents, not the specified one
-            expect(installBundledAgent).toHaveBeenCalledWith('test-agent', {
-                injectPreferences: true,
-            });
-            expect(installBundledAgent).toHaveBeenCalledWith('other-agent', {
-                injectPreferences: true,
-            });
-            expect(installBundledAgent).not.toHaveBeenCalledWith(
-                'should-be-ignored',
-                expect.anything()
-            );
+            expect(installBundledAgent).toHaveBeenCalledWith('test-agent');
+            expect(installBundledAgent).toHaveBeenCalledWith('other-agent');
+            expect(installBundledAgent).not.toHaveBeenCalledWith('should-be-ignored');
         });
     });
 
@@ -193,12 +195,8 @@ describe('Install Command', () => {
             await handleInstallCommand(['test-agent', 'other-agent'], {});
 
             expect(installBundledAgent).toHaveBeenCalledTimes(2);
-            expect(installBundledAgent).toHaveBeenCalledWith('test-agent', {
-                injectPreferences: true,
-            });
-            expect(installBundledAgent).toHaveBeenCalledWith('other-agent', {
-                injectPreferences: true,
-            });
+            expect(installBundledAgent).toHaveBeenCalledWith('test-agent');
+            expect(installBundledAgent).toHaveBeenCalledWith('other-agent');
         });
 
         it('throws when single agent installation fails', async () => {
@@ -249,8 +247,7 @@ describe('Install Command', () => {
                     description: 'Test description',
                     author: 'Test Author',
                     tags: ['custom', 'test'],
-                },
-                { injectPreferences: true }
+                }
             );
         });
 
@@ -279,26 +276,8 @@ describe('Install Command', () => {
             await handleInstallCommand(['test-agent'], {});
 
             // Should use bundled agent installation, not custom
-            expect(installBundledAgent).toHaveBeenCalledWith('test-agent', {
-                injectPreferences: true,
-            });
+            expect(installBundledAgent).toHaveBeenCalledWith('test-agent');
             expect(installCustomAgent).not.toHaveBeenCalled();
-        });
-
-        it('respects injectPreferences flag for custom agents', async () => {
-            vi.mocked(fs.existsSync).mockImplementation((path: any) => {
-                if (path.toString().includes('agent.yml')) return true;
-                return false;
-            });
-
-            await handleInstallCommand(['./agent.yml'], { injectPreferences: false });
-
-            expect(installCustomAgent).toHaveBeenCalledWith(
-                expect.any(String),
-                expect.any(String),
-                expect.any(Object),
-                { injectPreferences: false }
-            );
         });
     });
 });

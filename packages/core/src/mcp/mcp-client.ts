@@ -2,6 +2,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js';
 import { EventEmitter } from 'events';
 import { z } from 'zod';
 
@@ -16,7 +17,7 @@ import type {
     ValidatedHttpServerConfig,
 } from './schemas.js';
 import { ToolSet } from '../tools/types.js';
-import { IMCPClient, MCPResourceSummary } from './types.js';
+import { IMCPClient, MCPResourceSummary, McpAuthProviderFactory } from './types.js';
 import { MCPError } from './errors.js';
 import type {
     GetPromptResult,
@@ -52,10 +53,20 @@ export class MCPClient extends EventEmitter implements IMCPClient {
     private timeout: number = 60000; // Default timeout value
     private approvalManager: ApprovalManager | null = null; // Will be set by MCPManager
     private logger: IDextoLogger;
+    private authProviderFactory: McpAuthProviderFactory | null = null;
+    private currentAuthProvider: ReturnType<McpAuthProviderFactory> | null = null;
 
     constructor(logger: IDextoLogger) {
         super();
         this.logger = logger.createChild(DextoLogComponent.MCP);
+    }
+
+    setAuthProviderFactory(factory: McpAuthProviderFactory | null): void {
+        this.authProviderFactory = factory;
+    }
+
+    getCurrentAuthProvider(): ReturnType<McpAuthProviderFactory> | null {
+        return this.currentAuthProvider;
     }
 
     async connect(config: ValidatedMcpServerConfig, serverName: string): Promise<Client> {
@@ -138,7 +149,6 @@ export class MCPClient extends EventEmitter implements IMCPClient {
             },
             {
                 capabilities: {
-                    tools: {},
                     elicitation: {}, // Enable elicitation capability
                 },
             }
@@ -173,13 +183,28 @@ export class MCPClient extends EventEmitter implements IMCPClient {
     ): Promise<Client> {
         this.logger.debug(`Connecting to SSE MCP server at url: ${url}`);
 
-        this.transport = new SSEClientTransport(new URL(url), {
+        const authConfig = {
+            type: 'sse',
+            enabled: true,
+            url,
+            headers,
+            timeout: 30000,
+            connectionMode: 'lenient',
+        } as ValidatedMcpServerConfig;
+        this.currentAuthProvider = this.authProviderFactory
+            ? this.authProviderFactory(serverName, authConfig)
+            : null;
+        const sseOptions: ConstructorParameters<typeof SSEClientTransport>[1] = {
             // For regular HTTP requests
             requestInit: {
                 headers: headers,
             },
-            // Need to implement eventSourceInit for SSE events.
-        });
+        };
+        if (this.currentAuthProvider) {
+            sseOptions.authProvider = this.currentAuthProvider;
+        }
+        const buildSseTransport = () => new SSEClientTransport(new URL(url), sseOptions);
+        this.transport = buildSseTransport();
 
         // Avoid logging full transport to prevent leaking headers/tokens
         this.logger.debug('[connectViaSSE] SSE transport initialized');
@@ -190,7 +215,6 @@ export class MCPClient extends EventEmitter implements IMCPClient {
             },
             {
                 capabilities: {
-                    tools: {},
                     elicitation: {}, // Enable elicitation capability
                 },
             }
@@ -210,6 +234,30 @@ export class MCPClient extends EventEmitter implements IMCPClient {
 
             return this.client;
         } catch (error: any) {
+            if (error instanceof UnauthorizedError) {
+                if (!this.currentAuthProvider) {
+                    throw MCPError.authenticationRequired(
+                        serverName,
+                        'No OAuth provider available'
+                    );
+                }
+                const authCode = await this.currentAuthProvider.waitForAuthorizationCode?.();
+                if (!authCode) {
+                    throw MCPError.authenticationRequired(
+                        serverName,
+                        'OAuth flow was not completed'
+                    );
+                }
+                this.logger.info('Completing MCP OAuth flow...');
+                await this.transport.finishAuth(authCode);
+                this.transport = buildSseTransport();
+                await this.client.connect(this.transport);
+                this.isConnected = true;
+                this.logger.info(`✅ ${serverName} SSE SERVER SPAWNED`);
+                this.setupNotificationHandlers();
+                this.setupElicitationHandler();
+                return this.client;
+            }
             this.logger.error(
                 `Failed to connect to SSE MCP server ${url}: ${JSON.stringify(error.message, null, 2)}`
             );
@@ -231,14 +279,30 @@ export class MCPClient extends EventEmitter implements IMCPClient {
             Accept: 'application/json, text/event-stream',
         };
         const mergedHeaders = { ...defaultHeaders, ...headers };
-        this.transport = new StreamableHTTPClientTransport(new URL(url), {
+        const authConfig = {
+            type: 'http',
+            enabled: true,
+            url,
+            headers,
+            timeout: 30000,
+            connectionMode: 'lenient',
+        } as ValidatedMcpServerConfig;
+        this.currentAuthProvider = this.authProviderFactory
+            ? this.authProviderFactory(serverAlias ?? url, authConfig)
+            : null;
+        const httpOptions: ConstructorParameters<typeof StreamableHTTPClientTransport>[1] = {
             requestInit: { headers: mergedHeaders },
-        });
+        };
+        if (this.currentAuthProvider) {
+            httpOptions.authProvider = this.currentAuthProvider;
+        }
+        const buildHttpTransport = () =>
+            new StreamableHTTPClientTransport(new URL(url), httpOptions);
+        this.transport = buildHttpTransport();
         this.client = new Client(
             { name: 'Dexto-http-mcp-client', version: '1.0.0' },
             {
                 capabilities: {
-                    tools: {},
                     elicitation: {}, // Enable elicitation capability
                 },
             }
@@ -253,6 +317,30 @@ export class MCPClient extends EventEmitter implements IMCPClient {
             this.setupElicitationHandler();
             return this.client;
         } catch (error: any) {
+            if (error instanceof UnauthorizedError) {
+                if (!this.currentAuthProvider) {
+                    throw MCPError.authenticationRequired(
+                        serverAlias ?? url,
+                        'No OAuth provider available'
+                    );
+                }
+                const authCode = await this.currentAuthProvider.waitForAuthorizationCode?.();
+                if (!authCode) {
+                    throw MCPError.authenticationRequired(
+                        serverAlias ?? url,
+                        'OAuth flow was not completed'
+                    );
+                }
+                this.logger.info('Completing MCP OAuth flow...');
+                await this.transport.finishAuth(authCode);
+                this.transport = buildHttpTransport();
+                await this.client.connect(this.transport);
+                this.isConnected = true;
+                this.logger.info(`✅ HTTP SERVER ${serverAlias ?? url} CONNECTED`);
+                this.setupNotificationHandlers();
+                this.setupElicitationHandler();
+                return this.client;
+            }
             this.logger.error(
                 `Failed to connect to HTTP MCP server ${url}: ${JSON.stringify(error.message, null, 2)}`
             );

@@ -38,6 +38,7 @@ For detailed installation instructions, see the [Installing Custom Agents guide]
 | [Sora Video Agent](#-sora-video-agent) | Content Creation | AI video generation | OpenAI GPT-5 Mini |
 | [Image Editor Agent](#%EF%B8%8F-image-editor-agent) | Content Creation | Image manipulation, face detection | OpenAI GPT-5 Mini |
 | [Coding Agent](#-coding-agent) | Development | Software development, debugging | Anthropic Claude Haiku 4.5 |
+| [Explore Agent](#-explore-agent) | Development | Codebase exploration, research | Anthropic Claude Haiku 4.5 |
 | [Database Agent](#%EF%B8%8F-database-agent) | Data & Analysis | SQL queries, database operations | OpenAI GPT-5 Mini |
 | [Talk2PDF Agent](#-talk2pdf-agent) | Data & Analysis | PDF analysis, document conversation | OpenAI GPT-5 Mini |
 | [Product Analysis Agent](#-product-analysis-agent) | Data & Analysis | Product analytics, user behavior | Anthropic Claude Sonnet 4.5 |
@@ -242,6 +243,48 @@ dexto --agent coding-agent "Create a landing page for a coffee brand"
 
 ---
 
+#### 🔍 Explore Agent
+
+**ID:** `explore-agent`
+**Best For:** Codebase exploration, finding files, understanding architecture, researching code
+
+Fast, read-only agent optimized for codebase exploration. Designed to be spawned by other agents for quick research tasks.
+
+**Key Features:**
+- **File Discovery** – Find files matching patterns using glob
+- **Content Search** – Search for text/patterns within files using grep
+- **Code Reading** – Read and analyze file contents
+- **Architecture Understanding** – Map relationships between components
+- **Fast Response** – Optimized for speed with Haiku model
+
+**Use Cases:**
+- "What's in this folder?"
+- "How does X work?"
+- "Find where Y is handled"
+- "Understand the architecture"
+- "Explore the codebase"
+
+**Available Tools:**
+- `glob_files` – Find files matching patterns (e.g., `src/**/*.ts`)
+- `grep_content` – Search for text/patterns within files
+- `read_file` – Read file contents
+
+**Example Use:**
+```bash
+dexto --agent explore-agent "How is authentication handled in this codebase?"
+dexto --agent explore-agent "Find all API endpoints"
+```
+
+**Recommended LLM:** Anthropic Claude Haiku 4.5
+
+**Performance Notes:**
+- Read-only tools only (no write operations)
+- Auto-approves all tool calls for speed
+- Optimized for quick research tasks
+- In-memory storage for ephemeral use
+
+---
+
 ### Data & Analysis
 
 #### 🗄️ Database Agent
@@ -289,57 +332,6 @@ dexto --agent talk2pdf-agent "Summarize the key findings in this research paper"
 **Recommended LLM:** OpenAI GPT-5 Mini
 
 **Tutorial:** [Talk2PDF Tutorial](../tutorials/cli/examples/talk2pdf-agent.md)
-
----
-
-#### 📊 Product Analysis Agent
-
-**ID:** `product-analysis-agent`
-**Best For:** Product analytics, user behavior, feature flags, error tracking
-
-AI agent for product analytics using PostHog MCP server.
-
-**Key Features:**
-- User growth and behavior analysis
-- Feature flag management
-- Error tracking and debugging
-- Annotations for events
-- Funnel and retention analysis
-
-**Example Use:**
-```bash
-dexto --agent product-analysis-agent "Show me user growth trends over the past 30 days"
-```
-
-**Recommended LLM:** Anthropic Claude Sonnet 4.5
-
-**Requires:** `POSTHOG_API_KEY`
-
----
-
-### Automation & Integration
-
-#### 🔧 Workflow Builder Agent
-
-**ID:** `workflow-builder-agent`
-**Best For:** n8n workflow automation, integrations, scheduled tasks
-
-AI agent for building and managing n8n automation workflows.
-
-**Key Features:**
-- Create workflows from natural language
-- Execution monitoring and debugging
-- Credential guidance for service integrations
-- Workflow templates (social media scheduler, etc.)
-
-**Example Use:**
-```bash
-dexto --agent workflow-builder-agent "Build a social media scheduler that posts from Google Sheets"
-```
-
-**Recommended LLM:** OpenAI GPT-5 Mini
-
-**Requires:** `N8N_MCP_URL`, `N8N_MCP_TOKEN`
 
 ---
 
@@ -532,11 +524,11 @@ Default Dexto agent with filesystem and Playwright tools for general-purpose tas
 
 **Example Use:**
 ```bash
-dexto  # Uses default-agent by default
+dexto --agent default-agent
 ```
 
 **Recommended LLM:** Any supported provider
-**Comes pre-installed:** Yes
+**Comes pre-installed:** No (available in registry)
 
 ---
 
@@ -599,7 +591,6 @@ defaults:
 | nano-banana-agent | Content | Google Gemini (Required) | GOOGLE_GENERATIVE_AI_API_KEY |
 | sora-video-agent | Content | OpenAI GPT | OPENAI_API_KEY |
 | image-editor-agent | Content | Any | - |
-| coding-agent | Development | Claude/GPT | - |
 | database-agent | Data | Claude/GPT | - |
 | talk2pdf-agent | Data | Claude/Gemini | - |
 | product-analysis-agent | Data | Claude | POSTHOG_API_KEY |
@@ -608,7 +599,9 @@ defaults:
 | product-researcher | Research | Claude/GPT | - |
 | triage-agent | Multi-Agent | Claude/GPT | - |
 | gaming-agent | Entertainment | Claude (Vision) | ROM files |
-| default-agent | General | Any | Pre-installed |
+| coding-agent | Development | Any | Pre-installed |
+| explore-agent | Development | Claude Haiku | - |
+| default-agent | General | Any | - |
 
 ## Choosing the Right Agent
 
@@ -620,6 +613,7 @@ defaults:
 
 ### For Development
 - **Coding:** Use `coding-agent` for comprehensive development assistance
+- **Exploration:** Use `explore-agent` for fast codebase research and understanding
 - **GitHub:** Use `github-agent` for repository management and PR analysis
 - **Databases:** Use `database-agent` for SQL and data operations
 

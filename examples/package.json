@@ -1,0 +1,10 @@
+{
+  "name": "dexto-examples",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Example MCP servers for testing",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.25.2"
+  }
+}

@@ -7,6 +7,11 @@ export enum ToolErrorCode {
     EXECUTION_DENIED = 'tools_execution_denied',
     EXECUTION_TIMEOUT = 'tools_execution_timeout',
     EXECUTION_FAILED = 'tools_execution_failed',
+    DIRECTORY_ACCESS_DENIED = 'tools_directory_access_denied',
+
+    // Validation (pre-execution)
+    VALIDATION_FAILED = 'tools_validation_failed',
+    FILE_MODIFIED_SINCE_PREVIEW = 'tools_file_modified_since_preview',
 
     // Confirmation
     CONFIRMATION_HANDLER_MISSING = 'tools_confirmation_handler_missing',
@@ -21,4 +26,8 @@ export enum ToolErrorCode {
     // Configuration
     CONFIG_INVALID = 'tools_config_invalid',
     FEATURE_DISABLED = 'tools_feature_disabled',
+
+    // Custom tool provider registry
+    CUSTOM_TOOL_PROVIDER_UNKNOWN = 'tools_custom_provider_unknown',
+    CUSTOM_TOOL_PROVIDER_ALREADY_REGISTERED = 'tools_custom_provider_already_registered',
 }

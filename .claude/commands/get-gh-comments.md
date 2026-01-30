@@ -136,6 +136,67 @@ Recommended approach:
 - **Comment Sorting**: Comments are automatically sorted by file path and line number for systematic review
 - **Pagination Navigation**: The script provides ready-to-use commands for next/previous pages
 
+## Getting Outside Diff Range / Top-Level Review Comments
+
+The script above extracts **inline comments** (attached to specific lines of code). However, CodeRabbit and other reviewers sometimes post comments that are **outside the diff range** - these appear in the **review body** (top-level summary text), not as inline comments.
+
+### When to Check Review Bodies
+
+Check review bodies when:
+- CodeRabbit mentions "Outside diff range comments" in its review
+- You want to see the full review summary/context
+- Inline comments reference issues in files not part of the PR diff
+
+### How to Get Review Bodies
+
+**Get all reviews with their body text:**
+```bash
+gh api repos/truffle-ai/dexto/pulls/PR_NUMBER/reviews --jq '.[] | select(.body != null and .body != "") | {id: .id, user: .user.login, state: .state, body: .body}'
+```
+
+**Get a specific review's body by review ID:**
+```bash
+gh api repos/truffle-ai/dexto/pulls/PR_NUMBER/reviews/REVIEW_ID --jq '.body'
+```
+
+**Get CodeRabbit review bodies only:**
+```bash
+gh api repos/truffle-ai/dexto/pulls/PR_NUMBER/reviews --jq '.[] | select(.user.login == "coderabbitai[bot]" and .body != null and .body != "") | {id: .id, submitted_at: .submitted_at, body: .body}'
+```
+
+**Get the latest CodeRabbit review body (most common use case):**
+```bash
+gh api repos/truffle-ai/dexto/pulls/PR_NUMBER/reviews --jq '[.[] | select(.user.login == "coderabbitai[bot]" and .body != null and .body != "")] | sort_by(.submitted_at) | last | .body'
+```
+
+### Parsing Outside Diff Range Comments
+
+CodeRabbit formats outside diff range comments in a collapsible section like:
+```markdown
+<details>
+<summary>⚠️ Outside diff range comments (N)</summary>
+...comments listed here...
+</details>
+```
+
+When analyzing review bodies, look for this pattern to find issues that couldn't be posted inline.
+
+### Complete Workflow for Thorough Review
+
+For a complete review of all CodeRabbit feedback:
+
+1. **Get inline comments** (unresolved):
+   ```bash
+   /get-gh-comments PR_NUMBER --reviewer "coderabbitai[bot]" --unresolved-only
+   ```
+
+2. **Get review body with outside diff range comments**:
+   ```bash
+   gh api repos/truffle-ai/dexto/pulls/PR_NUMBER/reviews --jq '[.[] | select(.user.login == "coderabbitai[bot]" and .body != null and .body != "")] | sort_by(.submitted_at) | last | .body'
+   ```
+
+3. **Cross-reference**: Outside diff range comments reference specific files/lines - verify if those issues still exist in the current code
+
 
 ## ⚠️ Important: Review Before Acting
 

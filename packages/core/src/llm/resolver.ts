@@ -10,22 +10,34 @@ import {
     getProviderFromModel,
     isValidProviderModel,
     getEffectiveMaxInputTokens,
+    supportsBaseURL,
+    supportsCustomModels,
+    hasAllRegistryModelsSupport,
+    transformModelNameForProvider,
 } from './registry.js';
+import {
+    lookupOpenRouterModel,
+    refreshOpenRouterModelCache,
+} from './providers/openrouter-model-registry.js';
 import type { LLMUpdateContext } from './types.js';
 import { resolveApiKeyForProvider } from '@core/utils/api-key-resolver.js';
 import type { IDextoLogger } from '@core/logger/v2/types.js';
 
+// TODO: Consider consolidating validation into async Zod schema (superRefine supports async).
+// Currently OpenRouter validation is here to avoid network calls during startup/serverless.
+// If startup validation is desired, move to schema with safeParseAsync() and handle serverless separately.
+
 /**
  * Convenience function that combines resolveLLM and validateLLM
  */
-export function resolveAndValidateLLMConfig(
+export async function resolveAndValidateLLMConfig(
     previous: ValidatedLLMConfig,
     updates: LLMUpdates,
     logger: IDextoLogger
-): Result<ValidatedLLMConfig, LLMUpdateContext> {
-    const { candidate, warnings } = resolveLLMConfig(previous, updates, logger);
+): Promise<Result<ValidatedLLMConfig, LLMUpdateContext>> {
+    const { candidate, warnings } = await resolveLLMConfig(previous, updates, logger);
 
-    // If resolver produced any errors, fail immediately (don’t try to validate a broken candidate)
+    // If resolver produced any errors, fail immediately (don't try to validate a broken candidate)
     if (hasErrors(warnings)) {
         const { errors } = splitIssues(warnings);
         return fail<ValidatedLLMConfig, LLMUpdateContext>(errors);
@@ -40,11 +52,11 @@ export function resolveAndValidateLLMConfig(
  * @param updates - The updates to the LLM config
  * @returns The resolved LLM config
  */
-export function resolveLLMConfig(
+export async function resolveLLMConfig(
     previous: ValidatedLLMConfig,
     updates: LLMUpdates,
     logger: IDextoLogger
-): { candidate: LLMConfig; warnings: Issue<LLMUpdateContext>[] } {
+): Promise<{ candidate: LLMConfig; warnings: Issue<LLMUpdateContext>[] }> {
     const warnings: Issue<LLMUpdateContext>[] = [];
 
     // Provider inference (if not provided, infer from model or previous provider)
@@ -88,10 +100,12 @@ export function resolveLLMConfig(
 
     // Model fallback
     // if new provider doesn't support the new model, use the default model
+    // Skip fallback for providers that support custom models (they allow arbitrary model IDs)
     let model = updates.model ?? previous.model;
     if (
         provider !== previous.provider &&
         !acceptsAnyModel(provider) &&
+        !supportsCustomModels(provider) &&
         !isValidProviderModel(provider, model)
     ) {
         model = getDefaultModelForProvider(provider) ?? previous.model;
@@ -105,17 +119,116 @@ export function resolveLLMConfig(
         });
     }
 
+    // Gateway model transformation
+    // When targeting a gateway provider (dexto/openrouter), transform native model names
+    // to OpenRouter format (e.g., "claude-sonnet-4-5-20250929" -> "anthropic/claude-sonnet-4.5")
+    if (hasAllRegistryModelsSupport(provider) && !model.includes('/')) {
+        try {
+            const originalProvider = getProviderFromModel(model);
+            model = transformModelNameForProvider(model, originalProvider, provider);
+            logger.debug(
+                `Transformed model for ${provider}: ${updates.model ?? previous.model} -> ${model}`
+            );
+        } catch {
+            // Model not in registry - pass through as-is, gateway may accept custom model IDs
+            logger.debug(
+                `Model '${model}' not in registry, passing through to ${provider} without transformation`
+            );
+        }
+    }
+
     // Token defaults - always use model's effective max unless explicitly provided
     const maxInputTokens =
         updates.maxInputTokens ??
         getEffectiveMaxInputTokens({ provider, model, apiKey: apiKey || previous.apiKey }, logger);
+
+    // BaseURL resolution
+    // Note: OpenRouter baseURL is handled by the factory (fixed endpoint, no user override)
+    let baseURL: string | undefined;
+    if (updates.baseURL) {
+        baseURL = updates.baseURL;
+    } else if (supportsBaseURL(provider)) {
+        baseURL = previous.baseURL;
+    } else {
+        baseURL = undefined;
+    }
+
+    // Vertex AI validation - requires GOOGLE_VERTEX_PROJECT for ADC authentication
+    // This upfront check provides immediate feedback rather than failing at first API call
+    if (provider === 'vertex') {
+        const projectId = process.env.GOOGLE_VERTEX_PROJECT;
+        if (!projectId || !projectId.trim()) {
+            warnings.push({
+                code: LLMErrorCode.CONFIG_MISSING,
+                message:
+                    'GOOGLE_VERTEX_PROJECT environment variable is required for Vertex AI. ' +
+                    'Set it to your GCP project ID and ensure ADC is configured via `gcloud auth application-default login`',
+                severity: 'error',
+                scope: ErrorScope.LLM,
+                type: ErrorType.USER,
+                context: { provider, model },
+            });
+        }
+    }
+
+    // Amazon Bedrock validation - requires AWS_REGION for the endpoint URL
+    // Auth can be either:
+    // 1. AWS_BEARER_TOKEN_BEDROCK (API key - simplest)
+    // 2. AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY (IAM credentials)
+    if (provider === 'bedrock') {
+        const region = process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION;
+        if (!region || !region.trim()) {
+            warnings.push({
+                code: LLMErrorCode.CONFIG_MISSING,
+                message:
+                    'AWS_REGION environment variable is required for Amazon Bedrock. ' +
+                    'Also set either AWS_BEARER_TOKEN_BEDROCK (API key) or ' +
+                    'AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY (IAM credentials).',
+                severity: 'error',
+                scope: ErrorScope.LLM,
+                type: ErrorType.USER,
+                context: { provider, model },
+            });
+        }
+    }
+
+    // OpenRouter model validation with cache refresh
+    if (provider === 'openrouter') {
+        let lookupStatus = lookupOpenRouterModel(model);
+
+        if (lookupStatus === 'unknown') {
+            // Cache stale/empty - try to refresh before validating
+            try {
+                await refreshOpenRouterModelCache({ apiKey });
+                lookupStatus = lookupOpenRouterModel(model);
+            } catch {
+                // Network failed - keep 'unknown' status, allow gracefully
+                logger.debug(
+                    `OpenRouter model cache refresh failed, allowing model '${model}' without validation`
+                );
+            }
+        }
+
+        if (lookupStatus === 'invalid') {
+            // Model definitively not found in fresh cache - this is an error
+            warnings.push({
+                code: LLMErrorCode.MODEL_INCOMPATIBLE,
+                message: `Model '${model}' not found in OpenRouter catalog. Check model ID at https://openrouter.ai/models`,
+                severity: 'error',
+                scope: ErrorScope.LLM,
+                type: ErrorType.USER,
+                context: { provider, model },
+            });
+        }
+        // 'unknown' after failed refresh = allow (network issue, graceful degradation)
+    }
 
     return {
         candidate: {
             provider,
             model,
             apiKey,
-            baseURL: updates.baseURL ?? previous.baseURL,
+            baseURL,
             maxIterations: updates.maxIterations ?? previous.maxIterations,
             maxInputTokens,
             maxOutputTokens: updates.maxOutputTokens ?? previous.maxOutputTokens,

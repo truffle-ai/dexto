@@ -261,9 +261,9 @@ const AGENTS_TO_COPY = [
     // Core files
     'agent-registry.json',
     'agent-template.yml',
-    'default-agent.yml',
 
     // Agent directories
+    'coding-agent/',
     'database-agent/',
     'your-agent-name/',  // Add your agent here
     // ... other agents

@@ -26,7 +26,6 @@ vi.mock('@dexto/core', async () => {
     };
 });
 vi.mock('../preferences/loader.js');
-vi.mock('../writer.js');
 
 describe('LocalAgentRegistry', () => {
     let tempDir: string;
@@ -34,7 +33,6 @@ describe('LocalAgentRegistry', () => {
     let mockResolveBundledScript: any;
     let mockGetDextoGlobalPath: any;
     let mockLoadGlobalPreferences: any;
-    let mockWritePreferencesToAgent: any;
 
     function createTempDir() {
         return fs.mkdtempSync(path.join(tmpdir(), 'registry-test-'));
@@ -57,12 +55,10 @@ describe('LocalAgentRegistry', () => {
         // Import and mock path utilities
         const pathUtils = await import('../utils/path.js');
         const prefUtils = await import('../preferences/loader.js');
-        const writerUtils = await import('../writer.js');
 
         mockResolveBundledScript = vi.mocked(pathUtils.resolveBundledScript);
         mockGetDextoGlobalPath = vi.mocked(pathUtils.getDextoGlobalPath);
         mockLoadGlobalPreferences = vi.mocked(prefUtils.loadGlobalPreferences);
-        mockWritePreferencesToAgent = vi.mocked(writerUtils.writePreferencesToAgent);
 
         // Setup registry file
         const registryPath = path.join(tempDir, 'user-agent-registry.json');
@@ -110,7 +106,6 @@ describe('LocalAgentRegistry', () => {
         mockLoadGlobalPreferences.mockResolvedValue({
             llm: { provider: 'openai', model: 'gpt-5', apiKey: '$OPENAI_API_KEY' },
         });
-        mockWritePreferencesToAgent.mockResolvedValue(undefined);
 
         registry = new LocalAgentRegistry();
     });
@@ -224,7 +219,7 @@ describe('LocalAgentRegistry', () => {
 
     describe('installAgent', () => {
         it('throws proper error for unknown agent', async () => {
-            await expect(registry.installAgent('unknown-agent', true)).rejects.toMatchObject({
+            await expect(registry.installAgent('unknown-agent')).rejects.toMatchObject({
                 code: RegistryErrorCode.AGENT_NOT_FOUND,
                 scope: 'agent_registry',
                 type: ErrorType.USER,
@@ -235,7 +230,7 @@ describe('LocalAgentRegistry', () => {
             });
         });
 
-        it('installs single-file agent and applies preferences when requested', async () => {
+        it('installs single-file agent', async () => {
             // Create the bundled agent file
             const bundledAgentsPath = path.join(tempDir, 'bundled', 'agents');
             fs.mkdirSync(bundledAgentsPath, { recursive: true });
@@ -255,7 +250,7 @@ describe('LocalAgentRegistry', () => {
 
             // Create a fresh registry instance to pick up the new mock
             const freshRegistry = new LocalAgentRegistry();
-            const result = await freshRegistry.installAgent('test-agent', true);
+            const result = await freshRegistry.installAgent('test-agent');
 
             // Should return path to installed config
             expect(result).toMatch(/test-agent\.yml$/);
@@ -264,48 +259,6 @@ describe('LocalAgentRegistry', () => {
             // Verify the file was actually copied
             const installedContent = fs.readFileSync(result, 'utf-8');
             expect(installedContent).toContain('provider: anthropic');
-
-            // Should have called preferences injection with the directory path
-            const installedDir = path.dirname(result);
-            expect(mockWritePreferencesToAgent).toHaveBeenCalledWith(
-                installedDir,
-                expect.objectContaining({
-                    llm: { provider: 'openai', model: 'gpt-5', apiKey: '$OPENAI_API_KEY' },
-                })
-            );
-        });
-
-        it('installs agent without preferences when not requested', async () => {
-            // Create the bundled agent file
-            const bundledAgentsPath = path.join(tempDir, 'bundled', 'agents');
-            fs.mkdirSync(bundledAgentsPath, { recursive: true });
-            fs.writeFileSync(
-                path.join(bundledAgentsPath, 'test-agent.yml'),
-                'llm:\n  provider: anthropic\n  model: claude-sonnet-4-5-20250929'
-            );
-
-            // Mock resolveBundledScript
-            mockResolveBundledScript.mockImplementation((relativePath: string) => {
-                if (relativePath === 'agents/test-agent.yml') {
-                    return path.join(bundledAgentsPath, 'test-agent.yml');
-                }
-                return path.join(tempDir, 'user-agent-registry.json');
-            });
-
-            // Create fresh registry
-            const freshRegistry = new LocalAgentRegistry();
-            const result = await freshRegistry.installAgent('test-agent', false);
-
-            // Should return path to installed config
-            expect(result).toMatch(/test-agent\.yml$/);
-            expect(fs.existsSync(result)).toBe(true);
-
-            // Verify the file was actually copied
-            const installedContent = fs.readFileSync(result, 'utf-8');
-            expect(installedContent).toContain('provider: anthropic');
-
-            // Should NOT have called preferences injection
-            expect(mockWritePreferencesToAgent).not.toHaveBeenCalled();
         });
 
         it('installs directory agent with main config file', async () => {
@@ -345,7 +298,7 @@ describe('LocalAgentRegistry', () => {
 
             // Create fresh registry
             const freshRegistry = new LocalAgentRegistry();
-            const result = await freshRegistry.installAgent('dir-agent', true);
+            const result = await freshRegistry.installAgent('dir-agent');
 
             // Should return path to main config file
             expect(result).toMatch(/main\.yml$/);
@@ -360,14 +313,6 @@ describe('LocalAgentRegistry', () => {
             expect(mainContent).toContain('provider: openai');
             const extraContent = fs.readFileSync(path.join(installedDirPath, 'extra.md'), 'utf-8');
             expect(extraContent).toContain('# Documentation');
-
-            // Should have called preferences injection on the directory
-            expect(mockWritePreferencesToAgent).toHaveBeenCalledWith(
-                installedDirPath,
-                expect.objectContaining({
-                    llm: { provider: 'openai', model: 'gpt-5', apiKey: '$OPENAI_API_KEY' },
-                })
-            );
         });
     });
 
@@ -448,7 +393,7 @@ describe('LocalAgentRegistry', () => {
                     .mockReturnValueOnce(path.join(tempDir, 'user-agent-registry.json'))
                     .mockReturnValueOnce(bundledPath);
 
-                const result = await registry.resolveAgent('auto-test-agent', true, true);
+                const result = await registry.resolveAgent('auto-test-agent', true);
 
                 const expectedPath = path.join(
                     tempDir,
@@ -462,50 +407,26 @@ describe('LocalAgentRegistry', () => {
             });
 
             it('throws error when autoInstall=false and agent not installed', async () => {
-                await expect(
-                    registry.resolveAgent('auto-test-agent', false, true)
-                ).rejects.toMatchObject({
-                    code: RegistryErrorCode.AGENT_NOT_INSTALLED_AUTO_INSTALL_DISABLED,
-                    scope: 'agent_registry',
-                    type: ErrorType.USER,
-                    context: {
-                        agentId: 'auto-test-agent',
-                        availableAgents: expect.arrayContaining([
-                            'test-agent',
-                            'dir-agent',
-                            'auto-test-agent',
-                        ]),
-                    },
-                    recovery: expect.stringContaining('dexto install auto-test-agent'),
-                });
+                await expect(registry.resolveAgent('auto-test-agent', false)).rejects.toMatchObject(
+                    {
+                        code: RegistryErrorCode.AGENT_NOT_INSTALLED_AUTO_INSTALL_DISABLED,
+                        scope: 'agent_registry',
+                        type: ErrorType.USER,
+                        context: {
+                            agentId: 'auto-test-agent',
+                            availableAgents: expect.arrayContaining([
+                                'test-agent',
+                                'dir-agent',
+                                'auto-test-agent',
+                            ]),
+                        },
+                        recovery: expect.stringContaining('dexto install auto-test-agent'),
+                    }
+                );
 
                 // Verify agent was NOT installed
                 const expectedPath = path.join(tempDir, 'global', 'agents', 'auto-test-agent');
                 expect(fs.existsSync(expectedPath)).toBe(false);
-            });
-
-            it('respects injectPreferences parameter during auto-install', async () => {
-                // Set up mocks for this specific test
-                const bundledPath = path.join(tempDir, 'bundled', 'agents', 'auto-test-agent.yml');
-                mockResolveBundledScript
-                    .mockReturnValueOnce(path.join(tempDir, 'user-agent-registry.json'))
-                    .mockReturnValueOnce(bundledPath);
-
-                // Auto-install with injectPreferences=false
-                const result = await registry.resolveAgent('auto-test-agent', true, false);
-
-                const expectedPath = path.join(
-                    tempDir,
-                    'global',
-                    'agents',
-                    'auto-test-agent',
-                    'auto-test-agent.yml'
-                );
-                expect(result).toBe(expectedPath);
-                expect(fs.existsSync(expectedPath)).toBe(true);
-
-                // Note: We can't easily test the preference injection behavior without setting up
-                // the full preferences system, but we can verify the agent was installed
             });
         });
     });
@@ -625,32 +546,32 @@ describe('LocalAgentRegistry', () => {
             );
         });
 
-        it('protects default-agent from deletion without force', async () => {
-            const defaultAgentPath = path.join(agentsDir, 'default-agent');
-            fs.mkdirSync(defaultAgentPath);
-            fs.writeFileSync(path.join(defaultAgentPath, 'config.yml'), 'important');
+        it('protects coding-agent from deletion without force', async () => {
+            const codingAgentPath = path.join(agentsDir, 'coding-agent');
+            fs.mkdirSync(codingAgentPath);
+            fs.writeFileSync(path.join(codingAgentPath, 'config.yml'), 'important');
 
-            await expect(registry.uninstallAgent('default-agent')).rejects.toThrow(
+            await expect(registry.uninstallAgent('coding-agent')).rejects.toThrow(
                 expect.objectContaining({
                     code: RegistryErrorCode.AGENT_PROTECTED,
                 })
             );
 
             // Verify it still exists
-            expect(fs.existsSync(defaultAgentPath)).toBe(true);
-            expect(fs.readFileSync(path.join(defaultAgentPath, 'config.yml'), 'utf-8')).toBe(
+            expect(fs.existsSync(codingAgentPath)).toBe(true);
+            expect(fs.readFileSync(path.join(codingAgentPath, 'config.yml'), 'utf-8')).toBe(
                 'important'
             );
         });
 
-        it('allows force uninstall of default-agent', async () => {
-            const defaultAgentPath = path.join(agentsDir, 'default-agent');
-            fs.mkdirSync(defaultAgentPath);
-            fs.writeFileSync(path.join(defaultAgentPath, 'config.yml'), 'config');
+        it('allows force uninstall of coding-agent', async () => {
+            const codingAgentPath = path.join(agentsDir, 'coding-agent');
+            fs.mkdirSync(codingAgentPath);
+            fs.writeFileSync(path.join(codingAgentPath, 'config.yml'), 'config');
 
-            await registry.uninstallAgent('default-agent', true);
+            await registry.uninstallAgent('coding-agent', true);
 
-            expect(fs.existsSync(defaultAgentPath)).toBe(false);
+            expect(fs.existsSync(codingAgentPath)).toBe(false);
         });
 
         it('maintains other agents when removing one', async () => {

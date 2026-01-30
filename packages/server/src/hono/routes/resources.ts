@@ -1,6 +1,6 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
-import type { DextoAgent } from '@dexto/core';
 import { ResourceSchema } from '../schemas/responses.js';
+import type { GetAgentFn } from '../index.js';
 
 const ResourceIdParamSchema = z
     .object({
@@ -56,7 +56,7 @@ const ReadResourceResponseSchema = z
     .strict()
     .describe('Resource content response');
 
-export function createResourcesRouter(getAgent: () => DextoAgent) {
+export function createResourcesRouter(getAgent: GetAgentFn) {
     const app = new OpenAPIHono();
 
     const listRoute = createRoute({
@@ -109,18 +109,18 @@ export function createResourcesRouter(getAgent: () => DextoAgent) {
 
     return app
         .openapi(listRoute, async (ctx) => {
-            const agent = getAgent();
+            const agent = await getAgent(ctx);
             const resources = await agent.listResources();
             return ctx.json({ ok: true, resources: Object.values(resources) });
         })
         .openapi(getContentRoute, async (ctx) => {
-            const agent = getAgent();
+            const agent = await getAgent(ctx);
             const { resourceId } = ctx.req.valid('param');
             const content = await agent.readResource(resourceId);
             return ctx.json({ ok: true, content });
         })
         .openapi(headRoute, async (ctx) => {
-            const agent = getAgent();
+            const agent = await getAgent(ctx);
             const { resourceId } = ctx.req.valid('param');
             const exists = await agent.hasResource(resourceId);
             return ctx.body(null, exists ? 200 : 404);

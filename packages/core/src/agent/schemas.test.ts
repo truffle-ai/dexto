@@ -625,7 +625,7 @@ describe('AgentConfigSchema', () => {
             const result = AgentConfigSchema.parse(validAgentConfig);
 
             // Defaults from different schemas should all be applied
-            expect(result.llm.maxIterations).toBe(50); // LLM schema default
+            expect(result.llm.maxIterations).toBeUndefined(); // LLM schema default (unlimited)
             expect(result.storage).toBeDefined();
             expect(result.storage.cache.type).toBe('in-memory'); // Storage schema default
             expect(result.sessions.maxSessions).toBe(100); // Session schema default
@@ -702,7 +702,7 @@ describe('AgentConfigSchema', () => {
                         {
                             id: 'datetime',
                             type: 'dynamic',
-                            source: 'dateTime',
+                            source: 'date',
                             priority: 10,
                         },
                     ],
@@ -783,7 +783,7 @@ describe('AgentConfigSchema', () => {
             expect(result.storage.blob.type).toBe('in-memory');
             expect(result.sessions).toBeDefined();
             expect(result.toolConfirmation.mode).toBe('auto-approve');
-            expect(result.llm.maxIterations).toBe(50);
+            expect(result.llm.maxIterations).toBeUndefined();
         });
     });
 });

@@ -14,6 +14,7 @@ export {
     createInitialPreferences,
     updateGlobalPreferences,
     type GlobalPreferencesUpdates,
+    type CreatePreferencesOptions,
 } from './preferences/loader.js';
 export type { GlobalPreferences } from './preferences/schemas.js';
 export { PreferenceError, PreferenceErrorCode } from './preferences/errors.js';
@@ -63,6 +64,12 @@ export {
 } from './utils/execution-context.js';
 export { walkUpDirectories } from './utils/fs-walk.js';
 export { updateEnvFile } from './utils/env-file.js';
+export { isDextoAuthEnabled } from './utils/feature-flags.js';
+export {
+    isDextoAuthenticated,
+    getDextoApiKeyFromAuth,
+    canUseDextoProvider,
+} from './utils/dexto-auth.js';
 
 // Config management utilities
 export {
@@ -71,8 +78,18 @@ export {
     loadAgentConfig,
     enrichAgentConfig,
     deriveAgentId,
+    addPromptToAgentConfig,
+    removePromptFromAgentConfig,
+    deletePromptByMetadata,
+    updateMcpServerField,
+    removeMcpServerFromConfig,
     ConfigError,
     ConfigErrorCode,
+    type FilePromptInput,
+    type InlinePromptInput,
+    type PromptInput,
+    type PromptMetadataForDeletion,
+    type PromptDeletionResult,
 } from './config/index.js';
 
 // API Key utilities
@@ -80,9 +97,134 @@ export {
     saveProviderApiKey,
     getProviderKeyStatus,
     listProviderKeyStatus,
+    determineApiKeyStorage,
+    SHARED_API_KEY_PROVIDERS,
+    type ApiKeyStorageStrategy,
 } from './utils/api-key-store.js';
 export {
     resolveApiKeyForProvider,
     getPrimaryApiKeyEnvVar,
     PROVIDER_API_KEY_MAP,
 } from './utils/api-key-resolver.js';
+
+// Custom models
+export {
+    loadCustomModels,
+    saveCustomModel,
+    deleteCustomModel,
+    getCustomModel,
+    getCustomModelsPath,
+    CustomModelSchema,
+    CUSTOM_MODEL_PROVIDERS,
+    type CustomModel,
+    type CustomModelProvider,
+} from './models/custom-models.js';
+
+// Local model management
+export {
+    // Path resolver
+    getModelsDirectory,
+    getModelFilePath,
+    getModelDirectory,
+    getModelStatePath,
+    getModelTempDirectory,
+    ensureModelsDirectory,
+    ensureModelDirectory,
+    modelFileExists,
+    getModelFileSize,
+    deleteModelDirectory,
+    listModelDirectories,
+    getModelsDiskUsage,
+    formatSize,
+    // State manager
+    type ModelSource,
+    type InstalledModel,
+    type ModelState,
+    loadModelState,
+    saveModelState,
+    addInstalledModel,
+    removeInstalledModel,
+    getInstalledModel,
+    getAllInstalledModels,
+    isModelInstalled,
+    updateModelLastUsed,
+    setActiveModel,
+    getActiveModelId,
+    getActiveModel,
+    addToDownloadQueue,
+    removeFromDownloadQueue,
+    getDownloadQueue,
+    syncStateWithFilesystem,
+    getTotalInstalledSize,
+    getInstalledModelCount,
+    registerManualModel,
+} from './models/index.js';
+
+// Multi-Agent Runtime
+export * from './runtime/index.js';
+
+// Agent Spawner Tool Provider
+export * from './tool-provider/index.js';
+
+// Claude Code Plugin Loader
+export {
+    // Discovery
+    discoverClaudeCodePlugins,
+    getPluginSearchPaths,
+    // Loading
+    loadClaudeCodePlugin,
+    // Validation
+    validatePluginDirectory,
+    tryLoadManifest,
+    // Listing
+    listInstalledPlugins,
+    getDextoInstalledPluginsPath,
+    // Installation
+    installPluginFromPath,
+    loadDextoInstalledPlugins,
+    saveDextoInstalledPlugins,
+    isPluginInstalled,
+    // Uninstallation
+    uninstallPlugin,
+    // Schemas
+    PluginManifestSchema,
+    PluginMCPConfigSchema,
+    // Error handling
+    PluginErrorCode,
+    PluginError,
+    // Marketplace
+    DEFAULT_MARKETPLACES,
+    addMarketplace,
+    removeMarketplace,
+    updateMarketplace,
+    listMarketplaces,
+    listAllMarketplacePlugins,
+    installPluginFromMarketplace,
+    getUninstalledDefaults,
+    isDefaultMarketplace,
+    MarketplaceErrorCode,
+    MarketplaceError,
+    // Types
+    type PluginManifest,
+    type DiscoveredPlugin,
+    type PluginCommand,
+    type PluginMCPConfig,
+    type LoadedPlugin,
+    type PluginInstallScope,
+    type InstalledPluginEntry,
+    type InstalledPluginsFile,
+    type ListedPlugin,
+    type PluginValidationResult,
+    type PluginInstallResult,
+    type PluginUninstallResult,
+    type ValidatedPluginManifest,
+    type ValidatedPluginMCPConfig,
+    type InstallPluginOptions,
+    type UninstallPluginOptions,
+    // Marketplace types
+    type MarketplaceEntry,
+    type MarketplacePlugin,
+    type MarketplaceAddResult,
+    type MarketplaceUpdateResult,
+    type MarketplaceInstallResult,
+} from './plugins/index.js';

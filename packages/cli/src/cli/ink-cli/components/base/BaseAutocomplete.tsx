@@ -133,7 +133,7 @@ export function BaseAutocomplete<T>({
     if (isLoading) {
         return (
             <Box borderStyle="single" borderColor="gray" paddingX={1} paddingY={1}>
-                <Text dimColor>{loadingMessage}</Text>
+                <Text color="gray">{loadingMessage}</Text>
             </Box>
         );
     }
@@ -141,7 +141,7 @@ export function BaseAutocomplete<T>({
     if (filteredItems.length === 0) {
         return (
             <Box borderStyle="single" borderColor="gray" paddingX={1} paddingY={1}>
-                <Text dimColor>{emptyMessage}</Text>
+                <Text color="gray">{emptyMessage}</Text>
             </Box>
         );
     }
@@ -158,7 +158,7 @@ export function BaseAutocomplete<T>({
             height={Math.min(maxVisibleItems + 3, totalItems + 3)}
         >
             <Box paddingX={1} paddingY={0}>
-                <Text dimColor>
+                <Text color="gray">
                     {title} ({selectedIndex + 1}/{totalItems}) - ↑↓ navigate
                     {onLoadIntoInput && ', Tab load'}
                     {', Enter select, Esc close'}
@@ -166,7 +166,7 @@ export function BaseAutocomplete<T>({
             </Box>
             {hasMoreAbove && (
                 <Box paddingX={1} paddingY={0}>
-                    <Text dimColor>... ↑ ({scrollOffset} more above)</Text>
+                    <Text color="gray">... ↑ ({scrollOffset} more above)</Text>
                 </Box>
             )}
             {visibleItems.map((item, visibleIndex) => {
@@ -181,7 +181,7 @@ export function BaseAutocomplete<T>({
             })}
             {hasMoreBelow && (
                 <Box paddingX={1} paddingY={0}>
-                    <Text dimColor>
+                    <Text color="gray">
                         ... ↓ ({totalItems - scrollOffset - maxVisibleItems} more below)
                     </Text>
                 </Box>

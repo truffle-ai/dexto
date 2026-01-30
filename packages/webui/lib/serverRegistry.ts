@@ -1,5 +1,5 @@
-import type { ServerRegistryEntry, ServerRegistryFilter } from '@/types';
-import builtinRegistryData from './server-registry-data.js';
+import type { ServerRegistryEntry, ServerRegistryFilter } from '@dexto/registry';
+import { serverRegistry as sharedRegistry } from '@dexto/registry';
 import { client } from './client';
 
 /**
@@ -38,8 +38,8 @@ export class ServerRegistryService {
     async initialize(): Promise<void> {
         if (this.isInitialized) return;
 
-        // Load built-in registry entries from external JSON file
-        this.registryEntries = this.getBuiltinEntries();
+        // Load built-in registry entries from shared @dexto/registry package
+        this.registryEntries = await this.getBuiltinEntries();
 
         // Load custom entries from localStorage
 
@@ -183,10 +183,10 @@ export class ServerRegistryService {
 
     /**
      * Built-in registry entries for popular MCP servers
-     * Loaded from external JSON file for easy maintenance
+     * Loaded from shared @dexto/registry package
      */
-    private getBuiltinEntries(): ServerRegistryEntry[] {
-        return builtinRegistryData as ServerRegistryEntry[];
+    private async getBuiltinEntries(): Promise<ServerRegistryEntry[]> {
+        return sharedRegistry.getEntries();
     }
 }
 

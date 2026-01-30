@@ -113,14 +113,14 @@ export class AgentStateManager {
     // ============= MCP SERVER MANAGEMENT =============
 
     /**
-     * Add or update an MCP server configuration at runtime.
+     * Set an MCP server configuration at runtime (add or update).
      *
      * This method is a pure state updater - it assumes the input has already been validated
-     * by the caller (typically DextoAgent.connectMcpServer). The ValidatedMcpServerConfig
-     * branded type ensures validation has occurred.
+     * by the caller (typically DextoAgent). The ValidatedMcpServerConfig branded type
+     * ensures validation has occurred.
      */
-    public addMcpServer(serverName: string, validatedConfig: ValidatedMcpServerConfig): void {
-        this.logger.debug(`Adding/updating MCP server: ${serverName}`);
+    public setMcpServer(serverName: string, validatedConfig: ValidatedMcpServerConfig): void {
+        this.logger.debug(`Setting MCP server: ${serverName}`);
 
         // Update state
         const isUpdate = serverName in this.runtimeConfig.mcpServers;

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { serverRegistry } from '@/lib/serverRegistry';
-import type { ServerRegistryEntry, ServerRegistryFilter } from '@/types';
+import type { ServerRegistryEntry, ServerRegistryFilter } from '@dexto/registry';
 import { queryKeys } from '@/lib/queryKeys.js';
 
 interface UseServerRegistryOptions {

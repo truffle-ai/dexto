@@ -22,7 +22,7 @@ await agent.start();
 const session = await agent.createSession();
 
 console.log('Sending message...');
-const response = await agent.generate('Explain quantum computing', { sessionId: session.id });
+const response = await agent.generate('Explain quantum computing', session.id);
 // 10 seconds of silence...
 
 console.log('Done:', response.content);
@@ -54,7 +54,7 @@ agent.agentEventBus.on('llm:response', () => {
 
 await agent.start();
 const session = await agent.createSession();
-await agent.generate('Explain quantum computing', { sessionId: session.id });
+await agent.generate('Explain quantum computing', session.id);
 ```
 
 Now users see:

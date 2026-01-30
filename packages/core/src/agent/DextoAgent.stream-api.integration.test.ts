@@ -23,9 +23,7 @@ describe('DextoAgent.generate() API', () => {
         async () => {
             const env = await createTestEnvironment(TestConfigs.createOpenAIConfig());
             try {
-                const response = await env.agent.generate('What is 2+2?', {
-                    sessionId: env.sessionId,
-                });
+                const response = await env.agent.generate('What is 2+2?', env.sessionId);
 
                 // Validate response structure
                 expect(response).toBeDefined();
@@ -54,12 +52,8 @@ describe('DextoAgent.generate() API', () => {
         async () => {
             const env = await createTestEnvironment(TestConfigs.createOpenAIConfig());
             try {
-                const response1 = await env.agent.generate('My name is Alice', {
-                    sessionId: env.sessionId,
-                });
-                const response2 = await env.agent.generate('What is my name?', {
-                    sessionId: env.sessionId,
-                });
+                const response1 = await env.agent.generate('My name is Alice', env.sessionId);
+                const response2 = await env.agent.generate('What is my name?', env.sessionId);
 
                 // Sometimes response1.content can be empty if the model only acknowledges or uses a tool
                 // But for this simple prompt, it should have content.
@@ -101,9 +95,7 @@ describe('DextoAgent.generate() API', () => {
 
                 const env = await createTestEnvironment(config);
                 try {
-                    const response = await env.agent.generate('Say hello', {
-                        sessionId: env.sessionId,
-                    });
+                    const response = await env.agent.generate('Say hello', env.sessionId);
 
                     expect(response.content).toBeTruthy();
                     expect(response.usage.totalTokens).toBeGreaterThan(0);
@@ -127,9 +119,7 @@ describe('DextoAgent.stream() API', () => {
             try {
                 const events: StreamingEvent[] = [];
 
-                for await (const event of await env.agent.stream('Say hello', {
-                    sessionId: env.sessionId,
-                })) {
+                for await (const event of await env.agent.stream('Say hello', env.sessionId)) {
                     events.push(event);
                 }
 
@@ -168,9 +158,7 @@ describe('DextoAgent.stream() API', () => {
             try {
                 const chunkEvents: StreamingEvent[] = [];
 
-                for await (const event of await env.agent.stream('Say hello', {
-                    sessionId: env.sessionId,
-                })) {
+                for await (const event of await env.agent.stream('Say hello', env.sessionId)) {
                     if (event.name === 'llm:chunk') {
                         chunkEvents.push(event);
                     }
@@ -206,9 +194,7 @@ describe('DextoAgent.stream() API', () => {
         async () => {
             const env = await createTestEnvironment(TestConfigs.createOpenAIConfig());
             try {
-                const stream = await env.agent.stream('Say hello', {
-                    sessionId: env.sessionId,
-                });
+                const stream = await env.agent.stream('Say hello', env.sessionId);
 
                 const events: StreamingEvent[] = [];
                 for await (const event of stream) {
@@ -235,17 +221,19 @@ describe('DextoAgent.stream() API', () => {
             try {
                 // First message
                 const events1: StreamingEvent[] = [];
-                for await (const event of await env.agent.stream('My favorite color is blue', {
-                    sessionId: env.sessionId,
-                })) {
+                for await (const event of await env.agent.stream(
+                    'My favorite color is blue',
+                    env.sessionId
+                )) {
                     events1.push(event);
                 }
 
                 // Second message should remember context
                 const events2: StreamingEvent[] = [];
-                for await (const event of await env.agent.stream('What is my favorite color?', {
-                    sessionId: env.sessionId,
-                })) {
+                for await (const event of await env.agent.stream(
+                    'What is my favorite color?',
+                    env.sessionId
+                )) {
                     events2.push(event);
                 }
 
@@ -272,9 +260,7 @@ describe('DextoAgent.stream() API', () => {
                 try {
                     const events: StreamingEvent[] = [];
 
-                    for await (const event of await env.agent.stream('Say hello', {
-                        sessionId: env.sessionId,
-                    })) {
+                    for await (const event of await env.agent.stream('Say hello', env.sessionId)) {
                         events.push(event);
                     }
 
@@ -316,9 +302,7 @@ describe('DextoAgent API Compatibility', () => {
                 await env.agent.resetConversation(env.sessionId);
 
                 // Use generate() (new API)
-                const generateResponse = await env.agent.generate(prompt, {
-                    sessionId: env.sessionId,
-                });
+                const generateResponse = await env.agent.generate(prompt, env.sessionId);
 
                 // Both should work and return similar content
                 expect(runResponse).toBeTruthy();
@@ -350,9 +334,10 @@ describe('DextoAgent API Compatibility', () => {
 
                 // Use new stream() API - should maintain same context
                 const events: StreamingEvent[] = [];
-                for await (const event of await env.agent.stream('What is my name?', {
-                    sessionId: env.sessionId,
-                })) {
+                for await (const event of await env.agent.stream(
+                    'What is my name?',
+                    env.sessionId
+                )) {
                     events.push(event);
                 }
 

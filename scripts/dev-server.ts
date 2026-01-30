@@ -33,9 +33,15 @@ const args = process.argv.slice(2);
 const agentIndex = args.indexOf('--agent');
 const agentPath = agentIndex !== -1 && agentIndex + 1 < args.length ? args[agentIndex + 1] : null;
 const portIndex = args.indexOf('--port');
-const apiPort = portIndex !== -1 && portIndex + 1 < args.length ? args[portIndex + 1] : '3001';
+const rawPort = portIndex !== -1 && portIndex + 1 < args.length ? args[portIndex + 1] : undefined;
+const apiPort = rawPort && rawPort.trim() !== '' ? rawPort : '3001';
+const apiPortNum = parseInt(apiPort, 10);
+if (isNaN(apiPortNum)) {
+    console.error(`❌ Invalid port: ${apiPort}`);
+    process.exit(1);
+}
 // WebUI port is API port - 1 (so API 3001 → WebUI 3000, API 6767 → WebUI 6766)
-const webuiPort = String(parseInt(apiPort, 10) - 1);
+const webuiPort = String(apiPortNum - 1);
 
 // Cleanup function
 function cleanup() {

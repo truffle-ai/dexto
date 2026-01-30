@@ -69,9 +69,7 @@ await agent.start();
 const session = await agent.createSession();
 
 // Run a task
-const response = await agent.generate("List files in current directory", {
-  sessionId: session.id
-});
+const response = await agent.generate("List files in current directory", session.id);
 console.log(response.content);
 
 // Switch models
@@ -160,7 +158,7 @@ const sessions = await agent.listSessions();
 const history = await agent.getSessionHistory('work-session');
 
 // Use session in conversations
-const response = await agent.generate("Hello", { sessionId: session.id });
+const response = await agent.generate("Hello", session.id);
 console.log(response.content);
 ```
 
@@ -211,10 +209,10 @@ systemPrompt:
       type: static
       priority: 0
       content: "You are a helpful AI assistant..."
-    - id: dateTime
+    - id: date
       type: dynamic
       priority: 10
-      source: dateTime
+      source: date
     - id: context
       type: file
       priority: 5

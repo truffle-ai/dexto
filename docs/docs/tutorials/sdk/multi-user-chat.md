@@ -61,7 +61,7 @@ async function getOrCreateSession(userId: string) {
 
 async function handleMessage(userId: string, message: string) {
   const sessionId = await getOrCreateSession(userId);
-  const response = await agent.generate(message, { sessionId });
+  const response = await agent.generate(message, sessionId);
   return response.content;
 }
 ```
@@ -159,7 +159,7 @@ app.post('/chat', async (req, res) => {
     }
 
     const sessionId = await getOrCreateSession(userId || 'anonymous');
-    const response = await agent.generate(message, { sessionId });
+    const response = await agent.generate(message, sessionId);
 
     res.json({ content: response.content, sessionId });
   } catch (error) {

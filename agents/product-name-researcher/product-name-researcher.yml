@@ -139,10 +139,10 @@ systemPrompt:
 
         Use these tools strategically to provide comprehensive product name validation that combines technical availability with market intelligence.
 
-    - id: dateTime
+    - id: date
       type: dynamic
       priority: 10
-      source: dateTime
+      source: date
       enabled: true
 
 # LLM configuration

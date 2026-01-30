@@ -1,5 +1,5 @@
 import type { McpServerConfig } from '@dexto/core';
-import type { ServerRegistryEntry } from '@/types';
+import type { ServerRegistryEntry } from '@dexto/registry';
 
 const PLACEHOLDER_EXACT_MATCHES = new Set([
     'placeholder',

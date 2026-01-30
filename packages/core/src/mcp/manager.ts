@@ -3,7 +3,12 @@ import { ValidatedServerConfigs, ValidatedMcpServerConfig } from './schemas.js';
 import type { IDextoLogger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
 import { GetPromptResult, ReadResourceResult, Prompt } from '@modelcontextprotocol/sdk/types.js';
-import { IMCPClient, MCPResolvedResource, MCPResourceSummary } from './types.js';
+import {
+    IMCPClient,
+    MCPResolvedResource,
+    MCPResourceSummary,
+    McpAuthProviderFactory,
+} from './types.js';
 import { ToolSet } from '../tools/types.js';
 import { MCPError } from './errors.js';
 import { eventBus } from '../events/index.js';
@@ -66,7 +71,7 @@ type ToolCacheEntry = {
 
 export class MCPManager {
     private clients: Map<string, IMCPClient> = new Map();
-    private connectionErrors: { [key: string]: string } = {};
+    private connectionErrors: { [key: string]: { message: string; code?: string } } = {};
     private configCache: Map<string, ValidatedMcpServerConfig> = new Map(); // Store original configs for restart
     private toolCache: Map<string, ToolCacheEntry> = new Map();
     private toolConflicts: Set<string> = new Set(); // Track which tool names have conflicts
@@ -74,6 +79,7 @@ export class MCPManager {
     private resourceCache: Map<string, ResourceCacheEntry> = new Map();
     private sanitizedNameToServerMap: Map<string, string> = new Map();
     private approvalManager: ApprovalManager | null = null; // Will be set by service initializer
+    private authProviderFactory: McpAuthProviderFactory | null = null;
     private logger: IDextoLogger;
 
     // Use a distinctive delimiter that won't appear in normal server/tool names
@@ -82,6 +88,15 @@ export class MCPManager {
 
     constructor(logger: IDextoLogger) {
         this.logger = logger.createChild(DextoLogComponent.MCP);
+    }
+
+    setAuthProviderFactory(factory: McpAuthProviderFactory | null): void {
+        this.authProviderFactory = factory;
+        for (const [_name, client] of this.clients.entries()) {
+            if (client instanceof MCPClient) {
+                client.setAuthProviderFactory(factory);
+            }
+        }
     }
 
     /**
@@ -451,6 +466,15 @@ export class MCPManager {
     }
 
     /**
+     * Get all MCP tools with their server metadata.
+     * This returns the internal tool cache entries which include server names.
+     * @returns Map of tool names to their cache entries (includes serverName, client, and definition)
+     */
+    getAllToolsWithServerInfo(): Map<string, ToolCacheEntry> {
+        return new Map(this.toolCache);
+    }
+
+    /**
      * Parse a qualified tool name to extract server name and actual tool name.
      * Uses distinctive delimiter to avoid ambiguity and splits on last occurrence.
      */
@@ -647,6 +671,12 @@ export class MCPManager {
 
         // Categorize servers by their connection mode
         for (const [name, config] of Object.entries(serverConfigs)) {
+            // Skip disabled servers
+            if (config.enabled === false) {
+                this.logger.info(`Skipping disabled server '${name}'`);
+                continue;
+            }
+
             const effectiveMode = config.connectionMode || 'lenient';
             if (effectiveMode === 'strict') {
                 strictServers.push(name);
@@ -659,8 +689,19 @@ export class MCPManager {
                     successfulConnections.push(name);
                 })
                 .catch((error) => {
+                    if (!this.connectionErrors[name]) {
+                        const errorMessage = error instanceof Error ? error.message : String(error);
+                        const errorCode =
+                            error && typeof error === 'object' && 'code' in error
+                                ? String((error as { code?: unknown }).code)
+                                : undefined;
+                        this.connectionErrors[name] = {
+                            message: errorMessage,
+                            ...(errorCode ? { code: errorCode } : {}),
+                        };
+                    }
                     this.logger.debug(
-                        `Handled connection error for '${name}' during initialization: ${error.message}`
+                        `Handled connection error for '${name}' during initialization: ${error instanceof Error ? error.message : String(error)}`
                     );
                 });
             connectionPromises.push(connectPromise);
@@ -674,7 +715,9 @@ export class MCPManager {
         );
         if (failedStrictServers.length > 0) {
             const strictErrors = failedStrictServers
-                .map((name) => `${name}: ${this.connectionErrors[name] || 'Unknown error'}`)
+                .map(
+                    (name) => `${name}: ${this.connectionErrors[name]?.message ?? 'Unknown error'}`
+                )
                 .join('; ');
             throw MCPError.connectionFailed('strict servers', strictErrors);
         }
@@ -697,6 +740,7 @@ export class MCPManager {
         }
 
         const client = new MCPClient(this.logger);
+        client.setAuthProviderFactory(this.authProviderFactory);
         try {
             this.logger.info(`Attempting to connect to new server '${name}'...`);
             await client.connect(config, name);
@@ -715,7 +759,14 @@ export class MCPManager {
             this.logger.info(`Successfully connected and cached new server '${name}'`);
         } catch (error) {
             const errorMsg = error instanceof Error ? error.message : String(error);
-            this.connectionErrors[name] = errorMsg;
+            const errorCode =
+                error && typeof error === 'object' && 'code' in error
+                    ? String((error as { code?: unknown }).code)
+                    : undefined;
+            this.connectionErrors[name] = {
+                message: errorMsg,
+                ...(errorCode ? { code: errorCode } : {}),
+            };
             this.logger.error(`Failed to connect to new server '${name}': ${errorMsg}`);
             this.clients.delete(name);
             throw MCPError.connectionFailed(name, errorMsg);
@@ -734,8 +785,24 @@ export class MCPManager {
      * Get the errors from failed connections
      * @returns Map of server names to error messages
      */
-    getFailedConnections(): { [key: string]: string } {
+    getFailedConnections(): { [key: string]: { message: string; code?: string } } {
         return this.connectionErrors;
+    }
+
+    getFailedConnectionError(name: string): string | undefined {
+        return this.connectionErrors[name]?.message;
+    }
+
+    getFailedConnectionErrorCode(name: string): string | undefined {
+        return this.connectionErrors[name]?.code;
+    }
+
+    getAuthProvider(name: string) {
+        const client = this.clients.get(name);
+        if (client instanceof MCPClient) {
+            return client.getCurrentAuthProvider();
+        }
+        return null;
     }
 
     /**
@@ -831,6 +898,7 @@ export class MCPManager {
         // Reconnect with original config
         try {
             const newClient = new MCPClient(this.logger);
+            newClient.setAuthProviderFactory(this.authProviderFactory);
             await newClient.connect(config, name);
 
             // Set approval manager if available
@@ -848,7 +916,14 @@ export class MCPManager {
             eventBus.emit('mcp:server-restarted', { serverName: name });
         } catch (error) {
             const errorMsg = error instanceof Error ? error.message : String(error);
-            this.connectionErrors[name] = errorMsg;
+            const errorCode =
+                error && typeof error === 'object' && 'code' in error
+                    ? String((error as { code?: unknown }).code)
+                    : undefined;
+            this.connectionErrors[name] = {
+                message: errorMsg,
+                ...(errorCode ? { code: errorCode } : {}),
+            };
             this.logger.error(`Failed to restart server '${name}': ${errorMsg}`);
             // Note: Config remains in cache for potential retry
             throw MCPError.connectionFailed(name, errorMsg);

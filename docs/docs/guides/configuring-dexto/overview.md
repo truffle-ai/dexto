@@ -19,7 +19,7 @@ We chose `yml` instead of the more popular `json` because of better parsing libr
 
 ## Where to Place Your Config
 
-By default, Dexto uses a configuration file named `default-agent.yml`.
+By default, Dexto uses a configuration file named `coding-agent.yml`.
 
 Dexto ships with in-built agents that are stored in `~/.dexto` directory.
 

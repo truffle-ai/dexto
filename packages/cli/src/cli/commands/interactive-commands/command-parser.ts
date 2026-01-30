@@ -1,11 +1,29 @@
 import chalk from 'chalk';
 import type { DextoAgent } from '@dexto/core';
+import type { StyledOutput, SendMessageMarker } from '../../ink-cli/services/CommandService.js';
 
 export interface CommandResult {
     type: 'command' | 'prompt';
     command?: string;
     args?: string[];
     rawInput: string;
+}
+
+/**
+ * Command handler return type:
+ * - boolean: Command handled (true) or not found (false)
+ * - string: Output text to display
+ * - StyledOutput: Styled output with structured data for rich rendering
+ * - SendMessageMarker: Send text through normal streaming flow (for prompt commands)
+ */
+export type CommandHandlerResult = boolean | string | StyledOutput | SendMessageMarker;
+
+/**
+ * Context passed to command handlers
+ */
+export interface CommandContext {
+    /** Current session ID, or null if no active session */
+    sessionId: string | null;
 }
 
 export interface CommandDefinition {
@@ -15,24 +33,18 @@ export interface CommandDefinition {
     category?: string;
     aliases?: string[];
     subcommands?: CommandDefinition[];
-    handler: (args: string[], agent: DextoAgent) => Promise<boolean | string>; // Can return string for ink-cli output
+    handler: (
+        args: string[],
+        agent: DextoAgent,
+        ctx: CommandContext
+    ) => Promise<CommandHandlerResult>;
 }
 
 /**
- * Helper for command handlers to get the current session ID from CLI context.
- * This is set by executeCommand() when invoked from InkCLI.
- *
- * Maintains separation of concerns:
- * - InkCLI state manages current sessionId
- * - executeCommand() stores it temporarily on agent for command access
- * - Commands use this helper instead of removed agent.getCurrentSessionId()
- *
- * @param agent - DextoAgent instance with __cliSessionId set by executeCommand
- * @returns Current session ID from CLI context, or null if not available
+ * No-op handler for overlay-only commands.
+ * Used by commands in ALWAYS_OVERLAY that are handled entirely by the overlay system.
  */
-export function getCLISessionId(agent: DextoAgent): string | null {
-    return (agent as any).__cliSessionId || null;
-}
+export const overlayOnlyHandler = async (): Promise<CommandHandlerResult> => true;
 
 /**
  * Parse arguments respecting quotes and escape sequences
@@ -77,10 +89,21 @@ function parseQuotedArguments(input: string): string[] {
 }
 
 /**
- * Parses user input to determine if it's a slash command or a regular prompt
+ * Parses user input to determine if it's a slash command, shell command, or regular prompt
  */
 export function parseInput(input: string): CommandResult {
     const trimmed = input.trim();
+
+    // Check if it's a shell command (! prefix)
+    if (trimmed.startsWith('!')) {
+        const shellCommand = trimmed.slice(1).trim();
+        return {
+            type: 'command',
+            command: 'shell',
+            args: [shellCommand],
+            rawInput: trimmed,
+        };
+    }
 
     // Check if it's a slash command
     if (trimmed.startsWith('/')) {
@@ -135,14 +158,14 @@ export function formatCommandHelp(cmd: CommandDefinition, detailed: boolean = fa
     let help = chalk.cyan(`/${cmd.name}`) + ' - ' + cmd.description;
 
     if (detailed) {
-        help += '\n' + chalk.dim(`Usage: ${cmd.usage}`);
+        help += '\n' + chalk.gray(`Usage: ${cmd.usage}`);
 
         if (cmd.aliases && cmd.aliases.length > 0) {
-            help += '\n' + chalk.dim(`Aliases: ${cmd.aliases.map((a) => `/${a}`).join(', ')}`);
+            help += '\n' + chalk.gray(`Aliases: ${cmd.aliases.map((a) => `/${a}`).join(', ')}`);
         }
 
         if (cmd.subcommands && cmd.subcommands.length > 0) {
-            help += '\n' + chalk.dim('Subcommands:');
+            help += '\n' + chalk.gray('Subcommands:');
             for (const sub of cmd.subcommands) {
                 help += '\n  ' + chalk.cyan(`/${cmd.name} ${sub.name}`) + ' - ' + sub.description;
             }
@@ -164,6 +187,7 @@ export function displayAllCommands(commands: CommandDefinition[]): void {
         'Session Management',
         'Model Management',
         'MCP Management',
+        'Plugin Management',
         'Tool Management',
         'Prompt Management',
         'System',
@@ -189,7 +213,7 @@ export function displayAllCommands(commands: CommandDefinition[]): void {
     for (const category of categoryOrder) {
         const cmds = categories[category];
         if (cmds && cmds.length > 0) {
-            console.log(chalk.bold.yellow(`${category}:`));
+            console.log(chalk.bold.rgb(255, 165, 0)(`${category}:`));
             for (const cmd of cmds) {
                 console.log('  ' + formatCommandHelp(cmd));
             }
@@ -200,7 +224,7 @@ export function displayAllCommands(commands: CommandDefinition[]): void {
     // Display any uncategorized commands (fallback)
     for (const [category, cmds] of Object.entries(categories)) {
         if (!categoryOrder.includes(category) && cmds.length > 0) {
-            console.log(chalk.bold.yellow(`${category}:`));
+            console.log(chalk.bold.rgb(255, 165, 0)(`${category}:`));
             for (const cmd of cmds) {
                 console.log('  ' + formatCommandHelp(cmd));
             }
@@ -208,6 +232,6 @@ export function displayAllCommands(commands: CommandDefinition[]): void {
         }
     }
 
-    console.log(chalk.dim('💡 Tip: Use /help <command> for detailed help on any command'));
-    console.log(chalk.dim('💡 Tip: Type your message normally (without /) to chat with the AI\n'));
+    console.log(chalk.gray('💡 Tip: Use /help <command> for detailed help on any command'));
+    console.log(chalk.gray('💡 Tip: Type your message normally (without /) to chat with the AI\n'));
 }

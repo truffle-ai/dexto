@@ -1,5 +1,186 @@
 # @dexto/webui
 
+## 1.5.6
+
+### Patch Changes
+
+- 042f4f0: ### CLI Improvements
+    - Add `/export` command to export conversations as Markdown or JSON
+    - Add `Ctrl+T` toggle for task list visibility during processing
+    - Improve task list UI with collapsible view near the processing message
+    - Fix race condition causing duplicate rendering (mainly visible with explore tool)
+    - Don't truncate `pattern` and `question` args in tool output display
+
+    ### Bug Fixes
+    - Fix build script to preserve `.dexto` storage (conversations, logs) during clean builds
+    - Fix `@dexto/tools-todo` versioning - add to fixed version group in changeset config
+
+    ### Configuration Changes
+    - Remove approval timeout defaults - now waits indefinitely (better UX for CLI)
+    - Add package versioning guidelines to AGENTS.md
+
+- Updated dependencies [042f4f0]
+    - @dexto/client-sdk@1.5.6
+    - @dexto/analytics@1.5.6
+    - @dexto/registry@1.5.6
+    - @dexto/core@1.5.6
+
+## 1.5.5
+
+### Patch Changes
+
+- 9ab3eac: Added todo tools.
+- 63fa083: Session and context management fixes:
+    - Remove continuation session logic after compaction, now sticks to same session
+    - `/clear` continues same session and resets context (frees up AI context window)
+    - `/new` command creates new session with fresh context and clears screen
+    - Add context tokens remaining to footer, align context calculations everywhere
+    - Fix context calculation logic by including cache read tokens
+
+    Other improvements:
+    - Fix code block syntax highlighting in terminal (uses cli-highlight)
+    - Make terminal the default mode during onboarding
+    - Reduce OTEL dependency bloat by replacing auto-instrumentation with specific packages (47 MB saved: 65 MB → 18 MB)
+
+- Updated dependencies [63fa083]
+- Updated dependencies [6df3ca9]
+    - @dexto/core@1.5.5
+    - @dexto/registry@1.5.5
+    - @dexto/analytics@1.5.5
+    - @dexto/client-sdk@1.5.5
+
+## 1.5.4
+
+### Patch Changes
+
+- 499b890: Fix model override persistence after compaction and improve context token tracking
+
+    **Bug Fixes:**
+    - Fix model override resetting to config model after compaction (now respects session overrides)
+
+    **Context Tracking Improvements:**
+    - New algorithm uses actual `input_tokens` and `output_tokens` from LLM responses as source of truth
+    - Self-correcting estimates: inaccuracies auto-correct when next LLM response arrives
+    - Handles pruning automatically (next response's input_tokens reflects pruned state)
+    - `/context` and compaction decisions now share common calculation logic
+    - Removed `outputBuffer` concept in favor of single configurable threshold
+    - Default compaction threshold lowered to 90%
+
+    **New `/context` Command:**
+    - Interactive overlay with stacked token bar visualization
+    - Breakdown by component: system prompt, tools, messages, free space, auto-compact buffer
+    - Expandable per-tool token details
+    - Shows pruned tool count and compaction history
+
+    **Observability:**
+    - Comparison logging between estimated vs actual tokens for calibration
+    - `dexto_llm_tokens_consumed` metric now includes estimated input tokens and accuracy metrics
+
+- Updated dependencies [0016cd3]
+- Updated dependencies [499b890]
+- Updated dependencies [aa2c9a0]
+    - @dexto/core@1.5.4
+    - @dexto/analytics@1.5.4
+    - @dexto/client-sdk@1.5.4
+    - @dexto/registry@1.5.4
+
+## 1.5.3
+
+### Patch Changes
+
+- 4f00295: Added spawn-agent tools and explore agent.
+- Updated dependencies [4f00295]
+- Updated dependencies [69c944c]
+    - @dexto/core@1.5.3
+    - @dexto/analytics@1.5.3
+    - @dexto/client-sdk@1.5.3
+    - @dexto/registry@1.5.3
+
+## 1.5.2
+
+### Patch Changes
+
+- Updated dependencies [8a85ea4]
+- Updated dependencies [527f3f9]
+    - @dexto/core@1.5.2
+    - @dexto/analytics@1.5.2
+    - @dexto/client-sdk@1.5.2
+    - @dexto/registry@1.5.2
+
+## 1.5.1
+
+### Patch Changes
+
+- 4aabdb7: Fix claude caching, added gpt-5.2 models and reasoning effort options in user flows.
+- Updated dependencies [bfcc7b1]
+- Updated dependencies [4aabdb7]
+    - @dexto/core@1.5.1
+    - @dexto/analytics@1.5.1
+    - @dexto/client-sdk@1.5.1
+    - @dexto/registry@1.5.1
+
+## 1.5.0
+
+### Minor Changes
+
+- e7722e5: Minor version bump for new release with bundler, custom tool pkgs, etc.
+
+### Patch Changes
+
+- abfe5ce: Update and standardize analytics for CLI and web UI
+- ee12727: Added support for node-llama (llama.cpp) for local GGUF models. Added Ollama as first-class provider. Updated onboarding/setup flow.
+- 4c05310: Improve local model/GGUF model support, bash permission fixes in TUI, and add local/ollama switching/deleting support in web UI
+- 5fa79fa: Renamed compression to compaction, added context-awareness to hono, updated cli tool display formatting and added integration test for image-local.
+- ef40e60: Upgrades package versions and related changes to MCP SDK. CLI colors improved and token streaming added to status bar.
+
+    Security: Resolve all Dependabot security vulnerabilities. Updated @modelcontextprotocol/sdk to 1.25.2, esbuild to 0.25.0, langchain to 0.3.37, and @langchain/core to 0.3.80. Added pnpm overrides for indirect vulnerabilities (preact@10.27.3, qs@6.14.1, jws@3.2.3, mdast-util-to-hast@13.2.1). Fixed type errors from MCP SDK breaking changes.
+
+- e714418: Added providers for db and cache storages. Expanded settings panel for API keys and other app preferences in WebUI along with other UI/UX enhancements.
+- 7d5ab19: Updated WebUI design, event and state management and forms
+- 436a900: Add support for openrouter, bedrock, glama, vertex ai, fix model switching issues and new model experience for each
+- Updated dependencies [abfe5ce]
+- Updated dependencies [ee12727]
+- Updated dependencies [1e7e974]
+- Updated dependencies [4c05310]
+- Updated dependencies [5fa79fa]
+- Updated dependencies [ef40e60]
+- Updated dependencies [e714418]
+- Updated dependencies [e7722e5]
+- Updated dependencies [7d5ab19]
+- Updated dependencies [436a900]
+    - @dexto/analytics@1.5.0
+    - @dexto/core@1.5.0
+    - @dexto/client-sdk@1.5.0
+    - @dexto/registry@1.5.0
+
+## 1.4.0
+
+### Minor Changes
+
+- f73a519: Revamp CLI. Breaking change to DextoAgent.generate() and stream() apis and hono message APIs, so new minor version. Other fixes for logs, web UI related to message streaming/generating
+
+### Patch Changes
+
+- bd5c097: Add features check for internal tools, fix coding agent and logger agent elicitation
+- 3cdce89: Revamp CLI for coding agent, add new events, improve mcp management, custom models, minor UI changes, prompt management
+- d640e40: Remove LLM services, tokenizers, just stick with vercel, remove 'router' from schema and all types and docs
+- 6e6a3e7: Fix message typings to use proper discriminated unions in core and webui
+- c54760f: Revamp context management layer - add partial stream cancellation, message queueing, context compression with LLM, MCP UI support and gaming agent. New APIs and UI changes for these things
+- ab47df8: Add approval metadata and ui badge
+- Updated dependencies [bd5c097]
+- Updated dependencies [3cdce89]
+- Updated dependencies [d640e40]
+- Updated dependencies [6f5627d]
+- Updated dependencies [6e6a3e7]
+- Updated dependencies [f73a519]
+- Updated dependencies [c54760f]
+- Updated dependencies [ab47df8]
+- Updated dependencies [3b4b919]
+    - @dexto/core@1.4.0
+    - @dexto/registry@1.4.0
+    - @dexto/analytics@1.4.0
+    - @dexto/client-sdk@1.4.0
+
 ## 1.3.0
 
 ### Minor Changes

@@ -2,6 +2,8 @@ import { DextoRuntimeError, ErrorScope, ErrorType } from '../errors/index.js';
 import { PluginErrorCode } from './error-codes.js';
 import { loadPluginModule, resolvePluginPath } from './loader.js';
 import { getContext } from '../utils/async-context.js';
+import { pluginRegistry, type PluginCreationContext } from './registry.js';
+import type { RegistryPluginConfig } from './schemas.js';
 import type {
     ExtensionPoint,
     PluginExecutionContext,
@@ -106,12 +108,21 @@ export class PluginManager {
 
     /**
      * Initialize all plugins from configuration
-     * Loads custom plugins, validates priorities, sorts by priority, and calls initialize()
+     * Loads custom plugins (file-based), registry plugins (programmatic), validates priorities,
+     * sorts by priority, and calls initialize()
      *
-     * @param customPlugins - Array of custom plugin configurations from YAML
+     * TODO: Consider adding an MCP server-like convention for plugin discovery.
+     * Instead of requiring explicit file paths, plugins could be connected as
+     * plugin servers to the PluginManager.
+     *
+     * @param customPlugins - Array of custom plugin configurations from YAML (file-based)
+     * @param registryPlugins - Array of registry plugin configurations from YAML (programmatic)
      * @throws {DextoRuntimeError} If any plugin fails to load or initialize (fail-fast)
      */
-    async initialize(customPlugins: PluginConfig[] = []): Promise<void> {
+    async initialize(
+        customPlugins: PluginConfig[] = [],
+        registryPlugins: RegistryPluginConfig[] = []
+    ): Promise<void> {
         if (this.initialized) {
             throw new DextoRuntimeError(
                 PluginErrorCode.PLUGIN_CONFIGURATION_INVALID,
@@ -121,12 +132,22 @@ export class PluginManager {
             );
         }
 
-        // 1. Validate priority uniqueness across all plugins (built-in + custom)
+        // 1. Validate priority uniqueness across all plugins (built-in + custom + registry)
         const priorities = new Set<number>();
-        const allPlugins = [...this.plugins.values(), ...customPlugins.map((c) => ({ config: c }))];
+        const allPluginConfigs = [
+            ...Array.from(this.plugins.values()).map((p) => p.config),
+            ...customPlugins,
+            ...registryPlugins.map((r) => ({
+                name: r.type,
+                module: `<registry:${r.type}>`,
+                enabled: r.enabled,
+                blocking: r.blocking,
+                priority: r.priority,
+                config: r.config,
+            })),
+        ];
 
-        for (const item of allPlugins) {
-            const config = 'config' in item ? item.config : item;
+        for (const config of allPluginConfigs) {
             if (!config.enabled) continue;
 
             if (priorities.has(config.priority)) {
@@ -137,14 +158,100 @@ export class PluginManager {
                     `Duplicate plugin priority: ${config.priority}. Each plugin must have a unique priority.`,
                     {
                         priority: config.priority,
-                        hint: 'Ensure all enabled plugins (built-in and custom) have unique priority values.',
+                        hint: 'Ensure all enabled plugins (built-in, custom, and registry) have unique priority values.',
                     }
                 );
             }
             priorities.add(config.priority);
         }
 
-        // 2. Load custom plugins from config
+        // 2. Load registry plugins first (they're programmatically registered)
+        for (const registryConfig of registryPlugins) {
+            if (!registryConfig.enabled) {
+                this.logger.debug(`Skipping disabled registry plugin: ${registryConfig.type}`);
+                continue;
+            }
+
+            try {
+                // Get the provider from registry
+                const provider = pluginRegistry.get(registryConfig.type);
+                if (!provider) {
+                    throw new DextoRuntimeError(
+                        PluginErrorCode.PLUGIN_PROVIDER_NOT_FOUND,
+                        ErrorScope.PLUGIN,
+                        ErrorType.USER,
+                        `Plugin provider '${registryConfig.type}' not found in registry`,
+                        {
+                            type: registryConfig.type,
+                            available: pluginRegistry.getTypes(),
+                        },
+                        `Available plugin providers: ${pluginRegistry.getTypes().join(', ') || 'none'}. Register the provider using pluginRegistry.register() before agent initialization.`
+                    );
+                }
+
+                // Validate config against provider schema
+                const validatedConfig = provider.configSchema.safeParse({
+                    type: registryConfig.type,
+                    ...registryConfig.config,
+                });
+
+                if (!validatedConfig.success) {
+                    throw new DextoRuntimeError(
+                        PluginErrorCode.PLUGIN_PROVIDER_VALIDATION_FAILED,
+                        ErrorScope.PLUGIN,
+                        ErrorType.USER,
+                        `Invalid configuration for plugin provider '${registryConfig.type}'`,
+                        {
+                            type: registryConfig.type,
+                            errors: validatedConfig.error.errors,
+                        },
+                        'Check the configuration schema for this plugin provider'
+                    );
+                }
+
+                // Create plugin instance
+                const creationContext: PluginCreationContext = {
+                    config: registryConfig.config || {},
+                    blocking: registryConfig.blocking,
+                    priority: registryConfig.priority,
+                };
+
+                const plugin = provider.create(validatedConfig.data, creationContext);
+
+                // Store as loaded plugin
+                const loadedPlugin: LoadedPlugin = {
+                    plugin,
+                    config: {
+                        name: registryConfig.type,
+                        module: `<registry:${registryConfig.type}>`,
+                        enabled: registryConfig.enabled,
+                        blocking: registryConfig.blocking,
+                        priority: registryConfig.priority,
+                        config: registryConfig.config,
+                    },
+                };
+                this.plugins.set(registryConfig.type, loadedPlugin);
+
+                this.logger.info(`Registry plugin loaded: ${registryConfig.type}`);
+            } catch (error) {
+                // Re-throw our own errors
+                if (error instanceof DextoRuntimeError) {
+                    throw error;
+                }
+
+                // Wrap other errors
+                throw new DextoRuntimeError(
+                    PluginErrorCode.PLUGIN_INITIALIZATION_FAILED,
+                    ErrorScope.PLUGIN,
+                    ErrorType.SYSTEM,
+                    `Failed to load registry plugin '${registryConfig.type}': ${
+                        error instanceof Error ? error.message : String(error)
+                    }`
+                );
+            }
+        }
+
+        // 3. Load custom plugins from config (file-based)
         for (const pluginConfig of customPlugins) {
             if (!pluginConfig.enabled) {
                 this.logger.debug(`Skipping disabled plugin: ${pluginConfig.name}`);

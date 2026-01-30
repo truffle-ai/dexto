@@ -52,10 +52,10 @@ systemPrompt:
         - Summary of findings
         - Key insights (3-5 bullet points)
         - Recommendations
-    - id: dateTime
+    - id: date
       type: dynamic
       priority: 10
-      source: dateTime
+      source: date
       enabled: true
 
 # Session configuration

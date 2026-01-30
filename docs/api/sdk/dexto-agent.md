@@ -64,18 +64,30 @@ The Dexto Agent SDK provides three methods for processing messages:
 
 ```typescript
 async generate(
-  message: string,
-  options: GenerateOptions
+  content: ContentInput,
+  sessionId: string,
+  options?: GenerateOptions
 ): Promise<GenerateResponse>
 ```
 
 | Parameter | Type | Description |
 | :--- | :--- | :--- |
-| `message` | `string` | User message or query |
-| `options.sessionId` | `string` | **Required.** Session ID for the conversation |
-| `options.imageData` | `{ image: string; mimeType: string }` | (Optional) Image data |
-| `options.fileData` | `{ data: string; mimeType: string; filename?: string }` | (Optional) File data |
+| `content` | `string \| ContentPart[]` | User message (string) or multimodal content (array) |
+| `sessionId` | `string` | **Required.** Session ID for the conversation |
 | `options.signal` | `AbortSignal` | (Optional) For cancellation |
+
+**Content Types:**
+```typescript
+// Simple string content
+type ContentInput = string | ContentPart[];
+
+// For multimodal content, use ContentPart array:
+type ContentPart = TextPart | ImagePart | FilePart;
+
+interface TextPart { type: 'text'; text: string; }
+interface ImagePart { type: 'image'; image: string; mimeType?: string; }
+interface FilePart { type: 'file'; data: string; mimeType: string; filename?: string; }
+```
 
 **Returns:** `Promise<GenerateResponse>`
 ```typescript
@@ -96,18 +108,38 @@ await agent.start();
 
 const session = await agent.createSession();
 
-// Simple usage
-const response = await agent.generate('What is 2+2?', {
-  sessionId: session.id
-});
+// Simple text message
+const response = await agent.generate('What is 2+2?', session.id);
 console.log(response.content); // "4"
 console.log(response.usage.totalTokens); // Token count
 
-// With image
-const response = await agent.generate('Describe this image', {
-  sessionId: session.id,
-  imageData: { image: base64Image, mimeType: 'image/png' }
-});
+// With image URL (auto-detected)
+const response = await agent.generate([
+  { type: 'text', text: 'Describe this image' },
+  { type: 'image', image: 'https://example.com/photo.jpg' }
+], session.id);
+
+// With image base64
+const response = await agent.generate([
+  { type: 'text', text: 'Describe this image' },
+  { type: 'image', image: base64Image, mimeType: 'image/png' }
+], session.id);
+
+// With file URL
+const response = await agent.generate([
+  { type: 'text', text: 'Summarize this document' },
+  { type: 'file', data: 'https://example.com/doc.pdf', mimeType: 'application/pdf' }
+], session.id);
+
+// With file base64
+const response = await agent.generate([
+  { type: 'text', text: 'Summarize this document' },
+  { type: 'file', data: base64Pdf, mimeType: 'application/pdf', filename: 'doc.pdf' }
+], session.id);
+
+// With cancellation support
+const controller = new AbortController();
+const response = await agent.generate('Long task...', session.id, { signal: controller.signal });
 
 await agent.stop();
 ```
@@ -118,17 +150,16 @@ For real-time streaming UIs. Yields events as they arrive.
 
 ```typescript
 async stream(
-  message: string,
-  options: StreamOptions
+  content: ContentInput,
+  sessionId: string,
+  options?: StreamOptions
 ): Promise<AsyncIterableIterator<StreamingEvent>>
 ```
 
 | Parameter | Type | Description |
 | :--- | :--- | :--- |
-| `message` | `string` | User message or query |
-| `options.sessionId` | `string` | **Required.** Session ID |
-| `options.imageData` | `{ image: string; mimeType: string }` | (Optional) Image data |
-| `options.fileData` | `{ data: string; mimeType: string; filename?: string }` | (Optional) File data |
+| `content` | `string \| ContentPart[]` | User message (string) or multimodal content (array) |
+| `sessionId` | `string` | **Required.** Session ID |
 | `options.signal` | `AbortSignal` | (Optional) For cancellation |
 
 **Returns:** `Promise<AsyncIterableIterator<StreamingEvent>>`
@@ -137,12 +168,23 @@ async stream(
 ```typescript
 const session = await agent.createSession();
 
-for await (const event of await agent.stream('Write a poem', { sessionId: session.id })) {
-  if (event.type === 'llm:chunk') {
+// Simple text streaming
+for await (const event of await agent.stream('Write a poem', session.id)) {
+  if (event.name === 'llm:chunk') {
     process.stdout.write(event.content);
   }
-  if (event.type === 'llm:tool-call') {
+  if (event.name === 'llm:tool-call') {
     console.log(`\n[Using ${event.toolName}]\n`);
+  }
+}
+
+// Streaming with image
+for await (const event of await agent.stream([
+  { type: 'text', text: 'Describe this image' },
+  { type: 'image', image: base64Image, mimeType: 'image/png' }
+], session.id)) {
+  if (event.name === 'llm:chunk') {
+    process.stdout.write(event.content);
   }
 }
 ```
@@ -181,7 +223,7 @@ const session = await agent.createSession();
 // Recommended: Use generate() for most use cases
 const response = await agent.generate(
   "Explain quantum computing",
-  { sessionId: session.id }
+  session.id
 );
 console.log(response.content);
 
@@ -242,7 +284,7 @@ console.log(`Created session: ${session.id}`);
 const userSession = await agent.createSession('user-123');
 
 // Use the session for conversations
-await agent.generate("Hello!", { sessionId: session.id });
+await agent.generate("Hello!", session.id);
 ```
 
 ### `getSession`
@@ -381,12 +423,12 @@ getEffectiveConfig(sessionId?: string): Readonly<AgentConfig>
 
 ## MCP Server Management
 
-### `connectMcpServer`
+### `addMcpServer`
 
-Connects to a new MCP server and adds it to the agent's available tools.
+Adds and connects to a new MCP server, making its tools available to the agent.
 
 ```typescript
-async connectMcpServer(name: string, config: McpServerConfig): Promise<void>
+async addMcpServer(name: string, config: McpServerConfig): Promise<void>
 ```
 
 | Parameter | Type | Description |
@@ -396,7 +438,7 @@ async connectMcpServer(name: string, config: McpServerConfig): Promise<void>
 
 ### `removeMcpServer`
 
-Disconnects from an MCP server and removes its tools from the agent.
+Disconnects from an MCP server and removes it completely from the agent.
 
 ```typescript
 async removeMcpServer(name: string): Promise<void>
@@ -405,6 +447,42 @@ async removeMcpServer(name: string): Promise<void>
 | Parameter | Type | Description |
 | :--- | :--- | :--- |
 | `name` | `string` | Server name to remove |
+
+### `enableMcpServer`
+
+Enables a disabled MCP server and connects it.
+
+```typescript
+async enableMcpServer(name: string): Promise<void>
+```
+
+| Parameter | Type | Description |
+| :--- | :--- | :--- |
+| `name` | `string` | Server name to enable |
+
+### `disableMcpServer`
+
+Disables an MCP server and disconnects it. The server remains registered but inactive.
+
+```typescript
+async disableMcpServer(name: string): Promise<void>
+```
+
+| Parameter | Type | Description |
+| :--- | :--- | :--- |
+| `name` | `string` | Server name to disable |
+
+### `restartMcpServer`
+
+Restarts an MCP server by disconnecting and reconnecting with its original configuration.
+
+```typescript
+async restartMcpServer(name: string): Promise<void>
+```
+
+| Parameter | Type | Description |
+| :--- | :--- | :--- |
+| `name` | `string` | Server name to restart |
 
 ### `executeTool`
 

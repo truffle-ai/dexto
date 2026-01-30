@@ -54,15 +54,22 @@ You can help with:
         it('should apply default contributors for empty object', () => {
             const result = SystemPromptConfigSchema.parse({});
 
-            expect(result.contributors).toHaveLength(2);
+            expect(result.contributors).toHaveLength(3);
             expect(result.contributors[0]).toEqual({
-                id: 'dateTime',
+                id: 'date',
                 type: 'dynamic',
                 priority: 10,
-                source: 'dateTime',
+                source: 'date',
                 enabled: true,
             });
             expect(result.contributors[1]).toEqual({
+                id: 'env',
+                type: 'dynamic',
+                priority: 15,
+                source: 'env',
+                enabled: true,
+            });
+            expect(result.contributors[2]).toEqual({
                 id: 'resources',
                 type: 'dynamic',
                 priority: 20,
@@ -99,10 +106,10 @@ You can help with:
                         enabled: true,
                     },
                     {
-                        id: 'dateTime',
+                        id: 'date',
                         type: 'dynamic' as const,
                         priority: 10,
-                        source: 'dateTime',
+                        source: 'date',
                         enabled: true,
                     },
                 ],
@@ -139,16 +146,14 @@ You can help with:
 
         it('should validate dynamic contributors', () => {
             const validDynamic = {
-                contributors: [
-                    { id: 'dateTime', type: 'dynamic', priority: 10, source: 'dateTime' },
-                ],
+                contributors: [{ id: 'date', type: 'dynamic', priority: 10, source: 'date' }],
             };
             const validResult = SystemPromptConfigSchema.parse(validDynamic);
             expect(validResult.contributors[0]?.type).toBe('dynamic');
 
             const invalidDynamic = {
                 contributors: [
-                    { id: 'dateTime', type: 'dynamic', priority: 10 }, // Missing source
+                    { id: 'date', type: 'dynamic', priority: 10 }, // Missing source
                 ],
             };
             const result = SystemPromptConfigSchema.safeParse(invalidDynamic);
@@ -163,7 +168,7 @@ You can help with:
         });
 
         it('should validate dynamic contributor source enum', () => {
-            const validSources = ['dateTime', 'resources'];
+            const validSources = ['date', 'env', 'resources'];
 
             for (const source of validSources) {
                 const validConfig = {
@@ -315,10 +320,10 @@ You can help with:
                         },
                     },
                     {
-                        id: 'dateTime',
+                        id: 'date',
                         type: 'dynamic' as const,
                         priority: 10,
-                        source: 'dateTime',
+                        source: 'date',
                         enabled: true,
                     },
                 ],
@@ -326,7 +331,7 @@ You can help with:
 
             const result = SystemPromptConfigSchema.parse(complexConfig);
             expect(result.contributors).toHaveLength(3);
-            expect(result.contributors.map((c) => c.id)).toEqual(['main', 'context', 'dateTime']);
+            expect(result.contributors.map((c) => c.id)).toEqual(['main', 'context', 'date']);
         });
 
         it('should handle template-style configuration', () => {
@@ -340,10 +345,10 @@ You can help with:
                             "You are a helpful AI assistant demonstrating Dexto's capabilities.",
                     },
                     {
-                        id: 'dateTime',
+                        id: 'date',
                         type: 'dynamic' as const,
                         priority: 10,
-                        source: 'dateTime',
+                        source: 'date',
                         enabled: true,
                     },
                 ],
@@ -352,7 +357,7 @@ You can help with:
             const result = SystemPromptConfigSchema.parse(templateConfig);
             expect(result.contributors).toHaveLength(2);
             expect(result.contributors[0]?.id).toBe('primary');
-            expect(result.contributors[1]?.id).toBe('dateTime');
+            expect(result.contributors[1]?.id).toBe('date');
         });
     });
 });

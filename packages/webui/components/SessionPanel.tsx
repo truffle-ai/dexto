@@ -24,12 +24,16 @@ import {
     RefreshCw,
     History,
     Search,
-    X,
     Plus,
     MoreHorizontal,
     Pencil,
     Copy,
     Check,
+    ChevronLeft,
+    Settings,
+    FlaskConical,
+    Moon,
+    Sun,
 } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
 import {
@@ -44,12 +48,18 @@ import { cn } from '@/lib/utils';
 interface SessionPanelProps {
     isOpen: boolean;
     onClose: () => void;
+    onExpand?: () => void;
     currentSessionId?: string | null;
     onSessionChange: (sessionId: string) => void;
     returnToWelcome: () => void;
     variant?: 'inline' | 'overlay';
     onSearchOpen?: () => void;
     onNewChat?: () => void;
+    // App-level actions
+    onSettingsOpen?: () => void;
+    onPlaygroundOpen?: () => void;
+    onThemeToggle?: () => void;
+    theme?: 'light' | 'dark';
 }
 
 function sortSessions(sessions: Session[]): Session[] {
@@ -63,12 +73,17 @@ function sortSessions(sessions: Session[]): Session[] {
 export default function SessionPanel({
     isOpen,
     onClose,
+    onExpand,
     currentSessionId,
     onSessionChange,
     returnToWelcome,
     variant = 'overlay',
     onSearchOpen,
     onNewChat,
+    onSettingsOpen,
+    onPlaygroundOpen,
+    onThemeToggle,
+    theme,
 }: SessionPanelProps) {
     const [isNewSessionOpen, setNewSessionOpen] = useState(false);
     const [newSessionId, setNewSessionId] = useState('');
@@ -173,49 +188,33 @@ export default function SessionPanel({
 
     const content = (
         <div className="flex flex-col h-full">
-            {/* Header with action buttons */}
-            <div className="p-3 space-y-3 border-b border-border/50">
-                {/* Header row with title and close button */}
+            {/* Header with Dexto branding */}
+            <div className="px-4 py-5">
                 <div className="flex items-center justify-between">
-                    <h2 id="sessionpanel-title" className="text-base font-semibold">
-                        Chat History
-                    </h2>
-                    {variant === 'overlay' && (
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={onClose}
-                            className="h-7 w-7 p-0"
-                            aria-label="Close panel"
-                        >
-                            <X className="h-3.5 w-3.5" />
-                        </Button>
-                    )}
-                </div>
-                {/* Action buttons */}
-                <div className="flex flex-col gap-2">
-                    {onNewChat && (
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={onNewChat}
-                            className="w-full h-9 justify-start gap-2"
-                        >
-                            <Plus className="h-4 w-4" />
-                            <span>New Chat</span>
-                        </Button>
-                    )}
-                    {onSearchOpen && (
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={onSearchOpen}
-                            className="w-full h-9 justify-start gap-2"
-                        >
-                            <Search className="h-4 w-4" />
-                            <span>Search Chats</span>
-                        </Button>
-                    )}
+                    {/* Dexto logo */}
+                    <div id="sessionpanel-title" className="flex items-center px-2">
+                        {/* Light mode logo */}
+                        <img
+                            src="/logos/dexto/dexto_logo_light.svg"
+                            alt="Dexto"
+                            className="h-6 w-auto dark:hidden"
+                        />
+                        {/* Dark mode logo */}
+                        <img
+                            src="/logos/dexto/dexto_logo.svg"
+                            alt="Dexto"
+                            className="h-6 w-auto hidden dark:block"
+                        />
+                    </div>
+
+                    {/* Collapse button */}
+                    <button
+                        onClick={onClose}
+                        className="flex items-center justify-center w-8 h-8 rounded-lg text-muted-foreground hover:bg-muted/40 hover:text-foreground transition-colors"
+                        aria-label="Collapse panel"
+                    >
+                        <ChevronLeft className="h-5 w-5" />
+                    </button>
                 </div>
             </div>
 
@@ -230,16 +229,52 @@ export default function SessionPanel({
             )}
 
             {/* Sessions List */}
-            <ScrollArea className="flex-1">
+            <ScrollArea className="flex-1 scrollbar-thin">
+                {/* Action items at top of list */}
+                <div className="px-3 pt-2 pb-1 space-y-0.5">
+                    {onNewChat && (
+                        <button
+                            onClick={onNewChat}
+                            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:bg-muted/40 hover:text-foreground transition-colors"
+                        >
+                            <Plus className="h-4 w-4" />
+                            <span>New Chat</span>
+                        </button>
+                    )}
+                    {onSearchOpen && (
+                        <button
+                            onClick={onSearchOpen}
+                            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:bg-muted/40 hover:text-foreground transition-colors"
+                        >
+                            <Search className="h-4 w-4" />
+                            <span>Search</span>
+                        </button>
+                    )}
+                </div>
+
+                {/* Spacer */}
+                {(onNewChat || onSearchOpen) && <div className="h-2" />}
+
+                {/* History Header */}
+                {!loading && sessions.length > 0 && (
+                    <div className="px-4 py-2">
+                        <h2 className="text-xs font-semibold text-muted-foreground/70 uppercase tracking-wider">
+                            History
+                        </h2>
+                    </div>
+                )}
+
                 {loading ? (
-                    <div className="flex items-center justify-center py-8">
-                        <RefreshCw className="h-6 w-6 animate-spin" />
+                    <div className="flex items-center justify-center py-12">
+                        <RefreshCw className="h-5 w-5 animate-spin text-muted-foreground" />
                     </div>
                 ) : sessions.length === 0 ? (
-                    <div className="text-center py-8 text-muted-foreground px-4">
-                        <History className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                        <p>No chat history</p>
-                        <p className="text-sm">Start a conversation to see it here</p>
+                    <div className="text-center py-12 px-6">
+                        <History className="h-10 w-10 mx-auto mb-3 text-muted-foreground/30" />
+                        <p className="text-sm text-muted-foreground">No conversations yet</p>
+                        <p className="text-xs text-muted-foreground/60 mt-1">
+                            Start chatting to see your history
+                        </p>
                     </div>
                 ) : (
                     <div className="px-3 py-2 space-y-0.5">
@@ -253,10 +288,10 @@ export default function SessionPanel({
                                 <div
                                     key={session.id}
                                     className={cn(
-                                        'group relative px-3 py-2.5 rounded-lg transition-colors cursor-pointer',
+                                        'group relative px-3 py-1.5 rounded-lg transition-all cursor-pointer',
                                         isActive
-                                            ? 'bg-muted/40 hover:bg-muted/60'
-                                            : 'hover:bg-muted/30'
+                                            ? 'bg-primary/5 before:absolute before:left-0 before:top-1.5 before:bottom-1.5 before:w-0.5 before:bg-primary before:rounded-full'
+                                            : 'hover:bg-muted/40'
                                     )}
                                     role="button"
                                     tabIndex={0}
@@ -271,28 +306,30 @@ export default function SessionPanel({
                                     }}
                                 >
                                     <div className="flex items-center justify-between gap-2">
-                                        <div className="flex-1 min-w-0">
-                                            <h3
-                                                className={cn(
-                                                    'text-sm truncate',
-                                                    isActive
-                                                        ? 'font-semibold'
-                                                        : 'font-normal text-muted-foreground'
-                                                )}
-                                            >
-                                                {title}
-                                            </h3>
-                                            <span className="text-xs text-muted-foreground">
-                                                {formatRelativeTime(session.lastActivity)}
-                                            </span>
-                                        </div>
+                                        <h3
+                                            className={cn(
+                                                'text-sm truncate flex-1 min-w-0',
+                                                isActive
+                                                    ? 'font-medium text-foreground'
+                                                    : 'text-muted-foreground'
+                                            )}
+                                        >
+                                            {title}
+                                        </h3>
+
+                                        {/* Timestamp - hidden on hover */}
+                                        <span className="text-[10px] text-muted-foreground/50 shrink-0 group-hover:opacity-0 transition-opacity">
+                                            {formatRelativeTime(session.lastActivity)}
+                                        </span>
+
+                                        {/* Dropdown - shown on hover, positioned to overlap timestamp */}
                                         <DropdownMenu>
                                             <DropdownMenuTrigger asChild>
                                                 <Button
                                                     variant="ghost"
                                                     size="sm"
                                                     onClick={(e) => e.stopPropagation()}
-                                                    className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
+                                                    className="h-7 w-7 p-0 absolute right-2 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
                                                     aria-label="Session options"
                                                 >
                                                     <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
@@ -350,6 +387,51 @@ export default function SessionPanel({
                     </div>
                 )}
             </ScrollArea>
+
+            {/* Footer with app-level actions */}
+            <div className="border-t border-border/30 p-3 space-y-1">
+                {/* Developer Tools */}
+                {onPlaygroundOpen && (
+                    <button
+                        onClick={onPlaygroundOpen}
+                        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:bg-muted/40 hover:text-foreground transition-colors"
+                    >
+                        <FlaskConical className="h-4 w-4" />
+                        <span>MCP Playground</span>
+                    </button>
+                )}
+
+                {/* Separator */}
+                {onPlaygroundOpen && (onThemeToggle || onSettingsOpen) && (
+                    <div className="h-px bg-border/30 my-1" />
+                )}
+
+                {/* Theme Toggle */}
+                {onThemeToggle && (
+                    <button
+                        onClick={onThemeToggle}
+                        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:bg-muted/40 hover:text-foreground transition-colors"
+                    >
+                        {theme === 'dark' ? (
+                            <Sun className="h-4 w-4 transition-transform duration-200 hover:rotate-180" />
+                        ) : (
+                            <Moon className="h-4 w-4 transition-transform duration-200 hover:rotate-12" />
+                        )}
+                        <span>{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
+                    </button>
+                )}
+
+                {/* Settings */}
+                {onSettingsOpen && (
+                    <button
+                        onClick={onSettingsOpen}
+                        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:bg-muted/40 hover:text-foreground transition-colors"
+                    >
+                        <Settings className="h-4 w-4" />
+                        <span>Settings</span>
+                    </button>
+                )}
+            </div>
 
             {/* New Chat Dialog */}
             <Dialog open={isNewSessionOpen} onOpenChange={setNewSessionOpen}>
@@ -483,8 +565,96 @@ export default function SessionPanel({
         </div>
     );
 
-    // For inline variant, just return the content wrapped
+    // Collapsed sidebar content - thin bar with icon buttons
+    const collapsedContent = (
+        <div className="flex flex-col h-full py-3 px-2 items-center">
+            {/* Dexto icon - click to expand */}
+            <button
+                onClick={onExpand}
+                className="flex items-center justify-center w-10 h-10 rounded-lg hover:bg-muted/40 transition-colors mb-3"
+                aria-label="Expand panel"
+            >
+                <img src="/logos/dexto/dexto_logo_icon.svg" alt="Dexto" className="h-7 w-7" />
+            </button>
+
+            {/* Action items with subtle spacing */}
+            <div className="flex flex-col gap-1 flex-1">
+                {/* New Chat */}
+                {onNewChat && (
+                    <button
+                        onClick={onNewChat}
+                        className="flex items-center justify-center w-10 h-10 rounded-lg text-muted-foreground hover:bg-muted/40 hover:text-foreground transition-colors"
+                        aria-label="New chat"
+                    >
+                        <Plus className="h-5 w-5" />
+                    </button>
+                )}
+
+                {/* Search */}
+                {onSearchOpen && (
+                    <button
+                        onClick={onSearchOpen}
+                        className="flex items-center justify-center w-10 h-10 rounded-lg text-muted-foreground hover:bg-muted/40 hover:text-foreground transition-colors"
+                        aria-label="Search"
+                    >
+                        <Search className="h-5 w-5" />
+                    </button>
+                )}
+            </div>
+
+            {/* Footer actions - playground, theme, settings */}
+            <div className="flex flex-col gap-1 pt-2 border-t border-border/30">
+                {/* Playground */}
+                {onPlaygroundOpen && (
+                    <button
+                        onClick={onPlaygroundOpen}
+                        className="flex items-center justify-center w-10 h-10 rounded-lg text-muted-foreground hover:bg-muted/40 hover:text-foreground transition-colors"
+                        aria-label="MCP Playground"
+                    >
+                        <FlaskConical className="h-5 w-5" />
+                    </button>
+                )}
+
+                {/* Theme Toggle */}
+                {onThemeToggle && (
+                    <button
+                        onClick={onThemeToggle}
+                        className="flex items-center justify-center w-10 h-10 rounded-lg text-muted-foreground hover:bg-muted/40 hover:text-foreground transition-colors"
+                        aria-label={theme === 'dark' ? 'Light mode' : 'Dark mode'}
+                    >
+                        {theme === 'dark' ? (
+                            <Sun className="h-5 w-5" />
+                        ) : (
+                            <Moon className="h-5 w-5" />
+                        )}
+                    </button>
+                )}
+
+                {/* Settings */}
+                {onSettingsOpen && (
+                    <button
+                        onClick={onSettingsOpen}
+                        className="flex items-center justify-center w-10 h-10 rounded-lg text-muted-foreground hover:bg-muted/40 hover:text-foreground transition-colors"
+                        aria-label="Settings"
+                    >
+                        <Settings className="h-5 w-5" />
+                    </button>
+                )}
+            </div>
+        </div>
+    );
+
+    // For inline variant, show collapsed or expanded
     if (variant === 'inline') {
+        if (!isOpen) {
+            // Collapsed state - thin bar
+            return (
+                <div className="h-full flex flex-col bg-card border-r border-border/30">
+                    {collapsedContent}
+                </div>
+            );
+        }
+        // Expanded state - full panel
         return <div className="h-full w-full flex flex-col bg-card">{content}</div>;
     }
 
@@ -507,7 +677,7 @@ export default function SessionPanel({
                 aria-labelledby="sessionpanel-title"
                 tabIndex={-1}
                 className={cn(
-                    'fixed top-0 left-0 z-40 h-screen w-80 bg-card border-r border-border shadow-xl transition-transform duration-300 ease-in-out flex flex-col',
+                    'fixed top-0 left-0 z-40 h-screen w-72 bg-card border-r border-border shadow-xl transition-transform duration-300 ease-in-out flex flex-col',
                     isOpen ? 'translate-x-0' : '-translate-x-full'
                 )}
             >

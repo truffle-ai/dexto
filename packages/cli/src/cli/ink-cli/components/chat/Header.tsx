@@ -6,6 +6,7 @@
 import React from 'react';
 import { Box, Text } from 'ink';
 import type { StartupInfo } from '../../state/types.js';
+import { useTerminalSize } from '../../hooks/useTerminalSize.js';
 
 interface HeaderProps {
     modelName: string;
@@ -16,10 +17,20 @@ interface HeaderProps {
 
 /**
  * Pure presentational component for CLI header
+ * Automatically adjusts width to terminal size
  */
 export function Header({ modelName, sessionId, hasActiveSession, startupInfo }: HeaderProps) {
+    const { columns } = useTerminalSize();
+
     return (
-        <Box borderStyle="single" borderColor="gray" paddingX={1} flexDirection="column">
+        <Box
+            borderStyle="single"
+            borderColor="gray"
+            paddingX={1}
+            flexDirection="column"
+            flexShrink={0}
+            width={columns}
+        >
             <Box marginTop={1}>
                 <Text color="greenBright">
                     {`██████╗ ███████╗██╗  ██╗████████╗ ██████╗
@@ -33,16 +44,11 @@ export function Header({ modelName, sessionId, hasActiveSession, startupInfo }: 
 
             {/* Model and Session */}
             <Box marginTop={1} flexDirection="row">
-                <Text color="gray" dimColor>
-                    Model:{' '}
-                </Text>
+                <Text color="gray">Model: </Text>
                 <Text color="white">{modelName}</Text>
                 {hasActiveSession && sessionId && (
                     <>
-                        <Text color="gray" dimColor>
-                            {' '}
-                            • Session:{' '}
-                        </Text>
+                        <Text color="gray"> • Session: </Text>
                         <Text color="white">{sessionId.slice(0, 8)}</Text>
                     </>
                 )}
@@ -50,32 +56,47 @@ export function Header({ modelName, sessionId, hasActiveSession, startupInfo }: 
 
             {/* MCP Servers and Tools */}
             <Box flexDirection="row">
-                <Text color="gray" dimColor>
-                    Servers:{' '}
-                </Text>
+                <Text color="gray">Servers: </Text>
                 <Text color="white">{startupInfo.connectedServers.count}</Text>
-                <Text color="gray" dimColor>
-                    {' '}
-                    • Tools:{' '}
-                </Text>
+                <Text color="gray"> • Tools: </Text>
                 <Text color="white">{startupInfo.toolCount}</Text>
             </Box>
 
             {/* Failed connections warning */}
             {startupInfo.failedConnections.length > 0 && (
                 <Box flexDirection="row">
-                    <Text color="yellow">
+                    <Text color="yellowBright">
                         ⚠️ Failed: {startupInfo.failedConnections.join(', ')}
                     </Text>
                 </Box>
             )}
 
-            {/* Log file */}
-            <Box flexDirection="row">
-                <Text color="gray" dimColor>
-                    Logs: {startupInfo.logFile}
-                </Text>
-            </Box>
+            {/* Log file (only shown in dev mode) */}
+            {startupInfo.logFile && process.env.DEXTO_DEV_MODE === 'true' && (
+                <Box flexDirection="row">
+                    <Text color="gray">Logs: {startupInfo.logFile}</Text>
+                </Box>
+            )}
+
+            {/* Update available notification */}
+            {startupInfo.updateInfo && (
+                <Box marginTop={1} flexDirection="row">
+                    <Text color="yellow">
+                        ⬆️ Update available: {startupInfo.updateInfo.current} →{' '}
+                        {startupInfo.updateInfo.latest}
+                    </Text>
+                    <Text color="gray"> • Run: </Text>
+                    <Text color="cyan">{startupInfo.updateInfo.updateCommand}</Text>
+                </Box>
+            )}
+
+            {/* Agent sync notification */}
+            {startupInfo.needsAgentSync && (
+                <Box marginTop={startupInfo.updateInfo ? 0 : 1} flexDirection="row">
+                    <Text color="yellow">🔄 Agent configs have updates available. Run: </Text>
+                    <Text color="cyan">dexto sync-agents</Text>
+                </Box>
+            )}
 
             <Box marginBottom={1}>
                 <Text> </Text>

@@ -1,0 +1,30 @@
+{
+  "name": "dexto-discord-bot-example",
+  "version": "1.0.0",
+  "description": "Discord bot integration example using Dexto",
+  "type": "module",
+  "main": "dist/main.js",
+  "scripts": {
+    "start": "tsx main.ts",
+    "build": "tsc",
+    "dev": "tsx watch main.ts"
+  },
+  "keywords": [
+    "dexto",
+    "discord",
+    "bot",
+    "ai",
+    "agent"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@dexto/core": "^1.1.3",
+    "@dexto/agent-management": "^1.1.3",
+    "discord.js": "^14.19.3",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.7.1",
+    "typescript": "^5.5.4"
+  }
+}

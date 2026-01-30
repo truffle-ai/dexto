@@ -26,10 +26,10 @@ systemPrompt:
         Use these tools when appropriate to answer user queries.
         You can use multiple tools in sequence to solve complex problems.
         After each tool result, determine if you need more information or can provide a final answer.
-    - id: dateTime
+    - id: date
       type: dynamic
       priority: 10
-      source: dateTime
+      source: date
       enabled: true
 
 # LLM configuration - describes the language model to use
@@ -77,5 +77,5 @@ storage:
 # Tool confirmation configuration - auto-approve for better development experience
 toolConfirmation:
   mode: auto-approve
-  timeout: 120000
+  # timeout: omitted = infinite wait
   allowedToolsStorage: memory

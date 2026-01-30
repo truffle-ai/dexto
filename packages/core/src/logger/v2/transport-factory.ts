@@ -7,6 +7,7 @@
 
 import type { ILoggerTransport } from './types.js';
 import type { LoggerTransportConfig } from './schemas.js';
+import { SilentTransport } from './transports/silent-transport.js';
 import { ConsoleTransport } from './transports/console-transport.js';
 import { FileTransport } from './transports/file-transport.js';
 import { LoggerError } from './errors.js';
@@ -18,6 +19,9 @@ import { LoggerError } from './errors.js';
  */
 export function createTransport(config: LoggerTransportConfig): ILoggerTransport {
     switch (config.type) {
+        case 'silent':
+            return new SilentTransport();
+
         case 'console':
             return new ConsoleTransport({
                 colorize: config.colorize,
@@ -32,7 +36,7 @@ export function createTransport(config: LoggerTransportConfig): ILoggerTransport
 
         case 'upstash':
             // TODO: Implement UpstashTransport in Phase B (optional)
-            throw LoggerError.transportNotImplemented('upstash', ['console', 'file']);
+            throw LoggerError.transportNotImplemented('upstash', ['silent', 'console', 'file']);
 
         default:
             throw LoggerError.unknownTransportType((config as any).type);

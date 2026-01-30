@@ -13,8 +13,6 @@ import type { PromptErrorCode } from '@core/prompts/error-codes.js';
 import type { ApprovalErrorCode } from '@core/approval/error-codes.js';
 import type { MemoryErrorCode } from '@core/memory/error-codes.js';
 import type { PluginErrorCode } from '@core/plugins/error-codes.js';
-import type { FileSystemErrorCode } from '@core/filesystem/error-codes.js';
-import type { ProcessErrorCode } from '@core/process/error-codes.js';
 import type { TelemetryErrorCode } from '@core/telemetry/error-codes.js';
 
 /**
@@ -36,8 +34,6 @@ export enum ErrorScope {
     PROMPT = 'prompt', // Prompt management, resolution, and providers
     MEMORY = 'memory', // Memory management and storage
     PLUGIN = 'plugin', // Plugin loading, validation, and execution
-    FILESYSTEM = 'filesystem', // File system operations and path validation
-    PROCESS = 'process', // Process execution and command validation
     TELEMETRY = 'telemetry', // Telemetry initialization and export operations
 }
 
@@ -47,8 +43,9 @@ export enum ErrorScope {
  */
 export enum ErrorType {
     USER = 'user', // 400 - bad input, config errors, validation failures
-    NOT_FOUND = 'not_found', // 404 - resource doesn't exist (session, file, etc.)
+    PAYMENT_REQUIRED = 'payment_required', // 402 - insufficient credits, billing issue
     FORBIDDEN = 'forbidden', // 403 - permission denied, unauthorized
+    NOT_FOUND = 'not_found', // 404 - resource doesn't exist (session, file, etc.)
     TIMEOUT = 'timeout', // 408 - operation timed out
     CONFLICT = 'conflict', // 409 - resource conflict, concurrent operation
     RATE_LIMIT = 'rate_limit', // 429 - too many requests
@@ -76,8 +73,6 @@ export type DextoErrorCode =
     | ApprovalErrorCode
     | MemoryErrorCode
     | PluginErrorCode
-    | FileSystemErrorCode
-    | ProcessErrorCode
     | TelemetryErrorCode;
 
 /** Severity of an issue */

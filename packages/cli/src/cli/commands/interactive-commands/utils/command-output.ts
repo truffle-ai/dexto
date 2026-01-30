@@ -3,87 +3,67 @@
  * Utilities for consistent command output handling across all slash commands
  */
 
-import chalk from 'chalk';
-import { logger } from '@dexto/core';
 import { formatForInkCli } from './format-output.js';
+import type { StyledOutput } from '../../../ink-cli/services/CommandService.js';
+import type { StyledMessageType, StyledData } from '../../../ink-cli/state/types.js';
 
 /**
  * Command output helper for consistent display and error handling
+ * Returns formatted strings for ink-cli to render (no direct console output)
  */
 export class CommandOutputHelper {
     /**
-     * Display success message consistently
-     * Logs to console with color and returns formatted string for ink-cli
+     * Format success message for ink-cli to display
      */
     static success(message: string): string {
-        console.log(chalk.green(message));
         return formatForInkCli(message);
     }
 
     /**
-     * Display info message consistently
-     * Logs to console with color and returns formatted string for ink-cli
+     * Format info message for ink-cli to display
      */
     static info(message: string): string {
-        console.log(chalk.blue(message));
         return formatForInkCli(message);
     }
 
     /**
-     * Display warning message consistently
-     * Logs to console with color and returns formatted string for ink-cli
+     * Format warning message for ink-cli to display
      */
     static warning(message: string): string {
-        console.log(chalk.yellow(message));
-        return formatForInkCli(message);
+        return formatForInkCli(`⚠️ ${message}`);
     }
 
     /**
-     * Handle errors consistently across all commands
-     * Logs error and returns formatted error string
+     * Format error message for ink-cli to display
      */
     static error(error: unknown, context?: string): string {
         const errorMessage = error instanceof Error ? error.message : String(error);
         const fullMessage = context ? `❌ ${context}: ${errorMessage}` : `❌ ${errorMessage}`;
-
-        logger.error(fullMessage);
-        console.error(chalk.red(fullMessage));
         return formatForInkCli(fullMessage);
     }
 
     /**
-     * Build multi-line output with consistent formatting
-     * Logs to console and returns formatted string for ink-cli
+     * Format multi-line output for ink-cli to display
      */
     static output(lines: string[]): string {
-        const output = lines.join('\n');
-        console.log(output);
-        return formatForInkCli(output);
+        return formatForInkCli(lines.join('\n'));
     }
 
     /**
-     * Validate required argument and return error if missing
-     * Returns null if valid, error string if invalid
+     * Create styled output for rich rendering in ink-cli
+     * @param styledType - The type of styled rendering
+     * @param styledData - The structured data for rendering
+     * @param fallbackText - Plain text fallback for logging/non-ink environments
      */
-    static validateRequiredArg(
-        args: string[],
-        index: number,
-        argName: string,
-        usage: string
-    ): string | null {
-        if (args.length <= index || !args[index]) {
-            const errorMsg = `❌ ${argName} is required\nUsage: ${usage}`;
-            console.error(chalk.red(`❌ ${argName} is required`));
-            console.error(chalk.dim(`Usage: ${usage}`));
-            return formatForInkCli(errorMsg);
-        }
-        return null;
-    }
-
-    /**
-     * No output (command executed successfully with no output to display)
-     */
-    static noOutput(): string {
-        return '';
+    static styled(
+        styledType: StyledMessageType,
+        styledData: StyledData,
+        fallbackText: string
+    ): StyledOutput {
+        return {
+            styledType,
+            styledData,
+            fallbackText: formatForInkCli(fallbackText),
+        };
     }
 }

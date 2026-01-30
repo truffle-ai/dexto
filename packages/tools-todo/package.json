@@ -1,0 +1,39 @@
+{
+  "name": "@dexto/tools-todo",
+  "version": "1.5.6",
+  "description": "Todo/task tracking tools provider for Dexto agents",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "dexto",
+    "tools",
+    "todo",
+    "task-tracking"
+  ],
+  "dependencies": {
+    "@dexto/core": "workspace:*",
+    "nanoid": "^5.0.9",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "tsup": "^8.0.0",
+    "typescript": "^5.3.3",
+    "vitest": "^2.1.8"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ]
+}

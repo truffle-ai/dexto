@@ -146,7 +146,7 @@ export async function initDexto(
                 spinner.stop(chalk.red('Error: Cannot install in pnpm workspace root'));
                 p.note(
                     'You are initializing dexto in a pnpm workspace root. Go to a specific workspace package and run "pnpm add @dexto/core" there.',
-                    chalk.yellow('Workspace Error')
+                    chalk.rgb(255, 165, 0)('Workspace Error')
                 );
                 process.exit(1);
             }
@@ -189,7 +189,7 @@ export async function initDexto(
             spinner.stop(chalk.red('Failed to create agent config file'));
             logger.error(`Config creation error: ${configError}`);
             throw new Error(
-                `Failed to create default-agent.yml: ${configError instanceof Error ? configError.message : String(configError)}`
+                `Failed to create coding-agent.yml: ${configError instanceof Error ? configError.message : String(configError)}`
             );
         }
 
@@ -227,11 +227,11 @@ export async function postInitDexto(directory: string) {
     const nextSteps = [
         `1. Run the example: ${chalk.cyan(`node --loader ts-node/esm ${path.join(directory, 'dexto', 'dexto-example.ts')}`)}`,
         `2. Add/update your API key(s) in ${chalk.cyan('.env')}`,
-        `3. Check out the agent configuration file ${chalk.cyan(path.join(directory, 'dexto', 'agents', 'default-agent.yml'))}`,
-        `4. Try out different LLMs and MCP servers in the default-agent.yml file`,
+        `3. Check out the agent configuration file ${chalk.cyan(path.join(directory, 'dexto', 'agents', 'coding-agent.yml'))}`,
+        `4. Try out different LLMs and MCP servers in the coding-agent.yml file`,
         `5. Read more about Dexto: ${chalk.cyan('https://github.com/truffle-ai/dexto')}`,
     ].join('\n');
-    p.note(nextSteps, chalk.yellow('Next steps:'));
+    p.note(nextSteps, chalk.rgb(255, 165, 0)('Next steps:'));
 }
 /**
  * Creates the dexto directories (dexto, dexto/agents) in the given directory.
@@ -283,7 +283,7 @@ export async function createDextoConfigFile(directory: string): Promise<string> 
         }
 
         // Path to the destination config file
-        const destConfigPath = path.join(directory, 'default-agent.yml');
+        const destConfigPath = path.join(directory, 'coding-agent.yml');
         logger.debug(`Copying template to: ${destConfigPath}`);
 
         // Copy the config file from the Dexto package
@@ -306,7 +306,7 @@ export async function createDextoExampleFile(directory: string): Promise<string>
     // Extract the base directory from the given path (e.g., "src" from "src/dexto")
     const baseDir = path.dirname(directory);
 
-    const configPath = `./${path.posix.join(baseDir, 'dexto/agents/default-agent.yml')}`;
+    const configPath = `./${path.posix.join(baseDir, 'dexto/agents/coding-agent.yml')}`;
 
     const indexTsLines = [
         "import 'dotenv/config';",

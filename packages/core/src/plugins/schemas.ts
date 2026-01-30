@@ -1,6 +1,22 @@
 import { z } from 'zod';
 
 /**
+ * Schema for registry-based plugin configuration.
+ * These plugins are loaded from the pluginRegistry (programmatically registered).
+ */
+export const RegistryPluginConfigSchema = z
+    .object({
+        type: z.string().describe('Plugin provider type (must be registered in pluginRegistry)'),
+        enabled: z.boolean().default(true).describe('Whether this plugin is enabled'),
+        blocking: z.boolean().describe('If true, plugin errors will halt execution'),
+        priority: z.number().int().describe('Execution priority (lower runs first)'),
+        config: z.record(z.any()).optional().describe('Plugin-specific configuration'),
+    })
+    .strict();
+
+export type RegistryPluginConfig = z.output<typeof RegistryPluginConfigSchema>;
+
+/**
  * Schema for custom plugin configuration (loaded from file paths)
  */
 export const CustomPluginConfigSchema = z
@@ -34,7 +50,7 @@ export const BuiltInPluginConfigSchema = z
 
 /**
  * Main plugins configuration schema
- * Supports both built-in plugins (by name) and custom plugins (with module paths)
+ * Supports built-in plugins (by name), custom plugins (file paths), and registry plugins (programmatic)
  */
 export const PluginsConfigSchema = z
     .object({
@@ -46,15 +62,22 @@ export const PluginsConfigSchema = z
             'Response sanitizer plugin for output sanitization'
         ),
 
-        // Custom plugins - array of plugin configurations
+        // Custom plugins - array of plugin configurations (loaded from file paths)
         custom: z
             .array(CustomPluginConfigSchema)
             .default([])
-            .describe('Array of custom plugin configurations'),
+            .describe('Array of custom plugin configurations (loaded from file paths)'),
+
+        // Registry plugins - array of plugin configurations (loaded from pluginRegistry)
+        registry: z
+            .array(RegistryPluginConfigSchema)
+            .default([])
+            .describe('Array of registry plugin configurations (loaded from pluginRegistry)'),
     })
     .strict()
     .default({
         custom: [],
+        registry: [],
     })
     .describe('Plugin system configuration');
 

@@ -1,5 +1,6 @@
 import { createDatabaseHistoryProvider } from './history/factory.js';
-import { createLLMService } from '../llm/services/factory.js';
+import { createLLMService, createVercelModel } from '../llm/services/factory.js';
+import { createCompactionStrategy } from '../context/compaction/index.js';
 import type { ContextManager } from '@core/context/index.js';
 import type { IConversationHistoryProvider } from './history/types.js';
 import type { VercelLLMService } from '../llm/services/vercel.js';
@@ -16,13 +17,16 @@ import {
     AgentEventBus,
     SessionEventNames,
     SessionEventName,
+    SessionEventMap,
 } from '../events/index.js';
 import type { IDextoLogger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
 import { DextoRuntimeError, ErrorScope, ErrorType } from '../errors/index.js';
 import { PluginErrorCode } from '../plugins/error-codes.js';
-import type { InternalMessage } from '../context/types.js';
-import type { UserMessage } from './message-queue.js';
+import type { InternalMessage, ContentPart } from '../context/types.js';
+import type { UserMessageInput } from './message-queue.js';
+import type { ContentInput } from '../agent/types.js';
+import { getModelPricing, calculateCost } from '../llm/registry.js';
 
 /**
  * Represents an isolated conversation session within a Dexto agent.
@@ -103,12 +107,18 @@ export class ChatSession {
     private forwarders: Map<SessionEventName, (payload?: any) => void> = new Map();
 
     /**
+     * Token accumulator listener for cleanup.
+     */
+    private tokenAccumulatorListener: ((payload: SessionEventMap['llm:response']) => void) | null =
+        null;
+
+    /**
      * AbortController for the currently running turn, if any.
      * Calling cancel() aborts the in-flight LLM request and tool execution checks.
      */
     private currentRunController: AbortController | null = null;
 
-    private logger: IDextoLogger;
+    public readonly logger: IDextoLogger;
 
     /**
      * Creates a new ChatSession instance.
@@ -183,9 +193,42 @@ export class ChatSession {
             // Attach the forwarder to the session event bus
             this.eventBus.on(eventName, forwarder);
         });
+
+        // Set up token usage accumulation on llm:response
+        this.setupTokenAccumulation();
+
         this.logger.debug(
             `[setupEventForwarding] Event forwarding setup complete for session=${this.id}`
         );
+    }
+
+    /**
+     * Sets up token usage accumulation by listening to llm:response events.
+     * Accumulates token usage and cost to session metadata for /stats tracking.
+     */
+    private setupTokenAccumulation(): void {
+        this.tokenAccumulatorListener = (payload: SessionEventMap['llm:response']) => {
+            if (payload.tokenUsage) {
+                // Calculate cost if pricing is available
+                let cost: number | undefined;
+                const llmConfig = this.services.stateManager.getLLMConfig(this.id);
+                const pricing = getModelPricing(llmConfig.provider, llmConfig.model);
+                if (pricing) {
+                    cost = calculateCost(payload.tokenUsage, pricing);
+                }
+
+                // Fire and forget - don't block the event flow
+                this.services.sessionManager
+                    .accumulateTokenUsage(this.id, payload.tokenUsage, cost)
+                    .catch((err) => {
+                        this.logger.warn(
+                            `Failed to accumulate token usage: ${err instanceof Error ? err.message : String(err)}`
+                        );
+                    });
+            }
+        };
+
+        this.eventBus.on('llm:response', this.tokenAccumulatorListener);
     }
 
     /**
@@ -193,7 +236,8 @@ export class ChatSession {
      */
     private async initializeServices(): Promise<void> {
         // Get current effective configuration for this session from state manager
-        const llmConfig = this.services.stateManager.getLLMConfig(this.id);
+        const runtimeConfig = this.services.stateManager.getRuntimeConfig(this.id);
+        const llmConfig = runtimeConfig.llm;
 
         // Create session-specific history provider directly with database backend
         // This persists across LLM switches to maintain conversation history
@@ -202,6 +246,13 @@ export class ChatSession {
             this.id,
             this.logger
         );
+
+        // Create model and compaction strategy from config
+        const model = createVercelModel(llmConfig);
+        const compactionStrategy = await createCompactionStrategy(runtimeConfig.compaction, {
+            logger: this.logger,
+            model,
+        });
 
         // Create session-specific LLM service
         // The service will create its own properly-typed ContextManager internally
@@ -213,7 +264,9 @@ export class ChatSession {
             this.eventBus, // Use session event bus
             this.id,
             this.services.resourceManager, // Pass ResourceManager for blob storage
-            this.logger // Pass logger for dependency injection
+            this.logger, // Pass logger for dependency injection
+            compactionStrategy, // Pass compaction strategy
+            runtimeConfig.compaction // Pass compaction config for threshold settings
         );
 
         this.logger.debug(`ChatSession ${this.id}: Services initialized with storage`);
@@ -241,14 +294,14 @@ export class ChatSession {
         // we shouldn't store the original content to comply with data minimization principles
         const userMessage: InternalMessage = {
             role: 'user',
-            content: '[Blocked by content policy: input redacted]',
+            content: [{ type: 'text', text: '[Blocked by content policy: input redacted]' }],
         };
 
         // Create assistant error message
         const errorContent = `Error: ${errorMessage}`;
         const assistantMessage: InternalMessage = {
             role: 'assistant',
-            content: errorContent,
+            content: [{ type: 'text', text: errorContent }],
         };
 
         // Add both messages to history
@@ -267,49 +320,77 @@ export class ChatSession {
     }
 
     /**
-     * Processes user input through the session's LLM service and returns the response.
+     * Stream a response for the given content.
+     * Primary method for running conversations with multi-image support.
      *
-     * This method:
-     * 1. Takes user input (text, optionally with image or file data)
-     * 2. Passes it to the LLM service for processing
-     * 3. Returns the AI's response text
-     *
-     * The method handles both text-only and multimodal input (text + images/files).
-     * Tool calls and conversation management are handled internally by the LLM service.
-     *
-     * @param input - The user's text input
-     * @param imageDataInput - Optional image data for multimodal input
-     * @param fileDataInput - Optional file data for file input
-     * @param stream - Optional flag to enable streaming responses
-     * @returns Promise that resolves to the AI's response text
+     * @param content - String or ContentPart[] (text, images, files)
+     * @param options - { signal?: AbortSignal }
+     * @returns Promise that resolves to object with text response
      *
      * @example
      * ```typescript
-     * const response = await session.run('What is the weather like today?');
-     * console.log(response); // "I'll check the weather for you..."
+     * // Text only
+     * const { text } = await session.stream('What is the weather?');
+     *
+     * // Multiple images
+     * const { text } = await session.stream([
+     *     { type: 'text', text: 'Compare these images' },
+     *     { type: 'image', image: base64Data1, mimeType: 'image/png' },
+     *     { type: 'image', image: base64Data2, mimeType: 'image/png' }
+     * ]);
      * ```
      */
-    public async run(
-        input: string,
-        imageDataInput?: { image: string; mimeType: string },
-        fileDataInput?: { data: string; mimeType: string; filename?: string },
-        stream?: boolean
-    ): Promise<string> {
-        // Log metadata only (no sensitive content) to prevent PII/secret leakage in logs
+    public async stream(
+        content: ContentInput,
+        options?: { signal?: AbortSignal }
+    ): Promise<{ text: string }> {
+        // Normalize content to ContentPart[]
+        const parts: ContentPart[] =
+            typeof content === 'string' ? [{ type: 'text', text: content }] : content;
+
+        // Extract text for logging (no sensitive content)
+        const textParts = parts.filter(
+            (p): p is { type: 'text'; text: string } => p.type === 'text'
+        );
+        const imageParts = parts.filter((p) => p.type === 'image');
+        const fileParts = parts.filter((p) => p.type === 'file');
+
         this.logger.debug(
-            `Running session ${this.id} | input.len=${input?.length ?? 0} | image=${imageDataInput ? imageDataInput.mimeType : 'none'} | file=${fileDataInput ? `${fileDataInput.mimeType}:${fileDataInput.filename ?? 'unknown'}` : 'none'}`
+            `Streaming session ${this.id} | textParts=${textParts.length} | images=${imageParts.length} | files=${fileParts.length}`
         );
 
-        // Input validation is now handled at DextoAgent.run() level
         // Create an AbortController for this run and expose for cancellation
         this.currentRunController = new AbortController();
-        const signal = this.currentRunController.signal;
+        const signal = options?.signal
+            ? this.combineSignals(options.signal, this.currentRunController.signal)
+            : this.currentRunController.signal;
+
         try {
             // Execute beforeLLMRequest plugins
+            // For backward compatibility, extract first image/file for plugin payload
+            const textContent = textParts.map((p) => p.text).join('\n');
+            const firstImage = imageParts[0] as
+                | { type: 'image'; image: string; mimeType?: string }
+                | undefined;
+            const firstFile = fileParts[0] as
+                | { type: 'file'; data: string; mimeType: string; filename?: string }
+                | undefined;
+
             const beforeLLMPayload: BeforeLLMRequestPayload = {
-                text: input,
-                ...(imageDataInput !== undefined && { imageData: imageDataInput }),
-                ...(fileDataInput !== undefined && { fileData: fileDataInput }),
+                text: textContent,
+                ...(firstImage && {
+                    imageData: {
+                        image: typeof firstImage.image === 'string' ? firstImage.image : '[binary]',
+                        mimeType: firstImage.mimeType || 'image/jpeg',
+                    },
+                }),
+                ...(firstFile && {
+                    fileData: {
+                        data: typeof firstFile.data === 'string' ? firstFile.data : '[binary]',
+                        mimeType: firstFile.mimeType,
+                        ...(firstFile.filename && { filename: firstFile.filename }),
+                    },
+                }),
                 sessionId: this.id,
             };
 
@@ -326,23 +407,21 @@ export class ChatSession {
                 }
             );
 
-            // Use modified input from plugins
-            const finalInput = modifiedBeforePayload.text;
-            const finalImageData = modifiedBeforePayload.imageData;
-            const finalFileData = modifiedBeforePayload.fileData;
+            // Apply plugin text modifications to the first text part
+            let modifiedParts = [...parts];
+            if (modifiedBeforePayload.text !== textContent && textParts.length > 0) {
+                // Replace text parts with modified text
+                modifiedParts = modifiedParts.filter((p) => p.type !== 'text');
+                modifiedParts.unshift({ type: 'text', text: modifiedBeforePayload.text });
+            }
 
-            const response = await this.llmService.completeTask(
-                finalInput,
-                { signal },
-                finalImageData,
-                finalFileData,
-                stream
-            );
+            // Call LLM service stream
+            const streamResult = await this.llmService.stream(modifiedParts, { signal });
 
             // Execute beforeResponse plugins
             const llmConfig = this.services.stateManager.getLLMConfig(this.id);
             const beforeResponsePayload: BeforeResponsePayload = {
-                content: response,
+                content: streamResult.text,
                 provider: llmConfig.provider,
                 model: llmConfig.model,
                 sessionId: this.id,
@@ -361,8 +440,9 @@ export class ChatSession {
                 }
             );
 
-            // Return modified response from plugins
-            return modifiedResponsePayload.content;
+            return {
+                text: modifiedResponsePayload.content,
+            };
         } catch (error) {
             // If this was an intentional cancellation, return partial response from history
             const aborted =
@@ -379,13 +459,28 @@ export class ChatSession {
                 try {
                     const history = await this.getHistory();
                     const lastAssistant = history.filter((m) => m.role === 'assistant').pop();
-                    if (lastAssistant && typeof lastAssistant.content === 'string') {
-                        return lastAssistant.content;
+                    if (lastAssistant) {
+                        if (typeof lastAssistant.content === 'string') {
+                            return { text: lastAssistant.content };
+                        }
+                        // Handle multimodal content (ContentPart[]) - extract text parts
+                        if (Array.isArray(lastAssistant.content)) {
+                            const text = lastAssistant.content
+                                .filter(
+                                    (part): part is { type: 'text'; text: string } =>
+                                        part.type === 'text'
+                                )
+                                .map((part) => part.text)
+                                .join('');
+                            if (text) {
+                                return { text };
+                            }
+                        }
                     }
                 } catch {
                     this.logger.debug('Failed to retrieve partial response from history on cancel');
                 }
-                return '';
+                return { text: '' };
             }
 
             // Check if this is a plugin blocking error
@@ -395,14 +490,13 @@ export class ChatSession {
                 error.scope === ErrorScope.PLUGIN &&
                 error.type === ErrorType.FORBIDDEN
             ) {
-                // Save the blocked interaction to history so users can see what they tried
+                // Save the blocked interaction to history
+                const textContent = parts
+                    .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
+                    .map((p) => p.text)
+                    .join('\n');
                 try {
-                    await this.saveBlockedInteraction(
-                        input,
-                        error.message,
-                        imageDataInput,
-                        fileDataInput
-                    );
+                    await this.saveBlockedInteraction(textContent, error.message);
                     this.logger.debug(
                         `ChatSession ${this.id}: Saved blocked interaction to history`
                     );
@@ -414,22 +508,34 @@ export class ChatSession {
                     );
                 }
 
-                // Return the error message as a normal response instead of throwing
-                // This creates a consistent UX whether viewing for the first time or reopening the session
-                return error.message;
+                return { text: error.message };
             }
 
-            // TODO: Currently this only applies for OpenAI, Anthropic services, because Vercel works differently.
-            // We should remove this error handling when we handle partial responses properly in all services.
-            const errortype = error instanceof Error ? 'object' : 'string';
             this.logger.error(
-                `Error in ChatSession.run: errortype=${errortype}: ${error instanceof Error ? error.message : String(error)}`
+                `Error in ChatSession.stream: ${error instanceof Error ? error.message : String(error)}`
             );
             throw error;
         } finally {
-            // Clear controller after run completes or is cancelled
             this.currentRunController = null;
         }
+    }
+
+    /**
+     * Combine multiple abort signals into one.
+     */
+    private combineSignals(signal1: AbortSignal, signal2: AbortSignal): AbortSignal {
+        const controller = new AbortController();
+
+        const onAbort = () => controller.abort();
+
+        signal1.addEventListener('abort', onAbort);
+        signal2.addEventListener('abort', onAbort);
+
+        if (signal1.aborted || signal2.aborted) {
+            controller.abort();
+        }
+
+        return controller.signal;
     }
 
     /**
@@ -479,8 +585,7 @@ export class ChatSession {
      * @see {@link ContextManager.resetConversation} for the underlying implementation
      */
     public async reset(): Promise<void> {
-        // Reset history via history provider
-        await this.historyProvider.clearHistory();
+        await this.llmService.getContextManager().resetConversation();
 
         // Emit agent-level event with session context
         this.services.agentEventBus.emit('session:reset', {
@@ -527,6 +632,16 @@ export class ChatSession {
      */
     public async switchLLM(newLLMConfig: ValidatedLLMConfig): Promise<void> {
         try {
+            // Get compression config for this session
+            const runtimeConfig = this.services.stateManager.getRuntimeConfig(this.id);
+
+            // Create model and compaction strategy from config
+            const model = createVercelModel(newLLMConfig);
+            const compactionStrategy = await createCompactionStrategy(runtimeConfig.compaction, {
+                logger: this.logger,
+                model,
+            });
+
             // Create new LLM service with new config but SAME history provider
             // The service will create its own new ContextManager internally
             const newLLMService = createLLMService(
@@ -537,7 +652,9 @@ export class ChatSession {
                 this.eventBus, // Use session event bus
                 this.id,
                 this.services.resourceManager,
-                this.logger
+                this.logger,
+                compactionStrategy, // Pass compaction strategy
+                runtimeConfig.compaction // Pass compaction config for threshold settings
             );
 
             // Replace the LLM service
@@ -574,6 +691,12 @@ export class ChatSession {
             this.logger.debug(
                 `ChatSession ${this.id}: Memory cleanup completed (chat history preserved)`
             );
+
+            // Note: We do NOT call this.logger.destroy() here because the session logger
+            // is created via createChild() which shares transports with the parent logger.
+            // Destroying the child would close shared transports and break logging for
+            // other sessions. The child logger will be garbage collected when the
+            // session object is discarded.
         } catch (error) {
             this.logger.error(
                 `Error during ChatSession cleanup for session ${this.id}: ${error instanceof Error ? error.message : String(error)}`
@@ -600,6 +723,12 @@ export class ChatSession {
         // Clear the forwarders map
         this.forwarders.clear();
 
+        // Remove token accumulator listener
+        if (this.tokenAccumulatorListener) {
+            this.eventBus.off('llm:response', this.tokenAccumulatorListener);
+            this.tokenAccumulatorListener = null;
+        }
+
         this.logger.debug(`Session ${this.id} disposed successfully`);
     }
 
@@ -618,7 +747,7 @@ export class ChatSession {
      * @param message The user message to queue
      * @returns Queue position and message ID
      */
-    public queueMessage(message: UserMessage): { queued: true; position: number; id: string } {
+    public queueMessage(message: UserMessageInput): { queued: true; position: number; id: string } {
         return this.llmService.getMessageQueue().enqueue(message);
     }
 

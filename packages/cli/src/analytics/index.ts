@@ -48,7 +48,7 @@ function baseProps(): BaseEventContext {
  *
  * - Respects DEXTO_ANALYTICS_DISABLED.
  * - Creates/loads the anonymous distinctId and a per-process session_id.
- * - Emits a dexto_session_start event for each process run.
+ * - Emits a dexto_session_created event for each process run.
  */
 export async function initAnalytics(opts: InitOptions): Promise<void> {
     if (enabled || client) return; // idempotent
@@ -83,7 +83,11 @@ export async function initAnalytics(opts: InitOptions): Promise<void> {
         }
     });
 
-    capture('dexto_session_start', {});
+    capture('dexto_session_created', {
+        source: 'cli',
+        sessionId: sessionId || 'unknown',
+        trigger: 'manual',
+    });
 }
 
 /**

@@ -24,7 +24,7 @@ const BaseDatabaseSchema = z.object({
 });
 
 // Memory database - minimal configuration
-const InMemoryDatabaseSchema = BaseDatabaseSchema.extend({
+export const InMemoryDatabaseSchema = BaseDatabaseSchema.extend({
     type: z.literal('in-memory'),
     // In-memory database doesn't need connection options, but inherits pool options for consistency
 }).strict();
@@ -32,7 +32,7 @@ const InMemoryDatabaseSchema = BaseDatabaseSchema.extend({
 export type InMemoryDatabaseConfig = z.output<typeof InMemoryDatabaseSchema>;
 
 // SQLite database configuration
-const SqliteDatabaseSchema = BaseDatabaseSchema.extend({
+export const SqliteDatabaseSchema = BaseDatabaseSchema.extend({
     type: z.literal('sqlite'),
     path: z
         .string()
@@ -44,7 +44,7 @@ const SqliteDatabaseSchema = BaseDatabaseSchema.extend({
 export type SqliteDatabaseConfig = z.output<typeof SqliteDatabaseSchema>;
 
 // PostgreSQL database configuration
-const PostgresDatabaseSchema = BaseDatabaseSchema.extend({
+export const PostgresDatabaseSchema = BaseDatabaseSchema.extend({
     type: z.literal('postgres'),
     url: EnvExpandedString().optional().describe('PostgreSQL connection URL (postgresql://...)'),
     connectionString: EnvExpandedString().optional().describe('PostgreSQL connection string'),
@@ -52,6 +52,12 @@ const PostgresDatabaseSchema = BaseDatabaseSchema.extend({
     port: z.number().int().positive().optional().describe('PostgreSQL port'),
     database: z.string().optional().describe('PostgreSQL database name'),
     password: z.string().optional().describe('PostgreSQL password'),
+    // TODO: keyPrefix is reserved for future use - allows namespacing keys when multiple
+    // agents or environments share the same database (e.g., "dev:agent1:" vs "prod:agent2:")
+    keyPrefix: z
+        .string()
+        .optional()
+        .describe('Optional key prefix for namespacing (e.g., "dev:myagent:")'),
 }).strict();
 
 export type PostgresDatabaseConfig = z.output<typeof PostgresDatabaseSchema>;

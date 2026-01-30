@@ -1,20 +1,34 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { DextoAgent } from '@dexto/core';
+import { DextoRuntimeError, ErrorScope, ErrorType } from '@dexto/core';
 import {
     LLM_REGISTRY,
     LLM_PROVIDERS,
     SUPPORTED_FILE_TYPES,
     supportsBaseURL,
+    getAllModelsForProvider,
+    getSupportedFileTypesForModel,
     type ProviderInfo,
     type LLMProvider,
+    type SupportedFileType,
     LLMUpdatesSchema,
 } from '@dexto/core';
-import { getProviderKeyStatus, saveProviderApiKey } from '@dexto/agent-management';
+import {
+    getProviderKeyStatus,
+    loadCustomModels,
+    saveCustomModel,
+    deleteCustomModel,
+    CustomModelSchema,
+    isDextoAuthEnabled,
+} from '@dexto/agent-management';
+import type { Context } from 'hono';
 import {
     ProviderCatalogSchema,
     ModelFlatSchema,
     LLMConfigResponseSchema,
 } from '../schemas/responses.js';
+
+type GetAgentFn = (ctx: Context) => DextoAgent | Promise<DextoAgent>;
 
 const CurrentQuerySchema = z
     .object({
@@ -67,19 +81,6 @@ const CatalogQuerySchema = z
     })
     .describe('Query parameters for filtering and formatting the LLM catalog');
 
-const SaveKeySchema = z
-    .object({
-        provider: z
-            .enum(LLM_PROVIDERS)
-            .describe('LLM provider identifier (e.g., openai, anthropic)'),
-        apiKey: z
-            .string()
-            .min(1, 'API key is required')
-            .describe('API key for the provider (writeOnly - never returned in responses)')
-            .openapi({ writeOnly: true }),
-    })
-    .describe('Request body for saving a provider API key');
-
 // Combine LLM updates schema with sessionId for API requests
 // LLMUpdatesSchema is no longer strict, so it accepts extra fields like sessionId
 const SwitchLLMBodySchema = LLMUpdatesSchema.and(
@@ -91,7 +92,7 @@ const SwitchLLMBodySchema = LLMUpdatesSchema.and(
     })
 ).describe('LLM switch request body with optional session ID and LLM fields');
 
-export function createLlmRouter(getAgent: () => DextoAgent) {
+export function createLlmRouter(getAgent: GetAgentFn) {
     const app = new OpenAPIHono();
 
     const currentRoute = createRoute({
@@ -116,6 +117,17 @@ export function createLlmRouter(getAgent: () => DextoAgent) {
                                         .optional()
                                         .describe('Human-readable model display name'),
                                 }),
+                                routing: z
+                                    .object({
+                                        viaDexto: z
+                                            .boolean()
+                                            .describe(
+                                                'Whether requests route through Dexto gateway'
+                                            ),
+                                    })
+                                    .describe(
+                                        'Routing information for the current LLM configuration'
+                                    ),
                             })
                             .describe('Response containing current LLM configuration'),
                     },
@@ -167,36 +179,6 @@ export function createLlmRouter(getAgent: () => DextoAgent) {
         },
     });
 
-    const saveKeyRoute = createRoute({
-        method: 'post',
-        path: '/llm/key',
-        summary: 'Save Provider API Key',
-        description: 'Stores an API key for a provider in .env and makes it available immediately',
-        tags: ['llm'],
-        request: { body: { content: { 'application/json': { schema: SaveKeySchema } } } },
-        responses: {
-            200: {
-                description: 'API key saved',
-                content: {
-                    'application/json': {
-                        schema: z
-                            .object({
-                                ok: z.literal(true).describe('Operation success indicator'),
-                                provider: z
-                                    .enum(LLM_PROVIDERS)
-                                    .describe('Provider for which the key was saved'),
-                                envVar: z
-                                    .string()
-                                    .describe('Environment variable name where key was stored'),
-                            })
-                            .strict()
-                            .describe('API key save response'),
-                    },
-                },
-            },
-        },
-    });
-
     const switchRoute = createRoute({
         method: 'post',
         path: '/llm/switch',
@@ -234,9 +216,127 @@ export function createLlmRouter(getAgent: () => DextoAgent) {
         },
     });
 
+    // Custom models routes
+    const listCustomModelsRoute = createRoute({
+        method: 'get',
+        path: '/llm/custom-models',
+        summary: 'List Custom Models',
+        description: 'Returns all saved custom openai-compatible model configurations',
+        tags: ['llm'],
+        responses: {
+            200: {
+                description: 'List of custom models',
+                content: {
+                    'application/json': {
+                        schema: z.object({
+                            models: z.array(CustomModelSchema).describe('List of custom models'),
+                        }),
+                    },
+                },
+            },
+        },
+    });
+
+    const createCustomModelRoute = createRoute({
+        method: 'post',
+        path: '/llm/custom-models',
+        summary: 'Create Custom Model',
+        description: 'Saves a new custom openai-compatible model configuration',
+        tags: ['llm'],
+        request: {
+            body: { content: { 'application/json': { schema: CustomModelSchema } } },
+        },
+        responses: {
+            200: {
+                description: 'Custom model saved',
+                content: {
+                    'application/json': {
+                        schema: z.object({
+                            ok: z.literal(true).describe('Success indicator'),
+                            model: CustomModelSchema,
+                        }),
+                    },
+                },
+            },
+        },
+    });
+
+    const deleteCustomModelRoute = createRoute({
+        method: 'delete',
+        path: '/llm/custom-models/{name}',
+        summary: 'Delete Custom Model',
+        description: 'Deletes a custom model by name',
+        tags: ['llm'],
+        request: {
+            params: z.object({
+                name: z.string().min(1).describe('Model name to delete'),
+            }),
+        },
+        responses: {
+            200: {
+                description: 'Custom model deleted',
+                content: {
+                    'application/json': {
+                        schema: z.object({
+                            ok: z.literal(true).describe('Success indicator'),
+                            deleted: z.string().describe('Name of the deleted model'),
+                        }),
+                    },
+                },
+            },
+            404: {
+                description: 'Custom model not found',
+                content: {
+                    'application/json': {
+                        schema: z.object({
+                            ok: z.literal(false).describe('Failure indicator'),
+                            error: z.string().describe('Error message'),
+                        }),
+                    },
+                },
+            },
+        },
+    });
+
+    // Model capabilities endpoint - resolves gateway providers to underlying model capabilities
+    const capabilitiesRoute = createRoute({
+        method: 'get',
+        path: '/llm/capabilities',
+        summary: 'Get Model Capabilities',
+        description:
+            'Returns the capabilities (supported file types) for a specific provider/model combination. ' +
+            'Handles gateway providers (dexto, openrouter) by resolving to the underlying model capabilities.',
+        tags: ['llm'],
+        request: {
+            query: z.object({
+                provider: z.enum(LLM_PROVIDERS).describe('LLM provider name'),
+                model: z
+                    .string()
+                    .min(1)
+                    .describe('Model name (supports both native and OpenRouter format)'),
+            }),
+        },
+        responses: {
+            200: {
+                description: 'Model capabilities',
+                content: {
+                    'application/json': {
+                        schema: z.object({
+                            provider: z.enum(LLM_PROVIDERS).describe('Provider name'),
+                            model: z.string().describe('Model name as provided'),
+                            supportedFileTypes: z
+                                .array(z.enum(SUPPORTED_FILE_TYPES))
+                                .describe('File types supported by this model'),
+                        }),
+                    },
+                },
+            },
+        },
+    });
+
     return app
-        .openapi(currentRoute, (ctx) => {
-            const agent = getAgent();
+        .openapi(currentRoute, async (ctx) => {
+            const agent = await getAgent(ctx);
             const { sessionId } = ctx.req.valid('query');
 
             const currentConfig = sessionId
@@ -245,21 +345,39 @@ export function createLlmRouter(getAgent: () => DextoAgent) {
 
             let displayName: string | undefined;
             try {
+                // First check registry for built-in models
                 const model = LLM_REGISTRY[currentConfig.provider]?.models.find(
                     (m) => m.name.toLowerCase() === String(currentConfig.model).toLowerCase()
                 );
                 displayName = model?.displayName || undefined;
+
+                // If not found in registry, check custom models
+                if (!displayName) {
+                    const customModels = await loadCustomModels();
+                    const customModel = customModels.find(
+                        (cm) => cm.name.toLowerCase() === String(currentConfig.model).toLowerCase()
+                    );
+                    displayName = customModel?.displayName || undefined;
+                }
             } catch {
                 // ignore lookup errors
             }
 
             // Omit apiKey from response for security
             const { apiKey, ...configWithoutKey } = currentConfig;
+
+            // With explicit providers, viaDexto is simply whether the provider is 'dexto'
+            // Only report viaDexto when the feature is enabled
+            const viaDexto = isDextoAuthEnabled() && currentConfig.provider === 'dexto';
+
             return ctx.json({
                 config: {
                     ...configWithoutKey,
                     hasApiKey: !!apiKey,
                     ...(displayName && { displayName }),
+                },
+                routing: {
+                    viaDexto,
                 },
             });
         })
@@ -276,17 +394,27 @@ export function createLlmRouter(getAgent: () => DextoAgent) {
             const queryParams = ctx.req.valid('query');
 
             const providers: Record<string, ProviderCatalog> = {};
+
             for (const provider of LLM_PROVIDERS) {
+                // Skip dexto provider when feature is not enabled
+                if (provider === 'dexto' && !isDextoAuthEnabled()) {
+                    continue;
+                }
+
                 const info = LLM_REGISTRY[provider];
                 const displayName = provider.charAt(0).toUpperCase() + provider.slice(1);
                 const keyStatus = getProviderKeyStatus(provider);
+
+                // Use getAllModelsForProvider to get inherited models for gateway providers
+                // like 'dexto' that have supportsAllRegistryModels: true
+                const models = getAllModelsForProvider(provider);
 
                 providers[provider] = {
                     name: displayName,
                     hasApiKey: keyStatus.hasApiKey,
                     primaryEnvVar: keyStatus.envVar,
                     supportsBaseURL: supportsBaseURL(provider),
-                    models: info.models,
+                    models,
                     supportedFileTypes: info.supportedFileTypes,
                 };
             }
@@ -359,13 +487,8 @@ export function createLlmRouter(getAgent: () => DextoAgent) {
 
             return ctx.json({ providers: filtered });
         })
-        .openapi(saveKeyRoute, async (ctx) => {
-            const { provider, apiKey } = ctx.req.valid('json');
-            const meta = await saveProviderApiKey(provider, apiKey, process.cwd());
-            return ctx.json({ ok: true as const, provider, envVar: meta.envVar });
-        })
         .openapi(switchRoute, async (ctx) => {
-            const agent = getAgent();
+            const agent = await getAgent(ctx);
             const raw = ctx.req.valid('json');
             const { sessionId, ...llmUpdates } = raw;
 
@@ -379,6 +502,54 @@ export function createLlmRouter(getAgent: () => DextoAgent) {
                     hasApiKey: !!apiKey,
                 },
                 sessionId,
+            });
+        })
+        .openapi(listCustomModelsRoute, async (ctx) => {
+            const models = await loadCustomModels();
+            return ctx.json({ models });
+        })
+        .openapi(createCustomModelRoute, async (ctx) => {
+            const model = ctx.req.valid('json');
+            await saveCustomModel(model);
+            return ctx.json({ ok: true as const, model });
+        })
+        .openapi(deleteCustomModelRoute, async (ctx) => {
+            const { name: encodedName } = ctx.req.valid('param');
+            // Decode URL-encoded name to handle OpenRouter model IDs with slashes
+            const name = decodeURIComponent(encodedName);
+            const deleted = await deleteCustomModel(name);
+            if (!deleted) {
+                throw new DextoRuntimeError(
+                    'custom_model_not_found',
+                    ErrorScope.LLM,
+                    ErrorType.NOT_FOUND,
+                    `Custom model '${name}' not found`,
+                    { modelName: name }
+                );
+            }
+            return ctx.json({ ok: true as const, deleted: name } as const, 200);
+        })
+        .openapi(capabilitiesRoute, (ctx) => {
+            const { provider, model } = ctx.req.valid('query');
+
+            // getSupportedFileTypesForModel handles:
+            // 1. Gateway providers (dexto, openrouter) - resolves via resolveModelOrigin to underlying model
+            // 2. Native providers - direct lookup in registry
+            // 3. Custom model providers (openai-compatible) - returns provider-level capabilities
+            // Falls back to provider-level supportedFileTypes if model not found
+            let supportedFileTypes: SupportedFileType[];
+            try {
+                supportedFileTypes = getSupportedFileTypesForModel(provider, model);
+            } catch {
+                // If model lookup fails, fall back to provider-level capabilities
+                const providerInfo = LLM_REGISTRY[provider];
+                supportedFileTypes = providerInfo?.supportedFileTypes ?? [];
+            }
+
+            return ctx.json({
+                provider,
+                model,
+                supportedFileTypes,
             });
         });
 }

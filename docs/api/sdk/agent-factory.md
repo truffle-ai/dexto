@@ -115,7 +115,6 @@ async function AgentFactory.installAgent(
 | :--- | :--- | :--- |
 | `agentId` | `string` | Agent ID from bundled registry |
 | `options.agentsDir` | `string` | (Optional) Custom agents directory |
-| `options.injectPreferences` | `boolean` | (Optional) Inject global preferences (default: true) |
 
 **Returns:** `Promise<string>` - Path to installed agent's main config file
 
@@ -128,18 +127,13 @@ import { AgentFactory } from '@dexto/agent-management';
 // Install a bundled agent
 const configPath = await AgentFactory.installAgent('coding-agent');
 console.log(`Installed to: ${configPath}`);
-
-// Install without injecting preferences
-const configPath = await AgentFactory.installAgent('research-agent', {
-  injectPreferences: false
-});
 ```
 
 ### What Happens During Installation
 
 1. Agent files are copied from bundled location to `~/.dexto/agents/{agentId}/`
-2. Global user preferences (LLM provider, API keys) are injected into the config
-3. Agent is added to the user's registry (`~/.dexto/agents/registry.json`)
+2. Agent is added to the user's registry (`~/.dexto/agents/registry.json`)
+3. User preferences are applied at runtime for the bundled coding-agent only
 
 ---
 
@@ -169,7 +163,7 @@ async function AgentFactory.installCustomAgent(
 | `metadata.description` | `string` | Description of what the agent does |
 | `metadata.author` | `string` | Creator of the agent |
 | `metadata.tags` | `string[]` | Categorization tags |
-| `options.injectPreferences` | `boolean` | (Optional) Inject global preferences (default: true) |
+| `options.agentsDir` | `string` | (Optional) Custom agents directory |
 
 **Returns:** `Promise<string>` - Path to installed agent's main config file
 
@@ -264,9 +258,6 @@ Options for installation functions:
 interface InstallOptions {
   /** Directory where agents are stored (default: ~/.dexto/agents) */
   agentsDir?: string;
-
-  /** Whether to inject global preferences into agent config (default: true) */
-  injectPreferences?: boolean;
 }
 ```
 

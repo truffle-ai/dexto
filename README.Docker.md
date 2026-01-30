@@ -17,7 +17,7 @@ OPENAI_API_KEY=...
 # add other provider keys as needed
 ```
 
-The default agent config is baked into the image at `/app/agents/default-agent.yml`. You can mount your own agents folder if desired.
+The coding agent config is baked into the image at `/app/agents/coding-agent/coding-agent.yml`. You can mount your own agents folder if desired.
 
 ## Run: API server only (default)
 

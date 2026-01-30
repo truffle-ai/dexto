@@ -53,6 +53,13 @@ describe('Config Writer', () => {
             },
             setup: {
                 completed: true,
+                apiKeyPending: false,
+                baseURLPending: false,
+            },
+            sounds: {
+                enabled: true,
+                onApprovalRequired: true,
+                onTaskComplete: true,
             },
         };
     });

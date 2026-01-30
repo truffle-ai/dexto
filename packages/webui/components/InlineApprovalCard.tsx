@@ -34,6 +34,8 @@ export function InlineApprovalCard({ approval, onApprove, onDeny }: InlineApprov
         const fieldType = fieldSchema.type || 'string';
         const fieldValue = formData[fieldName];
         const hasError = !!formErrors[fieldName];
+        // Use title if available, fallback to fieldName
+        const label = fieldSchema.title || fieldName;
 
         if (fieldType === 'boolean') {
             return (
@@ -47,7 +49,7 @@ export function InlineApprovalCard({ approval, onApprove, onDeny }: InlineApprov
                             }
                         />
                         <label htmlFor={fieldName} className="text-sm font-medium">
-                            {fieldName}
+                            {label}
                             {isRequired && <span className="text-red-500 ml-1">*</span>}
                         </label>
                     </div>
@@ -64,7 +66,7 @@ export function InlineApprovalCard({ approval, onApprove, onDeny }: InlineApprov
             return (
                 <div key={fieldName} className="space-y-1">
                     <label htmlFor={fieldName} className="text-sm font-medium block">
-                        {fieldName}
+                        {label}
                         {isRequired && <span className="text-red-500 ml-1">*</span>}
                     </label>
                     {fieldSchema.description && (
@@ -94,7 +96,7 @@ export function InlineApprovalCard({ approval, onApprove, onDeny }: InlineApprov
             return (
                 <div key={fieldName} className="space-y-1">
                     <label htmlFor={fieldName} className="text-sm font-medium block">
-                        {fieldName}
+                        {label}
                         {isRequired && <span className="text-red-500 ml-1">*</span>}
                     </label>
                     {fieldSchema.description && (
@@ -139,7 +141,7 @@ export function InlineApprovalCard({ approval, onApprove, onDeny }: InlineApprov
         return (
             <div key={fieldName} className="space-y-1">
                 <label htmlFor={fieldName} className="text-sm font-medium block">
-                    {fieldName}
+                    {label}
                     {isRequired && <span className="text-red-500 ml-1">*</span>}
                 </label>
                 {fieldSchema.description && (

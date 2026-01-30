@@ -1,19 +1,14 @@
 import { InternalTool } from '../types.js';
 import { SearchService } from '../../search/index.js';
 import { ApprovalManager } from '../../approval/manager.js';
-import { FileSystemService } from '../../filesystem/index.js';
-import { ProcessService } from '../../process/index.js';
+import { ResourceManager } from '../../resources/manager.js';
+import type { PromptManager } from '../../prompts/prompt-manager.js';
 import { createSearchHistoryTool } from './implementations/search-history-tool.js';
 import { createAskUserTool } from './implementations/ask-user-tool.js';
-import { createReadFileTool } from './implementations/read-file-tool.js';
-import { createGlobFilesTool } from './implementations/glob-files-tool.js';
-import { createGrepContentTool } from './implementations/grep-content-tool.js';
-import { createWriteFileTool } from './implementations/write-file-tool.js';
-import { createEditFileTool } from './implementations/edit-file-tool.js';
-import { createBashExecTool } from './implementations/bash-exec-tool.js';
-import { createBashOutputTool } from './implementations/bash-output-tool.js';
-import { createKillProcessTool } from './implementations/kill-process-tool.js';
 import { createDelegateToUrlTool } from './implementations/delegate-to-url-tool.js';
+import { createListResourcesTool } from './implementations/list-resources-tool.js';
+import { createGetResourceTool } from './implementations/get-resource-tool.js';
+import { createInvokeSkillTool } from './implementations/invoke-skill-tool.js';
 import type { KnownInternalTool } from './constants.js';
 
 /**
@@ -37,18 +32,47 @@ import type { KnownInternalTool } from './constants.js';
 export type AgentFeature = 'elicitation';
 
 /**
+ * Interface for forking skill execution to an isolated subagent.
+ * Implemented by RuntimeService in @dexto/agent-management.
+ */
+export interface TaskForker {
+    /**
+     * Execute a task in an isolated subagent context.
+     * The subagent has no access to the parent's conversation history.
+     *
+     * @param options.task - Short description for UI/logs
+     * @param options.instructions - Full instructions for the subagent
+     * @param options.agentId - Optional agent ID from registry to use for execution
+     * @param options.autoApprove - Auto-approve tool calls (default: true for fork skills)
+     * @param options.toolCallId - Optional tool call ID for progress events
+     * @param options.sessionId - Optional session ID for progress events
+     * @returns Result with success status and response/error
+     */
+    fork(options: {
+        task: string;
+        instructions: string;
+        agentId?: string;
+        autoApprove?: boolean;
+        toolCallId?: string;
+        sessionId?: string;
+    }): Promise<{
+        success: boolean;
+        response?: string;
+        error?: string;
+    }>;
+}
+
+/**
  * Services available to internal tools
  * Add new services here as needed for internal tools
  */
 export interface InternalToolsServices {
     searchService?: SearchService;
     approvalManager?: ApprovalManager;
-    fileSystemService?: FileSystemService;
-    processService?: ProcessService;
-    // Future services can be added here:
-    // sessionManager?: SessionManager;
-    // storageManager?: StorageManager;
-    // eventBus?: AgentEventBus;
+    resourceManager?: ResourceManager;
+    promptManager?: PromptManager;
+    /** Optional forker for executing skills in isolated context (context: fork) */
+    taskForker?: TaskForker;
 }
 
 /**
@@ -63,6 +87,8 @@ export interface InternalToolRegistryEntry {
     factory: InternalToolFactory;
     requiredServices: readonly (keyof InternalToolsServices)[];
     requiredFeatures?: readonly AgentFeature[];
+    /** Short description for discovery/UI purposes */
+    description: string;
 }
 
 /**
@@ -73,55 +99,35 @@ export const INTERNAL_TOOL_REGISTRY: Record<KnownInternalTool, InternalToolRegis
         factory: (services: InternalToolsServices) =>
             createSearchHistoryTool(services.searchService!),
         requiredServices: ['searchService'] as const,
+        description: 'Search through conversation history across sessions',
     },
     ask_user: {
         factory: (services: InternalToolsServices) => createAskUserTool(services.approvalManager!),
         requiredServices: ['approvalManager'] as const,
         requiredFeatures: ['elicitation'] as const,
-    },
-    read_file: {
-        factory: (services: InternalToolsServices) =>
-            createReadFileTool(services.fileSystemService!),
-        requiredServices: ['fileSystemService'] as const,
-    },
-    glob_files: {
-        factory: (services: InternalToolsServices) =>
-            createGlobFilesTool(services.fileSystemService!),
-        requiredServices: ['fileSystemService'] as const,
-    },
-    grep_content: {
-        factory: (services: InternalToolsServices) =>
-            createGrepContentTool(services.fileSystemService!),
-        requiredServices: ['fileSystemService'] as const,
-    },
-    write_file: {
-        factory: (services: InternalToolsServices) =>
-            createWriteFileTool(services.fileSystemService!),
-        requiredServices: ['fileSystemService'] as const,
-    },
-    edit_file: {
-        factory: (services: InternalToolsServices) =>
-            createEditFileTool(services.fileSystemService!),
-        requiredServices: ['fileSystemService'] as const,
-    },
-    bash_exec: {
-        factory: (services: InternalToolsServices) =>
-            createBashExecTool(services.processService!, services.approvalManager!),
-        requiredServices: ['processService', 'approvalManager'] as const,
-    },
-    bash_output: {
-        factory: (services: InternalToolsServices) =>
-            createBashOutputTool(services.processService!),
-        requiredServices: ['processService'] as const,
-    },
-    kill_process: {
-        factory: (services: InternalToolsServices) =>
-            createKillProcessTool(services.processService!),
-        requiredServices: ['processService'] as const,
+        description: 'Collect structured input from the user through a form interface',
     },
     delegate_to_url: {
         factory: (_services: InternalToolsServices) => createDelegateToUrlTool(),
         requiredServices: [] as const,
+        description: 'Delegate tasks to another A2A-compliant agent via URL',
+    },
+    list_resources: {
+        factory: (services: InternalToolsServices) =>
+            createListResourcesTool(services.resourceManager!),
+        requiredServices: ['resourceManager'] as const,
+        description: 'List available resources (images, files, etc.)',
+    },
+    get_resource: {
+        factory: (services: InternalToolsServices) =>
+            createGetResourceTool(services.resourceManager!),
+        requiredServices: ['resourceManager'] as const,
+        description: 'Access a stored resource to get URLs or metadata',
+    },
+    invoke_skill: {
+        factory: (services: InternalToolsServices) => createInvokeSkillTool(services),
+        requiredServices: ['promptManager'] as const,
+        description: 'Invoke a skill to load specialized instructions for a task',
     },
 };
 

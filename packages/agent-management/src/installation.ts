@@ -9,8 +9,6 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import { logger } from '@dexto/core';
 import { getDextoGlobalPath, resolveBundledScript, copyDirectory } from './utils/path.js';
-import { loadGlobalPreferences } from './preferences/loader.js';
-import { writePreferencesToAgent } from './writer.js';
 import { RegistryError } from './registry/errors.js';
 import { ConfigError } from './config/errors.js';
 import type { AgentMetadata } from './AgentManager.js';
@@ -18,8 +16,6 @@ import type { AgentMetadata } from './AgentManager.js';
 export interface InstallOptions {
     /** Directory where agents are stored (default: ~/.dexto/agents) */
     agentsDir?: string;
-    /** Whether to inject global preferences into agent config (default: true) */
-    injectPreferences?: boolean;
 }
 
 /**
@@ -138,19 +134,6 @@ export async function installBundledAgent(
         await fs.rename(tempDir, targetDir);
 
         logger.info(`✓ Installed agent '${agentId}' to ${targetDir}`);
-
-        // Inject preferences if requested
-        if (options?.injectPreferences !== false) {
-            try {
-                const preferences = await loadGlobalPreferences();
-                await writePreferencesToAgent(targetDir, preferences);
-                logger.info(`✓ Applied global preferences to '${agentId}'`);
-            } catch (error) {
-                logger.warn(
-                    `Failed to inject preferences: ${error instanceof Error ? error.message : String(error)}`
-                );
-            }
-        }
 
         // Add to user registry
         const userRegistryPath = getUserRegistryPath(agentsDir);

@@ -1,0 +1,42 @@
+{
+  "name": "@dexto/tools-filesystem",
+  "version": "1.5.6",
+  "description": "FileSystem tools provider for Dexto agents",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "dexto",
+    "tools",
+    "filesystem",
+    "file-operations"
+  ],
+  "dependencies": {
+    "@dexto/core": "workspace:*",
+    "diff": "^7.0.0",
+    "glob": "^11.1.0",
+    "safe-regex": "^2.1.1",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/diff": "^5.2.3",
+    "@types/safe-regex": "^1.1.6",
+    "tsup": "^8.0.0",
+    "typescript": "^5.3.3"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ]
+}

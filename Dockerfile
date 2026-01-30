@@ -68,7 +68,7 @@ COPY --from=builder --chown=dexto:dexto /app/package.json ./
 ENV NODE_ENV=production \
     PORT=3001 \
     API_PORT=3001 \
-    CONFIG_FILE=/app/agents/default-agent.yml \
+    CONFIG_FILE=/app/agents/coding-agent/coding-agent.yml \
     PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
     PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 

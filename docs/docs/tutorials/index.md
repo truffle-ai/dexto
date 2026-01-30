@@ -41,7 +41,7 @@ const agent = new DextoAgent({
 
 await agent.start();
 const session = await agent.createSession();
-const response = await agent.generate('Hello!', { sessionId: session.id });
+const response = await agent.generate('Hello!', session.id);
 ```
 
 **Best for:** Custom apps, production systems, complex integrations

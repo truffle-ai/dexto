@@ -4,8 +4,11 @@ import {
     ImagePart,
     FilePart,
     UIResourcePart,
+    ContentPart,
     SanitizedToolResult,
+    isToolMessage,
 } from './types.js';
+import { isValidDisplayData, type ToolDisplayData } from '../tools/display-types.js';
 import type { IDextoLogger } from '@core/logger/v2/types.js';
 import { validateModelFileSupport } from '@core/llm/registry.js';
 import { LLMContext } from '@core/llm/types.js';
@@ -106,65 +109,42 @@ function clonePart(part: TextPart | ImagePart | FilePart): TextPart | ImagePart 
 }
 
 function coerceContentToParts(
-    content: InternalMessage['content']
+    content: ContentPart[] | null
 ): Array<TextPart | ImagePart | FilePart> {
-    if (Array.isArray(content)) {
-        const normalized: Array<TextPart | ImagePart | FilePart> = [];
-        for (const item of content) {
-            if (item == null) continue;
-            if (typeof item === 'string') {
-                normalized.push({ type: 'text', text: item });
-                continue;
-            }
-            if (typeof item === 'object' && 'type' in item) {
-                const type = (item as { type: string }).type;
-                if (type === 'text') {
-                    const textPart = item as TextPart;
-                    normalized.push({ type: 'text', text: textPart.text });
-                    continue;
-                }
-                if (type === 'image') {
-                    const imagePart = item as ImagePart;
-                    const cloned: ImagePart = {
-                        type: 'image',
-                        image: imagePart.image,
-                    };
-                    if (imagePart.mimeType) {
-                        cloned.mimeType = imagePart.mimeType;
-                    }
-                    normalized.push(cloned);
-                    continue;
-                }
-                if (type === 'file') {
-                    const filePart = item as FilePart;
-                    const cloned: FilePart = {
-                        type: 'file',
-                        data: filePart.data,
-                        mimeType: filePart.mimeType ?? 'application/octet-stream',
-                    };
-                    if (filePart.filename) {
-                        cloned.filename = filePart.filename;
-                    }
-                    normalized.push(cloned);
-                    continue;
-                }
-            }
-        }
-        return normalized;
-    }
-
-    if (typeof content === 'string') {
-        if (content.length === 0) {
-            return [];
-        }
-        return [{ type: 'text', text: content }];
-    }
-
     if (content == null) {
         return [];
     }
 
-    return [{ type: 'text', text: safeStringify(content) }];
+    const normalized: Array<TextPart | ImagePart | FilePart> = [];
+    for (const item of content) {
+        // Filter out UIResourcePart - only keep ContentPart types
+        if (item.type === 'ui-resource') {
+            continue;
+        }
+        if (item.type === 'text') {
+            normalized.push({ type: 'text', text: item.text });
+        } else if (item.type === 'image') {
+            const cloned: ImagePart = {
+                type: 'image',
+                image: item.image,
+            };
+            if (item.mimeType) {
+                cloned.mimeType = item.mimeType;
+            }
+            normalized.push(cloned);
+        } else if (item.type === 'file') {
+            const cloned: FilePart = {
+                type: 'file',
+                data: item.data,
+                mimeType: item.mimeType ?? 'application/octet-stream',
+            };
+            if (item.filename) {
+                cloned.filename = item.filename;
+            }
+            normalized.push(cloned);
+        }
+    }
+    return normalized;
 }
 
 function detectInlineMedia(
@@ -356,15 +336,15 @@ async function resolveBlobReferenceToParts(
             }
 
             if (typeof (item as { text?: unknown }).text === 'string') {
-                parts.push({ type: 'text', text: item.text as string });
+                parts.push({ type: 'text', text: (item as { text: string }).text });
                 continue;
             }
 
             const base64Data =
-                typeof item.blob === 'string'
+                'blob' in item && typeof item.blob === 'string'
                     ? item.blob
-                    : typeof item.data === 'string'
-                      ? item.data
+                    : 'data' in item && typeof (item as any).data === 'string'
+                      ? (item as any).data
                       : undefined;
             const mimeType = typeof item.mimeType === 'string' ? item.mimeType : undefined;
             if (!base64Data || !mimeType) {
@@ -392,8 +372,12 @@ async function resolveBlobReferenceToParts(
                 data: base64Data,
                 mimeType: resolvedMime,
             };
-            if (typeof item.filename === 'string' && item.filename.length > 0) {
-                filePart.filename = item.filename;
+            const itemWithFilename = item as any;
+            if (
+                typeof itemWithFilename.filename === 'string' &&
+                itemWithFilename.filename.length > 0
+            ) {
+                filePart.filename = itemWithFilename.filename;
             } else if (typeof result._meta?.originalName === 'string') {
                 filePart.filename = result._meta.originalName;
             }
@@ -415,30 +399,157 @@ async function resolveBlobReferenceToParts(
     }
 }
 
+// ============= TOKEN ESTIMATION =============
+// These functions provide rough token estimates using heuristics.
+// Used for context management, compaction decisions, and UI display.
+// Actual token counts come from the LLM API response.
+
 /**
- * Simple token estimation using length/4 heuristic.
+ * Estimate tokens for a text string.
+ * Uses the common heuristic of ~4 characters per token.
+ */
+export function estimateStringTokens(text: string): number {
+    if (!text) return 0;
+    return Math.round(text.length / 4);
+}
+
+/**
+ * Estimate tokens for an image.
+ * Images use a fixed token budget regardless of dimensions.
+ * Based on typical LLM pricing (~1000 tokens per image).
+ */
+export function estimateImageTokens(): number {
+    return 1000;
+}
+
+/**
+ * Estimate tokens for a file based on its content.
+ * If content is available, estimates based on text length.
+ * Falls back to a default estimate if no content provided.
+ */
+export function estimateFileTokens(content?: string): number {
+    if (content) {
+        return estimateStringTokens(content);
+    }
+    // Fallback for when content is not available
+    return 1000;
+}
+
+/**
+ * Estimate tokens for a content part (text, image, or file).
+ */
+export function estimateContentPartTokens(part: ContentPart): number {
+    if (part.type === 'text') {
+        return estimateStringTokens(part.text);
+    }
+    if (part.type === 'image') {
+        return estimateImageTokens();
+    }
+    if (part.type === 'file') {
+        // File parts use a simple fallback since:
+        // 1. After first LLM call, we use actual token counts for the bulk of estimation
+        // 2. This only affects the "new messages" delta and /context display
+        // 3. File attachments in tool results are relatively rare
+        return 1000;
+    }
+    return 0;
+}
+
+/**
+ * Estimate tokens for an array of messages.
  * Used for telemetry/logging only - actual token counts come from the LLM API.
- *
- * @param messages Messages to estimate tokens for
- * @returns Estimated token count
  */
 export function estimateMessagesTokens(messages: readonly InternalMessage[]): number {
-    return messages.reduce((sum, msg) => {
-        if (typeof msg.content === 'string') {
-            return sum + Math.ceil(msg.content.length / 4);
+    let total = 0;
+    for (const msg of messages) {
+        if (!Array.isArray(msg.content)) continue;
+        for (const part of msg.content) {
+            total += estimateContentPartTokens(part);
         }
-        if (Array.isArray(msg.content)) {
-            return (
-                sum +
-                msg.content.reduce((partSum, part) => {
-                    if (part.type === 'text') return partSum + Math.ceil(part.text.length / 4);
-                    if (part.type === 'image' || part.type === 'file') return partSum + 1000;
-                    return partSum;
-                }, 0)
-            );
-        }
-        return sum;
-    }, 0);
+    }
+    return total;
+}
+
+/**
+ * Tool definition interface for token estimation.
+ * Matches the structure used by both ToolManager and getContextTokenEstimate.
+ */
+export interface ToolDefinition {
+    name?: string;
+    description?: string;
+    parameters?: unknown;
+}
+
+/**
+ * Estimate tokens for tool definitions.
+ * Returns both total and per-tool breakdown for UI display.
+ */
+export function estimateToolsTokens(tools: Record<string, ToolDefinition>): {
+    total: number;
+    perTool: Array<{ name: string; tokens: number }>;
+} {
+    const perTool: Array<{ name: string; tokens: number }> = [];
+    let total = 0;
+    for (const [key, tool] of Object.entries(tools)) {
+        const toolName = tool.name || key;
+        const toolDescription = tool.description || '';
+        const toolSchema = JSON.stringify(tool.parameters || {});
+        const tokens = estimateStringTokens(toolName + toolDescription + toolSchema);
+        perTool.push({ name: toolName, tokens });
+        total += tokens;
+    }
+    return { total, perTool };
+}
+
+/**
+ * Result of context token estimation with breakdown.
+ */
+export interface ContextTokenEstimate {
+    /** Total estimated tokens */
+    total: number;
+    /** Breakdown by category */
+    breakdown: {
+        systemPrompt: number;
+        messages: number;
+        tools: {
+            total: number;
+            perTool: Array<{ name: string; tokens: number }>;
+        };
+    };
+}
+
+/**
+ * Estimate total context tokens for LLM calls.
+ * This is the single source of truth for context token estimation,
+ * used by both /context overlay and compaction pre-check.
+ *
+ * IMPORTANT: The `preparedHistory` parameter must be the result of
+ * `ContextManager.prepareHistory()` or `getFormattedMessagesForLLM()`.
+ * This ensures messages are properly filtered (compacted messages removed)
+ * and pruned tool outputs are replaced with placeholders.
+ *
+ * @param systemPrompt The system prompt string
+ * @param preparedHistory Message history AFTER filterCompacted and pruning
+ * @param tools Optional tool definitions - if not provided, tools are not counted
+ * @returns Token estimate with total and breakdown
+ */
+export function estimateContextTokens(
+    systemPrompt: string,
+    preparedHistory: readonly InternalMessage[],
+    tools?: Record<string, ToolDefinition>
+): ContextTokenEstimate {
+    const systemPromptTokens = estimateStringTokens(systemPrompt);
+    const messagesTokens = estimateMessagesTokens(preparedHistory);
+    const toolsEstimate = tools ? estimateToolsTokens(tools) : { total: 0, perTool: [] };
+
+    return {
+        total: systemPromptTokens + toolsEstimate.total + messagesTokens,
+        breakdown: {
+            systemPrompt: systemPromptTokens,
+            messages: messagesTokens,
+            tools: toolsEstimate,
+        },
+    };
 }
 
 /**
@@ -520,8 +631,14 @@ export async function getImageDataWithBlobSupport(
             const resourceUri = uri.startsWith('blob:') ? uri : `blob:${uri}`;
             const result = await resourceManager.read(resourceUri);
 
-            if (result.contents[0]?.blob && typeof result.contents[0].blob === 'string') {
-                return result.contents[0].blob;
+            const firstContent = result.contents[0];
+            if (
+                firstContent &&
+                'blob' in firstContent &&
+                firstContent.blob &&
+                typeof firstContent.blob === 'string'
+            ) {
+                return firstContent.blob;
             }
             logger.warn(`Blob reference ${image} did not contain blob data`);
         } catch (error) {
@@ -556,8 +673,14 @@ export async function getFileDataWithBlobSupport(
             const resourceUri = uri.startsWith('blob:') ? uri : `blob:${uri}`;
             const result = await resourceManager.read(resourceUri);
 
-            if (result.contents[0]?.blob && typeof result.contents[0].blob === 'string') {
-                return result.contents[0].blob;
+            const firstContent = result.contents[0];
+            if (
+                firstContent &&
+                'blob' in firstContent &&
+                firstContent.blob &&
+                typeof firstContent.blob === 'string'
+            ) {
+                return firstContent.blob;
             }
             logger.warn(`Blob reference ${data} did not contain blob data`);
         } catch (error) {
@@ -567,6 +690,74 @@ export async function getFileDataWithBlobSupport(
 
     // Fallback to original behavior
     return getFileData(filePart, logger);
+}
+
+/**
+ * Helper: Expand blob references within a single text string.
+ * Returns array of parts (text segments + resolved blobs).
+ */
+async function expandBlobsInText(
+    text: string,
+    resourceManager: import('../resources/index.js').ResourceManager,
+    logger: IDextoLogger,
+    allowedMediaTypes?: string[]
+): Promise<Array<TextPart | ImagePart | FilePart>> {
+    if (!text.includes('@blob:')) {
+        return [{ type: 'text', text }];
+    }
+
+    const blobRefPattern = /@blob:[a-f0-9]+/g;
+    const matches = [...text.matchAll(blobRefPattern)];
+
+    if (matches.length === 0) {
+        return [{ type: 'text', text }];
+    }
+
+    const resolvedCache = new Map<string, Array<TextPart | ImagePart | FilePart>>();
+    const parts: Array<TextPart | ImagePart | FilePart> = [];
+    let lastIndex = 0;
+
+    for (const match of matches) {
+        const matchIndex = match.index ?? 0;
+        const token = match[0];
+        if (matchIndex > lastIndex) {
+            const segment = text.slice(lastIndex, matchIndex);
+            if (segment.length > 0) {
+                parts.push({ type: 'text', text: segment });
+            }
+        }
+
+        const uri = token.substring(1); // Remove leading @
+        const resourceUri = uri.startsWith('blob:') ? uri : `blob:${uri}`;
+
+        let resolvedParts = resolvedCache.get(resourceUri);
+        if (!resolvedParts) {
+            resolvedParts = await resolveBlobReferenceToParts(
+                resourceUri,
+                resourceManager,
+                logger,
+                allowedMediaTypes
+            );
+            resolvedCache.set(resourceUri, resolvedParts);
+        }
+
+        if (resolvedParts.length > 0) {
+            parts.push(...resolvedParts.map((p) => ({ ...p })));
+        } else {
+            parts.push({ type: 'text', text: token });
+        }
+
+        lastIndex = matchIndex + token.length;
+    }
+
+    if (lastIndex < text.length) {
+        const trailing = text.slice(lastIndex);
+        if (trailing.length > 0) {
+            parts.push({ type: 'text', text: trailing });
+        }
+    }
+
+    return parts.filter((p) => p.type !== 'text' || p.text.length > 0);
 }
 
 /**
@@ -581,162 +772,116 @@ export async function getFileDataWithBlobSupport(
  *                          If omitted, all blobs are expanded (legacy behavior).
  * @returns Promise<Resolved content with blob references expanded or replaced with placeholders>
  */
+// Overload: null returns empty array
 export async function expandBlobReferences(
-    content: InternalMessage['content'],
+    content: null,
     resourceManager: import('../resources/index.js').ResourceManager,
     logger: IDextoLogger,
     allowedMediaTypes?: string[]
-): Promise<InternalMessage['content']> {
-    // Handle string content with blob references
-    if (typeof content === 'string') {
-        // Check for blob references like @blob:abc123
-        const blobRefPattern = /@blob:[a-f0-9]+/g;
-        const matches = [...content.matchAll(blobRefPattern)];
-
-        if (matches.length === 0) {
-            return content;
-        }
-
-        const resolvedCache = new Map<string, Array<TextPart | ImagePart | FilePart>>();
-        const parts: Array<TextPart | ImagePart | FilePart> = [];
-        let lastIndex = 0;
-
-        for (const match of matches) {
-            const matchIndex = match.index ?? 0;
-            const token = match[0];
-            if (matchIndex > lastIndex) {
-                const segment = content.slice(lastIndex, matchIndex);
-                if (segment.length > 0) {
-                    parts.push({ type: 'text', text: segment });
-                }
-            }
-
-            const uri = token.substring(1); // Remove leading @
-            const resourceUri = uri.startsWith('blob:') ? uri : `blob:${uri}`;
-
-            let resolvedParts = resolvedCache.get(resourceUri);
-            if (!resolvedParts) {
-                resolvedParts = await resolveBlobReferenceToParts(
-                    resourceUri,
-                    resourceManager,
-                    logger,
-                    allowedMediaTypes
-                );
-                resolvedCache.set(resourceUri, resolvedParts);
-            }
-
-            if (resolvedParts.length > 0) {
-                parts.push(...resolvedParts.map((part) => ({ ...part })));
-            } else {
-                parts.push({ type: 'text', text: token });
-            }
-
-            lastIndex = matchIndex + token.length;
-        }
-
-        if (lastIndex < content.length) {
-            const trailing = content.slice(lastIndex);
-            if (trailing.length > 0) {
-                parts.push({ type: 'text', text: trailing });
-            }
-        }
-
-        const normalized = parts.filter((part) => part.type !== 'text' || part.text.length > 0);
-
-        if (normalized.length === 1 && normalized[0]?.type === 'text') {
-            return normalized[0].text;
-        }
-
-        return normalized;
+): Promise<ContentPart[]>;
+// Overload: ContentPart[] returns ContentPart[]
+export async function expandBlobReferences(
+    content: ContentPart[],
+    resourceManager: import('../resources/index.js').ResourceManager,
+    logger: IDextoLogger,
+    allowedMediaTypes?: string[]
+): Promise<ContentPart[]>;
+// Overload: ContentPart[] | null (for InternalMessage['content'])
+export async function expandBlobReferences(
+    content: ContentPart[] | null,
+    resourceManager: import('../resources/index.js').ResourceManager,
+    logger: IDextoLogger,
+    allowedMediaTypes?: string[]
+): Promise<ContentPart[]>;
+// Implementation
+export async function expandBlobReferences(
+    content: ContentPart[] | null,
+    resourceManager: import('../resources/index.js').ResourceManager,
+    logger: IDextoLogger,
+    allowedMediaTypes?: string[]
+): Promise<ContentPart[]> {
+    // Handle null/undefined content
+    if (content == null || !Array.isArray(content)) {
+        return [];
     }
 
-    // Handle array of parts
-    if (Array.isArray(content)) {
-        const expandedParts: Array<TextPart | ImagePart | FilePart | UIResourcePart> = [];
+    const expandedParts: Array<TextPart | ImagePart | FilePart | UIResourcePart> = [];
 
-        for (const part of content) {
-            // UIResourcePart doesn't have blob references - pass through unchanged
-            if (part.type === 'ui-resource') {
-                expandedParts.push(part);
-                continue;
-            }
-
-            if (
-                part.type === 'image' &&
-                typeof part.image === 'string' &&
-                part.image.startsWith('@blob:')
-            ) {
-                const uri = part.image.substring(1);
-                const resourceUri = uri.startsWith('blob:') ? uri : `blob:${uri}`;
-                const resolved = await resolveBlobReferenceToParts(
-                    resourceUri,
-                    resourceManager,
-                    logger,
-                    allowedMediaTypes
-                );
-                if (resolved.length > 0) {
-                    expandedParts.push(...resolved.map((part) => ({ ...part })));
-                } else {
-                    expandedParts.push(part);
-                }
-                continue;
-            }
-
-            if (
-                part.type === 'file' &&
-                typeof part.data === 'string' &&
-                part.data.startsWith('@blob:')
-            ) {
-                const uri = part.data.substring(1);
-                const resourceUri = uri.startsWith('blob:') ? uri : `blob:${uri}`;
-                const resolved = await resolveBlobReferenceToParts(
-                    resourceUri,
-                    resourceManager,
-                    logger,
-                    allowedMediaTypes
-                );
-                if (resolved.length > 0) {
-                    expandedParts.push(...resolved.map((part) => ({ ...part })));
-                } else {
-                    try {
-                        const resolvedData = await getFileDataWithBlobSupport(
-                            part,
-                            resourceManager,
-                            logger
-                        );
-                        expandedParts.push({ ...part, data: resolvedData });
-                    } catch (error) {
-                        logger.warn(`Failed to resolve file blob reference: ${String(error)}`);
-                        expandedParts.push(part);
-                    }
-                }
-                continue;
-            }
-
-            if (part.type === 'text' && part.text.includes('@blob:')) {
-                const expanded = await expandBlobReferences(
-                    part.text,
-                    resourceManager,
-                    logger,
-                    allowedMediaTypes
-                );
-                if (typeof expanded === 'string') {
-                    expandedParts.push({ ...part, text: expanded });
-                } else if (Array.isArray(expanded)) {
-                    expandedParts.push(...expanded.map((part) => ({ ...part })));
-                } else {
-                    expandedParts.push(part);
-                }
-                continue;
-            }
-
+    for (const part of content) {
+        // UIResourcePart doesn't have blob references - pass through unchanged
+        if (part.type === 'ui-resource') {
             expandedParts.push(part);
+            continue;
         }
 
-        return expandedParts;
+        if (
+            part.type === 'image' &&
+            typeof part.image === 'string' &&
+            part.image.startsWith('@blob:')
+        ) {
+            const uri = part.image.substring(1);
+            const resourceUri = uri.startsWith('blob:') ? uri : `blob:${uri}`;
+            const resolved = await resolveBlobReferenceToParts(
+                resourceUri,
+                resourceManager,
+                logger,
+                allowedMediaTypes
+            );
+            if (resolved.length > 0) {
+                expandedParts.push(...resolved.map((p) => ({ ...p })));
+            } else {
+                expandedParts.push(part);
+            }
+            continue;
+        }
+
+        if (
+            part.type === 'file' &&
+            typeof part.data === 'string' &&
+            part.data.startsWith('@blob:')
+        ) {
+            const uri = part.data.substring(1);
+            const resourceUri = uri.startsWith('blob:') ? uri : `blob:${uri}`;
+            const resolved = await resolveBlobReferenceToParts(
+                resourceUri,
+                resourceManager,
+                logger,
+                allowedMediaTypes
+            );
+            if (resolved.length > 0) {
+                expandedParts.push(...resolved.map((p) => ({ ...p })));
+            } else {
+                try {
+                    const resolvedData = await getFileDataWithBlobSupport(
+                        part,
+                        resourceManager,
+                        logger
+                    );
+                    expandedParts.push({ ...part, data: resolvedData });
+                } catch (error) {
+                    logger.warn(`Failed to resolve file blob reference: ${String(error)}`);
+                    expandedParts.push(part);
+                }
+            }
+            continue;
+        }
+
+        if (part.type === 'text' && part.text.includes('@blob:')) {
+            // Expand blob references in text part using helper
+            const expanded = await expandBlobsInText(
+                part.text,
+                resourceManager,
+                logger,
+                allowedMediaTypes
+            );
+            expandedParts.push(...expanded);
+            continue;
+        }
+
+        expandedParts.push(part);
     }
 
-    return content;
+    return expandedParts;
 }
 
 /**
@@ -753,15 +898,45 @@ export function filterMessagesByLLMCapabilities(
     logger: IDextoLogger
 ): InternalMessage[] {
     try {
-        return messages.map((message) => {
+        let totalImagesFiltered = 0;
+        let totalFilesFiltered = 0;
+
+        const filteredMessages = messages.map((message) => {
             // Only filter user messages with array content (multimodal)
             if (message.role !== 'user' || !Array.isArray(message.content)) {
                 return message;
             }
 
+            let imagesInMessage = 0;
+            let filesInMessage = 0;
+
             const filteredContent = message.content.filter((part) => {
-                // Keep text and image parts
-                if (part.type === 'text' || part.type === 'image') {
+                // Keep text parts
+                if (part.type === 'text') {
+                    return true;
+                }
+
+                // Filter image parts based on LLM capabilities
+                if (part.type === 'image') {
+                    const mimeType = part.mimeType ?? 'image/jpeg';
+                    const validation = validateModelFileSupport(
+                        config.provider,
+                        config.model,
+                        mimeType
+                    );
+                    // Only filter if model explicitly doesn't support this file type
+                    // Keep content if validation errored or is unknown
+                    if (validation.isSupported) {
+                        return true;
+                    }
+                    if (validation.error?.includes('does not support')) {
+                        imagesInMessage++;
+                        return false;
+                    }
+                    // Unknown file type or validation error - keep the content and warn
+                    logger.warn(
+                        `Could not validate image support for ${config.model}: ${validation.error}`
+                    );
                     return true;
                 }
 
@@ -772,11 +947,27 @@ export function filterMessagesByLLMCapabilities(
                         config.model,
                         part.mimeType
                     );
-                    return validation.isSupported;
+                    // Only filter if model explicitly doesn't support this file type
+                    // Keep content if validation errored or is unknown
+                    if (validation.isSupported) {
+                        return true;
+                    }
+                    if (validation.error?.includes('does not support')) {
+                        filesInMessage++;
+                        return false;
+                    }
+                    // Unknown file type or validation error - keep the content and warn
+                    logger.warn(
+                        `Could not validate file support for ${config.model}: ${validation.error}`
+                    );
+                    return true;
                 }
 
                 return true; // Keep unknown part types
             });
+
+            totalImagesFiltered += imagesInMessage;
+            totalFilesFiltered += filesInMessage;
 
             // If all content was filtered out, add a placeholder text
             if (filteredContent.length === 0) {
@@ -791,6 +982,20 @@ export function filterMessagesByLLMCapabilities(
                 content: filteredContent,
             };
         });
+
+        // Log summary of filtered content
+        if (totalImagesFiltered > 0) {
+            logger.info(
+                `Filtered ${totalImagesFiltered} image${totalImagesFiltered > 1 ? 's' : ''} for ${config.model} since it doesn't support images`
+            );
+        }
+        if (totalFilesFiltered > 0) {
+            logger.info(
+                `Filtered ${totalFilesFiltered} file${totalFilesFiltered > 1 ? 's' : ''} for ${config.model} since it doesn't support that file type`
+            );
+        }
+
+        return filteredMessages;
     } catch (error) {
         // If filtering fails, return original messages to avoid breaking the flow
         logger.warn(`Failed to filter messages by LLM capabilities: ${String(error)}`);
@@ -1050,6 +1255,10 @@ export async function persistToolMedia(
               }
             : undefined;
 
+    // Track stored blobs for annotation
+    const storedBlobs: Array<{ uri: string; kind: string; mimeType: string; filename?: string }> =
+        [];
+
     if (blobStore) {
         for (const hint of normalized.inlineMedia) {
             if (!shouldPersistInlineMedia(hint)) {
@@ -1080,12 +1289,40 @@ export async function persistToolMedia(
                     const filename = blobRef.metadata.originalName ?? hint.filename;
                     parts[hint.index] = createBlobFilePart(resourceUri, resolvedMimeType, filename);
                 }
+
+                // Track for annotation
+                storedBlobs.push({
+                    uri: resourceUri,
+                    kind: hint.kind,
+                    mimeType: blobRef.metadata.mimeType,
+                    ...(blobRef.metadata.originalName && {
+                        filename: blobRef.metadata.originalName,
+                    }),
+                });
             } catch (error) {
                 logger.warn(
                     `Failed to persist tool media: ${error instanceof Error ? error.message : String(error)}`
                 );
             }
         }
+    }
+
+    // Add text annotations for stored blobs so the agent knows the references
+    // IMPORTANT: Use "resource_ref:" prefix (not "@blob:") to avoid expansion by expandBlobsInText()
+    // The @blob: pattern triggers base64 expansion which would duplicate the image data
+    if (storedBlobs.length > 0) {
+        const annotations = storedBlobs
+            .map((blob) => {
+                const label = blob.filename || blob.kind;
+                // Use resource_ref: prefix - agent should use this with get_shareable_url tool
+                // Format: resource_ref:blob:abc123 (can be used as "@blob:abc123" or "blob:abc123" in tool calls)
+                return `[Stored resource_ref:${blob.uri} (${label}, ${blob.mimeType})]`;
+            })
+            .join('\n');
+
+        // Add annotation as a text part at the end
+        parts.push({ type: 'text', text: annotations });
+        logger.debug(`Added blob reference annotations for ${storedBlobs.length} resource(s)`);
     }
 
     const resources = extractResourceDescriptors(parts);
@@ -1162,49 +1399,6 @@ export async function sanitizeToolResultToContentWithBlobs(
                 ];
             }
 
-            // Raw base64-like blob
-            if (isLikelyBase64String(result)) {
-                logger.debug('sanitizeToolResultToContentWithBlobs: detected base64-like string');
-
-                // Check if we should store as blob
-                const approxSize = Math.floor((result.length * 3) / 4);
-                const shouldStoreAsBlob = blobStore && approxSize > 1024;
-
-                if (shouldStoreAsBlob) {
-                    try {
-                        const blobRef = await blobStore.store(result, {
-                            mimeType: 'application/octet-stream',
-                            source: 'tool',
-                            originalName: buildToolBlobName('output', undefined, namingOptions),
-                        });
-                        logger.debug(
-                            `Stored tool result as blob: ${blobRef.uri} (${approxSize} bytes)`
-                        );
-                        return [
-                            createBlobFilePart(
-                                blobRef.uri,
-                                'application/octet-stream',
-                                'tool-output.bin'
-                            ),
-                        ];
-                    } catch (error) {
-                        logger.warn(
-                            `Failed to store blob, falling back to inline: ${String(error)}`
-                        );
-                    }
-                }
-
-                // Original behavior: return as file part
-                return [
-                    {
-                        type: 'file',
-                        data: result,
-                        mimeType: 'application/octet-stream',
-                        filename: 'tool-output.bin',
-                    },
-                ];
-            }
-
             // Long text: truncate with ellipsis to keep context sane
             if (result.length > MAX_TOOL_TEXT_CHARS) {
                 const head = result.slice(0, 4000);
@@ -1212,9 +1406,14 @@ export async function sanitizeToolResultToContentWithBlobs(
                 logger.debug(
                     `sanitizeToolResultToContentWithBlobs: truncating long text tool output (len=${result.length})`
                 );
-                return `${head}\n... [${result.length - 5000} chars omitted] ...\n${tail}`;
+                return [
+                    {
+                        type: 'text',
+                        text: `${head}\n... [${result.length - 5000} chars omitted] ...\n${tail}`,
+                    },
+                ];
             }
-            return result;
+            return [{ type: 'text', text: result }];
         }
 
         // Case 2: array of parts or mixed
@@ -1231,9 +1430,7 @@ export async function sanitizeToolResultToContentWithBlobs(
                     namingOptions
                 );
 
-                if (typeof processedItem === 'string') {
-                    parts.push({ type: 'text', text: processedItem });
-                } else if (Array.isArray(processedItem)) {
+                if (Array.isArray(processedItem)) {
                     parts.push(
                         ...(processedItem as Array<
                             TextPart | ImagePart | FilePart | UIResourcePart
@@ -1526,19 +1723,19 @@ export async function sanitizeToolResultToContentWithBlobs(
 
             // Generic object: remove huge base64 fields and stringify
             const cleaned = sanitizeDeepObject(anyObj, logger);
-            return safeStringify(cleaned);
+            return [{ type: 'text', text: safeStringify(cleaned) }];
         }
 
         // Fallback
-        return safeStringify(result ?? '');
+        return [{ type: 'text', text: safeStringify(result ?? '') }];
     } catch (err) {
         logger.warn(
             `sanitizeToolResultToContentWithBlobs failed, falling back to string: ${String(err)}`
         );
         try {
-            return safeStringify(result ?? '');
+            return [{ type: 'text', text: safeStringify(result ?? '') }];
         } catch {
-            return String(result ?? '');
+            return [{ type: 'text', text: String(result ?? '') }];
         }
     }
 }
@@ -1606,11 +1803,28 @@ export async function sanitizeToolResult(
         blobStore?: import('../storage/blob/types.js').BlobStore;
         toolName: string;
         toolCallId: string;
-        success?: boolean;
+        success: boolean;
     },
     logger: IDextoLogger
 ): Promise<SanitizedToolResult> {
-    const normalized = await normalizeToolResult(result, logger);
+    // Extract _display from tool result before normalization (if present)
+    // Strip it from the payload to avoid duplicating large display data in LLM content
+    let display: ToolDisplayData | undefined;
+    let resultForNormalization = result;
+
+    if (result && typeof result === 'object' && '_display' in result) {
+        const { _display: rawDisplay, ...rest } = result as Record<string, unknown>;
+        if (isValidDisplayData(rawDisplay)) {
+            display = rawDisplay;
+            logger.debug(
+                `sanitizeToolResult: extracted display data (type=${display.type}) for ${options.toolName}`
+            );
+        }
+        // Always strip _display from payload sent to LLM, even if invalid
+        resultForNormalization = rest;
+    }
+
+    const normalized = await normalizeToolResult(resultForNormalization, logger);
     const persisted = await persistToolMedia(
         normalized,
         {
@@ -1641,7 +1855,8 @@ export async function sanitizeToolResult(
         meta: {
             toolName: options.toolName,
             toolCallId: options.toolCallId,
-            ...(typeof options.success === 'boolean' ? { success: options.success } : {}),
+            success: options.success,
+            ...(display ? { display } : {}),
         },
     };
 }
@@ -1703,21 +1918,27 @@ export function toTextForToolMessage(content: InternalMessage['content']): strin
 
 /**
  * Filter history to exclude messages before the most recent summary.
- * This implements read-time compression.
+ * This implements read-time compression for inline compaction.
  *
- * When a summary message exists (with metadata.isSummary === true),
- * this function returns only the summary message and everything after it.
- * This effectively hides old messages from the LLM while preserving them in storage.
+ * Used by:
+ * - TurnExecutor for inline compaction during agentic turns (overflow handling)
+ * - DextoAgent.getContextStats() for accurate token/message counts
+ *
+ * When a summary message exists (with metadata.isSummary === true or
+ * metadata.isSessionSummary === true), this function returns only the
+ * summary message and everything after it. This effectively hides old
+ * messages from the LLM while preserving them in storage.
  *
  * @param history The full conversation history
  * @returns Filtered history starting from the most recent summary (or full history if no summary)
  */
 export function filterCompacted(history: readonly InternalMessage[]): InternalMessage[] {
     // Find the most recent summary message (search backwards for efficiency)
+    // Check for both old isSummary marker and new isSessionSummary marker
     let summaryIndex = -1;
     for (let i = history.length - 1; i >= 0; i--) {
         const msg = history[i];
-        if (msg?.metadata?.isSummary === true) {
+        if (msg?.metadata?.isSummary === true || msg?.metadata?.isSessionSummary === true) {
             summaryIndex = i;
             break;
         }
@@ -1728,8 +1949,34 @@ export function filterCompacted(history: readonly InternalMessage[]): InternalMe
         return history.slice();
     }
 
-    // Return summary + everything after it
-    return history.slice(summaryIndex);
+    // Get the summary message (we know it exists since we found the index)
+    const summaryMessage = history[summaryIndex]!;
+
+    // Get the count of messages that were summarized (stored in metadata)
+    // The preserved messages are between the summarized portion and the summary
+    // Clamp to valid range: 0 <= originalMessageCount <= summaryIndex
+    // For legacy summaries without metadata, default to summaryIndex (no preserved messages)
+    const rawCount = summaryMessage.metadata?.originalMessageCount;
+    const originalMessageCount =
+        typeof rawCount === 'number' && rawCount >= 0 && rawCount <= summaryIndex
+            ? rawCount
+            : summaryIndex;
+
+    // Layout after compaction:
+    // [summarized..., preserved..., summary, afterSummary...]
+    //  ^-- indices 0 to (originalMessageCount-1)
+    //              ^-- indices originalMessageCount to (summaryIndex-1)
+    //                          ^-- index summaryIndex
+    //                                   ^-- indices (summaryIndex+1) onwards
+
+    // Get preserved messages (messages between summarized portion and summary)
+    const preservedMessages = history.slice(originalMessageCount, summaryIndex);
+
+    // Get any messages added after the summary (rare but possible)
+    const messagesAfterSummary = history.slice(summaryIndex + 1);
+
+    // Return: summary + preserved + afterSummary
+    return [summaryMessage, ...preservedMessages, ...messagesAfterSummary];
 }
 
 /**
@@ -1740,7 +1987,7 @@ export function filterCompacted(history: readonly InternalMessage[]): InternalMe
  * @returns The content string or placeholder if compacted
  */
 export function formatToolOutputForDisplay(message: InternalMessage): string {
-    if (message.compactedAt) {
+    if (isToolMessage(message) && message.compactedAt) {
         return '[Old tool result content cleared]';
     }
 

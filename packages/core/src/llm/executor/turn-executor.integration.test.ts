@@ -50,6 +50,7 @@ function createMockStream(options: {
     text?: string;
     finishReason?: string;
     usage?: { inputTokens: number; outputTokens: number; totalTokens: number };
+    providerMetadata?: Record<string, unknown>;
     toolCalls?: Array<{ toolCallId: string; toolName: string; args: Record<string, unknown> }>;
     reasoning?: string;
 }) {
@@ -86,6 +87,7 @@ function createMockStream(options: {
         type: 'finish',
         finishReason: options.finishReason ?? 'stop',
         totalUsage: options.usage ?? { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
+        ...(options.providerMetadata && { providerMetadata: options.providerMetadata }),
     });
 
     return {
@@ -269,7 +271,7 @@ describe('TurnExecutor Integration Tests', () => {
 
     describe('Basic Execution Flow', () => {
         it('should execute and return result with real context manager', async () => {
-            await contextManager.addUserMessage('Hello');
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
 
             const result = await executor.execute({ mcpManager }, true);
 
@@ -279,11 +281,13 @@ describe('TurnExecutor Integration Tests', () => {
                 inputTokens: 100,
                 outputTokens: 50,
                 totalTokens: 150,
+                cacheReadTokens: 0,
+                cacheWriteTokens: 0,
             });
         });
 
         it('should persist assistant response to history', async () => {
-            await contextManager.addUserMessage('Hello');
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
             await executor.execute({ mcpManager }, true);
 
             const history = await contextManager.getHistory();
@@ -302,7 +306,7 @@ describe('TurnExecutor Integration Tests', () => {
             sessionEventBus.on('llm:response', responseHandler);
             sessionEventBus.on('run:complete', runCompleteHandler);
 
-            await contextManager.addUserMessage('Hello');
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
             await executor.execute({ mcpManager }, true);
 
             expect(thinkingHandler).toHaveBeenCalled();
@@ -319,7 +323,7 @@ describe('TurnExecutor Integration Tests', () => {
             const chunkHandler = vi.fn();
             sessionEventBus.on('llm:chunk', chunkHandler);
 
-            await contextManager.addUserMessage('Hello');
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
             await executor.execute({ mcpManager }, true);
 
             expect(chunkHandler).toHaveBeenCalled();
@@ -330,7 +334,7 @@ describe('TurnExecutor Integration Tests', () => {
             const chunkHandler = vi.fn();
             sessionEventBus.on('llm:chunk', chunkHandler);
 
-            await contextManager.addUserMessage('Hello');
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
             await executor.execute({ mcpManager }, false);
 
             expect(chunkHandler).not.toHaveBeenCalled();
@@ -357,7 +361,7 @@ describe('TurnExecutor Integration Tests', () => {
                 }) as unknown as ReturnType<typeof streamText>;
             });
 
-            await contextManager.addUserMessage('Do something');
+            await contextManager.addUserMessage([{ type: 'text', text: 'Do something' }]);
             const result = await executor.execute({ mcpManager }, true);
 
             expect(result.finishReason).toBe('stop');
@@ -388,7 +392,7 @@ describe('TurnExecutor Integration Tests', () => {
                 messageQueue
             );
 
-            await contextManager.addUserMessage('Keep going');
+            await contextManager.addUserMessage([{ type: 'text', text: 'Keep going' }]);
             const result = await limitedExecutor.execute({ mcpManager }, true);
 
             expect(result.finishReason).toBe('max-steps');
@@ -402,7 +406,7 @@ describe('TurnExecutor Integration Tests', () => {
                 content: [{ type: 'text', text: 'User guidance: focus on performance' }],
             });
 
-            await contextManager.addUserMessage('Initial request');
+            await contextManager.addUserMessage([{ type: 'text', text: 'Initial request' }]);
             await executor.execute({ mcpManager }, true);
 
             const history = await contextManager.getHistory();
@@ -435,7 +439,7 @@ describe('TurnExecutor Integration Tests', () => {
                 }) as unknown as ReturnType<typeof streamText>;
             });
 
-            await contextManager.addUserMessage('Initial');
+            await contextManager.addUserMessage([{ type: 'text', text: 'Initial' }]);
             const result = await executor.execute({ mcpManager }, true);
 
             expect(callCount).toBe(2);
@@ -445,7 +449,7 @@ describe('TurnExecutor Integration Tests', () => {
 
     describe('Tool Support Validation', () => {
         it('should skip validation for providers without baseURL', async () => {
-            await contextManager.addUserMessage('Hello');
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
             await executor.execute({ mcpManager }, true);
 
             expect(generateText).not.toHaveBeenCalled();
@@ -469,7 +473,7 @@ describe('TurnExecutor Integration Tests', () => {
                 messageQueue
             );
 
-            await contextManager.addUserMessage('Hello');
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
             await executor1.execute({ mcpManager }, true);
 
             expect(generateText).toHaveBeenCalledTimes(1);
@@ -509,12 +513,85 @@ describe('TurnExecutor Integration Tests', () => {
                 messageQueue
             );
 
-            await contextManager.addUserMessage('Hello');
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
             await executorWithBaseURL.execute({ mcpManager }, true);
 
             expect(streamText).toHaveBeenCalledWith(
                 expect.objectContaining({
                     tools: {},
+                })
+            );
+        });
+
+        it('should validate tool support for local providers even without custom baseURL', async () => {
+            vi.mocked(generateText).mockRejectedValue(new Error('Model does not support tools'));
+
+            const ollamaLlmContext = {
+                provider: 'ollama' as const,
+                model: 'gemma3n:e2b',
+            };
+
+            const ollamaExecutor = new TurnExecutor(
+                createMockModel(),
+                toolManager,
+                contextManager,
+                sessionEventBus,
+                resourceManager,
+                sessionId,
+                { maxSteps: 10 }, // No baseURL
+                ollamaLlmContext,
+                logger,
+                messageQueue
+            );
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+            await ollamaExecutor.execute({ mcpManager }, true);
+
+            // Should call generateText for validation even without baseURL
+            expect(generateText).toHaveBeenCalledTimes(1);
+
+            // Should use empty tools in actual execution
+            expect(streamText).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    tools: {},
+                })
+            );
+        });
+
+        it('should emit llm:unsupported-input warning when model does not support tools', async () => {
+            vi.mocked(generateText).mockRejectedValue(new Error('Model does not support tools'));
+
+            const warningHandler = vi.fn();
+            sessionEventBus.on('llm:unsupported-input', warningHandler);
+
+            const executorWithBaseURL = new TurnExecutor(
+                createMockModel(),
+                toolManager,
+                contextManager,
+                sessionEventBus,
+                resourceManager,
+                sessionId,
+                { maxSteps: 10, baseURL: 'https://no-tools.api.com' },
+                llmContext,
+                logger,
+                messageQueue
+            );
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+            await executorWithBaseURL.execute({ mcpManager }, true);
+
+            expect(warningHandler).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    errors: expect.arrayContaining([
+                        expect.stringContaining('does not support tool calling'),
+                        expect.stringContaining('You can still chat'),
+                    ]),
+                    provider: llmContext.provider,
+                    model: llmContext.model,
+                    details: expect.objectContaining({
+                        feature: 'tool-calling',
+                        supported: false,
+                    }),
                 })
             );
         });
@@ -531,7 +608,7 @@ describe('TurnExecutor Integration Tests', () => {
             sessionEventBus.on('llm:error', errorHandler);
             sessionEventBus.on('run:complete', completeHandler);
 
-            await contextManager.addUserMessage('Hello');
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
             await expect(executor.execute({ mcpManager }, true)).rejects.toThrow();
 
             expect(errorHandler).toHaveBeenCalledWith(
@@ -565,7 +642,7 @@ describe('TurnExecutor Integration Tests', () => {
                 throw rateLimitError;
             });
 
-            await contextManager.addUserMessage('Hello');
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
 
             await expect(executor.execute({ mcpManager }, true)).rejects.toMatchObject({
                 code: 'llm_rate_limit_exceeded',
@@ -578,7 +655,7 @@ describe('TurnExecutor Integration Tests', () => {
         it('should clear message queue on normal completion', async () => {
             messageQueue.enqueue({ content: [{ type: 'text', text: 'Pending' }] });
 
-            await contextManager.addUserMessage('Hello');
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
             await executor.execute({ mcpManager }, true);
 
             expect(messageQueue.dequeueAll()).toBeNull();
@@ -591,7 +668,7 @@ describe('TurnExecutor Integration Tests', () => {
                 throw new Error('Failed');
             });
 
-            await contextManager.addUserMessage('Hello');
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
             await expect(executor.execute({ mcpManager }, true)).rejects.toThrow();
 
             expect(messageQueue.dequeueAll()).toBeNull();
@@ -632,7 +709,7 @@ describe('TurnExecutor Integration Tests', () => {
                 abortController.signal
             );
 
-            await contextManager.addUserMessage('Hello');
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
             const result = await executorWithSignal.execute({ mcpManager }, true);
 
             expect(result.finishReason).toBe('cancelled');
@@ -658,7 +735,7 @@ describe('TurnExecutor Integration Tests', () => {
             const responseHandler = vi.fn();
             sessionEventBus.on('llm:response', responseHandler);
 
-            await contextManager.addUserMessage('Think about this');
+            await contextManager.addUserMessage([{ type: 'text', text: 'Think about this' }]);
             const result = await executor.execute({ mcpManager }, true);
 
             expect(result.usage).toMatchObject({
@@ -672,7 +749,7 @@ describe('TurnExecutor Integration Tests', () => {
 
     describe('Context Formatting', () => {
         it('should format messages correctly for LLM', async () => {
-            await contextManager.addUserMessage('Hello');
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
             await executor.execute({ mcpManager }, true);
 
             expect(streamText).toHaveBeenCalledWith(
@@ -687,7 +764,7 @@ describe('TurnExecutor Integration Tests', () => {
         });
 
         it('should include system prompt in formatted messages', async () => {
-            await contextManager.addUserMessage('Hello');
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
             await executor.execute({ mcpManager }, true);
 
             const call = vi.mocked(streamText).mock.calls[0]?.[0];
@@ -708,6 +785,117 @@ describe('TurnExecutor Integration Tests', () => {
                         ))
             );
             expect(hasSystemContent).toBe(true);
+        });
+    });
+
+    describe('Context Token Tracking', () => {
+        it('should store actual input tokens from LLM response in ContextManager', async () => {
+            const expectedInputTokens = 1234;
+
+            vi.mocked(streamText).mockImplementation(
+                () =>
+                    createMockStream({
+                        text: 'Response',
+                        finishReason: 'stop',
+                        usage: {
+                            inputTokens: expectedInputTokens,
+                            outputTokens: 50,
+                            totalTokens: expectedInputTokens + 50,
+                        },
+                    }) as unknown as ReturnType<typeof streamText>
+            );
+
+            // Before LLM call, should be null
+            expect(contextManager.getLastActualInputTokens()).toBeNull();
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+            await executor.execute({ mcpManager }, true);
+
+            // After LLM call, should have the actual token count
+            expect(contextManager.getLastActualInputTokens()).toBe(expectedInputTokens);
+        });
+
+        it('should update actual tokens on each LLM call', async () => {
+            // First call
+            vi.mocked(streamText).mockImplementationOnce(
+                () =>
+                    createMockStream({
+                        text: 'First response',
+                        finishReason: 'stop',
+                        usage: { inputTokens: 100, outputTokens: 20, totalTokens: 120 },
+                    }) as unknown as ReturnType<typeof streamText>
+            );
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'First message' }]);
+            await executor.execute({ mcpManager }, true);
+            expect(contextManager.getLastActualInputTokens()).toBe(100);
+
+            // Second call with different token count
+            vi.mocked(streamText).mockImplementationOnce(
+                () =>
+                    createMockStream({
+                        text: 'Second response',
+                        finishReason: 'stop',
+                        usage: { inputTokens: 250, outputTokens: 30, totalTokens: 280 },
+                    }) as unknown as ReturnType<typeof streamText>
+            );
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Second message' }]);
+            await executor.execute({ mcpManager }, true);
+            expect(contextManager.getLastActualInputTokens()).toBe(250);
+        });
+
+        it('should make actual tokens available via getContextTokenEstimate', async () => {
+            const expectedInputTokens = 5000;
+
+            vi.mocked(streamText).mockImplementation(
+                () =>
+                    createMockStream({
+                        text: 'Response',
+                        finishReason: 'stop',
+                        usage: {
+                            inputTokens: expectedInputTokens,
+                            outputTokens: 100,
+                            totalTokens: expectedInputTokens + 100,
+                        },
+                    }) as unknown as ReturnType<typeof streamText>
+            );
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+            await executor.execute({ mcpManager }, true);
+
+            // getContextTokenEstimate should return the actual value
+            const estimate = await contextManager.getContextTokenEstimate({ mcpManager }, {});
+            expect(estimate.actual).toBe(expectedInputTokens);
+        });
+
+        it('should include cached tokens in actual context input tracking', async () => {
+            const noCacheTokens = 200;
+            const cacheReadTokens = 800;
+
+            vi.mocked(streamText).mockImplementation(
+                () =>
+                    createMockStream({
+                        text: 'Response',
+                        finishReason: 'stop',
+                        usage: {
+                            inputTokens: noCacheTokens,
+                            outputTokens: 10,
+                            totalTokens: noCacheTokens + 10,
+                        },
+                        providerMetadata: {
+                            anthropic: {
+                                cacheReadInputTokens: cacheReadTokens,
+                                cacheCreationInputTokens: 0,
+                            },
+                        },
+                    }) as unknown as ReturnType<typeof streamText>
+            );
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+            await executor.execute({ mcpManager }, true);
+
+            expect(contextManager.getLastActualInputTokens()).toBe(noCacheTokens + cacheReadTokens);
         });
     });
 });

@@ -29,9 +29,8 @@ export function ensureOk<T, C>(result: Result<T, C>, logger: IDextoLogger): T {
         return result.data;
     }
 
-    logger.error(
-        `ensureOk: found validation errors, throwing DextoValidationError: ${result.issues}`
-    );
+    const issueMessages = result.issues.map((i) => i.message).join('; ');
+    logger.error(`ensureOk: validation failed - ${issueMessages}`);
     // Result pattern is used for validation - throw validation error
     throw new DextoValidationError(result.issues);
 }

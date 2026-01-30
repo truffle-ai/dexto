@@ -32,7 +32,7 @@ Internally the manager:
 ## Example – add MCP server at runtime
 
 ```typescript
-await stateManager.addMcpServer('git', {
+await agent.addMcpServer('git', {
   command: 'mcp-git',
   args: ['--repo', process.cwd()]
 });

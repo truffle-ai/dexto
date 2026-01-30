@@ -10,18 +10,43 @@ import type { ValidatedLLMConfig } from '@core/llm/schemas.js';
 import type { StorageManager } from '../storage/index.js';
 import type { PluginManager } from '../plugins/manager.js';
 import { SessionError } from './errors.js';
+import type { TokenUsage } from '../llm/types.js';
+export type SessionLoggerFactory = (options: {
+    baseLogger: IDextoLogger;
+    agentId: string;
+    sessionId: string;
+}) => IDextoLogger;
+
+function defaultSessionLoggerFactory(options: {
+    baseLogger: IDextoLogger;
+    agentId: string;
+    sessionId: string;
+}): IDextoLogger {
+    // Default behavior (no filesystem assumptions): just a child logger.
+    // Hosts (CLI/server) can inject a SessionLoggerFactory that writes to a file.
+    return options.baseLogger.createChild(DextoLogComponent.SESSION);
+}
+
+/**
+ * Session-level token usage totals (accumulated across all messages).
+ * All fields required since we track cumulative totals (defaulting to 0).
+ */
+export type SessionTokenUsage = Required<TokenUsage>;
 
 export interface SessionMetadata {
     createdAt: number;
     lastActivity: number;
     messageCount: number;
     title?: string;
-    // Additional metadata for session management
+    tokenUsage?: SessionTokenUsage;
+    estimatedCost?: number;
 }
 
 export interface SessionManagerConfig {
     maxSessions?: number;
     sessionTTL?: number;
+    /** Host hook for creating a session-scoped logger (e.g. file logger) */
+    sessionLoggerFactory?: SessionLoggerFactory;
 }
 
 export interface SessionData {
@@ -31,6 +56,10 @@ export interface SessionData {
     lastActivity: number;
     messageCount: number;
     metadata?: Record<string, any>;
+    tokenUsage?: SessionTokenUsage;
+    estimatedCost?: number;
+    /** Persisted LLM config override for this session */
+    llmOverride?: ValidatedLLMConfig;
 }
 
 /**
@@ -58,7 +87,11 @@ export class SessionManager {
     private initializationPromise!: Promise<void>;
     // Add a Map to track ongoing session creation operations to prevent race conditions
     private readonly pendingCreations = new Map<string, Promise<ChatSession>>();
+    // Per-session mutex for token usage updates to prevent lost updates from concurrent calls
+    private readonly tokenUsageLocks = new Map<string, Promise<void>>();
     private logger: IDextoLogger;
+
+    private readonly sessionLoggerFactory: SessionLoggerFactory;
 
     constructor(
         private services: {
@@ -76,6 +109,7 @@ export class SessionManager {
     ) {
         this.maxSessions = config.maxSessions ?? 100;
         this.sessionTTL = config.sessionTTL ?? 3600000; // 1 hour
+        this.sessionLoggerFactory = config.sessionLoggerFactory ?? defaultSessionLoggerFactory;
         this.logger = logger.createChild(DextoLogComponent.SESSION);
     }
 
@@ -211,12 +245,29 @@ export class SessionManager {
         if (existingMetadata) {
             // Session exists in storage, restore it
             await this.updateSessionActivity(id);
+            const runtimeConfig = this.services.stateManager.getRuntimeConfig();
+            const agentId = runtimeConfig.agentCard?.name ?? runtimeConfig.agentId;
+            const sessionLogger = this.sessionLoggerFactory({
+                baseLogger: this.logger,
+                agentId,
+                sessionId: id,
+            });
+
+            // Restore LLM override BEFORE session init so the service is created with correct config
+            const sessionData = await this.services.storageManager
+                .getDatabase()
+                .get<SessionData>(sessionKey);
+            if (sessionData?.llmOverride) {
+                this.services.stateManager.updateLLM(sessionData.llmOverride, id);
+            }
+
             const session = new ChatSession(
                 { ...this.services, sessionManager: this },
                 id,
-                this.logger
+                sessionLogger
             );
             await session.init();
+
             this.sessions.set(id, session);
             this.logger.info(`Restored session from storage: ${id}`);
             return session;
@@ -252,7 +303,18 @@ export class SessionManager {
         // Now create the actual session object
         let session: ChatSession;
         try {
-            session = new ChatSession({ ...this.services, sessionManager: this }, id, this.logger);
+            const runtimeConfig = this.services.stateManager.getRuntimeConfig();
+            const agentId = runtimeConfig.agentCard?.name ?? runtimeConfig.agentId;
+            const sessionLogger = this.sessionLoggerFactory({
+                baseLogger: this.logger,
+                agentId,
+                sessionId: id,
+            });
+            session = new ChatSession(
+                { ...this.services, sessionManager: this },
+                id,
+                sessionLogger
+            );
             await session.init();
             this.sessions.set(id, session);
 
@@ -306,12 +368,26 @@ export class SessionManager {
                 .get<SessionData>(sessionKey);
             if (sessionData) {
                 // Restore session to memory
+                const runtimeConfig = this.services.stateManager.getRuntimeConfig();
+                const agentId = runtimeConfig.agentCard?.name ?? runtimeConfig.agentId;
+                const sessionLogger = this.sessionLoggerFactory({
+                    baseLogger: this.logger,
+                    agentId,
+                    sessionId,
+                });
+
+                // Restore LLM override BEFORE session init so the service is created with correct config
+                if (sessionData.llmOverride) {
+                    this.services.stateManager.updateLLM(sessionData.llmOverride, sessionId);
+                }
+
                 const session = new ChatSession(
                     { ...this.services, sessionManager: this },
                     sessionId,
-                    this.logger
+                    sessionLogger
                 );
                 await session.init();
+
                 this.sessions.set(sessionId, session);
                 return session;
             }
@@ -354,10 +430,9 @@ export class SessionManager {
     public async deleteSession(sessionId: string): Promise<void> {
         await this.ensureInitialized();
 
-        // Get session (load from storage if not in memory) to clear conversation history
+        // Get session (load from storage if not in memory) to clean up memory resources
         const session = await this.getSession(sessionId);
         if (session) {
-            await session.reset(); // This deletes the conversation history
             await session.cleanup(); // This cleans up memory resources
             this.sessions.delete(sessionId);
         }
@@ -366,6 +441,9 @@ export class SessionManager {
         const sessionKey = `session:${sessionId}`;
         await this.services.storageManager.getDatabase().delete(sessionKey);
         await this.services.storageManager.getCache().delete(sessionKey);
+
+        const messagesKey = `messages:${sessionId}`;
+        await this.services.storageManager.getDatabase().delete(messagesKey);
 
         this.logger.debug(`Deleted session and conversation history: ${sessionId}`);
     }
@@ -427,14 +505,18 @@ export class SessionManager {
         const sessionData = await this.services.storageManager
             .getDatabase()
             .get<SessionData>(sessionKey);
-        return sessionData
-            ? {
-                  createdAt: sessionData.createdAt,
-                  lastActivity: sessionData.lastActivity,
-                  messageCount: sessionData.messageCount,
-                  title: sessionData.metadata?.title,
-              }
-            : undefined;
+        if (!sessionData) return undefined;
+
+        return {
+            createdAt: sessionData.createdAt,
+            lastActivity: sessionData.lastActivity,
+            messageCount: sessionData.messageCount,
+            title: sessionData.metadata?.title,
+            ...(sessionData.tokenUsage && { tokenUsage: sessionData.tokenUsage }),
+            ...(sessionData.estimatedCost !== undefined && {
+                estimatedCost: sessionData.estimatedCost,
+            }),
+        };
     }
 
     /**
@@ -485,6 +567,78 @@ export class SessionManager {
             await this.services.storageManager
                 .getCache()
                 .set(sessionKey, sessionData, this.sessionTTL / 1000);
+        }
+    }
+
+    /**
+     * Accumulates token usage for a session.
+     * Called after each LLM response to update session-level totals.
+     *
+     * Uses per-session locking to prevent lost updates from concurrent calls.
+     */
+    public async accumulateTokenUsage(
+        sessionId: string,
+        usage: TokenUsage,
+        cost?: number
+    ): Promise<void> {
+        await this.ensureInitialized();
+
+        const sessionKey = `session:${sessionId}`;
+
+        // Wait for any in-flight update for this session, then chain ours
+        const previousLock = this.tokenUsageLocks.get(sessionKey) ?? Promise.resolve();
+
+        const currentLock = previousLock.then(async () => {
+            const sessionData = await this.services.storageManager
+                .getDatabase()
+                .get<SessionData>(sessionKey);
+
+            if (!sessionData) return;
+
+            // Initialize if needed
+            if (!sessionData.tokenUsage) {
+                sessionData.tokenUsage = {
+                    inputTokens: 0,
+                    outputTokens: 0,
+                    reasoningTokens: 0,
+                    cacheReadTokens: 0,
+                    cacheWriteTokens: 0,
+                    totalTokens: 0,
+                };
+            }
+
+            // Accumulate
+            sessionData.tokenUsage.inputTokens += usage.inputTokens ?? 0;
+            sessionData.tokenUsage.outputTokens += usage.outputTokens ?? 0;
+            sessionData.tokenUsage.reasoningTokens += usage.reasoningTokens ?? 0;
+            sessionData.tokenUsage.cacheReadTokens += usage.cacheReadTokens ?? 0;
+            sessionData.tokenUsage.cacheWriteTokens += usage.cacheWriteTokens ?? 0;
+            sessionData.tokenUsage.totalTokens += usage.totalTokens ?? 0;
+
+            // Add cost if provided
+            if (cost !== undefined) {
+                sessionData.estimatedCost = (sessionData.estimatedCost ?? 0) + cost;
+            }
+
+            sessionData.lastActivity = Date.now();
+
+            // Persist
+            await this.services.storageManager.getDatabase().set(sessionKey, sessionData);
+            await this.services.storageManager
+                .getCache()
+                .set(sessionKey, sessionData, this.sessionTTL / 1000);
+        });
+
+        this.tokenUsageLocks.set(sessionKey, currentLock);
+
+        // Wait for our update to complete, but don't let errors propagate to break the chain
+        try {
+            await currentLock;
+        } finally {
+            // Clean up lock if this was the last operation
+            if (this.tokenUsageLocks.get(sessionKey) === currentLock) {
+                this.tokenUsageLocks.delete(sessionKey);
+            }
         }
     }
 
@@ -643,6 +797,20 @@ export class SessionManager {
 
         await session.switchLLM(newLLMConfig);
 
+        // Persist the LLM override to storage so it survives restarts
+        const sessionKey = `session:${sessionId}`;
+        const sessionData = await this.services.storageManager
+            .getDatabase()
+            .get<SessionData>(sessionKey);
+        if (sessionData) {
+            sessionData.llmOverride = newLLMConfig;
+            await this.services.storageManager.getDatabase().set(sessionKey, sessionData);
+            // Also update cache for consistency
+            await this.services.storageManager
+                .getCache()
+                .set(sessionKey, sessionData, this.sessionTTL / 1000);
+        }
+
         this.services.agentEventBus.emit('llm:switched', {
             newConfig: newLLMConfig,
             historyRetained: true,
@@ -674,6 +842,18 @@ export class SessionManager {
             maxSessions: this.maxSessions,
             sessionTTL: this.sessionTTL,
         };
+    }
+
+    /**
+     * Get the raw session data for a session ID.
+     *
+     * @param sessionId The session ID
+     * @returns Session data if found, undefined otherwise
+     */
+    public async getSessionData(sessionId: string): Promise<SessionData | undefined> {
+        await this.ensureInitialized();
+        const sessionKey = `session:${sessionId}`;
+        return await this.services.storageManager.getDatabase().get<SessionData>(sessionKey);
     }
 
     /**

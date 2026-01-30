@@ -6,6 +6,7 @@ import { LLMConfigSchema } from '@core/llm/schemas.js';
 import { StorageSchema } from '@core/storage/schemas.js';
 import { ErrorScope, ErrorType } from '@core/errors/types.js';
 import { SessionErrorCode } from './error-codes.js';
+import { createMockLogger } from '@core/logger/v2/test-utils.js';
 
 // Mock dependencies
 vi.mock('./chat-session.js');
@@ -16,6 +17,8 @@ vi.mock('../logger/index.js', () => ({
         info: vi.fn(),
         debug: vi.fn(),
     },
+    DextoLogger: vi.fn(),
+    FileTransport: vi.fn(),
 }));
 vi.mock('crypto', () => ({
     randomUUID: vi.fn(() => 'mock-uuid-123'),
@@ -28,7 +31,7 @@ describe('SessionManager', () => {
     let mockServices: any;
     let mockStorageManager: any;
     let mockLLMConfig: ValidatedLLMConfig;
-    let mockLogger: any;
+    const mockLogger = createMockLogger();
 
     const mockSessionData = {
         id: 'test-session',
@@ -39,19 +42,6 @@ describe('SessionManager', () => {
 
     beforeEach(() => {
         vi.resetAllMocks();
-
-        mockLogger = {
-            silly: vi.fn(),
-            debug: vi.fn(),
-            info: vi.fn(),
-            warn: vi.fn(),
-            error: vi.fn(),
-            trackException: vi.fn(),
-            createChild: vi.fn(function (this: any) {
-                return this;
-            }),
-            destroy: vi.fn(),
-        } as any;
 
         // Mock storage manager with proper getter structure
         const mockCache = {
@@ -107,10 +97,15 @@ describe('SessionManager', () => {
             blobStore: mockBlobStore,
         };
 
-        // Mock services
+        // Mock services - use mockImplementation to defer evaluation until called
+        // This ensures we get the current value of mockLLMConfig, not a stale reference
         mockServices = {
             stateManager: {
-                getLLMConfig: vi.fn().mockReturnValue(mockLLMConfig),
+                getLLMConfig: vi.fn(() => mockLLMConfig),
+                getRuntimeConfig: vi.fn(() => ({
+                    llm: mockLLMConfig,
+                    agentCard: { name: 'test-agent' },
+                })),
                 updateLLM: vi.fn().mockReturnValue({ isValid: true, errors: [], warnings: [] }),
             },
             systemPromptManager: {
@@ -537,8 +532,8 @@ describe('SessionManager', () => {
             // Create session
             const session = await sessionManager.createSession(sessionId);
 
-            // Mock error during cleanup
-            (session.reset as any).mockRejectedValue(new Error('Cleanup error'));
+            // Mock error during cleanup (SessionManager.cleanup -> endSession -> session.cleanup)
+            (session.cleanup as any).mockRejectedValue(new Error('Cleanup error'));
 
             await expect(sessionManager.cleanup()).resolves.not.toThrow();
         });
@@ -975,13 +970,17 @@ describe('SessionManager', () => {
             // Explicit deletion should remove everything including conversation history
             await sessionManager.deleteSession(sessionId);
 
-            // Should call reset to clear conversation history, then cleanup to dispose memory
-            expect(session.reset).toHaveBeenCalled();
+            // Should call cleanup to dispose memory resources
             expect(session.cleanup).toHaveBeenCalled();
 
             // Should remove session metadata from storage completely
             expect(mockStorageManager.database.delete).toHaveBeenCalledWith(`session:${sessionId}`);
             expect(mockStorageManager.cache.delete).toHaveBeenCalledWith(`session:${sessionId}`);
+
+            // Should delete conversation messages directly from storage
+            expect(mockStorageManager.database.delete).toHaveBeenCalledWith(
+                `messages:${sessionId}`
+            );
         });
 
         test('should handle multiple expired sessions without affecting storage', async () => {

@@ -75,6 +75,8 @@ export default [
                 },
             ],
             'no-dupe-class-members': 'off', // Allow TypeScript method overloading
+            'no-redeclare': 'off', // Disable base rule - replaced by @typescript-eslint/no-redeclare
+            '@typescript-eslint/no-redeclare': 'error', // TS-aware: allows overloads, catches real redeclarations
             'no-restricted-syntax': [
                 'error',
                 {

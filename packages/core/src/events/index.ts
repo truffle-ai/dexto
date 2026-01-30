@@ -5,6 +5,24 @@ import type { ApprovalRequest, ApprovalResponse } from '../approval/types.js';
 import type { SanitizedToolResult } from '../context/types.js';
 
 /**
+ * LLM finish reason - why the LLM stopped generating
+ *
+ * Superset of Vercel AI SDK's LanguageModelV3FinishReason with app-specific additions.
+ */
+export type LLMFinishReason =
+    // From Vercel AI SDK (LanguageModelV3FinishReason)
+    | 'stop' // Normal completion
+    | 'tool-calls' // Stopped to execute tool calls (more steps coming)
+    | 'length' // Hit token/length limit
+    | 'content-filter' // Content filter violation stopped the model
+    | 'error' // Error occurred
+    | 'other' // Other reason
+    | 'unknown' // Model has not transmitted a finish reason
+    // App-specific additions
+    | 'cancelled' // User cancelled
+    | 'max-steps'; // Hit max steps limit
+
+/**
  * Agent-level event names - events that occur at the agent/global level
  */
 export const AGENT_EVENT_NAMES = [
@@ -29,6 +47,7 @@ export const AGENT_EVENT_NAMES = [
     'resource:cache-invalidated',
     'approval:request',
     'approval:response',
+    'run:invoke',
 ] as const;
 
 /**
@@ -43,7 +62,9 @@ export const SESSION_EVENT_NAMES = [
     'llm:error',
     'llm:switched',
     'llm:unsupported-input',
-    'context:compressed',
+    'tool:running',
+    'context:compacting',
+    'context:compacted',
     'context:pruned',
     'message:queued',
     'message:dequeued',
@@ -82,8 +103,12 @@ export const STREAMING_EVENTS = [
     'llm:error',
     'llm:unsupported-input',
 
+    // Tool execution events
+    'tool:running',
+
     // Context management events
-    'context:compressed',
+    'context:compacting',
+    'context:compacted',
     'context:pruned',
 
     // Message queue events (for mid-task user guidance)
@@ -99,6 +124,9 @@ export const STREAMING_EVENTS = [
     // Approval events (needed for tool confirmation in streaming UIs)
     'approval:request',
     'approval:response',
+
+    // Service events (extensible pattern for non-core services)
+    'service:event',
 ] as const;
 
 /**
@@ -274,6 +302,22 @@ export interface AgentEventMap {
         source: 'mcp' | 'builtin';
     };
 
+    /**
+     * Agent run is being invoked externally (e.g., by scheduler, A2A, API).
+     * Fired BEFORE agent.stream()/run() is called.
+     * UI can use this to display the incoming prompt and set up streaming subscriptions.
+     */
+    'run:invoke': {
+        /** The session this run will execute in */
+        sessionId: string;
+        /** The prompt/content being sent */
+        content: import('../context/types.js').ContentPart[];
+        /** Source of the invocation */
+        source: 'scheduler' | 'a2a' | 'api' | 'external';
+        /** Optional metadata about the invocation */
+        metadata?: Record<string, unknown>;
+    };
+
     // LLM events (forwarded from session bus with sessionId added)
     /** LLM service started thinking */
     'llm:thinking': {
@@ -299,9 +343,13 @@ export interface AgentEventMap {
             outputTokens?: number;
             reasoningTokens?: number;
             totalTokens?: number;
+            cacheReadTokens?: number;
+            cacheWriteTokens?: number;
         };
+        /** Estimated input tokens before LLM call (for analytics/calibration) */
+        estimatedInputTokens?: number;
         /** Finish reason: 'tool-calls' means more steps coming, others indicate completion */
-        finishReason?: string;
+        finishReason?: LLMFinishReason;
         sessionId: string;
     };
 
@@ -327,6 +375,13 @@ export interface AgentEventMap {
         requireApproval?: boolean;
         /** The approval status (only present if requireApproval is true) */
         approvalStatus?: 'approved' | 'rejected';
+        sessionId: string;
+    };
+
+    /** Tool execution actually started (after approval if needed) */
+    'tool:running': {
+        toolName: string;
+        toolCallId: string;
         sessionId: string;
     };
 
@@ -357,16 +412,23 @@ export interface AgentEventMap {
         sessionId: string;
     };
 
-    /** Context was compressed during multi-step tool calling */
-    'context:compressed': {
-        /** Actual input tokens from API that triggered compression */
+    /** Context compaction is starting */
+    'context:compacting': {
+        /** Estimated tokens that triggered compaction */
+        estimatedTokens: number;
+        sessionId: string;
+    };
+
+    /** Context was compacted during multi-step tool calling */
+    'context:compacted': {
+        /** Actual input tokens from API that triggered compaction */
         originalTokens: number;
-        /** Estimated tokens after compression (simple length/4 heuristic) */
-        compressedTokens: number;
+        /** Estimated tokens after compaction (simple length/4 heuristic) */
+        compactedTokens: number;
         originalMessages: number;
-        compressedMessages: number;
+        compactedMessages: number;
         strategy: string;
-        reason: 'overflow' | 'token_limit' | 'message_limit';
+        reason: 'overflow' | 'manual';
         sessionId: string;
     };
 
@@ -374,6 +436,11 @@ export interface AgentEventMap {
     'context:pruned': {
         prunedCount: number;
         savedTokens: number;
+        sessionId: string;
+    };
+
+    /** Context was manually cleared via /clear command */
+    'context:cleared': {
         sessionId: string;
     };
 
@@ -390,7 +457,7 @@ export interface AgentEventMap {
         ids: string[];
         coalesced: boolean;
         /** Combined content of all dequeued messages (for UI display) */
-        content: import('../session/types.js').UserMessageContentPart[];
+        content: import('../context/types.js').ContentPart[];
         sessionId: string;
     };
 
@@ -402,10 +469,12 @@ export interface AgentEventMap {
 
     /** Agent run completed (all steps done, no queued messages remaining) */
     'run:complete': {
-        /** How the run ended: 'stop', 'cancelled', 'max-steps', 'error', 'length' */
-        finishReason: string;
+        /** How the run ended */
+        finishReason: LLMFinishReason;
         /** Number of steps executed */
         stepCount: number;
+        /** Total wall-clock duration of the run in milliseconds */
+        durationMs: number;
         /** Error that caused termination (only if finishReason === 'error') */
         error?: Error;
         sessionId: string;
@@ -445,6 +514,24 @@ export interface AgentEventMap {
 
     /** Fired when user approval response is received */
     'approval:response': ApprovalResponse;
+
+    /**
+     * Extensible service event for non-core/additive services.
+     * Allows services like agent-spawner, process-tools, etc. to emit events
+     * without polluting the core event namespace.
+     */
+    'service:event': {
+        /** Service identifier (e.g., 'agent-spawner', 'process-tools') */
+        service: string;
+        /** Event type within the service (e.g., 'progress', 'stdout') */
+        event: string;
+        /** Links this event to a parent tool call */
+        toolCallId?: string;
+        /** Session this event belongs to */
+        sessionId: string;
+        /** Arbitrary event data - service-specific payload */
+        data: Record<string, unknown>;
+    };
 }
 
 /**
@@ -473,9 +560,13 @@ export interface SessionEventMap {
             outputTokens?: number;
             reasoningTokens?: number;
             totalTokens?: number;
+            cacheReadTokens?: number;
+            cacheWriteTokens?: number;
         };
+        /** Estimated input tokens before LLM call (for analytics/calibration) */
+        estimatedInputTokens?: number;
         /** Finish reason: 'tool-calls' means more steps coming, others indicate completion */
-        finishReason?: string;
+        finishReason?: LLMFinishReason;
     };
 
     /** LLM service requested a tool call */
@@ -499,6 +590,12 @@ export interface SessionEventMap {
         requireApproval?: boolean;
         /** The approval status (only present if requireApproval is true) */
         approvalStatus?: 'approved' | 'rejected';
+    };
+
+    /** Tool execution actually started (after approval if needed) */
+    'tool:running': {
+        toolName: string;
+        toolCallId: string;
     };
 
     /** LLM service error */
@@ -525,16 +622,22 @@ export interface SessionEventMap {
         details?: any;
     };
 
-    /** Context was compressed during multi-step tool calling */
-    'context:compressed': {
-        /** Actual input tokens from API that triggered compression */
+    /** Context compaction is starting */
+    'context:compacting': {
+        /** Estimated tokens that triggered compaction */
+        estimatedTokens: number;
+    };
+
+    /** Context was compacted during multi-step tool calling */
+    'context:compacted': {
+        /** Actual input tokens from API that triggered compaction */
         originalTokens: number;
-        /** Estimated tokens after compression (simple length/4 heuristic) */
-        compressedTokens: number;
+        /** Estimated tokens after compaction (simple length/4 heuristic) */
+        compactedTokens: number;
         originalMessages: number;
-        compressedMessages: number;
+        compactedMessages: number;
         strategy: string;
-        reason: 'overflow' | 'token_limit' | 'message_limit';
+        reason: 'overflow' | 'manual';
     };
 
     /** Old tool outputs were pruned (marked with compactedAt) to save tokens */
@@ -555,7 +658,7 @@ export interface SessionEventMap {
         ids: string[];
         coalesced: boolean;
         /** Combined content of all dequeued messages (for UI display) */
-        content: import('../session/types.js').UserMessageContentPart[];
+        content: import('../context/types.js').ContentPart[];
     };
 
     /** Queued message was removed from queue */
@@ -565,10 +668,12 @@ export interface SessionEventMap {
 
     /** Agent run completed (all steps done, no queued messages remaining) */
     'run:complete': {
-        /** How the run ended: 'stop', 'cancelled', 'max-steps', 'error', 'length' */
-        finishReason: string;
+        /** How the run ended */
+        finishReason: LLMFinishReason;
         /** Number of steps executed */
         stepCount: number;
+        /** Total wall-clock duration of the run in milliseconds */
+        durationMs: number;
         /** Error that caused termination (only if finishReason === 'error') */
         error?: Error;
     };
@@ -610,8 +715,10 @@ export const EventNames: readonly EventName[] = Object.freeze([...EVENT_NAMES]);
 /**
  * Generic typed EventEmitter base class using composition instead of inheritance
  * This provides full compile-time type safety by not extending EventEmitter
+ *
+ * Exported for extension by packages like multi-agent-server that need custom event buses.
  */
-class BaseTypedEventEmitter<TEventMap extends Record<string, any>> {
+export class BaseTypedEventEmitter<TEventMap extends Record<string, any>> {
     // Wrapped EventEmitter instance
     private _emitter = new EventEmitter();
 

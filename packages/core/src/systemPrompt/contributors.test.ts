@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, test, expect, beforeEach, afterEach } from 'vitest';
 import { FileContributor } from './contributors.js';
 import { writeFile, mkdir, rm } from 'fs/promises';
 import { join } from 'path';
@@ -6,18 +6,9 @@ import { DynamicContributorContext } from './types.js';
 import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
 import { SystemPromptErrorCode } from './error-codes.js';
 import { ErrorScope, ErrorType } from '../errors/types.js';
-import { IDextoLogger } from '../logger/v2/types.js';
+import { createMockLogger } from '../logger/v2/test-utils.js';
 
-const mockLogger: IDextoLogger = {
-    debug: vi.fn(),
-    silly: vi.fn(),
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    trackException: vi.fn(),
-    createChild: vi.fn(),
-    destroy: vi.fn(),
-};
+const mockLogger = createMockLogger();
 
 describe('FileContributor', () => {
     const testDir = join(process.cwd(), 'test-files');

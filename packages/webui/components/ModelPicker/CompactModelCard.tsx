@@ -25,8 +25,27 @@ const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
     groq: 'Groq',
     xai: 'Grok',
     cohere: 'Cohere',
+    minimax: 'MiniMax',
+    glm: 'GLM',
+    openrouter: 'OpenRouter',
+    litellm: 'LiteLLM',
+    glama: 'Glama',
+    vertex: 'Vertex AI',
+    bedrock: 'Bedrock',
     'openai-compatible': 'Custom',
+    dexto: 'Dexto',
 };
+
+// Providers that have multi-vendor models (don't strip provider prefixes from display name)
+const MULTI_VENDOR_PROVIDERS = new Set([
+    'openrouter',
+    'dexto',
+    'openai-compatible',
+    'litellm',
+    'glama',
+    'bedrock',
+    'vertex',
+]);
 
 export function CompactModelCard({
     provider,
@@ -45,8 +64,10 @@ export function CompactModelCard({
     const priceLines = formatPricingLines(model.pricing || undefined);
     const descriptionLines = [
         `Provider: ${providerInfo.name}`,
-        `Max tokens: ${model.maxInputTokens.toLocaleString()}`,
-        model.supportedFileTypes.length > 0 && `Supports: ${model.supportedFileTypes.join(', ')}`,
+        model.maxInputTokens && `Max tokens: ${model.maxInputTokens.toLocaleString()}`,
+        Array.isArray(model.supportedFileTypes) &&
+            model.supportedFileTypes.length > 0 &&
+            `Supports: ${model.supportedFileTypes.join(', ')}`,
         !hasApiKey && 'API key required',
         ...priceLines,
     ].filter(Boolean) as string[];
@@ -106,7 +127,12 @@ export function CompactModelCard({
                                 {providerName}
                             </span>
                             <span className="text-[10px] text-muted-foreground leading-tight truncate">
-                                {displayName.replace(new RegExp(`^${providerName}\\s*`, 'i'), '')}
+                                {MULTI_VENDOR_PROVIDERS.has(provider)
+                                    ? displayName
+                                    : displayName.replace(
+                                          new RegExp(`^${providerName}\\s*`, 'i'),
+                                          ''
+                                      )}
                             </span>
                         </div>
 

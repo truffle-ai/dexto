@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { AlertTriangle, ChevronDown, ChevronUp, X } from 'lucide-react';
-import { ErrorMessage } from './hooks/useChat';
+import { type ErrorMessage } from '@/lib/stores/chatStore';
 import type { Issue } from '@dexto/core';
 import { CopyButton } from './ui/copy-button';
 import { SpeakButton } from './ui/speak-button';

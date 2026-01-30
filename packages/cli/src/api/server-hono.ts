@@ -1,13 +1,17 @@
 import os from 'node:os';
+import type { Context } from 'hono';
 import type { AgentCard } from '@dexto/core';
-import { createAgentCard, logger, AgentError, DextoAgent } from '@dexto/core';
+import { DextoAgent, createAgentCard, logger, AgentError } from '@dexto/core';
 import {
     loadAgentConfig,
     enrichAgentConfig,
     deriveDisplayName,
     getAgentRegistry,
     AgentFactory,
+    globalPreferencesExist,
+    loadGlobalPreferences,
 } from '@dexto/agent-management';
+import { applyUserPreferences } from '../config/cli-overrides.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import {
     createDextoApp,
@@ -25,6 +29,35 @@ import {
 import { registerGracefulShutdown } from '../utils/graceful-shutdown.js';
 
 const DEFAULT_AGENT_VERSION = '1.0.0';
+
+/**
+ * Load image dynamically based on config and environment
+ * Priority: Config image field > Environment variable > Default
+ * Images are optional, but default to image-local for convenience
+ *
+ * @returns Image metadata including bundled plugins, or null if image has no metadata export
+ */
+async function loadImageForConfig(config: {
+    image?: string | undefined;
+}): Promise<{ bundledPlugins?: string[] } | null> {
+    const imageName = config.image || process.env.DEXTO_IMAGE || '@dexto/image-local';
+
+    try {
+        const imageModule = await import(imageName);
+        logger.debug(`Loaded image: ${imageName}`);
+
+        // Extract metadata if available (built images export imageMetadata)
+        if (imageModule.imageMetadata) {
+            return imageModule.imageMetadata;
+        }
+
+        return null;
+    } catch (err) {
+        const errorMsg = `Failed to load image '${imageName}': ${err instanceof Error ? err.message : String(err)}`;
+        logger.error(errorMsg);
+        throw new Error(errorMsg);
+    }
+}
 
 /**
  * List all agents (installed and available)
@@ -58,17 +91,43 @@ async function listAgents(): Promise<{
  * Create an agent from an agent ID
  * Replacement for old Dexto.createAgent()
  * Uses registry.resolveAgent() which auto-installs if needed
+ *
+ * Applies user preferences (preferences.yml) to ALL agents, not just the default.
+ * See feature-plans/auto-update.md section 8.11 - Three-Layer LLM Resolution.
  */
 async function createAgentFromId(agentId: string): Promise<DextoAgent> {
     try {
         // Use registry to resolve agent path (auto-installs if not present)
         const registry = getAgentRegistry();
-        const agentPath = await registry.resolveAgent(agentId, true, true);
+        const agentPath = await registry.resolveAgent(agentId, true);
 
-        // Load and enrich agent config
-        const config = await loadAgentConfig(agentPath);
+        // Load agent config
+        let config = await loadAgentConfig(agentPath);
+
+        // Apply user's LLM preferences to ALL agents
+        // Three-Layer Resolution: local.llm ?? preferences.llm ?? bundled.llm
+        if (globalPreferencesExist()) {
+            try {
+                const preferences = await loadGlobalPreferences();
+                if (preferences?.llm?.provider && preferences?.llm?.model) {
+                    config = applyUserPreferences(config, preferences);
+                    logger.debug(`Applied user preferences to ${agentId}`, {
+                        provider: preferences.llm.provider,
+                        model: preferences.llm.model,
+                    });
+                }
+            } catch {
+                logger.debug('Could not load preferences, using bundled config');
+            }
+        }
+
+        // Load image to get bundled plugins
+        const imageMetadata = await loadImageForConfig(config);
+
+        // Enrich config with per-agent paths and bundled plugins
         const enrichedConfig = enrichAgentConfig(config, agentPath, {
             logLevel: 'info', // Server uses info-level logging for visibility
+            bundledPlugins: imageMetadata?.bundledPlugins || [],
         });
 
         // Create agent instance
@@ -117,7 +176,7 @@ export async function initializeHonoApi(
 ): Promise<HonoInitializationResult> {
     // Declare before registering shutdown hook to avoid TDZ on signals
     let activeAgent: DextoAgent = agent;
-    let activeAgentId: string | undefined = agentId || 'default-agent';
+    let activeAgentId: string | undefined = agentId || 'coding-agent';
     let isSwitchingAgent = false;
     registerGracefulShutdown(() => activeAgent);
 
@@ -311,11 +370,31 @@ export async function initializeHonoApi(
             await Telemetry.shutdownGlobal();
 
             // 2. Load agent configuration from file path
-            const config = await loadAgentConfig(filePath);
+            let config = await loadAgentConfig(filePath);
 
-            // 3. Enrich config with per-agent paths (logs, storage, etc.)
+            // 2.5. Apply user's LLM preferences to ALL agents
+            // Three-Layer Resolution: local.llm ?? preferences.llm ?? bundled.llm
+            if (globalPreferencesExist()) {
+                try {
+                    const preferences = await loadGlobalPreferences();
+                    if (preferences?.llm?.provider && preferences?.llm?.model) {
+                        config = applyUserPreferences(config, preferences);
+                        logger.debug(
+                            `Applied user preferences to agent from ${filePath} (provider=${preferences.llm.provider}, model=${preferences.llm.model})`
+                        );
+                    }
+                } catch {
+                    logger.debug('Could not load preferences, using bundled config');
+                }
+            }
+
+            // 3. Load image first to get bundled plugins
+            const imageMetadata = await loadImageForConfig(config);
+
+            // 3.5. Enrich config with per-agent paths and bundled plugins from image
             const enrichedConfig = enrichAgentConfig(config, filePath, {
                 logLevel: 'info', // Server uses info-level logging for visibility
+                bundledPlugins: imageMetadata?.bundledPlugins || [],
             });
 
             // 4. Create new agent instance directly (will initialize fresh telemetry in createAgentServices)
@@ -352,7 +431,8 @@ export async function initializeHonoApi(
 
     // Getter functions for routes (always use current agent)
     // getAgent automatically ensures agent is available before returning it
-    const getAgent = (): DextoAgent => {
+    // Accepts Context parameter for compatibility with GetAgentFn type
+    const getAgent = (_ctx: Context): DextoAgent => {
         // CRITICAL: Check agent availability before every access to prevent race conditions
         // during agent switching, stopping, or startup failures
         ensureAgentAvailable();
@@ -400,7 +480,7 @@ export async function initializeHonoApi(
 
     // Create bridge with app
     bridgeRef = createNodeServer(app, {
-        getAgent,
+        getAgent: () => activeAgent,
         mcpHandlers: mcpTransport ? createMcpHttpHandlers(mcpTransport) : null,
     });
 

@@ -11,7 +11,7 @@ import * as path from 'path';
 // Mock the registry functions
 vi.mock('./registry.js', () => ({
     getPromptGenerator: vi.fn(),
-    PROMPT_GENERATOR_SOURCES: ['dateTime', 'resources'],
+    PROMPT_GENERATOR_SOURCES: ['date', 'env', 'resources'],
 }));
 
 const mockGetPromptGenerator = vi.mocked(registry.getPromptGenerator);
@@ -46,7 +46,8 @@ describe('SystemPromptManager', () => {
         // Set up default mock generators to prevent "No generator registered" errors
         mockGetPromptGenerator.mockImplementation((source) => {
             const mockGenerators: Record<string, any> = {
-                dateTime: vi.fn().mockResolvedValue('Mock DateTime'),
+                date: vi.fn().mockResolvedValue('Mock DateTime'),
+                env: vi.fn().mockResolvedValue('Mock Environment'),
                 resources: vi.fn().mockResolvedValue('Mock Resources'),
             };
             return mockGenerators[source];
@@ -85,10 +86,11 @@ describe('SystemPromptManager', () => {
             );
 
             const contributors = manager.getContributors();
-            expect(contributors).toHaveLength(1); // Only dateTime is enabled by default
+            expect(contributors).toHaveLength(2); // date and env are enabled by default
 
-            // Should only have dateTime (resources is disabled by default)
-            expect(contributors[0]?.id).toBe('dateTime'); // priority 10, enabled: true
+            // Should have date and env (resources is disabled by default)
+            expect(contributors[0]?.id).toBe('date'); // priority 10, enabled: true
+            expect(contributors[1]?.id).toBe('env'); // priority 15, enabled: true
         });
 
         it('should initialize with custom contributors config', () => {
@@ -102,10 +104,10 @@ describe('SystemPromptManager', () => {
                         enabled: true,
                     },
                     {
-                        id: 'dateTime',
+                        id: 'date',
                         type: 'dynamic',
                         priority: 10,
-                        source: 'dateTime',
+                        source: 'date',
                         enabled: true,
                     },
                 ],
@@ -122,7 +124,7 @@ describe('SystemPromptManager', () => {
 
             expect(contributors).toHaveLength(2);
             expect(contributors[0]?.id).toBe('main');
-            expect(contributors[1]?.id).toBe('dateTime');
+            expect(contributors[1]?.id).toBe('date');
         });
 
         it('should filter out disabled contributors', () => {
@@ -248,10 +250,10 @@ You can help with:
             const config = SystemPromptConfigSchema.parse({
                 contributors: [
                     {
-                        id: 'dateTime',
+                        id: 'date',
                         type: 'dynamic',
                         priority: 10,
-                        source: 'dateTime',
+                        source: 'date',
                     },
                 ],
             });
@@ -265,7 +267,7 @@ You can help with:
             );
             const result = await manager.build(mockContext);
 
-            expect(mockGetPromptGenerator).toHaveBeenCalledWith('dateTime');
+            expect(mockGetPromptGenerator).toHaveBeenCalledWith('date');
             expect(mockGenerator).toHaveBeenCalledWith(mockContext);
             expect(result).toBe('Current time: 2023-01-01');
         });
@@ -279,7 +281,7 @@ You can help with:
                         id: 'unknownSource',
                         type: 'dynamic',
                         priority: 10,
-                        source: 'dateTime', // valid enum but mock returns undefined
+                        source: 'date', // valid enum but mock returns undefined
                     },
                 ],
             });
@@ -309,14 +311,14 @@ You can help with:
             const resourcesGenerator = vi.fn().mockResolvedValue('Resources: file1.md, file2.md');
 
             mockGetPromptGenerator.mockImplementation((source) => {
-                if (source === 'dateTime') return dateTimeGenerator;
+                if (source === 'date') return dateTimeGenerator;
                 if (source === 'resources') return resourcesGenerator;
                 return undefined;
             });
 
             const config = SystemPromptConfigSchema.parse({
                 contributors: [
-                    { id: 'time', type: 'dynamic', priority: 10, source: 'dateTime' },
+                    { id: 'time', type: 'dynamic', priority: 10, source: 'date' },
                     { id: 'files', type: 'dynamic', priority: 20, source: 'resources' },
                 ],
             });
@@ -413,7 +415,7 @@ You can help with:
                         id: 'dynamic',
                         type: 'dynamic',
                         priority: 10,
-                        source: 'dateTime',
+                        source: 'date',
                     },
                 ],
             });
@@ -442,7 +444,7 @@ You can help with:
                         priority: 20,
                         content: 'Static priority 20',
                     },
-                    { id: 'dynamic-high', type: 'dynamic', priority: 5, source: 'dateTime' },
+                    { id: 'dynamic-high', type: 'dynamic', priority: 5, source: 'date' },
                     {
                         id: 'static-high',
                         type: 'static',
@@ -513,14 +515,14 @@ You can help with:
             const mockGenerator2 = vi.fn().mockResolvedValue('Gen2');
 
             mockGetPromptGenerator.mockImplementation((source) => {
-                if (source === 'dateTime') return mockGenerator1;
+                if (source === 'date') return mockGenerator1;
                 if (source === 'resources') return mockGenerator2;
                 return undefined;
             });
 
             const config = SystemPromptConfigSchema.parse({
                 contributors: [
-                    { id: 'gen1', type: 'dynamic', priority: 0, source: 'dateTime' },
+                    { id: 'gen1', type: 'dynamic', priority: 0, source: 'date' },
                     { id: 'gen2', type: 'dynamic', priority: 10, source: 'resources' },
                 ],
             });
@@ -549,7 +551,7 @@ You can help with:
             mockGetPromptGenerator.mockReturnValue(mockGenerator);
 
             const config = SystemPromptConfigSchema.parse({
-                contributors: [{ id: 'failing', type: 'dynamic', priority: 0, source: 'dateTime' }],
+                contributors: [{ id: 'failing', type: 'dynamic', priority: 0, source: 'date' }],
             });
 
             const manager = new SystemPromptManager(
@@ -586,10 +588,12 @@ You can help with:
     describe('Real-world Scenarios', () => {
         it('should handle default configuration (empty object)', async () => {
             const mockDateTimeGenerator = vi.fn().mockResolvedValue('2023-01-01 12:00:00');
+            const mockEnvGenerator = vi.fn().mockResolvedValue('<environment>mock</environment>');
             const mockResourcesGenerator = vi.fn().mockResolvedValue('Available files: config.yml');
 
             mockGetPromptGenerator.mockImplementation((source) => {
-                if (source === 'dateTime') return mockDateTimeGenerator;
+                if (source === 'date') return mockDateTimeGenerator;
+                if (source === 'env') return mockEnvGenerator;
                 if (source === 'resources') return mockResourcesGenerator;
                 return undefined;
             });
@@ -603,14 +607,16 @@ You can help with:
                 mockLogger
             );
 
-            // Only dateTime should be enabled by default, resources is disabled
+            // date and env should be enabled by default, resources is disabled
             const contributors = manager.getContributors();
-            expect(contributors).toHaveLength(1);
-            expect(contributors[0]?.id).toBe('dateTime');
+            expect(contributors).toHaveLength(2);
+            expect(contributors[0]?.id).toBe('date');
+            expect(contributors[1]?.id).toBe('env');
 
             const result = await manager.build(mockContext);
-            expect(result).toBe('2023-01-01 12:00:00');
+            expect(result).toBe('2023-01-01 12:00:00\n<environment>mock</environment>');
             expect(mockDateTimeGenerator).toHaveBeenCalledWith(mockContext);
+            expect(mockEnvGenerator).toHaveBeenCalledWith(mockContext);
             expect(mockResourcesGenerator).not.toHaveBeenCalled();
         });
 
@@ -637,7 +643,7 @@ You can help with:
                         id: 'datetime',
                         type: 'dynamic',
                         priority: 10,
-                        source: 'dateTime',
+                        source: 'date',
                     },
                 ],
             });

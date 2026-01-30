@@ -33,10 +33,10 @@ systemPrompt:
         - "Extract all content containing 'invoice' from /path/to/file.pdf and explain what you found."
         
         Always ask for the file path if not provided. If a file is not a PDF or does not exist, inform the user.
-    - id: dateTime
+    - id: date
       type: dynamic
       priority: 10
-      source: dateTime
+      source: date
       enabled: true
 
 # Storage configuration

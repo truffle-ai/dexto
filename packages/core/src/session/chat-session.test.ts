@@ -9,6 +9,18 @@ vi.mock('./history/factory.js', () => ({
 }));
 vi.mock('../llm/services/factory.js', () => ({
     createLLMService: vi.fn(),
+    createVercelModel: vi.fn(),
+}));
+vi.mock('../context/compaction/index.js', () => ({
+    createCompactionStrategy: vi.fn(),
+    compactionRegistry: {
+        register: vi.fn(),
+        get: vi.fn(),
+        has: vi.fn(),
+        getTypes: vi.fn(),
+        getAll: vi.fn(),
+        clear: vi.fn(),
+    },
 }));
 vi.mock('../llm/registry.js', async (importOriginal) => {
     const actual = (await importOriginal()) as typeof import('../llm/registry.js');
@@ -28,11 +40,15 @@ vi.mock('../logger/index.js', () => ({
 }));
 
 import { createDatabaseHistoryProvider } from './history/factory.js';
-import { createLLMService } from '../llm/services/factory.js';
+import { createLLMService, createVercelModel } from '../llm/services/factory.js';
+import { createCompactionStrategy } from '../context/compaction/index.js';
 import { getEffectiveMaxInputTokens } from '../llm/registry.js';
+import { createMockLogger } from '../logger/v2/test-utils.js';
 
 const mockCreateDatabaseHistoryProvider = vi.mocked(createDatabaseHistoryProvider);
 const mockCreateLLMService = vi.mocked(createLLMService);
+const mockCreateVercelModel = vi.mocked(createVercelModel);
+const mockCreateCompactionStrategy = vi.mocked(createCompactionStrategy);
 const mockGetEffectiveMaxInputTokens = vi.mocked(getEffectiveMaxInputTokens);
 
 describe('ChatSession', () => {
@@ -43,7 +59,8 @@ describe('ChatSession', () => {
     let mockCache: any;
     let mockDatabase: any;
     let mockBlobStore: any;
-    let mockLogger: any;
+    let mockContextManager: any;
+    const mockLogger = createMockLogger();
 
     const sessionId = 'test-session-123';
     const mockLLMConfig = LLMConfigSchema.parse({
@@ -66,9 +83,13 @@ describe('ChatSession', () => {
         };
 
         // Mock LLM service
+        mockContextManager = {
+            resetConversation: vi.fn().mockResolvedValue(undefined),
+        };
         mockLLMService = {
-            completeTask: vi.fn().mockResolvedValue('Mock response'),
+            stream: vi.fn().mockResolvedValue('Mock response'),
             switchLLM: vi.fn().mockResolvedValue(undefined),
+            getContextManager: vi.fn().mockReturnValue(mockContextManager),
             eventBus: {
                 emit: vi.fn(),
                 on: vi.fn(),
@@ -130,6 +151,10 @@ describe('ChatSession', () => {
         mockServices = {
             stateManager: {
                 getLLMConfig: vi.fn().mockReturnValue(mockLLMConfig),
+                getRuntimeConfig: vi.fn().mockReturnValue({
+                    llm: mockLLMConfig,
+                    compression: { type: 'noop', enabled: true },
+                }),
                 updateLLM: vi.fn().mockReturnValue({ isValid: true, errors: [], warnings: [] }),
             },
             systemPromptManager: {
@@ -164,19 +189,9 @@ describe('ChatSession', () => {
         // Set up factory mocks
         mockCreateDatabaseHistoryProvider.mockReturnValue(mockHistoryProvider);
         mockCreateLLMService.mockReturnValue(mockLLMService);
+        mockCreateVercelModel.mockReturnValue('mock-model' as any);
+        mockCreateCompactionStrategy.mockResolvedValue(null); // No compaction for tests
         mockGetEffectiveMaxInputTokens.mockReturnValue(128000);
-
-        // Create mock logger
-        mockLogger = {
-            debug: vi.fn(),
-            info: vi.fn(),
-            warn: vi.fn(),
-            error: vi.fn(),
-            silly: vi.fn(),
-            trackException: vi.fn(),
-            createChild: vi.fn().mockReturnThis(),
-            destroy: vi.fn().mockResolvedValue(undefined),
-        };
 
         // Create ChatSession instance
         chatSession = new ChatSession(mockServices, sessionId, mockLogger);
@@ -247,8 +262,8 @@ describe('ChatSession', () => {
 
             await chatSession.reset();
 
-            // Should call clearHistory on history provider
-            expect(mockHistoryProvider.clearHistory).toHaveBeenCalled();
+            // Should reset conversation via ContextManager
+            expect(mockContextManager.resetConversation).toHaveBeenCalled();
 
             // Should emit dexto:conversationReset event with session context
             expect(mockServices.agentEventBus.emit).toHaveBeenCalledWith('session:reset', {
@@ -282,7 +297,9 @@ describe('ChatSession', () => {
                 chatSession.eventBus,
                 sessionId,
                 mockServices.resourceManager,
-                mockLogger
+                mockLogger,
+                null, // compaction strategy
+                undefined // compaction config
             );
         });
 
@@ -307,7 +324,9 @@ describe('ChatSession', () => {
                 chatSession.eventBus,
                 sessionId,
                 mockServices.resourceManager,
-                mockLogger
+                mockLogger,
+                null, // compaction strategy
+                undefined // compaction config
             );
         });
 
@@ -368,9 +387,9 @@ describe('ChatSession', () => {
         test('should handle conversation errors from LLM service', async () => {
             await chatSession.init();
 
-            mockLLMService.completeTask.mockRejectedValue(new Error('LLM service error'));
+            mockLLMService.stream.mockRejectedValue(new Error('LLM service error'));
 
-            await expect(chatSession.run('test message')).rejects.toThrow('LLM service error');
+            await expect(chatSession.stream('test message')).rejects.toThrow('LLM service error');
         });
     });
 
@@ -383,17 +402,14 @@ describe('ChatSession', () => {
             const userMessage = 'Hello, world!';
             const expectedResponse = 'Hello! How can I help you?';
 
-            mockLLMService.completeTask.mockResolvedValue(expectedResponse);
+            mockLLMService.stream.mockResolvedValue({ text: expectedResponse });
 
-            const response = await chatSession.run(userMessage);
+            const response = await chatSession.stream(userMessage);
 
-            expect(response).toBe(expectedResponse);
-            expect(mockLLMService.completeTask).toHaveBeenCalledWith(
-                userMessage,
-                expect.objectContaining({ signal: expect.any(AbortSignal) }),
-                undefined,
-                undefined,
-                undefined
+            expect(response).toEqual({ text: expectedResponse });
+            expect(mockLLMService.stream).toHaveBeenCalledWith(
+                [{ type: 'text', text: userMessage }],
+                expect.objectContaining({ signal: expect.any(AbortSignal) })
             );
         });
 
@@ -426,7 +442,9 @@ describe('ChatSession', () => {
                 chatSession.eventBus, // Session-specific event bus
                 sessionId,
                 mockServices.resourceManager, // ResourceManager parameter
-                mockLogger // Logger parameter
+                mockLogger, // Logger parameter
+                null, // compaction strategy
+                undefined // compaction config
             );
 
             // Verify session-specific history provider creation

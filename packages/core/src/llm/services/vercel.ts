@@ -6,7 +6,9 @@ import { DextoLogComponent } from '../../logger/v2/types.js';
 import { ToolSet } from '../../tools/types.js';
 import { ContextManager } from '../../context/manager.js';
 import { getEffectiveMaxInputTokens, getMaxInputTokensForModel } from '../registry.js';
-import { ImageData, FileData } from '../../context/types.js';
+import type { ModelLimits } from '../../context/compaction/overflow.js';
+import type { CompactionConfigInput } from '../../context/compaction/schemas.js';
+import { ContentPart } from '../../context/types.js';
 import type { SessionEventBus } from '../../events/index.js';
 import type { IConversationHistoryProvider } from '../../session/history/types.js';
 import type { SystemPromptManager } from '../../systemPrompt/manager.js';
@@ -19,6 +21,7 @@ import { MessageQueueService } from '../../session/message-queue.js';
 import type { ResourceManager } from '../../resources/index.js';
 import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
 import { LLMErrorCode } from '../error-codes.js';
+import type { ContentInput } from '../../agent/types.js';
 
 /**
  * Vercel AI SDK implementation of LLMService
@@ -27,7 +30,7 @@ import { LLMErrorCode } from '../error-codes.js';
  * - Tool execution with multimodal support
  * - Streaming with llm:chunk events
  * - Message persistence via StreamProcessor
- * - Reactive compression on overflow
+ * - Reactive compaction on overflow
  * - Tool output pruning
  * - Message queue injection
  *
@@ -48,6 +51,11 @@ export class VercelLLMService {
     private logger: IDextoLogger;
     private resourceManager: ResourceManager;
     private messageQueue: MessageQueueService;
+    private compactionStrategy:
+        | import('../../context/compaction/types.js').ICompactionStrategy
+        | null;
+    private modelLimits: ModelLimits;
+    private compactionThresholdPercent: number;
 
     /**
      * Helper to extract model ID from LanguageModel union type (string | LanguageModelV2)
@@ -65,7 +73,9 @@ export class VercelLLMService {
         config: ValidatedLLMConfig,
         sessionId: string,
         resourceManager: ResourceManager,
-        logger: IDextoLogger
+        logger: IDextoLogger,
+        compactionStrategy?: import('../../context/compaction/types.js').ICompactionStrategy | null,
+        compactionConfig?: CompactionConfigInput
     ) {
         this.logger = logger.createChild(DextoLogComponent.LLM);
         this.model = model;
@@ -74,6 +84,8 @@ export class VercelLLMService {
         this.sessionEventBus = sessionEventBus;
         this.sessionId = sessionId;
         this.resourceManager = resourceManager;
+        this.compactionStrategy = compactionStrategy ?? null;
+        this.compactionThresholdPercent = compactionConfig?.thresholdPercent ?? 0.9;
 
         // Create session-level message queue for mid-task user messages
         this.messageQueue = new MessageQueueService(this.sessionEventBus, this.logger);
@@ -81,6 +93,26 @@ export class VercelLLMService {
         // Create properly-typed ContextManager for Vercel
         const formatter = new VercelMessageFormatter(this.logger);
         const maxInputTokens = getEffectiveMaxInputTokens(config, this.logger);
+
+        // Set model limits for compaction overflow detection
+        // - maxContextTokens overrides the model's context window
+        // - thresholdPercent is applied separately in isOverflow() to trigger before 100%
+        let effectiveContextWindow = maxInputTokens;
+
+        // Apply maxContextTokens override if set (cap the context window)
+        if (compactionConfig?.maxContextTokens !== undefined) {
+            effectiveContextWindow = Math.min(maxInputTokens, compactionConfig.maxContextTokens);
+            this.logger.debug(
+                `Compaction: Using maxContextTokens override: ${compactionConfig.maxContextTokens} (model max: ${maxInputTokens})`
+            );
+        }
+
+        // NOTE: thresholdPercent is NOT applied here - it's only applied in isOverflow()
+        // to trigger compaction early (e.g., at 90% instead of 100%)
+
+        this.modelLimits = {
+            contextWindow: effectiveContextWindow,
+        };
 
         this.contextManager = new ContextManager<ModelMessage>(
             config,
@@ -118,26 +150,36 @@ export class VercelLLMService {
                 maxOutputTokens: this.config.maxOutputTokens,
                 temperature: this.config.temperature,
                 baseURL: this.config.baseURL,
+                // Provider-specific options
+                reasoningEffort: this.config.reasoningEffort,
             },
             { provider: this.config.provider, model: this.getModelId() },
             this.logger,
             this.messageQueue,
-            undefined, // modelLimits - TurnExecutor will use defaults
-            externalSignal
+            this.modelLimits,
+            externalSignal,
+            this.compactionStrategy,
+            this.compactionThresholdPercent
         );
     }
 
     /**
-     * Complete a task using the agent loop.
-     * Delegates to TurnExecutor for actual execution.
+     * Result from streaming a response.
      */
-    async completeTask(
-        textInput: string,
-        options: { signal?: AbortSignal },
-        imageData?: ImageData,
-        fileData?: FileData,
-        stream?: boolean
-    ): Promise<string> {
+    public static StreamResult: { text: string };
+
+    /**
+     * Stream a response for the given content.
+     * Primary method for running conversations with multi-image support.
+     *
+     * @param content - String or ContentPart[] (text, images, files)
+     * @param options - { signal?: AbortSignal }
+     * @returns Object with text response
+     */
+    async stream(
+        content: ContentInput,
+        options?: { signal?: AbortSignal }
+    ): Promise<{ text: string }> {
         // Get active span and context for telemetry
         const activeSpan = trace.getActiveSpan();
         const currentContext = context.active();
@@ -173,25 +215,23 @@ export class VercelLLMService {
 
         // Execute rest of method in updated context
         return await context.with(updatedContext, async () => {
-            // Add user message, with optional image and file data
-            await this.contextManager.addUserMessage(textInput, imageData, fileData);
+            // Normalize content to ContentPart[] for addUserMessage
+            const parts: ContentPart[] =
+                typeof content === 'string' ? [{ type: 'text', text: content }] : content;
+
+            // Add user message with all content parts
+            await this.contextManager.addUserMessage(parts);
 
             // Create executor (uses session-level messageQueue, pass external abort signal)
-            const executor = this.createTurnExecutor(options.signal);
+            const executor = this.createTurnExecutor(options?.signal);
 
-            // Execute with streaming flag
+            // Execute with streaming enabled
             const contributorContext = { mcpManager: this.toolManager.getMcpManager() };
-            const result = await executor.execute(contributorContext, stream ?? true);
+            const result = await executor.execute(contributorContext, true);
 
-            // If the run was cancelled, don't emit the "max steps" fallback.
-            if (options?.signal?.aborted) {
-                return result.text ?? '';
-            }
-
-            return (
-                result.text ||
-                `Reached maximum number of steps (${this.config.maxIterations}) without a final response.`
-            );
+            return {
+                text: result.text ?? '',
+            };
         });
     }
 
@@ -242,5 +282,14 @@ export class VercelLLMService {
      */
     getMessageQueue(): MessageQueueService {
         return this.messageQueue;
+    }
+
+    /**
+     * Get the compaction strategy for external access (e.g., session-native compaction)
+     */
+    getCompactionStrategy():
+        | import('../../context/compaction/types.js').ICompactionStrategy
+        | null {
+        return this.compactionStrategy;
     }
 }

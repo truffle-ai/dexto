@@ -20,17 +20,23 @@ export interface DextoLoggerConfig {
     component: DextoLogComponent;
     /** Agent ID for multi-agent isolation */
     agentId: string;
+    /** Optional session ID for associating logs with a session */
+    sessionId?: string;
     /** Transport instances */
     transports: ILoggerTransport[];
+    /** Shared level reference (internal - for child loggers to share parent's level) */
+    _levelRef?: { value: LogLevel };
 }
 
 /**
  * DextoLogger - Multi-transport logger with structured logging
  */
 export class DextoLogger implements IDextoLogger {
-    private level: LogLevel;
+    /** Shared level reference - allows parent and all children to share the same level */
+    private levelRef: { value: LogLevel };
     private component: DextoLogComponent;
     private agentId: string;
+    private sessionId: string | undefined;
     private transports: ILoggerTransport[];
 
     // Log level hierarchy for filtering
@@ -45,9 +51,11 @@ export class DextoLogger implements IDextoLogger {
     };
 
     constructor(config: DextoLoggerConfig) {
-        this.level = config.level;
+        // Use shared level ref if provided (for child loggers), otherwise create new one
+        this.levelRef = config._levelRef ?? { value: config.level };
         this.component = config.component;
         this.agentId = config.agentId;
+        this.sessionId = config.sessionId;
         this.transports = config.transports;
     }
 
@@ -100,6 +108,7 @@ export class DextoLogger implements IDextoLogger {
             timestamp: new Date().toISOString(),
             component: this.component,
             agentId: this.agentId,
+            ...(this.sessionId !== undefined && { sessionId: this.sessionId }),
             context,
         };
 
@@ -126,19 +135,49 @@ export class DextoLogger implements IDextoLogger {
      * So if configured is 'debug' (3), we log error(0), warn(1), info(2), debug(3) but not silly(4)
      */
     private shouldLog(level: LogLevel): boolean {
-        return DextoLogger.LEVELS[level] <= DextoLogger.LEVELS[this.level];
+        return DextoLogger.LEVELS[level] <= DextoLogger.LEVELS[this.levelRef.value];
+    }
+
+    /**
+     * Set the log level dynamically
+     * Affects this logger and all child loggers (shared level reference)
+     */
+    setLevel(level: LogLevel): void {
+        this.levelRef.value = level;
+    }
+
+    /**
+     * Get the current log level
+     */
+    getLevel(): LogLevel {
+        return this.levelRef.value;
+    }
+
+    /**
+     * Get the log file path if file logging is configured
+     */
+    getLogFilePath(): string | null {
+        // Find the FileTransport and get its path
+        for (const transport of this.transports) {
+            if ('getFilePath' in transport && typeof transport.getFilePath === 'function') {
+                return transport.getFilePath();
+            }
+        }
+        return null;
     }
 
     /**
      * Create a child logger for a different component
-     * Shares the same transports but uses different component identifier
+     * Shares the same transports and level reference but uses different component identifier
      */
     createChild(component: DextoLogComponent): DextoLogger {
         return new DextoLogger({
-            level: this.level,
+            level: this.levelRef.value, // Initial value (will be overridden by _levelRef)
             component,
             agentId: this.agentId,
+            ...(this.sessionId !== undefined && { sessionId: this.sessionId }),
             transports: this.transports,
+            _levelRef: this.levelRef, // Share the same level reference
         });
     }
 

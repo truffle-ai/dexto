@@ -1,78 +1,56 @@
 import type { Database } from './types.js';
-import type { DatabaseConfig, PostgresDatabaseConfig, SqliteDatabaseConfig } from '../schemas.js';
-import { MemoryDatabaseStore } from './memory-database-store.js';
 import type { IDextoLogger } from '../../logger/v2/types.js';
-import { StorageError } from '../errors.js';
-
-// Types for database store constructors
-interface SQLiteStoreConstructor {
-    new (config: SqliteDatabaseConfig, logger: IDextoLogger): Database;
-}
-
-interface PostgresStoreConstructor {
-    new (config: PostgresDatabaseConfig, logger: IDextoLogger): Database;
-}
-
-// Lazy imports for optional dependencies
-let SQLiteStore: SQLiteStoreConstructor | null = null;
-let PostgresStore: PostgresStoreConstructor | null = null;
+import { databaseRegistry } from './registry.js';
 
 /**
- * Create a database store based on configuration.
- * Handles lazy loading of optional dependencies.
- * Throws StorageError.dependencyNotInstalled if required package is missing.
- * Database paths are provided via CLI enrichment layer.
- * @param config Database configuration with explicit paths
- * @param logger Logger instance for logging
+ * Create a database based on configuration using the provider registry.
+ *
+ * This factory function:
+ * 1. Validates the configuration against the registered provider's schema
+ * 2. Looks up the provider in the registry
+ * 3. Calls the provider's create method to instantiate the database
+ *
+ * The configuration type is determined at runtime by the 'type' field,
+ * which must match a registered provider. Custom providers can be registered
+ * via databaseRegistry.register() before calling this function.
+ *
+ * Database paths are provided via CLI enrichment layer (for sqlite).
+ *
+ * @param config - Database configuration with a 'type' discriminator
+ * @param logger - Logger instance for the database
+ * @returns A Database implementation
+ * @throws Error if the provider type is not registered or validation fails
+ *
+ * @example
+ * ```typescript
+ * // Using built-in provider
+ * const db = await createDatabase({ type: 'sqlite', path: '/tmp/data.db' }, logger);
+ *
+ * // Using custom provider (registered beforehand)
+ * import { databaseRegistry } from '@dexto/core';
+ * import { mongoProvider } from './storage/mongo-provider.js';
+ *
+ * databaseRegistry.register(mongoProvider);
+ * const db = await createDatabase({ type: 'mongodb', uri: '...' }, logger);
+ * ```
  */
 export async function createDatabase(
-    config: DatabaseConfig,
+    config: { type: string; [key: string]: any },
     logger: IDextoLogger
 ): Promise<Database> {
-    switch (config.type) {
-        case 'postgres':
-            return createPostgresStore(config, logger);
+    // Validate config against provider schema and get provider
+    const validatedConfig = databaseRegistry.validateConfig(config);
+    const provider = databaseRegistry.get(validatedConfig.type);
 
-        case 'sqlite':
-            return createSQLiteStore(config, logger);
-
-        case 'in-memory':
-        default:
-            logger.info('Using in-memory database store');
-            return new MemoryDatabaseStore();
+    if (!provider) {
+        // This should never happen after validateConfig, but handle it defensively
+        throw new Error(`Provider '${validatedConfig.type}' not found in registry`);
     }
-}
 
-async function createPostgresStore(
-    config: PostgresDatabaseConfig,
-    logger: IDextoLogger
-): Promise<Database> {
-    try {
-        if (!PostgresStore) {
-            const module = await import('./postgres-store.js');
-            PostgresStore = module.PostgresStore;
-        }
-        logger.info('Connecting to PostgreSQL database');
-        return new PostgresStore(config, logger);
-    } catch (error: unknown) {
-        const err = error as NodeJS.ErrnoException;
-        if (err.code === 'ERR_MODULE_NOT_FOUND') {
-            throw StorageError.dependencyNotInstalled('PostgreSQL', 'pg', 'npm install pg');
-        }
-        throw error;
-    }
-}
+    // Log which provider is being used
+    const providerName = provider.metadata?.displayName || validatedConfig.type;
+    logger.info(`Using ${providerName} database`);
 
-async function createSQLiteStore(
-    config: SqliteDatabaseConfig,
-    logger: IDextoLogger
-): Promise<Database> {
-    // SQLiteStore uses dynamic import for better-sqlite3 inside connect(),
-    // so dependency errors are thrown there, not here
-    if (!SQLiteStore) {
-        const module = await import('./sqlite-store.js');
-        SQLiteStore = module.SQLiteStore;
-    }
-    logger.info(`Creating SQLite database store: ${config.path}`);
-    return new SQLiteStore(config, logger);
+    // Create and return the database instance (may be async for lazy-loaded dependencies)
+    return provider.create(validatedConfig, logger);
 }

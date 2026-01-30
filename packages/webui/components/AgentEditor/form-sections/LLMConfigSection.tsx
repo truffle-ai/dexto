@@ -3,7 +3,7 @@ import { Input } from '../../ui/input';
 import { LabelWithTooltip } from '../../ui/label-with-tooltip';
 import { Collapsible } from '../../ui/collapsible';
 import { Eye, EyeOff } from 'lucide-react';
-import { LLM_PROVIDERS, type AgentConfig } from '@dexto/core';
+import { LLM_PROVIDERS, isReasoningCapableModel, type AgentConfig } from '@dexto/core';
 
 type LLMConfig = AgentConfig['llm'];
 
@@ -265,6 +265,39 @@ export function LLMConfigSection({
                         )}
                     </div>
                 </div>
+
+                {/* Provider-Specific Options */}
+
+                {/* Reasoning Effort - Only for models that support it (o1, o3, codex, gpt-5.x) */}
+                {value.model && isReasoningCapableModel(value.model) && (
+                    <div>
+                        <LabelWithTooltip
+                            htmlFor="reasoningEffort"
+                            tooltip="Controls reasoning depth for OpenAI models (o1, o3, codex, gpt-5.x). Higher = more thorough but slower/costlier. 'medium' is recommended for most tasks."
+                        >
+                            Reasoning Effort
+                        </LabelWithTooltip>
+                        <select
+                            id="reasoningEffort"
+                            value={value.reasoningEffort || ''}
+                            onChange={(e) =>
+                                handleChange('reasoningEffort', e.target.value || undefined)
+                            }
+                            className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                        >
+                            <option value="">Auto (model default)</option>
+                            <option value="none">None - No reasoning</option>
+                            <option value="minimal">Minimal - Barely any reasoning</option>
+                            <option value="low">Low - Light reasoning</option>
+                            <option value="medium">Medium - Balanced (recommended)</option>
+                            <option value="high">High - Thorough reasoning</option>
+                            <option value="xhigh">Extra High - Maximum quality</option>
+                        </select>
+                        <p className="text-xs text-muted-foreground mt-1">
+                            Only applies to reasoning models (o1, o3, codex, gpt-5.x)
+                        </p>
+                    </div>
+                )}
             </div>
         </Collapsible>
     );

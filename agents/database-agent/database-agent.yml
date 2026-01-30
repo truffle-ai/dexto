@@ -105,10 +105,10 @@ systemPrompt:
         Remember: You're demonstrating intelligent database interaction through
         natural conversation and data analysis.
 
-    - id: dateTime
+    - id: date
       type: dynamic
       priority: 10
-      source: dateTime
+      source: date
       enabled: true
 
 # Storage configuration

@@ -1,11 +1,18 @@
 import { randomUUID } from 'crypto';
 import { VercelMessageFormatter } from '@core/llm/formatters/vercel.js';
 import { LLMContext } from '../llm/types.js';
-import { InternalMessage, ImageData, FileData } from './types.js';
+import type { InternalMessage, AssistantMessage, ToolCall } from './types.js';
+import { isSystemMessage, isUserMessage, isAssistantMessage, isToolMessage } from './types.js';
 import type { IDextoLogger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
 import { eventBus } from '../events/index.js';
-import { expandBlobReferences, isLikelyBase64String, filterCompacted } from './utils.js';
+import {
+    expandBlobReferences,
+    isLikelyBase64String,
+    filterCompacted,
+    estimateContextTokens,
+    estimateMessagesTokens,
+} from './utils.js';
 import type { SanitizedToolResult } from './types.js';
 import { DynamicContributorContext } from '../systemPrompt/types.js';
 import { SystemPromptManager } from '../systemPrompt/manager.js';
@@ -47,6 +54,26 @@ export class ContextManager<TMessage = unknown> {
      * Maximum number of tokens allowed in the conversation (if specified)
      */
     private maxInputTokens: number;
+
+    /**
+     * Last known actual input token count from the LLM API response.
+     * Updated after each LLM call. Used by /context for accurate reporting.
+     */
+    private lastActualInputTokens: number | null = null;
+
+    /**
+     * Last known actual output token count from the LLM API response.
+     * Updated after each LLM call. Used in the context estimation formula:
+     * estimatedNextInput = lastInputTokens + lastOutputTokens + newMessagesEstimate
+     */
+    private lastActualOutputTokens: number | null = null;
+
+    /**
+     * Message count at the time of the last LLM call.
+     * Used to identify which messages are "new" since the last call.
+     * Messages after this index are estimated with length/4 heuristic.
+     */
+    private lastCallMessageCount: number | null = null;
 
     private historyProvider: IConversationHistoryProvider;
     private readonly sessionId: string;
@@ -198,6 +225,147 @@ export class ContextManager<TMessage = unknown> {
     }
 
     /**
+     * Returns the last known actual input token count from the LLM API.
+     * Returns null if no LLM call has been made yet.
+     */
+    getLastActualInputTokens(): number | null {
+        return this.lastActualInputTokens;
+    }
+
+    /**
+     * Updates the last known actual input token count.
+     * Called after each LLM response with the actual usage from the API.
+     */
+    setLastActualInputTokens(tokens: number): void {
+        this.lastActualInputTokens = tokens;
+        this.logger.debug(`Updated lastActualInputTokens: ${tokens}`);
+    }
+
+    /**
+     * Returns the last known actual output token count from the LLM API.
+     * Returns null if no LLM call has been made yet.
+     */
+    getLastActualOutputTokens(): number | null {
+        return this.lastActualOutputTokens;
+    }
+
+    /**
+     * Updates the last known actual output token count.
+     * Called after each LLM response with the actual usage from the API.
+     */
+    setLastActualOutputTokens(tokens: number): void {
+        this.lastActualOutputTokens = tokens;
+        this.logger.debug(`Updated lastActualOutputTokens: ${tokens}`);
+    }
+
+    /**
+     * Returns the message count at the time of the last LLM call.
+     * Returns null if no LLM call has been made yet.
+     */
+    getLastCallMessageCount(): number | null {
+        return this.lastCallMessageCount;
+    }
+
+    /**
+     * Records the current message count after an LLM call completes.
+     * This marks the boundary for "new messages" calculation.
+     */
+    async recordLastCallMessageCount(): Promise<void> {
+        const history = await this.historyProvider.getHistory();
+        this.lastCallMessageCount = history.length;
+        this.logger.debug(`Recorded lastCallMessageCount: ${this.lastCallMessageCount}`);
+    }
+
+    /**
+     * Resets the actual token tracking state.
+     * Called after compaction since the context has fundamentally changed.
+     */
+    resetActualTokenTracking(): void {
+        this.lastActualInputTokens = null;
+        this.lastActualOutputTokens = null;
+        this.lastCallMessageCount = null;
+        this.logger.debug('Reset actual token tracking state (after compaction)');
+    }
+
+    // ============= HISTORY PREPARATION =============
+
+    /**
+     * Placeholder text used when tool outputs are pruned.
+     * Shared constant to ensure consistency between preparation and estimation.
+     */
+    private static readonly PRUNED_TOOL_PLACEHOLDER = '[Old tool result content cleared]';
+
+    /**
+     * Prepares conversation history for LLM consumption.
+     * This is the single source of truth for history transformation logic.
+     *
+     * Transformations applied:
+     * 1. filterCompacted - Remove pre-summary messages (messages before the most recent summary)
+     * 2. Transform pruned tool messages - Replace compactedAt messages with placeholder text
+     *
+     * Used by both:
+     * - getFormattedMessagesForLLM() - For actual LLM calls
+     * - getContextTokenEstimate() - For /context command estimation
+     *
+     * @returns Prepared history and statistics about the transformations
+     */
+    async prepareHistory(): Promise<{
+        preparedHistory: InternalMessage[];
+        stats: {
+            /** Total messages in raw history */
+            originalCount: number;
+            /** Messages after filterCompacted (removed pre-summary) */
+            filteredCount: number;
+            /** Messages with compactedAt that were transformed to placeholders */
+            prunedToolCount: number;
+        };
+    }> {
+        const fullHistory = await this.historyProvider.getHistory();
+        const originalCount = fullHistory.length;
+
+        // Step 1: Filter compacted (remove pre-summary messages)
+        let history = filterCompacted(fullHistory);
+        const filteredCount = history.length;
+
+        if (filteredCount < originalCount) {
+            this.logger.debug(
+                `prepareHistory: filterCompacted reduced from ${originalCount} to ${filteredCount} messages`
+            );
+        }
+
+        // Step 2: Transform compacted tool messages to placeholders
+        // Original content is preserved in storage, placeholder sent to LLM
+        let prunedToolCount = 0;
+        history = history.map((msg) => {
+            if (msg.role === 'tool' && msg.compactedAt) {
+                prunedToolCount++;
+                return {
+                    ...msg,
+                    content: [
+                        { type: 'text' as const, text: ContextManager.PRUNED_TOOL_PLACEHOLDER },
+                    ],
+                };
+            }
+            return msg;
+        });
+
+        if (prunedToolCount > 0) {
+            this.logger.debug(
+                `prepareHistory: Transformed ${prunedToolCount} pruned tool messages to placeholders`
+            );
+        }
+
+        return {
+            preparedHistory: history,
+            stats: {
+                originalCount,
+                filteredCount,
+                prunedToolCount,
+            },
+        };
+    }
+
+    /**
      * Assembles and returns the current system prompt by invoking the SystemPromptManager.
      */
     async getSystemPrompt(context: DynamicContributorContext): Promise<string> {
@@ -227,6 +395,32 @@ export class ContextManager<TMessage = unknown> {
     }
 
     /**
+     * Clears the context window without deleting history.
+     *
+     * This adds a "context clear" marker to the conversation history. When the
+     * context is loaded for LLM via getFormattedMessagesWithCompression(),
+     * filterCompacted() excludes all messages before this marker.
+     *
+     * The full history remains in the database for review via /resume or session history.
+     */
+    async clearContext(): Promise<void> {
+        const clearMarker: InternalMessage = {
+            id: `clear-${Date.now()}`,
+            role: 'assistant',
+            content: [{ type: 'text', text: '[Context cleared]' }],
+            timestamp: Date.now(),
+            metadata: {
+                isSummary: true,
+                clearedAt: Date.now(),
+            },
+        };
+
+        await this.addMessage(clearMarker);
+        this.resetActualTokenTracking();
+        this.logger.debug(`Context cleared for session: ${this.sessionId}`);
+    }
+
+    /**
      * Appends text to an existing assistant message.
      * Used for streaming responses.
      */
@@ -247,14 +441,17 @@ export class ContextManager<TMessage = unknown> {
             throw ContextError.messageNotAssistant(messageId);
         }
 
-        // Append text
-        if (typeof message.content === 'string') {
-            message.content += text;
-        } else if (message.content === null) {
-            message.content = text;
-        } else {
-            // Should not happen for assistant messages unless we support multimodal assistant output
-            throw ContextError.assistantContentNotString();
+        // Append text to content array
+        if (message.content === null) {
+            message.content = [{ type: 'text', text }];
+        } else if (Array.isArray(message.content)) {
+            // Find last text part and append, or add new text part
+            const lastPart = message.content[message.content.length - 1];
+            if (lastPart && lastPart.type === 'text') {
+                lastPart.text += text;
+            } else {
+                message.content.push({ type: 'text', text });
+            }
         }
 
         await this.historyProvider.updateMessage(message);
@@ -264,10 +461,7 @@ export class ContextManager<TMessage = unknown> {
      * Adds a tool call to an existing assistant message.
      * Used for streaming responses.
      */
-    async addToolCall(
-        messageId: string,
-        toolCall: NonNullable<InternalMessage['toolCalls']>[number]
-    ): Promise<void> {
+    async addToolCall(messageId: string, toolCall: ToolCall): Promise<void> {
         const history = await this.historyProvider.getHistory();
         const messageIndex = history.findIndex((m) => m.id === messageId);
 
@@ -386,14 +580,10 @@ export class ContextManager<TMessage = unknown> {
     async addMessage(message: InternalMessage): Promise<void> {
         switch (message.role) {
             case 'user':
-                if (
-                    // Allow array content for user messages
-                    !(Array.isArray(message.content) && message.content.length > 0) &&
-                    (typeof message.content !== 'string' || message.content.trim() === '')
-                ) {
+                // User messages must have non-empty content array
+                if (!Array.isArray(message.content) || message.content.length === 0) {
                     throw ContextError.userMessageContentInvalid();
                 }
-                // Optional: Add validation for the structure of array parts if needed
                 break;
 
             case 'assistant':
@@ -426,15 +616,21 @@ export class ContextManager<TMessage = unknown> {
                 }
                 break;
 
-            case 'system':
+            case 'system': {
                 // System messages should be handled via SystemPromptManager, not added to history
                 this.logger.warn(
                     'ContextManager: Adding system message directly to history. Use SystemPromptManager instead.'
                 );
-                if (typeof message.content !== 'string' || message.content.trim() === '') {
+                // Extract text from content array for validation
+                const textContent = message.content
+                    ?.filter((p): p is import('./types.js').TextPart => p.type === 'text')
+                    .map((p) => p.text)
+                    .join('');
+                if (!textContent || textContent.trim() === '') {
                     throw ContextError.systemMessageContentInvalid();
                 }
                 break;
+            }
         }
 
         // Generate ID and timestamp if not provided
@@ -460,84 +656,81 @@ export class ContextManager<TMessage = unknown> {
     }
 
     /**
-     * Adds a user message to the conversation
-     * Can include image data for multimodal input
+     * Adds a user message to the conversation.
+     * Supports multiple images and files via ContentPart[].
      *
-     * @param textContent The user message content
-     * @param imageData Optional image data for multimodal input
-     * @param fileData Optional file data for file input
-     * @throws Error if content is empty or not a string
+     * @param content Array of content parts (text, images, files)
+     * @throws Error if content is empty or invalid
      */
-    async addUserMessage(
-        textContent: string,
-        imageData?: ImageData,
-        fileData?: FileData
-    ): Promise<void> {
-        // Allow empty text if we have image or file data
-        if (
-            typeof textContent !== 'string' ||
-            (textContent.trim() === '' && !imageData && !fileData)
-        ) {
+    async addUserMessage(content: import('./types.js').ContentPart[]): Promise<void> {
+        if (!Array.isArray(content) || content.length === 0) {
             throw ContextError.userMessageContentEmpty();
         }
 
-        // If text is empty but we have attachments, use a placeholder
-        const finalTextContent = textContent.trim() || (imageData || fileData ? '' : textContent);
+        // Validate at least one text part or attachment exists
+        const hasText = content.some((p) => p.type === 'text' && p.text.trim() !== '');
+        const hasAttachment = content.some((p) => p.type === 'image' || p.type === 'file');
 
-        // Build message parts array to support multiple attachment types
-        const messageParts: InternalMessage['content'] = [];
-
-        // Add text if present
-        if (finalTextContent) {
-            messageParts.push({ type: 'text' as const, text: finalTextContent });
+        if (!hasText && !hasAttachment) {
+            throw ContextError.userMessageContentEmpty();
         }
 
-        // Add image if present - store as blob if large
-        if (imageData) {
-            const processedImage = await this.processUserInput(imageData.image, {
-                mimeType: imageData.mimeType || 'image/jpeg',
-                source: 'user',
-            });
+        // Process all parts, storing large attachments as blobs
+        const processedParts: InternalMessage['content'] = [];
 
-            messageParts.push({
-                type: 'image' as const,
-                image: processedImage,
-                mimeType: imageData.mimeType || 'image/jpeg',
-            });
-        }
+        for (const part of content) {
+            if (part.type === 'text') {
+                if (part.text.trim()) {
+                    processedParts.push({ type: 'text', text: part.text });
+                }
+            } else if (part.type === 'image') {
+                const processedImage = await this.processUserInput(part.image, {
+                    mimeType: part.mimeType || 'image/jpeg',
+                    source: 'user',
+                });
 
-        // Add file if present - store as blob if large
-        if (fileData) {
-            const metadata: {
-                mimeType: string;
-                originalName?: string;
-                source?: 'user' | 'system';
-            } = {
-                mimeType: fileData.mimeType,
-                source: 'user',
-            };
-            if (fileData.filename) {
-                metadata.originalName = fileData.filename;
+                processedParts.push({
+                    type: 'image',
+                    image: processedImage,
+                    mimeType: part.mimeType || 'image/jpeg',
+                });
+            } else if (part.type === 'file') {
+                const metadata: {
+                    mimeType: string;
+                    originalName?: string;
+                    source?: 'user' | 'system';
+                } = {
+                    mimeType: part.mimeType,
+                    source: 'user',
+                };
+                if (part.filename) {
+                    metadata.originalName = part.filename;
+                }
+
+                const processedData = await this.processUserInput(part.data, metadata);
+
+                processedParts.push({
+                    type: 'file',
+                    data: processedData,
+                    mimeType: part.mimeType,
+                    ...(part.filename && { filename: part.filename }),
+                });
             }
-
-            const processedData = await this.processUserInput(fileData.data, metadata);
-
-            messageParts.push({
-                type: 'file' as const,
-                data: processedData,
-                mimeType: fileData.mimeType,
-                ...(fileData.filename && { filename: fileData.filename }),
-            });
         }
 
-        // Fallback to text-only if no parts were added
-        if (messageParts.length === 0) {
-            messageParts.push({ type: 'text' as const, text: finalTextContent });
-        }
-        this.logger.debug(
-            `ContextManager: Adding user message: ${JSON.stringify(messageParts, null, 2)}`
-        );
-        await this.addMessage({ role: 'user', content: messageParts });
+        // Count parts for logging
+        const textParts = processedParts.filter((p) => p.type === 'text');
+        const imageParts = processedParts.filter((p) => p.type === 'image');
+        const fileParts = processedParts.filter((p) => p.type === 'file');
+
+        this.logger.info('User message received', {
+            textParts: textParts.length,
+            imageParts: imageParts.length,
+            fileParts: fileParts.length,
+            totalParts: processedParts.length,
+        });
+
+        await this.addMessage({ role: 'user', content: processedParts });
     }
 
     /**
@@ -551,9 +744,9 @@ export class ContextManager<TMessage = unknown> {
      */
     async addAssistantMessage(
         content: string | null,
-        toolCalls?: InternalMessage['toolCalls'],
+        toolCalls?: AssistantMessage['toolCalls'],
         metadata?: {
-            tokenUsage?: InternalMessage['tokenUsage'];
+            tokenUsage?: AssistantMessage['tokenUsage'];
             reasoning?: string;
         }
     ): Promise<void> {
@@ -561,11 +754,14 @@ export class ContextManager<TMessage = unknown> {
         if (content === null && (!toolCalls || toolCalls.length === 0)) {
             throw ContextError.assistantMessageContentOrToolsRequired();
         }
+        // Convert string content to content array
+        const contentArray: InternalMessage['content'] =
+            content !== null ? [{ type: 'text', text: content }] : null;
         // Further validation happens within addMessage
         // addMessage will populate llm config metadata also
         await this.addMessage({
             role: 'assistant' as const,
-            content,
+            content: contentArray,
             ...(toolCalls && toolCalls.length > 0 && { toolCalls }),
             ...(metadata?.tokenUsage && { tokenUsage: metadata.tokenUsage }),
             ...(metadata?.reasoning && { reasoning: metadata.reasoning }),
@@ -576,17 +772,22 @@ export class ContextManager<TMessage = unknown> {
      * Adds a tool result message to the conversation.
      * The result must already be sanitized - this method only persists it.
      *
+     * Success status is read from sanitizedResult.meta.success (single source of truth).
+     *
      * @param toolCallId ID of the tool call this result is responding to
      * @param name Name of the tool that executed
-     * @param sanitizedResult The already-sanitized result to store
-     * @param approvalMetadata Optional approval metadata for this tool execution
+     * @param sanitizedResult The already-sanitized result to store (includes success in meta)
+     * @param metadata Optional approval-related metadata
      * @throws Error if required parameters are missing
      */
     async addToolResult(
         toolCallId: string,
         name: string,
         sanitizedResult: SanitizedToolResult,
-        approvalMetadata?: { requireApproval: boolean; approvalStatus?: 'approved' | 'rejected' }
+        metadata?: {
+            requireApproval?: boolean;
+            approvalStatus?: 'approved' | 'rejected';
+        }
     ): Promise<void> {
         if (!toolCallId || !name) {
             throw ContextError.toolCallIdNameRequired();
@@ -610,11 +811,18 @@ export class ContextManager<TMessage = unknown> {
             content: sanitizedResult.content,
             toolCallId,
             name,
-            ...(approvalMetadata?.requireApproval !== undefined && {
-                requireApproval: approvalMetadata.requireApproval,
+            // Success status comes from sanitizedResult.meta (single source of truth)
+            success: sanitizedResult.meta.success,
+            // Persist display data for rich rendering on session resume
+            ...(sanitizedResult.meta.display !== undefined && {
+                displayData: sanitizedResult.meta.display,
             }),
-            ...(approvalMetadata?.approvalStatus !== undefined && {
-                approvalStatus: approvalMetadata.approvalStatus,
+            // Persist approval metadata for frontend display after reload
+            ...(metadata?.requireApproval !== undefined && {
+                requireApproval: metadata.requireApproval,
+            }),
+            ...(metadata?.approvalStatus !== undefined && {
+                approvalStatus: metadata.approvalStatus,
             }),
         });
     }
@@ -673,16 +881,35 @@ export class ContextManager<TMessage = unknown> {
         }
 
         // Resolve blob references using resource manager with filtering
+        // Only user and tool messages can contain blob references (images, files)
+        // System and assistant messages have string-only content - no blob expansion needed
         this.logger.debug('Resolving blob references in message history before formatting');
         messageHistory = await Promise.all(
-            messageHistory.map(async (message) => {
-                const expandedContent = await expandBlobReferences(
-                    message.content,
-                    this.resourceManager,
-                    this.logger,
-                    allowedMediaTypes
-                );
-                return { ...message, content: expandedContent };
+            messageHistory.map(async (message): Promise<InternalMessage> => {
+                if (isSystemMessage(message) || isAssistantMessage(message)) {
+                    // System/assistant messages have string content, no blob refs
+                    return message;
+                }
+                if (isUserMessage(message)) {
+                    const expandedContent = await expandBlobReferences(
+                        message.content,
+                        this.resourceManager,
+                        this.logger,
+                        allowedMediaTypes
+                    );
+                    return { ...message, content: expandedContent };
+                }
+                if (isToolMessage(message)) {
+                    const expandedContent = await expandBlobReferences(
+                        message.content,
+                        this.resourceManager,
+                        this.logger,
+                        allowedMediaTypes
+                    );
+                    return { ...message, content: expandedContent };
+                }
+                // Should never reach here, but TypeScript needs exhaustive check
+                return message;
             })
         );
 
@@ -694,62 +921,258 @@ export class ContextManager<TMessage = unknown> {
     /**
      * Gets the conversation ready for LLM consumption with proper flow:
      * 1. Get system prompt
-     * 2. Get history and filter (exclude pre-summary messages)
-     * 3. Format messages
-     * This method implements the correct ordering to avoid circular dependencies.
+     * 2. Prepare history (filter + transform pruned messages)
+     * 3. Format messages for LLM API
      *
      * @param contributorContext The DynamicContributorContext for system prompt contributors and formatting
      * @param llmContext The llmContext for the formatter to decide which messages to include based on the model's capabilities
-     * @returns Object containing formatted messages and system prompt
+     * @returns Object containing formatted messages, system prompt, and prepared history
      */
-    async getFormattedMessagesWithCompression(
+    async getFormattedMessagesForLLM(
         contributorContext: DynamicContributorContext,
         llmContext: LLMContext
     ): Promise<{
         formattedMessages: TMessage[];
         systemPrompt: string;
+        preparedHistory: InternalMessage[];
     }> {
         // Step 1: Get system prompt
         const systemPrompt = await this.getSystemPrompt(contributorContext);
 
-        // Step 2: Get history and filter (exclude pre-summary messages)
-        const fullHistory = await this.historyProvider.getHistory();
-        let history = filterCompacted(fullHistory);
+        // Step 2: Prepare history (single source of truth for transformations)
+        const { preparedHistory } = await this.prepareHistory();
 
-        // Log if filtering occurred
-        if (history.length < fullHistory.length) {
-            this.logger.debug(
-                `filterCompacted: Reduced history from ${fullHistory.length} to ${history.length} messages (summary present)`
-            );
-        }
-
-        // Step 3: Transform compacted tool messages (respects compactedAt marker)
-        // Original content is preserved in storage, placeholder sent to LLM
-        const compactedCount = history.filter((m) => m.role === 'tool' && m.compactedAt).length;
-        if (compactedCount > 0) {
-            history = history.map((msg) => {
-                if (msg.role === 'tool' && msg.compactedAt) {
-                    return { ...msg, content: '[Old tool result content cleared]' };
-                }
-                return msg;
-            });
-            this.logger.debug(
-                `Transformed ${compactedCount} compacted tool messages to placeholders`
-            );
-        }
-
-        // Step 4: Format messages with filtered and transformed history
+        // Step 3: Format messages with prepared history
         const formattedMessages = await this.getFormattedMessages(
             contributorContext,
             llmContext,
             systemPrompt,
-            history
-        ); // Type cast happens here via TMessage generic
+            preparedHistory
+        );
 
         return {
             formattedMessages,
             systemPrompt,
+            preparedHistory,
         };
+    }
+
+    /**
+     * Estimates context token usage for the /context command and compaction decisions.
+     * Uses the same prepareHistory() logic as getFormattedMessagesForLLM() to ensure consistency.
+     *
+     * When actuals are available from previous LLM calls:
+     *   estimatedNextInput = lastInputTokens + lastOutputTokens + newMessagesEstimate
+     *
+     * This formula is more accurate because:
+     * - lastInputTokens: exactly what the API processed (ground truth)
+     * - lastOutputTokens: exactly what the LLM returned (ground truth)
+     * - newMessagesEstimate: only estimate the delta (tool results, new user messages)
+     *
+     * When no LLM call has been made yet (or after compaction), falls back to pure estimation.
+     *
+     * @param contributorContext Context for building the system prompt
+     * @param tools Tool definitions to include in the estimate
+     * @returns Token estimates with breakdown and comparison to actual (if available)
+     */
+    async getContextTokenEstimate(
+        contributorContext: DynamicContributorContext,
+        tools: Record<string, { name?: string; description?: string; parameters?: unknown }>
+    ): Promise<{
+        /** Total estimated tokens */
+        estimated: number;
+        /** Last actual token count from LLM API (null if no calls made yet) */
+        actual: number | null;
+        /** Breakdown by category */
+        breakdown: {
+            systemPrompt: number;
+            tools: {
+                total: number;
+                perTool: Array<{ name: string; tokens: number }>;
+            };
+            messages: number;
+        };
+        /** Preparation stats */
+        stats: {
+            originalMessageCount: number;
+            filteredMessageCount: number;
+            prunedToolCount: number;
+        };
+        /** Calculation basis for debugging/display */
+        calculationBasis?: {
+            /** Whether we used the actual-based formula or pure estimation */
+            method: 'actuals' | 'estimate';
+            /** Last actual input tokens from API (if method is 'actuals') */
+            lastInputTokens?: number;
+            /** Last actual output tokens from API (if method is 'actuals') */
+            lastOutputTokens?: number;
+            /** Estimated tokens for new messages since last call (if method is 'actuals') */
+            newMessagesEstimate?: number;
+        };
+    }> {
+        // Step 1: Get system prompt (same as LLM preparation)
+        const systemPrompt = await this.getSystemPrompt(contributorContext);
+
+        // Step 2: Prepare history (same as LLM preparation - single source of truth)
+        const { preparedHistory, stats } = await this.prepareHistory();
+
+        // Step 3: Calculate tokens using Phase 4 formula when actuals are available
+        // Formula: estimatedNextInput = lastInputTokens + lastOutputTokens + newMessagesEstimate
+        const lastInput = this.lastActualInputTokens;
+        const lastOutput = this.lastActualOutputTokens;
+        const lastMsgCount = this.lastCallMessageCount;
+        const currentHistory = await this.historyProvider.getHistory();
+
+        // Get pure estimate as fallback and for breakdown calculation
+        const pureEstimate = estimateContextTokens(systemPrompt, preparedHistory, tools);
+
+        let total: number;
+        let calculationBasis: {
+            method: 'actuals' | 'estimate';
+            lastInputTokens?: number;
+            lastOutputTokens?: number;
+            newMessagesEstimate?: number;
+        };
+
+        // Use actuals-based formula if we have all the required values
+        if (lastInput !== null && lastOutput !== null && lastMsgCount !== null) {
+            // Calculate estimate for messages added AFTER the last LLM call
+            // These are: tool results from the last assistant's tool calls + any new user messages
+            const newMessages = currentHistory.slice(lastMsgCount);
+            const newMessagesEstimate = estimateMessagesTokens(newMessages);
+
+            // Apply the formula
+            total = lastInput + lastOutput + newMessagesEstimate;
+
+            calculationBasis = {
+                method: 'actuals',
+                lastInputTokens: lastInput,
+                lastOutputTokens: lastOutput,
+                newMessagesEstimate,
+            };
+
+            this.logger.info(
+                `Context estimate (actuals-based): lastInput=${lastInput}, lastOutput=${lastOutput}, ` +
+                    `newMsgs=${newMessagesEstimate} (${newMessages.length} messages), total=${total}`
+            );
+        } else {
+            // Fallback to pure estimation when no actuals available
+            total = pureEstimate.total;
+
+            calculationBasis = {
+                method: 'estimate',
+            };
+
+            this.logger.debug(
+                `Context estimate (pure estimate): total=${total} (no actuals available yet)`
+            );
+        }
+
+        // Step 4: Calculate breakdown for display
+        // System and tools are always estimated. Messages is back-calculated so numbers add up.
+        const systemPromptTokens = pureEstimate.breakdown.systemPrompt;
+        const toolsTokens = pureEstimate.breakdown.tools;
+
+        // Back-calculate messages so: systemPrompt + tools + messages = total
+        const messagesDisplay = Math.max(0, total - systemPromptTokens - toolsTokens.total);
+
+        // Log calibration info when we have actuals to compare against pure estimate
+        if (lastInput !== null) {
+            const pureTotal = pureEstimate.total;
+            const diff = pureTotal - lastInput;
+            const diffPercent = lastInput > 0 ? ((diff / lastInput) * 100).toFixed(1) : '0.0';
+            this.logger.info(
+                `Context token calibration: pureEstimate=${pureTotal}, lastActual=${lastInput}, ` +
+                    `diff=${diff} (${diffPercent}%)`
+            );
+        }
+
+        return {
+            estimated: total,
+            actual: lastInput,
+            breakdown: {
+                systemPrompt: systemPromptTokens,
+                tools: toolsTokens,
+                messages: messagesDisplay,
+            },
+            stats: {
+                originalMessageCount: stats.originalCount,
+                filteredMessageCount: stats.filteredCount,
+                prunedToolCount: stats.prunedToolCount,
+            },
+            calculationBasis,
+        };
+    }
+
+    /**
+     * Estimates the next input token count using actual token data from the previous LLM call.
+     * This is a lightweight version for compaction pre-checks that only returns the total.
+     *
+     * ## Formula (when actuals are available):
+     *   estimatedNextInput = lastInputTokens + lastOutputTokens + newMessagesEstimate
+     *
+     * ## Why this formula works:
+     *
+     * Consider two consecutive LLM calls:
+     *
+     * ```
+     * Call N:
+     *   Input sent: system + tools + [user1]           = lastInput tokens
+     *   Output received: assistant response            = lastOutput tokens
+     *
+     * Call N+1:
+     *   Input will be: system + tools + [user1, assistant1, user2, ...]
+     *                ≈ lastInput + assistant1_as_input + new_messages
+     *                ≈ lastInput + lastOutput + newMessagesEstimate
+     * ```
+     *
+     * The assistant's response (lastOutput) becomes part of the next input as conversation
+     * history. Text tokenizes similarly whether sent as input or received as output.
+     *
+     * ## No double-counting:
+     *
+     * The assistant message is added to history DURING streaming (before this method runs),
+     * and recordLastCallMessageCount() captures the count INCLUDING that message.
+     * Therefore, newMessages = history.slice(lastMsgCount) EXCLUDES the assistant message,
+     * so lastOutput and newMessages don't overlap.
+     *
+     * ## Pruning caveat:
+     *
+     * If tool output pruning occurs between calls, lastInput may be stale (higher than
+     * actual). This causes OVERESTIMATION, which is SAFE - we'd trigger compaction
+     * earlier rather than risk context overflow.
+     *
+     * @param systemPrompt The system prompt string
+     * @param preparedHistory Message history AFTER filterCompacted and pruning
+     * @param tools Tool definitions
+     * @returns Estimated total input tokens for the next LLM call
+     */
+    async getEstimatedNextInputTokens(
+        systemPrompt: string,
+        preparedHistory: readonly InternalMessage[],
+        tools: Record<string, { name?: string; description?: string; parameters?: unknown }>
+    ): Promise<number> {
+        const lastInput = this.lastActualInputTokens;
+        const lastOutput = this.lastActualOutputTokens;
+        const lastMsgCount = this.lastCallMessageCount;
+        const currentHistory = await this.historyProvider.getHistory();
+
+        // Use actuals-based formula if we have all the required values
+        if (lastInput !== null && lastOutput !== null && lastMsgCount !== null) {
+            const newMessages = currentHistory.slice(lastMsgCount);
+            const newMessagesEstimate = estimateMessagesTokens(newMessages);
+            const total = lastInput + lastOutput + newMessagesEstimate;
+
+            this.logger.debug(
+                `Estimated next input (actuals-based): ${lastInput} + ${lastOutput} + ${newMessagesEstimate} = ${total}`
+            );
+            return total;
+        }
+
+        // Fallback to pure estimation
+        const pureEstimate = estimateContextTokens(systemPrompt, preparedHistory, tools);
+        this.logger.debug(`Estimated next input (pure estimate): ${pureEstimate.total}`);
+        return pureEstimate.total;
     }
 
     /**
@@ -773,6 +1196,7 @@ export class ContextManager<TMessage = unknown> {
     async resetConversation(): Promise<void> {
         // Clear persisted history
         await this.historyProvider.clearHistory();
+        this.resetActualTokenTracking();
         this.logger.debug(
             `ContextManager: Conversation history cleared for session ${this.sessionId}`
         );

@@ -9,6 +9,26 @@ export type McpServerType = (typeof MCP_SERVER_TYPES)[number];
 export const MCP_CONNECTION_MODES = ['strict', 'lenient'] as const;
 export type McpConnectionMode = (typeof MCP_CONNECTION_MODES)[number];
 
+export const MCP_CONNECTION_STATUSES = [
+    'connected',
+    'disconnected',
+    'error',
+    'auth-required',
+] as const;
+export type McpConnectionStatus = (typeof MCP_CONNECTION_STATUSES)[number];
+
+/**
+ * MCP server info with computed connection status.
+ * Returned by DextoAgent.getMcpServersWithStatus()
+ */
+export interface McpServerStatus {
+    name: string;
+    type: McpServerType;
+    enabled: boolean;
+    status: McpConnectionStatus;
+    error?: string;
+}
+
 export const DEFAULT_MCP_CONNECTION_MODE: McpConnectionMode = 'lenient';
 
 // ---- stdio ----
@@ -16,6 +36,10 @@ export const DEFAULT_MCP_CONNECTION_MODE: McpConnectionMode = 'lenient';
 export const StdioServerConfigSchema = z
     .object({
         type: z.literal('stdio'),
+        enabled: z
+            .boolean()
+            .default(true)
+            .describe('Whether this server is enabled (disabled servers are not connected)'),
         // allow env in command & args if you want; remove EnvExpandedString if not desired
         command: EnvExpandedString().superRefine((s, ctx) => {
             if (s.length === 0) {
@@ -50,6 +74,10 @@ export type ValidatedStdioServerConfig = z.output<typeof StdioServerConfigSchema
 export const SseServerConfigSchema = z
     .object({
         type: z.literal('sse'),
+        enabled: z
+            .boolean()
+            .default(true)
+            .describe('Whether this server is enabled (disabled servers are not connected)'),
         url: RequiredEnvURL(process.env).describe('URL for the SSE server endpoint'),
         headers: z.record(EnvExpandedString()).default({}),
         timeout: z.coerce.number().int().positive().default(30000),
@@ -64,6 +92,10 @@ export type ValidatedSseServerConfig = z.output<typeof SseServerConfigSchema>;
 export const HttpServerConfigSchema = z
     .object({
         type: z.literal('http'),
+        enabled: z
+            .boolean()
+            .default(true)
+            .describe('Whether this server is enabled (disabled servers are not connected)'),
         url: RequiredEnvURL(process.env).describe('URL for the HTTP server'),
         headers: z.record(EnvExpandedString()).default({}),
         timeout: z.coerce.number().int().positive().default(30000),

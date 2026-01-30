@@ -1,26 +1,17 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { MemoryManager } from './manager.js';
-import { createDatabase } from '../storage/database/factory.js';
+// Import from index to ensure providers are registered
+import { createDatabase } from '../storage/database/index.js';
 import type { Database } from '../storage/database/types.js';
 import type { CreateMemoryInput } from './types.js';
+import { createMockLogger } from '../logger/v2/test-utils.js';
 
 describe('MemoryManager Integration Tests', () => {
     let memoryManager: MemoryManager;
     let database: Database;
-    let mockLogger: any;
+    const mockLogger = createMockLogger();
 
     beforeEach(async () => {
-        mockLogger = {
-            debug: vi.fn(),
-            info: vi.fn(),
-            warn: vi.fn(),
-            error: vi.fn(),
-            trackException: vi.fn(),
-            createChild: vi.fn(function (this: any) {
-                return this;
-            }),
-            destroy: vi.fn(),
-        } as any;
         // Use in-memory database for integration tests
         database = await createDatabase({ type: 'in-memory' }, mockLogger);
         await database.connect();

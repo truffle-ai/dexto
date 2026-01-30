@@ -1,40 +1,56 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { streamSSE } from 'hono/streaming';
-import type { DextoAgent } from '@dexto/core';
+import type { ContentInput } from '@dexto/core';
 import { LLM_PROVIDERS } from '@dexto/core';
 import type { ApprovalCoordinator } from '../../approval/approval-coordinator.js';
 import { TokenUsageSchema } from '../schemas/responses.js';
+import type { GetAgentFn } from '../index.js';
+
+// ContentPart schemas matching @dexto/core types
+// TODO: The Zod-inferred types don't exactly match core's ContentInput due to
+// exactOptionalPropertyTypes (Zod infers `mimeType?: string | undefined` vs core's `mimeType?: string`).
+// We cast to ContentInput after validation. Fix by either:
+// 1. Export Zod schemas from @dexto/core and reuse here
+// 2. Use .transform() to convert to exact types
+// 3. Relax exactOptionalPropertyTypes in tsconfig
+const TextPartSchema = z
+    .object({
+        type: z.literal('text').describe('Content type identifier'),
+        text: z.string().describe('Text content'),
+    })
+    .describe('Text content part');
+
+const ImagePartSchema = z
+    .object({
+        type: z.literal('image').describe('Content type identifier'),
+        image: z.string().describe('Base64-encoded image data or URL'),
+        mimeType: z.string().optional().describe('MIME type (e.g., image/png)'),
+    })
+    .describe('Image content part');
+
+const FilePartSchema = z
+    .object({
+        type: z.literal('file').describe('Content type identifier'),
+        data: z.string().describe('Base64-encoded file data or URL'),
+        mimeType: z.string().describe('MIME type (e.g., application/pdf)'),
+        filename: z.string().optional().describe('Optional filename'),
+    })
+    .describe('File content part');
+
+const ContentPartSchema = z
+    .discriminatedUnion('type', [TextPartSchema, ImagePartSchema, FilePartSchema])
+    .describe('Content part - text, image, or file');
 
 const MessageBodySchema = z
     .object({
-        message: z.string().optional().describe('The user message text'),
+        content: z
+            .union([z.string(), z.array(ContentPartSchema)])
+            .describe('Message content - string for text, or ContentPart[] for multimodal'),
         sessionId: z
             .string()
             .min(1, 'Session ID is required')
             .describe('The session to use for this message'),
-        imageData: z
-            .object({
-                image: z.string().describe('Base64-encoded image data'),
-                mimeType: z.string().describe('The MIME type of the image (e.g., image/png)'),
-            })
-            .optional()
-            .describe('Optional image data to include with the message'),
-        fileData: z
-            .object({
-                data: z.string().describe('Base64-encoded file data'),
-                mimeType: z.string().describe('The MIME type of the file (e.g., application/pdf)'),
-                filename: z.string().optional().describe('The filename'),
-            })
-            .optional()
-            .describe('Optional file data to include with the message'),
     })
-    .refine(
-        (data) => {
-            const msg = (data.message ?? '').trim();
-            return msg.length > 0 || !!data.imageData || !!data.fileData;
-        },
-        { message: 'Must provide either message text, image data, or file data' }
-    )
     .describe('Request body for sending a message to the agent');
 
 const ResetBodySchema = z
@@ -47,7 +63,7 @@ const ResetBodySchema = z
     .describe('Request body for resetting a conversation');
 
 export function createMessagesRouter(
-    getAgent: () => DextoAgent,
+    getAgent: GetAgentFn,
     approvalCoordinator?: ApprovalCoordinator
 ) {
     const app = new OpenAPIHono();
@@ -220,65 +236,30 @@ export function createMessagesRouter(
 
     return app
         .openapi(messageRoute, async (ctx) => {
-            const agent = getAgent();
+            const agent = await getAgent(ctx);
             agent.logger.info('Received message via POST /api/message');
-            const { message, sessionId, imageData, fileData } = ctx.req.valid('json');
+            const { content, sessionId } = ctx.req.valid('json');
 
-            const imageDataInput = imageData
-                ? { image: imageData.image, mimeType: imageData.mimeType }
-                : undefined;
-
-            const fileDataInput = fileData
-                ? {
-                      data: fileData.data,
-                      mimeType: fileData.mimeType,
-                      ...(fileData.filename && { filename: fileData.filename }),
-                  }
-                : undefined;
-
-            if (imageDataInput) agent.logger.info('Image data included in message.');
-            if (fileDataInput) agent.logger.info('File data included in message.');
             agent.logger.info(`Message for session: ${sessionId}`);
 
             // Fire and forget - start processing asynchronously
             // Results will be delivered via SSE
-            agent
-                .run(message || '', imageDataInput, fileDataInput, sessionId, false)
-                .catch((error) => {
-                    agent.logger.error(
-                        `Error in async message processing: ${error instanceof Error ? error.message : String(error)}`
-                    );
-                });
+            agent.generate(content as ContentInput, sessionId).catch((error) => {
+                agent.logger.error(
+                    `Error in async message processing: ${error instanceof Error ? error.message : String(error)}`
+                );
+            });
 
             return ctx.json({ accepted: true, sessionId }, 202);
         })
         .openapi(messageSyncRoute, async (ctx) => {
-            const agent = getAgent();
+            const agent = await getAgent(ctx);
             agent.logger.info('Received message via POST /api/message-sync');
-            const { message, sessionId, imageData, fileData } = ctx.req.valid('json');
+            const { content, sessionId } = ctx.req.valid('json');
 
-            const imageDataInput = imageData
-                ? { image: imageData.image, mimeType: imageData.mimeType }
-                : undefined;
-
-            const fileDataInput = fileData
-                ? {
-                      data: fileData.data,
-                      mimeType: fileData.mimeType,
-                      ...(fileData.filename && { filename: fileData.filename }),
-                  }
-                : undefined;
-
-            if (imageDataInput) agent.logger.info('Image data included in message.');
-            if (fileDataInput) agent.logger.info('File data included in message.');
             agent.logger.info(`Message for session: ${sessionId}`);
 
-            // Use generate() instead of run() to get metadata
-            const result = await agent.generate(message || '', {
-                sessionId,
-                imageData: imageDataInput,
-                fileData: fileDataInput,
-            });
+            const result = await agent.generate(content as ContentInput, sessionId);
 
             // Get the session's current LLM config to include model/provider info
             const llmConfig = agent.stateManager.getLLMConfig(sessionId);
@@ -293,17 +274,15 @@ export function createMessagesRouter(
             });
         })
         .openapi(resetRoute, async (ctx) => {
-            const agent = getAgent();
+            const agent = await getAgent(ctx);
             agent.logger.info('Received request via POST /api/reset');
             const { sessionId } = ctx.req.valid('json');
             await agent.resetConversation(sessionId);
             return ctx.json({ status: 'reset initiated', sessionId });
         })
         .openapi(messageStreamRoute, async (ctx) => {
-            const agent = getAgent();
-            const body = ctx.req.valid('json');
-
-            const { message = '', sessionId, imageData, fileData } = body;
+            const agent = await getAgent(ctx);
+            const { content, sessionId } = ctx.req.valid('json');
 
             // Check if session is busy before starting stream
             const isBusy = await agent.isSessionBusy(sessionId);
@@ -320,29 +299,12 @@ export function createMessagesRouter(
                 );
             }
 
-            const imageDataInput = imageData
-                ? { image: imageData.image, mimeType: imageData.mimeType }
-                : undefined;
-
-            const fileDataInput = fileData
-                ? {
-                      data: fileData.data,
-                      mimeType: fileData.mimeType,
-                      ...(fileData.filename && { filename: fileData.filename }),
-                  }
-                : undefined;
-
             // Create abort controller for cleanup
             const abortController = new AbortController();
             const { signal } = abortController;
 
             // Start agent streaming
-            const iterator = await agent.stream(message, {
-                sessionId,
-                imageData: imageDataInput,
-                fileData: fileDataInput,
-                signal,
-            });
+            const iterator = await agent.stream(content as ContentInput, sessionId, { signal });
 
             // Use Hono's streamSSE helper which handles backpressure correctly
             return streamSSE(ctx, async (stream) => {

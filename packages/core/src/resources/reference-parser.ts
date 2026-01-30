@@ -200,9 +200,9 @@ export function formatResourceContent(
     const contentParts: string[] = [];
     contentParts.push(`\n--- Content from resource: ${resourceName} (${resourceUri}) ---`);
     for (const item of content.contents) {
-        if (item.text && typeof item.text === 'string') {
+        if ('text' in item && item.text && typeof item.text === 'string') {
             contentParts.push(item.text);
-        } else if (item.blob) {
+        } else if ('blob' in item && item.blob) {
             const blobSize = typeof item.blob === 'string' ? item.blob.length : 'unknown';
             contentParts.push(`[Binary content: ${item.mimeType || 'unknown'}, ${blobSize} bytes]`);
         }
@@ -246,6 +246,7 @@ export async function expandMessageReferences(
             let isImageResource = false;
             for (const item of content.contents) {
                 if (
+                    'blob' in item &&
                     item.blob &&
                     item.mimeType &&
                     item.mimeType.startsWith('image/') &&

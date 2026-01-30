@@ -5,6 +5,7 @@ import path from 'path';
 import { z } from 'zod';
 import * as p from '@clack/prompts';
 import { getDextoGlobalPath, loadBundledRegistryAgents } from '@dexto/agent-management';
+import { textOrExit } from '../utils/prompt-helpers.js';
 import { installBundledAgent, installCustomAgent } from '../../utils/agent-helpers.js';
 import { capture } from '../../analytics/index.js';
 
@@ -13,7 +14,6 @@ const InstallCommandSchema = z
     .object({
         agents: z.array(z.string().min(1, 'Agent name cannot be empty')),
         all: z.boolean().default(false),
-        injectPreferences: z.boolean().default(true),
         force: z.boolean().default(false),
     })
     .strict();
@@ -72,68 +72,60 @@ async function promptForMetadata(suggestedName: string): Promise<{
 }> {
     p.intro('📝 Custom Agent Installation');
 
-    const agentName = (await p.text({
-        message: 'Agent name:',
-        placeholder: suggestedName,
-        defaultValue: suggestedName,
-        validate: (value) => {
-            if (!value || value.trim().length === 0) {
-                return 'Agent name is required';
-            }
-            if (!/^[a-z0-9-]+$/.test(value)) {
-                return 'Agent name must contain only lowercase letters, numbers, and hyphens';
-            }
-            return undefined;
+    const agentName = await textOrExit(
+        {
+            message: 'Agent name:',
+            placeholder: suggestedName,
+            defaultValue: suggestedName,
+            validate: (value) => {
+                if (!value || value.trim().length === 0) {
+                    return 'Agent name is required';
+                }
+                if (!/^[a-z0-9-]+$/.test(value)) {
+                    return 'Agent name must contain only lowercase letters, numbers, and hyphens';
+                }
+                return undefined;
+            },
         },
-    })) as string;
+        'Installation cancelled'
+    );
 
-    if (p.isCancel(agentName)) {
-        p.cancel('Installation cancelled');
-        process.exit(0);
-    }
-
-    const description = (await p.text({
-        message: 'Description:',
-        placeholder: 'A custom agent for...',
-        validate: (value) => {
-            if (!value || value.trim().length === 0) {
-                return 'Description is required';
-            }
-            return undefined;
+    const description = await textOrExit(
+        {
+            message: 'Description:',
+            placeholder: 'A custom agent for...',
+            validate: (value) => {
+                if (!value || value.trim().length === 0) {
+                    return 'Description is required';
+                }
+                return undefined;
+            },
         },
-    })) as string;
+        'Installation cancelled'
+    );
 
-    if (p.isCancel(description)) {
-        p.cancel('Installation cancelled');
-        process.exit(0);
-    }
-
-    const author = (await p.text({
-        message: 'Author:',
-        placeholder: 'Your Name',
-        validate: (value) => {
-            if (!value || value.trim().length === 0) {
-                return 'Author is required';
-            }
-            return undefined;
+    const author = await textOrExit(
+        {
+            message: 'Author:',
+            placeholder: 'Your Name',
+            validate: (value) => {
+                if (!value || value.trim().length === 0) {
+                    return 'Author is required';
+                }
+                return undefined;
+            },
         },
-    })) as string;
+        'Installation cancelled'
+    );
 
-    if (p.isCancel(author)) {
-        p.cancel('Installation cancelled');
-        process.exit(0);
-    }
-
-    const tagsInput = (await p.text({
-        message: 'Tags (comma-separated):',
-        placeholder: 'custom, coding, productivity',
-        defaultValue: 'custom',
-    })) as string;
-
-    if (p.isCancel(tagsInput)) {
-        p.cancel('Installation cancelled');
-        process.exit(0);
-    }
+    const tagsInput = await textOrExit(
+        {
+            message: 'Tags (comma-separated):',
+            placeholder: 'custom, coding, productivity',
+            defaultValue: 'custom',
+        },
+        'Installation cancelled'
+    );
 
     const tags = tagsInput
         .split(',')
@@ -256,25 +248,17 @@ export async function handleInstallCommand(
                         status: 'skipped',
                         reason: 'already_installed',
                         force: validated.force,
-                        injectPreferences: validated.injectPreferences,
                     });
                     continue;
                 }
 
                 // Install custom agent
-                await installCustomAgent(
-                    metadata.agentName,
-                    resolvedPath,
-                    {
-                        name: metadata.agentName,
-                        description: metadata.description,
-                        author: metadata.author,
-                        tags: metadata.tags,
-                    },
-                    {
-                        injectPreferences: validated.injectPreferences,
-                    }
-                );
+                await installCustomAgent(metadata.agentName, resolvedPath, {
+                    name: metadata.agentName,
+                    description: metadata.description,
+                    author: metadata.author,
+                    tags: metadata.tags,
+                });
 
                 successCount++;
                 console.log(`✅ ${metadata.agentName} installed successfully`);
@@ -286,7 +270,6 @@ export async function handleInstallCommand(
                     agent: metadata.agentName,
                     status: 'installed',
                     force: validated.force,
-                    injectPreferences: validated.injectPreferences,
                 });
             } else {
                 // Bundled agent installation from registry
@@ -303,14 +286,11 @@ export async function handleInstallCommand(
                         status: 'skipped',
                         reason: 'already_installed',
                         force: validated.force,
-                        injectPreferences: validated.injectPreferences,
                     });
                     continue;
                 }
 
-                await installBundledAgent(agentInput, {
-                    injectPreferences: validated.injectPreferences,
-                });
+                await installBundledAgent(agentInput);
                 successCount++;
                 console.log(`✅ ${agentInput} installed successfully`);
                 installed.push(agentInput);
@@ -319,7 +299,6 @@ export async function handleInstallCommand(
                     agent: agentInput,
                     status: 'installed',
                     force: validated.force,
-                    injectPreferences: validated.injectPreferences,
                 });
             }
         } catch (error) {
@@ -336,7 +315,6 @@ export async function handleInstallCommand(
                 status: 'failed',
                 error_message: error instanceof Error ? error.message : String(error),
                 force: validated.force,
-                injectPreferences: validated.injectPreferences,
             });
         }
     }

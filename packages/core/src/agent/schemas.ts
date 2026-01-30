@@ -5,7 +5,7 @@
  *   It never duplicates per-field literal defaults.
  */
 
-import { LLMConfigSchema } from '@core/llm/schemas.js';
+import { createLLMConfigSchema, type LLMValidationOptions } from '@core/llm/schemas.js';
 import { LoggerConfigSchema } from '@core/logger/index.js';
 import { ServerConfigsSchema as McpServersConfigSchema } from '@core/mcp/schemas.js';
 import { MemoriesConfigSchema } from '@core/memory/schemas.js';
@@ -13,7 +13,12 @@ import { SessionConfigSchema } from '@core/session/schemas.js';
 import { StorageSchema } from '@core/storage/schemas.js';
 import { SystemPromptConfigSchema } from '@core/systemPrompt/schemas.js';
 import {
+    CompactionConfigSchema,
+    DEFAULT_COMPACTION_CONFIG,
+} from '@core/context/compaction/schemas.js';
+import {
     InternalToolsSchema,
+    CustomToolsSchema,
     ToolConfirmationConfigSchema,
     ElicitationConfigSchema,
     ToolsConfigSchema,
@@ -322,100 +327,140 @@ export type AgentCard = z.input<typeof AgentCardSchema>;
 // Validated type for internal use (post-parsing)
 export type ValidatedAgentCard = z.output<typeof AgentCardSchema>;
 
-export const AgentConfigSchema = z
-    .object({
-        // ========================================
-        // REQUIRED FIELDS (user must provide or schema validation fails)
-        // ========================================
-        systemPrompt: SystemPromptConfigSchema.describe(
-            'System prompt: string shorthand or structured config'
-        ),
+/**
+ * Creates an agent config schema with configurable validation strictness.
+ *
+ * @param options.strict - When true (default), enforces API key and baseURL requirements.
+ *                         When false, allows missing credentials for interactive configuration.
+ */
+export function createAgentConfigSchema(options: LLMValidationOptions = {}) {
+    const llmSchema = createLLMConfigSchema(options);
 
-        llm: LLMConfigSchema.describe('Core LLM configuration for the agent'),
+    return z
+        .object({
+            // ========================================
+            // REQUIRED FIELDS (user must provide or schema validation fails)
+            // ========================================
+            systemPrompt: SystemPromptConfigSchema.describe(
+                'System prompt: string shorthand or structured config'
+            ),
 
-        // ========================================
-        // OPTIONAL FEATURES (undefined if not provided)
-        // ========================================
-        agentCard: AgentCardSchema.describe('Configuration for the agent card').optional(),
+            llm: llmSchema.describe('Core LLM configuration for the agent'),
 
-        greeting: z
-            .string()
-            .max(500)
-            .describe('Default greeting text to show when a chat starts (for UI consumption)')
-            .optional(),
+            // ========================================
+            // OPTIONAL FEATURES (undefined if not provided)
+            // ========================================
+            agentCard: AgentCardSchema.describe('Configuration for the agent card').optional(),
 
-        telemetry: OtelConfigurationSchema.describe(
-            'OpenTelemetry configuration for distributed tracing and observability'
-        ).optional(),
+            greeting: z
+                .string()
+                .max(500)
+                .describe('Default greeting text to show when a chat starts (for UI consumption)')
+                .optional(),
 
-        memories: MemoriesConfigSchema.describe(
-            'Memory configuration for system prompt inclusion (optional feature)'
-        ).optional(),
+            telemetry: OtelConfigurationSchema.describe(
+                'OpenTelemetry configuration for distributed tracing and observability'
+            ).optional(),
 
-        // ========================================
-        // FIELDS WITH DEFAULTS (always present after parsing)
-        // ========================================
-        agentId: z
-            .string()
-            .describe(
-                'Unique identifier for this agent instance - CLI enrichment derives from agentCard.name or filename'
-            )
-            .default('default-agent'),
+            memories: MemoriesConfigSchema.describe(
+                'Memory configuration for system prompt inclusion (optional feature)'
+            ).optional(),
 
-        mcpServers: McpServersConfigSchema.describe(
-            'Configurations for MCP (Model Context Protocol) servers used by the agent'
-        ).default({}),
+            image: z
+                .string()
+                .describe(
+                    'Image package that provides required providers (e.g., "@dexto/image-local"). Optional - platform can load images via CLI flag, environment variable, or static imports.'
+                )
+                .optional(),
 
-        internalTools: InternalToolsSchema.describe(
-            'Internal tools configuration (read-file, write-file, bash-exec, etc.)'
-        ).default([]),
+            // ========================================
+            // FIELDS WITH DEFAULTS (always present after parsing)
+            // ========================================
+            agentId: z
+                .string()
+                .describe(
+                    'Unique identifier for this agent instance - CLI enrichment derives from agentCard.name or filename'
+                )
+                .default('coding-agent'),
 
-        tools: ToolsConfigSchema.describe(
-            'Configuration for individual tools (limits, etc.)'
-        ).default({}),
+            mcpServers: McpServersConfigSchema.describe(
+                'Configurations for MCP (Model Context Protocol) servers used by the agent'
+            ).default({}),
 
-        logger: LoggerConfigSchema.describe(
-            'Logger configuration with multi-transport support (file, console, remote) - CLI enrichment adds per-agent file transport'
-        ).default({
-            level: 'error',
-            transports: [{ type: 'console', colorize: true }],
-        }),
+            internalTools: InternalToolsSchema.describe(
+                'Internal tools configuration (read-file, write-file, bash-exec, etc.)'
+            ).default([]),
 
-        storage: StorageSchema.describe(
-            'Storage configuration for cache, database, and blob storage - defaults to in-memory, CLI enrichment provides filesystem paths'
-        ).default({
-            cache: { type: 'in-memory' },
-            database: { type: 'in-memory' },
-            blob: { type: 'in-memory' },
-        }),
+            customTools: CustomToolsSchema.describe(
+                'Custom tool provider configurations. Providers must be registered via customToolRegistry before loading agent config.'
+            ).default([]),
 
-        sessions: SessionConfigSchema.describe('Session management configuration').default({}),
+            tools: ToolsConfigSchema.describe(
+                'Configuration for individual tools (limits, etc.)'
+            ).default({}),
 
-        toolConfirmation: ToolConfirmationConfigSchema.describe(
-            'Tool confirmation and approval configuration'
-        ).default({}),
+            logger: LoggerConfigSchema.describe(
+                'Logger configuration with multi-transport support (file, console, remote) - CLI enrichment adds per-agent file transport'
+            ).default({
+                level: 'error',
+                transports: [{ type: 'console', colorize: true }],
+            }),
 
-        elicitation: ElicitationConfigSchema.default({}).describe(
-            'Elicitation configuration for user input requests (ask_user tool and MCP server elicitations). Independent from toolConfirmation mode.'
-        ),
+            storage: StorageSchema.describe(
+                'Storage configuration for cache, database, and blob storage - defaults to in-memory, CLI enrichment provides filesystem paths'
+            ).default({
+                cache: { type: 'in-memory' },
+                database: { type: 'in-memory' },
+                blob: { type: 'in-memory' },
+            }),
 
-        internalResources: InternalResourcesSchema.describe(
-            'Configuration for internal resources (filesystem, etc.)'
-        ).default([]),
+            sessions: SessionConfigSchema.describe('Session management configuration').default({}),
 
-        prompts: PromptsSchema.describe(
-            'Agent prompts configuration - sample prompts which can be defined inline or referenced from file'
-        ).default([]),
+            toolConfirmation: ToolConfirmationConfigSchema.describe(
+                'Tool confirmation and approval configuration'
+            ).default({}),
 
-        plugins: PluginsConfigSchema.describe(
-            'Plugin system configuration for built-in and custom plugins'
-        ).default({}),
-    })
-    .strict()
-    .describe('Main configuration for an agent, including its LLM and server connections')
-    .brand<'ValidatedAgentConfig'>();
+            elicitation: ElicitationConfigSchema.default({}).describe(
+                'Elicitation configuration for user input requests (ask_user tool and MCP server elicitations). Independent from toolConfirmation mode.'
+            ),
+
+            internalResources: InternalResourcesSchema.describe(
+                'Configuration for internal resources (filesystem, etc.)'
+            ).default([]),
+
+            prompts: PromptsSchema.describe(
+                'Agent prompts configuration - sample prompts which can be defined inline or referenced from file'
+            ).default([]),
+
+            plugins: PluginsConfigSchema.describe(
+                'Plugin system configuration for built-in and custom plugins'
+            ).default({}),
+
+            compaction: CompactionConfigSchema.describe(
+                'Context compaction configuration - custom providers can be registered via compactionRegistry'
+            ).default(DEFAULT_COMPACTION_CONFIG),
+        })
+        .strict()
+        .describe('Main configuration for an agent, including its LLM and server connections')
+        .brand<'ValidatedAgentConfig'>();
+}
+
+/**
+ * Default agent config schema with strict validation (backwards compatible).
+ * Use createAgentConfigSchema({ strict: false }) for relaxed validation.
+ */
+export const AgentConfigSchema = createAgentConfigSchema({ strict: true });
+
+/**
+ * Relaxed agent config schema that allows missing API keys and baseURLs.
+ * Use this for interactive modes (CLI, WebUI) where users can configure later.
+ */
+export const AgentConfigSchemaRelaxed = createAgentConfigSchema({ strict: false });
+
 // Input type for user-facing API (pre-parsing) - makes fields with defaults optional
-
 export type AgentConfig = z.input<typeof AgentConfigSchema>;
 // Validated type for internal use (post-parsing) - all defaults applied
 export type ValidatedAgentConfig = z.output<typeof AgentConfigSchema>;
+
+// Re-export validation options type for consumers
+export type { LLMValidationOptions };

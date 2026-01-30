@@ -1,7 +1,8 @@
 import type { MCPManager } from '../mcp/manager.js';
-import type { PromptSet, PromptProvider, PromptInfo } from './types.js';
+import type { PromptSet, PromptProvider, PromptInfo, ResolvedPromptResult } from './types.js';
 import type { GetPromptResult } from '@modelcontextprotocol/sdk/types.js';
 import type { ValidatedAgentConfig } from '../agent/schemas.js';
+import type { PromptsConfig } from './schemas.js';
 import type { AgentEventBus } from '../events/index.js';
 import { MCPPromptProvider } from './providers/mcp-prompt-provider.js';
 import { ConfigPromptProvider } from './providers/config-prompt-provider.js';
@@ -25,6 +26,7 @@ interface PromptCacheEntry {
 
 export class PromptManager {
     private providers: Map<string, PromptProvider> = new Map();
+    private configProvider: ConfigPromptProvider;
     private promptIndex: Map<string, PromptCacheEntry> | undefined;
     private aliasMap: Map<string, string> = new Map();
     private buildPromise: Promise<void> | null = null;
@@ -39,8 +41,9 @@ export class PromptManager {
         logger: IDextoLogger
     ) {
         this.logger = logger.createChild(DextoLogComponent.PROMPT);
+        this.configProvider = new ConfigPromptProvider(agentConfig, this.logger);
         this.providers.set('mcp', new MCPPromptProvider(mcpManager, this.logger));
-        this.providers.set('config', new ConfigPromptProvider(agentConfig, this.logger));
+        this.providers.set('config', this.configProvider);
         this.providers.set(
             'custom',
             new CustomPromptProvider(this.database, resourceManager, this.logger)
@@ -105,7 +108,52 @@ export class PromptManager {
             ...(info.title && { title: info.title }),
             ...(info.description && { description: info.description }),
             ...(info.arguments && { arguments: info.arguments }),
+            // Claude Code compatibility fields
+            ...(info.disableModelInvocation !== undefined && {
+                disableModelInvocation: info.disableModelInvocation,
+            }),
+            ...(info.userInvocable !== undefined && { userInvocable: info.userInvocable }),
+            ...(info.allowedTools !== undefined && { allowedTools: info.allowedTools }),
+            ...(info.model !== undefined && { model: info.model }),
+            ...(info.context !== undefined && { context: info.context }),
+            ...(info.agent !== undefined && { agent: info.agent }),
         };
+    }
+
+    /**
+     * List prompts that should appear in the CLI slash command menu.
+     * Filters out prompts with `userInvocable: false`.
+     * These prompts are intended for user invocation via `/` commands.
+     */
+    async listUserInvocablePrompts(): Promise<PromptSet> {
+        await this.ensureCache();
+        const index = this.promptIndex ?? new Map();
+        const result: PromptSet = {};
+        for (const [key, entry] of index.entries()) {
+            // Include prompt if userInvocable is not explicitly set to false
+            if (entry.info.userInvocable !== false) {
+                result[key] = entry.info;
+            }
+        }
+        return result;
+    }
+
+    /**
+     * List prompts that can be auto-invoked by the LLM.
+     * Filters out prompts with `disableModelInvocation: true`.
+     * These prompts should appear in the system prompt as available skills.
+     */
+    async listAutoInvocablePrompts(): Promise<PromptSet> {
+        await this.ensureCache();
+        const index = this.promptIndex ?? new Map();
+        const result: PromptSet = {};
+        for (const [key, entry] of index.entries()) {
+            // Include prompt if disableModelInvocation is not explicitly set to true
+            if (entry.info.disableModelInvocation !== true) {
+                result[key] = entry.info;
+            }
+        }
+        return result;
     }
 
     /**
@@ -212,10 +260,11 @@ export class PromptManager {
      * - Passing `_context` through to providers so they can decide whether to append it
      *   (e.g., file prompts without placeholders will append `Context: ...`)
      * - Prompt execution and flattening
+     * - Returning per-prompt overrides (allowedTools, model) for the invoker to apply
      *
      * @param name The prompt name or alias
      * @param options Optional configuration for prompt resolution
-     * @returns Promise resolving to the resolved text and resource URIs
+     * @returns Promise resolving to the resolved text, resource URIs, and optional overrides
      */
     async resolvePrompt(
         name: string,
@@ -223,7 +272,7 @@ export class PromptManager {
             context?: string;
             args?: Record<string, unknown>;
         } = {}
-    ): Promise<{ text: string; resources: string[] }> {
+    ): Promise<ResolvedPromptResult> {
         // Build args from options
         const args: Record<string, unknown> = { ...options.args };
         // Preserve `_context` on args for providers that need to decide whether to append it
@@ -231,6 +280,9 @@ export class PromptManager {
 
         // Resolve provided name to a valid prompt key using promptManager
         const resolvedName = (await this.resolvePromptKey(name)) ?? name;
+
+        // Get prompt definition to extract per-prompt overrides
+        const promptDef = await this.getPromptDefinition(resolvedName);
 
         // Normalize args (converts to strings, extracts context)
         const normalized = normalizePromptArgs(args);
@@ -253,7 +305,15 @@ export class PromptManager {
             throw PromptError.emptyResolvedContent(resolvedName);
         }
 
-        return { text: flattened.text, resources: flattened.resourceUris };
+        return {
+            text: flattened.text,
+            resources: flattened.resourceUris,
+            // Include per-prompt overrides from prompt definition
+            ...(promptDef?.allowedTools && { allowedTools: promptDef.allowedTools }),
+            ...(promptDef?.model && { model: promptDef.model }),
+            ...(promptDef?.context && { context: promptDef.context }),
+            ...(promptDef?.agent && { agent: promptDef.agent }),
+        };
     }
 
     async refresh(): Promise<void> {
@@ -264,6 +324,17 @@ export class PromptManager {
         }
         await this.ensureCache();
         this.logger.info('PromptManager refreshed');
+    }
+
+    /**
+     * Updates the config prompts at runtime.
+     * Call this after modifying the agent config file to reflect new prompts.
+     */
+    updateConfigPrompts(prompts: PromptsConfig): void {
+        this.configProvider.updatePrompts(prompts);
+        this.promptIndex = undefined;
+        this.aliasMap.clear();
+        this.logger.debug('Config prompts updated');
     }
 
     /**
@@ -289,7 +360,30 @@ export class PromptManager {
                         p.metadata.serverName === serverName
                 );
 
+                // Compute displayName counts including existing prompts for collision detection
+                const displayNameCounts = new Map<string, number>();
+                for (const entry of this.promptIndex.values()) {
+                    const displayName = entry.info.displayName || entry.info.name;
+                    displayNameCounts.set(
+                        displayName,
+                        (displayNameCounts.get(displayName) || 0) + 1
+                    );
+                }
                 for (const prompt of serverPrompts) {
+                    const displayName = prompt.displayName || prompt.name;
+                    displayNameCounts.set(
+                        displayName,
+                        (displayNameCounts.get(displayName) || 0) + 1
+                    );
+                }
+
+                // Compute commandName and insert each new prompt
+                for (const prompt of serverPrompts) {
+                    const displayName = prompt.displayName || prompt.name;
+                    const hasCollision = (displayNameCounts.get(displayName) || 0) > 1;
+                    prompt.commandName = hasCollision
+                        ? `${prompt.source}:${displayName}`
+                        : displayName;
                     this.insertPrompt(this.promptIndex, this.aliasMap, 'mcp', prompt);
                 }
             } catch (error) {
@@ -338,7 +432,7 @@ export class PromptManager {
         const metadata = { ...(prompt.metadata ?? {}) } as Record<string, unknown>;
         delete metadata.content;
         delete metadata.prompt;
-        delete metadata.filePath;
+        // Keep filePath - needed for prompt deletion
         delete metadata.messages;
 
         if (!metadata.originalName) {
@@ -375,17 +469,41 @@ export class PromptManager {
         const index = new Map<string, PromptCacheEntry>();
         const aliases = new Map<string, string>();
 
+        // Phase 1: Collect all prompts from providers
+        const collectedPrompts: Array<{ providerName: string; prompt: PromptInfo }> = [];
+
         for (const [providerName, provider] of this.providers) {
             try {
                 const { prompts } = await provider.listPrompts();
                 for (const prompt of prompts) {
-                    this.insertPrompt(index, aliases, providerName, prompt);
+                    collectedPrompts.push({ providerName, prompt });
                 }
             } catch (error) {
                 this.logger.error(
                     `Failed to get prompts from ${providerName} provider: ${error instanceof Error ? error.message : String(error)}`
                 );
             }
+        }
+
+        // Phase 2: Detect displayName collisions
+        const displayNameCounts = new Map<string, number>();
+        for (const { prompt } of collectedPrompts) {
+            const displayName = prompt.displayName || prompt.name;
+            displayNameCounts.set(displayName, (displayNameCounts.get(displayName) || 0) + 1);
+        }
+
+        // Phase 3: Compute commandName for each prompt (collision-resolved)
+        for (const { prompt } of collectedPrompts) {
+            const displayName = prompt.displayName || prompt.name;
+            const hasCollision = (displayNameCounts.get(displayName) || 0) > 1;
+
+            // Compute unique command name: use source prefix only when collision exists
+            prompt.commandName = hasCollision ? `${prompt.source}:${displayName}` : displayName;
+        }
+
+        // Phase 4: Build index and aliases
+        for (const { providerName, prompt } of collectedPrompts) {
+            this.insertPrompt(index, aliases, providerName, prompt);
         }
 
         this.promptIndex = index;
@@ -458,6 +576,11 @@ export class PromptManager {
                     aliases.set(candidate, key);
                 }
             }
+        }
+
+        // Add commandName as alias for resolution (allows resolving by user-facing command)
+        if (entryInfo.commandName && !aliases.has(entryInfo.commandName)) {
+            aliases.set(entryInfo.commandName, key);
         }
     }
 
