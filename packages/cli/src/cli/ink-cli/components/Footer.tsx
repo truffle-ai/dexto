@@ -3,10 +3,11 @@
  * Status line at the bottom showing CWD, branch, and model info.
  */
 
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import path from 'node:path';
 import { Box, Text } from 'ink';
 import { getModelDisplayName, type DextoAgent } from '@dexto/core';
+import { isDextoAuthEnabled } from '@dexto/agent-management';
 
 interface FooterProps {
     agent: DextoAgent;
@@ -45,7 +46,9 @@ export function Footer({
     } | null>(null);
 
     // Provider is session-scoped because /model can switch LLM per session.
-    const viaDexto = agent.getCurrentLLMConfig(sessionId ?? undefined).provider === 'dexto';
+    const viaDexto =
+        isDextoAuthEnabled() &&
+        agent.getCurrentLLMConfig(sessionId ?? undefined).provider === 'dexto';
 
     useEffect(() => {
         if (!sessionId) {
