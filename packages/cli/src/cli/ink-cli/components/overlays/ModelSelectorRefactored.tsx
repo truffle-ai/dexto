@@ -27,6 +27,7 @@ import {
     loadCustomModels,
     deleteCustomModel,
     getAllInstalledModels,
+    isDextoAuthEnabled,
     type CustomModel,
 } from '@dexto/agent-management';
 import { getLLMProviderDisplayName } from '../../utils/llm-provider-display.js';
@@ -209,7 +210,6 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                 for (const provider of providers) {
                     // Skip custom-only providers that don't have a static model list
                     // These are only accessible via the "Add custom model" wizard
-                    // Note: 'dexto' is NOT skipped because it has supportsAllRegistryModels
                     if (
                         provider === 'openai-compatible' ||
                         provider === 'openrouter' ||
@@ -221,6 +221,11 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
 
                     // Skip ollama, local, and vertex - they'll be added dynamically below
                     if (provider === 'ollama' || provider === 'local' || provider === 'vertex') {
+                        continue;
+                    }
+
+                    // Skip dexto provider when feature is not enabled
+                    if (provider === 'dexto' && !isDextoAuthEnabled()) {
                         continue;
                     }
 

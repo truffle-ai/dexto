@@ -3,7 +3,7 @@
  * Status line at the bottom showing CWD, branch, and model info.
  */
 
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import path from 'node:path';
 import { Box, Text } from 'ink';
 import { getModelDisplayName, type DextoAgent } from '@dexto/core';
