@@ -25,7 +25,7 @@ import {
     supportsBaseURL,
     getDefaultModelForProvider,
     acceptsAnyModel,
-} from './registry.js';
+} from './registry/index.js';
 import type { LLMProvider } from './types.js';
 
 // Test helpers

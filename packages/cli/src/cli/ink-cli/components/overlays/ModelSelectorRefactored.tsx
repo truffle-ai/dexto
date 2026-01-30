@@ -30,6 +30,7 @@ import {
     isDextoAuthEnabled,
     type CustomModel,
 } from '@dexto/agent-management';
+import { getLLMProviderDisplayName } from '../../utils/llm-provider-display.js';
 
 type ReasoningEffort = 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
 
@@ -736,10 +737,9 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                 // Show action buttons for selected custom models
                 const showActions = isSelected && item.isCustom;
 
-                // Show original provider for gateway models (e.g., dexto showing openai models)
-                const providerDisplay = item.originalProvider
-                    ? `${item.originalProvider} via ${item.provider}`
-                    : item.provider;
+                // Keep the UI label simple: show the actual provider being selected.
+                // Gateway routing details are intentionally hidden from the main picker.
+                const providerDisplay = getLLMProviderDisplayName(item.provider);
 
                 return (
                     <Box
@@ -795,10 +795,10 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
             {/* Scroll indicator */}
             {filteredItems.length > MAX_VISIBLE_ITEMS && (
                 <Box paddingX={0} paddingY={0}>
-                    <Text color="gray">
+                    <Text color="gray" wrap="truncate">
                         {scrollOffset > 0 ? '↑ more above' : ''}
                         {scrollOffset > 0 && scrollOffset + MAX_VISIBLE_ITEMS < filteredItems.length
-                            ? ' | '
+                            ? ' • '
                             : ''}
                         {scrollOffset + MAX_VISIBLE_ITEMS < filteredItems.length
                             ? '↓ more below'

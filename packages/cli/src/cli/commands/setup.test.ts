@@ -9,6 +9,10 @@ vi.mock('@dexto/core', async () => {
     const actual = await vi.importActual<typeof import('@dexto/core')>('@dexto/core');
     return {
         ...actual,
+        getCuratedModelsForProvider: vi.fn((provider: any) => {
+            const models = (actual as any).LLM_REGISTRY?.[provider]?.models ?? [];
+            return Array.isArray(models) ? models.slice(0, 8) : [];
+        }),
         resolveApiKeyForProvider: vi.fn(),
         requiresApiKey: vi.fn(() => true), // Most providers need API keys
     };

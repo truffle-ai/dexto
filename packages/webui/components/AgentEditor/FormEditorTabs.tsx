@@ -31,7 +31,7 @@ import type { AgentConfig, ContributorConfig } from '@dexto/core';
 import { LLM_PROVIDERS, MCP_SERVER_TYPES } from '@dexto/core';
 import { cn } from '@/lib/utils';
 import { useDiscovery } from '../hooks/useDiscovery';
-import { useLLMCatalog } from '../hooks/useLLM';
+import { useLLMCatalog, type LLMProvider } from '../hooks/useLLM';
 
 // Providers that support custom baseURL
 const BASE_URL_PROVIDERS = ['openai-compatible', 'litellm'];
@@ -126,9 +126,13 @@ function ModelTab({ config, onChange, errors }: TabProps) {
     const [showApiKey, setShowApiKey] = useState(false);
     const [showAdvanced, setShowAdvanced] = useState(false);
 
-    const { data: catalogData, isLoading: catalogLoading } = useLLMCatalog({ mode: 'grouped' });
-
     const currentProvider = config.llm?.provider || '';
+    const { data: catalogData, isLoading: catalogLoading } = useLLMCatalog({
+        mode: 'grouped',
+        scope: 'all',
+        provider: currentProvider ? (currentProvider as LLMProvider) : undefined,
+        enabled: !!currentProvider,
+    });
     const supportsBaseURL = BASE_URL_PROVIDERS.includes(currentProvider);
 
     const providerModels = useMemo(() => {

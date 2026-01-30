@@ -2,12 +2,41 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/queryKeys';
 import { client } from '@/lib/client';
 
-export function useLLMCatalog(options?: { enabled?: boolean; mode?: 'grouped' | 'flat' }) {
+export type LLMCatalogScope = 'curated' | 'all';
+
+export function useLLMCatalog(options?: {
+    enabled?: boolean;
+    mode?: 'grouped' | 'flat';
+    scope?: LLMCatalogScope;
+    includeModels?: boolean;
+    provider?: LLMProvider | LLMProvider[];
+}) {
     const mode = options?.mode ?? 'grouped';
+    const scope = options?.scope;
+    const includeModels = options?.includeModels;
+    const provider = options?.provider;
+
     return useQuery({
-        queryKey: [...queryKeys.llm.catalog, mode],
+        queryKey: [
+            ...queryKeys.llm.catalog,
+            mode,
+            scope ?? 'default',
+            includeModels ?? 'default',
+            provider ? (Array.isArray(provider) ? provider.join(',') : provider) : 'default',
+        ],
         queryFn: async () => {
-            const response = await client.api.llm.catalog.$get({ query: { mode } });
+            const response = await client.api.llm.catalog.$get({
+                query: {
+                    mode,
+                    ...(scope ? { scope } : {}),
+                    ...(includeModels != null
+                        ? { includeModels: includeModels ? 'true' : 'false' }
+                        : {}),
+                    ...(provider
+                        ? { provider: Array.isArray(provider) ? provider : String(provider) }
+                        : {}),
+                },
+            });
             if (!response.ok) {
                 throw new Error(`Failed to fetch LLM catalog: ${response.status}`);
             }

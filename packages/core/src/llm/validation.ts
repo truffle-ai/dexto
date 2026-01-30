@@ -1,4 +1,4 @@
-import { validateModelFileSupport, getAllowedMimeTypes } from './registry.js';
+import { validateModelFileSupport, getAllowedMimeTypes } from './registry/index.js';
 import type { LLMProvider } from './types.js';
 import type { IDextoLogger } from '../logger/v2/types.js';
 import type { ImageData, FileData } from '../context/types.js';

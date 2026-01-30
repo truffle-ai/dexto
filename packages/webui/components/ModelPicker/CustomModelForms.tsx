@@ -1052,7 +1052,7 @@ export function CustomModelForm({
 
     // Build provider options list - include dexto when feature is enabled
     const providerOptions = showDextoProvider
-        ? [...PROVIDER_OPTIONS, DEXTO_PROVIDER_OPTION]
+        ? [DEXTO_PROVIDER_OPTION, ...PROVIDER_OPTIONS]
         : PROVIDER_OPTIONS;
 
     // Reset error when provider changes

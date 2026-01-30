@@ -22,8 +22,8 @@ vi.mock('../context/compaction/index.js', () => ({
         clear: vi.fn(),
     },
 }));
-vi.mock('../llm/registry.js', async (importOriginal) => {
-    const actual = (await importOriginal()) as typeof import('../llm/registry.js');
+vi.mock('../llm/registry/index.js', async (importOriginal) => {
+    const actual = (await importOriginal()) as typeof import('../llm/registry/index.js');
     return {
         ...actual,
         getEffectiveMaxInputTokens: vi.fn(),
@@ -42,7 +42,7 @@ vi.mock('../logger/index.js', () => ({
 import { createDatabaseHistoryProvider } from './history/factory.js';
 import { createLLMService, createVercelModel } from '../llm/services/factory.js';
 import { createCompactionStrategy } from '../context/compaction/index.js';
-import { getEffectiveMaxInputTokens } from '../llm/registry.js';
+import { getEffectiveMaxInputTokens } from '../llm/registry/index.js';
 import { createMockLogger } from '../logger/v2/test-utils.js';
 
 const mockCreateDatabaseHistoryProvider = vi.mocked(createDatabaseHistoryProvider);

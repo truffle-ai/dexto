@@ -1,5 +1,18 @@
 # @dexto/tools-process
 
+## 1.5.7
+
+### Patch Changes
+
+- 1960235: Add GLM and Minimax to Dexto gateway and onboarding. Split agent logging per session. Persist /model overrides per session. Other bug fixes for message filtering.
+- Updated dependencies [7de0cbe]
+- Updated dependencies [c4ae9e7]
+- Updated dependencies [a2c7092]
+- Updated dependencies [1e0ac05]
+- Updated dependencies [ee3f1f8]
+- Updated dependencies [1960235]
+    - @dexto/core@1.5.7
+
 ## 1.5.6
 
 ### Patch Changes

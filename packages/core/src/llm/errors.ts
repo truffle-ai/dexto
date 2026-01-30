@@ -3,7 +3,7 @@ import { ErrorScope } from '@core/errors/types.js';
 import { ErrorType } from '../errors/types.js';
 import { LLMErrorCode } from './error-codes.js';
 // Use types solely from types.ts to avoid duplication
-import { getSupportedProviders } from './registry.js';
+import { getSupportedProviders } from './registry/index.js';
 import type { LLMProvider } from './types.js';
 
 /**

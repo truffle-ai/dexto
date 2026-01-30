@@ -94,7 +94,7 @@ export type {
 export type { AgentEventMap, SessionEventMap } from './events/index.js';
 
 // LLM registry types (used by client-sdk package)
-export type { ModelInfo, ProviderInfo } from './llm/registry.js';
+export type { ModelInfo, ProviderInfo } from './llm/registry/index.js';
 export type { SupportedFileType } from './llm/types.js';
 
 // Resource types and utilities (used by webui package)

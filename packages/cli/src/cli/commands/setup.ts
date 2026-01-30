@@ -12,6 +12,7 @@ import {
     supportsCustomModels,
     requiresApiKey,
     isReasoningCapableModel,
+    getCuratedModelsForProvider,
 } from '@dexto/core';
 import { resolveApiKeyForProvider } from '@dexto/core';
 import {
@@ -236,7 +237,7 @@ export async function handleSetupCommand(options: Partial<CLISetupOptionsInput>)
 
     // Handle quick start
     if (validated.quickStart) {
-        await handleQuickStart();
+        await handleQuickStart({ onCancel: 'exit' });
         return;
     }
 
@@ -253,171 +254,203 @@ export async function handleSetupCommand(options: Partial<CLISetupOptionsInput>)
 /**
  * Quick start flow - pick a free provider with minimal prompts
  */
-async function handleQuickStart(): Promise<void> {
+type QuickStartCancelBehavior = 'exit' | 'back';
+
+interface QuickStartOptions {
+    onCancel: QuickStartCancelBehavior;
+}
+
+async function handleQuickStart(
+    options: QuickStartOptions = { onCancel: 'exit' }
+): Promise<'completed' | 'cancelled'> {
     console.log(chalk.cyan('\n🚀 Quick Start\n'));
 
     p.intro(chalk.cyan('Quick Setup'));
 
-    // Let user pick from popular free providers
-    const quickProvider = await p.select({
-        message: 'Choose a provider',
-        options: [
-            {
-                value: 'google' as const,
-                label: `${chalk.green('●')} Google Gemini`,
-                hint: 'Free, 1M+ context (recommended)',
-            },
-            {
-                value: 'groq' as const,
-                label: `${chalk.green('●')} Groq`,
-                hint: 'Free, ultra-fast',
-            },
-            {
-                value: 'local' as const,
-                label: `${chalk.cyan('●')} Local Models`,
-                hint: 'Free, private, runs on your machine',
-            },
-        ],
-    });
+    while (true) {
+        // Let user pick from popular free providers
+        const quickProvider = await p.select({
+            message: 'Choose a provider',
+            options: [
+                {
+                    value: 'google' as const,
+                    label: `${chalk.green('●')} Google Gemini`,
+                    hint: 'Free, 1M+ context (recommended)',
+                },
+                {
+                    value: 'groq' as const,
+                    label: `${chalk.green('●')} Groq`,
+                    hint: 'Free, ultra-fast',
+                },
+                {
+                    value: 'local' as const,
+                    label: `${chalk.cyan('●')} Local Models`,
+                    hint: 'Free, private, runs on your machine',
+                },
+                { value: '_back' as const, label: chalk.gray('← Back'), hint: 'Return' },
+            ],
+        });
 
-    if (p.isCancel(quickProvider)) {
-        p.cancel('Setup cancelled');
-        process.exit(0);
-    }
-
-    // Handle local models with dedicated setup flow
-    if (quickProvider === 'local') {
-        const localResult = await setupLocalModels();
-        if (!hasSelectedModel(localResult)) {
-            p.cancel('Setup cancelled');
-            process.exit(0);
+        if (p.isCancel(quickProvider) || quickProvider === '_back') {
+            if (options.onCancel === 'exit') {
+                p.cancel('Setup cancelled');
+            }
+            return 'cancelled';
         }
-        const model = getModelFromResult(localResult);
 
-        // CLI mode confirmation for local
+        // Handle local models with dedicated setup flow
+        if (quickProvider === 'local') {
+            const localResult = await setupLocalModels();
+            if (!hasSelectedModel(localResult)) {
+                if (options.onCancel === 'exit') {
+                    p.cancel('Setup cancelled');
+                    return 'cancelled';
+                }
+                continue;
+            }
+            const model = getModelFromResult(localResult);
+
+            // CLI mode confirmation for local
+            const useCli = await p.confirm({
+                message: 'Start in Terminal mode? (You can change this later)',
+                initialValue: true,
+            });
+
+            if (p.isCancel(useCli)) {
+                if (options.onCancel === 'exit') {
+                    p.cancel('Setup cancelled');
+                    return 'cancelled';
+                }
+                continue;
+            }
+
+            const defaultMode = useCli ? 'cli' : await selectDefaultMode();
+            if (defaultMode === null) {
+                if (options.onCancel === 'exit') {
+                    p.cancel('Setup cancelled');
+                    return 'cancelled';
+                }
+                continue;
+            }
+
+            // Sync the active model for local provider
+            await setActiveModel(model);
+
+            const preferences = createInitialPreferences({
+                provider: 'local',
+                model,
+                defaultMode,
+                setupCompleted: true,
+                apiKeyPending: false,
+            });
+
+            await saveGlobalPreferences(preferences);
+
+            capture('dexto_setup', {
+                provider: 'local',
+                model,
+                setupMode: 'interactive',
+                setupVariant: 'quick-start',
+                defaultMode,
+                apiKeySkipped: false,
+            });
+
+            await showSetupComplete('local', model, defaultMode, false);
+            return 'completed';
+        }
+
+        // Cloud provider flow (google or groq)
+        const provider: LLMProvider = quickProvider;
+        const model =
+            getDefaultModelForProvider(provider) ||
+            (provider === 'google' ? 'gemini-2.5-pro' : 'llama-3.3-70b-versatile');
+        const apiKeyVar = getProviderEnvVar(provider);
+        let apiKeySkipped = false;
+
+        // Check if API key exists
+        const hasKey = hasApiKeyConfigured(provider);
+
+        if (!hasKey) {
+            const providerName = getProviderDisplayName(provider);
+            p.note(
+                `${providerName} is ${chalk.green('free')} to use!\n\n` +
+                    `We'll help you get an API key in just a few seconds.`,
+                'Free AI Access'
+            );
+
+            const result = await interactiveApiKeySetup(provider, {
+                exitOnCancel: false, // Don't exit - allow skipping
+                model,
+            });
+
+            if (result.cancelled) {
+                if (options.onCancel === 'exit') {
+                    p.cancel('Setup cancelled');
+                    return 'cancelled';
+                }
+                continue;
+            }
+
+            if (result.skipped || !result.success) {
+                apiKeySkipped = true;
+            }
+        } else {
+            p.log.success(`API key for ${getProviderDisplayName(provider)} already configured`);
+        }
+
+        // CLI mode confirmation
         const useCli = await p.confirm({
             message: 'Start in Terminal mode? (You can change this later)',
             initialValue: true,
         });
 
         if (p.isCancel(useCli)) {
-            p.cancel('Setup cancelled');
-            process.exit(0);
+            if (options.onCancel === 'exit') {
+                p.cancel('Setup cancelled');
+                return 'cancelled';
+            }
+            continue;
         }
 
         const defaultMode = useCli ? 'cli' : await selectDefaultMode();
+
+        // Handle cancellation
         if (defaultMode === null) {
-            p.cancel('Setup cancelled');
-            process.exit(0);
+            if (options.onCancel === 'exit') {
+                p.cancel('Setup cancelled');
+                return 'cancelled';
+            }
+            continue;
         }
 
-        // Sync the active model for local provider
-        await setActiveModel(model);
-
-        const preferences = createInitialPreferences({
-            provider: 'local',
+        // Save preferences
+        const preferencesOptions: CreatePreferencesOptions = {
+            provider,
             model,
             defaultMode,
             setupCompleted: true,
-            apiKeyPending: false,
-        });
+            apiKeyPending: apiKeySkipped,
+        };
+        // Only include apiKeyVar if not skipped
+        if (!apiKeySkipped) {
+            preferencesOptions.apiKeyVar = apiKeyVar;
+        }
+        const preferences = createInitialPreferences(preferencesOptions);
 
         await saveGlobalPreferences(preferences);
 
         capture('dexto_setup', {
-            provider: 'local',
+            provider,
             model,
             setupMode: 'interactive',
             setupVariant: 'quick-start',
             defaultMode,
-            apiKeySkipped: false,
+            apiKeySkipped,
         });
 
-        await showSetupComplete('local', model, defaultMode, false);
-        return;
+        await showSetupComplete(provider, model, defaultMode, apiKeySkipped);
+        return 'completed';
     }
-
-    // Cloud provider flow (google or groq)
-    const provider: LLMProvider = quickProvider;
-    const model =
-        getDefaultModelForProvider(provider) ||
-        (provider === 'google' ? 'gemini-2.5-pro' : 'llama-3.3-70b-versatile');
-    const apiKeyVar = getProviderEnvVar(provider);
-    let apiKeySkipped = false;
-
-    // Check if API key exists
-    const hasKey = hasApiKeyConfigured(provider);
-
-    if (!hasKey) {
-        const providerName = getProviderDisplayName(provider);
-        p.note(
-            `${providerName} is ${chalk.green('free')} to use!\n\n` +
-                `We'll help you get an API key in just a few seconds.`,
-            'Free AI Access'
-        );
-
-        const result = await interactiveApiKeySetup(provider, {
-            exitOnCancel: false, // Don't exit - allow skipping
-            model,
-        });
-
-        if (result.cancelled) {
-            p.cancel('Setup cancelled');
-            process.exit(0);
-        }
-
-        if (result.skipped || !result.success) {
-            apiKeySkipped = true;
-        }
-    } else {
-        p.log.success(`API key for ${getProviderDisplayName(provider)} already configured`);
-    }
-
-    // CLI mode confirmation
-    const useCli = await p.confirm({
-        message: 'Start in Terminal mode? (You can change this later)',
-        initialValue: true,
-    });
-
-    if (p.isCancel(useCli)) {
-        p.cancel('Setup cancelled');
-        process.exit(0);
-    }
-
-    const defaultMode = useCli ? 'cli' : await selectDefaultMode();
-
-    // Handle cancellation
-    if (defaultMode === null) {
-        p.cancel('Setup cancelled');
-        process.exit(0);
-    }
-
-    // Save preferences
-    const preferencesOptions: CreatePreferencesOptions = {
-        provider,
-        model,
-        defaultMode,
-        setupCompleted: true,
-        apiKeyPending: apiKeySkipped,
-    };
-    // Only include apiKeyVar if not skipped
-    if (!apiKeySkipped) {
-        preferencesOptions.apiKeyVar = apiKeyVar;
-    }
-    const preferences = createInitialPreferences(preferencesOptions);
-
-    await saveGlobalPreferences(preferences);
-
-    capture('dexto_setup', {
-        provider,
-        model,
-        setupMode: 'interactive',
-        setupVariant: 'quick-start',
-        defaultMode,
-        apiKeySkipped,
-    });
-
-    await showSetupComplete(provider, model, defaultMode, apiKeySkipped);
 }
 
 /**
@@ -475,7 +508,7 @@ async function handleDextoProviderSetup(): Promise<void> {
     // Model selection - show popular models in OpenRouter format
     // NOTE: This list is intentionally hardcoded (not from registry) to include
     // curated hints for onboarding UX. Keep model IDs in sync with:
-    // packages/core/src/llm/registry.ts (LLM_REGISTRY.dexto.models)
+    // packages/core/src/llm/registry/index.ts (LLM_REGISTRY.dexto.models)
     const model = await p.select({
         message: 'Select a model to start with',
         options: [
@@ -538,6 +571,11 @@ async function handleDextoProviderSetup(): Promise<void> {
                 value: 'minimax/minimax-m2.1',
                 label: 'Minimax M2.1',
                 hint: 'Fast model with 196k context',
+            },
+            {
+                value: 'moonshotai/kimi-k2.5',
+                label: 'Kimi K2.5',
+                hint: 'Multimodal coding model, 262k context',
             },
         ],
     });
@@ -675,7 +713,10 @@ async function wizardStepSetupType(state: SetupWizardState): Promise<SetupWizard
 
     if (setupType === 'quick') {
         // Quick start bypasses the wizard - handle it directly
-        await handleQuickStart();
+        const result = await handleQuickStart({ onCancel: 'back' });
+        if (result === 'cancelled') {
+            return { ...state, step: 'setupType' };
+        }
         return { ...state, step: 'complete', quickStartHandled: true };
     }
 
@@ -691,8 +732,9 @@ async function wizardStepProvider(state: SetupWizardState): Promise<SetupWizardS
     const provider = await selectProvider();
 
     if (provider === null) {
-        p.cancel('Setup cancelled');
-        process.exit(0);
+        // Treat prompt cancellation as "back" to avoid accidentally exiting the setup wizard.
+        // Users can still cancel setup from the initial setup type step.
+        return { ...state, step: 'setupType', provider: undefined };
     }
 
     if (provider === '_back') {
@@ -793,8 +835,8 @@ async function wizardStepReasoningEffort(state: SetupWizardState): Promise<Setup
     });
 
     if (p.isCancel(result)) {
-        p.cancel('Setup cancelled');
-        process.exit(0);
+        // Treat prompt cancellation as "back" to avoid accidentally exiting the setup wizard.
+        return { ...state, step: 'model', reasoningEffort: undefined };
     }
 
     if (result === '_back') {
@@ -876,22 +918,48 @@ async function selectModelWithBack(provider: LLMProvider): Promise<string | '_ba
     const providerInfo = LLM_REGISTRY[provider];
 
     if (providerInfo?.models && providerInfo.models.length > 0) {
-        const modelOptions = providerInfo.models.map((m) => ({
-            value: m.name,
-            label: m.displayName || m.name,
-        }));
+        const curatedModels = getCuratedModelsForProvider(provider);
+        const defaultModel =
+            curatedModels.find((m) => m.default) ??
+            providerInfo.models.find((m) => m.default) ??
+            curatedModels[0] ??
+            providerInfo.models[0];
+        if (!defaultModel) {
+            p.log.warn('No models available for this provider');
+            return '_back';
+        }
+
+        const curatedOptions = curatedModels
+            .slice(0, 8)
+            .filter((m) => m.name !== defaultModel.name)
+            .map((m) => ({
+                value: m.name,
+                label: m.displayName || m.name,
+            }));
+
+        if (supportsCustomModels(provider)) {
+            p.log.info(chalk.gray('Tip: You can add custom model IDs later via /models'));
+        }
 
         const result = await p.select({
             message: `Select a model for ${getProviderDisplayName(provider)}`,
             options: [
-                ...modelOptions,
-                { value: '_back' as const, label: chalk.gray('← Back'), hint: 'Change provider' },
+                {
+                    value: defaultModel.name,
+                    label: defaultModel.displayName || defaultModel.name,
+                    hint: '(recommended)',
+                },
+                ...curatedOptions,
+                {
+                    value: '_back' as const,
+                    label: chalk.gray('← Back'),
+                    hint: 'Change provider',
+                },
             ],
         });
 
         if (p.isCancel(result)) {
-            p.cancel('Setup cancelled');
-            process.exit(0);
+            return '_back';
         }
 
         return result as string | '_back';
@@ -1536,21 +1604,39 @@ async function selectModel(provider: LLMProvider): Promise<string | null> {
 
     // For providers with a fixed model list
     if (providerInfo?.models && providerInfo.models.length > 0) {
-        const options = providerInfo.models.map((m) => {
-            const option: { value: string; label: string; hint?: string } = {
+        const curatedModels = getCuratedModelsForProvider(provider);
+        const defaultModel =
+            curatedModels.find((m) => m.default) ??
+            providerInfo.models.find((m) => m.default) ??
+            curatedModels[0] ??
+            providerInfo.models[0];
+        if (!defaultModel) {
+            return null;
+        }
+
+        const curatedOptions = curatedModels
+            .slice(0, 8)
+            .filter((m) => m.name !== defaultModel.name)
+            .map((m) => ({
                 value: m.name,
                 label: m.displayName || m.name,
-            };
-            if (m.default) {
-                option.hint = '(default)';
-            }
-            return option;
-        });
+            }));
+
+        if (supportsCustomModels(provider)) {
+            p.log.info(chalk.gray('Tip: You can add custom model IDs later via /models'));
+        }
 
         const selected = await p.select({
             message: `Select a model for ${getProviderDisplayName(provider)}`,
-            options,
-            initialValue: providerInfo.models.find((m) => m.default)?.name,
+            options: [
+                {
+                    value: defaultModel.name,
+                    label: defaultModel.displayName || defaultModel.name,
+                    hint: '(recommended)',
+                },
+                ...curatedOptions,
+            ],
+            initialValue: defaultModel.name,
         });
 
         if (p.isCancel(selected)) {
@@ -1656,6 +1742,7 @@ async function showSetupComplete(
         ...(isLocalProvider
             ? [`  Run ${chalk.cyan('dexto setup')} again to manage local models`]
             : []),
+        `  In the interactive CLI, run ${chalk.cyan('/model')} to switch models`,
         `  Run ${chalk.cyan('dexto --help')} for more options`,
     ].join('\n');
 

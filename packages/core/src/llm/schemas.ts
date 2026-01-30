@@ -9,11 +9,12 @@ import {
     requiresBaseURL,
     acceptsAnyModel,
     supportsCustomModels,
+    hasAllRegistryModelsSupport,
     getSupportedModels,
     isValidProviderModel,
     getMaxInputTokensForModel,
     requiresApiKey,
-} from './registry.js';
+} from './registry/index.js';
 import { LLM_PROVIDERS } from './types.js';
 
 /**
@@ -142,6 +143,23 @@ export function createLLMConfigSchema(options: LLMValidationOptions = {}) {
     return LLMConfigBaseSchema.superRefine((data, ctx) => {
         const baseURLIsSet = data.baseURL != null && data.baseURL.trim() !== '';
         const maxInputTokensIsSet = data.maxInputTokens != null;
+
+        // Gateway providers require OpenRouter-format model IDs ("provider/model").
+        // This avoids implicit transformation and makes the config unambiguous.
+        if (hasAllRegistryModelsSupport(data.provider) && !data.model.includes('/')) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['model'],
+                message:
+                    `Provider '${data.provider}' requires OpenRouter-format model IDs (e.g. ` +
+                    `'openai/gpt-5-mini' or 'anthropic/claude-sonnet-4.5'). You provided '${data.model}'.`,
+                params: {
+                    code: LLMErrorCode.MODEL_INCOMPATIBLE,
+                    scope: ErrorScope.LLM,
+                    type: ErrorType.USER,
+                },
+            });
+        }
 
         // API key validation with provider context
         // In relaxed mode, skip API key validation to allow launching app for interactive config
