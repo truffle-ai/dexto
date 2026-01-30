@@ -458,13 +458,6 @@ export default function InputArea({
             return;
         }
 
-        // NEW: Backspace on empty input removes last attachment
-        if (e.key === 'Backspace' && !text && attachments.length > 0) {
-            e.preventDefault();
-            setAttachments((prev) => prev.slice(0, -1));
-            return;
-        }
-
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
             // Check if user typed `#` to create a memory
@@ -1042,15 +1035,6 @@ export default function InputArea({
         }
     };
 
-    // Keyboard handler for accessibility - allows keyboard users to activate file picker
-    const handleDropZoneKeyDown = (e: React.KeyboardEvent) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            // Trigger the first available file input for keyboard users
-            fileInputRef.current?.click();
-        }
-    };
-
     // Unified input panel: use the same full-featured chat composer in both welcome and chat states
 
     // Chat variant - full featured input area
@@ -1102,8 +1086,7 @@ export default function InputArea({
                 >
                     <div
                         role="region"
-                        aria-label="Message input area with file drop zone. Press Enter or Space to select files"
-                        tabIndex={0}
+                        aria-label="Message input area with file drop zone"
                         className={cn(
                             'relative transition-all duration-200',
                             isDragging && 'ring-2 ring-primary ring-offset-2 rounded-lg'
@@ -1112,7 +1095,6 @@ export default function InputArea({
                         onDragOver={handleDragOver}
                         onDragLeave={handleDragLeave}
                         onDrop={handleDrop}
-                        onKeyDown={handleDropZoneKeyDown}
                     >
                         <ChatInputContainer>
                             {/* Drop overlay with visual feedback */}

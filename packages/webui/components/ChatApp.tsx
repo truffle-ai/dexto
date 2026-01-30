@@ -709,16 +709,6 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
     // Ctrl/Cmd + Shift + E to export config
     useHotkeys('mod+shift+e', () => setExportOpen(true), { preventDefault: true });
 
-    // Focus input area
-    useHotkeys(
-        'mod+i',
-        () => {
-            const textarea = document.querySelector('#input-area textarea') as HTMLTextAreaElement;
-            textarea?.focus();
-        },
-        { preventDefault: true }
-    );
-
     // Ctrl/Cmd + / to show shortcuts
     useHotkeys('mod+slash', () => setShowShortcuts(true), { preventDefault: true });
 
