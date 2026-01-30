@@ -92,7 +92,7 @@ export const memoryCommand: CommandDefinition = {
     aliases: ['mem'],
     handler: async (
         args: string[],
-        agent: DextoAgent,
+        _agent: DextoAgent,
         _ctx: CommandContext
     ): Promise<CommandHandlerResult> => {
         const subcommand = args[0]?.toLowerCase();
