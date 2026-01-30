@@ -6,7 +6,7 @@ import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
 import { getDextoGlobalPath } from '../utils/path.js';
 import { logger } from '@dexto/core';
 import { DextoValidationError, DextoRuntimeError } from '@dexto/core';
-import type { LLMProvider } from '@dexto/core';
+import type { LLMProvider, LLMReasoningConfig } from '@dexto/core';
 import { GlobalPreferencesSchema, type GlobalPreferences } from './schemas.js';
 import { PREFERENCES_FILE } from './constants.js';
 import { PreferenceError } from './errors.js';
@@ -134,8 +134,8 @@ export interface CreatePreferencesOptions {
     defaultAgent?: string;
     defaultMode?: 'cli' | 'web' | 'server' | 'discord' | 'telegram' | 'mcp';
     baseURL?: string;
-    /** Reasoning effort for OpenAI reasoning models (o1, o3, codex, gpt-5.x) */
-    reasoningEffort?: 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
+    /** Reasoning configuration (tuning only; display is controlled separately). */
+    reasoning?: LLMReasoningConfig;
     setupCompleted?: boolean;
     /** Whether API key setup was skipped and needs to be configured later */
     apiKeyPending?: boolean;
@@ -169,9 +169,9 @@ export function createInitialPreferences(options: CreatePreferencesOptions): Glo
         llmConfig.baseURL = options.baseURL;
     }
 
-    // Only add reasoningEffort if provided
-    if (options.reasoningEffort) {
-        llmConfig.reasoningEffort = options.reasoningEffort;
+    // Only add reasoning config if provided
+    if (options.reasoning) {
+        llmConfig.reasoning = options.reasoning;
     }
 
     return {

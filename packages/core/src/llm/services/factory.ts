@@ -2,6 +2,7 @@ import { ToolManager } from '../../tools/tool-manager.js';
 import { ValidatedLLMConfig } from '../schemas.js';
 import { LLMError } from '../errors.js';
 import { createOpenAI } from '@ai-sdk/openai';
+import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { createGroq } from '@ai-sdk/groq';
@@ -9,6 +10,7 @@ import { createXai } from '@ai-sdk/xai';
 import { createVertex } from '@ai-sdk/google-vertex';
 import { createVertexAnthropic } from '@ai-sdk/google-vertex/anthropic';
 import { createAmazonBedrock } from '@ai-sdk/amazon-bedrock';
+import { createOpenRouter } from '@openrouter/ai-sdk-provider';
 import { VercelLLMService } from './vercel.js';
 import { LanguageModel } from 'ai';
 import { SessionEventBus } from '../../events/index.js';
@@ -67,20 +69,33 @@ export function createVercelModel(
             return createOpenAI({ apiKey: apiKey ?? '' })(model);
         }
         case 'openai-compatible': {
-            // OpenAI-compatible - requires baseURL, uses chat completions endpoint
-            // Must use .chat() as most compatible endpoints (like Ollama) don't support Responses API
             const compatibleBaseURL =
                 baseURL?.replace(/\/$/, '') || process.env.OPENAI_BASE_URL?.replace(/\/$/, '');
             if (!compatibleBaseURL) {
                 throw LLMError.baseUrlMissing('openai-compatible');
             }
-            return createOpenAI({ apiKey: apiKey ?? '', baseURL: compatibleBaseURL }).chat(model);
+            // Use the OpenAI-compatible provider so providerOptions can be keyed per-endpoint.
+            // This also avoids mixing OpenAI Responses defaults into compatibility endpoints.
+            const provider = createOpenAICompatible({
+                name: 'openaiCompatible',
+                baseURL: compatibleBaseURL,
+                ...(apiKey?.trim() ? { apiKey } : {}),
+            });
+            return provider.chatModel(model);
         }
         case 'openrouter': {
             // OpenRouter - unified API gateway for 100+ models (BYOK)
             // Model IDs are in OpenRouter format (e.g., 'anthropic/claude-sonnet-4-5-20250929')
             const orBaseURL = baseURL || 'https://openrouter.ai/api/v1';
-            return createOpenAI({ apiKey: apiKey ?? '', baseURL: orBaseURL }).chat(model);
+            const provider = createOpenRouter({
+                apiKey: apiKey ?? '',
+                baseURL: orBaseURL,
+                compatibility: 'strict',
+            });
+            // NOTE: The OpenRouter provider's providerMetadata typing can be stricter than
+            // the Vercel AI SDK's `LanguageModel` JSONValue constraints under
+            // `exactOptionalPropertyTypes`. The runtime interface is compatible.
+            return provider.chat(model) as unknown as LanguageModel;
         }
         case 'minimax': {
             // MiniMax - OpenAI-compatible endpoint
@@ -129,9 +144,14 @@ export function createVercelModel(
             }
 
             // Model is already in OpenRouter format - pass through directly
-            return createOpenAI({ apiKey: apiKey ?? '', baseURL: dextoBaseURL, headers }).chat(
-                model
-            );
+            const provider = createOpenRouter({
+                apiKey: apiKey ?? '',
+                baseURL: dextoBaseURL,
+                headers,
+                // This is an OpenRouter-compatible gateway; keep strict mode to enable OR features.
+                compatibility: 'strict',
+            });
+            return provider.chat(model) as unknown as LanguageModel;
         }
         case 'vertex': {
             // Google Vertex AI - supports both Gemini and Claude models

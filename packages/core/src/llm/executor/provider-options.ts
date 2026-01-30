@@ -2,10 +2,11 @@
  * Provider-specific options builder for Vercel AI SDK's streamText/generateText.
  *
  * Centralizes provider-specific configuration that requires explicit opt-in:
- * - Anthropic: cacheControl for prompt caching, sendReasoning for extended thinking
- * - Bedrock/Vertex Claude: Same as Anthropic (Claude models on these platforms)
- * - Google: thinkingConfig for Gemini thinking models
- * - OpenAI: reasoningEffort for o1/o3/codex/gpt-5 models
+ * - Anthropic: cacheControl for prompt caching, reasoning config (effort / thinking budget)
+ * - Bedrock: reasoningConfig for supported models
+ * - Google/Vertex (Gemini): thinkingConfig includeThoughts + thinkingLevel/budget
+ * - OpenAI: reasoningEffort for reasoning-capable models
+ * - OpenRouter/Dexto: OpenRouter reasoning config (effort/max_tokens + includeReasoning)
  *
  * Caching notes:
  * - Anthropic: Requires explicit cacheControl option (we enable it)
@@ -15,117 +16,235 @@
  * All providers return cached token counts in the response (cachedInputTokens).
  */
 
-import type { LLMProvider } from '../types.js';
+import type { LLMProvider, LLMReasoningConfig, ReasoningPreset } from '../types.js';
 import { isReasoningCapableModel } from '../registry/index.js';
-
-export type ReasoningEffort = 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
 
 export interface ProviderOptionsConfig {
     provider: LLMProvider;
     model: string;
-    reasoningEffort?: ReasoningEffort | undefined;
+    reasoning?: LLMReasoningConfig | undefined;
+}
+
+function normalizePreset(reasoning?: LLMReasoningConfig | undefined): ReasoningPreset {
+    return reasoning?.preset ?? 'auto';
+}
+
+function mapPresetToLowMediumHigh(preset: ReasoningPreset): 'low' | 'medium' | 'high' | undefined {
+    switch (preset) {
+        case 'low':
+            return 'low';
+        case 'medium':
+            return 'medium';
+        case 'high':
+        case 'max':
+        case 'xhigh':
+            return 'high';
+        default:
+            return undefined;
+    }
+}
+
+function mapPresetToOpenAIReasoningEffort(
+    preset: ReasoningPreset,
+    model: string
+): 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | undefined {
+    // If the model isn't reasoning-capable, never send reasoningEffort (the SDK will warn).
+    if (!isReasoningCapableModel(model)) {
+        return undefined;
+    }
+
+    if (preset === 'auto') {
+        return getDefaultOpenAIReasoningEffort(model);
+    }
+
+    if (preset === 'off') {
+        return 'none';
+    }
+
+    if (preset === 'low' || preset === 'medium' || preset === 'high') {
+        return preset;
+    }
+
+    if (preset === 'max') {
+        return supportsOpenAIXHigh(model) ? 'xhigh' : 'high';
+    }
+
+    if (preset === 'xhigh') {
+        return supportsOpenAIXHigh(model) ? 'xhigh' : 'high';
+    }
+
+    return undefined;
+}
+
+function supportsOpenAIXHigh(model: string): boolean {
+    // We only have reliable evidence for codex today; keep conservative.
+    return model.toLowerCase().includes('codex');
 }
 
 /**
  * Build provider-specific options for streamText/generateText.
  *
- * @param config Provider, model, and optional reasoning effort configuration
+ * @param config Provider, model, and optional reasoning configuration
  * @returns Provider options object or undefined if no special options needed
  */
 export function buildProviderOptions(
     config: ProviderOptionsConfig
 ): Record<string, Record<string, unknown>> | undefined {
-    const { provider, model, reasoningEffort } = config;
+    const { provider, model, reasoning } = config;
     const modelLower = model.toLowerCase();
+    const preset = normalizePreset(reasoning);
+    const budgetTokens = reasoning?.budgetTokens;
 
-    // Anthropic: Enable prompt caching and reasoning streaming
+    // Anthropic: prompt caching + reasoning controls
     if (provider === 'anthropic') {
         return {
             anthropic: {
-                // Enable prompt caching - saves money and improves latency
                 cacheControl: { type: 'ephemeral' },
-                // Stream reasoning/thinking content when model supports it
-                sendReasoning: true,
+                // We want reasoning available; UI can hide it.
+                sendReasoning: preset !== 'off',
+                ...(budgetTokens !== undefined
+                    ? { thinking: { type: 'enabled', budgetTokens } }
+                    : preset === 'off'
+                      ? { thinking: { type: 'disabled' } }
+                      : {}),
+                ...(preset !== 'auto' && preset !== 'off'
+                    ? { effort: mapPresetToLowMediumHigh(preset) }
+                    : {}),
             },
         };
     }
 
-    // Bedrock: Enable caching and reasoning for Claude models
-    if (provider === 'bedrock' && modelLower.includes('claude')) {
+    // Bedrock: reasoningConfig (provider-level, model-specific behavior handled by the SDK)
+    if (provider === 'bedrock') {
+        const maxReasoningEffort = mapPresetToLowMediumHigh(preset);
         return {
             bedrock: {
-                cacheControl: { type: 'ephemeral' },
-                sendReasoning: true,
+                ...(preset === 'off'
+                    ? { reasoningConfig: { type: 'disabled' } }
+                    : preset === 'auto' &&
+                        budgetTokens === undefined &&
+                        maxReasoningEffort === undefined
+                      ? {}
+                      : {
+                            reasoningConfig: {
+                                type: 'enabled',
+                                ...(budgetTokens !== undefined && { budgetTokens }),
+                                ...(maxReasoningEffort !== undefined && { maxReasoningEffort }),
+                            },
+                        }),
             },
         };
     }
 
-    // Vertex: Enable caching and reasoning for Claude models
+    // Vertex Claude uses Anthropic internals; providerOptions are parsed under `anthropic`.
     if (provider === 'vertex' && modelLower.includes('claude')) {
         return {
-            'vertex-anthropic': {
+            anthropic: {
                 cacheControl: { type: 'ephemeral' },
-                sendReasoning: true,
+                sendReasoning: preset !== 'off',
+                ...(budgetTokens !== undefined
+                    ? { thinking: { type: 'enabled', budgetTokens } }
+                    : preset === 'off'
+                      ? { thinking: { type: 'disabled' } }
+                      : {}),
+                ...(preset !== 'auto' && preset !== 'off'
+                    ? { effort: mapPresetToLowMediumHigh(preset) }
+                    : {}),
             },
         };
     }
 
-    // Google: Enable thinking for models that support it
-    // Note: Google automatically enables thinking for thinking models,
-    // but we explicitly enable includeThoughts to receive the reasoning
+    // Google / Vertex Gemini: thinkingConfig + tuning
     if (provider === 'google' || (provider === 'vertex' && !modelLower.includes('claude'))) {
+        const thinkingLevel = mapPresetToGoogleThinkingLevel(preset);
         return {
             google: {
                 thinkingConfig: {
-                    // Include thoughts in the response for transparency
-                    includeThoughts: true,
+                    includeThoughts: preset !== 'off',
+                    ...(thinkingLevel !== undefined && { thinkingLevel }),
+                    ...(budgetTokens !== undefined && { thinkingBudget: budgetTokens }),
                 },
             },
         };
     }
 
-    // OpenAI: Set reasoning effort for reasoning-capable models
-    // Use config value if provided, otherwise auto-detect based on model
+    // OpenAI: reasoningEffort tuning
     if (provider === 'openai') {
-        const effectiveEffort = reasoningEffort ?? getDefaultReasoningEffort(model);
-        if (effectiveEffort) {
+        const reasoningEffort = mapPresetToOpenAIReasoningEffort(preset, model);
+        if (reasoningEffort !== undefined) {
             return {
                 openai: {
-                    reasoningEffort: effectiveEffort,
+                    reasoningEffort,
                 },
             };
         }
     }
 
+    // OpenRouter gateway providers (OpenRouter/Dexto) use `providerOptions.openrouter`.
+    // Note: config.provider here is the Dexto provider (openrouter|dexto), not the upstream model.
+    if (provider === 'openrouter' || provider === 'dexto') {
+        if (preset === 'auto') {
+            // Default: request reasoning details when available; UI can decide whether to display.
+            return { openrouter: { includeReasoning: true } };
+        }
+
+        if (preset === 'off') {
+            return { openrouter: { includeReasoning: false } };
+        }
+
+        const effort = mapPresetToLowMediumHigh(preset);
+
+        return {
+            openrouter: {
+                includeReasoning: true,
+                reasoning:
+                    budgetTokens !== undefined
+                        ? { enabled: true, max_tokens: budgetTokens }
+                        : effort !== undefined
+                          ? { enabled: true, effort }
+                          : undefined,
+            },
+        };
+    }
+
+    // OpenAI-compatible endpoints: best-effort (provider-specific behavior varies).
+    if (provider === 'openai-compatible') {
+        if (preset === 'auto') return undefined;
+
+        const reasoningEffort = preset === 'off' ? 'none' : mapPresetToLowMediumHigh(preset);
+        if (reasoningEffort === undefined) return undefined;
+
+        return {
+            // This key matches the provider name we configure in the OpenAI-compatible factory.
+            openaiCompatible: { reasoningEffort },
+        };
+    }
+
     return undefined;
 }
 
-/**
- * Determine the default reasoning effort for OpenAI models.
- *
- * OpenAI reasoning effort levels (from lowest to highest):
- * - 'none': No reasoning, fastest responses
- * - 'low': Minimal reasoning, fast responses
- * - 'medium': Balanced reasoning (OpenAI's recommended daily driver)
- * - 'high': Thorough reasoning for complex tasks
- * - 'xhigh': Extra high reasoning for quality-critical, non-latency-sensitive tasks
- *
- * Default strategy:
- * - Reasoning-capable models (codex, o1, o3, gpt-5): 'medium' - OpenAI's recommended default
- * - Other models: undefined (no reasoning effort needed)
- *
- * @param model The model name
- * @returns Reasoning effort level or undefined if not applicable
- */
-export function getDefaultReasoningEffort(
-    model: string
-): Exclude<ReasoningEffort, 'none'> | undefined {
-    // Use the centralized registry function for capability detection
-    if (isReasoningCapableModel(model)) {
-        // 'medium' is OpenAI's recommended daily driver for reasoning models
-        return 'medium';
+function mapPresetToGoogleThinkingLevel(
+    preset: ReasoningPreset
+): 'minimal' | 'low' | 'medium' | 'high' | undefined {
+    switch (preset) {
+        case 'low':
+            return 'low';
+        case 'medium':
+            return 'medium';
+        case 'high':
+        case 'max':
+        case 'xhigh':
+            return 'high';
+        case 'off':
+            return 'minimal';
+        default:
+            return undefined;
     }
+}
 
-    // Other models don't need explicit reasoning effort
-    return undefined;
+function getDefaultOpenAIReasoningEffort(
+    model: string
+): Exclude<ReturnType<typeof mapPresetToOpenAIReasoningEffort>, 'none' | undefined> | undefined {
+    if (!isReasoningCapableModel(model)) return undefined;
+    return 'medium';
 }

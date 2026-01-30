@@ -45,7 +45,7 @@ import { handleBrowserLogin } from './auth/login.js';
 import * as p from '@clack/prompts';
 import { logger } from '@dexto/core';
 import { capture } from '../../analytics/index.js';
-import type { LLMProvider } from '@dexto/core';
+import type { LLMProvider, ReasoningPreset } from '@dexto/core';
 
 // Zod schema for setup command validation
 const SetupCommandSchema = z
@@ -102,14 +102,7 @@ export type CLISetupOptionsInput = z.input<typeof SetupCommandSchema>;
 /**
  * Setup wizard step identifiers
  */
-type SetupStep =
-    | 'setupType'
-    | 'provider'
-    | 'model'
-    | 'reasoningEffort'
-    | 'apiKey'
-    | 'mode'
-    | 'complete';
+type SetupStep = 'setupType' | 'provider' | 'model' | 'reasoning' | 'apiKey' | 'mode' | 'complete';
 
 /**
  * Setup wizard state - accumulates data as user progresses through steps
@@ -121,7 +114,7 @@ interface SetupWizardState {
     provider?: LLMProvider | undefined;
     model?: string | undefined;
     baseURL?: string | undefined;
-    reasoningEffort?: 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | undefined;
+    reasoningPreset?: ReasoningPreset | undefined;
     apiKeySkipped?: boolean | undefined;
     defaultMode?: 'cli' | 'web' | 'server' | 'discord' | 'telegram' | 'mcp' | undefined;
     /** Quick start handles its own preferences saving */
@@ -146,7 +139,7 @@ function getWizardSteps(
             { key: 'model', label: 'Model' },
         ];
         if (showReasoningStep) {
-            steps.push({ key: 'reasoningEffort', label: 'Reasoning' });
+            steps.push({ key: 'reasoning', label: 'Reasoning' });
         }
         steps.push({ key: 'mode', label: 'Mode' });
         return steps;
@@ -157,7 +150,7 @@ function getWizardSteps(
         { key: 'model', label: 'Model' },
     ];
     if (showReasoningStep) {
-        steps.push({ key: 'reasoningEffort', label: 'Reasoning' });
+        steps.push({ key: 'reasoning', label: 'Reasoning' });
     }
     steps.push({ key: 'apiKey', label: 'API Key' });
     steps.push({ key: 'mode', label: 'Mode' });
@@ -648,8 +641,8 @@ async function handleInteractiveSetup(_options: CLISetupOptions): Promise<void> 
             case 'model':
                 state = await wizardStepModel(state);
                 break;
-            case 'reasoningEffort':
-                state = await wizardStepReasoningEffort(state);
+            case 'reasoning':
+                state = await wizardStepReasoning(state);
                 break;
             case 'apiKey':
                 state = await wizardStepApiKey(state);
@@ -760,8 +753,8 @@ async function wizardStepModel(state: SetupWizardState): Promise<SetupWizardStat
             return { ...state, step: 'provider', model: undefined };
         }
         const model = getModelFromResult(localResult);
-        // Check if model supports reasoning effort
-        const nextStep = isReasoningCapableModel(model) ? 'reasoningEffort' : 'mode';
+        // Check if model supports reasoning tuning
+        const nextStep = isReasoningCapableModel(model) ? 'reasoning' : 'mode';
         return { ...state, step: nextStep, model };
     }
 
@@ -772,8 +765,8 @@ async function wizardStepModel(state: SetupWizardState): Promise<SetupWizardStat
             return { ...state, step: 'provider', model: undefined };
         }
         const model = getModelFromResult(ollamaResult);
-        // Check if model supports reasoning effort
-        const nextStep = isReasoningCapableModel(model) ? 'reasoningEffort' : 'mode';
+        // Check if model supports reasoning tuning
+        const nextStep = isReasoningCapableModel(model) ? 'reasoning' : 'mode';
         return { ...state, step: nextStep, model };
     }
 
@@ -796,56 +789,57 @@ async function wizardStepModel(state: SetupWizardState): Promise<SetupWizardStat
     }
 
     // Check if model supports reasoning effort
-    const nextStep = isReasoningCapableModel(model) ? 'reasoningEffort' : 'apiKey';
+    const nextStep = isReasoningCapableModel(model) ? 'reasoning' : 'apiKey';
     return { ...state, step: nextStep, model, baseURL };
 }
 
 /**
- * Wizard Step: Reasoning Effort Selection (for OpenAI reasoning models)
+ * Wizard Step: Reasoning Preset Selection (currently for OpenAI reasoning models)
  */
-async function wizardStepReasoningEffort(state: SetupWizardState): Promise<SetupWizardState> {
+async function wizardStepReasoning(state: SetupWizardState): Promise<SetupWizardState> {
     const provider = state.provider!;
     const model = state.model!;
     const isLocalProvider = provider === 'local' || provider === 'ollama';
-    showStepProgress('reasoningEffort', provider, model);
+    showStepProgress('reasoning', provider, model);
 
     const result = await p.select({
-        message: 'Select reasoning effort level',
+        message: 'Select reasoning preset',
         options: [
             {
-                value: 'medium' as const,
-                label: 'Medium (Recommended)',
-                hint: 'Balanced reasoning for most tasks',
+                value: 'auto' as const,
+                label: 'Auto (Recommended)',
+                hint: 'Let Dexto/provider choose an appropriate reasoning level',
             },
-            { value: 'low' as const, label: 'Low', hint: 'Light reasoning, fast responses' },
+            { value: 'off' as const, label: 'Off', hint: 'Disable reasoning (fastest)' },
+            { value: 'low' as const, label: 'Low', hint: 'Light reasoning, faster responses' },
+            { value: 'medium' as const, label: 'Medium', hint: 'Balanced reasoning' },
+            { value: 'high' as const, label: 'High', hint: 'Thorough reasoning' },
             {
-                value: 'minimal' as const,
-                label: 'Minimal',
-                hint: 'Barely any reasoning, very fast',
+                value: 'max' as const,
+                label: 'Max',
+                hint: 'Maximize reasoning within provider limits',
             },
-            { value: 'high' as const, label: 'High', hint: 'More thorough reasoning' },
             {
                 value: 'xhigh' as const,
-                label: 'Extra High',
-                hint: 'Maximum reasoning, slower responses',
+                label: 'XHigh',
+                hint: 'Extra high (only on some models, e.g. codex)',
             },
-            { value: 'none' as const, label: 'None', hint: 'Disable reasoning' },
             { value: '_back' as const, label: chalk.gray('← Back'), hint: 'Change model' },
         ],
     });
 
     if (p.isCancel(result)) {
         // Treat prompt cancellation as "back" to avoid accidentally exiting the setup wizard.
-        return { ...state, step: 'model', reasoningEffort: undefined };
+        return { ...state, step: 'model', reasoningPreset: undefined };
     }
 
     if (result === '_back') {
-        return { ...state, step: 'model', reasoningEffort: undefined };
+        return { ...state, step: 'model', reasoningPreset: undefined };
     }
 
     // Determine next step based on provider type
     const nextStep = isLocalProvider ? 'mode' : 'apiKey';
-    return { ...state, step: nextStep, reasoningEffort: result };
+    return { ...state, step: nextStep, reasoningPreset: result };
 }
 
 /**
@@ -867,7 +861,7 @@ async function wizardStepApiKey(state: SetupWizardState): Promise<SetupWizardSta
 
         if (result.cancelled) {
             // Go back to reasoning effort if model supports it, otherwise model selection
-            const prevStep = isReasoningCapableModel(model) ? 'reasoningEffort' : 'model';
+            const prevStep = isReasoningCapableModel(model) ? 'reasoning' : 'model';
             return { ...state, step: prevStep, apiKeySkipped: undefined };
         }
 
@@ -900,7 +894,7 @@ async function wizardStepMode(state: SetupWizardState): Promise<SetupWizardState
             // Local: reasoning effort -> model
             return {
                 ...state,
-                step: hasReasoningStep ? 'reasoningEffort' : 'model',
+                step: hasReasoningStep ? 'reasoning' : 'model',
                 defaultMode: undefined,
             };
         }
@@ -1051,8 +1045,8 @@ async function saveWizardPreferences(state: SetupWizardState): Promise<void> {
     if (state.baseURL) {
         preferencesOptions.baseURL = state.baseURL;
     }
-    if (state.reasoningEffort) {
-        preferencesOptions.reasoningEffort = state.reasoningEffort;
+    if (state.reasoningPreset) {
+        preferencesOptions.reasoning = { preset: state.reasoningPreset };
     }
 
     const preferences = createInitialPreferences(preferencesOptions);
@@ -1139,8 +1133,13 @@ async function showSettingsMenu(): Promise<void> {
                 ...(currentPrefs.llm.baseURL
                     ? [`Base URL: ${chalk.cyan(currentPrefs.llm.baseURL)}`]
                     : []),
-                ...(currentPrefs.llm.reasoningEffort
-                    ? [`Reasoning Effort: ${chalk.cyan(currentPrefs.llm.reasoningEffort)}`]
+                ...(currentPrefs.llm.reasoning
+                    ? [
+                          `Reasoning Preset: ${chalk.cyan(currentPrefs.llm.reasoning.preset)}` +
+                              (currentPrefs.llm.reasoning.budgetTokens != null
+                                  ? ` (budgetTokens=${chalk.cyan(String(currentPrefs.llm.reasoning.budgetTokens))})`
+                                  : ''),
+                      ]
                     : []),
             ].join('\n');
 
@@ -1281,17 +1280,17 @@ async function changeModel(currentProvider?: LLMProvider): Promise<void> {
         const llmUpdate: {
             provider: LLMProvider;
             model: string;
-            reasoningEffort?: 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
+            reasoning?: { preset: ReasoningPreset };
         } = {
             provider,
             model,
         };
 
-        // Ask for reasoning effort if applicable
+        // Ask for reasoning preset if applicable
         if (isReasoningCapableModel(model)) {
-            const reasoningEffort = await selectReasoningEffort();
-            if (reasoningEffort !== null) {
-                llmUpdate.reasoningEffort = reasoningEffort;
+            const reasoningPreset = await selectReasoningPreset();
+            if (reasoningPreset !== null) {
+                llmUpdate.reasoning = { preset: reasoningPreset };
             }
         }
 
@@ -1311,17 +1310,17 @@ async function changeModel(currentProvider?: LLMProvider): Promise<void> {
         const llmUpdate: {
             provider: LLMProvider;
             model: string;
-            reasoningEffort?: 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
+            reasoning?: { preset: ReasoningPreset };
         } = {
             provider,
             model,
         };
 
-        // Ask for reasoning effort if applicable
+        // Ask for reasoning preset if applicable
         if (isReasoningCapableModel(model)) {
-            const reasoningEffort = await selectReasoningEffort();
-            if (reasoningEffort !== null) {
-                llmUpdate.reasoningEffort = reasoningEffort;
+            const reasoningPreset = await selectReasoningPreset();
+            if (reasoningPreset !== null) {
+                llmUpdate.reasoning = { preset: reasoningPreset };
             }
         }
 
@@ -1367,7 +1366,7 @@ async function changeModel(currentProvider?: LLMProvider): Promise<void> {
         provider: LLMProvider;
         model: string;
         apiKey?: string;
-        reasoningEffort?: 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
+        reasoning?: { preset: ReasoningPreset };
     } = {
         provider,
         model,
@@ -1377,11 +1376,11 @@ async function changeModel(currentProvider?: LLMProvider): Promise<void> {
         llmUpdate.apiKey = `$${apiKeyVar}`;
     }
 
-    // Ask for reasoning effort if applicable
+    // Ask for reasoning preset if applicable
     if (isReasoningCapableModel(model)) {
-        const reasoningEffort = await selectReasoningEffort();
-        if (reasoningEffort !== null) {
-            llmUpdate.reasoningEffort = reasoningEffort;
+        const reasoningPreset = await selectReasoningPreset();
+        if (reasoningPreset !== null) {
+            llmUpdate.reasoning = { preset: reasoningPreset };
         }
     }
 
@@ -1558,41 +1557,39 @@ async function selectDefaultMode(): Promise<
 }
 
 /**
- * Select reasoning effort level for reasoning-capable models
- * Used in settings menu when changing to a reasoning-capable model
+ * Select reasoning preset for models where we expose reasoning tuning.
  */
-async function selectReasoningEffort(): Promise<
-    'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | null
-> {
-    const effort = await p.select({
-        message: 'Select reasoning effort level',
+async function selectReasoningPreset(): Promise<ReasoningPreset | null> {
+    const preset = await p.select({
+        message: 'Select reasoning preset',
         options: [
             {
-                value: 'medium' as const,
-                label: 'Medium (Recommended)',
-                hint: 'Balanced reasoning for most tasks',
+                value: 'auto' as const,
+                label: 'Auto (Recommended)',
+                hint: 'Let Dexto/provider choose an appropriate reasoning level',
             },
-            { value: 'low' as const, label: 'Low', hint: 'Light reasoning, fast responses' },
+            { value: 'off' as const, label: 'Off', hint: 'Disable reasoning (fastest)' },
+            { value: 'low' as const, label: 'Low', hint: 'Light reasoning, faster responses' },
+            { value: 'medium' as const, label: 'Medium', hint: 'Balanced reasoning' },
+            { value: 'high' as const, label: 'High', hint: 'Thorough reasoning' },
             {
-                value: 'minimal' as const,
-                label: 'Minimal',
-                hint: 'Barely any reasoning, very fast',
+                value: 'max' as const,
+                label: 'Max',
+                hint: 'Maximize reasoning within provider limits',
             },
-            { value: 'high' as const, label: 'High', hint: 'More thorough reasoning' },
             {
                 value: 'xhigh' as const,
-                label: 'Extra High',
-                hint: 'Maximum reasoning, slower responses',
+                label: 'XHigh',
+                hint: 'Extra high (only on some models, e.g. codex)',
             },
-            { value: 'none' as const, label: 'None', hint: 'Disable reasoning' },
         ],
     });
 
-    if (p.isCancel(effort)) {
+    if (p.isCancel(preset)) {
         return null;
     }
 
-    return effort;
+    return preset;
 }
 
 /**

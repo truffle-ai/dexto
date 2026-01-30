@@ -108,7 +108,13 @@ import MarketplaceAddPrompt, {
     type MarketplaceAddPromptHandle,
 } from '../components/overlays/MarketplaceAddPrompt.js';
 import type { PromptAddScope } from '../state/types.js';
-import type { PromptInfo, ResourceMetadata, LLMProvider, SearchResult } from '@dexto/core';
+import type {
+    PromptInfo,
+    ResourceMetadata,
+    LLMProvider,
+    ReasoningPreset,
+    SearchResult,
+} from '@dexto/core';
 import type { LogLevel } from '@dexto/core';
 import { DextoValidationError, LLMErrorCode, getModelDisplayName } from '@dexto/core';
 import { InputService } from '../services/InputService.js';
@@ -429,7 +435,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                 model: string,
                 displayName?: string,
                 baseURL?: string,
-                reasoningEffort?: 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh'
+                reasoningPreset?: ReasoningPreset
             ) => {
                 // Pre-check: Dexto provider requires OAuth login AND API key
                 // Check BEFORE closing the overlay so user can pick a different model
@@ -482,7 +488,12 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     ]);
 
                     await agent.switchLLM(
-                        { provider: provider as LLMProvider, model, baseURL, reasoningEffort },
+                        {
+                            provider: provider as LLMProvider,
+                            model,
+                            baseURL,
+                            ...(reasoningPreset ? { reasoning: { preset: reasoningPreset } } : {}),
+                        },
                         session.id || undefined
                     );
 

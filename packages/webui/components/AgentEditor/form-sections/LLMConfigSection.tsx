@@ -3,7 +3,8 @@ import { Input } from '../../ui/input';
 import { LabelWithTooltip } from '../../ui/label-with-tooltip';
 import { Collapsible } from '../../ui/collapsible';
 import { Eye, EyeOff } from 'lucide-react';
-import { LLM_PROVIDERS, isReasoningCapableModel, type AgentConfig } from '@dexto/core';
+import { LLM_PROVIDERS, type AgentConfig } from '@dexto/core';
+import { useModelCapabilities } from '../../hooks/useLLM';
 
 type LLMConfig = AgentConfig['llm'];
 
@@ -27,9 +28,14 @@ export function LLMConfigSection({
     sectionErrors = [],
 }: LLMConfigSectionProps) {
     const [showApiKey, setShowApiKey] = useState(false);
+    const { data: capabilities } = useModelCapabilities(
+        (value.provider as any) ?? null,
+        value.model ?? null
+    );
+    const reasoningPresets = capabilities?.reasoning?.supportedPresets ?? [];
 
-    const handleChange = (field: keyof LLMConfig, newValue: string | number | undefined) => {
-        onChange({ ...value, [field]: newValue } as LLMConfig);
+    const handleChange = <K extends keyof LLMConfig>(field: K, newValue: LLMConfig[K]) => {
+        onChange({ ...value, [field]: newValue });
     };
 
     return (
@@ -268,33 +274,39 @@ export function LLMConfigSection({
 
                 {/* Provider-Specific Options */}
 
-                {/* Reasoning Effort - Only for models that support it (o1, o3, codex, gpt-5.x) */}
-                {value.model && isReasoningCapableModel(value.model) && (
+                {/* Reasoning tuning (server-resolved; safe for gateway providers). */}
+                {value.provider && value.model && reasoningPresets.length > 0 && (
                     <div>
                         <LabelWithTooltip
-                            htmlFor="reasoningEffort"
-                            tooltip="Controls reasoning depth for OpenAI models (o1, o3, codex, gpt-5.x). Higher = more thorough but slower/costlier. 'medium' is recommended for most tasks."
+                            htmlFor="reasoningPreset"
+                            tooltip="Controls reasoning tuning. Availability depends on provider+model (resolved by the server)."
                         >
-                            Reasoning Effort
+                            Reasoning
                         </LabelWithTooltip>
                         <select
-                            id="reasoningEffort"
-                            value={value.reasoningEffort || ''}
+                            id="reasoningPreset"
+                            value={value.reasoning?.preset || ''}
                             onChange={(e) =>
-                                handleChange('reasoningEffort', e.target.value || undefined)
+                                handleChange(
+                                    'reasoning',
+                                    e.target.value
+                                        ? ({ preset: e.target.value } as LLMConfig['reasoning'])
+                                        : undefined
+                                )
                             }
                             className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                         >
-                            <option value="">Auto (model default)</option>
-                            <option value="none">None - No reasoning</option>
-                            <option value="minimal">Minimal - Barely any reasoning</option>
-                            <option value="low">Low - Light reasoning</option>
-                            <option value="medium">Medium - Balanced (recommended)</option>
-                            <option value="high">High - Thorough reasoning</option>
-                            <option value="xhigh">Extra High - Maximum quality</option>
+                            <option value="">Auto (provider/model default)</option>
+                            {reasoningPresets
+                                .filter((p) => p !== 'auto')
+                                .map((preset) => (
+                                    <option key={preset} value={preset}>
+                                        {preset}
+                                    </option>
+                                ))}
                         </select>
                         <p className="text-xs text-muted-foreground mt-1">
-                            Only applies to reasoning models (o1, o3, codex, gpt-5.x)
+                            Supported presets: {reasoningPresets.join(', ')}
                         </p>
                     </div>
                 )}

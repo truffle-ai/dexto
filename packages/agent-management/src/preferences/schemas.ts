@@ -8,7 +8,7 @@ import {
     supportsCustomModels,
     supportsBaseURL,
 } from '@dexto/core';
-import { LLM_PROVIDERS } from '@dexto/core';
+import { LLM_PROVIDERS, REASONING_PRESETS } from '@dexto/core';
 import { NonEmptyTrimmed } from '@dexto/core';
 import { PreferenceErrorCode } from './error-codes.js';
 import { ErrorType } from '@dexto/core';
@@ -36,12 +36,24 @@ export const PreferenceLLMSchema = z
             .optional()
             .describe('Custom base URL for providers that support it (openai-compatible, litellm)'),
 
-        reasoningEffort: z
-            .enum(['none', 'minimal', 'low', 'medium', 'high', 'xhigh'])
+        reasoning: z
+            .object({
+                preset: z
+                    .enum(REASONING_PRESETS)
+                    .default('auto')
+                    .describe(`Reasoning tuning preset. Options: ${REASONING_PRESETS.join(', ')}`),
+                budgetTokens: z
+                    .number()
+                    .int()
+                    .positive()
+                    .optional()
+                    .describe(
+                        'Advanced escape hatch for budget-based providers (e.g., Anthropic/Gemini/Bedrock/OpenRouter).'
+                    ),
+            })
+            .strict()
             .optional()
-            .describe(
-                'Reasoning effort level for OpenAI reasoning models (o1, o3, codex, gpt-5.x). Auto-detected if not set.'
-            ),
+            .describe('Reasoning configuration (tuning only; display is controlled separately).'),
     })
     .strict()
     .superRefine((data, ctx) => {

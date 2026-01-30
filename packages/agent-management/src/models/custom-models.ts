@@ -9,6 +9,7 @@ import { z } from 'zod';
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { getDextoGlobalPath } from '../utils/path.js';
+import { REASONING_PRESETS } from '@dexto/core';
 
 /** Providers that support custom models */
 export const CUSTOM_MODEL_PROVIDERS = [
@@ -55,9 +56,13 @@ export const CustomModelSchema = z
         // File path for local GGUF models. Required when provider is 'local'.
         // Stores the absolute path to the .gguf file on disk.
         filePath: z.string().optional(),
-        // OpenAI reasoning effort level for reasoning-capable models (o1, o3, codex, gpt-5.x).
-        // Controls how many reasoning tokens the model generates before producing a response.
-        reasoningEffort: z.enum(['none', 'minimal', 'low', 'medium', 'high', 'xhigh']).optional(),
+        reasoning: z
+            .object({
+                preset: z.enum(REASONING_PRESETS).default('auto'),
+                budgetTokens: z.number().int().positive().optional(),
+            })
+            .strict()
+            .optional(),
     })
     .superRefine((data, ctx) => {
         // baseURL is required for openai-compatible and litellm

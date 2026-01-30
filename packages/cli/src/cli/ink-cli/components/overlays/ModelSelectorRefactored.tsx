@@ -16,7 +16,7 @@ import {
 } from 'react';
 import { Box, Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
-import type { DextoAgent, LLMProvider } from '@dexto/core';
+import type { DextoAgent, LLMProvider, ReasoningPreset } from '@dexto/core';
 import {
     listOllamaModels,
     DEFAULT_OLLAMA_URL,
@@ -32,8 +32,6 @@ import {
 } from '@dexto/agent-management';
 import { getLLMProviderDisplayName } from '../../utils/llm-provider-display.js';
 
-type ReasoningEffort = 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
-
 interface ModelSelectorProps {
     isVisible: boolean;
     onSelectModel: (
@@ -41,7 +39,7 @@ interface ModelSelectorProps {
         model: string,
         displayName?: string,
         baseURL?: string,
-        reasoningEffort?: ReasoningEffort
+        reasoningPreset?: ReasoningPreset
     ) => void;
     onClose: () => void;
     onAddCustomModel: () => void;
@@ -79,27 +77,23 @@ function isAddCustomOption(item: SelectorItem): item is AddCustomOption {
 
 const MAX_VISIBLE_ITEMS = 10;
 
-// Reasoning effort options - defined at module scope to avoid recreation on each render
-const REASONING_EFFORT_OPTIONS: {
-    value: ReasoningEffort | 'auto';
+// Reasoning preset options - defined at module scope to avoid recreation on each render
+const REASONING_PRESET_OPTIONS: {
+    value: ReasoningPreset | 'auto';
     label: string;
     description: string;
 }[] = [
     {
         value: 'auto',
         label: 'Auto',
-        description: 'Let the model decide (recommended for most tasks)',
+        description: 'Let Dexto/provider choose an appropriate reasoning level',
     },
-    { value: 'none', label: 'None', description: 'No reasoning, fastest responses' },
-    { value: 'minimal', label: 'Minimal', description: 'Barely any reasoning, very fast' },
-    { value: 'low', label: 'Low', description: 'Light reasoning, fast responses' },
-    {
-        value: 'medium',
-        label: 'Medium',
-        description: 'Balanced reasoning (OpenAI recommended)',
-    },
-    { value: 'high', label: 'High', description: 'Thorough reasoning for complex tasks' },
-    { value: 'xhigh', label: 'Extra High', description: 'Maximum quality, slower/costlier' },
+    { value: 'off', label: 'Off', description: 'Disable reasoning (fastest)' },
+    { value: 'low', label: 'Low', description: 'Light reasoning, faster responses' },
+    { value: 'medium', label: 'Medium', description: 'Balanced reasoning' },
+    { value: 'high', label: 'High', description: 'Thorough reasoning' },
+    { value: 'max', label: 'Max', description: 'Maximize reasoning within provider limits' },
+    { value: 'xhigh', label: 'XHigh', description: 'Extra high (only on some models, e.g. codex)' },
 ];
 
 /**
@@ -417,26 +411,26 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                     }
                     if (key.upArrow) {
                         setReasoningEffortIndex((prev) =>
-                            prev > 0 ? prev - 1 : REASONING_EFFORT_OPTIONS.length - 1
+                            prev > 0 ? prev - 1 : REASONING_PRESET_OPTIONS.length - 1
                         );
                         return true;
                     }
                     if (key.downArrow) {
                         setReasoningEffortIndex((prev) =>
-                            prev < REASONING_EFFORT_OPTIONS.length - 1 ? prev + 1 : 0
+                            prev < REASONING_PRESET_OPTIONS.length - 1 ? prev + 1 : 0
                         );
                         return true;
                     }
                     if (key.return) {
-                        const selectedOption = REASONING_EFFORT_OPTIONS[reasoningEffortIndex];
-                        const reasoningEffort =
+                        const selectedOption = REASONING_PRESET_OPTIONS[reasoningEffortIndex];
+                        const reasoningPreset =
                             selectedOption?.value === 'auto' ? undefined : selectedOption?.value;
                         onSelectModel(
                             pendingReasoningModel.provider,
                             pendingReasoningModel.name,
                             pendingReasoningModel.displayName,
                             pendingReasoningModel.baseURL,
-                            reasoningEffort
+                            reasoningPreset
                         );
                         setPendingReasoningModel(null);
                         return true;
@@ -669,7 +663,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                 <Box paddingX={0} paddingY={0}>
                     <Text color="gray">{'─'.repeat(50)}</Text>
                 </Box>
-                {REASONING_EFFORT_OPTIONS.map((option, index) => {
+                {REASONING_PRESET_OPTIONS.map((option, index) => {
                     const isSelected = index === reasoningEffortIndex;
                     return (
                         <Box key={option.value} paddingX={0} paddingY={0}>

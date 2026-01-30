@@ -16,13 +16,13 @@ import { ToolSet } from '../../tools/types.js';
 import { StreamProcessor } from './stream-processor.js';
 import { ExecutorResult } from './types.js';
 import { buildProviderOptions } from './provider-options.js';
-import { TokenUsage } from '../types.js';
+import { TokenUsage, type LLMReasoningConfig, LLMContext, type LLMProvider } from '../types.js';
 import type { IDextoLogger } from '../../logger/v2/types.js';
 import { DextoLogComponent } from '../../logger/v2/types.js';
 import type { SessionEventBus, LLMFinishReason } from '../../events/index.js';
 import type { ResourceManager } from '../../resources/index.js';
 import { DynamicContributorContext } from '../../systemPrompt/types.js';
-import { LLMContext, type LLMProvider } from '../types.js';
+
 import type { MessageQueueService } from '../../session/message-queue.js';
 import type { StreamProcessorConfig } from './stream-processor.js';
 import type { CoalescedMessage } from '../../session/types.js';
@@ -89,7 +89,7 @@ export class TurnExecutor {
             temperature?: number | undefined;
             baseURL?: string | undefined;
             // Provider-specific options
-            reasoningEffort?: 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | undefined;
+            reasoning?: LLMReasoningConfig | undefined;
         },
         private llmContext: LLMContext,
         logger: IDextoLogger,
@@ -274,7 +274,7 @@ export class TurnExecutor {
                 const providerOptions = buildProviderOptions({
                     provider: this.llmContext.provider,
                     model: this.llmContext.model,
-                    reasoningEffort: this.config.reasoningEffort,
+                    reasoning: this.config.reasoning,
                 });
 
                 const result = await streamProcessor.process(() =>

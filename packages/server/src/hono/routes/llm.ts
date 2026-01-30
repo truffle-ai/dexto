@@ -5,10 +5,12 @@ import {
     LLM_REGISTRY,
     LLM_PROVIDERS,
     SUPPORTED_FILE_TYPES,
+    REASONING_PRESETS,
     supportsBaseURL,
     getAllModelsForProvider,
     getCuratedModelsForProvider,
     getSupportedFileTypesForModel,
+    getReasoningSupport,
     type ProviderInfo,
     type LLMProvider,
     type SupportedFileType,
@@ -347,6 +349,25 @@ export function createLlmRouter(getAgent: GetAgentFn) {
                             supportedFileTypes: z
                                 .array(z.enum(SUPPORTED_FILE_TYPES))
                                 .describe('File types supported by this model'),
+                            reasoning: z
+                                .object({
+                                    capable: z
+                                        .boolean()
+                                        .describe(
+                                            'Whether the registry marks this model as reasoning-capable'
+                                        ),
+                                    supportedPresets: z
+                                        .array(z.enum(REASONING_PRESETS))
+                                        .describe(
+                                            'Reasoning presets that Dexto can translate into provider options (best-effort)'
+                                        ),
+                                    supportsBudgetTokens: z
+                                        .boolean()
+                                        .describe(
+                                            'Whether this provider/model supports a budgetTokens-style escape hatch'
+                                        ),
+                                })
+                                .describe('Reasoning tuning capabilities (best-effort)'),
                         }),
                     },
                 },
@@ -575,10 +596,13 @@ export function createLlmRouter(getAgent: GetAgentFn) {
                 supportedFileTypes = providerInfo?.supportedFileTypes ?? [];
             }
 
+            const reasoning = getReasoningSupport(provider, model);
+
             return ctx.json({
                 provider,
                 model,
                 supportedFileTypes,
+                reasoning,
             });
         });
 }
