@@ -111,17 +111,21 @@ llm:
   reasoning:
     mode: auto    # off | auto | on
     level: medium # low | medium | high (simple)
-    display: auto # never | auto | always (optional; could be UI preference instead)
 
     # Advanced (optional):
+    # Choose an explicit preset when the provider supports more than low/medium/high
+    # (e.g. OpenAI: minimal/xhigh, Anthropic: max).
+    variant: xhigh
     effort: high          # provider-specific effort enum when supported
     budgetTokens: 8192    # provider-specific budget when supported
 ```
 
 Notes:
 - `mode` and `level` are the "simple" abstraction.
+- `variant` is an optional “named preset” escape hatch (provider/model dependent).
 - `effort` and `budgetTokens` are optional advanced overrides.
 - If both `level` and `effort/budgetTokens` are set, the advanced values win (explicit > derived).
+- Reasoning *display* should not be part of agent config; treat it as a UI preference (WebUI/CLI).
 
 No backwards compatibility required:
 - We can remove/replace `llm.reasoningEffort` cleanly.
@@ -142,6 +146,9 @@ Recommendation:
 Important constraint:
 - Tab/Shift+Tab are already heavily used in Ink CLI (`packages/cli/src/cli/ink-cli/hooks/useInputOrchestrator.ts`),
   so a Tab-based toggle is likely a conflict. Prefer slash-command-based toggles or a carefully chosen keybind.
+  opencode uses `ctrl+t` for cycling model “variants” (including reasoning presets). For Dexto, `ctrl+t`
+  looks like a viable candidate for “cycle reasoning level/variant” (but we should confirm it doesn’t
+  conflict with existing Ink keybindings).
 
 ### 2.3 WebUI interaction
 
@@ -230,15 +237,23 @@ We should explicitly define "how to write providerOptions" for each configured p
 | `openai` | `@ai-sdk/openai` | `openai` | supports `reasoningEffort` |
 | `anthropic` | `@ai-sdk/anthropic` | `anthropic` | supports `thinking` + `sendReasoning` |
 | `google` | `@ai-sdk/google` | `google` | supports `thinkingConfig` |
-| `vertex` (Gemini) | `@ai-sdk/google-vertex` (uses Google internals) | `vertex` (fallback `google`) | AI SDK code falls back to `google` |
+| `vertex` (Gemini) | `@ai-sdk/google-vertex` (uses Google internals) | `vertex` (fallback `google`) | AI SDK falls back to `google` if `vertex` isn’t present |
 | `vertex` (Claude) | `@ai-sdk/google-vertex/anthropic` (wraps Anthropic internals) | `anthropic` | options are parsed by Anthropic internals |
 | `bedrock` | `@ai-sdk/amazon-bedrock` | `bedrock` | reasoning config is `reasoningConfig` |
-| `openai-compatible` | (recommend) `@ai-sdk/openai-compatible` | `openaiCompatible` | needed for interleaved models |
-| `openrouter` | (recommend) `@openrouter/ai-sdk-provider` | `openrouter` | enables OpenRouter-specific opts (and model routing) |
-| `dexto` | (recommend) depends: openrouter or openai-compatible | likely `openrouter` or `openaiCompatible` | depends on gateway contract |
+| `openai-compatible` | (recommend) `@ai-sdk/openai-compatible` | `openaiCompatible` | needed for passthrough + interleaved message fields |
+| `openrouter` | (current: `@ai-sdk/openai` w/ baseURL) (recommend: `@openrouter/ai-sdk-provider`) | current: `openai` (recommend: `openrouter`) | current impl can’t use OpenRouter-specific request-body options |
+| `dexto` | (current: `@ai-sdk/openai` w/ baseURL) (recommend: `@openrouter/ai-sdk-provider`) | current: `openai` (recommend: `openrouter`) | dexto gateway is an OpenRouter-style gateway (see `~/Projects/dexto-cloud`) |
 
 Opencode reference for mapping by npm package:
 - `~/Projects/external/opencode/packages/opencode/src/provider/transform.ts:11-40`
+Notes on the opencode reference:
+- opencode maps `@ai-sdk/google-vertex` -> `google` (not `vertex`) and relies on the AI SDK’s
+  `vertex` -> `google` fallback when parsing options:
+  - opencode: `~/Projects/external/opencode/packages/opencode/src/provider/transform.ts:11-40`
+  - AI SDK: `~/Projects/external/ai/packages/google/src/google-generative-ai-language-model.ts:100-115`
+- opencode’s `@ai-sdk/openai-compatible` providers often set `name: providerID` when creating the SDK
+  provider, so the effective providerOptions “namespace” can be that provider ID instead of a single global key.
+  (Dexto likely shouldn’t copy that exact pattern; better to keep a stable mapping layer.)
 
 ---
 
@@ -254,6 +269,7 @@ We need one core translator that:
 Inputs:
 - `reasoning.mode`: off | auto | on
 - `reasoning.level`: low | medium | high
+- `reasoning.variant`: optional advanced preset name (model/provider dependent)
 - `reasoning.effort`: optional advanced override
 - `reasoning.budgetTokens`: optional advanced override
 - model capabilities (reasoning supported? interleaved? param compatibility?)
@@ -261,6 +277,12 @@ Inputs:
 Outputs:
 - `providerOptions` object to pass to `streamText()`
 - plus warnings (log once per run) when config is requested but unsupported.
+
+Resolution precedence (recommended):
+1) `variant` (explicit preset name) if present and supported for this model/provider.
+2) `effort` / `budgetTokens` (explicit numeric/enum override).
+3) `level` (low/medium/high) mapped to a provider/model-specific preset.
+4) default behavior (mode=auto): do nothing unless the model/provider has a known safe default.
 
 ### 5.2 Provider-specific notes (AI SDK references)
 
@@ -364,7 +386,7 @@ Phase 5 - Interleaved reasoning support
 - Add regression tests mirroring opencode’s `transform.test.ts` cases (DeepSeek + tool calls).
 
 Phase 6 - Clean-up / docs
-- Update/replace outdated notes in `feature-plans/context-calculation.md` about reasoning persistence.
+- (Optional) Update/replace outdated notes in `feature-plans/context-calculation.md` about reasoning persistence.
 
 ---
 
