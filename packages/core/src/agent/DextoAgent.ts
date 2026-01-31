@@ -183,6 +183,7 @@ export class DextoAgent {
     private serviceOverrides?: {
         sessionLoggerFactory?: import('../session/session-manager.js').SessionLoggerFactory;
         mcpAuthProviderFactory?: import('../mcp/types.js').McpAuthProviderFactory | null;
+        toolServices?: Record<string, unknown>;
     };
 
     // Logger instance for this agent (dependency injection)
@@ -203,6 +204,7 @@ export class DextoAgent {
         options?: LLMValidationOptions & {
             sessionLoggerFactory?: import('../session/session-manager.js').SessionLoggerFactory;
             mcpAuthProviderFactory?: import('../mcp/types.js').McpAuthProviderFactory | null;
+            toolServices?: Record<string, unknown>;
         }
     ) {
         // Validate and transform the input config using appropriate schema
@@ -224,6 +226,7 @@ export class DextoAgent {
         const serviceOverrides: {
             sessionLoggerFactory?: import('../session/session-manager.js').SessionLoggerFactory;
             mcpAuthProviderFactory?: import('../mcp/types.js').McpAuthProviderFactory | null;
+            toolServices?: Record<string, unknown>;
         } = {};
 
         if (options?.sessionLoggerFactory) {
@@ -231,6 +234,9 @@ export class DextoAgent {
         }
         if (options && 'mcpAuthProviderFactory' in options) {
             serviceOverrides.mcpAuthProviderFactory = options.mcpAuthProviderFactory ?? null;
+        }
+        if (options?.toolServices) {
+            serviceOverrides.toolServices = options.toolServices;
         }
 
         if (Object.keys(serviceOverrides).length > 0) {

@@ -75,6 +75,7 @@ export async function createAgentServices(
     overrides?: {
         sessionLoggerFactory?: import('../session/session-manager.js').SessionLoggerFactory;
         mcpAuthProviderFactory?: import('../mcp/types.js').McpAuthProviderFactory | null;
+        toolServices?: Record<string, unknown>;
     }
 ): Promise<AgentServices> {
     // 0. Initialize telemetry FIRST (before any decorated classes are instantiated)
@@ -190,6 +191,7 @@ export async function createAgentServices(
             internalToolsServices: {
                 searchService,
                 resourceManager,
+                ...(overrides?.toolServices ?? {}),
             },
             internalToolsConfig: config.internalTools,
             customToolsConfig: config.customTools,
