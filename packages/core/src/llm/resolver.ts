@@ -232,6 +232,8 @@ export async function resolveLLMConfig(
             maxInputTokens: updates.maxInputTokens,
             maxOutputTokens: updates.maxOutputTokens ?? previous.maxOutputTokens,
             temperature: updates.temperature ?? previous.temperature,
+            reasoning: updates.reasoning ?? previous.reasoning,
+            allowedMediaTypes: updates.allowedMediaTypes ?? previous.allowedMediaTypes,
         },
         warnings,
     };
