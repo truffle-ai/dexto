@@ -51,4 +51,16 @@ export class PreferenceError {
 
         return new DextoValidationError(issues);
     }
+
+    static invalidAgentId(agentId: string) {
+        return new DextoValidationError([
+            {
+                code: PreferenceErrorCode.INVALID_PREFERENCE_VALUE,
+                message: `agentId is invalid: ${agentId}`,
+                scope: 'preference',
+                type: ErrorType.USER,
+                severity: 'error' as const,
+            },
+        ]);
+    }
 }

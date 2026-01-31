@@ -85,7 +85,26 @@ const AGENT_PREFERENCES_FILE_HEADER = `# Dexto Agent Preferences
  * Resolve the agent preferences file path for an agent ID.
  */
 export function getAgentPreferencesPath(agentId: string): string {
-    const filename = `${agentId}.preferences.yml`;
+    if (!agentId || typeof agentId !== 'string') {
+        throw PreferenceError.invalidAgentId(String(agentId));
+    }
+
+    const trimmedId = agentId.trim();
+    if (!trimmedId) {
+        throw PreferenceError.invalidAgentId(agentId);
+    }
+
+    const hasSeparators = trimmedId.includes('/') || trimmedId.includes('\\');
+    if (hasSeparators || trimmedId !== path.basename(trimmedId)) {
+        throw PreferenceError.invalidAgentId(agentId);
+    }
+
+    const allowedPattern = /^[a-zA-Z0-9_-]+$/;
+    if (!allowedPattern.test(trimmedId)) {
+        throw PreferenceError.invalidAgentId(agentId);
+    }
+
+    const filename = `${trimmedId}.preferences.yml`;
     return getDextoGlobalPath(path.join('agents', filename));
 }
 
