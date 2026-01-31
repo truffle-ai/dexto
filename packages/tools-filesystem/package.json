@@ -24,7 +24,7 @@
   ],
   "dependencies": {
     "@dexto/core": "workspace:*",
-    "diff": "^7.0.0",
+    "diff": "^8.0.3",
     "glob": "^11.1.0",
     "safe-regex": "^2.1.1",
     "zod": "^3.25.0"
