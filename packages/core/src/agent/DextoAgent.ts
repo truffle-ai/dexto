@@ -13,7 +13,7 @@ import type { PromptsConfig } from '../prompts/schemas.js';
 import { AgentStateManager } from './state-manager.js';
 import { SessionManager, ChatSession, SessionError } from '../session/index.js';
 import type { SessionMetadata } from '../session/index.js';
-import { AgentServices } from '../utils/service-initializer.js';
+import { AgentServices, type InitializeServicesOptions } from '../utils/service-initializer.js';
 import { createLogger } from '../logger/factory.js';
 import type { IDextoLogger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
@@ -180,11 +180,7 @@ export class DextoAgent {
     private activeStreamControllers: Map<string, AbortController> = new Map();
 
     // Host overrides for service initialization (e.g. session logger factory)
-    private serviceOverrides?: {
-        sessionLoggerFactory?: import('../session/session-manager.js').SessionLoggerFactory;
-        mcpAuthProviderFactory?: import('../mcp/types.js').McpAuthProviderFactory | null;
-        toolServices?: Record<string, unknown>;
-    };
+    private serviceOverrides?: InitializeServicesOptions;
 
     // Logger instance for this agent (dependency injection)
     public readonly logger: IDextoLogger;
@@ -201,11 +197,7 @@ export class DextoAgent {
     constructor(
         config: AgentConfig,
         private configPath?: string,
-        options?: LLMValidationOptions & {
-            sessionLoggerFactory?: import('../session/session-manager.js').SessionLoggerFactory;
-            mcpAuthProviderFactory?: import('../mcp/types.js').McpAuthProviderFactory | null;
-            toolServices?: Record<string, unknown>;
-        }
+        options?: LLMValidationOptions & InitializeServicesOptions
     ) {
         // Validate and transform the input config using appropriate schema
         const schema =
@@ -223,11 +215,7 @@ export class DextoAgent {
         });
 
         // Capture host overrides to apply during start() when services are created.
-        const serviceOverrides: {
-            sessionLoggerFactory?: import('../session/session-manager.js').SessionLoggerFactory;
-            mcpAuthProviderFactory?: import('../mcp/types.js').McpAuthProviderFactory | null;
-            toolServices?: Record<string, unknown>;
-        } = {};
+        const serviceOverrides: InitializeServicesOptions = {};
 
         if (options?.sessionLoggerFactory) {
             serviceOverrides.sessionLoggerFactory = options.sessionLoggerFactory;
@@ -235,8 +223,11 @@ export class DextoAgent {
         if (options && 'mcpAuthProviderFactory' in options) {
             serviceOverrides.mcpAuthProviderFactory = options.mcpAuthProviderFactory ?? null;
         }
-        if (options?.toolServices) {
-            serviceOverrides.toolServices = options.toolServices;
+        if (options?.toolManager) {
+            serviceOverrides.toolManager = options.toolManager;
+        }
+        if (options?.toolManagerFactory) {
+            serviceOverrides.toolManagerFactory = options.toolManagerFactory;
         }
 
         if (Object.keys(serviceOverrides).length > 0) {

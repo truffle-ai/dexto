@@ -23,6 +23,9 @@
 
 import { MCPManager } from '../mcp/manager.js';
 import { ToolManager } from '../tools/tool-manager.js';
+import type { InternalToolsServices } from '../tools/internal-tools/registry.js';
+import type { InternalToolsConfig, CustomToolsConfig, ToolPolicies } from '../tools/schemas.js';
+import type { IAllowedToolsProvider } from '../tools/confirmation/allowed-tools-provider/types.js';
 import { SystemPromptManager } from '../systemPrompt/manager.js';
 import { AgentStateManager } from '../agent/state-manager.js';
 import { SessionManager } from '../session/index.js';
@@ -57,6 +60,28 @@ export type AgentServices = {
     pluginManager: PluginManager;
 };
 
+export type ToolManagerFactoryOptions = {
+    mcpManager: MCPManager;
+    approvalManager: ApprovalManager;
+    allowedToolsProvider: IAllowedToolsProvider;
+    approvalMode: 'manual' | 'auto-approve' | 'auto-deny';
+    agentEventBus: AgentEventBus;
+    toolPolicies: ToolPolicies;
+    internalToolsConfig: InternalToolsConfig;
+    customToolsConfig: CustomToolsConfig;
+    internalToolsServices: InternalToolsServices & Record<string, unknown>;
+    logger: IDextoLogger;
+};
+
+export type ToolManagerFactory = (options: ToolManagerFactoryOptions) => ToolManager;
+
+export type InitializeServicesOptions = {
+    sessionLoggerFactory?: import('../session/session-manager.js').SessionLoggerFactory;
+    mcpAuthProviderFactory?: import('../mcp/types.js').McpAuthProviderFactory | null;
+    toolManager?: ToolManager;
+    toolManagerFactory?: ToolManagerFactory;
+};
+
 // High-level factory to load, validate, and wire up all agent services in one call
 /**
  * Initializes all agent services from a validated configuration.
@@ -72,11 +97,7 @@ export async function createAgentServices(
     configPath: string | undefined,
     logger: IDextoLogger,
     agentEventBus: AgentEventBus,
-    overrides?: {
-        sessionLoggerFactory?: import('../session/session-manager.js').SessionLoggerFactory;
-        mcpAuthProviderFactory?: import('../mcp/types.js').McpAuthProviderFactory | null;
-        toolServices?: Record<string, unknown>;
-    }
+    overrides?: InitializeServicesOptions
 ): Promise<AgentServices> {
     // 0. Initialize telemetry FIRST (before any decorated classes are instantiated)
     // This must happen before creating any services that use @InstrumentClass decorator
@@ -180,24 +201,39 @@ export async function createAgentServices(
     );
 
     // 8.2 - Initialize tool manager with direct ApprovalManager integration
-    const toolManager = new ToolManager(
-        mcpManager,
-        approvalManager,
-        allowedToolsProvider,
-        config.toolConfirmation.mode,
-        agentEventBus,
-        config.toolConfirmation.toolPolicies,
-        {
-            internalToolsServices: {
-                searchService,
-                resourceManager,
-                ...(overrides?.toolServices ?? {}),
-            },
+    const internalToolsServices: InternalToolsServices & Record<string, unknown> = {
+        searchService,
+        resourceManager,
+    };
+
+    const toolManager =
+        overrides?.toolManager ??
+        overrides?.toolManagerFactory?.({
+            mcpManager,
+            approvalManager,
+            allowedToolsProvider,
+            approvalMode: config.toolConfirmation.mode,
+            agentEventBus,
+            toolPolicies: config.toolConfirmation.toolPolicies,
             internalToolsConfig: config.internalTools,
             customToolsConfig: config.customTools,
-        },
-        logger
-    );
+            internalToolsServices,
+            logger,
+        }) ??
+        new ToolManager(
+            mcpManager,
+            approvalManager,
+            allowedToolsProvider,
+            config.toolConfirmation.mode,
+            agentEventBus,
+            config.toolConfirmation.toolPolicies,
+            {
+                internalToolsServices,
+                internalToolsConfig: config.internalTools,
+                customToolsConfig: config.customTools,
+            },
+            logger
+        );
     // NOTE: toolManager.initialize() is called in DextoAgent.start() after agent reference is set
     // This allows custom tools to access the agent for bidirectional communication
 
