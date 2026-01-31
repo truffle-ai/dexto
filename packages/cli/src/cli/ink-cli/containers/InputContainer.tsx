@@ -262,15 +262,6 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
             const current = agent.getCurrentLLMConfig(sessionId);
             const support = getReasoningSupport(current.provider, current.model);
             if (!support.capable || support.supportedPresets.length === 0) {
-                setMessages((prev) => [
-                    ...prev,
-                    {
-                        id: generateMessageId('system'),
-                        role: 'system',
-                        content: `ℹ️ Reasoning tuning is not supported for ${current.model} (${current.provider}).`,
-                        timestamp: new Date(),
-                    },
-                ]);
                 return;
             }
 
@@ -291,15 +282,6 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                         },
                         sessionId
                     );
-                    setMessages((prev) => [
-                        ...prev,
-                        {
-                            id: generateMessageId('system'),
-                            role: 'system',
-                            content: `🧠 Reasoning preset: ${nextPreset}`,
-                            timestamp: new Date(),
-                        },
-                    ]);
                 } catch (error) {
                     setMessages((prev) => [
                         ...prev,

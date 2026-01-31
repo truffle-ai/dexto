@@ -6,7 +6,7 @@
 import { useEffect, useState } from 'react';
 import path from 'node:path';
 import { Box, Text } from 'ink';
-import { getModelDisplayName, type DextoAgent } from '@dexto/core';
+import { getModelDisplayName, getReasoningSupport, type DextoAgent } from '@dexto/core';
 import { getLLMProviderDisplayName } from '../utils/llm-provider-display.js';
 
 interface FooterProps {
@@ -44,10 +44,16 @@ export function Footer({
     const [contextLeft, setContextLeft] = useState<{
         percentLeft: number;
     } | null>(null);
+    const [, setLlmTick] = useState(0);
 
     // Provider is session-scoped because /model can switch LLM per session.
-    const provider = sessionId ? agent.getCurrentLLMConfig(sessionId).provider : null;
+    const llmConfig = sessionId ? agent.getCurrentLLMConfig(sessionId) : null;
+    const provider = llmConfig?.provider ?? null;
     const providerLabel = provider ? getLLMProviderDisplayName(provider) : null;
+    const reasoningPreset = llmConfig?.reasoning?.preset ?? 'auto';
+    const reasoningSupport =
+        provider && llmConfig ? getReasoningSupport(provider, llmConfig.model) : null;
+    const showReasoningPreset = reasoningSupport ? reasoningSupport.capable : false;
 
     useEffect(() => {
         if (!sessionId) {
@@ -81,6 +87,7 @@ export function Footer({
         const { signal } = controller;
         const sessionEvents = [
             'llm:response',
+            'llm:switched',
             'context:compacted',
             'context:pruned',
             'context:cleared',
@@ -88,9 +95,14 @@ export function Footer({
             'session:reset',
         ] as const;
 
-        const handleEvent = (payload: { sessionId?: string }) => {
+        const handleEvent = (payload: { sessionId?: string; sessionIds?: string[] }) => {
+            // Most session events include sessionId. llm:switched includes sessionIds[].
             if (payload.sessionId && payload.sessionId !== sessionId) return;
+            if (payload.sessionIds && !payload.sessionIds.includes(sessionId)) return;
             refreshContext();
+            // Force a re-render so the footer always reflects the current LLM config
+            // (e.g. reasoning preset toggled via Tab).
+            setLlmTick((prev) => prev + 1);
         };
 
         for (const eventName of sessionEvents) {
@@ -117,6 +129,12 @@ export function Footer({
                 <Box>
                     <Text color="cyan">{displayModelName}</Text>
                     {providerLabel && <Text color="gray"> ({providerLabel})</Text>}
+                    {showReasoningPreset && (
+                        <>
+                            <Text color="gray"> · r:</Text>
+                            <Text color="magentaBright">{reasoningPreset}</Text>
+                        </>
+                    )}
                 </Box>
             </Box>
 
