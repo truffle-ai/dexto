@@ -861,7 +861,9 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                 onPasteBlockUpdate={handlePasteBlockUpdate}
                 onPasteBlockRemove={handlePasteBlockRemove}
                 highlightQuery={ui.historySearch.isActive ? ui.historySearch.query : undefined}
-                onCycleReasoningPreset={handleCycleReasoningPreset}
+                onCycleReasoningPreset={
+                    ui.activeOverlay === 'none' ? handleCycleReasoningPreset : undefined
+                }
             />
         );
     }
