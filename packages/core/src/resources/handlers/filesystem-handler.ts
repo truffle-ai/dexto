@@ -281,6 +281,11 @@ export class FileSystemResourceHandler implements InternalResourceHandler {
             }
 
             if (stat.isDirectory()) {
+                const basename = path.basename(canonical).toLowerCase();
+                if (this.shouldIgnoreDirectory(basename)) {
+                    return;
+                }
+
                 const entries = await fs.readdir(canonical);
                 for (const entry of entries) {
                     const entryPath = path.join(canonical, entry);
@@ -296,6 +301,28 @@ export class FileSystemResourceHandler implements InternalResourceHandler {
                 `Skipping inaccessible path: ${canonical} - ${error instanceof Error ? error.message : String(error)}`
             );
         }
+    }
+
+    private shouldIgnoreDirectory(basename: string): boolean {
+        const ignoredDirectories = [
+            'node_modules',
+            '.git',
+            '.turbo',
+            '.next',
+            'dist',
+            'build',
+            'out',
+            'coverage',
+            '.cache',
+            '.vscode',
+            '.idea',
+            '.changeset',
+            '.github',
+            '.husky',
+            'tmp',
+            'temp',
+        ];
+        return ignoredDirectories.includes(basename);
     }
 
     private shouldIncludeFile(
