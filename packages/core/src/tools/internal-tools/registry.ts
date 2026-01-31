@@ -66,7 +66,7 @@ export interface TaskForker {
  * Services available to internal tools
  * Add new services here as needed for internal tools
  */
-export interface InternalToolsServices {
+export interface InternalToolsServices extends Record<string, unknown> {
     searchService?: SearchService;
     approvalManager?: ApprovalManager;
     resourceManager?: ResourceManager;
