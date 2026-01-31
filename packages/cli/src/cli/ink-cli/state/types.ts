@@ -319,6 +319,7 @@ export type OverlayType =
     | 'slash-autocomplete'
     | 'resource-autocomplete'
     | 'model-selector'
+    | 'reasoning'
     | 'custom-model-wizard'
     | 'session-selector'
     | 'mcp-server-list'

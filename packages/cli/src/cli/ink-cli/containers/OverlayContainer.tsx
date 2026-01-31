@@ -25,6 +25,10 @@ import ResourceAutocomplete, {
 import ModelSelectorRefactored, {
     type ModelSelectorHandle,
 } from '../components/overlays/ModelSelectorRefactored.js';
+import {
+    ReasoningOverlay,
+    type ReasoningOverlayHandle,
+} from '../components/overlays/ReasoningOverlay.js';
 import SessionSelectorRefactored, {
     type SessionSelectorHandle,
 } from '../components/overlays/SessionSelectorRefactored.js';
@@ -178,6 +182,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
         const slashAutocompleteRef = useRef<SlashCommandAutocompleteHandle>(null);
         const resourceAutocompleteRef = useRef<ResourceAutocompleteHandle>(null);
         const modelSelectorRef = useRef<ModelSelectorHandle>(null);
+        const reasoningOverlayRef = useRef<ReasoningOverlayHandle>(null);
         const sessionSelectorRef = useRef<SessionSelectorHandle>(null);
         const logLevelSelectorRef = useRef<LogLevelSelectorHandle>(null);
         const streamSelectorRef = useRef<StreamSelectorHandle>(null);
@@ -230,6 +235,8 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             );
                         case 'model-selector':
                             return modelSelectorRef.current?.handleInput(inputStr, key) ?? false;
+                        case 'reasoning':
+                            return reasoningOverlayRef.current?.handleInput(inputStr, key) ?? false;
                         case 'session-selector':
                             return sessionSelectorRef.current?.handleInput(inputStr, key) ?? false;
                         case 'log-level-selector':
@@ -1112,6 +1119,44 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                 ]);
             },
             [setUi, setInput, setMessages, buffer]
+        );
+
+        const handleToggleShowReasoning = useCallback(() => {
+            setUi((prev) => ({ ...prev, showReasoning: !prev.showReasoning }));
+        }, [setUi]);
+
+        const handleReasoningNotify = useCallback(
+            (message: string) => {
+                setMessages((prev) => [
+                    ...prev,
+                    {
+                        id: generateMessageId('system'),
+                        role: 'system',
+                        content: `🧠 ${message}`,
+                        timestamp: new Date(),
+                    },
+                ]);
+            },
+            [setMessages]
+        );
+
+        const handleSetReasoningBudgetTokens = useCallback(
+            async (budgetTokens: number | undefined) => {
+                const sessionId = session.id || undefined;
+                const current = agent.getCurrentLLMConfig(sessionId);
+                const preset = (current.reasoning?.preset ?? 'auto') as ReasoningPreset;
+
+                await agent.switchLLM(
+                    {
+                        reasoning: {
+                            preset,
+                            ...(typeof budgetTokens === 'number' ? { budgetTokens } : {}),
+                        },
+                    },
+                    sessionId
+                );
+            },
+            [agent, session.id]
         );
 
         // Handle MCP server list actions (select server or add new)
@@ -2174,6 +2219,23 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             onAddCustomModel={handleAddCustomModel}
                             onEditCustomModel={handleEditCustomModel}
                             agent={agent}
+                        />
+                    </Box>
+                )}
+
+                {/* Reasoning configuration */}
+                {ui.activeOverlay === 'reasoning' && (
+                    <Box marginTop={1}>
+                        <ReasoningOverlay
+                            ref={reasoningOverlayRef}
+                            isVisible={true}
+                            agent={agent}
+                            sessionId={session.id}
+                            showReasoning={ui.showReasoning}
+                            onToggleShowReasoning={handleToggleShowReasoning}
+                            onSetBudgetTokens={handleSetReasoningBudgetTokens}
+                            onNotify={handleReasoningNotify}
+                            onClose={handleClose}
                         />
                     </Box>
                 )}

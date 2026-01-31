@@ -814,24 +814,15 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
             ]
         );
 
-        // Determine if input should be active (not blocked by approval/overlay/history search)
-        // Input stays active for filter-type overlays (so user can keep typing to filter)
-        // Disable for approval prompts, overlays with their own text input, and history search mode
-        const overlaysWithOwnInput = [
-            'mcp-custom-wizard',
-            'custom-model-wizard',
-            'api-key-input',
-            'search',
-            'tool-browser',
-            'prompt-add-wizard',
-            'model-selector',
-            'export-wizard',
-            'marketplace-add',
-        ];
-        const hasOverlayWithOwnInput = overlaysWithOwnInput.includes(ui.activeOverlay);
+        // Determine if main input should be active.
+        // Important: The main input subscribes to keypress events directly (not via orchestrator),
+        // so we must disable it for ALL overlays except the two autocompletes that intentionally
+        // use the main input as their filter field.
+        const mainInputAllowedOverlays = ['none', 'slash-autocomplete', 'resource-autocomplete'];
+        const mainInputAllowed = mainInputAllowedOverlays.includes(ui.activeOverlay);
         const isHistorySearchActive = ui.historySearch.isActive;
-        const isInputActive = !approval && !hasOverlayWithOwnInput && !isHistorySearchActive;
-        const isInputDisabled = !!approval || hasOverlayWithOwnInput || isHistorySearchActive;
+        const isInputActive = !approval && mainInputAllowed && !isHistorySearchActive;
+        const isInputDisabled = !!approval || !mainInputAllowed || isHistorySearchActive;
         // Allow submit when:
         // - no overlay active
         // - approval active

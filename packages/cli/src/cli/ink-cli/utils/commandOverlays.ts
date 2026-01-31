@@ -15,6 +15,7 @@ const ALWAYS_OVERLAY: Record<string, OverlayType> = {
     search: 'search',
     find: 'search', // alias
     model: 'model-selector',
+    reasoning: 'reasoning',
     resume: 'session-selector',
     switch: 'session-selector',
     stream: 'stream-selector',

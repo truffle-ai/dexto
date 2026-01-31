@@ -9,6 +9,7 @@
  * - /config - Show current configuration
  * - /stats - Show system statistics
  * - /stream - Toggle streaming mode for LLM responses
+ * - /reasoning - Configure reasoning visibility and budget tokens
  */
 
 import chalk from 'chalk';
@@ -244,6 +245,20 @@ export const systemCommands: CommandDefinition[] = [
         description: 'Toggle streaming mode for LLM responses',
         usage: '/stream',
         category: 'System',
+        handler: async (
+            _args: string[],
+            _agent: DextoAgent,
+            _ctx: CommandContext
+        ): Promise<boolean | string> => {
+            // Overlay is handled via commandOverlays.ts mapping
+            return true;
+        },
+    },
+    {
+        name: 'reasoning',
+        description: 'Configure reasoning display and budget tokens',
+        usage: '/reasoning',
+        category: 'Model',
         handler: async (
             _args: string[],
             _agent: DextoAgent,
