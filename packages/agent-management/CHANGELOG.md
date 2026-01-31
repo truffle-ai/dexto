@@ -1,5 +1,18 @@
 # @dexto/agent-management
 
+## 1.5.8
+
+### Patch Changes
+
+- 8687817: Add granular control for tools. /tools now allows you to view and update the following settings:
+    - Enable/disable tools by scope (session/global)
+    - Auto-approve tools for session (global scope updates can be added if required)
+- Updated dependencies [8687817]
+- Updated dependencies [fc77b59]
+- Updated dependencies [ef90f6f]
+- Updated dependencies [9990e4f]
+    - @dexto/core@1.5.8
+
 ## 1.5.7
 
 ### Patch Changes
