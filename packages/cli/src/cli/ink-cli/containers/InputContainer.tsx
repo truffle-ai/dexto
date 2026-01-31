@@ -7,7 +7,15 @@
  */
 
 import React, { useCallback, useRef, useEffect, useImperativeHandle, forwardRef } from 'react';
-import type { DextoAgent, ContentPart, ImagePart, TextPart, QueuedMessage } from '@dexto/core';
+import type {
+    DextoAgent,
+    ContentPart,
+    ImagePart,
+    TextPart,
+    QueuedMessage,
+    ReasoningPreset,
+} from '@dexto/core';
+import { getReasoningSupport } from '@dexto/core';
 import { InputArea, type OverlayTrigger } from '../components/input/InputArea.js';
 import { InputService, processStream } from '../services/index.js';
 import { useSoundService } from '../contexts/index.js';
@@ -246,6 +254,65 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
             },
             [setUi, approval]
         );
+
+        const handleCycleReasoningPreset = useCallback(() => {
+            if (ui.isProcessing) return;
+
+            const sessionId = session.id || undefined;
+            const current = agent.getCurrentLLMConfig(sessionId);
+            const support = getReasoningSupport(current.provider, current.model);
+            if (!support.capable || support.supportedPresets.length === 0) {
+                setMessages((prev) => [
+                    ...prev,
+                    {
+                        id: generateMessageId('system'),
+                        role: 'system',
+                        content: `ℹ️ Reasoning tuning is not supported for ${current.model} (${current.provider}).`,
+                        timestamp: new Date(),
+                    },
+                ]);
+                return;
+            }
+
+            const presets = support.supportedPresets;
+            const currentPreset = (current.reasoning?.preset ?? 'auto') as ReasoningPreset;
+            const idx = presets.indexOf(currentPreset);
+            const nextPreset = presets[(idx >= 0 ? idx + 1 : 0) % presets.length];
+
+            const budgetTokens = current.reasoning?.budgetTokens;
+            void (async () => {
+                try {
+                    await agent.switchLLM(
+                        {
+                            reasoning: {
+                                preset: nextPreset,
+                                ...(typeof budgetTokens === 'number' ? { budgetTokens } : {}),
+                            },
+                        },
+                        sessionId
+                    );
+                    setMessages((prev) => [
+                        ...prev,
+                        {
+                            id: generateMessageId('system'),
+                            role: 'system',
+                            content: `🧠 Reasoning preset: ${nextPreset}`,
+                            timestamp: new Date(),
+                        },
+                    ]);
+                } catch (error) {
+                    setMessages((prev) => [
+                        ...prev,
+                        {
+                            id: generateMessageId('error'),
+                            role: 'system',
+                            content: `❌ Failed to change reasoning preset: ${error instanceof Error ? error.message : String(error)}`,
+                            timestamp: new Date(),
+                        },
+                    ]);
+                }
+            })();
+        }, [agent, session.id, setMessages, ui.isProcessing]);
 
         // Handle image paste from clipboard
         const handleImagePaste = useCallback(
@@ -803,6 +870,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                 onPasteBlockUpdate={handlePasteBlockUpdate}
                 onPasteBlockRemove={handlePasteBlockRemove}
                 highlightQuery={ui.historySearch.isActive ? ui.historySearch.query : undefined}
+                onCycleReasoningPreset={handleCycleReasoningPreset}
             />
         );
     }

@@ -232,6 +232,8 @@ export interface Message {
     id: string;
     role: 'user' | 'assistant' | 'system' | 'tool';
     content: string;
+    /** Optional model reasoning trace (when provider supports returning it). */
+    reasoning?: string | undefined;
     timestamp: Date;
     isStreaming?: boolean;
     toolResult?: string; // Tool result preview (first 4-5 lines)
@@ -403,6 +405,8 @@ export interface UIState {
     isThinking: boolean; // True when LLM is thinking (before streaming starts)
     isCompacting: boolean; // True when context is being compacted
     activeOverlay: OverlayType;
+    /** Whether assistant reasoning is shown in the chat transcript. */
+    showReasoning: boolean;
     exitWarningShown: boolean; // True when first Ctrl+C was pressed (pending second to exit)
     exitWarningTimestamp: number | null; // Timestamp of first Ctrl+C for timeout
     mcpWizardServerType: McpWizardServerType; // Server type for MCP custom wizard

@@ -46,6 +46,8 @@ interface InputAreaProps {
     onPasteBlockRemove?: ((blockId: string) => void) | undefined;
     /** Query to highlight in input text (for history search) */
     highlightQuery?: string | undefined;
+    /** Cycle reasoning preset (only when the main input is active). */
+    onCycleReasoningPreset?: (() => void) | undefined;
 }
 
 export function InputArea({
@@ -66,6 +68,7 @@ export function InputArea({
     onPasteBlockUpdate,
     onPasteBlockRemove,
     highlightQuery,
+    onCycleReasoningPreset,
 }: InputAreaProps) {
     return (
         <Box flexDirection="column">
@@ -87,6 +90,7 @@ export function InputArea({
                 onPasteBlockUpdate={onPasteBlockUpdate}
                 onPasteBlockRemove={onPasteBlockRemove}
                 highlightQuery={highlightQuery}
+                onCycleReasoningPreset={onCycleReasoningPreset}
             />
         </Box>
     );

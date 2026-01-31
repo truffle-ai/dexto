@@ -510,7 +510,10 @@ export const generalCommands: CommandDefinition[] = [
                             { keys: 'Shift+Enter', description: 'New line (multi-line input)' },
                             { keys: 'Up/Down', description: 'Navigate input history' },
                             { keys: 'Ctrl+R', description: 'Search history (enter search mode)' },
-                            { keys: 'Tab', description: 'Autocomplete command' },
+                            {
+                                keys: 'Tab',
+                                description: 'Cycle reasoning preset (when no overlay is open)',
+                            },
                             { keys: 'Ctrl+U', description: 'Clear input line' },
                             { keys: 'Ctrl+W', description: 'Delete word before cursor' },
                             { keys: 'Ctrl+A', description: 'Move cursor to start' },

@@ -158,7 +158,12 @@ export function StaticCLI({
                 startupInfo={startupInfo}
             />,
             ...visibleMessages.map((msg) => (
-                <MessageItem key={msg.id} message={msg} terminalWidth={terminalWidth} />
+                <MessageItem
+                    key={msg.id}
+                    message={msg}
+                    terminalWidth={terminalWidth}
+                    showReasoning={ui.showReasoning}
+                />
             )),
         ];
         return items;
@@ -169,6 +174,7 @@ export function StaticCLI({
         session.hasActiveSession,
         startupInfo,
         terminalWidth,
+        ui.showReasoning,
     ]);
 
     return (
@@ -181,13 +187,23 @@ export function StaticCLI({
 
             {/* Dynamic: pending/streaming messages - re-rendered on updates */}
             {pendingMessages.map((message) => (
-                <MessageItem key={message.id} message={message} terminalWidth={terminalWidth} />
+                <MessageItem
+                    key={message.id}
+                    message={message}
+                    terminalWidth={terminalWidth}
+                    showReasoning={ui.showReasoning}
+                />
             ))}
 
             {/* Dequeued buffer: user messages waiting to be flushed to finalized */}
             {/* Rendered AFTER pending to guarantee correct visual order */}
             {dequeuedBuffer.map((message) => (
-                <MessageItem key={message.id} message={message} terminalWidth={terminalWidth} />
+                <MessageItem
+                    key={message.id}
+                    message={message}
+                    terminalWidth={terminalWidth}
+                    showReasoning={ui.showReasoning}
+                />
             ))}
 
             {/* Controls area */}
