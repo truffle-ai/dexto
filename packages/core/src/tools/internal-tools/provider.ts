@@ -24,8 +24,10 @@ import { ToolErrorCode } from '../error-codes.js';
  * - No unnecessary ProcessedInternalTool wrapper - uses InternalTool directly
  * - Custom tools follow the same provider pattern as blob storage
  */
+type ToolServices = InternalToolsServices & Record<string, unknown>;
+
 export class InternalToolsProvider {
-    private services: InternalToolsServices;
+    private services: ToolServices;
     private internalTools: Map<string, InternalTool> = new Map(); // Built-in internal tools
     private customTools: Map<string, InternalTool> = new Map(); // Custom tool provider tools
     private config: InternalToolsConfig;
@@ -34,7 +36,7 @@ export class InternalToolsProvider {
     private agent?: DextoAgent; // Set after construction to avoid circular dependency
 
     constructor(
-        services: InternalToolsServices,
+        services: ToolServices,
         config: InternalToolsConfig = [],
         customToolConfigs: CustomToolsConfig = [],
         logger: IDextoLogger

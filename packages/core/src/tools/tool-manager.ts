@@ -29,7 +29,7 @@ import {
  * Options for internal tools configuration in ToolManager
  */
 export interface InternalToolsOptions {
-    internalToolsServices?: InternalToolsServices;
+    internalToolsServices?: InternalToolsServices & Record<string, unknown>;
     internalToolsConfig?: InternalToolsConfig;
     customToolsConfig?: CustomToolsConfig;
 }
