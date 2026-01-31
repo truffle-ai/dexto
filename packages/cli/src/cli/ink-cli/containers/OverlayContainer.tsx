@@ -2228,6 +2228,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             isVisible={true}
                             onClose={handleClose}
                             agent={agent}
+                            sessionId={session.id}
                         />
                     </Box>
                 )}

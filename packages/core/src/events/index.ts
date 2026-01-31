@@ -302,6 +302,13 @@ export interface AgentEventMap {
         source: 'mcp' | 'builtin';
     };
 
+    /** Fired when enabled/disabled tools list updates */
+    'tools:enabled-updated': {
+        scope: 'global' | 'session';
+        sessionId?: string;
+        disabledTools: string[];
+    };
+
     /**
      * Agent run is being invoked externally (e.g., by scheduler, A2A, API).
      * Fired BEFORE agent.stream()/run() is called.

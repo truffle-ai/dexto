@@ -134,6 +134,12 @@ export class VercelLLMService {
         return this.toolManager.getAllTools();
     }
 
+    getEnabledTools(): Promise<ToolSet> {
+        return this.toolManager
+            .getAllTools()
+            .then((tools) => this.toolManager.filterToolsForSession(tools, this.sessionId));
+    }
+
     /**
      * Create a TurnExecutor instance for executing the agent loop.
      */

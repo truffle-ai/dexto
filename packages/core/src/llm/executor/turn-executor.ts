@@ -218,7 +218,12 @@ export class TurnExecutor {
                 // 4. PRE-CHECK: Estimate tokens and compact if over threshold BEFORE LLM call
                 // This ensures we never make an oversized call and avoids unnecessary compaction on stop steps
                 // Uses the same formula as /context overlay: lastInput + lastOutput + newMessagesEstimate
-                const toolDefinitions = supportsTools ? await this.toolManager.getAllTools() : {};
+                const toolDefinitions = supportsTools
+                    ? this.toolManager.filterToolsForSession(
+                          await this.toolManager.getAllTools(),
+                          this.sessionId
+                      )
+                    : {};
                 let estimatedTokens = await this.contextManager.getEstimatedNextInputTokens(
                     prepared.systemPrompt,
                     prepared.preparedHistory,
@@ -575,7 +580,10 @@ export class TurnExecutor {
      * - StreamProcessor handles persistence via tool-result events
      */
     private async createTools(): Promise<VercelToolSet> {
-        const tools: ToolSet = await this.toolManager.getAllTools();
+        const tools: ToolSet = this.toolManager.filterToolsForSession(
+            await this.toolManager.getAllTools(),
+            this.sessionId
+        );
 
         return Object.fromEntries(
             Object.entries(tools).map(([name, tool]) => [

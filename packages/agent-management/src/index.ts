@@ -16,7 +16,14 @@ export {
     type GlobalPreferencesUpdates,
     type CreatePreferencesOptions,
 } from './preferences/loader.js';
-export type { GlobalPreferences } from './preferences/schemas.js';
+export type { GlobalPreferences, AgentPreferences } from './preferences/schemas.js';
+export {
+    loadAgentPreferences,
+    saveAgentPreferences,
+    updateAgentPreferences,
+    agentPreferencesExist,
+    getAgentPreferencesPath,
+} from './preferences/loader.js';
 export { PreferenceError, PreferenceErrorCode } from './preferences/errors.js';
 
 // Agent resolver

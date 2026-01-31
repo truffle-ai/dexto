@@ -274,13 +274,31 @@ function createPromptCommand(promptInfo: PromptInfo): CommandDefinition {
                     // Apply auto-approve tools if specified
                     // These tools will skip confirmation prompts during skill execution
                     if (result.allowedTools && result.allowedTools.length > 0) {
+                        const displayTools = result.allowedTools.map((tool) => {
+                            if (tool.startsWith('custom--')) {
+                                return tool.replace(/^custom--/, '');
+                            }
+                            if (tool.startsWith('mcp--')) {
+                                const trimmed = tool.replace(/^mcp--/, '');
+                                const [server, ...rest] = trimmed.split('--');
+                                if (server && rest.length > 0) {
+                                    return `${server}/${rest.join('--')}`;
+                                }
+                                return trimmed;
+                            }
+                            return tool;
+                        });
                         console.log(
-                            chalk.gray(`🔓 Auto-approving tools: ${result.allowedTools.join(', ')}`)
+                            chalk.gray(`🔓 Auto-approving tools: ${displayTools.join(', ')}`)
                         );
                         try {
                             agent.toolManager.setSessionAutoApproveTools(
                                 ctx.sessionId,
-                                result.allowedTools
+                                result.allowedTools.map((tool) =>
+                                    tool.startsWith('mcp--') && !tool.includes('--', 5)
+                                        ? `mcp--${tool}`
+                                        : tool
+                                )
                             );
                         } catch (toolError) {
                             console.log(

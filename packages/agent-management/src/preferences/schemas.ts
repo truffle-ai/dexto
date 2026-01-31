@@ -129,6 +129,23 @@ export const PreferenceSoundsSchema = z
     })
     .strict();
 
+export const AgentToolPreferencesSchema = z
+    .object({
+        disabled: z
+            .array(NonEmptyTrimmed)
+            .default([])
+            .describe('Tool names disabled for this agent (default: none)'),
+    })
+    .strict();
+
+export const AgentPreferencesSchema = z
+    .object({
+        tools: AgentToolPreferencesSchema.default({ disabled: [] }).describe(
+            'Tool availability preferences'
+        ),
+    })
+    .strict();
+
 export const GlobalPreferencesSchema = z
     .object({
         llm: PreferenceLLMSchema.describe('LLM configuration preferences'),
@@ -150,4 +167,6 @@ export type PreferenceLLM = z.output<typeof PreferenceLLMSchema>;
 export type PreferenceDefaults = z.output<typeof PreferenceDefaultsSchema>;
 export type PreferenceSetup = z.output<typeof PreferenceSetupSchema>;
 export type PreferenceSounds = z.output<typeof PreferenceSoundsSchema>;
+export type AgentToolPreferences = z.output<typeof AgentToolPreferencesSchema>;
+export type AgentPreferences = z.output<typeof AgentPreferencesSchema>;
 export type GlobalPreferences = z.output<typeof GlobalPreferencesSchema>;

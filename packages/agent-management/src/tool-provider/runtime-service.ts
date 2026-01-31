@@ -640,6 +640,17 @@ export class RuntimeService implements TaskForker {
                 }
 
                 // Override certain settings for sub-agent behavior
+                // Filter out agent-spawner to prevent nested spawning (depth=1 limit)
+                const filteredCustomTools = loadedConfig.customTools
+                    ? loadedConfig.customTools.filter(
+                          (tool) =>
+                              typeof tool === 'object' &&
+                              tool !== null &&
+                              'type' in tool &&
+                              tool.type !== 'agent-spawner'
+                      )
+                    : undefined;
+
                 return {
                     ...loadedConfig,
                     llm: llmConfig,
@@ -647,6 +658,7 @@ export class RuntimeService implements TaskForker {
                         ...loadedConfig.toolConfirmation,
                         mode: toolConfirmationMode,
                     },
+                    customTools: filteredCustomTools,
                     // Suppress sub-agent console logs entirely using silent transport
                     logger: {
                         level: 'error' as const,
@@ -680,8 +692,17 @@ export class RuntimeService implements TaskForker {
                   )
                 : [],
 
-            // Inherit custom tools from parent
-            customTools: parentConfig.customTools ? [...parentConfig.customTools] : [],
+            // Inherit custom tools from parent, excluding agent-spawner to prevent nested spawning (depth=1 limit)
+            // - agent-spawner: Sub-agents should not spawn their own sub-agents
+            customTools: parentConfig.customTools
+                ? parentConfig.customTools.filter(
+                      (tool) =>
+                          typeof tool === 'object' &&
+                          tool !== null &&
+                          'type' in tool &&
+                          tool.type !== 'agent-spawner'
+                  )
+                : [],
 
             // Suppress sub-agent console logs entirely using silent transport
             logger: {
