@@ -59,6 +59,7 @@ const ToolBrowser = forwardRef<ToolBrowserHandle, ToolBrowserProps>(function Too
     const { columns, rows } = useTerminalSize();
     const [tools, setTools] = useState<ToolInfo[]>([]);
     const [isLoading, setIsLoading] = useState(false);
+    const [loadError, setLoadError] = useState<string | null>(null);
     const [selectedIndex, setSelectedIndex] = useState(0);
     const [searchQuery, setSearchQuery] = useState('');
     const [scrollOffset, setScrollOffset] = useState(0);
@@ -108,6 +109,7 @@ const ToolBrowser = forwardRef<ToolBrowserHandle, ToolBrowserProps>(function Too
         setSelectedTool(null);
         setListActionsIndex(0);
         setConfigIndex(0);
+        setLoadError(null);
 
         const fetchTools = async () => {
             try {
@@ -157,11 +159,14 @@ const ToolBrowser = forwardRef<ToolBrowserHandle, ToolBrowserProps>(function Too
                 if (!cancelled) {
                     setTools(toolList);
                     setIsLoading(false);
+                    setLoadError(null);
                 }
             } catch (error) {
                 if (!cancelled) {
+                    const message = error instanceof Error ? error.message : 'Unknown error';
                     setTools([]);
                     setIsLoading(false);
+                    setLoadError(`Failed to load tools: ${message}`);
                 }
             }
         };
@@ -250,7 +255,8 @@ const ToolBrowser = forwardRef<ToolBrowserHandle, ToolBrowserProps>(function Too
         const effectiveTarget = overrideTarget ?? scopeTargetRef.current;
         const nextEnabled = scopeNextEnabledRef.current;
 
-        const updatedTools = toolsRef.current.map((tool) => {
+        const previousTools = toolsRef.current;
+        const updatedTools = previousTools.map((tool) => {
             if (tool.name !== targetToolName) {
                 return tool;
             }
@@ -301,6 +307,11 @@ const ToolBrowser = forwardRef<ToolBrowserHandle, ToolBrowserProps>(function Too
                 // If we can't persist, still keep session state so user sees effect
                 if (sessionId) {
                     agent.setSessionDisabledTools(sessionId, disabledTools);
+                } else {
+                    setTools(previousTools);
+                    setSelectedTool(
+                        previousTools.find((tool) => tool.name === targetToolName) ?? null
+                    );
                 }
             }
         }
@@ -634,6 +645,11 @@ const ToolBrowser = forwardRef<ToolBrowserHandle, ToolBrowserProps>(function Too
             <Box paddingX={0} paddingY={0}>
                 <Text color="gray">Type to search · Backspace to delete</Text>
             </Box>
+            {loadError && (
+                <Box paddingX={0} paddingY={0}>
+                    <Text color="red">{loadError}</Text>
+                </Box>
+            )}
 
             {/* Search input */}
             <Box paddingX={0} paddingY={0} marginTop={1}>

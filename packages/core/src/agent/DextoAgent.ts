@@ -2390,6 +2390,9 @@ export class DextoAgent {
      */
     public async getEnabledTools(sessionId?: string): Promise<ToolSet> {
         this.ensureStarted();
+        if (sessionId !== undefined && (!sessionId || typeof sessionId !== 'string')) {
+            throw AgentError.apiValidationError('sessionId must be a non-empty string');
+        }
         return this.toolManager.filterToolsForSession(
             await this.toolManager.getAllTools(),
             sessionId
@@ -2409,6 +2412,12 @@ export class DextoAgent {
      */
     public setGlobalDisabledTools(toolNames: string[]): void {
         this.ensureStarted();
+        if (
+            !Array.isArray(toolNames) ||
+            toolNames.some((name) => !name || typeof name !== 'string')
+        ) {
+            throw AgentError.apiValidationError('toolNames must be an array of non-empty strings');
+        }
         this.toolManager.setGlobalDisabledTools(toolNames);
     }
 
@@ -2417,6 +2426,17 @@ export class DextoAgent {
      */
     public setSessionDisabledTools(sessionId: string, toolNames: string[]): void {
         this.ensureStarted();
+        if (!sessionId || typeof sessionId !== 'string') {
+            throw AgentError.apiValidationError(
+                'sessionId is required and must be a non-empty string'
+            );
+        }
+        if (
+            !Array.isArray(toolNames) ||
+            toolNames.some((name) => !name || typeof name !== 'string')
+        ) {
+            throw AgentError.apiValidationError('toolNames must be an array of non-empty strings');
+        }
         this.toolManager.setSessionDisabledTools(sessionId, toolNames);
     }
 
@@ -2425,6 +2445,11 @@ export class DextoAgent {
      */
     public getSessionAutoApproveTools(sessionId: string): string[] {
         this.ensureStarted();
+        if (!sessionId || typeof sessionId !== 'string') {
+            throw AgentError.apiValidationError(
+                'sessionId is required and must be a non-empty string'
+            );
+        }
         return this.toolManager.getSessionUserAutoApproveTools(sessionId) ?? [];
     }
 
@@ -2433,6 +2458,17 @@ export class DextoAgent {
      */
     public setSessionAutoApproveTools(sessionId: string, toolNames: string[]): void {
         this.ensureStarted();
+        if (!sessionId || typeof sessionId !== 'string') {
+            throw AgentError.apiValidationError(
+                'sessionId is required and must be a non-empty string'
+            );
+        }
+        if (
+            !Array.isArray(toolNames) ||
+            toolNames.some((name) => !name || typeof name !== 'string')
+        ) {
+            throw AgentError.apiValidationError('toolNames must be an array of non-empty strings');
+        }
         this.toolManager.setSessionUserAutoApproveTools(sessionId, toolNames);
     }
 
