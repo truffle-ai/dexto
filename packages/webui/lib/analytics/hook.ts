@@ -16,6 +16,7 @@ import type {
     FileAttachedEvent,
     ImageAttachedEvent,
     MCPServerConnectedEvent,
+    FileRejectedEvent,
 } from '@dexto/analytics';
 
 export interface UseAnalyticsReturn {
@@ -35,6 +36,7 @@ export interface UseAnalyticsReturn {
     trackFileAttached: (params: Omit<FileAttachedEvent, 'source'>) => void;
     trackImageAttached: (params: Omit<ImageAttachedEvent, 'source'>) => void;
     trackMCPServerConnected: (params: Omit<MCPServerConnectedEvent, 'source'>) => void;
+    trackFileRejected: (params: Omit<FileRejectedEvent, 'source'>) => void;
 }
 
 /**
@@ -191,6 +193,18 @@ export function useAnalytics(): UseAnalyticsReturn {
         [capture, enabled]
     );
 
+    const trackFileRejected = useCallback(
+        (params: Omit<FileRejectedEvent, 'source'>) => {
+            if (!enabled) return;
+            try {
+                capture('dexto_file_rejected', { source: 'webui', ...params });
+            } catch (error) {
+                console.warn('Analytics tracking failed:', error);
+            }
+        },
+        [capture, enabled]
+    );
+
     return {
         capture,
         enabled,
@@ -206,5 +220,6 @@ export function useAnalytics(): UseAnalyticsReturn {
         trackFileAttached,
         trackImageAttached,
         trackMCPServerConnected,
+        trackFileRejected,
     };
 }
