@@ -1148,6 +1148,8 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
 
                 await agent.switchLLM(
                     {
+                        provider: current.provider,
+                        model: current.model,
                         reasoning: {
                             preset,
                             ...(typeof budgetTokens === 'number' ? { budgetTokens } : {}),

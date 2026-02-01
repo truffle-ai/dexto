@@ -275,6 +275,8 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                 try {
                     await agent.switchLLM(
                         {
+                            provider: current.provider,
+                            model: current.model,
                             reasoning: {
                                 preset: nextPreset,
                                 ...(typeof budgetTokens === 'number' ? { budgetTokens } : {}),
