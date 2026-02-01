@@ -14,6 +14,10 @@ export interface LLMTokensConsumedEvent {
     sessionId: string;
     provider?: string | undefined;
     model?: string | undefined;
+    /** Reasoning tuning preset used for the call (best-effort). */
+    reasoningPreset?: string | undefined;
+    /** Reasoning budget tokens used for the call (best-effort; provider-specific). */
+    reasoningBudgetTokens?: number | undefined;
     inputTokens?: number | undefined;
     outputTokens?: number | undefined;
     reasoningTokens?: number | undefined;

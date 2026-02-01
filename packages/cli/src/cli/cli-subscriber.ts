@@ -194,7 +194,15 @@ export class CLISubscriber implements EventSubscriber {
      * Capture LLM token usage analytics
      */
     private captureTokenUsage(payload: AgentEventMap['llm:response']): void {
-        const { tokenUsage, provider, model, sessionId, estimatedInputTokens } = payload;
+        const {
+            tokenUsage,
+            provider,
+            model,
+            sessionId,
+            estimatedInputTokens,
+            reasoningPreset,
+            reasoningBudgetTokens,
+        } = payload;
         if (!tokenUsage || (!tokenUsage.inputTokens && !tokenUsage.outputTokens)) {
             return;
         }
@@ -211,6 +219,8 @@ export class CLISubscriber implements EventSubscriber {
             sessionId,
             provider,
             model,
+            reasoningPreset,
+            reasoningBudgetTokens,
             inputTokens: tokenUsage.inputTokens,
             outputTokens: tokenUsage.outputTokens,
             reasoningTokens: tokenUsage.reasoningTokens,

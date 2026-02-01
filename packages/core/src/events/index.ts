@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import type { LLMProvider } from '../llm/types.js';
+import type { LLMProvider, ReasoningPreset } from '../llm/types.js';
 import { ValidatedAgentConfig } from '../agent/schemas.js';
 import type { ApprovalRequest, ApprovalResponse } from '../approval/types.js';
 import type { SanitizedToolResult } from '../context/types.js';
@@ -338,6 +338,10 @@ export interface AgentEventMap {
         reasoning?: string;
         provider?: LLMProvider;
         model?: string;
+        /** Reasoning tuning preset used for this call (best-effort). */
+        reasoningPreset?: ReasoningPreset;
+        /** Reasoning budget tokens used for this call (best-effort; provider-specific). */
+        reasoningBudgetTokens?: number;
         tokenUsage?: {
             inputTokens?: number;
             outputTokens?: number;

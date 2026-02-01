@@ -16,7 +16,13 @@ import { ToolSet } from '../../tools/types.js';
 import { StreamProcessor } from './stream-processor.js';
 import { ExecutorResult } from './types.js';
 import { buildProviderOptions } from './provider-options.js';
-import { TokenUsage, type LLMReasoningConfig, LLMContext, type LLMProvider } from '../types.js';
+import {
+    TokenUsage,
+    type LLMReasoningConfig,
+    LLMContext,
+    type LLMProvider,
+    type ReasoningPreset,
+} from '../types.js';
 import type { IDextoLogger } from '../../logger/v2/types.js';
 import { DextoLogComponent } from '../../logger/v2/types.js';
 import type { SessionEventBus, LLMFinishReason } from '../../events/index.js';
@@ -122,11 +128,20 @@ export class TurnExecutor {
      * Get StreamProcessor config from TurnExecutor state.
      * @param estimatedInputTokens Optional estimated input tokens for analytics
      */
-    private getStreamProcessorConfig(estimatedInputTokens?: number): StreamProcessorConfig {
+    private getStreamProcessorConfig(
+        estimatedInputTokens?: number,
+        reasoning?: { reasoningPreset?: ReasoningPreset; reasoningBudgetTokens?: number }
+    ): StreamProcessorConfig {
         return {
             provider: this.llmContext.provider,
             model: this.llmContext.model,
             ...(estimatedInputTokens !== undefined && { estimatedInputTokens }),
+            ...(reasoning?.reasoningPreset !== undefined && {
+                reasoningPreset: reasoning.reasoningPreset,
+            }),
+            ...(reasoning?.reasoningBudgetTokens !== undefined && {
+                reasoningBudgetTokens: reasoning.reasoningBudgetTokens,
+            }),
         };
     }
 
@@ -259,23 +274,67 @@ export class TurnExecutor {
                 const tools = supportsTools ? await this.createTools() : {};
 
                 // 6. Execute single step with stream processing
-                const streamProcessor = new StreamProcessor(
-                    this.contextManager,
-                    this.eventBus,
-                    this.resourceManager,
-                    this.stepAbortController.signal,
-                    this.getStreamProcessorConfig(estimatedTokens),
-                    this.logger,
-                    streaming,
-                    this.approvalMetadata
-                );
-
                 // Build provider-specific options (caching, reasoning, etc.)
                 const providerOptions = buildProviderOptions({
                     provider: this.llmContext.provider,
                     model: this.llmContext.model,
                     reasoning: this.config.reasoning,
                 });
+
+                const reasoningPreset = this.config.reasoning?.preset;
+                const reasoningBudgetTokens = (() => {
+                    if (providerOptions === undefined) return this.config.reasoning?.budgetTokens;
+                    switch (this.llmContext.provider) {
+                        case 'anthropic':
+                        case 'vertex': {
+                            const anthropic = providerOptions['anthropic'] as
+                                | { thinking?: { type?: string; budgetTokens?: number } }
+                                | undefined;
+                            const thinking = anthropic?.thinking;
+                            return thinking?.type === 'enabled' ? thinking.budgetTokens : undefined;
+                        }
+                        case 'google': {
+                            const google = providerOptions['google'] as
+                                | { thinkingConfig?: { thinkingBudget?: number } }
+                                | undefined;
+                            return google?.thinkingConfig?.thinkingBudget;
+                        }
+                        case 'bedrock': {
+                            const bedrock = providerOptions['bedrock'] as
+                                | { reasoningConfig?: { budgetTokens?: number } }
+                                | undefined;
+                            return bedrock?.reasoningConfig?.budgetTokens;
+                        }
+                        case 'openrouter':
+                        case 'dexto': {
+                            const openrouter = providerOptions['openrouter'] as
+                                | { reasoning?: { max_tokens?: number } }
+                                | undefined;
+                            return openrouter?.reasoning?.max_tokens;
+                        }
+                        default:
+                            return this.config.reasoning?.budgetTokens;
+                    }
+                })();
+
+                const reasoningForStream = (() => {
+                    const r = {
+                        ...(reasoningPreset !== undefined && { reasoningPreset }),
+                        ...(reasoningBudgetTokens !== undefined && { reasoningBudgetTokens }),
+                    };
+                    return Object.keys(r).length > 0 ? r : undefined;
+                })();
+
+                const streamProcessor = new StreamProcessor(
+                    this.contextManager,
+                    this.eventBus,
+                    this.resourceManager,
+                    this.stepAbortController.signal,
+                    this.getStreamProcessorConfig(estimatedTokens, reasoningForStream),
+                    this.logger,
+                    streaming,
+                    this.approvalMetadata
+                );
 
                 const result = await streamProcessor.process(() =>
                     streamText({
