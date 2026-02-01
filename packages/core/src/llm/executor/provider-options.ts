@@ -70,6 +70,12 @@ function mapPresetToOpenAIReasoningEffort(
     preset: ReasoningPreset,
     model: string
 ): 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | undefined {
+    // OpenAI supports a fixed set of reasoning effort values, but availability varies per model.
+    // As of 2026-02-01, OpenAI documents: none|minimal|low|medium|high|xhigh, with model-specific
+    // constraints (e.g. some models do not support `none`, `gpt-5-pro` may only support `high`,
+    // and `xhigh` is only supported on certain newer models).
+    // Keep this mapping conservative and prefer deferring to OpenAI docs when adjusting defaults:
+    // https://platform.openai.com/docs/api-reference/responses
     // If the model isn't reasoning-capable, never send reasoningEffort (the SDK will warn).
     if (!isReasoningCapableModel(model)) {
         return undefined;
@@ -268,5 +274,8 @@ function getDefaultOpenAIReasoningEffort(
     model: string
 ): Exclude<ReturnType<typeof mapPresetToOpenAIReasoningEffort>, 'none' | undefined> | undefined {
     if (!isReasoningCapableModel(model)) return undefined;
+    // Note: In Dexto, `auto` currently maps to an explicit effort (medium) rather than
+    // omitting the provider option to allow OpenAI's server-side defaults (which may be `none`
+    // for some newer models). If we want `auto` to mean "use provider default", revisit this.
     return 'medium';
 }

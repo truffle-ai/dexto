@@ -26,6 +26,11 @@ export function getReasoningSupport(provider: LLMProvider, model: string): Reaso
 
     switch (provider) {
         case 'openai': {
+            // OpenAI reasoning effort (provider-native) includes `none|minimal|low|medium|high|xhigh`,
+            // but support varies per model. Our UI presets are intentionally coarser:
+            // - We expose `off` (maps to OpenAI `none` where supported)
+            // - We do not currently expose OpenAI's `minimal`
+            // - We expose `max` as "as much as possible" (maps to `high` or `xhigh` depending on model)
             if (!capable) {
                 return { capable, supportedPresets: base, supportsBudgetTokens: false };
             }
