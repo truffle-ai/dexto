@@ -59,7 +59,7 @@ describe('buildProviderOptions', () => {
     });
 
     describe('anthropic', () => {
-        it('enables sendReasoning by default and sets cacheControl', () => {
+        it('enables thinking by default for reasoning-capable models and sets cacheControl', () => {
             expect(
                 buildProviderOptions({
                     provider: 'anthropic',
@@ -70,11 +70,12 @@ describe('buildProviderOptions', () => {
                 anthropic: {
                     cacheControl: { type: 'ephemeral' },
                     sendReasoning: true,
+                    thinking: { type: 'enabled', budgetTokens: 2048 },
                 },
             });
         });
 
-        it('maps budgetTokens to anthropic.thinking', () => {
+        it('maps explicit budgetTokens to anthropic.thinking', () => {
             expect(
                 buildProviderOptions({
                     provider: 'anthropic',
@@ -90,7 +91,7 @@ describe('buildProviderOptions', () => {
             });
         });
 
-        it('maps non-auto presets to effort', () => {
+        it('maps presets to default thinking budgets', () => {
             expect(
                 buildProviderOptions({
                     provider: 'anthropic',
@@ -101,7 +102,7 @@ describe('buildProviderOptions', () => {
                 anthropic: {
                     cacheControl: { type: 'ephemeral' },
                     sendReasoning: true,
-                    effort: 'high',
+                    thinking: { type: 'enabled', budgetTokens: 8192 },
                 },
             });
         });
@@ -135,7 +136,7 @@ describe('buildProviderOptions', () => {
                 anthropic: {
                     cacheControl: { type: 'ephemeral' },
                     sendReasoning: true,
-                    effort: 'high',
+                    thinking: { type: 'enabled', budgetTokens: 4096 },
                 },
             });
         });

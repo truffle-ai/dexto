@@ -29,6 +29,37 @@ function normalizePreset(reasoning?: LLMReasoningConfig | undefined): ReasoningP
     return reasoning?.preset ?? 'auto';
 }
 
+const ANTHROPIC_MIN_THINKING_BUDGET_TOKENS = 1024;
+
+function getAnthropicDefaultThinkingBudgetTokens(preset: ReasoningPreset): number | undefined {
+    // Coarse defaults to make preset cycling meaningfully impact Anthropic-style "thinking budget"
+    // without requiring users to understand budget tokens.
+    //
+    // Note: We intentionally keep these conservative; unlike opencode, Dexto does not currently
+    // have per-model output token limits available to compute large budgets safely.
+    switch (preset) {
+        case 'off':
+            return undefined;
+        case 'low':
+            return 1024;
+        case 'medium':
+            return 2048;
+        case 'high':
+            return 4096;
+        case 'max':
+        case 'xhigh':
+            return 8192;
+        case 'auto':
+        default:
+            return 2048;
+    }
+}
+
+function coerceAnthropicThinkingBudgetTokens(tokens: number | undefined): number | undefined {
+    if (tokens === undefined) return undefined;
+    return Math.max(ANTHROPIC_MIN_THINKING_BUDGET_TOKENS, Math.floor(tokens));
+}
+
 function mapPresetToLowMediumHigh(preset: ReasoningPreset): 'low' | 'medium' | 'high' | undefined {
     switch (preset) {
         case 'low':
@@ -125,19 +156,26 @@ export function buildProviderOptions(
 
     // Anthropic: prompt caching + reasoning controls
     if (provider === 'anthropic') {
+        const capable = isReasoningCapableModel(model);
+        const effectiveBudgetTokens =
+            preset === 'off'
+                ? undefined
+                : coerceAnthropicThinkingBudgetTokens(
+                      budgetTokens ??
+                          (capable ? getAnthropicDefaultThinkingBudgetTokens(preset) : undefined)
+                  );
+
         return {
             anthropic: {
                 cacheControl: { type: 'ephemeral' },
                 // We want reasoning available; UI can hide it.
-                sendReasoning: preset !== 'off',
-                ...(budgetTokens !== undefined
-                    ? { thinking: { type: 'enabled', budgetTokens } }
-                    : preset === 'off'
-                      ? { thinking: { type: 'disabled' } }
+                sendReasoning: preset !== 'off' && capable,
+                ...(preset === 'off'
+                    ? { thinking: { type: 'disabled' } }
+                    : effectiveBudgetTokens !== undefined
+                      ? { thinking: { type: 'enabled', budgetTokens: effectiveBudgetTokens } }
                       : {}),
-                ...(preset !== 'auto' && preset !== 'off'
-                    ? { effort: mapPresetToLowMediumHigh(preset) }
-                    : {}),
+                // Anthropic "effort" is model-specific; we prefer budgeting as the primary knob.
             },
         };
     }
@@ -166,18 +204,27 @@ export function buildProviderOptions(
 
     // Vertex Claude uses Anthropic internals; providerOptions are parsed under `anthropic`.
     if (provider === 'vertex' && modelLower.includes('claude')) {
+        // Vertex Claude models use Anthropic model IDs in our config/registry.
+        const capable =
+            isReasoningCapableModel(model, 'anthropic') || isReasoningCapableModel(model);
+        const effectiveBudgetTokens =
+            preset === 'off'
+                ? undefined
+                : coerceAnthropicThinkingBudgetTokens(
+                      budgetTokens ??
+                          (capable ? getAnthropicDefaultThinkingBudgetTokens(preset) : undefined)
+                  );
+
         return {
             anthropic: {
                 cacheControl: { type: 'ephemeral' },
-                sendReasoning: preset !== 'off',
-                ...(budgetTokens !== undefined
-                    ? { thinking: { type: 'enabled', budgetTokens } }
-                    : preset === 'off'
-                      ? { thinking: { type: 'disabled' } }
+                sendReasoning: preset !== 'off' && capable,
+                ...(preset === 'off'
+                    ? { thinking: { type: 'disabled' } }
+                    : effectiveBudgetTokens !== undefined
+                      ? { thinking: { type: 'enabled', budgetTokens: effectiveBudgetTokens } }
                       : {}),
-                ...(preset !== 'auto' && preset !== 'off'
-                    ? { effort: mapPresetToLowMediumHigh(preset) }
-                    : {}),
+                // Anthropic "effort" is model-specific; we prefer budgeting as the primary knob.
             },
         };
     }
