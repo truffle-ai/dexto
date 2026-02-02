@@ -151,12 +151,30 @@ export class SignalBus {
      * Wait for all tasks to complete
      * @returns Promise that resolves with all signals
      */
-    async waitForAllTasks(taskIds: string[], timeout?: number): Promise<Signal[]> {
+    async waitForAllTasks(
+        taskIds: string[],
+        timeout?: number,
+        resolveInitial?: (taskId: string) => Signal | undefined
+    ): Promise<Signal[]> {
         if (taskIds.length === 0) {
             return [];
         }
         const remaining = new Set(taskIds);
         const signals: Signal[] = [];
+
+        if (resolveInitial) {
+            for (const taskId of taskIds) {
+                const signal = resolveInitial(taskId);
+                if (signal) {
+                    remaining.delete(taskId);
+                    signals.push(signal);
+                }
+            }
+        }
+
+        if (remaining.size === 0) {
+            return signals;
+        }
 
         return new Promise((resolve, reject) => {
             let timeoutId: ReturnType<typeof setTimeout> | undefined;

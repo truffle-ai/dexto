@@ -102,10 +102,18 @@ export const agentSpawnerToolsProvider: CustomToolProvider<'agent-spawner', Agen
             );
         };
 
-        agent.agentEventBus.on('tool:background', handleBackground);
+        const backgroundAbortController = new AbortController();
+        agent.agentEventBus.on('tool:background', handleBackground, {
+            signal: backgroundAbortController.signal,
+        });
+        agent.agentEventBus.on('agent:stopped', () => {
+            backgroundAbortController.abort();
+        });
+
+        const tool = createSpawnAgentTool(service, taskRegistry);
 
         return [
-            createSpawnAgentTool(service, taskRegistry),
+            tool,
             bindOrchestrationTool(createWaitForTool(), toolContext),
             bindOrchestrationTool(createCheckTaskTool(), toolContext),
             bindOrchestrationTool(createListTasksTool(), toolContext),

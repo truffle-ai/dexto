@@ -141,12 +141,15 @@ export class AgentController {
                     ? taskInfo.result
                     : JSON.stringify(taskInfo.result, null, 2);
 
+            const durationLine =
+                taskInfo.duration !== undefined ? `Duration: ${taskInfo.duration}ms\n` : '';
+
             return (
                 `[Background Task Completed]\n` +
                 `Task ID: ${taskInfo.taskId}\n` +
                 `Type: ${taskInfo.type}\n` +
                 `Description: ${taskInfo.description}\n` +
-                `Duration: ${taskInfo.duration}ms\n` +
+                durationLine +
                 `Result:\n${resultStr}`
             );
         }

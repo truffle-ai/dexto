@@ -48,6 +48,7 @@ export const AGENT_EVENT_NAMES = [
     'approval:request',
     'approval:response',
     'run:invoke',
+    'agent:stopped',
 ] as const;
 
 /**
@@ -553,6 +554,11 @@ export interface AgentEventMap {
         timeoutMs?: number;
         notifyOnComplete?: boolean;
     };
+
+    /**
+     * Fired when the agent is fully stopped.
+     */
+    'agent:stopped': void;
 }
 
 export type ToolBackgroundEvent = AgentEventMap['tool:background'];

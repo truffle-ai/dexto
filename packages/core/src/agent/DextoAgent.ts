@@ -466,6 +466,8 @@ export class DextoAgent {
             } else {
                 this.logger.info('DextoAgent stopped successfully.');
             }
+
+            this.agentEventBus.emit('agent:stopped');
         } catch (error) {
             this.logger.error('Failed to stop DextoAgent', {
                 error: error instanceof Error ? error.message : String(error),
