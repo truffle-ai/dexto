@@ -16,7 +16,8 @@
     "@dexto/tools-filesystem",
     "@dexto/tools-process",
     "@dexto/tools-todo",
-    "@dexto/tools-plan"
+    "@dexto/tools-plan",
+    "@dexto/orchestration"
   ]],
   "linked": [],
   "access": "public",

@@ -211,6 +211,11 @@ describe('ToolManager Integration Tests', () => {
             expect(allTools['mcp--file_read']?.description).toContain('(via MCP servers)');
             expect(allTools['internal--search_history']?.description).toContain('(internal tool)');
 
+            const mcpParams = allTools['mcp--file_read']?.parameters as {
+                properties?: Record<string, unknown>;
+            };
+            expect(mcpParams.properties?.__dexto).toBeDefined();
+
             // Execute both types
             const mcpResult = await toolManager.executeTool(
                 'mcp--file_read',

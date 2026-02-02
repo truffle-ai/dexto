@@ -539,7 +539,23 @@ export interface AgentEventMap {
         /** Arbitrary event data - service-specific payload */
         data: Record<string, unknown>;
     };
+
+    /**
+     * Fired when a tool is executed in background.
+     * Used by orchestration layer to register the task.
+     */
+    'tool:background': {
+        toolName: string;
+        toolCallId: string;
+        sessionId: string;
+        description?: string;
+        promise: Promise<unknown>;
+        timeoutMs?: number;
+        notifyOnComplete?: boolean;
+    };
 }
+
+export type ToolBackgroundEvent = AgentEventMap['tool:background'];
 
 /**
  * Session-level events - these occur within individual sessions without session context
