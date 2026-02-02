@@ -1,10 +1,8 @@
 import chalk from 'chalk';
-import * as path from 'path';
 import type { DextoAgent } from '@dexto/core';
 import type { CommandDefinition, CommandHandlerResult, CommandContext } from './command-parser.js';
 import { formatForInkCli } from './utils/format-output.js';
 import { addMemoryEntry, listMemoryEntries, removeMemoryEntry } from './memory-utils.js';
-import { discoverAgentInstructionFile } from '@dexto/agent-management';
 
 /**
  * Handler for /memory show (shows both project and global)

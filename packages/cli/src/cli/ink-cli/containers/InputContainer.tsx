@@ -791,6 +791,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
             'marketplace-add',
             'memory-manager',
             'memory-add-wizard',
+            'memory-remove-wizard',
         ];
         const hasOverlayWithOwnInput = overlaysWithOwnInput.includes(ui.activeOverlay);
         const isHistorySearchActive = ui.historySearch.isActive;
