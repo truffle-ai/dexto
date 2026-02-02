@@ -208,6 +208,7 @@ export const agentSpawnerToolsProvider: CustomToolProvider<'agent-spawner', Agen
             emitTasksUpdate(event.sessionId);
 
             event.promise.finally(() => {
+                taskSessions.delete(taskId);
                 emitTasksUpdate(event.sessionId);
                 triggerBackgroundCompletion(taskId, event.sessionId);
             });
@@ -228,6 +229,7 @@ export const agentSpawnerToolsProvider: CustomToolProvider<'agent-spawner', Agen
 
             emitTasksUpdate(sessionId);
             promise.finally(() => {
+                taskSessions.delete(taskId);
                 emitTasksUpdate(sessionId);
                 triggerBackgroundCompletion(taskId, sessionId);
             });

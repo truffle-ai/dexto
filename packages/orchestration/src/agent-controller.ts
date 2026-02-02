@@ -300,6 +300,7 @@ export class AgentController {
         if (this.notifyUnsubscribe) {
             this.notifyUnsubscribe();
         }
+        this.pendingSignals = [];
         this.signalBus.clear();
         this.taskRegistry.clear();
     }
