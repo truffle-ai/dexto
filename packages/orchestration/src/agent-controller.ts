@@ -202,11 +202,15 @@ export class AgentController {
             this.state = 'processing';
 
             // Inject task context if there are pending/completed tasks
-            const contextPrefix = this.buildTaskContext();
+            const { contextPrefix, notifyTaskIds } = this.buildTaskContext();
             const fullContent = contextPrefix ? `${contextPrefix}\n\n${content}` : content;
 
             // Generate response
             const response = await this.agent.generate(fullContent, this.sessionId);
+
+            if (notifyTaskIds.length > 0) {
+                this.taskRegistry.acknowledgeNotify(notifyTaskIds);
+            }
 
             return response.content;
         } finally {
@@ -231,12 +235,12 @@ export class AgentController {
     /**
      * Build context about pending/completed tasks
      */
-    private buildTaskContext(): string {
+    private buildTaskContext(): { contextPrefix: string; notifyTaskIds: string[] } {
         const running = this.taskRegistry.list({ status: 'running' });
         const notifyPending = this.taskRegistry.getNotifyPending();
 
         if (running.length === 0 && notifyPending.length === 0) {
-            return '';
+            return { contextPrefix: '', notifyTaskIds: [] };
         }
 
         const parts: string[] = [];
@@ -258,11 +262,12 @@ export class AgentController {
                         })
                         .join('\n')
             );
-            // Acknowledge these
-            this.taskRegistry.acknowledgeNotify(notifyPending.map((t) => t.taskId));
         }
 
-        return parts.join('\n\n');
+        return {
+            contextPrefix: parts.join('\n\n'),
+            notifyTaskIds: notifyPending.map((task) => task.taskId),
+        };
     }
 
     /**

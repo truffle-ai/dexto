@@ -124,9 +124,14 @@ export const agentSpawnerToolsProvider: CustomToolProvider<'agent-spawner', Agen
                     return taskInfo.error ?? 'Unknown error.';
                 }
                 if (taskInfo?.result !== undefined) {
-                    return typeof taskInfo.result === 'string'
-                        ? taskInfo.result
-                        : JSON.stringify(taskInfo.result, null, 2);
+                    if (typeof taskInfo.result === 'string') {
+                        return taskInfo.result;
+                    }
+                    try {
+                        return JSON.stringify(taskInfo.result, null, 2);
+                    } catch {
+                        return String(taskInfo.result ?? '<unserializable result>');
+                    }
                 }
                 return 'No result available.';
             })();
@@ -198,9 +203,11 @@ export const agentSpawnerToolsProvider: CustomToolProvider<'agent-spawner', Agen
                     }
                 );
             } catch (error) {
+                taskSessions.delete(taskId);
                 event.promise.catch(() => undefined);
                 logger.warn(
-                    `Failed to register background task ${taskId}: ${error instanceof Error ? error.message : String(error)}`
+                    `Failed to register background task ${taskId}: ${error instanceof Error ? error.message : String(error)}`,
+                    { color: 'yellow' }
                 );
                 return;
             }
