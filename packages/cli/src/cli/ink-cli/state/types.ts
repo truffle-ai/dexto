@@ -343,7 +343,9 @@ export type OverlayType =
     | 'plugin-list'
     | 'plugin-actions'
     | 'marketplace-browser'
-    | 'marketplace-add';
+    | 'marketplace-add'
+    | 'memory-manager'
+    | 'memory-add-wizard';
 
 /**
  * MCP server type for custom wizard (null = not yet selected)
@@ -384,6 +386,17 @@ export interface PromptAddWizardState {
 }
 
 /**
+ * Memory add wizard state
+ */
+export type MemoryAddScope = 'project' | 'global';
+
+export interface MemoryAddWizardState {
+    step: 'scope' | 'content';
+    scope: MemoryAddScope | null;
+    content: string;
+}
+
+/**
  * History search state (Ctrl+R reverse search)
  */
 export interface HistorySearchState {
@@ -416,6 +429,7 @@ export interface UIState {
     // Plan mode state (Shift+Tab toggle)
     planModeActive: boolean; // True when plan mode indicator is shown
     planModeInitialized: boolean; // True after first message sent in plan mode (prevents re-injection)
+    memoryAddWizard: MemoryAddWizardState | null; // Memory add wizard state
 }
 
 /**

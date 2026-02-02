@@ -89,21 +89,10 @@ function parseQuotedArguments(input: string): string[] {
 }
 
 /**
- * Parses user input to determine if it's a slash command, shell command, memory command, or regular prompt
+ * Parses user input to determine if it's a slash command, shell command, or regular prompt
  */
 export function parseInput(input: string): CommandResult {
     const trimmed = input.trim();
-
-    // Check if it's a memory command (# prefix)
-    if (trimmed.startsWith('#')) {
-        const memoryContent = trimmed.slice(1).trim();
-        return {
-            type: 'command',
-            command: 'memory-add',
-            args: [memoryContent],
-            rawInput: trimmed,
-        };
-    }
 
     // Check if it's a shell command (! prefix)
     if (trimmed.startsWith('!')) {

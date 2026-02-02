@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, writeFileSync } from 'fs';
 import * as path from 'path';
 import { discoverAgentInstructionFile } from '@dexto/agent-management';
+import { getDextoGlobalPath } from '@dexto/core';
 
 /**
  * Memory section header in the instruction file
@@ -9,30 +10,44 @@ const MEMORY_SECTION_HEADER = '## Memory';
 
 /**
  * Discovers the instruction file in current directory.
- * Uses the shared discovery logic for consistent case-insensitive matching.
  */
-function findInstructionFile(): string | null {
+function findProjectInstructionFile(): string | null {
     return discoverAgentInstructionFile();
 }
 
 /**
- * Gets or creates the instruction file (AGENTS.md)
+ * Gets the global instruction file path (~/.dexto/AGENTS.md)
  */
-function getOrCreateInstructionFile(): string {
-    const existing = findInstructionFile();
+function getGlobalInstructionFilePath(): string {
+    return getDextoGlobalPath('', 'AGENTS.md');
+}
+
+/**
+ * Gets or creates the instruction file for a given scope
+ */
+function getOrCreateInstructionFile(scope: 'project' | 'global'): string {
+    if (scope === 'global') {
+        const filePath = getGlobalInstructionFilePath();
+        if (existsSync(filePath)) return filePath;
+
+        // Ensure directory exists
+        const dir = path.dirname(filePath);
+        const { mkdirSync } = require('fs');
+        mkdirSync(dir, { recursive: true });
+
+        const initialContent = `${MEMORY_SECTION_HEADER}\n\n`;
+        writeFileSync(filePath, initialContent, 'utf-8');
+        return filePath;
+    }
+
+    const existing = findProjectInstructionFile();
     if (existing) {
         return existing;
     }
 
-    // Create AGENTS.md
+    // Create AGENTS.md in current directory
     const filePath = path.join(process.cwd(), 'AGENTS.md');
-    const initialContent = `# Agent Instructions
-
-This file contains instructions for AI coding agents working on this project.
-
-${MEMORY_SECTION_HEADER}
-
-`;
+    const initialContent = `${MEMORY_SECTION_HEADER}\n\n`;
     writeFileSync(filePath, initialContent, 'utf-8');
     return filePath;
 }
@@ -72,9 +87,12 @@ function parseMemoryEntries(content: string): string[] {
 }
 
 /**
- * Add a memory entry to the instruction file
+ * Add a memory entry to the instruction file for a given scope
  */
-export function addMemoryEntry(content: string): {
+export function addMemoryEntry(
+    content: string,
+    scope: 'project' | 'global' = 'project'
+): {
     success: boolean;
     filePath: string;
     error?: string;
@@ -88,7 +106,7 @@ export function addMemoryEntry(content: string): {
             };
         }
 
-        const filePath = getOrCreateInstructionFile();
+        const filePath = getOrCreateInstructionFile(scope);
         let fileContent = existsSync(filePath) ? readFileSync(filePath, 'utf-8') : '';
 
         // Check if memory section exists
@@ -148,35 +166,53 @@ export function addMemoryEntry(content: string): {
     }
 }
 
-/**
- * List all memory entries
- */
-export function listMemoryEntries(): { entries: string[]; filePath: string | null } {
-    const filePath = findInstructionFile();
-
-    if (!filePath || !existsSync(filePath)) {
-        return { entries: [], filePath: null };
-    }
-
-    const content = readFileSync(filePath, 'utf-8');
-    const entries = parseMemoryEntries(content);
-
-    return { entries, filePath };
+export interface MemoryListResult {
+    project: { entries: string[]; filePath: string | null };
+    global: { entries: string[]; filePath: string | null };
 }
 
 /**
- * Remove a memory entry by index (0-based)
+ * List all memory entries for both project and global scopes
  */
-export function removeMemoryEntry(index: number): {
+export function listMemoryEntries(): MemoryListResult {
+    const projectPath = findProjectInstructionFile();
+    const globalPath = getGlobalInstructionFilePath();
+
+    const result: MemoryListResult = {
+        project: { entries: [], filePath: projectPath || path.join(process.cwd(), 'AGENTS.md') },
+        global: { entries: [], filePath: globalPath },
+    };
+
+    if (projectPath && existsSync(projectPath)) {
+        const content = readFileSync(projectPath, 'utf-8');
+        result.project.entries = parseMemoryEntries(content);
+    }
+
+    if (existsSync(globalPath)) {
+        const content = readFileSync(globalPath, 'utf-8');
+        result.global.entries = parseMemoryEntries(content);
+    }
+
+    return result;
+}
+
+/**
+ * Remove a memory entry by index (0-based) and scope
+ */
+export function removeMemoryEntry(
+    index: number,
+    scope: 'project' | 'global' = 'project'
+): {
     success: boolean;
     filePath: string;
     error?: string;
 } {
     try {
-        const filePath = findInstructionFile();
+        const filePath =
+            scope === 'global' ? getGlobalInstructionFilePath() : findProjectInstructionFile();
 
         if (!filePath || !existsSync(filePath)) {
-            return { success: false, filePath: '', error: 'No instruction file found' };
+            return { success: false, filePath: '', error: `No ${scope} instruction file found` };
         }
 
         const content = readFileSync(filePath, 'utf-8');

@@ -45,6 +45,7 @@ export function createInitialState(initialModelName: string = ''): CLIState {
             todoExpanded: true,
             planModeActive: false,
             planModeInitialized: false,
+            memoryAddWizard: null,
         },
         session: {
             id: null,

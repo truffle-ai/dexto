@@ -128,6 +128,7 @@ export function useCLIState({
         todoExpanded: true, // Default to expanded to show full todo list
         planModeActive: false,
         planModeInitialized: false,
+        memoryAddWizard: null,
     });
 
     // Input state

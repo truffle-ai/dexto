@@ -7,31 +7,49 @@ import { addMemoryEntry, listMemoryEntries, removeMemoryEntry } from './memory-u
 import { discoverAgentInstructionFile } from '@dexto/agent-management';
 
 /**
- * Handler for /memory list
+ * Handler for /memory list (shows both project and global)
  */
 async function handleListCommand(): Promise<string> {
-    const { entries, filePath } = listMemoryEntries();
+    const { project, global } = listMemoryEntries();
     const lines: string[] = [];
 
     lines.push(chalk.bold('\n📝 Memory Entries:\n'));
 
-    if (entries.length === 0) {
-        lines.push(chalk.yellow('No memory entries found'));
-        lines.push(chalk.dim('\nAdd entries with: # <content>'));
-        lines.push(chalk.dim("Example: # Don't commit changes without user request"));
-    } else {
-        entries.forEach((entry, index) => {
-            lines.push(chalk.cyan(`${index + 1}. `) + entry);
-        });
-        lines.push(chalk.dim(`\nFile: ${filePath}`));
-        lines.push(chalk.dim('Remove entries with: /memory remove <number>'));
+    // Global Section
+    lines.push(chalk.bold.magenta('Global Memory:'));
+    if (global.filePath) {
+        lines.push(chalk.dim(`  Path: ${global.filePath}`));
     }
+    if (global.entries.length === 0) {
+        lines.push(chalk.dim('  (No entries yet)'));
+    } else {
+        global.entries.forEach((entry, index) => {
+            lines.push(chalk.cyan(`  ${index + 1}. `) + entry);
+        });
+    }
+    lines.push('');
+
+    // Project Section
+    lines.push(chalk.bold.cyan('Project Memory:'));
+    if (project.filePath) {
+        lines.push(chalk.dim(`  Path: ${project.filePath}`));
+    }
+    if (project.entries.length === 0) {
+        lines.push(chalk.dim('  (No entries yet)'));
+    } else {
+        project.entries.forEach((entry, index) => {
+            lines.push(chalk.cyan(`  ${index + 1}. `) + entry);
+        });
+    }
+
+    lines.push(chalk.dim('\nRemove with: /memory remove <number> (Project only via command)'));
+    lines.push(chalk.dim('Use interactive /memory menu for more options'));
 
     return formatForInkCli(lines.join('\n'));
 }
 
 /**
- * Handler for /memory remove <index>
+ * Handler for /memory remove <index> (Project scope only for now via CLI args)
  */
 async function handleRemoveCommand(args: string[]): Promise<string> {
     if (args.length === 0 || !args[0]) {
@@ -48,7 +66,7 @@ async function handleRemoveCommand(args: string[]): Promise<string> {
         return formatForInkCli(chalk.red('\n❌ Invalid entry number'));
     }
 
-    const result = removeMemoryEntry(index);
+    const result = removeMemoryEntry(index, 'project');
 
     if (result.success) {
         return formatForInkCli(
@@ -60,22 +78,22 @@ async function handleRemoveCommand(args: string[]): Promise<string> {
 }
 
 /**
- * Handler for # <content> (memory add)
+ * Handler for # <content> - DEPRECATED: Now handled via /memory add
+ * This remains for internal use if needed but prefix # is removed from parser.
  */
-export async function handleMemoryAdd(content: string): Promise<string> {
+export async function handleMemoryAdd(
+    content: string,
+    scope: 'project' | 'global' = 'project'
+): Promise<string> {
     if (!content || content.trim() === '') {
-        return formatForInkCli(
-            chalk.yellow('\n⚠ No content provided\n') +
-                chalk.dim('Usage: # <content>\n') +
-                chalk.dim("Example: # Don't commit changes without user request")
-        );
+        return formatForInkCli(chalk.yellow('\n⚠ No content provided'));
     }
 
-    const result = addMemoryEntry(content);
+    const result = addMemoryEntry(content, scope);
 
     if (result.success) {
         return formatForInkCli(
-            chalk.green('\n✓ Memory entry added') +
+            chalk.green(`\n✓ ${scope === 'global' ? 'Global' : 'Project'} memory entry added`) +
                 chalk.dim(`\nFile: ${result.filePath}\n`) +
                 chalk.dim('View all entries with: /memory list')
         );
@@ -86,8 +104,8 @@ export async function handleMemoryAdd(content: string): Promise<string> {
 
 export const memoryCommand: CommandDefinition = {
     name: 'memory',
-    description: 'Manage agent memory (show, list, remove entries)',
-    usage: '/memory [list|remove <number>]',
+    description: 'Manage agent memory (interactive menu)',
+    usage: '/memory [list|show|add|remove <number>]',
     category: 'General',
     aliases: ['mem'],
     handler: async (
@@ -98,7 +116,7 @@ export const memoryCommand: CommandDefinition = {
         const subcommand = args[0]?.toLowerCase();
 
         // Handle subcommands
-        if (subcommand === 'list') {
+        if (subcommand === 'list' || subcommand === 'show') {
             return handleListCommand();
         }
 
@@ -106,28 +124,18 @@ export const memoryCommand: CommandDefinition = {
             return handleRemoveCommand(args.slice(1));
         }
 
-        // Default: show current memory file
-        const lines: string[] = [];
-
-        lines.push(chalk.bold('\n📝 Agent Memory File:\n'));
-
-        const projectMemoryFile = discoverAgentInstructionFile();
-
-        if (projectMemoryFile) {
-            const relPath = './' + path.basename(projectMemoryFile);
-            lines.push(chalk.green(`✓ Loaded: ${relPath}`));
-            lines.push(chalk.dim(`  Full path: ${projectMemoryFile}`));
-        } else {
-            lines.push(chalk.yellow(`✗ No memory file found in current directory`));
-            lines.push(chalk.dim(`  Looking for: AGENTS.md, CLAUDE.md, or GEMINI.md`));
-            lines.push(chalk.dim(`  Will be created when you add first memory entry`));
+        if (subcommand === 'add') {
+            // If argument is provided, we can jump straight to scope selection (handled by wizard)
+            // But for now, just trigger the overlay which handles everything
+            return {
+                __triggerOverlay: 'memory-add-wizard',
+                args: args.slice(1),
+            } as any;
         }
 
-        lines.push(chalk.dim('\nCommands:'));
-        lines.push(chalk.dim('  # <content>          - Add memory entry'));
-        lines.push(chalk.dim('  /memory list         - List all entries'));
-        lines.push(chalk.dim('  /memory remove <num> - Remove entry'));
-
-        return formatForInkCli(lines.join('\n'));
+        // Default: trigger interactive MemoryManager overlay
+        return {
+            __triggerOverlay: 'memory-manager',
+        } as any;
     },
 };

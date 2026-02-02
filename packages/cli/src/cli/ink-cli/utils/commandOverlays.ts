@@ -36,6 +36,7 @@ const NO_ARGS_OVERLAY: Record<string, OverlayType> = {
     session: 'session-subcommand-selector',
     log: 'log-level-selector',
     prompts: 'prompt-list',
+    memory: 'memory-manager',
 };
 
 /**
