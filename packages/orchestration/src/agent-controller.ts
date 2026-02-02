@@ -18,6 +18,7 @@ type AgentLike = {
 
 type LoggerLike = {
     debug: (message: string) => void;
+    error?: (message: string) => void;
 };
 
 /**
@@ -87,7 +88,12 @@ export class AgentController {
                     if (this.state === 'idle') {
                         // Auto-trigger a turn for notify task
                         this.logger?.debug(`Auto-notify triggered for task ${signal.taskId}`);
-                        void this.processNotify(signal);
+                        void this.processNotify(signal).catch((error) => {
+                            const message = error instanceof Error ? error.message : String(error);
+                            this.logger?.error?.(
+                                `AgentController.processNotify failed: ${message}`
+                            );
+                        });
                     } else {
                         this.pendingSignals.push(signal);
                     }
@@ -174,7 +180,10 @@ export class AgentController {
         while (this.pendingSignals.length > 0 && this.state === 'idle') {
             const signal = this.pendingSignals.shift();
             if (signal) {
-                void this.processNotify(signal);
+                void this.processNotify(signal).catch((error) => {
+                    const message = error instanceof Error ? error.message : String(error);
+                    this.logger?.error?.(`AgentController.processNotify failed: ${message}`);
+                });
             }
         }
     }

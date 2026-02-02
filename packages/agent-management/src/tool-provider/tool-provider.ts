@@ -182,18 +182,28 @@ export const agentSpawnerToolsProvider: CustomToolProvider<'agent-spawner', Agen
                 taskSessions.set(taskId, event.sessionId);
             }
 
-            taskRegistry.register(
-                {
-                    type: 'generic',
-                    taskId,
-                    description: event.description ?? `Tool ${event.toolName}`,
-                    promise: event.promise,
-                },
-                {
-                    ...(event.timeoutMs !== undefined && { timeout: event.timeoutMs }),
-                    ...(event.notifyOnComplete !== undefined && { notify: event.notifyOnComplete }),
-                }
-            );
+            try {
+                taskRegistry.register(
+                    {
+                        type: 'generic',
+                        taskId,
+                        description: event.description ?? `Tool ${event.toolName}`,
+                        promise: event.promise,
+                    },
+                    {
+                        ...(event.timeoutMs !== undefined && { timeout: event.timeoutMs }),
+                        ...(event.notifyOnComplete !== undefined && {
+                            notify: event.notifyOnComplete,
+                        }),
+                    }
+                );
+            } catch (error) {
+                event.promise.catch(() => undefined);
+                logger.warn(
+                    `Failed to register background task ${taskId}: ${error instanceof Error ? error.message : String(error)}`
+                );
+                return;
+            }
 
             emitTasksUpdate(event.sessionId);
 

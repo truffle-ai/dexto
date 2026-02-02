@@ -96,11 +96,16 @@ export function createSpawnAgentTool(
                     return result.response ?? 'Task completed successfully.';
                 });
 
-                taskRegistry.registerAgentTask(
-                    context.toolCallId,
-                    `Spawn agent: ${validatedInput.task}`,
-                    promise
-                );
+                try {
+                    taskRegistry.registerAgentTask(
+                        context.toolCallId,
+                        `Spawn agent: ${validatedInput.task}`,
+                        promise
+                    );
+                } catch (error) {
+                    promise.catch(() => undefined);
+                    throw error;
+                }
                 onTaskRegistered?.(context.toolCallId, promise, context.sessionId);
 
                 return {
