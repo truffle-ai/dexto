@@ -66,7 +66,7 @@ export const agentSpawnerToolsProvider: CustomToolProvider<'agent-spawner', Agen
 
         const signalBus = new SignalBus();
         const taskRegistry = new TaskRegistry(signalBus);
-        const conditionEngine = new ConditionEngine(taskRegistry, signalBus);
+        const conditionEngine = new ConditionEngine(taskRegistry, signalBus, logger);
 
         const toolContext: OrchestrationToolContext = {
             taskRegistry,

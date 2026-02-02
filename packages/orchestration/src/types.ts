@@ -72,6 +72,8 @@ export interface TaskEntry {
     error?: string;
     /** If true, auto-trigger agent turn on completion */
     notify?: boolean;
+    /** Timeout handle for this task (if set) */
+    timeoutHandle: ReturnType<typeof setTimeout> | undefined;
 }
 
 /**

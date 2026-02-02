@@ -15,7 +15,7 @@ export const ListTasksInputSchema = z
     .object({
         /** Filter by status */
         status: z
-            .enum(['running', 'completed', 'failed', 'cancelled', 'all'])
+            .enum(['pending', 'running', 'completed', 'failed', 'cancelled', 'all'])
             .optional()
             .default('all')
             .describe('Filter tasks by status'),
@@ -25,7 +25,7 @@ export const ListTasksInputSchema = z
     })
     .strict();
 
-export type ListTasksInput = z.infer<typeof ListTasksInputSchema>;
+export type ListTasksInput = z.output<typeof ListTasksInputSchema>;
 
 /**
  * Task info in list output

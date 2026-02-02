@@ -66,7 +66,7 @@ export class AgentController {
         // Initialize orchestration components
         this.signalBus = new SignalBus();
         this.taskRegistry = new TaskRegistry(this.signalBus, config.taskRegistry);
-        this.conditionEngine = new ConditionEngine(this.taskRegistry, this.signalBus);
+        this.conditionEngine = new ConditionEngine(this.taskRegistry, this.signalBus, this.logger);
 
         // Set up listener for notify tasks
         this.setupNotifyListener();
@@ -76,13 +76,21 @@ export class AgentController {
      * Set up listener for tasks with notify=true
      */
     private setupNotifyListener(): void {
-        this.notifyUnsubscribe = this.signalBus.on('task:completed', (signal) => {
-            if (signal.type === 'task:completed') {
+        this.notifyUnsubscribe = this.signalBus.onAny((signal) => {
+            if (
+                signal.type === 'task:completed' ||
+                signal.type === 'task:failed' ||
+                signal.type === 'task:cancelled'
+            ) {
                 const entry = this.taskRegistry.get(signal.taskId);
-                if (entry?.notify && this.state === 'idle') {
-                    // Auto-trigger a turn for notify task
-                    this.logger?.debug(`Auto-notify triggered for task ${signal.taskId}`);
-                    void this.processNotify(signal);
+                if (entry?.notify) {
+                    if (this.state === 'idle') {
+                        // Auto-trigger a turn for notify task
+                        this.logger?.debug(`Auto-notify triggered for task ${signal.taskId}`);
+                        void this.processNotify(signal);
+                    } else {
+                        this.pendingSignals.push(signal);
+                    }
                 }
             }
         });

@@ -17,7 +17,7 @@ export const CheckTaskInputSchema = z
     })
     .strict();
 
-export type CheckTaskInput = z.infer<typeof CheckTaskInputSchema>;
+export type CheckTaskInput = z.output<typeof CheckTaskInputSchema>;
 
 /**
  * Output from check_task tool

@@ -82,6 +82,7 @@ export class TaskRegistry {
             task,
             status: 'running',
             startedAt: new Date(),
+            timeoutHandle: undefined,
             ...(options.notify !== undefined && { notify: options.notify }),
         };
 
@@ -99,12 +100,13 @@ export class TaskRegistry {
 
         // Set up timeout if specified
         if (options.timeout !== undefined && options.timeout > 0) {
-            setTimeout(() => {
+            const timeoutHandle = setTimeout(() => {
                 const currentEntry = this.tasks.get(task.taskId);
                 if (currentEntry && currentEntry.status === 'running') {
                     this.onTaskFailed(task.taskId, `Task timed out after ${options.timeout}ms`);
                 }
             }, options.timeout);
+            entry.timeoutHandle = timeoutHandle;
         }
 
         return task.taskId;
@@ -124,6 +126,9 @@ export class TaskRegistry {
     ): string {
         // Use agentId as taskId so spawn_agent's returned ID matches what's registered
         const taskId = agentId;
+        if (this.tasks.has(taskId)) {
+            throw new Error(`Task '${taskId}' already exists`);
+        }
         const task: Task = {
             type: 'agent',
             taskId,
@@ -181,6 +186,11 @@ export class TaskRegistry {
             return; // Already completed/failed/cancelled
         }
 
+        if (entry.timeoutHandle) {
+            clearTimeout(entry.timeoutHandle);
+            entry.timeoutHandle = undefined;
+        }
+
         entry.status = 'completed';
         entry.completedAt = new Date();
         entry.result = result;
@@ -200,6 +210,11 @@ export class TaskRegistry {
         const entry = this.tasks.get(taskId);
         if (!entry || entry.status !== 'running') {
             return; // Already completed/failed/cancelled
+        }
+
+        if (entry.timeoutHandle) {
+            clearTimeout(entry.timeoutHandle);
+            entry.timeoutHandle = undefined;
         }
 
         entry.status = 'failed';
@@ -225,6 +240,11 @@ export class TaskRegistry {
 
         if (entry.status !== 'running') {
             return; // Already not running
+        }
+
+        if (entry.timeoutHandle) {
+            clearTimeout(entry.timeoutHandle);
+            entry.timeoutHandle = undefined;
         }
 
         entry.status = 'cancelled';

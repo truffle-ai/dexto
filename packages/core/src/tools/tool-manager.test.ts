@@ -264,7 +264,6 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
 
         it('should emit background event when runInBackground is set', async () => {
             mockMcpManager.executeTool = vi.fn().mockResolvedValue('result');
-            const backgroundListener = vi.fn();
             const emitSpy = vi.fn();
             mockAgentEventBus.emit = emitSpy as typeof mockAgentEventBus.emit;
 

@@ -10,13 +10,18 @@ import type { WaitCondition, Signal, WaitResult } from './types.js';
 import type { SignalBus } from './signal-bus.js';
 import type { TaskRegistry } from './task-registry.js';
 
+type LoggerLike = {
+    debug: (message: string) => void;
+};
+
 /**
  * ConditionEngine - Evaluates composable wait conditions
  */
 export class ConditionEngine {
     constructor(
         private taskRegistry: TaskRegistry,
-        private signalBus: SignalBus
+        private signalBus: SignalBus,
+        private logger?: LoggerLike
     ) {}
 
     /**
@@ -169,12 +174,12 @@ export class ConditionEngine {
      * the task completes between checking and subscribing.
      */
     private async evaluateTask(taskId: string): Promise<WaitResult> {
-        console.log(`[ConditionEngine] evaluateTask called for taskId=${taskId}`);
+        this.logger?.debug(`[ConditionEngine] evaluateTask called for taskId=${taskId}`);
         return new Promise((resolve) => {
             let unsubscribe: (() => void) | undefined;
 
             const handler = (signal: Signal) => {
-                console.log(
+                this.logger?.debug(
                     `[ConditionEngine] Received signal: type=${signal.type}, taskId=${'taskId' in signal ? signal.taskId : 'N/A'}`
                 );
                 if (
@@ -183,7 +188,9 @@ export class ConditionEngine {
                         signal.type === 'task:cancelled') &&
                     signal.taskId === taskId
                 ) {
-                    console.log(`[ConditionEngine] Signal matches taskId=${taskId}, resolving`);
+                    this.logger?.debug(
+                        `[ConditionEngine] Signal matches taskId=${taskId}, resolving`
+                    );
                     if (unsubscribe) {
                         unsubscribe();
                     }
@@ -193,11 +200,11 @@ export class ConditionEngine {
 
             // Subscribe FIRST to avoid race condition
             unsubscribe = this.signalBus.onAny(handler);
-            console.log(`[ConditionEngine] Subscribed to signals for taskId=${taskId}`);
+            this.logger?.debug(`[ConditionEngine] Subscribed to signals for taskId=${taskId}`);
 
             // THEN check if already done
             const immediate = this.checkTask(taskId);
-            console.log(
+            this.logger?.debug(
                 `[ConditionEngine] checkTask(${taskId}) returned: ${immediate ? 'found' : 'null'}`
             );
             if (immediate) {

@@ -133,6 +133,9 @@ export class SignalBus {
      * Wait for any of multiple tasks to complete
      */
     waitForAnyTask(taskIds: string[], timeout?: number): Promise<Signal> {
+        if (taskIds.length === 0) {
+            return Promise.reject(new Error('taskIds must not be empty'));
+        }
         const taskIdSet = new Set(taskIds);
         return this.waitFor(
             (signal) =>
@@ -149,6 +152,9 @@ export class SignalBus {
      * @returns Promise that resolves with all signals
      */
     async waitForAllTasks(taskIds: string[], timeout?: number): Promise<Signal[]> {
+        if (taskIds.length === 0) {
+            return [];
+        }
         const remaining = new Set(taskIds);
         const signals: Signal[] = [];
 
