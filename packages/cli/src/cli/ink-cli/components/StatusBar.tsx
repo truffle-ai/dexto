@@ -32,6 +32,8 @@ interface StatusBarProps {
     planModeActive?: boolean;
     /** Whether accept all edits mode is active */
     autoApproveEdits?: boolean;
+    /** Number of running background tasks */
+    backgroundTasksRunning?: number;
 }
 
 /**
@@ -54,6 +56,7 @@ export function StatusBar({
     hasTodos = false,
     planModeActive = false,
     autoApproveEdits = false,
+    backgroundTasksRunning = 0,
 }: StatusBarProps) {
     // Cycle through witty phrases while processing (not during compacting)
     const { phrase } = usePhraseCycler({ isActive: isProcessing && !isCompacting });
@@ -92,10 +95,18 @@ export function StatusBar({
             : 'ctrl+t to show tasks'
         : null;
 
+    const backgroundHint = backgroundTasksRunning > 0 ? 'ctrl+b to view bg tasks' : null;
+
     // Show compacting state - yellow/orange color to indicate context management
     if (isCompacting) {
         const metaParts: string[] = [];
         if (showTime) metaParts.push(`(${elapsedTime})`);
+        if (backgroundTasksRunning > 0) {
+            metaParts.push(
+                `${backgroundTasksRunning} bg task${backgroundTasksRunning > 1 ? 's' : ''}`
+            );
+        }
+        if (backgroundHint) metaParts.push(backgroundHint);
         metaParts.push('Esc to cancel');
         if (todoHint) metaParts.push(todoHint);
         const metaContent = metaParts.join(' • ');
@@ -124,6 +135,12 @@ export function StatusBar({
         const metaParts: string[] = [];
         if (showTime) metaParts.push(`(${elapsedTime})`);
         if (tokenCount) metaParts.push(tokenCount);
+        if (backgroundTasksRunning > 0) {
+            metaParts.push(
+                `${backgroundTasksRunning} bg task${backgroundTasksRunning > 1 ? 's' : ''}`
+            );
+        }
+        if (backgroundHint) metaParts.push(backgroundHint);
         metaParts.push('Esc to cancel');
         if (todoHint) metaParts.push(todoHint);
         const metaContent = metaParts.join(' • ');
@@ -151,6 +168,10 @@ export function StatusBar({
     const metaParts: string[] = [];
     if (showTime) metaParts.push(`(${elapsedTime})`);
     if (tokenCount) metaParts.push(tokenCount);
+    if (backgroundTasksRunning > 0) {
+        metaParts.push(`${backgroundTasksRunning} bg task${backgroundTasksRunning > 1 ? 's' : ''}`);
+    }
+    if (backgroundHint) metaParts.push(backgroundHint);
     metaParts.push('Esc to cancel');
     if (todoHint) metaParts.push(todoHint);
     const metaContent = metaParts.join(' • ');

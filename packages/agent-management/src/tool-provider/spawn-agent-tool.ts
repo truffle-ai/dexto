@@ -54,7 +54,8 @@ ${agentsList}
 
 export function createSpawnAgentTool(
     service: RuntimeService,
-    taskRegistry?: TaskRegistry
+    taskRegistry?: TaskRegistry,
+    onTaskRegistered?: (taskId: string, promise: Promise<unknown>, sessionId?: string) => void
 ): InternalTool {
     return {
         id: 'spawn_agent',
@@ -100,6 +101,7 @@ export function createSpawnAgentTool(
                     `Spawn agent: ${validatedInput.task}`,
                     promise
                 );
+                onTaskRegistered?.(context.toolCallId, promise, context.sessionId);
 
                 return {
                     taskId: context.toolCallId,

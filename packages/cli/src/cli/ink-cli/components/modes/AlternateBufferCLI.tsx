@@ -31,6 +31,7 @@ import { StatusBar } from '../StatusBar.js';
 import { HistorySearchBar } from '../HistorySearchBar.js';
 import { Footer } from '../Footer.js';
 import { TodoPanel } from '../TodoPanel.js';
+import { BackgroundTasksPanel } from '../BackgroundTasksPanel.js';
 import {
     VirtualizedList,
     SCROLL_TO_ITEM_END,
@@ -301,6 +302,14 @@ export function AlternateBufferCLI({
                     hasTodos={todos.some((t) => t.status !== 'completed')}
                     planModeActive={ui.planModeActive}
                     autoApproveEdits={ui.autoApproveEdits}
+                    backgroundTasksRunning={ui.backgroundTasksRunning}
+                />
+
+                {/* Background tasks panel */}
+                <BackgroundTasksPanel
+                    tasks={ui.backgroundTasks}
+                    isExpanded={ui.backgroundTasksExpanded}
+                    isProcessing={ui.isProcessing}
                 />
 
                 {/* Todo panel - shown below status bar */}
@@ -385,6 +394,7 @@ export function AlternateBufferCLI({
                     autoApproveEdits={ui.autoApproveEdits}
                     planModeActive={ui.planModeActive}
                     isShellMode={buffer.text.startsWith('!')}
+                    backgroundTasksRunning={ui.backgroundTasksRunning}
                 />
 
                 {/* History search bar (Ctrl+R) - shown at very bottom */}

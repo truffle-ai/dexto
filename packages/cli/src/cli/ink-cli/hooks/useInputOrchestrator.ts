@@ -525,6 +525,15 @@ export function useInputOrchestrator({
                 return;
             }
 
+            // Ctrl+B: Toggle background task panel
+            if (key.ctrl && inputStr === 'b') {
+                setUi((prev) => ({
+                    ...prev,
+                    backgroundTasksExpanded: !prev.backgroundTasksExpanded,
+                }));
+                return;
+            }
+
             // Ctrl+C: Always handle globally for cancellation/exit
             if (key.ctrl && inputStr === 'c') {
                 handleCtrlC();

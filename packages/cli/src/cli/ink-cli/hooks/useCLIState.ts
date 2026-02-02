@@ -126,6 +126,9 @@ export function useCLIState({
         promptAddWizard: null,
         autoApproveEdits: false,
         todoExpanded: true, // Default to expanded to show full todo list
+        backgroundTasksRunning: 0,
+        backgroundTasksExpanded: false,
+        backgroundTasks: [],
         planModeActive: false,
         planModeInitialized: false,
     });

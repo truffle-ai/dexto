@@ -82,10 +82,104 @@ export const agentSpawnerToolsProvider: CustomToolProvider<'agent-spawner', Agen
         agent.toolManager.setTaskForker(service);
         logger.debug('RuntimeService wired as taskForker for context:fork skill support');
 
+        const taskSessions = new Map<string, string>();
+
+        const emitTasksUpdate = (sessionId?: string) => {
+            const tasks = taskRegistry.list({
+                status: ['running', 'completed', 'failed', 'cancelled'],
+            });
+            const scopedTasks = sessionId
+                ? tasks.filter((task) => taskSessions.get(task.taskId) === sessionId)
+                : tasks;
+            const runningCount = scopedTasks.filter((task) => task.status === 'running').length;
+
+            agent.agentEventBus.emit('service:event', {
+                service: 'orchestration',
+                event: 'tasks-updated',
+                sessionId: sessionId ?? '',
+                data: {
+                    runningCount,
+                    tasks: scopedTasks.map((task) => ({
+                        taskId: task.taskId,
+                        status: task.status,
+                        ...(task.description !== undefined && { description: task.description }),
+                    })),
+                },
+            });
+        };
+
+        const triggerBackgroundCompletion = (taskId: string, sessionId?: string) => {
+            if (!sessionId) {
+                return;
+            }
+
+            agent.agentEventBus.emit('tool:background-completed', {
+                toolCallId: taskId,
+                sessionId,
+            });
+
+            const taskInfo = taskRegistry.getInfo(taskId);
+            const resultText = (() => {
+                if (taskInfo?.status === 'failed') {
+                    return taskInfo.error ?? 'Unknown error.';
+                }
+                if (taskInfo?.result !== undefined) {
+                    return typeof taskInfo.result === 'string'
+                        ? taskInfo.result
+                        : JSON.stringify(taskInfo.result, null, 2);
+                }
+                return 'No result available.';
+            })();
+
+            const descriptionTag = taskInfo?.description
+                ? `  <description><![CDATA[${taskInfo.description}]]></description>\n`
+                : '';
+
+            const statusTag = taskInfo?.status ? `  <status>${taskInfo.status}</status>\n` : '';
+
+            const content = [
+                {
+                    type: 'text' as const,
+                    text:
+                        `<background-task-completion>\n` +
+                        `  <origin>task</origin>\n` +
+                        `  <note>The following response was reported by the background task (not user input).</note>\n` +
+                        `  <taskId>${taskId}</taskId>\n` +
+                        statusTag +
+                        descriptionTag +
+                        `  <result><![CDATA[${resultText}]]></result>\n` +
+                        `</background-task-completion>`,
+                },
+            ];
+
+            agent
+                .isSessionBusy(sessionId)
+                .then((isBusy) => {
+                    if (isBusy) {
+                        agent.queueMessage(sessionId, { content }).catch(() => undefined);
+                    } else {
+                        agent.agentEventBus.emit('run:invoke', {
+                            sessionId,
+                            content,
+                            source: 'external',
+                            metadata: { taskId },
+                        });
+                        agent.generate(content, sessionId).catch(() => undefined);
+                    }
+                })
+                .catch(() => {
+                    // Ignore errors - background completion shouldn't crash flow
+                });
+        };
+
         const handleBackground = (event: ToolBackgroundEvent) => {
             const taskId = event.toolCallId;
             if (taskRegistry.has(taskId)) {
                 return;
+            }
+
+            if (event.sessionId) {
+                taskSessions.set(taskId, event.sessionId);
             }
 
             taskRegistry.register(
@@ -100,6 +194,13 @@ export const agentSpawnerToolsProvider: CustomToolProvider<'agent-spawner', Agen
                     ...(event.notifyOnComplete !== undefined && { notify: event.notifyOnComplete }),
                 }
             );
+
+            emitTasksUpdate(event.sessionId);
+
+            event.promise.finally(() => {
+                emitTasksUpdate(event.sessionId);
+                triggerBackgroundCompletion(taskId, event.sessionId);
+            });
         };
 
         const backgroundAbortController = new AbortController();
@@ -110,7 +211,17 @@ export const agentSpawnerToolsProvider: CustomToolProvider<'agent-spawner', Agen
             backgroundAbortController.abort();
         });
 
-        const tool = createSpawnAgentTool(service, taskRegistry);
+        const tool = createSpawnAgentTool(service, taskRegistry, (taskId, promise, sessionId) => {
+            if (sessionId) {
+                taskSessions.set(taskId, sessionId);
+            }
+
+            emitTasksUpdate(sessionId);
+            promise.finally(() => {
+                emitTasksUpdate(sessionId);
+                triggerBackgroundCompletion(taskId, sessionId);
+            });
+        });
 
         return [
             tool,

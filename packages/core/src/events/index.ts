@@ -49,6 +49,8 @@ export const AGENT_EVENT_NAMES = [
     'approval:response',
     'run:invoke',
     'agent:stopped',
+    'tool:background',
+    'tool:background-completed',
 ] as const;
 
 /**
@@ -553,6 +555,14 @@ export interface AgentEventMap {
         promise: Promise<unknown>;
         timeoutMs?: number;
         notifyOnComplete?: boolean;
+    };
+
+    /**
+     * Fired when a background tool has completed registration.
+     */
+    'tool:background-completed': {
+        toolCallId: string;
+        sessionId: string;
     };
 
     /**
