@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
 import * as path from 'path';
 import { discoverAgentInstructionFile } from '@dexto/agent-management';
 import { getDextoGlobalPath } from '@dexto/core';
@@ -30,12 +30,12 @@ function getOrCreateInstructionFile(scope: 'project' | 'global'): string {
         const filePath = getGlobalInstructionFilePath();
         if (existsSync(filePath)) return filePath;
 
-        // Ensure directory exists
+        // Ensure ~/.dexto directory exists
         const dir = path.dirname(filePath);
-        const { mkdirSync } = require('fs');
         mkdirSync(dir, { recursive: true });
 
-        const initialContent = `${MEMORY_SECTION_HEADER}\n\n`;
+        // Create AGENTS.md with Memory section
+        const initialContent = `${MEMORY_SECTION_HEADER}\n`;
         writeFileSync(filePath, initialContent, 'utf-8');
         return filePath;
     }
@@ -47,7 +47,7 @@ function getOrCreateInstructionFile(scope: 'project' | 'global'): string {
 
     // Create AGENTS.md in current directory
     const filePath = path.join(process.cwd(), 'AGENTS.md');
-    const initialContent = `${MEMORY_SECTION_HEADER}\n\n`;
+    const initialContent = `${MEMORY_SECTION_HEADER}\n`;
     writeFileSync(filePath, initialContent, 'utf-8');
     return filePath;
 }
@@ -115,7 +115,7 @@ export function addMemoryEntry(
             if (!fileContent.endsWith('\n\n')) {
                 fileContent += fileContent.endsWith('\n') ? '\n' : '\n\n';
             }
-            fileContent += `${MEMORY_SECTION_HEADER}\n\n`;
+            fileContent += `${MEMORY_SECTION_HEADER}\n`;
         }
 
         // Find the memory section and add the entry

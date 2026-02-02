@@ -345,7 +345,8 @@ export type OverlayType =
     | 'marketplace-browser'
     | 'marketplace-add'
     | 'memory-manager'
-    | 'memory-add-wizard';
+    | 'memory-add-wizard'
+    | 'memory-remove-wizard';
 
 /**
  * MCP server type for custom wizard (null = not yet selected)
@@ -397,6 +398,14 @@ export interface MemoryAddWizardState {
 }
 
 /**
+ * Memory remove wizard state
+ */
+export interface MemoryRemoveWizardState {
+    step: 'scope' | 'selection';
+    scope: MemoryAddScope | null;
+}
+
+/**
  * History search state (Ctrl+R reverse search)
  */
 export interface HistorySearchState {
@@ -428,8 +437,9 @@ export interface UIState {
     todoExpanded: boolean; // True when todo list is expanded (shows all tasks), false when collapsed (shows current task only)
     // Plan mode state (Shift+Tab toggle)
     planModeActive: boolean; // True when plan mode indicator is shown
-    planModeInitialized: boolean; // True after first message sent in plan mode (prevents re-injection)
+    planModeInitialized: boolean; // True when plan tools have been injected once
     memoryAddWizard: MemoryAddWizardState | null; // Memory add wizard state
+    memoryRemoveWizard: MemoryRemoveWizardState | null; // Memory remove wizard state
 }
 
 /**

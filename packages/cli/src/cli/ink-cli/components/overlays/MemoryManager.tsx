@@ -8,7 +8,7 @@ import { Box, Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
 import { BaseSelector, type BaseSelectorHandle } from '../base/BaseSelector.js';
 
-export type MemoryAction = 'list' | 'add' | 'remove' | 'back';
+export type MemoryAction = 'show' | 'add' | 'remove' | 'back';
 
 interface MemoryManagerProps {
     isVisible: boolean;
@@ -29,8 +29,8 @@ interface MemoryOption {
 
 const MEMORY_OPTIONS: MemoryOption[] = [
     {
-        action: 'list',
-        label: 'Show/List Memory',
+        action: 'show',
+        label: 'Show Memory',
         hint: 'View project and global entries',
         icon: '📝',
     },

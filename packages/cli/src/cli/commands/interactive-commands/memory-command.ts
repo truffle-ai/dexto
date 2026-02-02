@@ -7,16 +7,16 @@ import { addMemoryEntry, listMemoryEntries, removeMemoryEntry } from './memory-u
 import { discoverAgentInstructionFile } from '@dexto/agent-management';
 
 /**
- * Handler for /memory list (shows both project and global)
+ * Handler for /memory show (shows both project and global)
  */
-async function handleListCommand(): Promise<string> {
+async function handleShowCommand(): Promise<string> {
     const { project, global } = listMemoryEntries();
     const lines: string[] = [];
 
     lines.push(chalk.bold('\n📝 Memory Entries:\n'));
 
     // Global Section
-    lines.push(chalk.bold.magenta('Global Memory:'));
+    lines.push(chalk.bold.magenta('User Memory (Global):'));
     if (global.filePath) {
         lines.push(chalk.dim(`  Path: ${global.filePath}`));
     }
@@ -42,35 +42,66 @@ async function handleListCommand(): Promise<string> {
         });
     }
 
-    lines.push(chalk.dim('\nRemove with: /memory remove <number> (Project only via command)'));
-    lines.push(chalk.dim('Use interactive /memory menu for more options'));
+    lines.push(chalk.dim('\nQuick remove:'));
+    lines.push(chalk.dim('  /memory remove <number>          # Remove from project'));
+    lines.push(chalk.dim('  /memory remove <number> --global # Remove from global'));
+    lines.push(chalk.dim('  /memory remove global <number>   # Remove from global'));
+    lines.push(chalk.dim('\nOr use: /memory remove (interactive wizard)'));
 
     return formatForInkCli(lines.join('\n'));
 }
 
 /**
- * Handler for /memory remove <index> (Project scope only for now via CLI args)
+ * Handler for /memory remove with power user shortcuts
+ * Syntax:
+ *   /memory remove                      → Interactive wizard
+ *   /memory remove <number>             → Remove from project
+ *   /memory remove <number> --global    → Remove from global
+ *   /memory remove global <number>      → Remove from global
  */
-async function handleRemoveCommand(args: string[]): Promise<string> {
-    if (args.length === 0 || !args[0]) {
-        return formatForInkCli(
-            chalk.yellow('\n⚠ Please specify entry number to remove\n') +
-                chalk.dim('Usage: /memory remove <number>\n') +
-                chalk.dim('Use /memory list to see all entries')
-        );
+async function handleRemoveCommand(args: string[]): Promise<CommandHandlerResult> {
+    // No args → trigger wizard
+    if (args.length === 0) {
+        return {
+            __triggerOverlay: 'memory-remove-wizard',
+        } as any;
     }
 
-    const index = parseInt(args[0], 10) - 1; // Convert to 0-based index
+    // Parse arguments
+    let scope: 'project' | 'global' = 'project';
+    let indexStr: string | undefined;
+
+    // Check for "global" as first arg: /memory remove global 3
+    if (args[0] === 'global') {
+        scope = 'global';
+        indexStr = args[1];
+    } else {
+        indexStr = args[0];
+        // Check for --global flag: /memory remove 3 --global
+        if (args.includes('--global')) {
+            scope = 'global';
+        }
+    }
+
+    // Validate index
+    if (!indexStr) {
+        return formatForInkCli(chalk.red('\n❌ Missing entry number'));
+    }
+
+    const index = parseInt(indexStr, 10) - 1; // Convert to 0-based index
 
     if (isNaN(index)) {
         return formatForInkCli(chalk.red('\n❌ Invalid entry number'));
     }
 
-    const result = removeMemoryEntry(index, 'project');
+    // Remove the entry
+    const result = removeMemoryEntry(index, scope);
 
     if (result.success) {
+        const scopeLabel = scope === 'global' ? 'User (global)' : 'Project';
         return formatForInkCli(
-            chalk.green('\n✓ Memory entry removed') + chalk.dim(`\nFile: ${result.filePath}`)
+            chalk.green(`\n✓ ${scopeLabel} memory entry removed`) +
+                chalk.dim(`\nFile: ${result.filePath}`)
         );
     } else {
         return formatForInkCli(chalk.red(`\n❌ Failed to remove entry: ${result.error}`));
@@ -95,7 +126,7 @@ export async function handleMemoryAdd(
         return formatForInkCli(
             chalk.green(`\n✓ ${scope === 'global' ? 'Global' : 'Project'} memory entry added`) +
                 chalk.dim(`\nFile: ${result.filePath}\n`) +
-                chalk.dim('View all entries with: /memory list')
+                chalk.dim('View all entries with: /memory show')
         );
     } else {
         return formatForInkCli(chalk.red(`\n❌ Failed to add memory: ${result.error}`));
@@ -105,7 +136,7 @@ export async function handleMemoryAdd(
 export const memoryCommand: CommandDefinition = {
     name: 'memory',
     description: 'Manage agent memory (interactive menu)',
-    usage: '/memory [list|show|add|remove <number>]',
+    usage: '/memory [show|add|remove [<number>] [--global]]',
     category: 'General',
     aliases: ['mem'],
     handler: async (
@@ -116,8 +147,8 @@ export const memoryCommand: CommandDefinition = {
         const subcommand = args[0]?.toLowerCase();
 
         // Handle subcommands
-        if (subcommand === 'list' || subcommand === 'show') {
-            return handleListCommand();
+        if (subcommand === 'show') {
+            return handleShowCommand();
         }
 
         if (subcommand === 'remove' || subcommand === 'rm') {

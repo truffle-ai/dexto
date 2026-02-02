@@ -129,6 +129,7 @@ export function useCLIState({
         planModeActive: false,
         planModeInitialized: false,
         memoryAddWizard: null,
+        memoryRemoveWizard: null,
     });
 
     // Input state
