@@ -1264,8 +1264,13 @@ export async function persistToolMedia(
             : undefined;
 
     // Track stored blobs for annotation
-    const storedBlobs: Array<{ uri: string; kind: string; mimeType: string; filename?: string }> =
-        [];
+    const storedBlobs: Array<{
+        uri: string;
+        kind: string;
+        mimeType: string;
+        filename?: string;
+        url?: string;
+    }> = [];
 
     if (blobStore) {
         for (const hint of normalized.inlineMedia) {
@@ -1289,6 +1294,18 @@ export async function persistToolMedia(
                 });
 
                 const resourceUri = blobRef.uri;
+                let publicUrl: string | undefined;
+
+                try {
+                    const urlResult = await blobStore.retrieve(resourceUri, 'url');
+                    if (urlResult.format === 'url') {
+                        publicUrl = urlResult.data;
+                    }
+                } catch (error) {
+                    logger.warn(
+                        `Failed to resolve blob URL for ${resourceUri}: ${error instanceof Error ? error.message : String(error)}`
+                    );
+                }
 
                 if (hint.kind === 'image') {
                     parts[hint.index] = createBlobImagePart(resourceUri, blobRef.metadata.mimeType);
@@ -1306,6 +1323,7 @@ export async function persistToolMedia(
                     ...(blobRef.metadata.originalName && {
                         filename: blobRef.metadata.originalName,
                     }),
+                    ...(publicUrl ? { url: publicUrl } : {}),
                 });
             } catch (error) {
                 logger.warn(
@@ -1322,9 +1340,10 @@ export async function persistToolMedia(
         const annotations = storedBlobs
             .map((blob) => {
                 const label = blob.filename || blob.kind;
+                const urlSuffix = blob.url ? `, url: ${blob.url}` : '';
                 // Use resource_ref: prefix - agent should use this with get_shareable_url tool
                 // Format: resource_ref:blob:abc123 (can be used as "@blob:abc123" or "blob:abc123" in tool calls)
-                return `[Stored resource_ref:${blob.uri} (${label}, ${blob.mimeType})]`;
+                return `[Stored resource_ref:${blob.uri} (${label}, ${blob.mimeType}${urlSuffix})]`;
             })
             .join('\n');
 
