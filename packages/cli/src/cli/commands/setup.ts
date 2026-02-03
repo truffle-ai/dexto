@@ -287,6 +287,11 @@ async function handleQuickStart(
                     hint: 'Free, ultra-fast',
                 },
                 {
+                    value: 'openrouter' as const,
+                    label: `${chalk.green('●')} OpenRouter (Free)`,
+                    hint: 'Use free-tier models via OpenRouter',
+                },
+                {
                     value: 'local' as const,
                     label: `${chalk.cyan('●')} Local Models`,
                     hint: 'Free, private, runs on your machine',
@@ -363,11 +368,62 @@ async function handleQuickStart(
             return 'completed';
         }
 
-        // Cloud provider flow (google or groq)
+        // Cloud provider flow (google, groq, openrouter)
         const provider: LLMProvider = quickProvider;
-        const model =
-            getDefaultModelForProvider(provider) ||
-            (provider === 'google' ? 'gemini-2.5-pro' : 'llama-3.3-70b-versatile');
+        let model: string;
+        if (provider === 'openrouter') {
+            const selected = await p.select({
+                message: 'Select a model for OpenRouter',
+                options: [
+                    {
+                        value: 'openrouter/free' as const,
+                        label: 'OpenRouter Free Models',
+                        hint: 'Free-tier access via OpenRouter',
+                    },
+                    {
+                        value: 'custom' as const,
+                        label: 'Enter a model ID',
+                        hint: 'e.g., anthropic/claude-3.5-sonnet',
+                    },
+                    { value: '_back' as const, label: chalk.gray('← Back'), hint: 'Return' },
+                ],
+            });
+
+            if (p.isCancel(selected) || selected === '_back') {
+                if (options.onCancel === 'exit') {
+                    p.cancel('Setup cancelled');
+                    return 'cancelled';
+                }
+                continue;
+            }
+
+            if (selected === 'openrouter/free') {
+                model = 'openrouter/free';
+            } else {
+                const modelInput = await p.text({
+                    message: 'Enter model name for OpenRouter',
+                    placeholder: 'e.g., anthropic/claude-3.5-sonnet',
+                    validate: (value) => {
+                        if (!value.trim()) return 'Model name is required';
+                        return undefined;
+                    },
+                });
+
+                if (p.isCancel(modelInput)) {
+                    if (options.onCancel === 'exit') {
+                        p.cancel('Setup cancelled');
+                        return 'cancelled';
+                    }
+                    continue;
+                }
+
+                model = modelInput.trim();
+            }
+        } else {
+            model =
+                getDefaultModelForProvider(provider) ||
+                (provider === 'google' ? 'gemini-2.5-pro' : 'llama-3.3-70b-versatile');
+        }
         const apiKeyVar = getProviderEnvVar(provider);
         let apiKeySkipped = false;
 
@@ -923,6 +979,57 @@ async function selectModelWithBack(provider: LLMProvider): Promise<string | '_ba
 
     if (providerInfo?.models && providerInfo.models.length > 0) {
         const curatedModels = getCuratedModelsForProvider(provider);
+
+        if (provider === 'openrouter') {
+            const curatedOptions = curatedModels
+                .slice(0, 8)
+                .filter((m) => m.name !== 'openrouter/free')
+                .map((m) => ({
+                    value: m.name,
+                    label: m.displayName || m.name,
+                }));
+
+            if (supportsCustomModels(provider)) {
+                p.log.info(chalk.gray('Tip: You can add or edit custom models via /model'));
+
+                const manageCustomModels = await p.confirm({
+                    message: 'Manage custom models now?',
+                    initialValue: false,
+                });
+
+                if (p.isCancel(manageCustomModels)) {
+                    return '_back';
+                }
+
+                if (manageCustomModels) {
+                    await handleCustomModelManagement(provider);
+                }
+            }
+
+            const result = await p.select({
+                message: `Select a model for ${getProviderDisplayName(provider)}`,
+                options: [
+                    {
+                        value: 'openrouter/free' as const,
+                        label: 'OpenRouter Free Models',
+                        hint: '(recommended)',
+                    },
+                    ...curatedOptions,
+                    {
+                        value: '_back' as const,
+                        label: chalk.gray('← Back'),
+                        hint: 'Change provider',
+                    },
+                ],
+            });
+
+            if (p.isCancel(result)) {
+                return '_back';
+            }
+
+            return result as string | '_back';
+        }
+
         const defaultModel =
             curatedModels.find((m) => m.default) ??
             providerInfo.models.find((m) => m.default) ??
@@ -954,7 +1061,7 @@ async function selectModelWithBack(provider: LLMProvider): Promise<string | '_ba
             }
 
             if (manageCustomModels) {
-                await handleCustomModelManagement();
+                await handleCustomModelManagement(provider);
             }
         }
 
@@ -1004,7 +1111,7 @@ async function selectModelWithBack(provider: LLMProvider): Promise<string | '_ba
 /**
  * Select default mode with back option
  */
-async function handleCustomModelManagement(): Promise<void> {
+async function handleCustomModelManagement(providerOverride?: LLMProvider): Promise<void> {
     const models = await loadCustomModels();
 
     const choices = [
@@ -1024,12 +1131,12 @@ async function handleCustomModelManagement(): Promise<void> {
     }
 
     if (action === 'add') {
-        await runCustomModelWizard();
+        await runCustomModelWizard(null, providerOverride);
         return;
     }
 
     if (action === 'edit') {
-        await runCustomModelWizard(await selectCustomModel(models));
+        await runCustomModelWizard(await selectCustomModel(models), providerOverride);
         return;
     }
 
@@ -1071,8 +1178,11 @@ async function selectCustomModel(models: CustomModel[]): Promise<CustomModel | n
     return models.find((model) => model.name === selection) ?? null;
 }
 
-async function runCustomModelWizard(initialModel?: CustomModel | null): Promise<void> {
-    const values = await promptCustomModelValues(initialModel ?? null);
+async function runCustomModelWizard(
+    initialModel?: CustomModel | null,
+    providerOverride?: LLMProvider
+): Promise<void> {
+    const values = await promptCustomModelValues(initialModel ?? null, providerOverride);
     if (!values) {
         return;
     }
@@ -1092,7 +1202,10 @@ async function runCustomModelWizard(initialModel?: CustomModel | null): Promise<
     p.log.success(`${initialModel ? 'Updated' : 'Saved'} ${model.displayName || model.name}`);
 }
 
-async function promptCustomModelValues(initialModel: CustomModel | null): Promise<{
+async function promptCustomModelValues(
+    initialModel: CustomModel | null,
+    providerOverride?: LLMProvider
+): Promise<{
     name: string;
     provider: CustomModel['provider'];
     baseURL?: string;
@@ -1114,14 +1227,21 @@ async function promptCustomModelValues(initialModel: CustomModel | null): Promis
         ...(isDextoAuthEnabled() ? ['dexto'] : []),
     ] as const;
 
-    const provider = (await p.select({
-        message: 'Custom model provider',
-        options: providers.map((value) => ({ value, label: value })),
-        initialValue: initialModel?.provider ?? 'openai-compatible',
-    })) as CustomModel['provider'] | symbol;
+    const effectiveProvider = initialModel?.provider ?? providerOverride;
 
-    if (p.isCancel(provider)) {
-        return null;
+    let provider: CustomModel['provider'] | symbol;
+    if (effectiveProvider) {
+        provider = effectiveProvider as CustomModel['provider'];
+    } else {
+        provider = (await p.select({
+            message: 'Custom model provider',
+            options: providers.map((value) => ({ value, label: value })),
+            initialValue: 'openai-compatible',
+        })) as CustomModel['provider'] | symbol;
+
+        if (p.isCancel(provider)) {
+            return null;
+        }
     }
 
     const name = await p.text({
@@ -1875,6 +1995,53 @@ async function selectModel(provider: LLMProvider): Promise<string | null> {
     // For providers with a fixed model list
     if (providerInfo?.models && providerInfo.models.length > 0) {
         const curatedModels = getCuratedModelsForProvider(provider);
+
+        if (provider === 'openrouter') {
+            const curatedOptions = curatedModels
+                .slice(0, 8)
+                .filter((m) => m.name !== 'openrouter/free')
+                .map((m) => ({
+                    value: m.name,
+                    label: m.displayName || m.name,
+                }));
+
+            if (supportsCustomModels(provider)) {
+                p.log.info(chalk.gray('Tip: You can add or edit custom models via /model'));
+
+                const manageCustomModels = await p.confirm({
+                    message: 'Manage custom models now?',
+                    initialValue: false,
+                });
+
+                if (p.isCancel(manageCustomModels)) {
+                    return null;
+                }
+
+                if (manageCustomModels) {
+                    await handleCustomModelManagement(provider);
+                }
+            }
+
+            const selected = await p.select({
+                message: `Select a model for ${getProviderDisplayName(provider)}`,
+                options: [
+                    {
+                        value: 'openrouter/free' as const,
+                        label: 'OpenRouter Free Models',
+                        hint: '(recommended)',
+                    },
+                    ...curatedOptions,
+                ],
+                initialValue: 'openrouter/free',
+            });
+
+            if (p.isCancel(selected)) {
+                return null;
+            }
+
+            return selected as string;
+        }
+
         const defaultModel =
             curatedModels.find((m) => m.default) ??
             providerInfo.models.find((m) => m.default) ??
@@ -1905,7 +2072,7 @@ async function selectModel(provider: LLMProvider): Promise<string | null> {
             }
 
             if (manageCustomModels) {
-                await handleCustomModelManagement();
+                await handleCustomModelManagement(provider);
             }
         }
 
