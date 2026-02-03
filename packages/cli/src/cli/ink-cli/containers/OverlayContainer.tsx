@@ -66,7 +66,13 @@ import McpCustomWizard, {
 import CustomModelWizard, {
     type CustomModelWizardHandle,
 } from '../components/overlays/CustomModelWizard.js';
-import type { CustomModel, ListedPlugin } from '@dexto/agent-management';
+import {
+    getProviderKeyStatus,
+    loadGlobalPreferences,
+    updateGlobalPreferences,
+    type CustomModel,
+    type ListedPlugin,
+} from '@dexto/agent-management';
 import ApiKeyInput, { type ApiKeyInputHandle } from '../components/overlays/ApiKeyInput.js';
 import SearchOverlay, { type SearchOverlayHandle } from '../components/overlays/SearchOverlay.js';
 import PromptList, {
@@ -423,7 +429,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
             return null;
         };
 
-        // Handle model selection
+        // Handle model selection (session-only)
         const handleModelSelect = useCallback(
             async (
                 provider: string,
@@ -432,6 +438,8 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                 baseURL?: string,
                 reasoningEffort?: 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh'
             ) => {
+                // Session-only switch (default is set via explicit action)
+
                 // Pre-check: Dexto provider requires OAuth login AND API key
                 // Check BEFORE closing the overlay so user can pick a different model
                 if (provider === 'dexto') {
@@ -538,6 +546,82 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                 }
             },
             [setUi, setInput, setMessages, setSession, agent, session.id, buffer]
+        );
+
+        const handleSetDefaultModel = useCallback(
+            async (
+                provider: LLMProvider,
+                model: string,
+                displayName?: string,
+                baseURL?: string,
+                reasoningEffort?: 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh'
+            ) => {
+                try {
+                    const preferencesUpdate: {
+                        provider: LLMProvider;
+                        model: string;
+                        baseURL?: string;
+                        reasoningEffort?: 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
+                        apiKey?: string;
+                    } = {
+                        provider,
+                        model,
+                        ...(baseURL ? { baseURL } : {}),
+                        ...(reasoningEffort ? { reasoningEffort } : {}),
+                    };
+
+                    try {
+                        const providerKeyStatus = await getProviderKeyStatus(provider);
+                        if (providerKeyStatus?.envVar) {
+                            preferencesUpdate.apiKey = `${providerKeyStatus.envVar}`;
+                        }
+                    } catch (error) {
+                        agent.logger.debug(
+                            `Failed to resolve provider API key env var: ${
+                                error instanceof Error ? error.message : String(error)
+                            }`
+                        );
+                    }
+
+                    let existing = null;
+                    try {
+                        existing = await loadGlobalPreferences();
+                    } catch {
+                        existing = null;
+                    }
+
+                    if (existing?.llm.apiKey && !preferencesUpdate.apiKey) {
+                        preferencesUpdate.apiKey = existing.llm.apiKey;
+                    }
+
+                    await updateGlobalPreferences({
+                        llm: preferencesUpdate,
+                    });
+
+                    setMessages((prev) => [
+                        ...prev,
+                        {
+                            id: generateMessageId('system'),
+                            role: 'system',
+                            content: `✅ Default model set to ${displayName || model} (${provider})`,
+                            timestamp: new Date(),
+                        },
+                    ]);
+                } catch (error) {
+                    setMessages((prev) => [
+                        ...prev,
+                        {
+                            id: generateMessageId('error'),
+                            role: 'system',
+                            content: `❌ Failed to set default model: ${
+                                error instanceof Error ? error.message : String(error)
+                            }`,
+                            timestamp: new Date(),
+                        },
+                    ]);
+                }
+            },
+            [agent, setMessages]
         );
 
         // State for editing custom model
@@ -2172,6 +2256,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             ref={modelSelectorRef}
                             isVisible={true}
                             onSelectModel={handleModelSelect}
+                            onSetDefaultModel={handleSetDefaultModel}
                             onClose={handleClose}
                             onAddCustomModel={handleAddCustomModel}
                             onEditCustomModel={handleEditCustomModel}

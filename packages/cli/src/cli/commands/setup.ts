@@ -23,6 +23,10 @@ import {
     updateGlobalPreferences,
     setActiveModel,
     isDextoAuthEnabled,
+    loadCustomModels,
+    saveCustomModel,
+    deleteCustomModel,
+    type CustomModel,
     type CreatePreferencesOptions,
 } from '@dexto/agent-management';
 import { interactiveApiKeySetup, hasApiKeyConfigured } from '../utils/api-key-setup.js';
@@ -938,7 +942,20 @@ async function selectModelWithBack(provider: LLMProvider): Promise<string | '_ba
             }));
 
         if (supportsCustomModels(provider)) {
-            p.log.info(chalk.gray('Tip: You can add custom model IDs later via /models'));
+            p.log.info(chalk.gray('Tip: You can add or edit custom models via /model'));
+
+            const manageCustomModels = await p.confirm({
+                message: 'Manage custom models now?',
+                initialValue: false,
+            });
+
+            if (p.isCancel(manageCustomModels)) {
+                return '_back';
+            }
+
+            if (manageCustomModels) {
+                await handleCustomModelManagement();
+            }
         }
 
         const result = await p.select({
@@ -987,6 +1004,259 @@ async function selectModelWithBack(provider: LLMProvider): Promise<string | '_ba
 /**
  * Select default mode with back option
  */
+async function handleCustomModelManagement(): Promise<void> {
+    const models = await loadCustomModels();
+
+    const choices = [
+        { value: 'add' as const, label: 'Add custom model' },
+        ...(models.length > 0 ? [{ value: 'edit' as const, label: 'Edit custom model' }] : []),
+        ...(models.length > 0 ? [{ value: 'delete' as const, label: 'Delete custom model' }] : []),
+        { value: 'back' as const, label: 'Back' },
+    ];
+
+    const action = await p.select({
+        message: 'Custom models',
+        options: choices,
+    });
+
+    if (p.isCancel(action) || action === 'back') {
+        return;
+    }
+
+    if (action === 'add') {
+        await runCustomModelWizard();
+        return;
+    }
+
+    if (action === 'edit') {
+        await runCustomModelWizard(await selectCustomModel(models));
+        return;
+    }
+
+    if (action === 'delete') {
+        const model = await selectCustomModel(models);
+        if (!model) {
+            return;
+        }
+        const confirm = await p.confirm({
+            message: `Delete custom model "${model.displayName || model.name}"?`,
+            initialValue: false,
+        });
+        if (p.isCancel(confirm) || !confirm) {
+            return;
+        }
+        await deleteCustomModel(model.name);
+        p.log.success(`Deleted ${model.displayName || model.name}`);
+    }
+}
+
+async function selectCustomModel(models: CustomModel[]): Promise<CustomModel | null> {
+    if (models.length === 0) {
+        p.log.info('No custom models available.');
+        return null;
+    }
+
+    const selection = await p.select({
+        message: 'Select a custom model',
+        options: models.map((model) => ({
+            value: model.name,
+            label: model.displayName || model.name,
+        })),
+    });
+
+    if (p.isCancel(selection)) {
+        return null;
+    }
+
+    return models.find((model) => model.name === selection) ?? null;
+}
+
+async function runCustomModelWizard(initialModel?: CustomModel | null): Promise<void> {
+    const values = await promptCustomModelValues(initialModel ?? null);
+    if (!values) {
+        return;
+    }
+
+    const model: CustomModel = {
+        name: values.name,
+        provider: values.provider,
+        ...(values.baseURL ? { baseURL: values.baseURL } : {}),
+        ...(values.displayName ? { displayName: values.displayName } : {}),
+        ...(values.maxInputTokens ? { maxInputTokens: values.maxInputTokens } : {}),
+        ...(values.apiKey ? { apiKey: values.apiKey } : {}),
+        ...(values.filePath ? { filePath: values.filePath } : {}),
+        ...(values.reasoningEffort ? { reasoningEffort: values.reasoningEffort } : {}),
+    };
+
+    await saveCustomModel(model);
+    p.log.success(`${initialModel ? 'Updated' : 'Saved'} ${model.displayName || model.name}`);
+}
+
+async function promptCustomModelValues(initialModel: CustomModel | null): Promise<{
+    name: string;
+    provider: CustomModel['provider'];
+    baseURL?: string;
+    displayName?: string;
+    maxInputTokens?: number;
+    apiKey?: string;
+    filePath?: string;
+    reasoningEffort?: CustomModel['reasoningEffort'];
+} | null> {
+    const providers = [
+        'openai-compatible',
+        'openrouter',
+        'litellm',
+        'glama',
+        'bedrock',
+        'ollama',
+        'local',
+        'vertex',
+        ...(isDextoAuthEnabled() ? ['dexto'] : []),
+    ] as const;
+
+    const provider = (await p.select({
+        message: 'Custom model provider',
+        options: providers.map((value) => ({ value, label: value })),
+        initialValue: initialModel?.provider ?? 'openai-compatible',
+    })) as CustomModel['provider'] | symbol;
+
+    if (p.isCancel(provider)) {
+        return null;
+    }
+
+    const name = await p.text({
+        message: 'Model name',
+        initialValue: initialModel?.name ?? '',
+        validate: (value) => (value.trim() ? undefined : 'Model name is required'),
+    });
+
+    if (p.isCancel(name)) {
+        return null;
+    }
+
+    if (provider === 'openrouter' || provider === 'glama' || provider === 'dexto') {
+        const isValidFormat = name.trim().includes('/');
+        if (!isValidFormat) {
+            p.log.warn('Model name should include a provider prefix, e.g. anthropic/claude-3.5');
+        }
+    }
+
+    const displayName = await p.text({
+        message: 'Display name (optional)',
+        initialValue: initialModel?.displayName ?? '',
+    });
+
+    if (p.isCancel(displayName)) {
+        return null;
+    }
+
+    let baseURL: string | undefined;
+    if (provider === 'openai-compatible' || provider === 'litellm') {
+        const baseURLInput = await p.text({
+            message: 'Base URL',
+            initialValue: initialModel?.baseURL ?? '',
+            validate: (value) => {
+                if (!value.trim()) return 'Base URL is required';
+                try {
+                    new URL(value);
+                    return undefined;
+                } catch {
+                    return 'Base URL must be a valid URL';
+                }
+            },
+        });
+        if (p.isCancel(baseURLInput)) {
+            return null;
+        }
+        baseURL = baseURLInput.trim();
+    }
+
+    const maxInputTokensInput = await p.text({
+        message: 'Max input tokens (optional)',
+        initialValue: initialModel?.maxInputTokens?.toString() ?? '',
+        validate: (value) => {
+            if (!value.trim()) return undefined;
+            const parsed = Number(value);
+            if (!Number.isInteger(parsed) || parsed <= 0) {
+                return 'Enter a positive integer';
+            }
+            return undefined;
+        },
+    });
+
+    if (p.isCancel(maxInputTokensInput)) {
+        return null;
+    }
+
+    let apiKey: string | undefined;
+    if (provider !== 'bedrock' && provider !== 'vertex') {
+        const apiKeyInput = await p.text({
+            message: 'API key (optional)',
+            initialValue: initialModel?.apiKey ?? '',
+        });
+
+        if (p.isCancel(apiKeyInput)) {
+            return null;
+        }
+
+        apiKey = apiKeyInput.trim() || undefined;
+    }
+
+    let filePath: string | undefined;
+    if (provider === 'local') {
+        const filePathInput = await p.text({
+            message: 'GGUF file path',
+            initialValue: initialModel?.filePath ?? '',
+            validate: (value) => {
+                if (!value.trim()) return 'File path is required';
+                if (!value.trim().toLowerCase().endsWith('.gguf')) {
+                    return 'File path must end with .gguf';
+                }
+                return undefined;
+            },
+        });
+        if (p.isCancel(filePathInput)) {
+            return null;
+        }
+        filePath = filePathInput.trim();
+    }
+
+    const reasoningEffort = await p.text({
+        message: 'Reasoning effort (optional)',
+        initialValue: initialModel?.reasoningEffort ?? '',
+        validate: (value) => {
+            if (!value.trim()) return undefined;
+            const validValues = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh'];
+            if (!validValues.includes(value.trim())) {
+                return `Use: ${validValues.join(', ')}`;
+            }
+            return undefined;
+        },
+    });
+
+    if (p.isCancel(reasoningEffort)) {
+        return null;
+    }
+
+    const trimmedDisplayName = displayName.trim();
+    const trimmedApiKey = apiKey?.trim();
+    const trimmedReasoningEffort = reasoningEffort.trim();
+    const trimmedMaxInputTokens = maxInputTokensInput.trim();
+
+    return {
+        name: name.trim(),
+        provider,
+        ...(baseURL ? { baseURL } : {}),
+        ...(trimmedDisplayName ? { displayName: trimmedDisplayName } : {}),
+        ...(trimmedMaxInputTokens ? { maxInputTokens: Number(trimmedMaxInputTokens) } : {}),
+        ...(trimmedApiKey ? { apiKey: trimmedApiKey } : {}),
+        ...(filePath ? { filePath } : {}),
+        ...(trimmedReasoningEffort
+            ? { reasoningEffort: trimmedReasoningEffort as CustomModel['reasoningEffort'] }
+            : {}),
+    };
+}
+
 async function selectDefaultModeWithBack(): Promise<
     'cli' | 'web' | 'server' | 'discord' | 'telegram' | 'mcp' | '_back'
 > {
@@ -1623,7 +1893,20 @@ async function selectModel(provider: LLMProvider): Promise<string | null> {
             }));
 
         if (supportsCustomModels(provider)) {
-            p.log.info(chalk.gray('Tip: You can add custom model IDs later via /models'));
+            p.log.info(chalk.gray('Tip: You can add or edit custom models via /model'));
+
+            const manageCustomModels = await p.confirm({
+                message: 'Manage custom models now?',
+                initialValue: false,
+            });
+
+            if (p.isCancel(manageCustomModels)) {
+                return null;
+            }
+
+            if (manageCustomModels) {
+                await handleCustomModelManagement();
+            }
         }
 
         const selected = await p.select({
