@@ -712,7 +712,7 @@ export async function processStream(
                 }
 
                 case 'llm:error': {
-                    const errorContent = buildErrorContent(event.error, '❌ Error: ');
+                    const errorContent = buildErrorContent(event.error, 'Error: ');
 
                     // Add error message to finalized
                     setMessages((prev) => [
@@ -1090,7 +1090,7 @@ export async function processStream(
             // Unexpected error, show to user
             clearPending();
 
-            const errorContent = buildErrorContent(error, '❌ Stream error: ');
+            const errorContent = buildErrorContent(error, 'Stream error: ');
 
             setMessages((prev) => [
                 ...prev,

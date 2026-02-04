@@ -568,7 +568,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                             {
                                 id: generateMessageId('error'),
                                 role: 'system',
-                                content: `❌ Error: ${error instanceof Error ? error.message : String(error)}`,
+                                content: `Error: ${error instanceof Error ? error.message : String(error)}`,
                                 timestamp: new Date(),
                             },
                         ]);
@@ -710,7 +710,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                             {
                                 id: generateMessageId('error'),
                                 role: 'system',
-                                content: `❌ Error: ${error instanceof Error ? error.message : String(error)}`,
+                                content: `Error: ${error instanceof Error ? error.message : String(error)}`,
                                 timestamp: new Date(),
                             },
                         ]);

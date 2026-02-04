@@ -50,7 +50,7 @@ interface ModelSelectorProps {
         displayName?: string,
         baseURL?: string,
         reasoningEffort?: ReasoningEffort
-    ) => void;
+    ) => Promise<void>;
     onClose: () => void;
     onAddCustomModel: () => void;
     onEditCustomModel: (model: CustomModel) => void;
@@ -143,6 +143,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
     // Reasoning effort sub-step state
     const [pendingReasoningModel, setPendingReasoningModel] = useState<ModelOption | null>(null);
     const [reasoningEffortIndex, setReasoningEffortIndex] = useState(0); // Default to 'Auto' (index 0)
+    const [refreshVersion, setRefreshVersion] = useState(0);
 
     // Keep ref in sync
     selectedIndexRef.current = selectedIndex;
@@ -377,7 +378,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
         return () => {
             cancelled = true;
         };
-    }, [isVisible, agent]);
+    }, [isVisible, agent, refreshVersion]);
 
     // Filter models based on search query
     const filteredItems = useMemo((): SelectorItem[] => {
@@ -532,6 +533,25 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                         if (isCustomActionItem) {
                             setCustomModelAction('delete');
                             setPendingDeleteConfirm(false);
+                            setPendingDefaultConfirm(false);
+                            return true;
+                        }
+
+                        const actionItem = currentItem as ModelOption;
+                        if (pendingDefaultConfirm) {
+                            clearActionState();
+                            void (async () => {
+                                await onSetDefaultModel(
+                                    actionItem.provider,
+                                    actionItem.name,
+                                    actionItem.displayName,
+                                    actionItem.baseURL,
+                                    actionItem.reasoningEffort
+                                );
+                                setRefreshVersion((prev) => prev + 1);
+                            })();
+                        } else {
+                            setPendingDefaultConfirm(true);
                         }
                         return true;
                     }
@@ -665,13 +685,16 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                         if (customModelAction === 'default') {
                             if (pendingDefaultConfirm) {
                                 clearActionState();
-                                onSetDefaultModel(
-                                    item.provider,
-                                    item.name,
-                                    item.displayName,
-                                    item.baseURL,
-                                    item.reasoningEffort
-                                );
+                                void (async () => {
+                                    await onSetDefaultModel(
+                                        item.provider,
+                                        item.name,
+                                        item.displayName,
+                                        item.baseURL,
+                                        item.reasoningEffort
+                                    );
+                                    setRefreshVersion((prev) => prev + 1);
+                                })();
                             } else {
                                 setPendingDefaultConfirm(true);
                             }

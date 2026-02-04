@@ -1136,7 +1136,11 @@ async function handleCustomModelManagement(providerOverride?: LLMProvider): Prom
     }
 
     if (action === 'edit') {
-        await runCustomModelWizard(await selectCustomModel(models), providerOverride);
+        const selected = await selectCustomModel(models);
+        if (!selected) {
+            return;
+        }
+        await runCustomModelWizard(selected, providerOverride);
         return;
     }
 
@@ -1199,6 +1203,9 @@ async function runCustomModelWizard(
     };
 
     await saveCustomModel(model);
+    if (initialModel && initialModel.name !== model.name) {
+        await deleteCustomModel(initialModel.name);
+    }
     p.log.success(`${initialModel ? 'Updated' : 'Saved'} ${model.displayName || model.name}`);
 }
 
@@ -1343,11 +1350,12 @@ async function promptCustomModelValues(
 
     const reasoningEffort = await p.text({
         message: 'Reasoning effort (optional)',
-        initialValue: initialModel?.reasoningEffort ?? '',
+        initialValue: initialModel?.reasoningEffort?.toLowerCase() ?? '',
         validate: (value) => {
-            if (!value.trim()) return undefined;
+            const normalized = value.trim().toLowerCase();
+            if (!normalized) return undefined;
             const validValues = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh'];
-            if (!validValues.includes(value.trim())) {
+            if (!validValues.includes(normalized)) {
                 return `Use: ${validValues.join(', ')}`;
             }
             return undefined;
@@ -1360,7 +1368,7 @@ async function promptCustomModelValues(
 
     const trimmedDisplayName = displayName.trim();
     const trimmedApiKey = apiKey?.trim();
-    const trimmedReasoningEffort = reasoningEffort.trim();
+    const trimmedReasoningEffort = reasoningEffort.trim().toLowerCase();
     const trimmedMaxInputTokens = maxInputTokensInput.trim();
 
     return {

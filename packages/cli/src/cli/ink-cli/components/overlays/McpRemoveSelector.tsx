@@ -72,7 +72,7 @@ const McpRemoveSelector = forwardRef<McpRemoveSelectorHandle, McpRemoveSelectorP
                 case 'auth-required':
                     return '🔐';
                 case 'error':
-                    return '❌';
+                    return '!';
             }
         };
 

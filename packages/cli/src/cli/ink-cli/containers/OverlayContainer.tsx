@@ -453,7 +453,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                                     id: generateMessageId('system'),
                                     role: 'system',
                                     content:
-                                        '❌ Cannot switch to Dexto model - authentication required. Run /login to authenticate.',
+                                        'Cannot switch to Dexto model - authentication required. Run /login to authenticate.',
                                     timestamp: new Date(),
                                 },
                             ]);
@@ -466,7 +466,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             {
                                 id: generateMessageId('error'),
                                 role: 'system',
-                                content: `❌ Failed to verify Dexto auth: ${error instanceof Error ? error.message : String(error)}`,
+                                content: `Failed to verify Dexto auth: ${error instanceof Error ? error.message : String(error)}`,
                                 timestamp: new Date(),
                             },
                         ]);
@@ -539,7 +539,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         {
                             id: generateMessageId('error'),
                             role: 'system',
-                            content: `❌ Failed to switch model: ${error instanceof Error ? error.message : String(error)}`,
+                            content: `Failed to switch model: ${error instanceof Error ? error.message : String(error)}`,
                             timestamp: new Date(),
                         },
                     ]);
@@ -570,11 +570,10 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         ...(reasoningEffort ? { reasoningEffort } : {}),
                     };
 
+                    let providerEnvVar: string | undefined;
                     try {
                         const providerKeyStatus = await getProviderKeyStatus(provider);
-                        if (providerKeyStatus?.envVar) {
-                            preferencesUpdate.apiKey = `${providerKeyStatus.envVar}`;
-                        }
+                        providerEnvVar = providerKeyStatus?.envVar;
                     } catch (error) {
                         agent.logger.debug(
                             `Failed to resolve provider API key env var: ${
@@ -590,8 +589,10 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         existing = null;
                     }
 
-                    if (existing?.llm.apiKey && !preferencesUpdate.apiKey) {
+                    if (existing?.llm.apiKey) {
                         preferencesUpdate.apiKey = existing.llm.apiKey;
+                    } else if (providerEnvVar) {
+                        preferencesUpdate.apiKey = '$' + providerEnvVar;
                     }
 
                     await updateGlobalPreferences({
@@ -613,7 +614,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         {
                             id: generateMessageId('error'),
                             role: 'system',
-                            content: `❌ Failed to set default model: ${
+                            content: `Failed to set default model: ${
                                 error instanceof Error ? error.message : String(error)
                             }`,
                             timestamp: new Date(),
@@ -752,7 +753,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         {
                             id: generateMessageId('error'),
                             role: 'system',
-                            content: `❌ Failed to switch model: ${error instanceof Error ? error.message : String(error)}`,
+                            content: `Failed to switch model: ${error instanceof Error ? error.message : String(error)}`,
                             timestamp: new Date(),
                         },
                     ]);
@@ -904,7 +905,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         {
                             id: generateMessageId('error'),
                             role: 'system',
-                            content: `❌ Failed to switch session: ${error instanceof Error ? error.message : String(error)}`,
+                            content: `Failed to switch session: ${error instanceof Error ? error.message : String(error)}`,
                             timestamp: new Date(),
                         },
                     ]);
@@ -1000,7 +1001,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         {
                             id: generateMessageId('error'),
                             role: 'system',
-                            content: `❌ ${error instanceof Error ? error.message : String(error)}`,
+                            content: `${error instanceof Error ? error.message : String(error)}`,
                             timestamp: new Date(),
                         },
                     ]);
@@ -1095,7 +1096,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         {
                             id: generateMessageId('error'),
                             role: 'system',
-                            content: `❌ ${error instanceof Error ? error.message : String(error)}`,
+                            content: `${error instanceof Error ? error.message : String(error)}`,
                             timestamp: new Date(),
                         },
                     ]);
@@ -1326,7 +1327,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             {
                                 id: generateMessageId('error'),
                                 role: 'system',
-                                content: `❌ Failed to ${action.type} server: ${errorMessage}`,
+                                content: `Failed to ${action.type} server: ${errorMessage}`,
                                 timestamp: new Date(),
                             },
                         ]);
@@ -1359,7 +1360,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             {
                                 id: generateMessageId('error'),
                                 role: 'system',
-                                content: `❌ Failed to authenticate server: ${error instanceof Error ? error.message : String(error)}`,
+                                content: `Failed to authenticate server: ${error instanceof Error ? error.message : String(error)}`,
                                 timestamp: new Date(),
                             },
                         ]);
@@ -1406,7 +1407,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             {
                                 id: generateMessageId('error'),
                                 role: 'system',
-                                content: `❌ Failed to delete server: ${error instanceof Error ? error.message : String(error)}`,
+                                content: `Failed to delete server: ${error instanceof Error ? error.message : String(error)}`,
                                 timestamp: new Date(),
                             },
                         ]);
@@ -1493,7 +1494,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         {
                             id: generateMessageId('system'),
                             role: 'system',
-                            content: `❌ Failed to connect: ${error instanceof Error ? error.message : String(error)}`,
+                            content: `Failed to connect: ${error instanceof Error ? error.message : String(error)}`,
                             timestamp: new Date(),
                         },
                     ]);
@@ -1584,7 +1585,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         {
                             id: generateMessageId('system'),
                             role: 'system',
-                            content: `❌ Failed to connect: ${error instanceof Error ? error.message : String(error)}`,
+                            content: `Failed to connect: ${error instanceof Error ? error.message : String(error)}`,
                             timestamp: new Date(),
                         },
                     ]);
@@ -1807,7 +1808,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         {
                             id: generateMessageId('error'),
                             role: 'system',
-                            content: `❌ ${error instanceof Error ? error.message : String(error)}`,
+                            content: `${error instanceof Error ? error.message : String(error)}`,
                             timestamp: new Date(),
                         },
                     ]);
@@ -2034,7 +2035,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         {
                             id: generateMessageId('error'),
                             role: 'system',
-                            content: `❌ Failed to create prompt: ${error instanceof Error ? error.message : String(error)}`,
+                            content: `Failed to create prompt: ${error instanceof Error ? error.message : String(error)}`,
                             timestamp: new Date(),
                         },
                     ]);
@@ -2110,7 +2111,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         {
                             id: generateMessageId('error'),
                             role: 'system',
-                            content: `❌ Failed to delete prompt: ${error instanceof Error ? error.message : String(error)}`,
+                            content: `Failed to delete prompt: ${error instanceof Error ? error.message : String(error)}`,
                             timestamp: new Date(),
                         },
                     ]);
@@ -2190,7 +2191,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         {
                             id: generateMessageId('error'),
                             role: 'system',
-                            content: `❌ Failed to rename session: ${error instanceof Error ? error.message : String(error)}`,
+                            content: `Failed to rename session: ${error instanceof Error ? error.message : String(error)}`,
                             timestamp: new Date(),
                         },
                     ]);
