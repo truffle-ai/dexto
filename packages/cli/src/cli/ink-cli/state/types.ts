@@ -367,6 +367,8 @@ export interface PendingModelSwitch {
     provider: string;
     model: string;
     displayName?: string;
+    baseURL?: string;
+    reasoningEffort?: 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
 }
 
 /**

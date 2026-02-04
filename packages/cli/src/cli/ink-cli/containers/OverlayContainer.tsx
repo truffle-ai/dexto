@@ -520,6 +520,8 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                                 provider: missingProvider,
                                 model,
                                 ...(displayName && { displayName }),
+                                ...(baseURL && { baseURL }),
+                                ...(reasoningEffort && { reasoningEffort }),
                             },
                         }));
                         setMessages((prev) => [
@@ -627,6 +629,8 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                                     provider: missingProvider,
                                     model,
                                     ...(displayName && { displayName }),
+                                    ...(baseURL && { baseURL }),
+                                    ...(reasoningEffort && { reasoningEffort }),
                                 },
                             }));
                             setMessages((prev) => [
@@ -765,7 +769,14 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     ]);
 
                     await agent.switchLLM(
-                        { provider: pending.provider as LLMProvider, model: pending.model },
+                        {
+                            provider: pending.provider as LLMProvider,
+                            model: pending.model,
+                            ...(pending.baseURL && { baseURL: pending.baseURL }),
+                            ...(pending.reasoningEffort && {
+                                reasoningEffort: pending.reasoningEffort,
+                            }),
+                        },
                         session.id || undefined
                     );
 
