@@ -816,24 +816,23 @@ export class ToolManager {
                 }
                 this.logger.debug(`🎯 MCP routing: '${toolName}' -> '${actualToolName}'`);
 
-                if (meta.runInBackground) {
+                const runInBackground = Boolean(meta.runInBackground && sessionId);
+                if (runInBackground) {
                     const { result: backgroundResult, promise } = registerBackgroundTask(
                         this.mcpManager.executeTool(actualToolName, toolArgs, sessionId),
                         `MCP tool ${actualToolName}`
                     );
-                    if (sessionId) {
-                        this.agentEventBus.emit('tool:background', {
-                            toolName,
-                            toolCallId: backgroundResult.taskId,
-                            sessionId,
-                            description: backgroundResult.description,
-                            promise,
-                            ...(meta.timeoutMs !== undefined && { timeoutMs: meta.timeoutMs }),
-                            ...(meta.notifyOnComplete !== undefined && {
-                                notifyOnComplete: meta.notifyOnComplete,
-                            }),
-                        });
-                    }
+                    this.agentEventBus.emit('tool:background', {
+                        toolName,
+                        toolCallId: backgroundResult.taskId,
+                        sessionId,
+                        description: backgroundResult.description,
+                        promise,
+                        ...(meta.timeoutMs !== undefined && { timeoutMs: meta.timeoutMs }),
+                        ...(meta.notifyOnComplete !== undefined && {
+                            notifyOnComplete: meta.notifyOnComplete,
+                        }),
+                    });
                     result = backgroundResult;
                 } else {
                     result = await this.mcpManager.executeTool(actualToolName, toolArgs, sessionId);
@@ -851,7 +850,8 @@ export class ToolManager {
                 }
                 this.logger.debug(`🎯 Internal routing: '${toolName}' -> '${actualToolName}'`);
 
-                if (meta.runInBackground) {
+                const runInBackground = Boolean(meta.runInBackground && sessionId);
+                if (runInBackground) {
                     const { result: backgroundResult, promise } = registerBackgroundTask(
                         this.internalToolsProvider.executeTool(
                             actualToolName,
@@ -862,19 +862,17 @@ export class ToolManager {
                         ),
                         `Internal tool ${actualToolName}`
                     );
-                    if (sessionId) {
-                        this.agentEventBus.emit('tool:background', {
-                            toolName,
-                            toolCallId: backgroundResult.taskId,
-                            sessionId,
-                            description: backgroundResult.description,
-                            promise,
-                            ...(meta.timeoutMs !== undefined && { timeoutMs: meta.timeoutMs }),
-                            ...(meta.notifyOnComplete !== undefined && {
-                                notifyOnComplete: meta.notifyOnComplete,
-                            }),
-                        });
-                    }
+                    this.agentEventBus.emit('tool:background', {
+                        toolName,
+                        toolCallId: backgroundResult.taskId,
+                        sessionId,
+                        description: backgroundResult.description,
+                        promise,
+                        ...(meta.timeoutMs !== undefined && { timeoutMs: meta.timeoutMs }),
+                        ...(meta.notifyOnComplete !== undefined && {
+                            notifyOnComplete: meta.notifyOnComplete,
+                        }),
+                    });
                     result = backgroundResult;
                 } else {
                     result = await this.internalToolsProvider.executeTool(
@@ -898,7 +896,8 @@ export class ToolManager {
                 }
                 this.logger.debug(`🎯 Custom routing: '${toolName}' -> '${actualToolName}'`);
 
-                if (meta.runInBackground) {
+                const runInBackground = Boolean(meta.runInBackground && sessionId);
+                if (runInBackground) {
                     const { result: backgroundResult, promise } = registerBackgroundTask(
                         this.internalToolsProvider.executeTool(
                             actualToolName,
@@ -909,19 +908,17 @@ export class ToolManager {
                         ),
                         `Custom tool ${actualToolName}`
                     );
-                    if (sessionId) {
-                        this.agentEventBus.emit('tool:background', {
-                            toolName,
-                            toolCallId: backgroundResult.taskId,
-                            sessionId,
-                            description: backgroundResult.description,
-                            promise,
-                            ...(meta.timeoutMs !== undefined && { timeoutMs: meta.timeoutMs }),
-                            ...(meta.notifyOnComplete !== undefined && {
-                                notifyOnComplete: meta.notifyOnComplete,
-                            }),
-                        });
-                    }
+                    this.agentEventBus.emit('tool:background', {
+                        toolName,
+                        toolCallId: backgroundResult.taskId,
+                        sessionId,
+                        description: backgroundResult.description,
+                        promise,
+                        ...(meta.timeoutMs !== undefined && { timeoutMs: meta.timeoutMs }),
+                        ...(meta.notifyOnComplete !== undefined && {
+                            notifyOnComplete: meta.notifyOnComplete,
+                        }),
+                    });
                     result = backgroundResult;
                 } else {
                     result = await this.internalToolsProvider.executeTool(

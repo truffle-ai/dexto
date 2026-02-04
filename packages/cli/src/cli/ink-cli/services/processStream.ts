@@ -173,7 +173,14 @@ export async function processStream(
                 const statusMatch = part.text.match(/<status>([^<]+)<\/status>/);
                 const taskId = taskIdMatch?.[1]?.trim() ?? 'unknown';
                 const status = statusMatch?.[1]?.trim() ?? 'completed';
-                return `Background task ${status} (id: ${taskId})`;
+                const replacement = `Background task ${status} (id: ${taskId})`;
+                const replaced = part.text.replace(
+                    /<background-task-completion>[\s\S]*?<\/background-task-completion>/g,
+                    replacement
+                );
+                return replaced === part.text
+                    ? part.text.replace('<background-task-completion>', replacement)
+                    : replaced;
             })
             .join('\n');
     };

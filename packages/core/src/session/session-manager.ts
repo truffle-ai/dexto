@@ -49,6 +49,8 @@ export interface SessionManagerConfig {
     sessionLoggerFactory?: SessionLoggerFactory;
 }
 
+type PersistedLLMConfig = Omit<ValidatedLLMConfig, 'apiKey'>;
+
 export interface SessionData {
     id: string;
     userId?: string;
@@ -59,7 +61,7 @@ export interface SessionData {
     tokenUsage?: SessionTokenUsage;
     estimatedCost?: number;
     /** Persisted LLM config override for this session */
-    llmOverride?: ValidatedLLMConfig;
+    llmOverride?: PersistedLLMConfig;
 }
 
 /**
@@ -261,10 +263,10 @@ export class SessionManager {
             if (sessionData?.llmOverride) {
                 const { resolveApiKeyForProvider } = await import('../utils/api-key-resolver.js');
                 const apiKey = resolveApiKeyForProvider(sessionData.llmOverride.provider);
-                const restoredConfig = {
+                const restoredConfig: ValidatedLLMConfig = {
                     ...sessionData.llmOverride,
                     apiKey: apiKey ?? '',
-                } as ValidatedLLMConfig;
+                };
                 this.services.stateManager.updateLLM(restoredConfig, id);
             }
 
@@ -390,10 +392,10 @@ export class SessionManager {
                         '../utils/api-key-resolver.js'
                     );
                     const apiKey = resolveApiKeyForProvider(sessionData.llmOverride.provider);
-                    const restoredConfig = {
+                    const restoredConfig: ValidatedLLMConfig = {
                         ...sessionData.llmOverride,
                         apiKey: apiKey ?? '',
-                    } as ValidatedLLMConfig;
+                    };
                     this.services.stateManager.updateLLM(restoredConfig, sessionId);
                 }
 
@@ -821,8 +823,8 @@ export class SessionManager {
             .get<SessionData>(sessionKey);
         if (sessionData) {
             // Store everything except the API key
-            const { apiKey, ...configWithoutApiKey } = newLLMConfig;
-            sessionData.llmOverride = configWithoutApiKey as ValidatedLLMConfig;
+            const { apiKey: _apiKey, ...configWithoutApiKey } = newLLMConfig;
+            sessionData.llmOverride = configWithoutApiKey;
             await this.services.storageManager.getDatabase().set(sessionKey, sessionData);
             // Also update cache for consistency
             await this.services.storageManager

@@ -172,6 +172,17 @@ export class AgentController {
             );
         }
 
+        if (signal.type === 'task:cancelled' && taskInfo) {
+            const cancelReason = taskInfo.cancelReason ?? taskInfo.error ?? 'Cancelled';
+            return (
+                `[Background Task Cancelled]\n` +
+                `Task ID: ${taskInfo.taskId}\n` +
+                `Type: ${taskInfo.type}\n` +
+                `Description: ${taskInfo.description}\n` +
+                `Reason: ${cancelReason}`
+            );
+        }
+
         return `[Background Signal]\n${JSON.stringify(signal, null, 2)}`;
     }
 
