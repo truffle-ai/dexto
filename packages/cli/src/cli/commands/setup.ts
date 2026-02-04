@@ -1285,11 +1285,12 @@ async function promptCustomModelValues(
     if (provider === 'openai-compatible' || provider === 'litellm') {
         const baseURLInput = await p.text({
             message: 'Base URL',
-            initialValue: initialModel?.baseURL ?? '',
+            initialValue: initialModel?.baseURL?.trim() ?? '',
             validate: (value) => {
-                if (!value.trim()) return 'Base URL is required';
+                const trimmed = value.trim();
+                if (!trimmed) return 'Base URL is required';
                 try {
-                    new URL(value);
+                    new URL(trimmed);
                     return undefined;
                 } catch {
                     return 'Base URL must be a valid URL';
