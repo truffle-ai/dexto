@@ -404,7 +404,11 @@ async function handleQuickStart(
                     message: 'Enter model name for OpenRouter',
                     placeholder: 'e.g., anthropic/claude-3.5-sonnet',
                     validate: (value) => {
-                        if (!value.trim()) return 'Model name is required';
+                        const trimmed = value.trim();
+                        if (!trimmed) return 'Model name is required';
+                        if (!/^[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+$/.test(trimmed)) {
+                            return 'Model ID must be in vendor/model format (no spaces)';
+                        }
                         return undefined;
                     },
                 });
