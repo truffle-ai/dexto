@@ -816,16 +816,17 @@ export class ToolManager {
                 }
                 this.logger.debug(`🎯 MCP routing: '${toolName}' -> '${actualToolName}'`);
 
-                const runInBackground = Boolean(meta.runInBackground && sessionId);
+                const runInBackground = meta.runInBackground === true && sessionId !== undefined;
                 if (runInBackground) {
+                    const backgroundSessionId = sessionId;
                     const { result: backgroundResult, promise } = registerBackgroundTask(
-                        this.mcpManager.executeTool(actualToolName, toolArgs, sessionId),
+                        this.mcpManager.executeTool(actualToolName, toolArgs, backgroundSessionId),
                         `MCP tool ${actualToolName}`
                     );
                     this.agentEventBus.emit('tool:background', {
                         toolName,
                         toolCallId: backgroundResult.taskId,
-                        sessionId,
+                        sessionId: backgroundSessionId,
                         description: backgroundResult.description,
                         promise,
                         ...(meta.timeoutMs !== undefined && { timeoutMs: meta.timeoutMs }),
@@ -850,13 +851,14 @@ export class ToolManager {
                 }
                 this.logger.debug(`🎯 Internal routing: '${toolName}' -> '${actualToolName}'`);
 
-                const runInBackground = Boolean(meta.runInBackground && sessionId);
+                const runInBackground = meta.runInBackground === true && sessionId !== undefined;
                 if (runInBackground) {
+                    const backgroundSessionId = sessionId;
                     const { result: backgroundResult, promise } = registerBackgroundTask(
                         this.internalToolsProvider.executeTool(
                             actualToolName,
                             toolArgs,
-                            sessionId,
+                            backgroundSessionId,
                             abortSignal,
                             toolCallId
                         ),
@@ -865,7 +867,7 @@ export class ToolManager {
                     this.agentEventBus.emit('tool:background', {
                         toolName,
                         toolCallId: backgroundResult.taskId,
-                        sessionId,
+                        sessionId: backgroundSessionId,
                         description: backgroundResult.description,
                         promise,
                         ...(meta.timeoutMs !== undefined && { timeoutMs: meta.timeoutMs }),
@@ -896,13 +898,14 @@ export class ToolManager {
                 }
                 this.logger.debug(`🎯 Custom routing: '${toolName}' -> '${actualToolName}'`);
 
-                const runInBackground = Boolean(meta.runInBackground && sessionId);
+                const runInBackground = meta.runInBackground === true && sessionId !== undefined;
                 if (runInBackground) {
+                    const backgroundSessionId = sessionId;
                     const { result: backgroundResult, promise } = registerBackgroundTask(
                         this.internalToolsProvider.executeTool(
                             actualToolName,
                             toolArgs,
-                            sessionId,
+                            backgroundSessionId,
                             abortSignal,
                             toolCallId
                         ),
@@ -911,7 +914,7 @@ export class ToolManager {
                     this.agentEventBus.emit('tool:background', {
                         toolName,
                         toolCallId: backgroundResult.taskId,
-                        sessionId,
+                        sessionId: backgroundSessionId,
                         description: backgroundResult.description,
                         promise,
                         ...(meta.timeoutMs !== undefined && { timeoutMs: meta.timeoutMs }),
