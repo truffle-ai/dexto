@@ -117,7 +117,9 @@ export class AgentController {
 
             // Build context about the completed task
             const taskInfo =
-                signal.type === 'task:completed' || signal.type === 'task:failed'
+                signal.type === 'task:completed' ||
+                signal.type === 'task:failed' ||
+                signal.type === 'task:cancelled'
                     ? this.taskRegistry.getInfo(signal.taskId)
                     : undefined;
 
