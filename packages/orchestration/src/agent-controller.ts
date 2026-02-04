@@ -90,12 +90,7 @@ export class AgentController {
                         this.logger?.debug(`Auto-notify triggered for task ${signal.taskId}`);
                         void this.processNotify(signal).catch((error) => {
                             const message = error instanceof Error ? error.message : String(error);
-                            const signalContext =
-                                signal.type === 'task:completed' ||
-                                signal.type === 'task:failed' ||
-                                signal.type === 'task:cancelled'
-                                    ? `signal.type=${signal.type} taskId=${signal.taskId}`
-                                    : `signal.type=${signal.type}`;
+                            const signalContext = `signal.type=${signal.type} taskId=${signal.taskId}`;
                             this.logger?.error?.(
                                 `AgentController.processNotify failed for ${signalContext}: ${message}`
                             );
@@ -284,7 +279,11 @@ export class AgentController {
                 `[Background Tasks Completed: ${notifyPending.length}]\n` +
                     notifyPending
                         .map((t) => {
-                            const status = t.error ? `FAILED: ${t.error}` : 'SUCCESS';
+                            const status = t.error
+                                ? `FAILED: ${t.error}`
+                                : t.status === 'cancelled'
+                                  ? 'CANCELLED'
+                                  : 'SUCCESS';
                             return `- ${t.taskId}: ${t.description} [${status}]`;
                         })
                         .join('\n')
