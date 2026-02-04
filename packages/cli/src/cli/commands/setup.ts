@@ -406,9 +406,6 @@ async function handleQuickStart(
                     validate: (value) => {
                         const trimmed = value.trim();
                         if (!trimmed) return 'Model name is required';
-                        if (!/^[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+$/.test(trimmed)) {
-                            return 'Model ID must be in vendor/model format (no spaces)';
-                        }
                         return undefined;
                     },
                 });
