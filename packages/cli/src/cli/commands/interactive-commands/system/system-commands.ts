@@ -9,7 +9,6 @@
  * - /config - Show current configuration
  * - /stats - Show system statistics
  * - /stream - Toggle streaming mode for LLM responses
- * - /multitask - Toggle multi-task orchestration (experimental)
  */
 
 import chalk from 'chalk';
@@ -252,28 +251,6 @@ export const systemCommands: CommandDefinition[] = [
         ): Promise<boolean | string> => {
             // Overlay is handled via commandOverlays.ts mapping
             return true;
-        },
-    },
-    {
-        name: 'multitask',
-        description: 'Toggle multi-task orchestration (experimental)',
-        usage: '/multitask',
-        category: 'System',
-        handler: async (
-            _args: string[],
-            agent: DextoAgent,
-            ctx: CommandContext
-        ): Promise<CommandHandlerResult> => {
-            if (!ctx.sessionId) {
-                return formatForInkCli('❌ No active session to toggle.');
-            }
-
-            const nextValue = !agent.isMultiTaskEnabled(ctx.sessionId);
-            agent.setSessionMultiTaskEnabled(ctx.sessionId, nextValue);
-
-            return formatForInkCli(
-                `🧪 Multi-task orchestration ${nextValue ? 'enabled' : 'disabled'} for this session.`
-            );
         },
     },
 ];
