@@ -165,7 +165,16 @@ export async function processStream(
     const extractTextContent = (content: import('@dexto/core').ContentPart[]): string => {
         return content
             .filter((part): part is { type: 'text'; text: string } => part.type === 'text')
-            .map((part) => part.text)
+            .map((part) => {
+                if (!part.text.includes('<background-task-completion>')) {
+                    return part.text;
+                }
+                const taskIdMatch = part.text.match(/<taskId>([^<]+)<\/taskId>/);
+                const statusMatch = part.text.match(/<status>([^<]+)<\/status>/);
+                const taskId = taskIdMatch?.[1]?.trim() ?? 'unknown';
+                const status = statusMatch?.[1]?.trim() ?? 'completed';
+                return `Background task ${status} (id: ${taskId})`;
+            })
             .join('\n');
     };
 
