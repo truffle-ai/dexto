@@ -66,7 +66,13 @@ import McpCustomWizard, {
 import CustomModelWizard, {
     type CustomModelWizardHandle,
 } from '../components/overlays/CustomModelWizard.js';
-import type { CustomModel, ListedPlugin } from '@dexto/agent-management';
+import {
+    getProviderKeyStatus,
+    loadGlobalPreferences,
+    updateGlobalPreferences,
+    type CustomModel,
+    type ListedPlugin,
+} from '@dexto/agent-management';
 import ApiKeyInput, { type ApiKeyInputHandle } from '../components/overlays/ApiKeyInput.js';
 import SearchOverlay, { type SearchOverlayHandle } from '../components/overlays/SearchOverlay.js';
 import PromptList, {
@@ -423,7 +429,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
             return null;
         };
 
-        // Handle model selection
+        // Handle model selection (session-only)
         const handleModelSelect = useCallback(
             async (
                 provider: string,
@@ -432,6 +438,8 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                 baseURL?: string,
                 reasoningEffort?: 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh'
             ) => {
+                // Session-only switch (default is set via explicit action)
+
                 // Pre-check: Dexto provider requires OAuth login AND API key
                 // Check BEFORE closing the overlay so user can pick a different model
                 if (provider === 'dexto') {
@@ -445,7 +453,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                                     id: generateMessageId('system'),
                                     role: 'system',
                                     content:
-                                        '❌ Cannot switch to Dexto model - authentication required. Run /login to authenticate.',
+                                        'Cannot switch to Dexto model - authentication required. Run /login to authenticate.',
                                     timestamp: new Date(),
                                 },
                             ]);
@@ -458,7 +466,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             {
                                 id: generateMessageId('error'),
                                 role: 'system',
-                                content: `❌ Failed to verify Dexto auth: ${error instanceof Error ? error.message : String(error)}`,
+                                content: `Failed to verify Dexto auth: ${error instanceof Error ? error.message : String(error)}`,
                                 timestamp: new Date(),
                             },
                         ]);
@@ -512,6 +520,8 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                                 provider: missingProvider,
                                 model,
                                 ...(displayName && { displayName }),
+                                ...(baseURL && { baseURL }),
+                                ...(reasoningEffort && { reasoningEffort }),
                             },
                         }));
                         setMessages((prev) => [
@@ -531,13 +541,126 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         {
                             id: generateMessageId('error'),
                             role: 'system',
-                            content: `❌ Failed to switch model: ${error instanceof Error ? error.message : String(error)}`,
+                            content: `Failed to switch model: ${error instanceof Error ? error.message : String(error)}`,
                             timestamp: new Date(),
                         },
                     ]);
                 }
             },
             [setUi, setInput, setMessages, setSession, agent, session.id, buffer]
+        );
+
+        const handleSetDefaultModel = useCallback(
+            async (
+                provider: LLMProvider,
+                model: string,
+                displayName?: string,
+                baseURL?: string,
+                reasoningEffort?: 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh'
+            ) => {
+                try {
+                    const preferencesUpdate: {
+                        provider: LLMProvider;
+                        model: string;
+                        baseURL?: string;
+                        reasoningEffort?: 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
+                        apiKey?: string;
+                    } = {
+                        provider,
+                        model,
+                        ...(baseURL ? { baseURL } : {}),
+                        ...(reasoningEffort ? { reasoningEffort } : {}),
+                    };
+
+                    let providerEnvVar: string | undefined;
+                    try {
+                        const providerKeyStatus = await getProviderKeyStatus(provider);
+                        providerEnvVar = providerKeyStatus?.envVar;
+                    } catch (error) {
+                        agent.logger.debug(
+                            `Failed to resolve provider API key env var: ${
+                                error instanceof Error ? error.message : String(error)
+                            }`
+                        );
+                    }
+
+                    let existing = null;
+                    try {
+                        existing = await loadGlobalPreferences();
+                    } catch {
+                        existing = null;
+                    }
+
+                    // Only preserve the API key if the provider hasn't changed
+                    // If provider changed, use the new provider's env var
+                    if (existing?.llm.provider === provider && existing?.llm.apiKey) {
+                        preferencesUpdate.apiKey = existing.llm.apiKey;
+                    } else if (providerEnvVar) {
+                        preferencesUpdate.apiKey = '$' + providerEnvVar;
+                    }
+
+                    await updateGlobalPreferences({
+                        llm: preferencesUpdate,
+                    });
+
+                    try {
+                        await agent.switchLLM(
+                            { provider: provider as LLMProvider, model, baseURL, reasoningEffort },
+                            session.id || undefined
+                        );
+                        setSession((prev) => ({ ...prev, modelName: displayName || model }));
+
+                        setMessages((prev) => [
+                            ...prev,
+                            {
+                                id: generateMessageId('system'),
+                                role: 'system',
+                                content: `✅ Default model set to ${displayName || model} (${provider})`,
+                                timestamp: new Date(),
+                            },
+                        ]);
+                    } catch (error) {
+                        const missingProvider = isApiKeyMissingError(error);
+                        if (missingProvider) {
+                            setUi((prev) => ({
+                                ...prev,
+                                activeOverlay: 'api-key-input',
+                                pendingModelSwitch: {
+                                    provider: missingProvider,
+                                    model,
+                                    ...(displayName && { displayName }),
+                                    ...(baseURL && { baseURL }),
+                                    ...(reasoningEffort && { reasoningEffort }),
+                                },
+                            }));
+                            setMessages((prev) => [
+                                ...prev,
+                                {
+                                    id: generateMessageId('system'),
+                                    role: 'system',
+                                    content: `🔑 API key required for ${provider}`,
+                                    timestamp: new Date(),
+                                },
+                            ]);
+                            return;
+                        }
+                        throw error;
+                    }
+                } catch (error) {
+                    setMessages((prev) => [
+                        ...prev,
+                        {
+                            id: generateMessageId('error'),
+                            role: 'system',
+                            content: `Failed to set default model: ${
+                                error instanceof Error ? error.message : String(error)
+                            }`,
+                            timestamp: new Date(),
+                        },
+                    ]);
+                }
+            },
+            [agent, setMessages, setSession, setUi, session.id]
         );
 
         // State for editing custom model
@@ -646,7 +769,14 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     ]);
 
                     await agent.switchLLM(
-                        { provider: pending.provider as LLMProvider, model: pending.model },
+                        {
+                            provider: pending.provider as LLMProvider,
+                            model: pending.model,
+                            ...(pending.baseURL && { baseURL: pending.baseURL }),
+                            ...(pending.reasoningEffort && {
+                                reasoningEffort: pending.reasoningEffort,
+                            }),
+                        },
                         session.id || undefined
                     );
 
@@ -668,7 +798,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         {
                             id: generateMessageId('error'),
                             role: 'system',
-                            content: `❌ Failed to switch model: ${error instanceof Error ? error.message : String(error)}`,
+                            content: `Failed to switch model: ${error instanceof Error ? error.message : String(error)}`,
                             timestamp: new Date(),
                         },
                     ]);
@@ -820,7 +950,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         {
                             id: generateMessageId('error'),
                             role: 'system',
-                            content: `❌ Failed to switch session: ${error instanceof Error ? error.message : String(error)}`,
+                            content: `Failed to switch session: ${error instanceof Error ? error.message : String(error)}`,
                             timestamp: new Date(),
                         },
                     ]);
@@ -916,7 +1046,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         {
                             id: generateMessageId('error'),
                             role: 'system',
-                            content: `❌ ${error instanceof Error ? error.message : String(error)}`,
+                            content: `${error instanceof Error ? error.message : String(error)}`,
                             timestamp: new Date(),
                         },
                     ]);
@@ -1011,7 +1141,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         {
                             id: generateMessageId('error'),
                             role: 'system',
-                            content: `❌ ${error instanceof Error ? error.message : String(error)}`,
+                            content: `${error instanceof Error ? error.message : String(error)}`,
                             timestamp: new Date(),
                         },
                     ]);
@@ -1242,7 +1372,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             {
                                 id: generateMessageId('error'),
                                 role: 'system',
-                                content: `❌ Failed to ${action.type} server: ${errorMessage}`,
+                                content: `Failed to ${action.type} server: ${errorMessage}`,
                                 timestamp: new Date(),
                             },
                         ]);
@@ -1275,7 +1405,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             {
                                 id: generateMessageId('error'),
                                 role: 'system',
-                                content: `❌ Failed to authenticate server: ${error instanceof Error ? error.message : String(error)}`,
+                                content: `Failed to authenticate server: ${error instanceof Error ? error.message : String(error)}`,
                                 timestamp: new Date(),
                             },
                         ]);
@@ -1322,7 +1452,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             {
                                 id: generateMessageId('error'),
                                 role: 'system',
-                                content: `❌ Failed to delete server: ${error instanceof Error ? error.message : String(error)}`,
+                                content: `Failed to delete server: ${error instanceof Error ? error.message : String(error)}`,
                                 timestamp: new Date(),
                             },
                         ]);
@@ -1409,7 +1539,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         {
                             id: generateMessageId('system'),
                             role: 'system',
-                            content: `❌ Failed to connect: ${error instanceof Error ? error.message : String(error)}`,
+                            content: `Failed to connect: ${error instanceof Error ? error.message : String(error)}`,
                             timestamp: new Date(),
                         },
                     ]);
@@ -1500,7 +1630,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         {
                             id: generateMessageId('system'),
                             role: 'system',
-                            content: `❌ Failed to connect: ${error instanceof Error ? error.message : String(error)}`,
+                            content: `Failed to connect: ${error instanceof Error ? error.message : String(error)}`,
                             timestamp: new Date(),
                         },
                     ]);
@@ -1723,7 +1853,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         {
                             id: generateMessageId('error'),
                             role: 'system',
-                            content: `❌ ${error instanceof Error ? error.message : String(error)}`,
+                            content: `${error instanceof Error ? error.message : String(error)}`,
                             timestamp: new Date(),
                         },
                     ]);
@@ -1950,7 +2080,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         {
                             id: generateMessageId('error'),
                             role: 'system',
-                            content: `❌ Failed to create prompt: ${error instanceof Error ? error.message : String(error)}`,
+                            content: `Failed to create prompt: ${error instanceof Error ? error.message : String(error)}`,
                             timestamp: new Date(),
                         },
                     ]);
@@ -2026,7 +2156,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         {
                             id: generateMessageId('error'),
                             role: 'system',
-                            content: `❌ Failed to delete prompt: ${error instanceof Error ? error.message : String(error)}`,
+                            content: `Failed to delete prompt: ${error instanceof Error ? error.message : String(error)}`,
                             timestamp: new Date(),
                         },
                     ]);
@@ -2106,7 +2236,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         {
                             id: generateMessageId('error'),
                             role: 'system',
-                            content: `❌ Failed to rename session: ${error instanceof Error ? error.message : String(error)}`,
+                            content: `Failed to rename session: ${error instanceof Error ? error.message : String(error)}`,
                             timestamp: new Date(),
                         },
                     ]);
@@ -2172,6 +2302,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             ref={modelSelectorRef}
                             isVisible={true}
                             onSelectModel={handleModelSelect}
+                            onSetDefaultModel={handleSetDefaultModel}
                             onClose={handleClose}
                             onAddCustomModel={handleAddCustomModel}
                             onEditCustomModel={handleEditCustomModel}

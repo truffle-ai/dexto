@@ -558,7 +558,7 @@ export function createErrorMessage(error: Error | string): Message {
     return {
         id: generateMessageId('error'),
         role: 'system',
-        content: `❌ Error: ${content}`,
+        content: `Error: ${content}`,
         timestamp: new Date(),
     };
 }

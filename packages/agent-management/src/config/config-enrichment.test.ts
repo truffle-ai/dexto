@@ -16,7 +16,7 @@ vi.mock('../plugins/index.js', () => ({
 
 // Import after mock is set up
 import { enrichAgentConfig } from './config-enrichment.js';
-import { discoverCommandPrompts } from './discover-prompts.js';
+import { discoverAgentInstructionFile, discoverCommandPrompts } from './discover-prompts.js';
 
 // TODO: Add more comprehensive tests for config-enrichment:
 // - Test path resolution for per-agent logs, database, blobs
@@ -26,6 +26,8 @@ describe('enrichAgentConfig', () => {
     beforeEach(() => {
         vi.mocked(discoverCommandPrompts).mockReset();
         vi.mocked(discoverCommandPrompts).mockReturnValue([]);
+        vi.mocked(discoverAgentInstructionFile).mockReset();
+        vi.mocked(discoverAgentInstructionFile).mockReturnValue(null);
     });
 
     describe('logger defaults', () => {
@@ -71,6 +73,25 @@ describe('enrichAgentConfig', () => {
     });
 
     describe('prompt deduplication', () => {
+        it('should allow disabling instruction file discovery', () => {
+            vi.mocked(discoverAgentInstructionFile).mockReturnValue('/test/AGENTS.md');
+
+            const baseConfig: AgentConfig = {
+                llm: {
+                    provider: 'openai',
+                    model: 'gpt-5',
+                    apiKey: 'test-key',
+                },
+                systemPrompt: 'You are a helpful assistant.',
+                agentFile: { discoverInCwd: false },
+            };
+
+            const enriched = enrichAgentConfig(baseConfig, 'test-agent');
+
+            expect(enriched.systemPrompt).toBe('You are a helpful assistant.');
+            expect(discoverAgentInstructionFile).not.toHaveBeenCalled();
+        });
+
         it('should deduplicate when same file path exists in config and discovered prompts', () => {
             // Setup: discovered prompts include a file that's also in config
             const sharedFilePath = '/projects/myapp/commands/shared-prompt.md';

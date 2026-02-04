@@ -133,6 +133,7 @@ export const PROVIDER_CONFIGS: Record<CustomModelProvider, ProviderConfig> = {
                 validate: validators.slashFormat,
             },
             { ...DISPLAY_NAME_STEP, placeholder: 'e.g., Claude 3.5 Sonnet' },
+            MAX_INPUT_TOKENS_STEP,
             REASONING_EFFORT_STEP,
             {
                 ...API_KEY_STEP,
@@ -146,6 +147,9 @@ export const PROVIDER_CONFIGS: Record<CustomModelProvider, ProviderConfig> = {
             };
             if (values.displayName?.trim()) {
                 model.displayName = values.displayName.trim();
+            }
+            if (values.maxInputTokens?.trim()) {
+                model.maxInputTokens = parseInt(values.maxInputTokens, 10);
             }
             if (values.reasoningEffort?.trim()) {
                 model.reasoningEffort =
@@ -478,6 +482,9 @@ export const PROVIDER_CONFIGS: Record<CustomModelProvider, ProviderConfig> = {
             };
             if (values.displayName?.trim()) {
                 model.displayName = values.displayName.trim();
+            }
+            if (values.maxInputTokens?.trim()) {
+                model.maxInputTokens = parseInt(values.maxInputTokens, 10);
             }
             if (values.reasoningEffort?.trim()) {
                 model.reasoningEffort =

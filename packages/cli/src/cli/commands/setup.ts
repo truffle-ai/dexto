@@ -23,6 +23,10 @@ import {
     updateGlobalPreferences,
     setActiveModel,
     isDextoAuthEnabled,
+    loadCustomModels,
+    saveCustomModel,
+    deleteCustomModel,
+    type CustomModel,
     type CreatePreferencesOptions,
 } from '@dexto/agent-management';
 import { interactiveApiKeySetup, hasApiKeyConfigured } from '../utils/api-key-setup.js';
@@ -283,6 +287,11 @@ async function handleQuickStart(
                     hint: 'Free, ultra-fast',
                 },
                 {
+                    value: 'openrouter' as const,
+                    label: `${chalk.green('●')} OpenRouter (Free)`,
+                    hint: 'Use free-tier models via OpenRouter',
+                },
+                {
                     value: 'local' as const,
                     label: `${chalk.cyan('●')} Local Models`,
                     hint: 'Free, private, runs on your machine',
@@ -359,11 +368,63 @@ async function handleQuickStart(
             return 'completed';
         }
 
-        // Cloud provider flow (google or groq)
+        // Cloud provider flow (google, groq, openrouter)
         const provider: LLMProvider = quickProvider;
-        const model =
-            getDefaultModelForProvider(provider) ||
-            (provider === 'google' ? 'gemini-2.5-pro' : 'llama-3.3-70b-versatile');
+        let model: string;
+        if (provider === 'openrouter') {
+            const selected = await p.select({
+                message: 'Select a model for OpenRouter',
+                options: [
+                    {
+                        value: 'openrouter/free' as const,
+                        label: 'OpenRouter Free Models',
+                        hint: 'Free-tier access via OpenRouter',
+                    },
+                    {
+                        value: 'custom' as const,
+                        label: 'Enter a model ID',
+                        hint: 'e.g., anthropic/claude-3.5-sonnet',
+                    },
+                    { value: '_back' as const, label: chalk.gray('← Back'), hint: 'Return' },
+                ],
+            });
+
+            if (p.isCancel(selected) || selected === '_back') {
+                if (options.onCancel === 'exit') {
+                    p.cancel('Setup cancelled');
+                    return 'cancelled';
+                }
+                continue;
+            }
+
+            if (selected === 'openrouter/free') {
+                model = 'openrouter/free';
+            } else {
+                const modelInput = await p.text({
+                    message: 'Enter model name for OpenRouter',
+                    placeholder: 'e.g., anthropic/claude-3.5-sonnet',
+                    validate: (value) => {
+                        const trimmed = typeof value === 'string' ? value.trim() : '';
+                        if (!trimmed) return 'Model name is required';
+                        return undefined;
+                    },
+                });
+
+                if (p.isCancel(modelInput)) {
+                    if (options.onCancel === 'exit') {
+                        p.cancel('Setup cancelled');
+                        return 'cancelled';
+                    }
+                    continue;
+                }
+
+                model = modelInput.trim();
+            }
+        } else {
+            model =
+                getDefaultModelForProvider(provider) ||
+                (provider === 'google' ? 'gemini-2.5-pro' : 'llama-3.3-70b-versatile');
+        }
         const apiKeyVar = getProviderEnvVar(provider);
         let apiKeySkipped = false;
 
@@ -789,12 +850,13 @@ async function wizardStepModel(state: SetupWizardState): Promise<SetupWizardStat
     }
 
     // Cloud provider model selection with back option
-    const model = await selectModelWithBack(provider);
+    const selection = await selectModelWithBack(provider);
 
-    if (model === '_back') {
+    if (selection === '_back') {
         return { ...state, step: 'provider', model: undefined, baseURL: undefined };
     }
 
+    const model = selection.model;
     // Check if model supports reasoning effort
     const nextStep = isReasoningCapableModel(model) ? 'reasoningEffort' : 'apiKey';
     return { ...state, step: nextStep, model, baseURL };
@@ -914,11 +976,67 @@ async function wizardStepMode(state: SetupWizardState): Promise<SetupWizardState
 /**
  * Select model with back option
  */
-async function selectModelWithBack(provider: LLMProvider): Promise<string | '_back'> {
+async function selectModelWithBack(
+    provider: LLMProvider
+): Promise<{ model: string; isCustomSelection?: boolean } | '_back'> {
     const providerInfo = LLM_REGISTRY[provider];
 
     if (providerInfo?.models && providerInfo.models.length > 0) {
         const curatedModels = getCuratedModelsForProvider(provider);
+
+        if (provider === 'openrouter') {
+            const curatedOptions = curatedModels
+                .slice(0, 8)
+                .filter((m) => m.name !== 'openrouter/free')
+                .map((m) => ({
+                    value: m.name,
+                    label: m.displayName || m.name,
+                }));
+
+            if (supportsCustomModels(provider)) {
+                p.log.info(chalk.gray('Tip: You can add or edit custom models via /model'));
+
+                const manageCustomModels = await p.confirm({
+                    message: 'Manage custom models now?',
+                    initialValue: false,
+                });
+
+                if (p.isCancel(manageCustomModels)) {
+                    return '_back';
+                }
+
+                if (manageCustomModels) {
+                    const customModel = await handleCustomModelManagement(provider);
+                    if (customModel) {
+                        return { model: customModel, isCustomSelection: true };
+                    }
+                }
+            }
+
+            const result = await p.select({
+                message: `Select a model for ${getProviderDisplayName(provider)}`,
+                options: [
+                    {
+                        value: 'openrouter/free' as const,
+                        label: 'OpenRouter Free Models',
+                        hint: '(recommended)',
+                    },
+                    ...curatedOptions,
+                    {
+                        value: '_back' as const,
+                        label: chalk.gray('← Back'),
+                        hint: 'Change provider',
+                    },
+                ],
+            });
+
+            if (p.isCancel(result)) {
+                return '_back';
+            }
+
+            return { model: result as string };
+        }
+
         const defaultModel =
             curatedModels.find((m) => m.default) ??
             providerInfo.models.find((m) => m.default) ??
@@ -938,7 +1056,23 @@ async function selectModelWithBack(provider: LLMProvider): Promise<string | '_ba
             }));
 
         if (supportsCustomModels(provider)) {
-            p.log.info(chalk.gray('Tip: You can add custom model IDs later via /models'));
+            p.log.info(chalk.gray('Tip: You can add or edit custom models via /model'));
+
+            const manageCustomModels = await p.confirm({
+                message: 'Manage custom models now?',
+                initialValue: false,
+            });
+
+            if (p.isCancel(manageCustomModels)) {
+                return '_back';
+            }
+
+            if (manageCustomModels) {
+                const customModel = await handleCustomModelManagement(provider);
+                if (customModel) {
+                    return { model: customModel, isCustomSelection: true };
+                }
+            }
         }
 
         const result = await p.select({
@@ -962,7 +1096,7 @@ async function selectModelWithBack(provider: LLMProvider): Promise<string | '_ba
             return '_back';
         }
 
-        return result as string | '_back';
+        return { model: result as string };
     }
 
     // For providers that accept any model, show text input with back hint
@@ -972,7 +1106,8 @@ async function selectModelWithBack(provider: LLMProvider): Promise<string | '_ba
         message: `Enter model name for ${getProviderDisplayName(provider)}`,
         placeholder: defaultModel || 'e.g., gpt-4-turbo',
         validate: (value) => {
-            if (!value.trim()) return 'Model name is required';
+            const trimmed = typeof value === 'string' ? value.trim() : '';
+            if (!trimmed) return 'Model name is required';
             return undefined;
         },
     });
@@ -981,12 +1116,302 @@ async function selectModelWithBack(provider: LLMProvider): Promise<string | '_ba
         return '_back';
     }
 
-    return model as string;
+    return { model: typeof model === 'string' ? model.trim() : '' };
 }
 
 /**
  * Select default mode with back option
  */
+async function handleCustomModelManagement(providerOverride?: LLMProvider): Promise<string | null> {
+    const models = await loadCustomModels();
+
+    const choices = [
+        { value: 'add' as const, label: 'Add custom model' },
+        ...(models.length > 0 ? [{ value: 'edit' as const, label: 'Edit custom model' }] : []),
+        ...(models.length > 0 ? [{ value: 'delete' as const, label: 'Delete custom model' }] : []),
+        { value: 'back' as const, label: 'Back' },
+    ];
+
+    const action = await p.select({
+        message: 'Custom models',
+        options: choices,
+    });
+
+    if (p.isCancel(action) || action === 'back') {
+        return null;
+    }
+
+    if (action === 'add') {
+        const created = await runCustomModelWizard(null, providerOverride);
+        return created?.name ?? null;
+    }
+
+    if (action === 'edit') {
+        const selected = await selectCustomModel(models);
+        if (!selected) {
+            return null;
+        }
+        const updated = await runCustomModelWizard(selected, providerOverride);
+        return updated?.name ?? null;
+    }
+
+    if (action === 'delete') {
+        const model = await selectCustomModel(models);
+        if (!model) {
+            return null;
+        }
+        const confirm = await p.confirm({
+            message: `Delete custom model "${model.displayName || model.name}"?`,
+            initialValue: false,
+        });
+        if (p.isCancel(confirm) || !confirm) {
+            return null;
+        }
+        await deleteCustomModel(model.name);
+        p.log.success(`Deleted ${model.displayName || model.name}`);
+        return null;
+    }
+
+    return null;
+}
+
+async function selectCustomModel(models: CustomModel[]): Promise<CustomModel | null> {
+    if (models.length === 0) {
+        p.log.info('No custom models available.');
+        return null;
+    }
+
+    const selection = await p.select({
+        message: 'Select a custom model',
+        options: models.map((model) => ({
+            value: model.name,
+            label: model.displayName || model.name,
+        })),
+    });
+
+    if (p.isCancel(selection)) {
+        return null;
+    }
+
+    return models.find((model) => model.name === selection) ?? null;
+}
+
+async function runCustomModelWizard(
+    initialModel?: CustomModel | null,
+    providerOverride?: LLMProvider
+): Promise<CustomModel | null> {
+    const values = await promptCustomModelValues(initialModel ?? null, providerOverride);
+    if (!values) {
+        return null;
+    }
+
+    const model: CustomModel = {
+        name: values.name,
+        provider: values.provider,
+        ...(values.baseURL ? { baseURL: values.baseURL } : {}),
+        ...(values.displayName ? { displayName: values.displayName } : {}),
+        ...(values.maxInputTokens ? { maxInputTokens: values.maxInputTokens } : {}),
+        ...(values.apiKey ? { apiKey: values.apiKey } : {}),
+        ...(values.filePath ? { filePath: values.filePath } : {}),
+        ...(values.reasoningEffort ? { reasoningEffort: values.reasoningEffort } : {}),
+    };
+
+    await saveCustomModel(model);
+    if (initialModel && initialModel.name !== model.name) {
+        await deleteCustomModel(initialModel.name);
+    }
+    p.log.success(`${initialModel ? 'Updated' : 'Saved'} ${model.displayName || model.name}`);
+    return model;
+}
+
+async function promptCustomModelValues(
+    initialModel: CustomModel | null,
+    providerOverride?: LLMProvider
+): Promise<{
+    name: string;
+    provider: CustomModel['provider'];
+    baseURL?: string;
+    displayName?: string;
+    maxInputTokens?: number;
+    apiKey?: string;
+    filePath?: string;
+    reasoningEffort?: CustomModel['reasoningEffort'];
+} | null> {
+    const providers = [
+        'openai-compatible',
+        'openrouter',
+        'litellm',
+        'glama',
+        'bedrock',
+        'ollama',
+        'local',
+        'vertex',
+        ...(isDextoAuthEnabled() ? ['dexto'] : []),
+    ] as const;
+
+    const effectiveProvider = initialModel?.provider ?? providerOverride;
+
+    let provider: CustomModel['provider'] | symbol;
+    if (effectiveProvider) {
+        provider = effectiveProvider as CustomModel['provider'];
+    } else {
+        provider = (await p.select({
+            message: 'Custom model provider',
+            options: providers.map((value) => ({ value, label: value })),
+            initialValue: 'openai-compatible',
+        })) as CustomModel['provider'] | symbol;
+
+        if (p.isCancel(provider)) {
+            return null;
+        }
+    }
+
+    const name = await p.text({
+        message: 'Model name',
+        initialValue: initialModel?.name ?? '',
+        validate: (value) => {
+            const trimmed = typeof value === 'string' ? value.trim() : '';
+            return trimmed ? undefined : 'Model name is required';
+        },
+    });
+
+    if (p.isCancel(name)) {
+        return null;
+    }
+
+    const trimmedName = typeof name === 'string' ? name.trim() : '';
+    if (provider === 'openrouter' || provider === 'glama' || provider === 'dexto') {
+        const isValidFormat = trimmedName.includes('/');
+        if (!isValidFormat) {
+            p.log.warn('Model name should include a provider prefix, e.g. anthropic/claude-3.5');
+        }
+    }
+
+    const displayName = await p.text({
+        message: 'Display name (optional)',
+        initialValue: initialModel?.displayName ?? '',
+    });
+
+    if (p.isCancel(displayName)) {
+        return null;
+    }
+
+    let baseURL: string | undefined;
+    if (provider === 'openai-compatible' || provider === 'litellm') {
+        const baseURLInput = await p.text({
+            message: 'Base URL',
+            initialValue: initialModel?.baseURL?.trim() ?? '',
+            validate: (value) => {
+                const trimmed = typeof value === 'string' ? value.trim() : '';
+                if (!trimmed) return 'Base URL is required';
+                try {
+                    new URL(trimmed);
+                    return undefined;
+                } catch {
+                    return 'Base URL must be a valid URL';
+                }
+            },
+        });
+        if (p.isCancel(baseURLInput)) {
+            return null;
+        }
+        const baseURLValue = typeof baseURLInput === 'string' ? baseURLInput.trim() : '';
+        baseURL = baseURLValue || undefined;
+    }
+
+    const maxInputTokensInput = await p.text({
+        message: 'Max input tokens (optional)',
+        initialValue: initialModel?.maxInputTokens?.toString() ?? '',
+        validate: (value) => {
+            const trimmed = typeof value === 'string' ? value.trim() : '';
+            if (!trimmed) return undefined;
+            const parsed = Number(value);
+            if (!Number.isInteger(parsed) || parsed <= 0) {
+                return 'Enter a positive integer';
+            }
+            return undefined;
+        },
+    });
+
+    if (p.isCancel(maxInputTokensInput)) {
+        return null;
+    }
+
+    let apiKey: string | undefined;
+    if (provider !== 'bedrock' && provider !== 'vertex') {
+        const apiKeyInput = await p.text({
+            message: 'API key (optional)',
+            initialValue: initialModel?.apiKey ?? '',
+        });
+
+        if (p.isCancel(apiKeyInput)) {
+            return null;
+        }
+
+        const apiKeyValue = typeof apiKeyInput === 'string' ? apiKeyInput.trim() : '';
+        apiKey = apiKeyValue || undefined;
+    }
+
+    let filePath: string | undefined;
+    if (provider === 'local') {
+        const filePathInput = await p.text({
+            message: 'GGUF file path',
+            initialValue: initialModel?.filePath ?? '',
+            validate: (value) => {
+                const trimmed = typeof value === 'string' ? value.trim() : '';
+                if (!trimmed) return 'File path is required';
+                if (!trimmed.toLowerCase().endsWith('.gguf')) {
+                    return 'File path must end with .gguf';
+                }
+                return undefined;
+            },
+        });
+        if (p.isCancel(filePathInput)) {
+            return null;
+        }
+        const filePathValue = typeof filePathInput === 'string' ? filePathInput.trim() : '';
+        filePath = filePathValue || undefined;
+    }
+
+    const reasoningEffort = await p.text({
+        message: 'Reasoning effort (optional)',
+        initialValue: initialModel?.reasoningEffort?.toLowerCase() ?? '',
+        validate: (value) => {
+            const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
+            if (!normalized) return undefined;
+            const validValues = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh'];
+            if (!validValues.includes(normalized)) {
+                return `Use: ${validValues.join(', ')}`;
+            }
+            return undefined;
+        },
+    });
+
+    if (p.isCancel(reasoningEffort)) {
+        return null;
+    }
+
+    const trimmedDisplayName = typeof displayName === 'string' ? displayName.trim() : '';
+    const trimmedApiKey = typeof apiKey === 'string' ? apiKey.trim() : '';
+    const trimmedReasoningEffort =
+        typeof reasoningEffort === 'string' ? reasoningEffort.trim().toLowerCase() : '';
+    const trimmedMaxInputTokens =
+        typeof maxInputTokensInput === 'string' ? maxInputTokensInput.trim() : '';
+
+    return {
+        name: trimmedName,
+        provider,
+        ...(baseURL ? { baseURL } : {}),
+        ...(trimmedDisplayName ? { displayName: trimmedDisplayName } : {}),
+        ...(trimmedMaxInputTokens ? { maxInputTokens: Number(trimmedMaxInputTokens) } : {}),
+        ...(trimmedApiKey ? { apiKey: trimmedApiKey } : {}),
+        ...(filePath ? { filePath } : {}),
+        ...(trimmedReasoningEffort
+            ? { reasoningEffort: trimmedReasoningEffort as CustomModel['reasoningEffort'] }
+            : {}),
+    };
+}
+
 async function selectDefaultModeWithBack(): Promise<
     'cli' | 'web' | 'server' | 'discord' | 'telegram' | 'mcp' | '_back'
 > {
@@ -1605,6 +2030,56 @@ async function selectModel(provider: LLMProvider): Promise<string | null> {
     // For providers with a fixed model list
     if (providerInfo?.models && providerInfo.models.length > 0) {
         const curatedModels = getCuratedModelsForProvider(provider);
+
+        if (provider === 'openrouter') {
+            const curatedOptions = curatedModels
+                .slice(0, 8)
+                .filter((m) => m.name !== 'openrouter/free')
+                .map((m) => ({
+                    value: m.name,
+                    label: m.displayName || m.name,
+                }));
+
+            if (supportsCustomModels(provider)) {
+                p.log.info(chalk.gray('Tip: You can add or edit custom models via /model'));
+
+                const manageCustomModels = await p.confirm({
+                    message: 'Manage custom models now?',
+                    initialValue: false,
+                });
+
+                if (p.isCancel(manageCustomModels)) {
+                    return null;
+                }
+
+                if (manageCustomModels) {
+                    const customModel = await handleCustomModelManagement(provider);
+                    if (customModel) {
+                        return customModel;
+                    }
+                }
+            }
+
+            const selected = await p.select({
+                message: `Select a model for ${getProviderDisplayName(provider)}`,
+                options: [
+                    {
+                        value: 'openrouter/free' as const,
+                        label: 'OpenRouter Free Models',
+                        hint: '(recommended)',
+                    },
+                    ...curatedOptions,
+                ],
+                initialValue: 'openrouter/free',
+            });
+
+            if (p.isCancel(selected)) {
+                return null;
+            }
+
+            return selected as string;
+        }
+
         const defaultModel =
             curatedModels.find((m) => m.default) ??
             providerInfo.models.find((m) => m.default) ??
@@ -1623,7 +2098,23 @@ async function selectModel(provider: LLMProvider): Promise<string | null> {
             }));
 
         if (supportsCustomModels(provider)) {
-            p.log.info(chalk.gray('Tip: You can add custom model IDs later via /models'));
+            p.log.info(chalk.gray('Tip: You can add or edit custom models via /model'));
+
+            const manageCustomModels = await p.confirm({
+                message: 'Manage custom models now?',
+                initialValue: false,
+            });
+
+            if (p.isCancel(manageCustomModels)) {
+                return null;
+            }
+
+            if (manageCustomModels) {
+                const customModel = await handleCustomModelManagement(provider);
+                if (customModel) {
+                    return customModel;
+                }
+            }
         }
 
         const selected = await p.select({
@@ -1652,7 +2143,8 @@ async function selectModel(provider: LLMProvider): Promise<string | null> {
         placeholder:
             provider === 'openrouter' ? 'e.g., anthropic/claude-3.5-sonnet' : 'e.g., llama-3-70b',
         validate: (value) => {
-            if (!value || value.trim().length === 0) {
+            const trimmed = typeof value === 'string' ? value.trim() : '';
+            if (!trimmed) {
                 return 'Model name is required';
             }
             return undefined;
@@ -1660,6 +2152,10 @@ async function selectModel(provider: LLMProvider): Promise<string | null> {
     });
 
     if (p.isCancel(modelInput)) {
+        return null;
+    }
+
+    if (typeof modelInput !== 'string') {
         return null;
     }
 
@@ -1684,11 +2180,12 @@ async function promptForBaseURL(provider: LLMProvider): Promise<string | null> {
         message: `Enter base URL for ${getProviderDisplayName(provider)}`,
         placeholder,
         validate: (value) => {
-            if (!value || value.trim().length === 0) {
+            const trimmed = typeof value === 'string' ? value.trim() : '';
+            if (!trimmed) {
                 return 'Base URL is required for this provider';
             }
             try {
-                new URL(value.trim());
+                new URL(trimmed);
             } catch {
                 return 'Please enter a valid URL';
             }
@@ -1700,7 +2197,7 @@ async function promptForBaseURL(provider: LLMProvider): Promise<string | null> {
         return null;
     }
 
-    return baseURL.trim();
+    return typeof baseURL === 'string' ? baseURL.trim() : '';
 }
 
 /**

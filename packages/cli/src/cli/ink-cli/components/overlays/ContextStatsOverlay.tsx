@@ -302,7 +302,7 @@ const ContextStatsOverlay = forwardRef<ContextStatsOverlayHandle, ContextStatsOv
                     paddingY={1}
                 >
                     <Text color="red" bold>
-                        ❌ Error
+                        Error
                     </Text>
                     <Text color="gray">{error}</Text>
                     <Box marginTop={1}>

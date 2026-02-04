@@ -303,9 +303,12 @@ export function enrichAgentConfig(
         }
     }
 
+    const shouldDiscoverAgentInstructions =
+        config.agentFile?.discoverInCwd !== undefined ? config.agentFile.discoverInCwd : true;
+
     // Discover agent instruction file (AGENTS.md, CLAUDE.md, GEMINI.md) in cwd
     // Add as a file contributor to system prompt if found
-    const instructionFile = discoverAgentInstructionFile();
+    const instructionFile = shouldDiscoverAgentInstructions ? discoverAgentInstructionFile() : null;
     if (instructionFile) {
         // Add file contributor to system prompt config
         // Use a low priority (5) so it runs early but after any base prompt

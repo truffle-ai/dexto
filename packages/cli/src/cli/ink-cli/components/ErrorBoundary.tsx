@@ -38,7 +38,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
             return (
                 <Box flexDirection="column" padding={1} borderStyle="round" borderColor="red">
                     <Text color="red" bold>
-                        ❌ CLI Error
+                        CLI Error
                     </Text>
                     <Text color="red">{this.state.error?.message || 'Unknown error'}</Text>
                     <Text color="yellowBright">Press Ctrl+C to exit</Text>

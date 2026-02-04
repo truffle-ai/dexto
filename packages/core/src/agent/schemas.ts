@@ -366,6 +366,19 @@ export function createAgentConfigSchema(options: LLMValidationOptions = {}) {
                 'Memory configuration for system prompt inclusion (optional feature)'
             ).optional(),
 
+            agentFile: z
+                .object({
+                    discoverInCwd: z
+                        .boolean()
+                        .default(true)
+                        .describe(
+                            'Whether to discover AGENTS.md/CLAUDE.md/GEMINI.md in the current working directory and include it in the system prompt'
+                        ),
+                })
+                .strict()
+                .default({})
+                .describe('Agent instruction file discovery configuration'),
+
             image: z
                 .string()
                 .describe(
