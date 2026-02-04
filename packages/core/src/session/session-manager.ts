@@ -263,11 +263,18 @@ export class SessionManager {
             if (sessionData?.llmOverride) {
                 const { resolveApiKeyForProvider } = await import('../utils/api-key-resolver.js');
                 const apiKey = resolveApiKeyForProvider(sessionData.llmOverride.provider);
-                const restoredConfig: ValidatedLLMConfig = {
-                    ...sessionData.llmOverride,
-                    apiKey: apiKey ?? '',
-                };
-                this.services.stateManager.updateLLM(restoredConfig, id);
+                if (!apiKey) {
+                    this.logger.warn(
+                        `Skipped LLM override restore for session ${id}: missing API key for provider ${sessionData.llmOverride.provider}`,
+                        { sessionId: id, provider: sessionData.llmOverride.provider }
+                    );
+                } else {
+                    const restoredConfig: ValidatedLLMConfig = {
+                        ...sessionData.llmOverride,
+                        apiKey,
+                    };
+                    this.services.stateManager.updateLLM(restoredConfig, id);
+                }
             }
 
             const session = new ChatSession(
@@ -392,11 +399,18 @@ export class SessionManager {
                         '../utils/api-key-resolver.js'
                     );
                     const apiKey = resolveApiKeyForProvider(sessionData.llmOverride.provider);
-                    const restoredConfig: ValidatedLLMConfig = {
-                        ...sessionData.llmOverride,
-                        apiKey: apiKey ?? '',
-                    };
-                    this.services.stateManager.updateLLM(restoredConfig, sessionId);
+                    if (!apiKey) {
+                        this.logger.warn(
+                            `Skipped LLM override restore for session ${sessionId}: missing API key for provider ${sessionData.llmOverride.provider}`,
+                            { sessionId, provider: sessionData.llmOverride.provider }
+                        );
+                    } else {
+                        const restoredConfig: ValidatedLLMConfig = {
+                            ...sessionData.llmOverride,
+                            apiKey,
+                        };
+                        this.services.stateManager.updateLLM(restoredConfig, sessionId);
+                    }
                 }
 
                 const session = new ChatSession(

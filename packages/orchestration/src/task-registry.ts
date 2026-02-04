@@ -249,6 +249,7 @@ export class TaskRegistry {
 
         entry.status = 'cancelled';
         entry.completedAt = new Date();
+        entry.error = entry.error ?? 'Cancelled';
 
         // Emit cancellation signal
         this.signalBus.emit({
@@ -312,6 +313,10 @@ export class TaskRegistry {
             ...(duration !== undefined && { duration }),
             ...(entry.result !== undefined && { result: entry.result }),
             ...(entry.error !== undefined && { error: entry.error }),
+            ...(entry.status === 'cancelled' &&
+                entry.error !== undefined && {
+                    cancelReason: entry.error,
+                }),
         };
     }
 

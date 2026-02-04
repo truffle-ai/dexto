@@ -120,6 +120,7 @@ export interface TaskInfo {
     description?: string;
     result?: unknown;
     error?: string;
+    cancelReason?: string;
 }
 
 /**
