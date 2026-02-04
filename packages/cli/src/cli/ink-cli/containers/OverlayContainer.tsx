@@ -589,7 +589,9 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         existing = null;
                     }
 
-                    if (existing?.llm.apiKey) {
+                    // Only preserve the API key if the provider hasn't changed
+                    // If provider changed, use the new provider's env var
+                    if (existing?.llm.provider === provider && existing?.llm.apiKey) {
                         preferencesUpdate.apiKey = existing.llm.apiKey;
                     } else if (providerEnvVar) {
                         preferencesUpdate.apiKey = '$' + providerEnvVar;
