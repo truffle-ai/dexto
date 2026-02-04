@@ -64,7 +64,8 @@ export function createVercelModel(
     switch (provider.toLowerCase()) {
         case 'openai': {
             // Regular OpenAI - strict compatibility, no baseURL
-            return createOpenAI({ apiKey: apiKey ?? '' })(model);
+            // Explicitly use the Responses API (default in AI SDK 5+).
+            return createOpenAI({ apiKey: apiKey ?? '' }).responses(model);
         }
         case 'openai-compatible': {
             // OpenAI-compatible - requires baseURL, uses chat completions endpoint
@@ -80,7 +81,8 @@ export function createVercelModel(
             // OpenRouter - unified API gateway for 100+ models (BYOK)
             // Model IDs are in OpenRouter format (e.g., 'anthropic/claude-sonnet-4-5-20250929')
             const orBaseURL = baseURL || 'https://openrouter.ai/api/v1';
-            return createOpenAI({ apiKey: apiKey ?? '', baseURL: orBaseURL }).chat(model);
+            // Use Responses API (OpenAI-compatible) via /api/v1/responses
+            return createOpenAI({ apiKey: apiKey ?? '', baseURL: orBaseURL }).responses(model);
         }
         case 'minimax': {
             // MiniMax - OpenAI-compatible endpoint
