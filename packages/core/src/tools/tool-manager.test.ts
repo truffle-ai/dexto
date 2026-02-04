@@ -278,6 +278,8 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockLogger
             );
 
+            toolManager.setSessionMultiTaskEnabled('session-1', true);
+
             const response = await toolManager.executeTool(
                 'mcp--file_read',
                 {
@@ -328,6 +330,39 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 toolCallId: 'call-456',
                 args: { path: '/test' },
             });
+        });
+
+        it('should ignore background execution when multi-task is disabled', async () => {
+            mockMcpManager.executeTool = vi.fn().mockResolvedValue('result');
+            const emitSpy = vi.fn();
+            mockAgentEventBus.emit = emitSpy as typeof mockAgentEventBus.emit;
+
+            const toolManager = new ToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'auto-approve',
+                mockAgentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                { internalToolsConfig: [], internalToolsServices: {} as any },
+                mockLogger
+            );
+
+            const response = await toolManager.executeTool(
+                'mcp--file_read',
+                {
+                    path: '/test',
+                    __dexto: {
+                        runInBackground: true,
+                    },
+                },
+                'call-123',
+                'session-1'
+            );
+
+            const result = response.result as string;
+            expect(result).toBe('result');
+            expect(emitSpy).not.toHaveBeenCalledWith('tool:background', expect.anything());
         });
 
         it('should throw execution denied error when approval denied', async () => {

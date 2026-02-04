@@ -102,6 +102,8 @@ export class ToolManager {
     private sessionUserAutoApproveTools: Map<string, string[]> = new Map();
     private sessionDisabledTools: Map<string, string[]> = new Map();
     private globalDisabledTools: string[] = [];
+    private sessionMultiTaskEnabled: Map<string, boolean> = new Map();
+    private globalMultiTaskEnabled = false;
 
     constructor(
         mcpManager: MCPManager,
@@ -333,6 +335,53 @@ export class ToolManager {
         }
 
         return this.globalDisabledTools;
+    }
+
+    /**
+     * Enable/disable multi-task orchestration globally.
+     */
+    setGlobalMultiTaskEnabled(enabled: boolean): void {
+        this.globalMultiTaskEnabled = enabled;
+        this.logger.info('Global multi-task setting updated', { enabled });
+    }
+
+    /**
+     * Enable/disable multi-task orchestration for a session.
+     */
+    setSessionMultiTaskEnabled(sessionId: string, enabled: boolean): void {
+        this.sessionMultiTaskEnabled.set(sessionId, enabled);
+        this.logger.info('Session multi-task setting updated', { sessionId, enabled });
+    }
+
+    /**
+     * Clear session multi-task overrides.
+     */
+    clearSessionMultiTaskEnabled(sessionId: string): void {
+        const hadOverride = this.sessionMultiTaskEnabled.delete(sessionId);
+        if (hadOverride) {
+            this.logger.info('Session multi-task setting cleared', { sessionId });
+        }
+    }
+
+    /**
+     * Clear session multi-task overrides for all sessions.
+     */
+    clearAllSessionMultiTaskEnabled(): void {
+        if (this.sessionMultiTaskEnabled.size === 0) {
+            return;
+        }
+        this.sessionMultiTaskEnabled.clear();
+        this.logger.info('Session multi-task settings cleared for all sessions');
+    }
+
+    /**
+     * Returns whether multi-task orchestration is enabled for a session.
+     */
+    isMultiTaskEnabled(sessionId?: string): boolean {
+        if (sessionId && this.sessionMultiTaskEnabled.has(sessionId)) {
+            return this.sessionMultiTaskEnabled.get(sessionId) ?? false;
+        }
+        return this.globalMultiTaskEnabled;
     }
 
     /**
@@ -720,6 +769,7 @@ export class ToolManager {
     ): Promise<import('./types.js').ToolExecutionResult> {
         const { toolArgs: rawToolArgs, meta } = extractToolCallMeta(args);
         let toolArgs = rawToolArgs;
+        const multiTaskEnabled = this.isMultiTaskEnabled(sessionId);
 
         this.logger.debug(`🔧 Tool execution requested: '${toolName}' (toolCallId: ${toolCallId})`);
         this.logger.debug(`Tool args: ${JSON.stringify(toolArgs, null, 2)}`);
@@ -816,7 +866,7 @@ export class ToolManager {
                 }
                 this.logger.debug(`🎯 MCP routing: '${toolName}' -> '${actualToolName}'`);
 
-                if (meta.runInBackground) {
+                if (meta.runInBackground && multiTaskEnabled) {
                     const { result: backgroundResult, promise } = registerBackgroundTask(
                         this.mcpManager.executeTool(actualToolName, toolArgs, sessionId),
                         `MCP tool ${actualToolName}`
@@ -851,7 +901,7 @@ export class ToolManager {
                 }
                 this.logger.debug(`🎯 Internal routing: '${toolName}' -> '${actualToolName}'`);
 
-                if (meta.runInBackground) {
+                if (meta.runInBackground && multiTaskEnabled) {
                     const { result: backgroundResult, promise } = registerBackgroundTask(
                         this.internalToolsProvider.executeTool(
                             actualToolName,
@@ -898,7 +948,7 @@ export class ToolManager {
                 }
                 this.logger.debug(`🎯 Custom routing: '${toolName}' -> '${actualToolName}'`);
 
-                if (meta.runInBackground) {
+                if (meta.runInBackground && multiTaskEnabled) {
                     const { result: backgroundResult, promise } = registerBackgroundTask(
                         this.internalToolsProvider.executeTool(
                             actualToolName,

@@ -1327,7 +1327,9 @@ export class DextoAgent {
      */
     public async createSession(sessionId?: string): Promise<ChatSession> {
         this.ensureStarted();
-        return await this.sessionManager.createSession(sessionId);
+        const session = await this.sessionManager.createSession(sessionId);
+        this.toolManager.setSessionMultiTaskEnabled(session.id, false);
+        return session;
     }
 
     /**
@@ -1358,6 +1360,7 @@ export class DextoAgent {
         this.ensureStarted();
         // Clear session-level auto-approve tools to prevent memory leak
         this.toolManager.clearSessionAutoApproveTools(sessionId);
+        this.toolManager.clearSessionMultiTaskEnabled(sessionId);
         return this.sessionManager.endSession(sessionId);
     }
 
@@ -1370,6 +1373,7 @@ export class DextoAgent {
         this.ensureStarted();
         // Clear session-level auto-approve tools to prevent memory leak
         this.toolManager.clearSessionAutoApproveTools(sessionId);
+        this.toolManager.clearSessionMultiTaskEnabled(sessionId);
         return this.sessionManager.deleteSession(sessionId);
     }
 
@@ -2437,6 +2441,64 @@ export class DextoAgent {
             throw AgentError.apiValidationError('toolNames must be an array of non-empty strings');
         }
         this.toolManager.setSessionDisabledTools(sessionId, toolNames);
+    }
+
+    /**
+     * Clear session-level disabled tools (session override).
+     */
+    public clearSessionDisabledTools(sessionId: string): void {
+        this.ensureStarted();
+        if (!sessionId || typeof sessionId !== 'string') {
+            throw AgentError.apiValidationError(
+                'sessionId is required and must be a non-empty string'
+            );
+        }
+        this.toolManager.clearSessionDisabledTools(sessionId);
+    }
+
+    /**
+     * Enable/disable multi-task orchestration globally.
+     */
+    public setGlobalMultiTaskEnabled(enabled: boolean): void {
+        this.ensureStarted();
+        this.toolManager.setGlobalMultiTaskEnabled(enabled);
+    }
+
+    /**
+     * Enable/disable multi-task orchestration for a session.
+     */
+    public setSessionMultiTaskEnabled(sessionId: string, enabled: boolean): void {
+        this.ensureStarted();
+        if (!sessionId || typeof sessionId !== 'string') {
+            throw AgentError.apiValidationError(
+                'sessionId is required and must be a non-empty string'
+            );
+        }
+        this.toolManager.setSessionMultiTaskEnabled(sessionId, enabled);
+    }
+
+    /**
+     * Clear session multi-task overrides.
+     */
+    public clearSessionMultiTaskEnabled(sessionId: string): void {
+        this.ensureStarted();
+        if (!sessionId || typeof sessionId !== 'string') {
+            throw AgentError.apiValidationError(
+                'sessionId is required and must be a non-empty string'
+            );
+        }
+        this.toolManager.clearSessionMultiTaskEnabled(sessionId);
+    }
+
+    /**
+     * Returns whether multi-task orchestration is enabled for a session.
+     */
+    public isMultiTaskEnabled(sessionId?: string): boolean {
+        this.ensureStarted();
+        if (sessionId !== undefined && (!sessionId || typeof sessionId !== 'string')) {
+            throw AgentError.apiValidationError('sessionId must be a non-empty string');
+        }
+        return this.toolManager.isMultiTaskEnabled(sessionId);
     }
 
     /**
