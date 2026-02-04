@@ -136,13 +136,13 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
         'edit' | 'default' | 'delete' | null
     >(null);
     const [pendingDeleteConfirm, setPendingDeleteConfirm] = useState(false);
-    const [pendingDefaultConfirm, setPendingDefaultConfirm] = useState(false);
     const selectedIndexRef = useRef(selectedIndex);
     const deleteTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     // Reasoning effort sub-step state
     const [pendingReasoningModel, setPendingReasoningModel] = useState<ModelOption | null>(null);
     const [reasoningEffortIndex, setReasoningEffortIndex] = useState(0); // Default to 'Auto' (index 0)
+    const [isSettingDefault, setIsSettingDefault] = useState(false); // Track if setting as default vs normal selection
     const [refreshVersion, setRefreshVersion] = useState(0);
 
     // Keep ref in sync
@@ -168,8 +168,8 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
         setScrollOffset(0);
         setCustomModelAction(null);
         setPendingDeleteConfirm(false);
-        setPendingDefaultConfirm(false);
         setPendingReasoningModel(null);
+        setIsSettingDefault(false);
         setReasoningEffortIndex(0); // Default to 'Auto'
         if (deleteTimeoutRef.current) {
             clearTimeout(deleteTimeoutRef.current);
@@ -441,7 +441,6 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
     const clearActionState = () => {
         setCustomModelAction(null);
         setPendingDeleteConfirm(false);
-        setPendingDefaultConfirm(false);
         if (deleteTimeoutRef.current) {
             clearTimeout(deleteTimeoutRef.current);
             deleteTimeoutRef.current = null;
@@ -460,6 +459,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                     if (key.escape) {
                         // Go back to model selection
                         setPendingReasoningModel(null);
+                        setIsSettingDefault(false);
                         return true;
                     }
                     if (key.upArrow) {
@@ -478,14 +478,34 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                         const selectedOption = REASONING_EFFORT_OPTIONS[reasoningEffortIndex];
                         const reasoningEffort =
                             selectedOption?.value === 'auto' ? undefined : selectedOption?.value;
-                        onSelectModel(
-                            pendingReasoningModel.provider,
-                            pendingReasoningModel.name,
-                            pendingReasoningModel.displayName,
-                            pendingReasoningModel.baseURL,
-                            reasoningEffort
-                        );
+
+                        if (isSettingDefault) {
+                            // Setting as default model
+                            clearActionState();
+                            void (async () => {
+                                await onSetDefaultModel(
+                                    pendingReasoningModel.provider,
+                                    pendingReasoningModel.name,
+                                    pendingReasoningModel.displayName,
+                                    pendingReasoningModel.baseURL,
+                                    reasoningEffort
+                                );
+                                setRefreshVersion((prev) => prev + 1);
+                                onClose(); // Close overlay after setting default
+                            })();
+                        } else {
+                            // Normal model selection
+                            onSelectModel(
+                                pendingReasoningModel.provider,
+                                pendingReasoningModel.name,
+                                pendingReasoningModel.displayName,
+                                pendingReasoningModel.baseURL,
+                                reasoningEffort
+                            );
+                        }
+
                         setPendingReasoningModel(null);
+                        setIsSettingDefault(false);
                         return true;
                     }
                     return true; // Consume all input in reasoning effort mode
@@ -506,8 +526,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                 const currentItem = filteredItems[selectedIndexRef.current];
                 const isCustomActionItem =
                     currentItem && !isAddCustomOption(currentItem) && currentItem.isCustom;
-                const isSelectableItem =
-                    currentItem && !isAddCustomOption(currentItem) && !currentItem.isDefault;
+                const isSelectableItem = currentItem && !isAddCustomOption(currentItem);
                 const isOnActionItem = isCustomActionItem || isSelectableItem;
 
                 // Right arrow - enter/advance action mode for custom or selectable models
@@ -525,7 +544,6 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
 
                     if (customModelAction === 'edit') {
                         setCustomModelAction('default');
-                        setPendingDefaultConfirm(false);
                         return true;
                     }
 
@@ -533,26 +551,31 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                         if (isCustomActionItem) {
                             setCustomModelAction('delete');
                             setPendingDeleteConfirm(false);
-                            setPendingDefaultConfirm(false);
                             return true;
                         }
 
                         const actionItem = currentItem as ModelOption;
-                        if (pendingDefaultConfirm) {
-                            clearActionState();
-                            void (async () => {
-                                await onSetDefaultModel(
-                                    actionItem.provider,
-                                    actionItem.name,
-                                    actionItem.displayName,
-                                    actionItem.baseURL,
-                                    actionItem.reasoningEffort
-                                );
-                                setRefreshVersion((prev) => prev + 1);
-                            })();
-                        } else {
-                            setPendingDefaultConfirm(true);
+
+                        // Check if reasoning-capable, show reasoning effort selection
+                        if (isReasoningCapableModel(actionItem.name)) {
+                            setPendingReasoningModel(actionItem);
+                            setIsSettingDefault(true);
+                            setReasoningEffortIndex(0); // Default to 'Auto'
+                            return true;
                         }
+
+                        clearActionState();
+                        void (async () => {
+                            await onSetDefaultModel(
+                                actionItem.provider,
+                                actionItem.name,
+                                actionItem.displayName,
+                                actionItem.baseURL,
+                                actionItem.reasoningEffort
+                            );
+                            setRefreshVersion((prev) => prev + 1);
+                            onClose(); // Close overlay after setting default
+                        })();
                         return true;
                     }
 
@@ -596,7 +619,6 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                         } else {
                             setCustomModelAction(null);
                         }
-                        setPendingDefaultConfirm(false);
                         return true;
                     }
 
@@ -683,21 +705,26 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                         }
 
                         if (customModelAction === 'default') {
-                            if (pendingDefaultConfirm) {
-                                clearActionState();
-                                void (async () => {
-                                    await onSetDefaultModel(
-                                        item.provider,
-                                        item.name,
-                                        item.displayName,
-                                        item.baseURL,
-                                        item.reasoningEffort
-                                    );
-                                    setRefreshVersion((prev) => prev + 1);
-                                })();
-                            } else {
-                                setPendingDefaultConfirm(true);
+                            // Check if reasoning-capable, show reasoning effort selection
+                            if (isReasoningCapableModel(item.name)) {
+                                setPendingReasoningModel(item);
+                                setIsSettingDefault(true);
+                                setReasoningEffortIndex(0); // Default to 'Auto'
+                                return true;
                             }
+
+                            clearActionState();
+                            void (async () => {
+                                await onSetDefaultModel(
+                                    item.provider,
+                                    item.name,
+                                    item.displayName,
+                                    item.baseURL,
+                                    item.reasoningEffort
+                                );
+                                setRefreshVersion((prev) => prev + 1);
+                                onClose(); // Close overlay after setting default
+                            })();
                             return true;
                         }
 
@@ -745,11 +772,11 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
             onEditCustomModel,
             customModelAction,
             pendingDeleteConfirm,
-            pendingDefaultConfirm,
             customModels,
             handleDeleteCustomModel,
             pendingReasoningModel,
             reasoningEffortIndex,
+            isSettingDefault,
         ]
     );
 
@@ -770,6 +797,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                 <Box paddingX={0} paddingY={0}>
                     <Text color="cyan" bold>
                         Configure Reasoning Effort
+                        {isSettingDefault && <Text color="gray"> (Setting as Default)</Text>}
                     </Text>
                 </Box>
                 <Box paddingX={0} paddingY={0}>
@@ -804,6 +832,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
 
     const visibleItems = filteredItems.slice(scrollOffset, scrollOffset + MAX_VISIBLE_ITEMS);
     const hasCustomModels = customModels.length > 0;
+    const hasActionableItems = filteredItems.some((item) => !isAddCustomOption(item));
     const selectedItem = filteredItems[selectedIndex];
     const isSelectedCustom =
         selectedItem && !isAddCustomOption(selectedItem) && selectedItem.isCustom;
@@ -819,7 +848,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
             {/* Navigation hints */}
             <Box paddingX={0} paddingY={0}>
                 <Text color="gray">↑↓ navigate, Enter select, Esc close</Text>
-                {hasCustomModels && <Text color="gray">, →← for actions</Text>}
+                {hasActionableItems && <Text color="gray">, →← for actions</Text>}
             </Box>
 
             {/* Search input */}
@@ -852,8 +881,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                 }
 
                 // Show action buttons for selected custom models
-                const showActions =
-                    isSelected && (item.isCustom || (!item.isCustom && !item.isDefault));
+                const showActions = isSelected && !isAddCustomOption(item);
 
                 // Keep the UI label simple: show the actual provider being selected.
                 // Gateway routing details are intentionally hidden from the main picker.
@@ -906,7 +934,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                                     inverse={customModelAction === 'default'}
                                 >
                                     {' '}
-                                    Default{' '}
+                                    Set as Default{' '}
                                 </Text>
                                 {item.isCustom && (
                                     <>
@@ -942,18 +970,13 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                 </Box>
             )}
 
-            {customModelAction === 'default' && pendingDefaultConfirm && (
-                <Box paddingX={0} paddingY={0} marginTop={1}>
-                    <Text color="yellowBright">⚠️ Press Enter again to set default</Text>
-                </Box>
-            )}
             {customModelAction === 'delete' && pendingDeleteConfirm && (
                 <Box paddingX={0} paddingY={0} marginTop={1}>
                     <Text color="yellowBright">⚠️ Press → or Enter again to confirm delete</Text>
                 </Box>
             )}
             {/* Action mode hints */}
-            {customModelAction && !pendingDeleteConfirm && !pendingDefaultConfirm && (
+            {customModelAction && !pendingDeleteConfirm && (
                 <Box paddingX={0} paddingY={0} marginTop={1}>
                     <Text color="gray">
                         ←{' '}

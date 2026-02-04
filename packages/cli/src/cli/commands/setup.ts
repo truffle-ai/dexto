@@ -404,7 +404,7 @@ async function handleQuickStart(
                     message: 'Enter model name for OpenRouter',
                     placeholder: 'e.g., anthropic/claude-3.5-sonnet',
                     validate: (value) => {
-                        const trimmed = value.trim();
+                        const trimmed = typeof value === 'string' ? value.trim() : '';
                         if (!trimmed) return 'Model name is required';
                         return undefined;
                     },
@@ -850,12 +850,13 @@ async function wizardStepModel(state: SetupWizardState): Promise<SetupWizardStat
     }
 
     // Cloud provider model selection with back option
-    const model = await selectModelWithBack(provider);
+    const selection = await selectModelWithBack(provider);
 
-    if (model === '_back') {
+    if (selection === '_back') {
         return { ...state, step: 'provider', model: undefined, baseURL: undefined };
     }
 
+    const model = selection.model;
     // Check if model supports reasoning effort
     const nextStep = isReasoningCapableModel(model) ? 'reasoningEffort' : 'apiKey';
     return { ...state, step: nextStep, model, baseURL };
@@ -975,7 +976,9 @@ async function wizardStepMode(state: SetupWizardState): Promise<SetupWizardState
 /**
  * Select model with back option
  */
-async function selectModelWithBack(provider: LLMProvider): Promise<string | '_back'> {
+async function selectModelWithBack(
+    provider: LLMProvider
+): Promise<{ model: string; isCustomSelection?: boolean } | '_back'> {
     const providerInfo = LLM_REGISTRY[provider];
 
     if (providerInfo?.models && providerInfo.models.length > 0) {
@@ -1003,7 +1006,10 @@ async function selectModelWithBack(provider: LLMProvider): Promise<string | '_ba
                 }
 
                 if (manageCustomModels) {
-                    await handleCustomModelManagement(provider);
+                    const customModel = await handleCustomModelManagement(provider);
+                    if (customModel) {
+                        return { model: customModel, isCustomSelection: true };
+                    }
                 }
             }
 
@@ -1028,7 +1034,7 @@ async function selectModelWithBack(provider: LLMProvider): Promise<string | '_ba
                 return '_back';
             }
 
-            return result as string | '_back';
+            return { model: result as string };
         }
 
         const defaultModel =
@@ -1062,7 +1068,10 @@ async function selectModelWithBack(provider: LLMProvider): Promise<string | '_ba
             }
 
             if (manageCustomModels) {
-                await handleCustomModelManagement(provider);
+                const customModel = await handleCustomModelManagement(provider);
+                if (customModel) {
+                    return { model: customModel, isCustomSelection: true };
+                }
             }
         }
 
@@ -1087,7 +1096,7 @@ async function selectModelWithBack(provider: LLMProvider): Promise<string | '_ba
             return '_back';
         }
 
-        return result as string | '_back';
+        return { model: result as string };
     }
 
     // For providers that accept any model, show text input with back hint
@@ -1097,7 +1106,8 @@ async function selectModelWithBack(provider: LLMProvider): Promise<string | '_ba
         message: `Enter model name for ${getProviderDisplayName(provider)}`,
         placeholder: defaultModel || 'e.g., gpt-4-turbo',
         validate: (value) => {
-            if (!value.trim()) return 'Model name is required';
+            const trimmed = typeof value === 'string' ? value.trim() : '';
+            if (!trimmed) return 'Model name is required';
             return undefined;
         },
     });
@@ -1106,13 +1116,13 @@ async function selectModelWithBack(provider: LLMProvider): Promise<string | '_ba
         return '_back';
     }
 
-    return model as string;
+    return { model: typeof model === 'string' ? model.trim() : '' };
 }
 
 /**
  * Select default mode with back option
  */
-async function handleCustomModelManagement(providerOverride?: LLMProvider): Promise<void> {
+async function handleCustomModelManagement(providerOverride?: LLMProvider): Promise<string | null> {
     const models = await loadCustomModels();
 
     const choices = [
@@ -1128,38 +1138,41 @@ async function handleCustomModelManagement(providerOverride?: LLMProvider): Prom
     });
 
     if (p.isCancel(action) || action === 'back') {
-        return;
+        return null;
     }
 
     if (action === 'add') {
-        await runCustomModelWizard(null, providerOverride);
-        return;
+        const created = await runCustomModelWizard(null, providerOverride);
+        return created?.name ?? null;
     }
 
     if (action === 'edit') {
         const selected = await selectCustomModel(models);
         if (!selected) {
-            return;
+            return null;
         }
-        await runCustomModelWizard(selected, providerOverride);
-        return;
+        const updated = await runCustomModelWizard(selected, providerOverride);
+        return updated?.name ?? null;
     }
 
     if (action === 'delete') {
         const model = await selectCustomModel(models);
         if (!model) {
-            return;
+            return null;
         }
         const confirm = await p.confirm({
             message: `Delete custom model "${model.displayName || model.name}"?`,
             initialValue: false,
         });
         if (p.isCancel(confirm) || !confirm) {
-            return;
+            return null;
         }
         await deleteCustomModel(model.name);
         p.log.success(`Deleted ${model.displayName || model.name}`);
+        return null;
     }
+
+    return null;
 }
 
 async function selectCustomModel(models: CustomModel[]): Promise<CustomModel | null> {
@@ -1186,10 +1199,10 @@ async function selectCustomModel(models: CustomModel[]): Promise<CustomModel | n
 async function runCustomModelWizard(
     initialModel?: CustomModel | null,
     providerOverride?: LLMProvider
-): Promise<void> {
+): Promise<CustomModel | null> {
     const values = await promptCustomModelValues(initialModel ?? null, providerOverride);
     if (!values) {
-        return;
+        return null;
     }
 
     const model: CustomModel = {
@@ -1208,6 +1221,7 @@ async function runCustomModelWizard(
         await deleteCustomModel(initialModel.name);
     }
     p.log.success(`${initialModel ? 'Updated' : 'Saved'} ${model.displayName || model.name}`);
+    return model;
 }
 
 async function promptCustomModelValues(
@@ -1255,15 +1269,19 @@ async function promptCustomModelValues(
     const name = await p.text({
         message: 'Model name',
         initialValue: initialModel?.name ?? '',
-        validate: (value) => (value.trim() ? undefined : 'Model name is required'),
+        validate: (value) => {
+            const trimmed = typeof value === 'string' ? value.trim() : '';
+            return trimmed ? undefined : 'Model name is required';
+        },
     });
 
     if (p.isCancel(name)) {
         return null;
     }
 
+    const trimmedName = typeof name === 'string' ? name.trim() : '';
     if (provider === 'openrouter' || provider === 'glama' || provider === 'dexto') {
-        const isValidFormat = name.trim().includes('/');
+        const isValidFormat = trimmedName.includes('/');
         if (!isValidFormat) {
             p.log.warn('Model name should include a provider prefix, e.g. anthropic/claude-3.5');
         }
@@ -1284,7 +1302,7 @@ async function promptCustomModelValues(
             message: 'Base URL',
             initialValue: initialModel?.baseURL?.trim() ?? '',
             validate: (value) => {
-                const trimmed = value.trim();
+                const trimmed = typeof value === 'string' ? value.trim() : '';
                 if (!trimmed) return 'Base URL is required';
                 try {
                     new URL(trimmed);
@@ -1297,14 +1315,16 @@ async function promptCustomModelValues(
         if (p.isCancel(baseURLInput)) {
             return null;
         }
-        baseURL = baseURLInput.trim();
+        const baseURLValue = typeof baseURLInput === 'string' ? baseURLInput.trim() : '';
+        baseURL = baseURLValue || undefined;
     }
 
     const maxInputTokensInput = await p.text({
         message: 'Max input tokens (optional)',
         initialValue: initialModel?.maxInputTokens?.toString() ?? '',
         validate: (value) => {
-            if (!value.trim()) return undefined;
+            const trimmed = typeof value === 'string' ? value.trim() : '';
+            if (!trimmed) return undefined;
             const parsed = Number(value);
             if (!Number.isInteger(parsed) || parsed <= 0) {
                 return 'Enter a positive integer';
@@ -1328,7 +1348,8 @@ async function promptCustomModelValues(
             return null;
         }
 
-        apiKey = apiKeyInput.trim() || undefined;
+        const apiKeyValue = typeof apiKeyInput === 'string' ? apiKeyInput.trim() : '';
+        apiKey = apiKeyValue || undefined;
     }
 
     let filePath: string | undefined;
@@ -1337,8 +1358,9 @@ async function promptCustomModelValues(
             message: 'GGUF file path',
             initialValue: initialModel?.filePath ?? '',
             validate: (value) => {
-                if (!value.trim()) return 'File path is required';
-                if (!value.trim().toLowerCase().endsWith('.gguf')) {
+                const trimmed = typeof value === 'string' ? value.trim() : '';
+                if (!trimmed) return 'File path is required';
+                if (!trimmed.toLowerCase().endsWith('.gguf')) {
                     return 'File path must end with .gguf';
                 }
                 return undefined;
@@ -1347,14 +1369,15 @@ async function promptCustomModelValues(
         if (p.isCancel(filePathInput)) {
             return null;
         }
-        filePath = filePathInput.trim();
+        const filePathValue = typeof filePathInput === 'string' ? filePathInput.trim() : '';
+        filePath = filePathValue || undefined;
     }
 
     const reasoningEffort = await p.text({
         message: 'Reasoning effort (optional)',
         initialValue: initialModel?.reasoningEffort?.toLowerCase() ?? '',
         validate: (value) => {
-            const normalized = value.trim().toLowerCase();
+            const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
             if (!normalized) return undefined;
             const validValues = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh'];
             if (!validValues.includes(normalized)) {
@@ -1368,13 +1391,15 @@ async function promptCustomModelValues(
         return null;
     }
 
-    const trimmedDisplayName = displayName.trim();
-    const trimmedApiKey = apiKey?.trim();
-    const trimmedReasoningEffort = reasoningEffort.trim().toLowerCase();
-    const trimmedMaxInputTokens = maxInputTokensInput.trim();
+    const trimmedDisplayName = typeof displayName === 'string' ? displayName.trim() : '';
+    const trimmedApiKey = typeof apiKey === 'string' ? apiKey.trim() : '';
+    const trimmedReasoningEffort =
+        typeof reasoningEffort === 'string' ? reasoningEffort.trim().toLowerCase() : '';
+    const trimmedMaxInputTokens =
+        typeof maxInputTokensInput === 'string' ? maxInputTokensInput.trim() : '';
 
     return {
-        name: name.trim(),
+        name: trimmedName,
         provider,
         ...(baseURL ? { baseURL } : {}),
         ...(trimmedDisplayName ? { displayName: trimmedDisplayName } : {}),
@@ -2028,7 +2053,10 @@ async function selectModel(provider: LLMProvider): Promise<string | null> {
                 }
 
                 if (manageCustomModels) {
-                    await handleCustomModelManagement(provider);
+                    const customModel = await handleCustomModelManagement(provider);
+                    if (customModel) {
+                        return customModel;
+                    }
                 }
             }
 
@@ -2082,7 +2110,10 @@ async function selectModel(provider: LLMProvider): Promise<string | null> {
             }
 
             if (manageCustomModels) {
-                await handleCustomModelManagement(provider);
+                const customModel = await handleCustomModelManagement(provider);
+                if (customModel) {
+                    return customModel;
+                }
             }
         }
 
@@ -2112,7 +2143,8 @@ async function selectModel(provider: LLMProvider): Promise<string | null> {
         placeholder:
             provider === 'openrouter' ? 'e.g., anthropic/claude-3.5-sonnet' : 'e.g., llama-3-70b',
         validate: (value) => {
-            if (!value || value.trim().length === 0) {
+            const trimmed = typeof value === 'string' ? value.trim() : '';
+            if (!trimmed) {
                 return 'Model name is required';
             }
             return undefined;
@@ -2120,6 +2152,10 @@ async function selectModel(provider: LLMProvider): Promise<string | null> {
     });
 
     if (p.isCancel(modelInput)) {
+        return null;
+    }
+
+    if (typeof modelInput !== 'string') {
         return null;
     }
 
@@ -2144,11 +2180,12 @@ async function promptForBaseURL(provider: LLMProvider): Promise<string | null> {
         message: `Enter base URL for ${getProviderDisplayName(provider)}`,
         placeholder,
         validate: (value) => {
-            if (!value || value.trim().length === 0) {
+            const trimmed = typeof value === 'string' ? value.trim() : '';
+            if (!trimmed) {
                 return 'Base URL is required for this provider';
             }
             try {
-                new URL(value.trim());
+                new URL(trimmed);
             } catch {
                 return 'Please enter a valid URL';
             }
@@ -2160,7 +2197,7 @@ async function promptForBaseURL(provider: LLMProvider): Promise<string | null> {
         return null;
     }
 
-    return baseURL.trim();
+    return typeof baseURL === 'string' ? baseURL.trim() : '';
 }
 
 /**

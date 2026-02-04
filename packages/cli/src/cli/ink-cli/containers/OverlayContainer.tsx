@@ -599,15 +599,47 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         llm: preferencesUpdate,
                     });
 
-                    setMessages((prev) => [
-                        ...prev,
-                        {
-                            id: generateMessageId('system'),
-                            role: 'system',
-                            content: `✅ Default model set to ${displayName || model} (${provider})`,
-                            timestamp: new Date(),
-                        },
-                    ]);
+                    try {
+                        await agent.switchLLM(
+                            { provider: provider as LLMProvider, model, baseURL, reasoningEffort },
+                            session.id || undefined
+                        );
+                        setSession((prev) => ({ ...prev, modelName: displayName || model }));
+
+                        setMessages((prev) => [
+                            ...prev,
+                            {
+                                id: generateMessageId('system'),
+                                role: 'system',
+                                content: `✅ Default model set to ${displayName || model} (${provider})`,
+                                timestamp: new Date(),
+                            },
+                        ]);
+                    } catch (error) {
+                        const missingProvider = isApiKeyMissingError(error);
+                        if (missingProvider) {
+                            setUi((prev) => ({
+                                ...prev,
+                                activeOverlay: 'api-key-input',
+                                pendingModelSwitch: {
+                                    provider: missingProvider,
+                                    model,
+                                    ...(displayName && { displayName }),
+                                },
+                            }));
+                            setMessages((prev) => [
+                                ...prev,
+                                {
+                                    id: generateMessageId('system'),
+                                    role: 'system',
+                                    content: `🔑 API key required for ${provider}`,
+                                    timestamp: new Date(),
+                                },
+                            ]);
+                            return;
+                        }
+                        throw error;
+                    }
                 } catch (error) {
                     setMessages((prev) => [
                         ...prev,
@@ -622,7 +654,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     ]);
                 }
             },
-            [agent, setMessages]
+            [agent, setMessages, setSession, setUi, session.id]
         );
 
         // State for editing custom model
