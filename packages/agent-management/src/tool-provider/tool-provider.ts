@@ -136,8 +136,14 @@ export const agentSpawnerToolsProvider: CustomToolProvider<'agent-spawner', Agen
                 return 'No result available.';
             })();
 
-            const descriptionTag = taskInfo?.description
-                ? `  <description><![CDATA[${taskInfo.description}]]></description>\n`
+            const sanitizeCdata = (value: string) => value.replace(/\]\]>/g, ']]]]><![CDATA[>');
+            const safeDescription = taskInfo?.description
+                ? sanitizeCdata(taskInfo.description)
+                : null;
+            const safeResultText = sanitizeCdata(resultText);
+
+            const descriptionTag = safeDescription
+                ? `  <description><![CDATA[${safeDescription}]]></description>\n`
                 : '';
 
             const statusTag = taskInfo?.status ? `  <status>${taskInfo.status}</status>\n` : '';
@@ -152,7 +158,7 @@ export const agentSpawnerToolsProvider: CustomToolProvider<'agent-spawner', Agen
                         `  <taskId>${taskId}</taskId>\n` +
                         statusTag +
                         descriptionTag +
-                        `  <result><![CDATA[${resultText}]]></result>\n` +
+                        `  <result><![CDATA[${safeResultText}]]></result>\n` +
                         `</background-task-completion>`,
                 },
             ];
