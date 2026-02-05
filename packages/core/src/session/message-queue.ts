@@ -136,7 +136,7 @@ export class MessageQueueService {
 
     /**
      * Coalesce multiple messages into one (multimodal-aware).
-     * Strategy: Combine with numbered separators, preserve all media.
+     * Strategy: Combine with per-kind formatting, preserve all media.
      */
     private coalesce(messages: QueuedMessage[]): CoalescedMessage {
         // Single message - return as-is
@@ -154,15 +154,36 @@ export class MessageQueueService {
             };
         }
 
-        // Multiple messages - combine with numbered prefixes
+        const getMessageKind = (message: QueuedMessage): 'default' | 'background' =>
+            message.kind ?? 'default';
+
+        const getUserPrefix = (index: number, total: number): string | null => {
+            if (total <= 1) return null;
+            if (total === 2) {
+                return index === 0 ? 'First' : 'Also';
+            }
+            return `[${index + 1}]`;
+        };
+
+        const totalUserMessages = messages.filter(
+            (message) => getMessageKind(message) !== 'background'
+        ).length;
+
+        // Multiple messages - combine with structured per-kind prefixes
         const combinedContent: ContentPart[] = [];
+        let userIndex = 0;
 
         for (const [i, msg] of messages.entries()) {
-            // Add prefix based on message count
-            const prefix = messages.length === 2 ? (i === 0 ? 'First' : 'Also') : `[${i + 1}]`;
+            const kind = getMessageKind(msg);
+            const prefix =
+                kind === 'background' ? null : getUserPrefix(userIndex, totalUserMessages);
+
+            if (kind !== 'background') {
+                userIndex += 1;
+            }
 
             // Start with prefix text
-            let prefixText = `${prefix}: `;
+            let prefixText = prefix ? `${prefix}: ` : '';
 
             // Process content parts
             for (const part of msg.content) {

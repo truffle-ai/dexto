@@ -213,6 +213,19 @@ describe('MessageQueueService', () => {
             });
         });
 
+        it('should omit prefixes for background messages', () => {
+            queue.enqueue({ content: [{ type: 'text', text: 'user note' }] });
+            queue.enqueue({
+                content: [{ type: 'text', text: 'bg payload' }],
+                kind: 'background',
+            });
+
+            const result = queue.dequeueAll();
+
+            expect(result?.combinedContent[0]).toEqual({ type: 'text', text: 'First: user note' });
+            expect(result?.combinedContent[2]).toEqual({ type: 'text', text: 'bg payload' });
+        });
+
         it('should handle empty message content with placeholder', () => {
             queue.enqueue({ content: [{ type: 'text', text: 'first' }] });
             queue.enqueue({ content: [] });

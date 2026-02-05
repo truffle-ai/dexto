@@ -728,6 +728,10 @@ export function convertHistoryToUIMessages(
 
     history.forEach((msg, index) => {
         const timestamp = new Date(msg.timestamp ?? Date.now() - (history.length - index) * 1000);
+        const extractedText = extractTextContent(msg.content);
+        if (extractedText.includes('<background-task-completion>')) {
+            return;
+        }
 
         // Handle tool messages specially
         if (isToolMessage(msg)) {
