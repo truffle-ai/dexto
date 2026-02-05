@@ -213,7 +213,7 @@ describe('MessageQueueService', () => {
             });
         });
 
-        it('should omit prefixes for background messages', () => {
+        it('should tag user messages in mixed batches', () => {
             queue.enqueue({ content: [{ type: 'text', text: 'user note' }] });
             queue.enqueue({
                 content: [{ type: 'text', text: 'bg payload' }],
@@ -222,7 +222,10 @@ describe('MessageQueueService', () => {
 
             const result = queue.dequeueAll();
 
-            expect(result?.combinedContent[0]).toEqual({ type: 'text', text: 'First: user note' });
+            expect(result?.combinedContent[0]).toEqual({
+                type: 'text',
+                text: 'User follow-up 1: user note',
+            });
             expect(result?.combinedContent[2]).toEqual({ type: 'text', text: 'bg payload' });
         });
 

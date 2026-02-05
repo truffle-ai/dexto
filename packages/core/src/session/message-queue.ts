@@ -157,17 +157,23 @@ export class MessageQueueService {
         const getMessageKind = (message: QueuedMessage): 'default' | 'background' =>
             message.kind ?? 'default';
 
-        const getUserPrefix = (index: number, total: number): string | null => {
+        const totalUserMessages = messages.filter(
+            (message) => getMessageKind(message) !== 'background'
+        ).length;
+        const hasBackgroundMessages = messages.some(
+            (message) => getMessageKind(message) === 'background'
+        );
+
+        const getUserPrefix = (index: number, total: number, mixed: boolean): string | null => {
+            if (mixed) {
+                return `User follow-up ${index + 1}`;
+            }
             if (total <= 1) return null;
             if (total === 2) {
                 return index === 0 ? 'First' : 'Also';
             }
             return `[${index + 1}]`;
         };
-
-        const totalUserMessages = messages.filter(
-            (message) => getMessageKind(message) !== 'background'
-        ).length;
 
         // Multiple messages - combine with structured per-kind prefixes
         const combinedContent: ContentPart[] = [];
@@ -176,7 +182,9 @@ export class MessageQueueService {
         for (const [i, msg] of messages.entries()) {
             const kind = getMessageKind(msg);
             const prefix =
-                kind === 'background' ? null : getUserPrefix(userIndex, totalUserMessages);
+                kind === 'background'
+                    ? null
+                    : getUserPrefix(userIndex, totalUserMessages, hasBackgroundMessages);
 
             if (kind !== 'background') {
                 userIndex += 1;
