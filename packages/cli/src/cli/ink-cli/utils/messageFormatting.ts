@@ -16,6 +16,12 @@ const normalizeToolName = (toolName: string) => {
     return delimiterSplit[delimiterSplit.length - 1] ?? stripped;
 };
 const shouldHideTool = (toolName: string) => HIDDEN_TOOL_NAMES.has(normalizeToolName(toolName));
+
+const backgroundCompletionRegex =
+    /<background-task-completion>[\s\S]*?<\/background-task-completion>/g;
+const stripBackgroundCompletion = (text: string): string =>
+    text.replace(backgroundCompletionRegex, '').replace('<background-task-completion>', '').trim();
+
 import { generateMessageId } from './idGenerator.js';
 
 /**
@@ -728,10 +734,6 @@ export function convertHistoryToUIMessages(
 
     history.forEach((msg, index) => {
         const timestamp = new Date(msg.timestamp ?? Date.now() - (history.length - index) * 1000);
-        const extractedText = extractTextContent(msg.content);
-        if (extractedText.includes('<background-task-completion>')) {
-            return;
-        }
 
         // Handle tool messages specially
         if (isToolMessage(msg)) {
@@ -788,7 +790,8 @@ export function convertHistoryToUIMessages(
 
         // Handle assistant messages - skip those with only tool calls (no text content)
         if (isAssistantMessage(msg)) {
-            const textContent = extractTextContent(msg.content);
+            let textContent = extractTextContent(msg.content);
+            textContent = stripBackgroundCompletion(textContent);
 
             // Skip if no text content (message was just tool calls)
             if (!textContent) return;
@@ -804,6 +807,7 @@ export function convertHistoryToUIMessages(
 
         // Handle other messages (user, system)
         let textContent = extractTextContent(msg.content);
+        textContent = stripBackgroundCompletion(textContent);
 
         // Skip empty messages
         if (!textContent) return;

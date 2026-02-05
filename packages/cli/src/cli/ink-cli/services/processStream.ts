@@ -174,24 +174,28 @@ export async function processStream(
     const extractTextContent = (content: import('@dexto/core').ContentPart[]): string => {
         return content
             .filter((part): part is { type: 'text'; text: string } => part.type === 'text')
-            .map((part) => {
-                if (!part.text.includes('<background-task-completion>')) {
-                    return part.text;
-                }
-                const taskIdMatch = part.text.match(/<taskId>([^<]+)<\/taskId>/);
-                const statusMatch = part.text.match(/<status>([^<]+)<\/status>/);
-                const taskId = taskIdMatch?.[1]?.trim() ?? 'unknown';
-                const status = statusMatch?.[1]?.trim() ?? 'completed';
-                const replacement = `Background task ${status} (id: ${taskId})`;
-                const replaced = part.text.replace(
-                    /<background-task-completion>[\s\S]*?<\/background-task-completion>/g,
-                    replacement
-                );
-                return replaced === part.text
-                    ? part.text.replace('<background-task-completion>', replacement)
-                    : replaced;
-            })
+            .map((part) => part.text)
             .join('\n');
+    };
+
+    const formatQueuedMessagesForDisplay = (
+        messages: import('@dexto/core').QueuedMessage[]
+    ): string => {
+        const userMessages = messages.filter((message) => message.kind !== 'background');
+        if (userMessages.length === 0) {
+            return '';
+        }
+        if (userMessages.length === 1) {
+            return extractTextContent(userMessages[0]?.content ?? []) || '[attachment]';
+        }
+        return userMessages
+            .map((message, index) => {
+                const prefix =
+                    userMessages.length === 2 ? (index === 0 ? 'First' : 'Also') : `[${index + 1}]`;
+                const content = extractTextContent(message.content) || '[attachment]';
+                return `${prefix}: ${content}`;
+            })
+            .join('\n\n');
     };
 
     /**
@@ -847,6 +851,20 @@ export async function processStream(
                     finalizeAllPending();
 
                     if (event.messages?.some((message) => message.kind === 'background')) {
+                        const userText = event.messages
+                            ? formatQueuedMessagesForDisplay(event.messages)
+                            : '';
+                        if (userText) {
+                            setMessages((prev) => [
+                                ...prev,
+                                {
+                                    id: generateMessageId('user'),
+                                    role: 'user' as const,
+                                    content: userText,
+                                    timestamp: new Date(),
+                                },
+                            ]);
+                        }
                         setQueuedMessages([]);
                         setUi((prev) => ({ ...prev, isProcessing: true }));
                         break;
