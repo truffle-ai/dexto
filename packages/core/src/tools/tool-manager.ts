@@ -20,6 +20,7 @@ import type { SessionManager } from '../session/index.js';
 import type { AgentStateManager } from '../agent/state-manager.js';
 import type { BeforeToolCallPayload, AfterToolResultPayload } from '../plugins/types.js';
 import { InstrumentClass } from '../telemetry/decorators.js';
+import { extractToolCallMeta, wrapToolParametersSchema } from './tool-call-metadata.js';
 import {
     generateBashPatternKey,
     generateBashPatternSuggestions,
@@ -647,6 +648,7 @@ export class ToolManager {
                 ...toolDef,
                 name: qualifiedName,
                 description: `${toolDef.description || 'No description provided'} (internal tool)`,
+                parameters: wrapToolParametersSchema(toolDef.parameters),
             };
         }
 
@@ -657,6 +659,7 @@ export class ToolManager {
                 ...toolDef,
                 name: qualifiedName,
                 description: `${toolDef.description || 'No description provided'} (custom tool)`,
+                parameters: wrapToolParametersSchema(toolDef.parameters),
             };
         }
 
@@ -667,6 +670,7 @@ export class ToolManager {
                 ...toolDef,
                 name: qualifiedName,
                 description: `${toolDef.description || 'No description provided'} (via MCP servers)`,
+                parameters: wrapToolParametersSchema(toolDef.parameters),
             };
         }
 
@@ -714,8 +718,11 @@ export class ToolManager {
         sessionId?: string,
         abortSignal?: AbortSignal
     ): Promise<import('./types.js').ToolExecutionResult> {
+        const { toolArgs: rawToolArgs, meta } = extractToolCallMeta(args);
+        let toolArgs = rawToolArgs;
+
         this.logger.debug(`🔧 Tool execution requested: '${toolName}' (toolCallId: ${toolCallId})`);
-        this.logger.debug(`Tool args: ${JSON.stringify(args, null, 2)}`);
+        this.logger.debug(`Tool args: ${JSON.stringify(toolArgs, null, 2)}`);
 
         // IMPORTANT: Emit llm:tool-call FIRST, before approval handling.
         // This ensures correct event ordering - llm:tool-call must arrive before approval:request
@@ -729,7 +736,7 @@ export class ToolManager {
         if (sessionId) {
             this.agentEventBus.emit('llm:tool-call', {
                 toolName,
-                args,
+                args: toolArgs,
                 callId: toolCallId,
                 sessionId,
             });
@@ -738,9 +745,10 @@ export class ToolManager {
         // Handle approval/confirmation flow - returns whether approval was required
         const { requireApproval, approvalStatus } = await this.handleToolApproval(
             toolName,
-            args,
+            toolArgs,
             toolCallId,
-            sessionId
+            sessionId,
+            meta.callDescription
         );
 
         this.logger.debug(`✅ Tool execution approved: ${toolName}`);
@@ -764,7 +772,7 @@ export class ToolManager {
         if (this.pluginManager && this.sessionManager && this.stateManager) {
             const beforePayload: BeforeToolCallPayload = {
                 toolName,
-                args,
+                args: toolArgs,
                 ...(sessionId !== undefined && { sessionId }),
             };
 
@@ -781,11 +789,23 @@ export class ToolManager {
             );
 
             // Use modified payload for execution
-            args = modifiedPayload.args;
+            toolArgs = modifiedPayload.args;
         }
 
         try {
             let result: unknown;
+
+            const registerBackgroundTask = (promise: Promise<unknown>, description: string) => {
+                const fallbackId = `task-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+                return {
+                    result: {
+                        taskId: toolCallId ?? fallbackId,
+                        status: 'running' as const,
+                        description,
+                    },
+                    promise,
+                };
+            };
 
             // Route to MCP tools
             if (toolName.startsWith(ToolManager.MCP_TOOL_PREFIX)) {
@@ -795,7 +815,29 @@ export class ToolManager {
                     throw ToolError.invalidName(toolName, 'tool name cannot be empty after prefix');
                 }
                 this.logger.debug(`🎯 MCP routing: '${toolName}' -> '${actualToolName}'`);
-                result = await this.mcpManager.executeTool(actualToolName, args, sessionId);
+
+                const runInBackground = meta.runInBackground === true && sessionId !== undefined;
+                if (runInBackground) {
+                    const backgroundSessionId = sessionId;
+                    const { result: backgroundResult, promise } = registerBackgroundTask(
+                        this.mcpManager.executeTool(actualToolName, toolArgs, backgroundSessionId),
+                        `MCP tool ${actualToolName}`
+                    );
+                    this.agentEventBus.emit('tool:background', {
+                        toolName,
+                        toolCallId: backgroundResult.taskId,
+                        sessionId: backgroundSessionId,
+                        description: backgroundResult.description,
+                        promise,
+                        ...(meta.timeoutMs !== undefined && { timeoutMs: meta.timeoutMs }),
+                        ...(meta.notifyOnComplete !== undefined && {
+                            notifyOnComplete: meta.notifyOnComplete,
+                        }),
+                    });
+                    result = backgroundResult;
+                } else {
+                    result = await this.mcpManager.executeTool(actualToolName, toolArgs, sessionId);
+                }
             }
             // Route to internal tools
             else if (toolName.startsWith(ToolManager.INTERNAL_TOOL_PREFIX)) {
@@ -808,13 +850,41 @@ export class ToolManager {
                     throw ToolError.internalToolsNotInitialized(toolName);
                 }
                 this.logger.debug(`🎯 Internal routing: '${toolName}' -> '${actualToolName}'`);
-                result = await this.internalToolsProvider.executeTool(
-                    actualToolName,
-                    args,
-                    sessionId,
-                    abortSignal,
-                    toolCallId
-                );
+
+                const runInBackground = meta.runInBackground === true && sessionId !== undefined;
+                if (runInBackground) {
+                    const backgroundSessionId = sessionId;
+                    const { result: backgroundResult, promise } = registerBackgroundTask(
+                        this.internalToolsProvider.executeTool(
+                            actualToolName,
+                            toolArgs,
+                            backgroundSessionId,
+                            abortSignal,
+                            toolCallId
+                        ),
+                        `Internal tool ${actualToolName}`
+                    );
+                    this.agentEventBus.emit('tool:background', {
+                        toolName,
+                        toolCallId: backgroundResult.taskId,
+                        sessionId: backgroundSessionId,
+                        description: backgroundResult.description,
+                        promise,
+                        ...(meta.timeoutMs !== undefined && { timeoutMs: meta.timeoutMs }),
+                        ...(meta.notifyOnComplete !== undefined && {
+                            notifyOnComplete: meta.notifyOnComplete,
+                        }),
+                    });
+                    result = backgroundResult;
+                } else {
+                    result = await this.internalToolsProvider.executeTool(
+                        actualToolName,
+                        toolArgs,
+                        sessionId,
+                        abortSignal,
+                        toolCallId
+                    );
+                }
             }
             // Route to custom tools
             else if (toolName.startsWith(ToolManager.CUSTOM_TOOL_PREFIX)) {
@@ -827,13 +897,41 @@ export class ToolManager {
                     throw ToolError.internalToolsNotInitialized(toolName);
                 }
                 this.logger.debug(`🎯 Custom routing: '${toolName}' -> '${actualToolName}'`);
-                result = await this.internalToolsProvider.executeTool(
-                    actualToolName,
-                    args,
-                    sessionId,
-                    abortSignal,
-                    toolCallId
-                );
+
+                const runInBackground = meta.runInBackground === true && sessionId !== undefined;
+                if (runInBackground) {
+                    const backgroundSessionId = sessionId;
+                    const { result: backgroundResult, promise } = registerBackgroundTask(
+                        this.internalToolsProvider.executeTool(
+                            actualToolName,
+                            toolArgs,
+                            backgroundSessionId,
+                            abortSignal,
+                            toolCallId
+                        ),
+                        `Custom tool ${actualToolName}`
+                    );
+                    this.agentEventBus.emit('tool:background', {
+                        toolName,
+                        toolCallId: backgroundResult.taskId,
+                        sessionId: backgroundSessionId,
+                        description: backgroundResult.description,
+                        promise,
+                        ...(meta.timeoutMs !== undefined && { timeoutMs: meta.timeoutMs }),
+                        ...(meta.notifyOnComplete !== undefined && {
+                            notifyOnComplete: meta.notifyOnComplete,
+                        }),
+                    });
+                    result = backgroundResult;
+                } else {
+                    result = await this.internalToolsProvider.executeTool(
+                        actualToolName,
+                        toolArgs,
+                        sessionId,
+                        abortSignal,
+                        toolCallId
+                    );
+                }
             }
             // Tool doesn't have proper prefix
             else {
@@ -1177,7 +1275,8 @@ export class ToolManager {
         toolName: string,
         args: Record<string, unknown>,
         toolCallId: string,
-        sessionId?: string
+        sessionId?: string,
+        callDescription?: string
     ): Promise<{ requireApproval: boolean; approvalStatus?: 'approved' | 'rejected' }> {
         // Try quick resolution first (auto-approve/deny based on policies)
         const quickResult = await this.tryQuickApprovalResolution(toolName, args, sessionId);
@@ -1186,7 +1285,7 @@ export class ToolManager {
         }
 
         // Fall back to manual approval flow
-        return this.requestManualApproval(toolName, args, toolCallId, sessionId);
+        return this.requestManualApproval(toolName, args, toolCallId, sessionId, callDescription);
     }
 
     /**
@@ -1286,7 +1385,8 @@ export class ToolManager {
         toolName: string,
         args: Record<string, unknown>,
         toolCallId: string,
-        sessionId?: string
+        sessionId?: string,
+        callDescription?: string
     ): Promise<{ requireApproval: boolean; approvalStatus: 'approved' | 'rejected' }> {
         this.logger.info(
             `Tool confirmation requested for ${toolName}, sessionId: ${sessionId ?? 'global'}`
@@ -1309,6 +1409,7 @@ export class ToolManager {
                 toolName,
                 toolCallId,
                 args,
+                ...(callDescription !== undefined && { description: callDescription }),
                 ...(sessionId !== undefined && { sessionId }),
                 ...(displayPreview !== undefined && { displayPreview }),
                 ...(suggestedPatterns !== undefined && { suggestedPatterns }),

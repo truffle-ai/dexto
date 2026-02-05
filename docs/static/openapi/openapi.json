@@ -2,7 +2,7 @@
   "openapi": "3.0.0",
   "info": {
     "title": "Dexto API",
-    "version": "1.5.6",
+    "version": "1.5.7",
     "description": "OpenAPI spec for the Dexto REST API server"
   },
   "servers": [
@@ -12130,6 +12130,14 @@
                               "nullable": true
                             },
                             "description": "Optional metadata"
+                          },
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "default",
+                              "background"
+                            ],
+                            "description": "Optional queued message kind"
                           }
                         },
                         "required": [
@@ -12277,6 +12285,14 @@
                       }
                     ],
                     "description": "Message content - string for text, or ContentPart[] for multimodal"
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "default",
+                      "background"
+                    ],
+                    "description": "Optional queued message kind"
                   }
                 },
                 "required": [

@@ -20,6 +20,8 @@ export interface UserMessageInput {
     content: ContentPart[];
     /** Optional metadata to attach to the message */
     metadata?: Record<string, unknown>;
+    /** Optional kind of queued message */
+    kind?: 'default' | 'background';
 }
 
 /**
@@ -71,6 +73,7 @@ export class MessageQueueService {
             content: message.content,
             queuedAt: Date.now(),
             ...(message.metadata !== undefined && { metadata: message.metadata }),
+            ...(message.kind !== undefined && { kind: message.kind }),
         };
 
         this.queue.push(queuedMsg);
@@ -125,6 +128,7 @@ export class MessageQueueService {
             ids: messages.map((m) => m.id),
             coalesced: messages.length > 1,
             content: combined.combinedContent,
+            messages,
         });
 
         return combined;
@@ -132,7 +136,7 @@ export class MessageQueueService {
 
     /**
      * Coalesce multiple messages into one (multimodal-aware).
-     * Strategy: Combine with numbered separators, preserve all media.
+     * Strategy: Combine with per-kind formatting, preserve all media.
      */
     private coalesce(messages: QueuedMessage[]): CoalescedMessage {
         // Single message - return as-is
@@ -150,15 +154,44 @@ export class MessageQueueService {
             };
         }
 
-        // Multiple messages - combine with numbered prefixes
+        const getMessageKind = (message: QueuedMessage): 'default' | 'background' =>
+            message.kind ?? 'default';
+
+        const totalUserMessages = messages.filter(
+            (message) => getMessageKind(message) !== 'background'
+        ).length;
+        const hasBackgroundMessages = messages.some(
+            (message) => getMessageKind(message) === 'background'
+        );
+
+        const getUserPrefix = (index: number, total: number, mixed: boolean): string | null => {
+            if (mixed) {
+                return `User follow-up ${index + 1}`;
+            }
+            if (total <= 1) return null;
+            if (total === 2) {
+                return index === 0 ? 'First' : 'Also';
+            }
+            return `[${index + 1}]`;
+        };
+
+        // Multiple messages - combine with structured per-kind prefixes
         const combinedContent: ContentPart[] = [];
+        let userIndex = 0;
 
         for (const [i, msg] of messages.entries()) {
-            // Add prefix based on message count
-            const prefix = messages.length === 2 ? (i === 0 ? 'First' : 'Also') : `[${i + 1}]`;
+            const kind = getMessageKind(msg);
+            const prefix =
+                kind === 'background'
+                    ? null
+                    : getUserPrefix(userIndex, totalUserMessages, hasBackgroundMessages);
+
+            if (kind !== 'background') {
+                userIndex += 1;
+            }
 
             // Start with prefix text
-            let prefixText = `${prefix}: `;
+            let prefixText = prefix ? `${prefix}: ` : '';
 
             // Process content parts
             for (const part of msg.content) {

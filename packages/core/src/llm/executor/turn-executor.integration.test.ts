@@ -633,7 +633,7 @@ describe('TurnExecutor Integration Tests', () => {
                 statusCode: 429,
                 responseHeaders: { 'retry-after': '60' },
                 responseBody: 'Rate limit exceeded',
-                url: 'https://api.openai.com/v1/chat/completions',
+                url: 'https://api.openai.com/v1/responses',
                 requestBodyValues: {},
                 isRetryable: true,
             });

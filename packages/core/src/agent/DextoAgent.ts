@@ -466,6 +466,8 @@ export class DextoAgent {
             } else {
                 this.logger.info('DextoAgent stopped successfully.');
             }
+
+            this.agentEventBus.emit('agent:stopped');
         } catch (error) {
             this.logger.error('Failed to stop DextoAgent', {
                 error: error instanceof Error ? error.message : String(error),
@@ -2435,6 +2437,19 @@ export class DextoAgent {
             throw AgentError.apiValidationError('toolNames must be an array of non-empty strings');
         }
         this.toolManager.setSessionDisabledTools(sessionId, toolNames);
+    }
+
+    /**
+     * Clear session-level disabled tools (session override).
+     */
+    public clearSessionDisabledTools(sessionId: string): void {
+        this.ensureStarted();
+        if (!sessionId || typeof sessionId !== 'string') {
+            throw AgentError.apiValidationError(
+                'sessionId is required and must be a non-empty string'
+            );
+        }
+        this.toolManager.clearSessionDisabledTools(sessionId);
     }
 
     /**

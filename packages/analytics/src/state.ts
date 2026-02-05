@@ -5,7 +5,7 @@ import * as path from 'path';
 import os from 'os';
 import { randomUUID, createHash } from 'crypto';
 import { createRequire } from 'module';
-import { getDextoGlobalPath } from '@dexto/core';
+import { getDextoGlobalPath } from '@dexto/core/utils/path.js';
 
 /**
  * Shape of the persisted analytics state written to

@@ -48,6 +48,9 @@ export const AGENT_EVENT_NAMES = [
     'approval:request',
     'approval:response',
     'run:invoke',
+    'agent:stopped',
+    'tool:background',
+    'tool:background-completed',
 ] as const;
 
 /**
@@ -466,6 +469,8 @@ export interface AgentEventMap {
         /** Combined content of all dequeued messages (for UI display) */
         content: import('../context/types.js').ContentPart[];
         sessionId: string;
+        /** Raw dequeued messages (optional) */
+        messages?: import('../session/types.js').QueuedMessage[];
     };
 
     /** Queued message was removed from queue */
@@ -539,7 +544,36 @@ export interface AgentEventMap {
         /** Arbitrary event data - service-specific payload */
         data: Record<string, unknown>;
     };
+
+    /**
+     * Fired when a tool is executed in background.
+     * Used by orchestration layer to register the task.
+     */
+    'tool:background': {
+        toolName: string;
+        toolCallId: string;
+        sessionId: string;
+        description?: string;
+        promise: Promise<unknown>;
+        timeoutMs?: number;
+        notifyOnComplete?: boolean;
+    };
+
+    /**
+     * Fired when a background tool has completed registration.
+     */
+    'tool:background-completed': {
+        toolCallId: string;
+        sessionId: string;
+    };
+
+    /**
+     * Fired when the agent is fully stopped.
+     */
+    'agent:stopped': void;
 }
+
+export type ToolBackgroundEvent = AgentEventMap['tool:background'];
 
 /**
  * Session-level events - these occur within individual sessions without session context
@@ -666,6 +700,8 @@ export interface SessionEventMap {
         coalesced: boolean;
         /** Combined content of all dequeued messages (for UI display) */
         content: import('../context/types.js').ContentPart[];
+        /** Raw dequeued messages (optional) */
+        messages?: import('../session/types.js').QueuedMessage[];
     };
 
     /** Queued message was removed from queue */

@@ -49,6 +49,8 @@ export interface SessionManagerConfig {
     sessionLoggerFactory?: SessionLoggerFactory;
 }
 
+type PersistedLLMConfig = Omit<ValidatedLLMConfig, 'apiKey'>;
+
 export interface SessionData {
     id: string;
     userId?: string;
@@ -59,7 +61,7 @@ export interface SessionData {
     tokenUsage?: SessionTokenUsage;
     estimatedCost?: number;
     /** Persisted LLM config override for this session */
-    llmOverride?: ValidatedLLMConfig;
+    llmOverride?: PersistedLLMConfig;
 }
 
 /**
@@ -254,11 +256,25 @@ export class SessionManager {
             });
 
             // Restore LLM override BEFORE session init so the service is created with correct config
+            // SECURITY: Re-resolve API key from environment when restoring (never persisted)
             const sessionData = await this.services.storageManager
                 .getDatabase()
                 .get<SessionData>(sessionKey);
             if (sessionData?.llmOverride) {
-                this.services.stateManager.updateLLM(sessionData.llmOverride, id);
+                const { resolveApiKeyForProvider } = await import('../utils/api-key-resolver.js');
+                const apiKey = resolveApiKeyForProvider(sessionData.llmOverride.provider);
+                if (!apiKey) {
+                    this.logger.warn(
+                        `Skipped LLM override restore for session ${id}: missing API key for provider ${sessionData.llmOverride.provider}`,
+                        { sessionId: id, provider: sessionData.llmOverride.provider }
+                    );
+                } else {
+                    const restoredConfig: ValidatedLLMConfig = {
+                        ...sessionData.llmOverride,
+                        apiKey,
+                    };
+                    this.services.stateManager.updateLLM(restoredConfig, id);
+                }
             }
 
             const session = new ChatSession(
@@ -377,8 +393,24 @@ export class SessionManager {
                 });
 
                 // Restore LLM override BEFORE session init so the service is created with correct config
+                // SECURITY: Re-resolve API key from environment when restoring (never persisted)
                 if (sessionData.llmOverride) {
-                    this.services.stateManager.updateLLM(sessionData.llmOverride, sessionId);
+                    const { resolveApiKeyForProvider } = await import(
+                        '../utils/api-key-resolver.js'
+                    );
+                    const apiKey = resolveApiKeyForProvider(sessionData.llmOverride.provider);
+                    if (!apiKey) {
+                        this.logger.warn(
+                            `Skipped LLM override restore for session ${sessionId}: missing API key for provider ${sessionData.llmOverride.provider}`,
+                            { sessionId, provider: sessionData.llmOverride.provider }
+                        );
+                    } else {
+                        const restoredConfig: ValidatedLLMConfig = {
+                            ...sessionData.llmOverride,
+                            apiKey,
+                        };
+                        this.services.stateManager.updateLLM(restoredConfig, sessionId);
+                    }
                 }
 
                 const session = new ChatSession(
@@ -798,12 +830,15 @@ export class SessionManager {
         await session.switchLLM(newLLMConfig);
 
         // Persist the LLM override to storage so it survives restarts
+        // SECURITY: Don't persist API keys - they should be resolved from environment variables
         const sessionKey = `session:${sessionId}`;
         const sessionData = await this.services.storageManager
             .getDatabase()
             .get<SessionData>(sessionKey);
         if (sessionData) {
-            sessionData.llmOverride = newLLMConfig;
+            // Store everything except the API key
+            const { apiKey: _apiKey, ...configWithoutApiKey } = newLLMConfig;
+            sessionData.llmOverride = configWithoutApiKey;
             await this.services.storageManager.getDatabase().set(sessionKey, sessionData);
             // Also update cache for consistency
             await this.services.storageManager

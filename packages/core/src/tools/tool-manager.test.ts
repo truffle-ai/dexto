@@ -243,7 +243,12 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
 
             await toolManager.executeTool(
                 'mcp--file_read',
-                { path: '/test' },
+                {
+                    path: '/test',
+                    __dexto: {
+                        callDescription: 'Read test file',
+                    },
+                },
                 'call-123',
                 'session123'
             );
@@ -252,8 +257,54 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 toolName: 'mcp--file_read',
                 toolCallId: 'call-123',
                 args: { path: '/test' },
+                description: 'Read test file',
                 sessionId: 'session123',
             });
+        });
+
+        it('should emit background event when runInBackground is set', async () => {
+            mockMcpManager.executeTool = vi.fn().mockResolvedValue('result');
+            const emitSpy = vi.fn();
+            mockAgentEventBus.emit = emitSpy as typeof mockAgentEventBus.emit;
+
+            const toolManager = new ToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'auto-approve',
+                mockAgentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                { internalToolsConfig: [], internalToolsServices: {} as any },
+                mockLogger
+            );
+
+            const response = await toolManager.executeTool(
+                'mcp--file_read',
+                {
+                    path: '/test',
+                    __dexto: {
+                        runInBackground: true,
+                    },
+                },
+                'call-123',
+                'session-1'
+            );
+
+            const result = response.result as {
+                taskId?: string;
+                status?: string;
+                description?: string;
+            };
+            expect(result.status).toBe('running');
+            expect(result.taskId).toBe('call-123');
+            expect(emitSpy).toHaveBeenCalledWith(
+                'tool:background',
+                expect.objectContaining({
+                    toolName: 'mcp--file_read',
+                    toolCallId: 'call-123',
+                    sessionId: 'session-1',
+                })
+            );
         });
 
         it('should request approval without sessionId when not provided', async () => {

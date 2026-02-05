@@ -114,6 +114,96 @@ export function useAgentEvents({
             { signal }
         );
 
+        bus.on(
+            'service:event',
+            (payload) => {
+                if (payload.service !== 'orchestration' || payload.event !== 'tasks-updated') {
+                    return;
+                }
+                if (payload.sessionId && payload.sessionId !== currentSessionId) {
+                    return;
+                }
+
+                const data = payload.data as {
+                    tasks?: Array<{
+                        taskId: string;
+                        status: 'running' | 'completed' | 'failed' | 'cancelled';
+                        description?: string;
+                        toolName?: string;
+                    }>;
+                    runningCount?: number;
+                };
+
+                if (data.tasks) {
+                    setUi((prev) => {
+                        const runningCount =
+                            typeof data.runningCount === 'number'
+                                ? data.runningCount
+                                : prev.backgroundTasksRunning;
+                        return {
+                            ...prev,
+                            backgroundTasks: data.tasks ?? prev.backgroundTasks,
+                            backgroundTasksRunning: runningCount,
+                        };
+                    });
+                } else if (typeof data.runningCount === 'number') {
+                    setUi((prev) => ({
+                        ...prev,
+                        backgroundTasksRunning: data.runningCount ?? prev.backgroundTasksRunning,
+                    }));
+                }
+            },
+            { signal }
+        );
+
+        bus.on(
+            'tool:background',
+            (payload) => {
+                if (payload.sessionId !== currentSessionId) {
+                    return;
+                }
+                const messageId = `tool-${payload.toolCallId}`;
+                setMessages((prev) =>
+                    prev.map((message) => {
+                        if (message.id !== messageId) {
+                            return message;
+                        }
+                        return {
+                            ...message,
+                            toolStatus: 'running',
+                            toolResult: 'Background task started',
+                            isBackground: true,
+                        };
+                    })
+                );
+            },
+            { signal }
+        );
+
+        bus.on(
+            'tool:background-completed',
+            (payload) => {
+                if (payload.sessionId !== currentSessionId) {
+                    return;
+                }
+                const messageId = `tool-${payload.toolCallId}`;
+                setMessages((prev) =>
+                    prev.map((message) => {
+                        if (message.id !== messageId) {
+                            return message;
+                        }
+                        return {
+                            ...message,
+                            toolStatus: 'finished',
+                            toolResult: 'Background task completed',
+                            isBackground: true,
+                        };
+                    })
+                );
+            },
+            { signal }
+        );
+
         // Handle conversation reset
         bus.on(
             'session:reset',

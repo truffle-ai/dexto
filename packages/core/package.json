@@ -17,7 +17,11 @@
         "require": "./dist/index.cjs"
       }
     },
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./utils/path.js": {
+      "import": "./dist/utils/path.js",
+      "require": "./dist/utils/path.cjs"
+    }
   },
   "dependencies": {
     "@ai-sdk/amazon-bedrock": "^3.0.71",

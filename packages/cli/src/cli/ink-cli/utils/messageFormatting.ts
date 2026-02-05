@@ -8,6 +8,20 @@ import os from 'os';
 import type { DextoAgent, InternalMessage, ContentPart, ToolCall } from '@dexto/core';
 import { isTextPart, isAssistantMessage, isToolMessage } from '@dexto/core';
 import type { Message } from '../state/types.js';
+
+const HIDDEN_TOOL_NAMES = new Set(['wait_for']);
+const normalizeToolName = (toolName: string) => {
+    const stripped = toolName.replace(/^(?:internal--|internal__|custom--|custom__)/, '');
+    const delimiterSplit = stripped.split(/[:.]/);
+    return delimiterSplit[delimiterSplit.length - 1] ?? stripped;
+};
+const shouldHideTool = (toolName: string) => HIDDEN_TOOL_NAMES.has(normalizeToolName(toolName));
+
+const backgroundCompletionRegex =
+    /<background-task-completion>[\s\S]*?<\/background-task-completion>/g;
+const stripBackgroundCompletion = (text: string): string =>
+    text.replace(backgroundCompletionRegex, '').replace('<background-task-completion>', '').trim();
+
 import { generateMessageId } from './idGenerator.js';
 
 /**
@@ -200,6 +214,10 @@ const TOOL_CONFIGS: Record<string, ToolDisplayConfig> = {
     plan_update: { displayName: 'Plan', argsToShow: [] },
     plan_review: { displayName: 'Plan', argsToShow: [] },
 
+    wait_for: { displayName: 'Wait', argsToShow: ['taskId', 'taskIds', 'mode'] },
+    check_task: { displayName: 'CheckTask', argsToShow: ['taskId'] },
+    list_tasks: { displayName: 'ListTasks', argsToShow: ['status', 'type'] },
+
     todo_write: { displayName: 'UpdateTasks', argsToShow: [] },
 };
 
@@ -232,6 +250,15 @@ function getToolConfig(toolName: string): ToolDisplayConfig | undefined {
  * with any "internal--" prefix stripped.
  * MCP tools keep their server prefix for clarity (e.g., "mcp_server__tool").
  */
+function toTitleCase(name: string): string {
+    return name
+        .replace(/[_-]+/g, ' ')
+        .split(' ')
+        .filter(Boolean)
+        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+        .join(' ');
+}
+
 export function getToolDisplayName(toolName: string): string {
     const config = getToolConfig(toolName);
     if (config) {
@@ -239,28 +266,28 @@ export function getToolDisplayName(toolName: string): string {
     }
     // Strip "internal--" prefix for unknown internal tools
     if (toolName.startsWith('internal--')) {
-        return toolName.replace('internal--', '');
+        return toTitleCase(toolName.replace('internal--', ''));
     }
     // Strip "custom--" prefix for custom tools
     if (toolName.startsWith('custom--')) {
-        return toolName.replace('custom--', '');
+        return toTitleCase(toolName.replace('custom--', ''));
     }
     // MCP tools: strip mcp-- or mcp__ prefix and server name for clean display
     if (toolName.startsWith('mcp--')) {
         const parts = toolName.split('--');
         if (parts.length >= 3) {
-            return parts.slice(2).join('--');
+            return toTitleCase(parts.slice(2).join('--'));
         }
-        return toolName.substring(5);
+        return toTitleCase(toolName.substring(5));
     }
     if (toolName.startsWith('mcp__')) {
         const parts = toolName.substring(5).split('__');
         if (parts.length >= 2) {
-            return parts.slice(1).join('__');
+            return toTitleCase(parts.slice(1).join('__'));
         }
-        return toolName.substring(5);
+        return toTitleCase(toolName.substring(5));
     }
-    return toolName;
+    return toTitleCase(toolName);
 }
 
 /**
@@ -605,9 +632,72 @@ function extractTextContent(content: ContentPart[] | null): string {
 /**
  * Generates a preview of tool result content for display
  */
+export function formatToolResultPreview(result: string): string {
+    try {
+        const parsed = JSON.parse(result) as {
+            status?: string;
+            taskId?: string;
+            count?: number;
+            tasks?: Array<{ status?: string; taskId?: string }>;
+            found?: boolean;
+            result?: string;
+        };
+
+        if (parsed.status === 'running' && parsed.taskId) {
+            return `Background task started (id: ${parsed.taskId})`;
+        }
+
+        if (parsed.found !== undefined && parsed.taskId) {
+            return parsed.found
+                ? `Task ${parsed.taskId} status: ${parsed.status ?? 'unknown'}`
+                : `Task ${parsed.taskId} not found`;
+        }
+
+        if (Array.isArray(parsed.tasks) && typeof parsed.count === 'number') {
+            const running = parsed.tasks.filter((task) => task.status === 'running').length;
+            return `Tasks: ${parsed.count} total${running > 0 ? ` • ${running} running` : ''}`;
+        }
+    } catch {
+        // fall through
+    }
+
+    const maxChars = 200;
+    if (result.length <= maxChars) {
+        return result;
+    }
+    return result.slice(0, maxChars) + '…';
+}
+
 function generateToolResultPreview(content: ContentPart[]): string {
     const textContent = extractTextContent(content);
     if (!textContent) return '';
+
+    try {
+        const parsed = JSON.parse(textContent) as {
+            status?: string;
+            taskId?: string;
+            count?: number;
+            tasks?: Array<{ status?: string; taskId?: string }>;
+            found?: boolean;
+        };
+
+        if (parsed.status === 'running' && parsed.taskId) {
+            return `Background task started (id: ${parsed.taskId})`;
+        }
+
+        if (Array.isArray(parsed.tasks) && typeof parsed.count === 'number') {
+            const running = parsed.tasks.filter((task) => task.status === 'running').length;
+            return `Tasks: ${parsed.count} total${running > 0 ? ` • ${running} running` : ''}`;
+        }
+
+        if (parsed.found !== undefined && parsed.taskId) {
+            return parsed.found
+                ? `Task ${parsed.taskId} status: ${parsed.status ?? 'unknown'}`
+                : `Task ${parsed.taskId} not found`;
+        }
+    } catch {
+        // Not JSON; fall through to raw text preview
+    }
 
     const lines = textContent.split('\n');
     const previewLines = lines.slice(0, 5);
@@ -647,6 +737,10 @@ export function convertHistoryToUIMessages(
 
         // Handle tool messages specially
         if (isToolMessage(msg)) {
+            if (shouldHideTool(msg.name)) {
+                return;
+            }
+
             // Look up the original tool call to get args
             const toolCall = toolCallMap.get(msg.toolCallId);
 
@@ -696,7 +790,8 @@ export function convertHistoryToUIMessages(
 
         // Handle assistant messages - skip those with only tool calls (no text content)
         if (isAssistantMessage(msg)) {
-            const textContent = extractTextContent(msg.content);
+            let textContent = extractTextContent(msg.content);
+            textContent = stripBackgroundCompletion(textContent);
 
             // Skip if no text content (message was just tool calls)
             if (!textContent) return;
@@ -712,6 +807,7 @@ export function convertHistoryToUIMessages(
 
         // Handle other messages (user, system)
         let textContent = extractTextContent(msg.content);
+        textContent = stripBackgroundCompletion(textContent);
 
         // Skip empty messages
         if (!textContent) return;

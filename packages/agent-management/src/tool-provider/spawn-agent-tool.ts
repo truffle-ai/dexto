@@ -6,6 +6,7 @@
  */
 
 import type { InternalTool, ToolExecutionContext } from '@dexto/core';
+import type { TaskRegistry } from '@dexto/orchestration';
 import { SpawnAgentInputSchema, type SpawnAgentInput } from './schemas.js';
 import type { RuntimeService } from './runtime-service.js';
 
@@ -51,7 +52,11 @@ ${agentsList}
 - If a sub-agent's LLM fails, it automatically falls back to your LLM`;
 }
 
-export function createSpawnAgentTool(service: RuntimeService): InternalTool {
+export function createSpawnAgentTool(
+    service: RuntimeService,
+    taskRegistry?: TaskRegistry,
+    onTaskRegistered?: (taskId: string, promise: Promise<unknown>, sessionId?: string) => void
+): InternalTool {
     return {
         id: 'spawn_agent',
         description: buildDescription(service),
@@ -81,6 +86,32 @@ export function createSpawnAgentTool(service: RuntimeService): InternalTool {
             }
             if (context?.sessionId !== undefined) {
                 options.sessionId = context.sessionId;
+            }
+
+            if (context?.toolCallId && taskRegistry) {
+                const promise = service.spawnAndExecute(options).then((result) => {
+                    if (!result.success) {
+                        throw new Error(result.error ?? 'Unknown error');
+                    }
+                    return result.response ?? 'Task completed successfully.';
+                });
+
+                try {
+                    taskRegistry.registerAgentTask(
+                        context.toolCallId,
+                        `Spawn agent: ${validatedInput.task}`,
+                        promise
+                    );
+                } catch (error) {
+                    promise.catch(() => undefined);
+                    throw error;
+                }
+                onTaskRegistered?.(context.toolCallId, promise, context.sessionId);
+
+                return {
+                    taskId: context.toolCallId,
+                    status: 'running',
+                };
             }
 
             const result = await service.spawnAndExecute(options);

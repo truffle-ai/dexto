@@ -121,6 +121,7 @@ describe('MessageQueueService', () => {
                 ids: expect.arrayContaining([expect.stringMatching(/^msg_/)]),
                 coalesced: true,
                 content: expect.any(Array),
+                messages: expect.any(Array),
             });
         });
 
@@ -134,6 +135,7 @@ describe('MessageQueueService', () => {
                 ids: expect.any(Array),
                 coalesced: false,
                 content: [{ type: 'text', text: 'solo' }],
+                messages: expect.any(Array),
             });
         });
     });
@@ -209,6 +211,22 @@ describe('MessageQueueService', () => {
                 image: 'base64img2',
                 mimeType: 'image/jpeg',
             });
+        });
+
+        it('should tag user messages in mixed batches', () => {
+            queue.enqueue({ content: [{ type: 'text', text: 'user note' }] });
+            queue.enqueue({
+                content: [{ type: 'text', text: 'bg payload' }],
+                kind: 'background',
+            });
+
+            const result = queue.dequeueAll();
+
+            expect(result?.combinedContent[0]).toEqual({
+                type: 'text',
+                text: 'User follow-up 1: user note',
+            });
+            expect(result?.combinedContent[2]).toEqual({ type: 'text', text: 'bg payload' });
         });
 
         it('should handle empty message content with placeholder', () => {

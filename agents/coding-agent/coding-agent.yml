@@ -125,6 +125,8 @@ toolConfirmation:
       - custom--kill_process   # Kill processes without approval (only processes started by agent)
       - custom--todo_write     # Todo updates don't need approval
       - custom--plan_read      # Read plan without approval
+      - custom--wait_for       # Wait for background tasks without approval
+      - custom--check_task     # Check background tasks without approval
 
     # Tools that are always denied (dangerous operations)
     # Uncomment to restrict certain operations

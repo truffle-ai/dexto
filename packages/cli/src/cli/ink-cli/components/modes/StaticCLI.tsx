@@ -37,6 +37,7 @@ import { StatusBar } from '../StatusBar.js';
 import { HistorySearchBar } from '../HistorySearchBar.js';
 import { Footer } from '../Footer.js';
 import { TodoPanel } from '../TodoPanel.js';
+import { BackgroundTasksPanel } from '../BackgroundTasksPanel.js';
 
 // Containers
 import { InputContainer, type InputContainerHandle } from '../../containers/InputContainer.js';
@@ -204,6 +205,14 @@ export function StaticCLI({
                     hasTodos={todos.some((t) => t.status !== 'completed')}
                     planModeActive={ui.planModeActive}
                     autoApproveEdits={ui.autoApproveEdits}
+                    backgroundTasksRunning={ui.backgroundTasksRunning}
+                />
+
+                {/* Background tasks panel */}
+                <BackgroundTasksPanel
+                    tasks={ui.backgroundTasks}
+                    isExpanded={ui.backgroundTasksExpanded}
+                    isProcessing={ui.isProcessing}
                 />
 
                 {/* Todo panel - shown below status bar */}
