@@ -8,6 +8,14 @@ import os from 'os';
 import type { DextoAgent, InternalMessage, ContentPart, ToolCall } from '@dexto/core';
 import { isTextPart, isAssistantMessage, isToolMessage } from '@dexto/core';
 import type { Message } from '../state/types.js';
+
+const HIDDEN_TOOL_NAMES = new Set(['wait_for']);
+const normalizeToolName = (toolName: string) => {
+    const stripped = toolName.replace(/^(?:internal--|internal__|custom--|custom__)/, '');
+    const delimiterSplit = stripped.split(/[:.]/);
+    return delimiterSplit[delimiterSplit.length - 1] ?? stripped;
+};
+const shouldHideTool = (toolName: string) => HIDDEN_TOOL_NAMES.has(normalizeToolName(toolName));
 import { generateMessageId } from './idGenerator.js';
 
 /**
@@ -723,6 +731,10 @@ export function convertHistoryToUIMessages(
 
         // Handle tool messages specially
         if (isToolMessage(msg)) {
+            if (shouldHideTool(msg.name)) {
+                return;
+            }
+
             // Look up the original tool call to get args
             const toolCall = toolCallMap.get(msg.toolCallId);
 

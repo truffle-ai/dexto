@@ -129,6 +129,7 @@ export function useAgentEvents({
                         taskId: string;
                         status: 'running' | 'completed' | 'failed' | 'cancelled';
                         description?: string;
+                        toolName?: string;
                     }>;
                     runningCount?: number;
                 };
@@ -151,6 +152,54 @@ export function useAgentEvents({
                         backgroundTasksRunning: data.runningCount ?? prev.backgroundTasksRunning,
                     }));
                 }
+            },
+            { signal }
+        );
+
+        bus.on(
+            'tool:background',
+            (payload) => {
+                if (payload.sessionId !== currentSessionId) {
+                    return;
+                }
+                const messageId = `tool-${payload.toolCallId}`;
+                setMessages((prev) =>
+                    prev.map((message) => {
+                        if (message.id !== messageId) {
+                            return message;
+                        }
+                        return {
+                            ...message,
+                            toolStatus: 'running',
+                            toolResult: 'Background task started',
+                            isBackground: true,
+                        };
+                    })
+                );
+            },
+            { signal }
+        );
+
+        bus.on(
+            'tool:background-completed',
+            (payload) => {
+                if (payload.sessionId !== currentSessionId) {
+                    return;
+                }
+                const messageId = `tool-${payload.toolCallId}`;
+                setMessages((prev) =>
+                    prev.map((message) => {
+                        if (message.id !== messageId) {
+                            return message;
+                        }
+                        return {
+                            ...message,
+                            toolStatus: 'finished',
+                            toolResult: 'Background task completed',
+                            isBackground: true,
+                        };
+                    })
+                );
             },
             { signal }
         );

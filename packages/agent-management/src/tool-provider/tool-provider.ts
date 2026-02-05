@@ -161,7 +161,12 @@ export const agentSpawnerToolsProvider: CustomToolProvider<'agent-spawner', Agen
                 .isSessionBusy(sessionId)
                 .then((isBusy) => {
                     if (isBusy) {
-                        agent.queueMessage(sessionId, { content }).catch(() => undefined);
+                        agent
+                            .queueMessage(sessionId, {
+                                content,
+                                kind: 'background',
+                            })
+                            .catch(() => undefined);
                     } else {
                         agent.agentEventBus.emit('run:invoke', {
                             sessionId,

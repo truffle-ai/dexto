@@ -287,7 +287,6 @@ export function StaticCLI({
                     autoApproveEdits={ui.autoApproveEdits}
                     planModeActive={ui.planModeActive}
                     isShellMode={buffer.text.startsWith('!')}
-                    backgroundTasksRunning={ui.backgroundTasksRunning}
                 />
 
                 {/* History search bar (Ctrl+R) - shown at very bottom */}

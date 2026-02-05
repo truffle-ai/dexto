@@ -11,6 +11,7 @@ const QueuedMessageSchema = z
         content: z.array(ContentPartSchema).describe('Message content parts'),
         queuedAt: z.number().describe('Unix timestamp when message was queued'),
         metadata: z.record(z.unknown()).optional().describe('Optional metadata'),
+        kind: z.enum(['default', 'background']).optional().describe('Optional queued message kind'),
     })
     .strict()
     .describe('A message waiting in the queue');
@@ -52,6 +53,7 @@ const QueueMessageBodySchema = z
         content: z
             .union([z.string(), z.array(QueueContentPartSchema)])
             .describe('Message content - string for text, or ContentPart[] for multimodal'),
+        kind: z.enum(['default', 'background']).optional().describe('Optional queued message kind'),
     })
     .describe('Request body for queueing a message');
 
@@ -208,7 +210,11 @@ export function createQueueRouter(getAgent: GetAgentFn) {
                     : rawContent
             ) as ContentPart[];
 
-            const result = await agent.queueMessage(sessionId, { content });
+            const { kind } = ctx.req.valid('json');
+            const result = await agent.queueMessage(sessionId, {
+                content,
+                ...(kind !== undefined && { kind }),
+            });
             return ctx.json(
                 {
                     queued: result.queued,

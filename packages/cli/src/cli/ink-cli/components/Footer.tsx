@@ -19,7 +19,6 @@ interface FooterProps {
     planModeActive?: boolean;
     /** Whether user is in shell command mode (input starts with !) */
     isShellMode?: boolean;
-    backgroundTasksRunning?: number;
 }
 
 function getDirectoryName(cwd: string): string {
@@ -39,7 +38,6 @@ export function Footer({
     autoApproveEdits,
     planModeActive,
     isShellMode,
-    backgroundTasksRunning = 0,
 }: FooterProps) {
     const displayPath = cwd ? getDirectoryName(cwd) : '';
     const displayModelName = getModelDisplayName(modelName);
@@ -149,14 +147,6 @@ export function Footer({
                 <Box>
                     <Text color="yellowBright">accept edits</Text>
                     <Text color="gray"> (shift + tab to cycle)</Text>
-                </Box>
-            )}
-
-            {backgroundTasksRunning > 0 && (
-                <Box>
-                    <Text color="cyan">bg tasks:</Text>
-                    <Text color="gray"> {backgroundTasksRunning}</Text>
-                    <Text color="gray"> (ctrl+b to view)</Text>
                 </Box>
             )}
         </Box>

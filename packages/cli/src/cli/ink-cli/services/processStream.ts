@@ -33,6 +33,15 @@ import { isAutoApprovableInEditMode } from '../utils/toolUtils.js';
 import { capture } from '../../../analytics/index.js';
 import chalk from 'chalk';
 
+const HIDDEN_TOOL_NAMES = new Set(['wait_for']);
+const normalizeToolName = (toolName: string) => {
+    const stripped = toolName.replace(/^(?:internal--|internal__|custom--|custom__)/, '');
+    const delimiterSplit = stripped.split(/[:.]/);
+    return delimiterSplit[delimiterSplit.length - 1] ?? stripped;
+};
+const shouldHideTool = (toolName?: string) =>
+    toolName ? HIDDEN_TOOL_NAMES.has(normalizeToolName(toolName)) : false;
+
 /**
  * Build error message with recovery guidance if available
  */
@@ -537,6 +546,9 @@ export async function processStream(
                 }
 
                 case 'llm:tool-call': {
+                    if (shouldHideTool(event.toolName)) {
+                        break;
+                    }
                     debug.log('TOOL-CALL: state check', {
                         toolName: event.toolName,
                         hasMessageId: !!state.messageId,
@@ -639,6 +651,9 @@ export async function processStream(
                 }
 
                 case 'llm:tool-result': {
+                    if (shouldHideTool(event.toolName)) {
+                        break;
+                    }
                     // Extract structured display data and content from sanitized result
                     const sanitized = event.sanitized as SanitizedToolResult | undefined;
                     const toolDisplayData = sanitized?.meta?.display;
@@ -830,6 +845,12 @@ export async function processStream(
                     //    This ensures the previous assistant response is in messages
                     //    before we add the next user message
                     finalizeAllPending();
+
+                    if (event.messages?.some((message) => message.kind === 'background')) {
+                        setQueuedMessages([]);
+                        setUi((prev) => ({ ...prev, isProcessing: true }));
+                        break;
+                    }
 
                     // 2. Add user message directly to messages (not buffer)
                     //    The buffer approach doesn't work because llm:thinking

@@ -24,6 +24,7 @@ const VERDACCIO_CONFIG_DIR = join(process.cwd(), '.verdaccio');
 const PACKAGES = [
     { name: '@dexto/analytics', path: 'packages/analytics' },
     { name: '@dexto/core', path: 'packages/core' },
+    { name: '@dexto/orchestration', path: 'packages/orchestration' },
     { name: '@dexto/registry', path: 'packages/registry' },
     { name: '@dexto/tools-filesystem', path: 'packages/tools-filesystem' },
     { name: '@dexto/tools-process', path: 'packages/tools-process' },

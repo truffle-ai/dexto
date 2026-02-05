@@ -5,6 +5,7 @@ export interface QueuedMessage {
     content: ContentPart[];
     queuedAt: number;
     metadata?: Record<string, unknown>;
+    kind?: 'default' | 'background';
 }
 
 export interface CoalescedMessage {

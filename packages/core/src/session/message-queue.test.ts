@@ -121,6 +121,7 @@ describe('MessageQueueService', () => {
                 ids: expect.arrayContaining([expect.stringMatching(/^msg_/)]),
                 coalesced: true,
                 content: expect.any(Array),
+                messages: expect.any(Array),
             });
         });
 
@@ -134,6 +135,7 @@ describe('MessageQueueService', () => {
                 ids: expect.any(Array),
                 coalesced: false,
                 content: [{ type: 'text', text: 'solo' }],
+                messages: expect.any(Array),
             });
         });
     });

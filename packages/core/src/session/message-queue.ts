@@ -20,6 +20,8 @@ export interface UserMessageInput {
     content: ContentPart[];
     /** Optional metadata to attach to the message */
     metadata?: Record<string, unknown>;
+    /** Optional kind of queued message */
+    kind?: 'default' | 'background';
 }
 
 /**
@@ -71,6 +73,7 @@ export class MessageQueueService {
             content: message.content,
             queuedAt: Date.now(),
             ...(message.metadata !== undefined && { metadata: message.metadata }),
+            ...(message.kind !== undefined && { kind: message.kind }),
         };
 
         this.queue.push(queuedMsg);
@@ -125,6 +128,7 @@ export class MessageQueueService {
             ids: messages.map((m) => m.id),
             coalesced: messages.length > 1,
             content: combined.combinedContent,
+            messages,
         });
 
         return combined;
