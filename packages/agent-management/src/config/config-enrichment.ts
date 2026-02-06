@@ -279,7 +279,8 @@ export function enrichAgentConfig(
             }
         }
 
-        // Discover standalone skills from ~/.dexto/skills/ and <cwd>/.dexto/skills/
+        // Discover standalone skills from ~/.agents/skills/, ~/.dexto/skills/,
+        // <cwd>/.agents/skills/, and <cwd>/.dexto/skills/
         // These are bare skill directories with SKILL.md files (not full plugins)
         // Unlike plugin commands, standalone skills don't need namespace prefixing -
         // the id from frontmatter or directory name is used directly.
