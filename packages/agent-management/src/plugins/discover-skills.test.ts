@@ -59,6 +59,33 @@ describe('discoverStandaloneSkills', () => {
     });
 
     describe('skill discovery from user directory', () => {
+        it('should discover skills from ~/.agents/skills/', () => {
+            vi.mocked(fs.existsSync).mockImplementation((p) => {
+                if (p === '/home/user/.agents/skills') return true;
+                if (p === '/home/user/.agents/skills/remotion-video/SKILL.md') return true;
+                return false;
+            });
+
+            vi.mocked(fs.readdirSync).mockImplementation((dir) => {
+                if (dir === '/home/user/.agents/skills') {
+                    return [createDirent('remotion-video', true)] as unknown as ReturnType<
+                        typeof fs.readdirSync
+                    >;
+                }
+                return [];
+            });
+
+            const result = discoverStandaloneSkills();
+
+            expect(result).toHaveLength(1);
+            expect(result[0]).toMatchObject({
+                name: 'remotion-video',
+                path: '/home/user/.agents/skills/remotion-video',
+                skillFile: '/home/user/.agents/skills/remotion-video/SKILL.md',
+                source: 'user',
+            });
+        });
+
         it('should discover skills from ~/.dexto/skills/', () => {
             vi.mocked(fs.existsSync).mockImplementation((p) => {
                 if (p === '/home/user/.dexto/skills') return true;
@@ -109,6 +136,31 @@ describe('discoverStandaloneSkills', () => {
     });
 
     describe('skill discovery from project directory', () => {
+        it('should discover skills from <cwd>/.agents/skills/', () => {
+            vi.mocked(fs.existsSync).mockImplementation((p) => {
+                if (p === '/test/project/.agents/skills') return true;
+                if (p === '/test/project/.agents/skills/my-project-skill/SKILL.md') return true;
+                return false;
+            });
+
+            vi.mocked(fs.readdirSync).mockImplementation((dir) => {
+                if (dir === '/test/project/.agents/skills') {
+                    return [createDirent('my-project-skill', true)] as unknown as ReturnType<
+                        typeof fs.readdirSync
+                    >;
+                }
+                return [];
+            });
+
+            const result = discoverStandaloneSkills();
+
+            expect(result).toHaveLength(1);
+            expect(result[0]).toMatchObject({
+                name: 'my-project-skill',
+                source: 'project',
+            });
+        });
+
         it('should discover skills from <cwd>/.dexto/skills/', () => {
             vi.mocked(fs.existsSync).mockImplementation((p) => {
                 if (p === '/test/project/.dexto/skills') return true;
@@ -163,6 +215,35 @@ describe('discoverStandaloneSkills', () => {
             expect(result).toHaveLength(1);
             expect(result[0]!.source).toBe('project');
             expect(result[0]!.path).toBe('/test/project/.dexto/skills/shared-skill');
+        });
+
+        it('should prefer .agents over .dexto skills with same name', () => {
+            vi.mocked(fs.existsSync).mockImplementation((p) => {
+                if (p === '/test/project/.agents/skills') return true;
+                if (p === '/test/project/.agents/skills/shared-skill/SKILL.md') return true;
+                if (p === '/test/project/.dexto/skills') return true;
+                if (p === '/test/project/.dexto/skills/shared-skill/SKILL.md') return true;
+                return false;
+            });
+
+            vi.mocked(fs.readdirSync).mockImplementation((dir) => {
+                if (dir === '/test/project/.agents/skills') {
+                    return [createDirent('shared-skill', true)] as unknown as ReturnType<
+                        typeof fs.readdirSync
+                    >;
+                }
+                if (dir === '/test/project/.dexto/skills') {
+                    return [createDirent('shared-skill', true)] as unknown as ReturnType<
+                        typeof fs.readdirSync
+                    >;
+                }
+                return [];
+            });
+
+            const result = discoverStandaloneSkills();
+
+            expect(result).toHaveLength(1);
+            expect(result[0]!.path).toBe('/test/project/.agents/skills/shared-skill');
         });
     });
 
@@ -268,6 +349,11 @@ describe('getSkillSearchPaths', () => {
     it('should return all search paths in priority order', () => {
         const paths = getSkillSearchPaths();
 
-        expect(paths).toEqual(['/test/project/.dexto/skills', '/home/user/.dexto/skills']);
+        expect(paths).toEqual([
+            '/test/project/.agents/skills',
+            '/test/project/.dexto/skills',
+            '/home/user/.agents/skills',
+            '/home/user/.dexto/skills',
+        ]);
     });
 });
