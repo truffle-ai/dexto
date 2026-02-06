@@ -64,9 +64,10 @@ export const CUSTOM_MODELS_STORAGE_KEY = 'dexto:customModels';
 // Default favorites for new users (newest/best models)
 export const DEFAULT_FAVORITES = [
     'anthropic|claude-sonnet-4-5-20250929',
-    'anthropic|claude-opus-4-5-20251101',
+    'anthropic|claude-opus-4-6-20260205',
     'openai|gpt-5.1-chat-latest',
     'openai|gpt-5.1',
+    'openai|gpt-5.3-codex',
     'google|gemini-3-pro-preview',
     'google|gemini-3-pro-image-preview',
 ];
