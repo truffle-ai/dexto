@@ -1,5 +1,5 @@
 ---
-"@dexto/webui": minor
+"@dexto/webui": patch
 "@dexto/analytics": patch
 ---
 
