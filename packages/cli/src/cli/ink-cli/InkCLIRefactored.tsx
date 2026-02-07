@@ -274,11 +274,31 @@ export async function startInkCliRefactored(
             for (const modelStat of exitStats.modelStats) {
                 const modelLabel = `${modelStat.model} (${modelStat.messageCount} msgs)`;
                 process.stdout.write(chalk.gray(`    • ${modelLabel}`) + '\n');
+
+                // Detailed token breakdown per model
+                const tokens = modelStat.tokenUsage;
                 process.stdout.write(
-                    chalk.gray(
-                        `      Tokens: ${modelStat.tokenUsage.totalTokens.toLocaleString()}`
-                    ) + '\n'
+                    chalk.gray(`      Input:   ${tokens.inputTokens.toLocaleString()}`) + '\n'
                 );
+                process.stdout.write(
+                    chalk.gray(`      Output:  ${tokens.outputTokens.toLocaleString()}`) + '\n'
+                );
+                if (tokens.reasoningTokens > 0) {
+                    process.stdout.write(
+                        chalk.gray(`      Reasoning: ${tokens.reasoningTokens.toLocaleString()}`) +
+                            '\n'
+                    );
+                }
+                if (tokens.cacheReadTokens > 0) {
+                    process.stdout.write(
+                        chalk.cyan(`      Cache Read: ${tokens.cacheReadTokens.toLocaleString()}`) +
+                            '\n'
+                    );
+                }
+                process.stdout.write(
+                    chalk.gray(`      Total:   ${tokens.totalTokens.toLocaleString()}`) + '\n'
+                );
+
                 if (modelStat.estimatedCost > 0) {
                     const costStr =
                         modelStat.estimatedCost < 0.01
@@ -286,7 +306,7 @@ export async function startInkCliRefactored(
                             : modelStat.estimatedCost < 1
                               ? `$${modelStat.estimatedCost.toFixed(3)}`
                               : `$${modelStat.estimatedCost.toFixed(2)}`;
-                    process.stdout.write(chalk.gray(`      Cost: ${costStr}`) + '\n');
+                    process.stdout.write(chalk.gray(`      Cost:    ${costStr}`) + '\n');
                 }
             }
         }
