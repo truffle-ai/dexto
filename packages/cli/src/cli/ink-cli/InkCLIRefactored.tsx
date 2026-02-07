@@ -254,11 +254,6 @@ export async function startInkCliRefactored(
             process.stdout.write(chalk.gray(`  Session ID:  ${exitStats.sessionId}`) + '\n');
         }
 
-        // Model name
-        if (exitStats.modelName) {
-            process.stdout.write(chalk.gray(`  Model:       ${exitStats.modelName}`) + '\n');
-        }
-
         // Duration
         if (exitStats.duration) {
             process.stdout.write(chalk.gray(`  Duration:    ${exitStats.duration}`) + '\n');
@@ -271,6 +266,29 @@ export async function startInkCliRefactored(
                     `  Messages:    ${exitStats.messageCount.total} total (${exitStats.messageCount.user} user, ${exitStats.messageCount.assistant} assistant)`
                 ) + '\n'
             );
+        }
+        // Multi-model breakdown (if multiple models were used)
+        if (exitStats.modelStats && exitStats.modelStats.length > 1) {
+            process.stdout.write(chalk.gray('\n  Models Used:') + '\n');
+
+            for (const modelStat of exitStats.modelStats) {
+                const modelLabel = `${modelStat.model} (${modelStat.messageCount} msgs)`;
+                process.stdout.write(chalk.gray(`    • ${modelLabel}`) + '\n');
+                process.stdout.write(
+                    chalk.gray(
+                        `      Tokens: ${modelStat.tokenUsage.totalTokens.toLocaleString()}`
+                    ) + '\n'
+                );
+                if (modelStat.estimatedCost > 0) {
+                    const costStr =
+                        modelStat.estimatedCost < 0.01
+                            ? `$${modelStat.estimatedCost.toFixed(4)}`
+                            : modelStat.estimatedCost < 1
+                              ? `$${modelStat.estimatedCost.toFixed(3)}`
+                              : `$${modelStat.estimatedCost.toFixed(2)}`;
+                    process.stdout.write(chalk.gray(`      Cost: ${costStr}`) + '\n');
+                }
+            }
         }
 
         // Token usage

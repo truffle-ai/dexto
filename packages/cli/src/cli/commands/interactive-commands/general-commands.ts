@@ -246,6 +246,9 @@ export const generalCommands: CommandDefinition[] = [
                             ...(sessionMetadata.estimatedCost !== undefined && {
                                 estimatedCost: sessionMetadata.estimatedCost,
                             }),
+                            ...(sessionMetadata.modelStats && {
+                                modelStats: sessionMetadata.modelStats,
+                            }),
                         });
                     }
                 }

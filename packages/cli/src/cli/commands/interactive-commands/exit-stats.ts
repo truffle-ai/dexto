@@ -24,6 +24,20 @@ export interface ExitSessionStats {
         totalTokens: number;
     };
     estimatedCost?: number;
+    modelStats?: Array<{
+        provider: string;
+        model: string;
+        messageCount: number;
+        tokenUsage: {
+            inputTokens: number;
+            outputTokens: number;
+            reasoningTokens: number;
+            cacheReadTokens: number;
+            cacheWriteTokens: number;
+            totalTokens: number;
+        };
+        estimatedCost: number;
+    }>;
 }
 
 let exitStats: ExitSessionStats | null = null;
