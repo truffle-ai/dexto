@@ -2,6 +2,8 @@
  * Utility functions for handling attachments (images and files).
  */
 
+import type { Attachment, ContentPart } from './attachment-types.js';
+
 /**
  * Generate a unique ID for an attachment.
  * Uses timestamp + random suffix for uniqueness.
@@ -90,4 +92,41 @@ export function validateAttachment(
     }
 
     return { valid: true };
+}
+
+/**
+ * Build content parts array from text and attachments.
+ * Converts attachments into the appropriate content part format for API requests.
+ *
+ * @param text - Optional text content
+ * @param attachments - Optional array of attachments (images/files)
+ * @returns Array of content parts ready for API submission
+ */
+export function buildContentParts(text?: string, attachments?: Attachment[]): ContentPart[] {
+    const contentParts: ContentPart[] = [];
+
+    if (text) {
+        contentParts.push({ type: 'text', text });
+    }
+
+    if (attachments) {
+        for (const attachment of attachments) {
+            if (attachment.type === 'image') {
+                contentParts.push({
+                    type: 'image',
+                    image: attachment.data,
+                    mimeType: attachment.mimeType,
+                });
+            } else {
+                contentParts.push({
+                    type: 'file',
+                    data: attachment.data,
+                    mimeType: attachment.mimeType,
+                    filename: attachment.filename,
+                });
+            }
+        }
+    }
+
+    return contentParts;
 }

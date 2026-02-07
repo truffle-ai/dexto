@@ -17,11 +17,9 @@ Add copy-paste and drag-drop support for multiple file attachments
 - Comprehensive file validation with smart error messages
 - Compatible model suggestions for unsupported file types
 - File rejection analytics tracking
-- Keyboard shortcuts: Backspace removes last attachment, Cmd+I focuses input
 - Unified file handler for consistent validation across all input methods
 - Consistent duplicate file rejection across all upload methods (paste/drop/button)
 - Defensive checks for undefined mimeType and malformed data URLs
-- Keyboard accessibility: Remove buttons visible on focus (focus:opacity-100)
 
 **Technical Changes:**
 - Refactored from single image+file to unified `Attachment[]` array

@@ -24,6 +24,15 @@ export interface Attachment {
 }
 
 /**
+ * Content part types for message content.
+ * Used when building messages with text and/or attachments.
+ */
+export type ContentPart =
+    | { type: 'text'; text: string }
+    | { type: 'image'; image: string; mimeType?: string }
+    | { type: 'file'; data: string; mimeType: string; filename?: string };
+
+/**
  * Attachment limits and constraints.
  */
 export const ATTACHMENT_LIMITS = {

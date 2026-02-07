@@ -10,6 +10,7 @@ import { eventBus } from '@/lib/events/EventBus.js';
 import { useChatStore } from '@/lib/stores/chatStore.js';
 import type { Session } from './useSessions.js';
 import type { Attachment } from '../../lib/attachment-types.js';
+import { buildContentParts } from '../../lib/attachment-utils.js';
 
 // Tool result types
 export interface ToolResultError {
@@ -266,34 +267,7 @@ export function useChat(
             lastMessageIdRef.current = userId; // Track for error anchoring
 
             // Build content parts array from text and attachments
-            const contentParts: Array<
-                | { type: 'text'; text: string }
-                | { type: 'image'; image: string; mimeType?: string }
-                | { type: 'file'; data: string; mimeType: string; filename?: string }
-            > = [];
-
-            if (content) {
-                contentParts.push({ type: 'text', text: content });
-            }
-
-            if (attachments) {
-                for (const attachment of attachments) {
-                    if (attachment.type === 'image') {
-                        contentParts.push({
-                            type: 'image',
-                            image: attachment.data,
-                            mimeType: attachment.mimeType,
-                        });
-                    } else {
-                        contentParts.push({
-                            type: 'file',
-                            data: attachment.data,
-                            mimeType: attachment.mimeType,
-                            filename: attachment.filename,
-                        });
-                    }
-                }
-            }
+            const contentParts = buildContentParts(content, attachments);
 
             // Store message with full content array if multimodal, otherwise just text
             useChatStore.getState().addMessage(sessionId, {

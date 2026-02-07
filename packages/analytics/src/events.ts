@@ -158,7 +158,7 @@ export interface ImageAttachedEvent {
 export interface FileRejectedEvent {
     source: AnalyticsSource;
     sessionId: string;
-    reason: 'size_limit' | 'type_unsupported' | 'count_limit' | 'duplicate' | 'total_size_limit';
+    reason: 'size_limit' | 'type_unsupported' | 'duplicate';
     fileType: string;
     fileSizeBytes?: number | undefined;
 }
