@@ -18,6 +18,8 @@ import { formatForInkCli } from './utils/format-output.js';
 import { CommandOutputHelper } from './utils/command-output.js';
 import type { HelpStyledData, ShortcutsStyledData } from '../../ink-cli/state/types.js';
 import { writeToClipboard } from '../../ink-cli/utils/clipboardUtils.js';
+import { setExitStats } from './exit-stats.js';
+import { triggerExit } from './exit-handler.js';
 
 /**
  * Get the shell rc file path for the given shell
@@ -199,11 +201,67 @@ export const generalCommands: CommandDefinition[] = [
         aliases: ['quit', 'q'],
         handler: async (
             _args: string[],
-            _agent: DextoAgent,
-            _ctx: CommandContext
+            agent: DextoAgent,
+            ctx: CommandContext
         ): Promise<boolean | string> => {
-            console.log(chalk.rgb(255, 165, 0)('Exiting AI CLI. Goodbye!'));
-            process.exit(0);
+            // Store session stats to be displayed after Ink exits
+            try {
+                const { sessionId } = ctx;
+                if (sessionId) {
+                    const sessionMetadata =
+                        await agent.sessionManager.getSessionMetadata(sessionId);
+                    const history = await agent.getSessionHistory(sessionId);
+
+                    if (sessionMetadata) {
+                        // Calculate session duration
+                        let durationStr: string | undefined;
+                        if (sessionMetadata.createdAt) {
+                            const duration =
+                                Date.now() - new Date(sessionMetadata.createdAt).getTime();
+                            const minutes = Math.floor(duration / 60000);
+                            const seconds = Math.floor((duration % 60000) / 1000);
+                            durationStr = minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
+                        }
+
+                        // Message counts
+                        const messageCount = {
+                            total: history?.length || 0,
+                            user: history?.filter((msg) => msg.role === 'user').length || 0,
+                            assistant:
+                                history?.filter((msg) => msg.role === 'assistant').length || 0,
+                        };
+
+                        // Get model info from agent config
+                        const modelName = agent.config.llm.model;
+
+                        // Store stats for display after exit
+                        setExitStats({
+                            ...(sessionId && { sessionId }),
+                            ...(modelName && { modelName }),
+                            ...(durationStr && { duration: durationStr }),
+                            messageCount,
+                            ...(sessionMetadata.tokenUsage && {
+                                tokenUsage: sessionMetadata.tokenUsage,
+                            }),
+                            ...(sessionMetadata.estimatedCost !== undefined && {
+                                estimatedCost: sessionMetadata.estimatedCost,
+                            }),
+                        });
+                    }
+                }
+            } catch (error) {
+                // Silently ignore errors - don't block exit
+                agent.logger.debug(
+                    `Failed to collect session stats on exit: ${error instanceof Error ? error.message : String(error)}`
+                );
+            }
+
+            // Trigger graceful exit - this will unmount the Ink app
+            // After unmount, session stats will be printed to stdout
+            triggerExit();
+
+            // Return true to indicate command was handled
+            return true;
         },
     },
     {

@@ -223,8 +223,118 @@ export async function startInkCliRefactored(
         }
     );
 
+    // Register exit handler so commands can trigger graceful exit
+    const { registerExitHandler } = await import(
+        '../commands/interactive-commands/exit-handler.js'
+    );
+    registerExitHandler(() => inkApp.unmount());
+
     await inkApp.waitUntilExit();
 
     // Disable bracketed paste mode to restore normal terminal behavior
     disableBracketedPaste();
+
+    // Display session stats if available (after Ink has unmounted)
+    const { getExitStats, clearExitStats } = await import(
+        '../commands/interactive-commands/exit-stats.js'
+    );
+    const exitStats = getExitStats();
+    if (exitStats) {
+        const chalk = (await import('chalk')).default;
+
+        // Add visual separation - clear space like Gemini CLI does
+        // This creates a clean slate showing only the exit command and summary
+        process.stdout.write('\n'.repeat(1));
+
+        process.stdout.write(chalk.bold.cyan('📊 Session Summary') + '\n');
+        process.stdout.write(chalk.dim('─'.repeat(50)) + '\n');
+
+        // Session ID
+        if (exitStats.sessionId) {
+            process.stdout.write(chalk.gray(`  Session ID:  ${exitStats.sessionId}`) + '\n');
+        }
+
+        // Model name
+        if (exitStats.modelName) {
+            process.stdout.write(chalk.gray(`  Model:       ${exitStats.modelName}`) + '\n');
+        }
+
+        // Duration
+        if (exitStats.duration) {
+            process.stdout.write(chalk.gray(`  Duration:    ${exitStats.duration}`) + '\n');
+        }
+
+        // Message count
+        if (exitStats.messageCount.total > 0) {
+            process.stdout.write(
+                chalk.gray(
+                    `  Messages:    ${exitStats.messageCount.total} total (${exitStats.messageCount.user} user, ${exitStats.messageCount.assistant} assistant)`
+                ) + '\n'
+            );
+        }
+
+        // Token usage
+        if (exitStats.tokenUsage) {
+            const {
+                inputTokens,
+                outputTokens,
+                reasoningTokens,
+                cacheReadTokens,
+                cacheWriteTokens,
+                totalTokens,
+            } = exitStats.tokenUsage;
+
+            // Calculate cache savings percentage
+            const totalInputWithCache = inputTokens + cacheReadTokens;
+            const cacheSavingsPercent =
+                totalInputWithCache > 0
+                    ? ((cacheReadTokens / totalInputWithCache) * 100).toFixed(1)
+                    : '0.0';
+
+            process.stdout.write(chalk.gray('\n  Token Usage:') + '\n');
+            process.stdout.write(
+                chalk.gray(`    Input:       ${inputTokens.toLocaleString()}`) + '\n'
+            );
+            process.stdout.write(
+                chalk.gray(`    Output:      ${outputTokens.toLocaleString()}`) + '\n'
+            );
+            if (reasoningTokens > 0) {
+                process.stdout.write(
+                    chalk.gray(`    Reasoning:   ${reasoningTokens.toLocaleString()}`) + '\n'
+                );
+            }
+            if (cacheReadTokens > 0) {
+                process.stdout.write(
+                    chalk.cyan(
+                        `    Cache Read:  ${cacheReadTokens.toLocaleString()} (💰 ${cacheSavingsPercent}% savings)`
+                    ) + '\n'
+                );
+            }
+            if (cacheWriteTokens > 0) {
+                process.stdout.write(
+                    chalk.yellow(`    Cache Write: ${cacheWriteTokens.toLocaleString()}`) + '\n'
+                );
+            }
+            process.stdout.write(
+                chalk.gray(`    Total:       ${totalTokens.toLocaleString()}`) + '\n'
+            );
+        }
+
+        // Estimated cost
+        if (exitStats.estimatedCost !== undefined) {
+            const cost = exitStats.estimatedCost;
+            const costStr =
+                cost < 0.01
+                    ? `$${cost.toFixed(4)}`
+                    : cost < 1
+                      ? `$${cost.toFixed(3)}`
+                      : `$${cost.toFixed(2)}`;
+            process.stdout.write(chalk.green(`\n  Estimated Cost: ${costStr}`) + '\n');
+        }
+
+        process.stdout.write(chalk.dim('─'.repeat(50)) + '\n');
+        process.stdout.write('\n' + chalk.rgb(255, 165, 0)('Exiting AI CLI. Goodbye!') + '\n');
+
+        clearExitStats();
+    }
 }
