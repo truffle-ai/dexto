@@ -29,7 +29,7 @@ import { useResolvePrompt } from './hooks/usePrompts';
 import { useInputHistory } from './hooks/useInputHistory';
 import { useQueuedMessages, useRemoveQueuedMessage, useQueueMessage } from './hooks/useQueue';
 import { QueuedMessagesDisplay } from './QueuedMessagesDisplay';
-import { Attachment, ATTACHMENT_LIMITS } from '../lib/attachment-types.js';
+import { Attachment, ATTACHMENT_LIMITS, DEFAULT_SAFE_FILE_TYPES } from '../lib/attachment-types.js';
 import {
     generateAttachmentId,
     estimateBase64Size,
@@ -657,15 +657,29 @@ export default function InputArea({
             }
 
             // Check file type against supported types
-            if (supportedFileTypes.length > 0) {
-                const fileCategory = file.type.startsWith('image/')
-                    ? 'image'
-                    : file.type.startsWith('audio/')
-                      ? 'audio'
-                      : file.type === 'application/pdf'
-                        ? 'pdf'
-                        : null;
+            // Always validate against default safe types for security
+            const fileCategory = file.type.startsWith('image/')
+                ? 'image'
+                : file.type.startsWith('audio/')
+                  ? 'audio'
+                  : file.type === 'application/pdf'
+                    ? 'pdf'
+                    : null;
 
+            // Security check: reject if not in default safe types
+            const isInDefaultSafeTypes =
+                fileCategory && DEFAULT_SAFE_FILE_TYPES.includes(fileCategory);
+            if (!isInDefaultSafeTypes) {
+                rejectedFiles.push({ file, reason: 'type_unsupported' });
+                errors.push({
+                    filename: file.name,
+                    reason: `File type not supported. Only images, PDFs, and audio files are allowed.`,
+                });
+                continue;
+            }
+
+            // Additional check: if model capabilities are loaded, validate against them
+            if (supportedFileTypes.length > 0) {
                 const isSupported = fileCategory && supportedFileTypes.includes(fileCategory);
 
                 if (!isSupported) {

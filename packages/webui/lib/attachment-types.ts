@@ -43,3 +43,10 @@ export const ATTACHMENT_LIMITS = {
     /** Maximum total size of all attachments in bytes (25MB = 5MB × 5 files) */
     MAX_TOTAL_SIZE: 25 * 1024 * 1024,
 } as const;
+
+/**
+ * Default safe file type categories allowed when LLM capabilities aren't loaded.
+ * This provides a security baseline - all uploads are validated against this list
+ * even if model-specific capabilities are unavailable.
+ */
+export const DEFAULT_SAFE_FILE_TYPES = ['image', 'pdf', 'audio'] as const;
