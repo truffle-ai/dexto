@@ -33,6 +33,19 @@ function defaultSessionLoggerFactory(options: {
  */
 export type SessionTokenUsage = Required<TokenUsage>;
 
+/**
+ * Per-model statistics for tracking usage across multiple models within a session.
+ */
+export interface ModelStatistics {
+    provider: string;
+    model: string;
+    messageCount: number;
+    tokenUsage: SessionTokenUsage;
+    estimatedCost: number;
+    firstUsedAt: number;
+    lastUsedAt: number;
+}
+
 export interface SessionMetadata {
     createdAt: number;
     lastActivity: number;
@@ -40,6 +53,7 @@ export interface SessionMetadata {
     title?: string;
     tokenUsage?: SessionTokenUsage;
     estimatedCost?: number;
+    modelStats?: ModelStatistics[];
 }
 
 export interface SessionManagerConfig {
@@ -60,6 +74,7 @@ export interface SessionData {
     metadata?: Record<string, any>;
     tokenUsage?: SessionTokenUsage;
     estimatedCost?: number;
+    modelStats?: ModelStatistics[];
     /** Persisted LLM config override for this session */
     llmOverride?: PersistedLLMConfig;
 }
@@ -548,6 +563,7 @@ export class SessionManager {
             ...(sessionData.estimatedCost !== undefined && {
                 estimatedCost: sessionData.estimatedCost,
             }),
+            ...(sessionData.modelStats && { modelStats: sessionData.modelStats }),
         };
     }
 
@@ -607,11 +623,17 @@ export class SessionManager {
      * Called after each LLM response to update session-level totals.
      *
      * Uses per-session locking to prevent lost updates from concurrent calls.
+     *
+     * @param sessionId The session ID
+     * @param usage Token usage to accumulate
+     * @param cost Estimated cost for this usage
+     * @param modelInfo Optional model info for per-model tracking
      */
     public async accumulateTokenUsage(
         sessionId: string,
         usage: TokenUsage,
-        cost?: number
+        cost?: number,
+        modelInfo?: { provider: string; model: string }
     ): Promise<void> {
         await this.ensureInitialized();
 
@@ -627,6 +649,11 @@ export class SessionManager {
 
             if (!sessionData) return;
 
+            // Update per-model statistics if model info provided
+            if (modelInfo) {
+                this.updateModelStats(sessionData, usage, cost, modelInfo);
+            }
+
             // Initialize if needed
             if (!sessionData.tokenUsage) {
                 sessionData.tokenUsage = {
@@ -639,7 +666,7 @@ export class SessionManager {
                 };
             }
 
-            // Accumulate
+            // Accumulate aggregate totals
             sessionData.tokenUsage.inputTokens += usage.inputTokens ?? 0;
             sessionData.tokenUsage.outputTokens += usage.outputTokens ?? 0;
             sessionData.tokenUsage.reasoningTokens += usage.reasoningTokens ?? 0;
@@ -672,6 +699,68 @@ export class SessionManager {
                 this.tokenUsageLocks.delete(sessionKey);
             }
         }
+    }
+
+    /**
+     * Updates per-model statistics for a session.
+     * Finds or creates a model entry and accumulates tokens and cost.
+     *
+     * @private
+     */
+    private updateModelStats(
+        sessionData: SessionData,
+        usage: TokenUsage,
+        cost: number | undefined,
+        modelInfo: { provider: string; model: string }
+    ): void {
+        // Initialize modelStats array if needed
+        if (!sessionData.modelStats) {
+            sessionData.modelStats = [];
+        }
+
+        // Find or create model entry
+        let modelStat = sessionData.modelStats.find(
+            (s) => s.provider === modelInfo.provider && s.model === modelInfo.model
+        );
+
+        if (!modelStat) {
+            modelStat = {
+                provider: modelInfo.provider,
+                model: modelInfo.model,
+                messageCount: 0,
+                tokenUsage: {
+                    inputTokens: 0,
+                    outputTokens: 0,
+                    reasoningTokens: 0,
+                    cacheReadTokens: 0,
+                    cacheWriteTokens: 0,
+                    totalTokens: 0,
+                },
+                estimatedCost: 0,
+                firstUsedAt: Date.now(),
+                lastUsedAt: Date.now(),
+            };
+            sessionData.modelStats.push(modelStat);
+        }
+
+        // Accumulate tokens
+        modelStat.tokenUsage.inputTokens += usage.inputTokens ?? 0;
+        modelStat.tokenUsage.outputTokens += usage.outputTokens ?? 0;
+        modelStat.tokenUsage.reasoningTokens += usage.reasoningTokens ?? 0;
+        modelStat.tokenUsage.cacheReadTokens += usage.cacheReadTokens ?? 0;
+        modelStat.tokenUsage.cacheWriteTokens += usage.cacheWriteTokens ?? 0;
+        modelStat.tokenUsage.totalTokens += usage.totalTokens ?? 0;
+
+        // Accumulate cost
+        if (cost !== undefined) {
+            modelStat.estimatedCost += cost;
+        }
+
+        // Increment message count
+        modelStat.messageCount += 1;
+
+        // Update last used timestamp
+        modelStat.lastUsedAt = Date.now();
     }
 
     /**
