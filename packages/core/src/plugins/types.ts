@@ -25,7 +25,7 @@ export interface PluginResult {
     ok: boolean;
 
     /** Partial modifications to apply to payload */
-    modify?: Record<string, any>;
+    modify?: Record<string, unknown>;
 
     /** Should execution stop? (Only respected if plugin is blocking) */
     cancel?: boolean;
@@ -96,7 +96,7 @@ export interface BeforeLLMRequestPayload {
  */
 export interface BeforeToolCallPayload {
     toolName: string;
-    args: any;
+    args: Record<string, unknown>;
     sessionId?: string;
     callId?: string;
 }
@@ -106,7 +106,7 @@ export interface BeforeToolCallPayload {
  */
 export interface AfterToolResultPayload {
     toolName: string;
-    result: any;
+    result: unknown;
     success: boolean;
     sessionId?: string;
     callId?: string;
@@ -130,7 +130,7 @@ export interface BeforeResponsePayload {
  */
 export interface DextoPlugin {
     /** Called once at plugin initialization (before agent starts) */
-    initialize?(config: Record<string, any>): Promise<void>;
+    initialize?(config: Record<string, unknown>): Promise<void>;
 
     /** Extension point: before LLM request */
     beforeLLMRequest?(
@@ -169,7 +169,7 @@ export interface PluginConfig {
     enabled: boolean;
     blocking: boolean;
     priority: number;
-    config?: Record<string, any> | undefined;
+    config?: Record<string, unknown> | undefined;
 }
 
 /**

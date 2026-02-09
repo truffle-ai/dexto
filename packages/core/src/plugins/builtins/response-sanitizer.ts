@@ -34,8 +34,8 @@ export class ResponseSanitizerPlugin implements DextoPlugin {
     private redactApiKeys: boolean = DEFAULTS.redactApiKeys;
     private maxResponseLength: number = DEFAULTS.maxResponseLength;
 
-    async initialize(config: Record<string, any>): Promise<void> {
-        const sanitizerConfig = config as ResponseSanitizerConfig;
+    async initialize(config: Record<string, unknown>): Promise<void> {
+        const sanitizerConfig = config as Partial<ResponseSanitizerConfig>;
         this.redactEmails = sanitizerConfig.redactEmails ?? DEFAULTS.redactEmails;
         this.redactApiKeys = sanitizerConfig.redactApiKeys ?? DEFAULTS.redactApiKeys;
         this.maxResponseLength = sanitizerConfig.maxResponseLength ?? DEFAULTS.maxResponseLength;

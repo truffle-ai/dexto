@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import type { z } from 'zod';
 import type { DextoPlugin } from './types.js';
 import { DextoRuntimeError, ErrorScope, ErrorType } from '../errors/index.js';
 import { PluginErrorCode } from './error-codes.js';
@@ -10,7 +10,7 @@ import { BaseRegistry, type RegistryErrorFactory } from '../providers/base-regis
  */
 export interface PluginCreationContext {
     /** Plugin-specific configuration from YAML */
-    config: Record<string, any>;
+    config: Record<string, unknown>;
     /** Whether this plugin should block execution on errors */
     blocking: boolean;
     /** Execution priority (lower runs first) */
@@ -27,13 +27,13 @@ export interface PluginCreationContext {
  */
 export interface PluginProvider<
     TType extends string = string,
-    TConfig extends { type: TType } = any,
+    TConfig extends { type: TType } = { type: TType } & Record<string, unknown>,
 > {
     /** Unique type identifier matching the discriminator in config */
     type: TType;
 
     /** Zod schema for runtime validation of provider configuration */
-    configSchema: z.ZodType<TConfig, any, any>;
+    configSchema: z.ZodType<TConfig, z.ZodTypeDef, unknown>;
 
     /**
      * Factory function to create a plugin instance from validated configuration

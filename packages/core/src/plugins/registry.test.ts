@@ -18,7 +18,7 @@ import { DextoRuntimeError } from '../errors/index.js';
 // Test plugin implementation
 class TestPlugin implements DextoPlugin {
     constructor(
-        public config: any,
+        public config: unknown,
         public context: PluginCreationContext
     ) {}
 

@@ -8,6 +8,7 @@ import type {
     ExtensionPoint,
     PluginExecutionContext,
     PluginConfig,
+    DextoPlugin,
     LoadedPlugin,
     PluginResult,
 } from './types.js';
@@ -76,7 +77,11 @@ export class PluginManager {
      * @param PluginClass - Plugin class constructor
      * @param config - Plugin configuration
      */
-    registerBuiltin(name: string, PluginClass: any, config: Omit<PluginConfig, 'module'>): void {
+    registerBuiltin(
+        name: string,
+        PluginClass: new () => DextoPlugin,
+        config: Omit<PluginConfig, 'module'>
+    ): void {
         if (this.initialized) {
             throw new DextoRuntimeError(
                 PluginErrorCode.PLUGIN_CONFIGURATION_INVALID,
@@ -366,7 +371,7 @@ export class PluginManager {
      * @returns Modified payload after all plugins execute
      * @throws {DextoRuntimeError} If a blocking plugin cancels execution or payload is not an object
      */
-    async executePlugins<T extends Record<string, any>>(
+    async executePlugins<T extends object>(
         extensionPoint: ExtensionPoint,
         payload: T,
         options: ExecutionContextOptions
@@ -387,7 +392,7 @@ export class PluginManager {
             );
         }
 
-        let currentPayload: T = { ...payload };
+        let currentPayload = { ...(payload as Record<string, unknown>) } as T;
 
         // Build execution context
         const asyncCtx = getContext();
@@ -421,7 +426,12 @@ export class PluginManager {
                 // Execute with timeout
                 // Use type assertion since we validated the method exists and has correct signature
                 const result = await this.executeWithTimeout<PluginResult>(
-                    (method as any).call(plugin, currentPayload, context),
+                    (
+                        method as unknown as (
+                            payload: T,
+                            context: PluginExecutionContext
+                        ) => Promise<PluginResult>
+                    ).call(plugin, currentPayload, context),
                     config.name,
                     PluginManager.DEFAULT_TIMEOUT
                 );
@@ -476,7 +486,10 @@ export class PluginManager {
 
                 // Apply modifications
                 if (result.modify) {
-                    currentPayload = { ...currentPayload, ...result.modify };
+                    currentPayload = {
+                        ...(currentPayload as Record<string, unknown>),
+                        ...result.modify,
+                    } as T;
                     this.logger.debug(`Plugin '${config.name}' modified payload`, {
                         keys: Object.keys(result.modify),
                     });
