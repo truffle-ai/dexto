@@ -19,13 +19,13 @@
 
 ## Current Task
 
-**Task:** **1.18 — `search/` — vet**
+**Task:** **1.19 — `resources/` — vet**
 **Status:** _Not started_
 **Branch:** `rebuild-di`
 
 ### Plan
-- Audit `packages/core/src/search/` for registry imports/config-coupling drift.
-- Confirm `SearchService` stays DI-compatible (database + logger) and registry-free.
+- Audit `packages/core/src/resources/` for registry imports/config-coupling drift.
+- Confirm resources remain config-driven + DI-compatible (MCP manager + config + blob store).
 - If changes are needed, keep them minimal and keep `pnpm run build` + `pnpm test` passing.
 
 ### Notes
@@ -80,6 +80,7 @@ _Move tasks here after completion. Keep a brief log of what was done and any dev
 | 1.15 | `memory/` — vet | 2026-02-10 | No changes needed. `MemoryManager` is already DI-compatible (database + logger), no registries involved. |
 | 1.16 | `systemPrompt/` — vet | 2026-02-10 | No changes needed. `SystemPromptManager` no longer takes `configDir` (handled in 1.11). `systemPrompt/registry.ts` is an internal prompt-generator registry (not a provider registry). |
 | 1.17 | `approval/` — vet | 2026-02-10 | No changes needed. Approval is config-driven and DI-compatible; no provider registries involved. |
+| 1.18 | `search/` — vet | 2026-02-10 | No changes needed. `SearchService` is DI-compatible (database + logger) and registry-free. |
 
 ---
 
