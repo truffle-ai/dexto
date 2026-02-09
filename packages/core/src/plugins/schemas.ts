@@ -2,11 +2,15 @@ import { z } from 'zod';
 
 /**
  * Schema for registry-based plugin configuration.
- * These plugins are loaded from the pluginRegistry (programmatically registered).
+ * Deprecated: registry-based plugins are being removed in favor of image-provided plugins.
  */
 export const RegistryPluginConfigSchema = z
     .object({
-        type: z.string().describe('Plugin provider type (must be registered in pluginRegistry)'),
+        type: z
+            .string()
+            .describe(
+                'Deprecated: registry plugin provider type. Use image-provided plugins instead.'
+            ),
         enabled: z.boolean().default(true).describe('Whether this plugin is enabled'),
         blocking: z.boolean().describe('If true, plugin errors will halt execution'),
         priority: z.number().int().describe('Execution priority (lower runs first)'),
@@ -18,6 +22,7 @@ export type RegistryPluginConfig = z.output<typeof RegistryPluginConfigSchema>;
 
 /**
  * Schema for custom plugin configuration (loaded from file paths)
+ * Deprecated: file-based plugins are being removed in favor of image-provided plugins.
  */
 export const CustomPluginConfigSchema = z
     .object({
@@ -25,7 +30,7 @@ export const CustomPluginConfigSchema = z
         module: z
             .string()
             .describe(
-                'Absolute path to plugin module (use ${{dexto.agent_dir}} for agent-relative paths)'
+                'Deprecated: absolute path to plugin module (use images instead of file-based plugins)'
             ),
         enabled: z.boolean().default(true).describe('Whether this plugin is enabled'),
         blocking: z.boolean().describe('If true, plugin errors will halt execution'),
@@ -66,13 +71,13 @@ export const PluginsConfigSchema = z
         custom: z
             .array(CustomPluginConfigSchema)
             .default([])
-            .describe('Array of custom plugin configurations (loaded from file paths)'),
+            .describe('Deprecated: array of custom plugin configurations (file-based plugins)'),
 
-        // Registry plugins - array of plugin configurations (loaded from pluginRegistry)
+        // Registry plugins - array of plugin configurations (programmatic registration)
         registry: z
             .array(RegistryPluginConfigSchema)
             .default([])
-            .describe('Array of registry plugin configurations (loaded from pluginRegistry)'),
+            .describe('Deprecated: array of registry plugin configurations (programmatic plugins)'),
     })
     .strict()
     .default({

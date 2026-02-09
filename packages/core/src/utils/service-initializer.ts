@@ -40,7 +40,7 @@ import { ResourceManager } from '../resources/manager.js';
 import { ApprovalManager } from '../approval/manager.js';
 import { MemoryManager } from '../memory/index.js';
 import { PluginManager } from '../plugins/manager.js';
-import { registerBuiltInPlugins } from '../plugins/registrations/builtins.js';
+import { resolveLocalPluginsFromConfig } from '../agent/resolve-local-plugins.js';
 
 /**
  * Type for the core agent services returned by createAgentServices
@@ -159,21 +159,18 @@ export async function createAgentServices(
 
     // 6.5 Initialize plugin manager
     const configDir = configPath ? dirname(resolve(configPath)) : process.cwd();
+    const plugins = await resolveLocalPluginsFromConfig({ config, logger });
     const pluginManager = new PluginManager(
         {
             agentEventBus,
             storageManager,
-            configDir,
         },
+        plugins,
         logger
     );
 
-    // Register built-in plugins from registry
-    registerBuiltInPlugins({ pluginManager, config });
-    logger.debug('Built-in plugins registered');
-
-    // Initialize plugin manager (loads custom and registry plugins, validates, calls initialize())
-    await pluginManager.initialize(config.plugins.custom, config.plugins.registry);
+    // Initialize plugin manager (registers pre-resolved plugins to extension points)
+    await pluginManager.initialize();
     logger.info('Plugin manager initialized');
 
     // 7. Initialize resource manager (MCP + internal resources)

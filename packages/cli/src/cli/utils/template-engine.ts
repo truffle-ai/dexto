@@ -665,7 +665,6 @@ import {
     blobStoreRegistry,
     customToolRegistry,
     compactionRegistry,
-    pluginRegistry,
 } from '@dexto/core';
 
 /**
@@ -692,10 +691,6 @@ export function registerProviders() {
     // Example: Register custom tool
     // import { myToolProvider } from './tools/my-tool.js';
     // customToolRegistry.register(myToolProvider);
-
-    // Example: Register plugin
-    // import { myPluginProvider } from './plugins/my-plugin.js';
-    // pluginRegistry.register(myPluginProvider);
 
     console.log(\`✓ Registered providers for \${projectConfig.name}\`);
 }
@@ -960,7 +955,7 @@ export function generateDiscoveryScript(): string {
 /**
  * Provider Auto-Discovery Script
  *
- * Scans conventional folders (tools/, blob-store/, compression/, plugins/)
+ * Scans conventional folders (tools/, blob-store/, compaction/)
  * and generates src/providers.ts with import + registration statements.
  */
 
@@ -973,7 +968,7 @@ const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, '..');
 
 interface ProviderInfo {
-    category: 'customTools' | 'blobStore' | 'compression' | 'plugins';
+    category: 'customTools' | 'blobStore' | 'compaction';
     folderName: string;
     path: string;
     registryName: string;
@@ -983,7 +978,6 @@ const PROVIDER_CATEGORIES = [
     { folder: 'tools', category: 'customTools' as const, registry: 'customToolRegistry' },
     { folder: 'blob-store', category: 'blobStore' as const, registry: 'blobStoreRegistry' },
     { folder: 'compaction', category: 'compaction' as const, registry: 'compactionRegistry' },
-    { folder: 'plugins', category: 'plugins' as const, registry: 'pluginRegistry' },
 ];
 
 async function discoverProviders(): Promise<ProviderInfo[]> {

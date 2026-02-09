@@ -19,7 +19,6 @@ describe('Image Local - Import Integration', () => {
 
         // Verify all registries are exported with correct names
         expect(module.customToolRegistry).toBeDefined();
-        expect(module.pluginRegistry).toBeDefined();
         expect(module.compactionRegistry).toBeDefined();
     });
 
