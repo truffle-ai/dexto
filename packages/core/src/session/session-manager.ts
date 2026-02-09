@@ -666,13 +666,8 @@ export class SessionManager {
                 };
             }
 
-            // Accumulate aggregate totals
-            sessionData.tokenUsage.inputTokens += usage.inputTokens ?? 0;
-            sessionData.tokenUsage.outputTokens += usage.outputTokens ?? 0;
-            sessionData.tokenUsage.reasoningTokens += usage.reasoningTokens ?? 0;
-            sessionData.tokenUsage.cacheReadTokens += usage.cacheReadTokens ?? 0;
-            sessionData.tokenUsage.cacheWriteTokens += usage.cacheWriteTokens ?? 0;
-            sessionData.tokenUsage.totalTokens += usage.totalTokens ?? 0;
+            // Accumulate aggregate totals using helper
+            this.accumulateTokensInto(sessionData.tokenUsage, usage);
 
             // Add cost if provided
             if (cost !== undefined) {
@@ -699,6 +694,19 @@ export class SessionManager {
                 this.tokenUsageLocks.delete(sessionKey);
             }
         }
+    }
+
+    /**
+     * Helper to accumulate token usage into a target SessionTokenUsage object.
+     * Used for both session-level and per-model token tracking.
+     */
+    private accumulateTokensInto(target: SessionTokenUsage, usage: TokenUsage): void {
+        target.inputTokens += usage.inputTokens ?? 0;
+        target.outputTokens += usage.outputTokens ?? 0;
+        target.reasoningTokens += usage.reasoningTokens ?? 0;
+        target.cacheReadTokens += usage.cacheReadTokens ?? 0;
+        target.cacheWriteTokens += usage.cacheWriteTokens ?? 0;
+        target.totalTokens += usage.totalTokens ?? 0;
     }
 
     /**
@@ -743,13 +751,8 @@ export class SessionManager {
             sessionData.modelStats.push(modelStat);
         }
 
-        // Accumulate tokens
-        modelStat.tokenUsage.inputTokens += usage.inputTokens ?? 0;
-        modelStat.tokenUsage.outputTokens += usage.outputTokens ?? 0;
-        modelStat.tokenUsage.reasoningTokens += usage.reasoningTokens ?? 0;
-        modelStat.tokenUsage.cacheReadTokens += usage.cacheReadTokens ?? 0;
-        modelStat.tokenUsage.cacheWriteTokens += usage.cacheWriteTokens ?? 0;
-        modelStat.tokenUsage.totalTokens += usage.totalTokens ?? 0;
+        // Accumulate tokens using helper
+        this.accumulateTokensInto(modelStat.tokenUsage, usage);
 
         // Accumulate cost
         if (cost !== undefined) {
