@@ -25,3 +25,9 @@ export const SUPABASE_ANON_KEY =
  * Dexto API URL for key provisioning
  */
 export const DEXTO_API_URL = process.env.DEXTO_API_URL || 'https://api.dexto.ai';
+
+/**
+ * Dexto Nova credits purchase URL
+ */
+export const DEXTO_CREDITS_URL =
+    process.env.DEXTO_CREDITS_URL || 'https://app.dexto.ai/dashboard/billing';
