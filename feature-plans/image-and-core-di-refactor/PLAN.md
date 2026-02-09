@@ -550,25 +550,29 @@ class StorageManager {
 }
 ```
 
-**Config schema surface checklist (all modules touched by config)**
-- `/Users/karaj/Projects/dexto/packages/core/src/agent/schemas.ts`
-- `/Users/karaj/Projects/dexto/packages/core/src/tools/schemas.ts`
-- `/Users/karaj/Projects/dexto/packages/core/src/llm/schemas.ts`
-- `/Users/karaj/Projects/dexto/packages/core/src/context/compaction/schemas.ts`
-- `/Users/karaj/Projects/dexto/packages/core/src/logger/v2/schemas.ts`
-- `/Users/karaj/Projects/dexto/packages/core/src/memory/schemas.ts`
-- `/Users/karaj/Projects/dexto/packages/core/src/plugins/schemas.ts`
-- `/Users/karaj/Projects/dexto/packages/core/src/resources/schemas.ts`
-- `/Users/karaj/Projects/dexto/packages/core/src/systemPrompt/schemas.ts`
-- `/Users/karaj/Projects/dexto/packages/core/src/mcp/schemas.ts`
-- `/Users/karaj/Projects/dexto/packages/core/src/storage/schemas.ts`
-- `/Users/karaj/Projects/dexto/packages/core/src/storage/database/schemas.ts`
-- `/Users/karaj/Projects/dexto/packages/core/src/storage/cache/schemas.ts`
-- `/Users/karaj/Projects/dexto/packages/core/src/storage/blob/schemas.ts`
-- `/Users/karaj/Projects/dexto/packages/core/src/prompts/schemas.ts`
-- `/Users/karaj/Projects/dexto/packages/core/src/telemetry/schemas.ts`
-- `/Users/karaj/Projects/dexto/packages/core/src/approval/schemas.ts`
-- `/Users/karaj/Projects/dexto/packages/core/src/session/schemas.ts`
+**Config schema surface checklist**
+
+Schemas that **stay in core** (config‑based surfaces, core managers need these):
+- `packages/core/src/llm/schemas.ts` — `LLMConfigSchema`, `ValidatedLLMConfig`
+- `packages/core/src/mcp/schemas.ts` — `McpServersConfigSchema`
+- `packages/core/src/systemPrompt/schemas.ts` — `SystemPromptConfigSchema`
+- `packages/core/src/session/schemas.ts` — `SessionConfigSchema`
+- `packages/core/src/memory/schemas.ts` — `MemoriesConfigSchema`
+- `packages/core/src/approval/schemas.ts` — `ToolConfirmationConfigSchema`, `ElicitationConfigSchema`
+- `packages/core/src/telemetry/schemas.ts` — `OtelConfigurationSchema`
+- `packages/core/src/resources/schemas.ts` — `InternalResourcesSchema`
+- `packages/core/src/prompts/schemas.ts` — `PromptsSchema`
+
+Schemas that **move to `@dexto/agent-config`** (DI surfaces, core doesn't use these):
+- `packages/core/src/agent/schemas.ts` → `AgentConfigSchema` (top‑level composition)
+- `packages/core/src/tools/schemas.ts` → `CustomToolsSchema`, `InternalToolsSchema` (→ unified `ToolsConfigSchema`)
+- `packages/core/src/plugins/schemas.ts` → `PluginsConfigSchema` (→ unified)
+- `packages/core/src/context/compaction/schemas.ts` → `CompactionConfigSchema`
+- `packages/core/src/logger/v2/schemas.ts` → `LoggerConfigSchema`
+- `packages/core/src/storage/schemas.ts` → `StorageSchema`
+- `packages/core/src/storage/blob/schemas.ts` → `LocalBlobStoreSchema`, `InMemoryBlobStoreSchema`
+- `packages/core/src/storage/database/schemas.ts` → database provider schemas
+- `packages/core/src/storage/cache/schemas.ts` → cache provider schemas
 
 **Verify (before)**
 - `/Users/karaj/Projects/dexto/packages/core/src/agent/DextoAgent.ts`
@@ -865,6 +869,26 @@ export const provider: ToolFactory = {
 };
 ```
 
+### Relevant files
+
+| File | Lines | Disposition |
+|------|-------|-------------|
+| `tools/custom-tool-registry.ts` | 160 | **DELETE** — global registry, replaced by image factory maps |
+| `tools/custom-tool-schema-registry.ts` | 205 | **DELETE** — schema registry, replaced by factory `configSchema` |
+| `tools/internal-tools/registry.ts` | 140 | **DELETE** — internal tool name → factory map, replaced by `builtin-tools` factory |
+| `tools/internal-tools/provider.ts` | 389 | **REWRITE** — remove registry lookups, accept `Tool[]` |
+| `tools/schemas.ts` | 187 | **MOVE to agent-config** — `InternalToolsSchema`, `CustomToolsSchema` → unified `ToolsConfigSchema` |
+| `tools/internal-tools/implementations/*.ts` | 6 files | **MOVE to `@dexto/tools-builtins`** — ask-user, search-history, delegate-to-url, list-resources, get-resource, invoke-skill |
+| `tools/tool-manager.ts` | 1588 | **KEEP + update** — accept unified `Tool[]`, remove registry imports |
+| `tools/types.ts` | 143 | **KEEP** — `InternalTool`, `ToolExecutionContext`, `ToolCreationContext` interfaces |
+| `tools/display-types.ts` | 185 | **KEEP** — no registry dependency |
+| `tools/errors.ts` | 262 | **KEEP** — no registry dependency |
+| `tools/error-codes.ts` | 33 | **KEEP** — no registry dependency |
+| `tools/tool-call-metadata.ts` | 69 | **KEEP** — no registry dependency |
+| `tools/bash-pattern-utils.ts` | 137 | **KEEP** — no registry dependency |
+| `tools/confirmation/allowed-tools-provider/factory.ts` | 46 | **DELETE** — factory replaced by DI |
+| `tools/confirmation/allowed-tools-provider/*.ts` (others) | 3 files | **KEEP** — in-memory + storage implementations stay |
+
 ---
 
 ## 9. Before/After — Plugins
@@ -993,6 +1017,20 @@ export const provider: PluginFactory = {
 };
 ```
 
+### Relevant files
+
+| File | Lines | Disposition |
+|------|-------|-------------|
+| `plugins/registry.ts` | 143 | **DELETE** — global registry, replaced by image factory maps |
+| `plugins/registrations/builtins.ts` | 44 | **DELETE** — auto-registration of built-in plugins, replaced by image |
+| `plugins/schemas.ts` | 86 | **MOVE to agent-config** — `RegistryPluginConfigSchema`, `PluginsConfigSchema` → unified `PluginsConfigSchema` |
+| `plugins/builtins/content-policy.ts` | 135 | **MOVE to image** — becomes a `PluginFactory` entry in image-local |
+| `plugins/builtins/response-sanitizer.ts` | 121 | **MOVE to image** — becomes a `PluginFactory` entry in image-local |
+| `plugins/manager.ts` | 613 | **KEEP + update** — accept `DextoPlugin[]`, remove registry lookups |
+| `plugins/loader.ts` | 213 | **MOVE to agent-config** — file-based plugin loading is a resolver concern |
+| `plugins/types.ts` | 183 | **KEEP** — `DextoPlugin`, `PluginResult`, `PluginExecutionContext` interfaces |
+| `plugins/error-codes.ts` | 46 | **KEEP** — no registry dependency |
+
 ---
 
 ## 10. Before/After — Compaction Strategy
@@ -1093,9 +1131,227 @@ export const provider: CompactionFactory = {
 };
 ```
 
+### Relevant files
+
+| File | Lines | Disposition |
+|------|-------|-------------|
+| `context/compaction/registry.ts` | 33 | **DELETE** — global registry, replaced by image factory maps |
+| `context/compaction/factory.ts` | 61 | **DELETE** — switch/registry factory, replaced by resolver |
+| `context/compaction/schemas.ts` | 56 | **MOVE to agent-config** — `CompactionConfigSchema` |
+| `context/compaction/providers/reactive-overflow-provider.ts` | 96 | **KEEP as plain export** — becomes `CompactionFactory` entry in image-local |
+| `context/compaction/providers/noop-provider.ts` | 37 | **KEEP as plain export** — becomes `CompactionFactory` entry in image-local |
+| `context/compaction/strategies/reactive-overflow.ts` | 490 | **KEEP** — strategy implementation, used by reactive-overflow factory |
+| `context/compaction/strategies/noop.ts` | 22 | **KEEP** — strategy implementation, used by noop factory |
+| `context/compaction/provider.ts` | 60 | **KEEP** — `CompactionProvider` interface, `CompactionContext` type |
+| `context/compaction/types.ts` | 34 | **KEEP** — `ICompactionStrategy` interface |
+| `context/compaction/overflow.ts` | 60 | **KEEP** — overflow detection utilities |
+| `context/manager.ts` | 1205 | **KEEP + update** — accept `CompactionStrategy` instance instead of creating from config |
+| `context/utils.ts` | 2035 | **KEEP** — no registry dependency |
+| `context/types.ts` | 337 | **KEEP** — message types, no registry dependency |
+
 ---
 
-## 11. Defaults merging strategy
+## 11. Before/After — Storage
+
+### High‑level goal
+Storage becomes fully DI. Core receives concrete `BlobStore`, `Database`, and `Cache` instances via `DextoAgentOptions`. All storage factory functions (which currently do registry lookups) are removed from core. Storage provider resolution moves to the resolver layer. `StorageManager` becomes a thin wrapper that orchestrates lifecycle (connect/disconnect) over pre‑created instances.
+
+### Before
+
+Storage is config‑driven. `StorageManager` creates backends from config via factory functions that use global registries:
+
+```yaml
+# coding-agent.yml — before
+storage:
+  blob:
+    type: local
+    storePath: ./data/blobs
+    maxBlobSize: 52428800
+  database:
+    type: sqlite
+    path: ./data/agent.db
+  cache:
+    type: in-memory
+```
+
+```ts
+// StorageManager constructor — before
+constructor(config: ValidatedStorageConfig, logger: IDextoLogger) {
+    this.cache = await createCache(this.config.cache, this.logger);
+    this.database = await createDatabase(this.config.database, this.logger);
+    this.blobStore = createBlobStore(this.config.blob, this.logger);
+}
+
+// Each factory function — same pattern (e.g., createBlobStore)
+function createBlobStore(config: { type: string; [key: string]: any }, logger: IDextoLogger): BlobStore {
+    const validatedConfig = blobStoreRegistry.validateConfig(config);     // global registry
+    const provider = blobStoreRegistry.get(validatedConfig.type);         // global registry
+    return provider.create(validatedConfig, logger);
+}
+```
+
+Each storage sub-layer auto-registers providers as side effects in their `index.ts` barrel:
+```ts
+// storage/blob/index.ts — before
+import { localBlobStoreProvider } from './providers/local.js';
+import { inMemoryBlobStoreProvider } from './providers/memory.js';
+blobStoreRegistry.register('local', localBlobStoreProvider);      // side effect on import!
+blobStoreRegistry.register('in-memory', inMemoryBlobStoreProvider);
+```
+
+**Problems:** Three global mutable singleton registries (`blobStoreRegistry`, `databaseRegistry`, `cacheRegistry`). Factory functions exist solely to do registry lookups. Side-effect auto-registration on import. `StorageManager` accepts config instead of instances.
+
+### After
+
+Image provides storage factories. Resolver creates concrete instances. Core receives them directly.
+
+```yaml
+# coding-agent.yml — after (unchanged for users)
+storage:
+  blob:
+    type: local
+    storePath: ./data/blobs
+    maxBlobSize: 52428800
+  database:
+    type: sqlite
+    path: ./data/agent.db
+  cache:
+    type: in-memory
+```
+
+Image provides storage factories:
+```ts
+// image-local storage map
+storage: {
+    'local': localBlobStoreFactory,
+    'in-memory-blob': inMemoryBlobStoreFactory,
+    'sqlite': sqliteFactory,
+    'postgres': postgresFactory,
+    'in-memory-db': inMemoryDatabaseFactory,
+    'in-memory-cache': inMemoryCacheFactory,
+    'redis': redisCacheFactory,
+},
+```
+
+Resolver creates concrete instances:
+```ts
+const resolved = resolveServicesFromConfig(mergedConfig, image);
+// resolved.storage = {
+//   blob: LocalBlobStore (concrete, connected),
+//   database: SqliteDatabase (concrete, connected),
+//   cache: InMemoryCache (concrete, connected),
+// }
+```
+
+Core receives concrete instances:
+```ts
+new DextoAgent({
+    storage: {
+        blob: BlobStore,      // concrete instance, no type strings
+        database: Database,   // concrete instance
+        cache: Cache,         // concrete instance
+    },
+});
+```
+
+`StorageManager` becomes a lifecycle wrapper:
+```ts
+// StorageManager — after
+class StorageManager {
+    constructor(
+        { blob, database, cache }: { blob: BlobStore; database: Database; cache: Cache },
+        logger: IDextoLogger,
+    ) {
+        this.blobStore = blob;
+        this.database = database;
+        this.cache = cache;
+        // No creation logic. Just stores references.
+    }
+
+    async initialize() {
+        await this.cache.connect();
+        await this.database.connect();
+        await this.blobStore.connect();
+    }
+}
+```
+
+### What a custom storage factory looks like
+
+```ts
+// In a custom image (e.g., image-cloud)
+export const supabaseBlobFactory: StorageFactory = {
+    configSchema: z.object({
+        type: z.literal('supabase'),
+        bucket: z.string(),
+        projectUrl: z.string().url(),
+        serviceKey: z.string(),
+    }).strict(),
+
+    create(config, logger: IDextoLogger): BlobStore {
+        return new SupabaseBlobStore(config.bucket, config.projectUrl, config.serviceKey, logger);
+    },
+};
+```
+
+### Relevant files
+
+| File | Lines | Disposition |
+|------|-------|-------------|
+| **Blob** | | |
+| `storage/blob/registry.ts` | 59 | **DELETE** — global singleton registry |
+| `storage/blob/registry.test.ts` | 548 | **DELETE** — tests for deleted registry |
+| `storage/blob/factory.ts` | 54 | **DELETE** — registry-based factory function |
+| `storage/blob/schemas.ts` | 110 | **MOVE to agent-config** — `LocalBlobStoreSchema`, `InMemoryBlobStoreSchema`, `BlobStoreConfigSchema` |
+| `storage/blob/provider.ts` | 54 | **KEEP** — `BlobStoreProvider` interface (used by image factories) |
+| `storage/blob/types.ts` | 163 | **KEEP** — `BlobStore` interface, `BlobInput`, `BlobMetadata`, etc. |
+| `storage/blob/local-blob-store.ts` | 586 | **KEEP** — implementation, exported for image-local to use |
+| `storage/blob/memory-blob-store.ts` | 418 | **KEEP** — implementation, exported for image-local to use |
+| `storage/blob/providers/local.ts` | 28 | **KEEP as plain export** — becomes `StorageFactory` entry in image-local (remove auto-registration) |
+| `storage/blob/providers/memory.ts` | 28 | **KEEP as plain export** — becomes `StorageFactory` entry in image-local (remove auto-registration) |
+| `storage/blob/index.ts` | 83 | **KEEP + update** — remove auto-registration side effects, keep exports |
+| **Database** | | |
+| `storage/database/registry.ts` | 59 | **DELETE** — global singleton registry |
+| `storage/database/registry.test.ts` | 224 | **DELETE** — tests for deleted registry |
+| `storage/database/factory.ts` | 56 | **DELETE** — registry-based factory function |
+| `storage/database/schemas.ts` | 101 | **MOVE to agent-config** — `SqliteDatabaseSchema`, `PostgresDatabaseSchema`, discriminated union |
+| `storage/database/provider.ts` | 60 | **KEEP** — `DatabaseProvider` interface |
+| `storage/database/types.ts` | 24 | **KEEP** — `Database` interface |
+| `storage/database/sqlite-store.ts` | 319 | **KEEP** — implementation |
+| `storage/database/postgres-store.ts` | 407 | **KEEP** — implementation |
+| `storage/database/memory-database-store.ts` | 121 | **KEEP** — implementation |
+| `storage/database/providers/sqlite.ts` | 52 | **KEEP as plain export** — becomes `StorageFactory` entry (remove auto-registration) |
+| `storage/database/providers/postgres.ts` | 43 | **KEEP as plain export** — becomes `StorageFactory` entry (remove auto-registration) |
+| `storage/database/providers/memory.ts` | 28 | **KEEP as plain export** — becomes `StorageFactory` entry (remove auto-registration) |
+| `storage/database/index.ts` | 84 | **KEEP + update** — remove auto-registration side effects |
+| **Cache** | | |
+| `storage/cache/registry.ts` | 59 | **DELETE** — global singleton registry |
+| `storage/cache/registry.test.ts` | 215 | **DELETE** — tests for deleted registry |
+| `storage/cache/factory.ts` | 54 | **DELETE** — registry-based factory function |
+| `storage/cache/schemas.ts` | 77 | **MOVE to agent-config** — `InMemoryCacheSchema`, `RedisCacheSchema`, discriminated union |
+| `storage/cache/provider.ts` | 60 | **KEEP** — `CacheProvider` interface |
+| `storage/cache/types.ts` | 16 | **KEEP** — `Cache` interface |
+| `storage/cache/memory-cache-store.ts` | 99 | **KEEP** — implementation |
+| `storage/cache/redis-store.ts` | 182 | **KEEP** — implementation |
+| `storage/cache/providers/memory.ts` | 29 | **KEEP as plain export** — becomes `StorageFactory` entry (remove auto-registration) |
+| `storage/cache/providers/redis.ts` | 48 | **KEEP as plain export** — becomes `StorageFactory` entry (remove auto-registration) |
+| `storage/cache/index.ts` | 74 | **KEEP + update** — remove auto-registration side effects |
+| **Top-level storage** | | |
+| `storage/storage-manager.ts` | 274 | **KEEP + rewrite** — accept concrete instances, remove factory calls |
+| `storage/schemas.ts` | 61 | **MOVE to agent-config** — top-level `StorageSchema` composing sub-schemas |
+| `storage/schemas.test.ts` | 436 | **MOVE to agent-config** — tests for moved schema |
+| `storage/errors.ts` | 428 | **KEEP** — error factory |
+| `storage/error-codes.ts` | 60 | **KEEP** — error codes |
+| `storage/types.ts` | 6 | **KEEP** — type re-exports |
+| `storage/index.ts` | 113 | **KEEP + update** — remove registry re-exports |
+
+**Summary:** 9 files deleted (3 registries + 3 registry tests + 3 factories), 5 files moved to agent-config, 25+ files kept.
+
+---
+
+## 12. Defaults merging strategy
+
+**Note:** With unified config fields (`tools` replaces `internalTools`/`customTools`, `plugins` replaces `plugins.registry`/`plugins.custom`), defaults merging becomes simpler — no need to merge two separate plugin arrays.
 
 Image defaults are useful — they let an image say "if you don't specify storage, use SQLite by default" so that every agent config doesn't need boilerplate.
 
@@ -1107,7 +1363,7 @@ Image defaults are useful — they let an image say "if you don't specify storag
 
 ---
 
-## 12. Migration approach
+## 13. Migration approach
 
 **Breaking changes are acceptable.** No compatibility shims.
 
@@ -1133,7 +1389,7 @@ This error is generated by the `resolveFactory` helper, which has access to `Obj
 
 ---
 
-## 13. Platform deployment model
+## 14. Platform deployment model
 
 ### Config‑only agents (current — no changes)
 
@@ -1172,53 +1428,119 @@ The `DextoAgent` constructor is identical in both cases — it always receives c
 
 ---
 
-## 14. Zod schema & type derivation strategy
+## 15. Config migration strategy
 
 ### Current state
 - 100+ types derived from Zod schemas via `z.output<typeof Schema>` and `z.input<typeof Schema>`
-- `ValidatedAgentConfig` is a single monolithic branded type (`z.output<typeof AgentConfigSchema>`) used by 20+ files
-- Manager constructors accept Zod‑derived config types: `StorageManager(ValidatedStorageConfig)`, `ToolManager(ToolPolicies, CustomToolsConfig)`, `SystemPromptManager(ValidatedSystemPromptConfig)`, etc.
-- `AgentConfigSchema` composes 15+ sub‑schemas creating 4 levels of nesting
+- `ValidatedAgentConfig` is a single monolithic branded type (`z.output<typeof AgentConfigSchema>`) used by 12+ files in core
+- `AgentConfigSchema` (in `packages/core/src/agent/schemas.ts`) composes 20+ sub‑schemas, mixing config‑based surfaces (LLM, MCP, sessions) with DI surfaces (storage, tools, plugins, compaction, logger)
+- Manager constructors accept Zod‑derived sub‑config types: `ValidatedLLMConfig`, `ValidatedStorageConfig`, `ValidatedSystemPromptConfig`, etc.
 
-### What stays the same
-- **Config‑based surfaces keep Zod schemas and derived types.** LLM, MCP, system prompt, sessions, memories, approval, telemetry, resources, prompts — all untouched. Their schemas stay in `@dexto/core`, their `z.output` types remain the constructor argument types for their managers.
-- **`AgentConfigSchema` stays for YAML validation.** The CLI/platform still validates YAML config against this schema. It does NOT go away.
+### Strategy: Split schema composition (Option A), build toward zero‑Zod core (Option C)
 
-### What changes
-- **Core's constructor type splits from `ValidatedAgentConfig`.** Today: `new DextoAgent(ValidatedAgentConfig)`. After: `new DextoAgent(DextoAgentOptions)` where `DextoAgentOptions` is a new interface combining:
-  - Config fields for naturally‑config‑driven surfaces (still Zod‑derived where applicable)
-  - Concrete instances for DI surfaces: `storage: { blob: BlobStore; database: Database; cache: Cache }`, `tools: Tool[]`, `plugins: Plugin[]`, `logger: IDextoLogger`
-- **Storage/tools/plugins Zod schemas move to `@dexto/agent-config`.** The resolver validates config against these schemas before calling factories. Core never sees the config shapes for DI surfaces.
-- **`ValidatedAgentConfig` continues to exist** as the output of YAML parsing. The resolver consumes it, extracts DI sections, resolves them into concrete instances, and passes the remainder + instances to `DextoAgentOptions`.
+**Phase 1 goal (Option A):** Move the top‑level `AgentConfigSchema` composition and DI surface schemas out of core into `@dexto/agent-config`. Core keeps module‑level schemas for config‑based surfaces only.
+
+**Long‑term goal (Option C):** Incrementally replace remaining `z.output` types in core with plain TypeScript interfaces, one module at a time, until core has zero Zod dependency. Each module refactor is a standalone PR. Option A paves the way by establishing the boundary.
+
+### What moves to `@dexto/agent-config`
+
+1. **`AgentConfigSchema`** — the top‑level composition that glues all sub‑schemas into the YAML shape
+2. **`ValidatedAgentConfig`** type — the monolithic output of YAML parsing
+3. **DI surface schemas:** `StorageSchema`, `CustomToolsSchema` (→ `ToolsConfigSchema`), `PluginsConfigSchema`, `CompactionConfigSchema`, `LoggerConfigSchema`
+4. **The YAML → `DextoAgentOptions` transformation** — extract DI sections, resolve via image factories, pass remainder + instances
+
+Agent‑config **imports core's sub‑schemas** to compose the full YAML schema — no duplication:
+
+```ts
+// @dexto/agent-config/src/schemas/agent-config.ts
+import { LLMConfigSchema, SessionConfigSchema, McpServersConfigSchema,
+         SystemPromptConfigSchema, MemoriesConfigSchema, ApprovalSchemas,
+         TelemetrySchema, ResourcesSchema, PromptsSchema } from '@dexto/core';
+
+// DI surface schemas are LOCAL to agent-config (core doesn't need these)
+import { StorageConfigSchema } from './storage.js';
+import { ToolsConfigSchema } from './tools.js';
+import { PluginsConfigSchema } from './plugins.js';
+import { CompactionConfigSchema } from './compaction.js';
+import { LoggerConfigSchema } from './logger.js';
+
+export const AgentConfigSchema = z.object({
+    agentId: z.string().default('coding-agent'),
+    agentCard: AgentCardSchema.optional(),
+    greeting: z.string().optional(),
+    image: z.string().optional(),
+
+    // Imported from core (config-based, core managers need these)
+    llm: LLMConfigSchema,
+    systemPrompt: SystemPromptConfigSchema,
+    mcpServers: McpServersConfigSchema.default({}),
+    sessions: SessionConfigSchema.default({}),
+    toolConfirmation: ToolConfirmationConfigSchema.default({}),
+    elicitation: ElicitationConfigSchema.default({}),
+    internalResources: InternalResourcesSchema.default([]),
+    prompts: PromptsSchema.default([]),
+    memories: MemoriesConfigSchema.optional(),
+    telemetry: TelemetrySchema.optional(),
+
+    // Defined locally (DI surfaces — core never sees these shapes)
+    storage: StorageConfigSchema.default({}),
+    tools: ToolsConfigSchema.default([]),       // unified: replaces internalTools + customTools
+    plugins: PluginsConfigSchema.default([]),    // unified: replaces plugins.registry + plugins.custom
+    compaction: CompactionConfigSchema.default(DEFAULT_COMPACTION_CONFIG),
+    logger: LoggerConfigSchema.default({}),
+}).strict();
+
+export type ValidatedAgentConfig = z.output<typeof AgentConfigSchema>;
+```
+
+### What stays in core
+
+1. **Module‑level schemas:** `LLMConfigSchema`, `SessionConfigSchema`, `McpServersConfigSchema`, `SystemPromptConfigSchema`, etc. — these define what data core's managers need. That's interface definition, not config coupling.
+2. **Module‑level validated types:** `ValidatedLLMConfig`, `ValidatedSessionConfig`, etc. — managers keep using these as constructor args.
+3. **`DextoAgentOptions`** — the new constructor type combining config fields + DI instances.
+4. **Interface types:** `BlobStore`, `Database`, `Cache`, `Tool`, `DextoPlugin`, `CompactionStrategy`, `IDextoLogger`.
+5. **LLM schemas + resolver + factory + registry** — LLM is entirely config‑driven and stays in core.
 
 ### Type flow (after)
+
 ```
-YAML → AgentConfigSchema.parse() → ValidatedAgentConfig (full config, Zod‑derived)
-  │
-  ├─ DI sections extracted by resolver:
-  │   config.storage → image.storage[type].create() → BlobStore, Database, Cache
-  │   config.customTools → image.tools[type].create() → Tool[]
-  │   config.plugins → image.plugins[type].create() → Plugin[]
-  │   config.logger → createLogger() → IDextoLogger
-  │
-  └─ Config sections passed through:
-      config.llm, config.mcpServers, config.systemPrompt, config.sessions, etc.
-  │
-  ▼
-DextoAgentOptions = { ...configSections, storage: {...}, tools: [...], plugins: [...], logger: ... }
-  │
-  ▼
-new DextoAgent(DextoAgentOptions)  ← core never sees ValidatedStorageConfig or CustomToolsConfig
+YAML → AgentConfigSchema.parse() → ValidatedAgentConfig
+         (in @dexto/agent-config)          │
+                                           │
+  ┌────────────────────────────────────────┤
+  │ DI sections extracted by resolver:     │ Config sections passed through:
+  │  config.storage → image factories      │  config.llm → ValidatedLLMConfig
+  │  config.tools → image factories        │  config.mcpServers → ValidatedMcpServersConfig
+  │  config.plugins → image factories      │  config.sessions → ValidatedSessionConfig
+  │  config.compaction → image factories   │  config.systemPrompt, config.memories, etc.
+  │  config.logger → createLogger()        │
+  └────────────────────────┬───────────────┘
+                           │
+                           ▼
+  DextoAgentOptions = { ...configSections, storage, tools, plugins, compaction, logger }
+                           │
+                           ▼
+  new DextoAgent(DextoAgentOptions)  ← core never sees storage/tools/plugins/compaction config shapes
 ```
 
-### Risk: `ValidatedAgentConfig` coupling
-Many files import and use `ValidatedAgentConfig` as a pass‑through type. After the split, files in core that currently destructure `config.storage` or `config.customTools` will need to change to accept the DI instances instead. This is the biggest mechanical change in the refactor.
+### Key migration details
+
+**`DextoAgent.switchLLM()`** currently calls `AgentConfigSchema.parse()` for re‑validation. After the move, it uses `LLMConfigSchema` directly (which stays in core). LLM switching only validates LLM config, not the full agent config. ✅ No issue.
+
+**`AgentStateManager`** currently stores the full `ValidatedAgentConfig` for state export. After: stores `DextoAgentOptions`. State export serializes config‑based sections + metadata about DI instances (e.g., tool names, storage type).
+
+**`DextoAgent.config` public property** currently exposes `ValidatedAgentConfig`. After: expose `DextoAgentOptions` (or a subset). Breaking change for external consumers — acceptable.
+
+### Risk: `ValidatedAgentConfig` coupling in core
+
+12 files currently import `ValidatedAgentConfig`. After the split:
 
 **Files that destructure DI sections from `ValidatedAgentConfig` (must change):**
 - `packages/core/src/utils/service-initializer.ts` — creates storage, tools, plugins from config → **deleted/moved**
 - `packages/core/src/storage/storage-manager.ts` — accepts `ValidatedStorageConfig` → accepts concrete instances
 - `packages/core/src/tools/internal-tools/provider.ts` — resolves tools from `customToolRegistry` → accepts `Tool[]`
-- `packages/core/src/plugins/manager.ts` — resolves plugins from `pluginRegistry` → accepts `Plugin[]`
+- `packages/core/src/plugins/manager.ts` — resolves plugins from `pluginRegistry` → accepts `DextoPlugin[]`
+- `packages/core/src/context/compaction/factory.ts` — resolves from `compactionRegistry` → accepts `CompactionStrategy`
 
 **Files that use config‑only sections (no change needed):**
 - `packages/core/src/llm/services/factory.ts` — uses `ValidatedLLMConfig` → stays
@@ -1227,9 +1549,29 @@ Many files import and use `ValidatedAgentConfig` as a pass‑through type. After
 - `packages/core/src/session/session-manager.ts` — uses `SessionManagerConfig` → stays
 - `packages/core/src/memory/manager.ts` — uses `Database` directly → stays
 
+**Files that reference `ValidatedAgentConfig` for other reasons (must update):**
+- `packages/core/src/agent/DextoAgent.ts` — constructor + `public config` → use `DextoAgentOptions`
+- `packages/core/src/agent/state-manager.ts` — state tracking → use `DextoAgentOptions`
+- `packages/core/src/events/index.ts` — event type definition → update type reference
+- `packages/core/src/prompts/prompt-manager.ts` — passes full config → narrow to `config.prompts`
+- `packages/core/src/plugins/registrations/builtins.ts` — extracts `config.plugins` → removed (plugins are DI)
+- Barrel exports (`index.ts`, `index.browser.ts`) — stop exporting `AgentConfigSchema`, `ValidatedAgentConfig`
+
+### Long‑term path to Option C
+
+After Option A is complete, each remaining module‑level schema can be independently refactored:
+
+1. Pick a module (e.g., `sessions`)
+2. Define a plain TS interface for its config: `interface SessionConfig { ... }`
+3. Update `SessionManager` constructor to accept the plain interface
+4. Move the Zod schema to agent‑config (for YAML validation only)
+5. Core no longer imports Zod for that module
+
+Repeat for each module. Eventually core has zero Zod dependency. Each step is a small, safe PR.
+
 ---
 
-## 15. Summary
+## 16. Summary
 
 - **Core should be DI‑first**: accept concrete storage, tools, plugins, compaction strategy, logger. No config resolution inside core.
 - **Unified tools**: `internalTools` + `customTools` merge into a single `tools` concept. All tools come from the image. Former "internal" tools move to `@dexto/tools-builtins` (or similar) as a standard `ToolFactory`. Core receives `Tool[]` and doesn't distinguish origins.
@@ -1251,7 +1593,7 @@ This preserves CLI UX while cleaning architecture, increasing type safety, and e
 
 ---
 
-## 16. Tasklist
+## 17. Tasklist
 
 ### Phase 0: Foundation — new package + core interfaces
 > **Goal:** Establish the new package and define the target types before changing anything.
@@ -1269,14 +1611,26 @@ This preserves CLI UX while cleaning architecture, increasing type safety, and e
 
 - [ ] **0.3 Define `DextoAgentOptions` interface in core**
   - New type in `packages/core/src/agent/types.ts` (or similar)
-  - Combines config fields (Zod‑derived, for LLM/MCP/sessions/etc.) + DI instances (`storage`, `tools: Tool[]`, `plugins: Plugin[]`, `logger: IDextoLogger`)
-  - This is the NEW constructor type. `ValidatedAgentConfig` stays for YAML validation but is no longer the constructor arg.
+  - Combines config fields (Zod‑derived, for LLM/MCP/sessions/etc.) + DI instances:
+    - `storage: { blob: BlobStore; database: Database; cache: Cache }`
+    - `tools: Tool[]`
+    - `plugins: DextoPlugin[]`
+    - `compaction: CompactionStrategy`
+    - `logger: IDextoLogger`
+  - This is the NEW constructor type. `ValidatedAgentConfig` moves to `@dexto/agent-config` for YAML validation only.
   - Exit: type compiles, documents every field with JSDoc
 
 - [ ] **0.4 Define core interfaces for DI surfaces (if not already clean)**
-  - Verify `BlobStore`, `Database`, `Cache`, `Tool` (InternalTool), `Plugin`, `IDextoLogger` interfaces exist and are clean (no `any`, no config coupling)
+  - Verify `BlobStore`, `Database`, `Cache`, `Tool` (InternalTool), `DextoPlugin`, `CompactionStrategy`, `IDextoLogger` interfaces exist and are clean (no `any`, no config coupling)
+  - `CompactionStrategy` interface must be defined if it doesn't exist as a standalone interface (currently may be embedded in compaction provider types)
   - If any are missing or config‑coupled, define them
   - Exit: all DI surface interfaces are importable from `@dexto/core` with zero `any`
+
+- [ ] **0.5 Define `ToolCreationContext` and `PluginCreationContext` interfaces**
+  - `ToolCreationContext`: logger, storage, services (approval, search, resources, prompts, mcp), agent (full `DextoAgent` reference for now — **TODO: narrow to interface later**)
+  - `PluginCreationContext`: logger, storage, agent (full `DextoAgent` reference for now — **TODO: narrow to interface later**)
+  - Remove all `any` types from existing `ToolCreationContext` (currently has `any` in `services` bag)
+  - Exit: both context interfaces compile with zero `any`. Full `DextoAgent` in context is intentional (simplicity now, narrow later).
 
 ---
 
@@ -1317,61 +1671,73 @@ This preserves CLI UX while cleaning architecture, increasing type safety, and e
 
 #### 1B — Tools layer (`packages/core/src/tools/`)
 
+**Key change: `internalTools` + `customTools` unify into a single `tools: Tool[]`.** Core receives a flat list. It doesn't distinguish "built‑in" from "custom." Former "internal" tools (ask_user, search_history, etc.) move out of core into `@dexto/tools-builtins` as a standard `ToolFactory` (Phase 3).
+
 - [ ] **1.5 `tools/custom-tool-registry.ts` — mark for deletion**
   - `CustomToolRegistry` (160 lines) + `custom-tool-schema-registry.ts` → will be deleted in 1.10
   - First: identify all importers within core (internal‑tools/provider.ts, tool-manager.ts, schemas.ts, index.ts)
   - Exit: dependency map documented.
 
-- [ ] **1.6 `tools/internal-tools/provider.ts` — accept concrete `Tool[]`**
-  - `InternalToolsProvider.registerCustomTools()` calls `customToolRegistry.validateConfig()` + `.get()` + `provider.create()` → remove entirely
-  - After: custom tools arrive as pre‑resolved `Tool[]`, no registry lookup needed
-  - `InternalToolsProvider` still manages built‑in tools (ask_user, search_history, etc.) — those stay
-  - `tools/internal-tools/registry.ts` (internal tool registry) — vet if this is separate from custom tool registry
+- [ ] **1.6 `tools/internal-tools/` — decouple built‑in tool creation**
+  - `InternalToolsProvider` currently: (a) creates built‑in tools from hardcoded implementations, (b) resolves custom tools via `customToolRegistry` → remove (b) entirely
+  - Built‑in tool *implementations* (`ask-user-tool.ts`, `search-history-tool.ts`, etc.) stay in core for now as plain exports — they'll be moved to `@dexto/tools-builtins` in Phase 3
+  - `InternalToolsProvider` itself may become unnecessary (since all tools arrive as `Tool[]`) — assess whether to keep as internal wiring or remove
+  - `tools/internal-tools/registry.ts` — vet if this is separate from custom tool registry. If it's a hardcoded list of internal tool names, it stays for now.
   - Update `provider.test.ts`
   - Exit: `InternalToolsProvider` has zero imports from `customToolRegistry`. Build + tests pass.
 
-- [ ] **1.7 `tools/tool-manager.ts` — accept `Tool[]` for custom tools**
-  - Currently receives `CustomToolsConfig` (Zod type) and passes to `InternalToolsProvider`
-  - After: receives `Tool[]` directly, passes to internal tools provider as pre‑resolved tools
+- [ ] **1.7 `tools/tool-manager.ts` — accept unified `Tool[]`**
+  - Currently receives `CustomToolsConfig` (Zod type) + `internalTools` (string array) separately
+  - After: receives a single `Tool[]` — all tools pre‑resolved. No `internalTools`/`customTools` distinction.
+  - Remove `InternalToolsSchema` and `CustomToolsSchema` imports from core (move to agent‑config in Phase 2)
   - Vet: `tool-call-metadata.ts`, `bash-pattern-utils.ts`, `display-types.ts`, `errors.ts`, `types.ts`, `schemas.ts` — assess if any reference registries
   - Vet: `tools/confirmation/` subfolder (allowed‑tools‑provider) — likely no registry dependency, but verify
   - Update `tool-manager.test.ts`, `tool-manager.integration.test.ts`
-  - Exit: `ToolManager` has zero registry imports. Build + tests pass.
+  - Exit: `ToolManager` accepts `Tool[]`, has zero registry imports, no internalTools/customTools split. Build + tests pass.
 
 #### 1C — Plugins layer (`packages/core/src/plugins/`)
 
-- [ ] **1.8 `plugins/manager.ts` — accept concrete `Plugin[]`**
-  - `PluginManager.initialize()` currently uses `pluginRegistry.get()` for registry plugins → remove
-  - After: receives pre‑resolved `Plugin[]`
-  - Vet: `loader.ts` (loads plugins from file paths) — may stay for custom file‑based plugins OR move to resolver
-  - Vet: `builtins/content-policy.ts`, `builtins/response-sanitizer.ts` — how are built‑in plugins registered? Via `registrations/builtins.ts` → may need adjustment
-  - Vet: `registry.ts` (142 lines) → mark for deletion
-  - Vet: `schemas.ts` (`RegistryPluginConfigSchema`, `PluginsConfigSchema`) → stay for YAML validation, move usage to resolver
-  - Vet: `types.ts` — `Plugin` interface must be clean for DI
+**Key change: `plugins.registry` + `plugins.custom` unify into a single `plugins: DextoPlugin[]`.** Core receives a flat list. Built‑in plugins (content‑policy, response‑sanitizer) become standard `PluginFactory` entries in the image, same pattern as tools.
+
+- [ ] **1.8 `plugins/manager.ts` — accept concrete `DextoPlugin[]`**
+  - `PluginManager.initialize()` currently uses `pluginRegistry.get()` for registry plugins + `loader.ts` for custom file paths → remove both resolution paths
+  - After: receives pre‑resolved `DextoPlugin[]`
+  - `loader.ts` (loads plugins from file paths) → move to resolver in agent‑config or delete
+  - `builtins/content-policy.ts`, `builtins/response-sanitizer.ts` — keep as plain exports for now, move to image factory in Phase 3
+  - `registrations/builtins.ts` — delete (built‑in plugins will be registered via image, not core)
+  - `registry.ts` (142 lines) → delete
+  - `schemas.ts` (`RegistryPluginConfigSchema`, `PluginsConfigSchema`) → move to agent‑config for YAML validation
+  - `types.ts` — `DextoPlugin` interface must be clean for DI
   - Update `registry.test.ts` (delete), `manager.ts` tests
-  - Exit: `PluginManager` has zero registry imports. Built‑in plugins registered directly. Build + tests pass.
+  - Exit: `PluginManager` accepts `DextoPlugin[]`, has zero registry imports, no registry/custom split. Build + tests pass.
 
 #### 1D — Context / Compaction (`packages/core/src/context/`)
 
-- [ ] **1.9 `context/compaction/` — decouple from registry**
+**Key change: Compaction is DI.** Core receives a concrete `CompactionStrategy` instance. No config‑based strategy resolution in core.
+
+- [ ] **1.9 `context/compaction/` — decouple from registry, accept `CompactionStrategy`**
   - Files: `registry.ts` (32 lines), `factory.ts`, `provider.ts`, `providers/reactive-overflow-provider.ts`, `strategies/`, `schemas.ts`, `types.ts`
-  - `factory.ts` calls `compactionRegistry.get()` → remove from core
-  - Compaction strategy selection moves to resolver: `image.compaction[config.type].create()`
-  - `CompactionConfigSchema` stays in core (compaction config is data)
-  - Core receives a concrete `CompactionStrategy` (or continues to select from built‑in strategies via config — clarify)
-  - Vet: `overflow.ts`, `strategies/` — these are internal implementations, likely no registry dependency
-  - Vet: `context/media-helpers.ts`, `context/types.ts` — unrelated to registries, verify
-  - Exit: `context/compaction/` has zero registry imports. Build + tests pass.
+  - `factory.ts` calls `compactionRegistry.get()` → delete (resolution moves to resolver: `image.compaction[config.type].create()`)
+  - `registry.ts` → delete
+  - `CompactionConfigSchema` → move to agent‑config for YAML validation
+  - Built‑in strategies (`reactive-overflow`, etc.) stay in core as plain exports — they become `CompactionFactory` entries in image‑local (Phase 3)
+  - Core receives concrete `CompactionStrategy` via `DextoAgentOptions`
+  - Vet: `overflow.ts`, `strategies/` — these are internal implementations, keep as plain exports
+  - Vet: `context/media-helpers.ts`, `context/types.ts`, `context/manager.ts` — unrelated to registries, verify
+  - Exit: `context/compaction/` has zero registry imports. Core accepts `CompactionStrategy` directly. Build + tests pass.
 
 #### 1E — Agent shell + service initializer (`packages/core/src/agent/`, `utils/`)
 
 - [ ] **1.10 `agent/DextoAgent.ts` — constructor accepts `DextoAgentOptions`**
   - Change constructor from `(config: AgentConfig, configPath?, options?)` to `(options: DextoAgentOptions)`
-  - `DextoAgentOptions` includes concrete storage, tools, plugins, logger + config sections for LLM/MCP/sessions/etc.
+  - `DextoAgentOptions` includes concrete storage, tools, plugins, compaction, logger + config sections for LLM/MCP/sessions/etc.
   - Remove `serviceOverrides` / `InitializeServicesOptions` pattern
-  - Vet: `agent/state-manager.ts` — uses `ValidatedAgentConfig` for state tracking. Assess if it can use a subset type or `DextoAgentOptions`.
-  - Vet: `agent/schemas.ts` — `AgentConfigSchema` stays for validation, `AgentConfig` / `ValidatedAgentConfig` types stay but are no longer the constructor arg
-  - Vet: `agent/types.ts` — existing types, may need `DextoAgentOptions` added here
+  - Remove `AgentConfigSchema` import — schema moves to agent‑config. `switchLLM()` uses `LLMConfigSchema` directly.
+  - `public config: ValidatedAgentConfig` → replace with `DextoAgentOptions` (or expose config‑only subset)
+  - Pass full `DextoAgent` (`this`) into `ToolCreationContext` and `PluginCreationContext` for tool/plugin initialization (narrow to interface later — TODO)
+  - Vet: `agent/state-manager.ts` — uses `ValidatedAgentConfig` for state tracking → update to `DextoAgentOptions`
+  - Vet: `agent/schemas.ts` — remove `AgentConfigSchema` (moved to agent‑config). Keep sub‑schema re‑exports if needed.
+  - Vet: `agent/types.ts` — add `DextoAgentOptions` here
   - Vet: `agent/errors.ts`, `agent/error-codes.ts` — likely no changes
   - Vet: `agent/agentCard.ts` — likely no changes
   - Exit: constructor compiles with new type. Callers outside core will break (expected — fixed in Phase 4).
@@ -1400,7 +1766,7 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
   - Vet: `llm/providers/local/` — local model provider. Verify no provider registry dependency.
   - Vet: `llm/formatters/` — message formatting. Likely no changes.
   - Vet: `llm/validation.test.ts`, `llm/schemas.ts` — stay
-  - Vet: How do we currently handle LLM config validation and LLM switching. What needs to move out of core here?
+  - LLM config validation and switching stay entirely in core. `switchLLM()` uses `LLMConfigSchema` (stays in core). No changes needed.
   - Exit: confirmed no registry imports in `llm/`. No changes needed. Document.
 
 - [ ] **1.13 `mcp/` — vet (expect: no changes)**
@@ -1496,10 +1862,12 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
   - Remove: all registry exports (`customToolRegistry`, `blobStoreRegistry`, `databaseRegistry`, `cacheRegistry`, `pluginRegistry`, `compactionRegistry`, `BaseRegistry`)
   - Remove: `listAllProviders`, `hasProvider` from providers
   - Remove: `defineImage` and image types
-  - Keep: all interface exports (`BlobStore`, `Database`, `Cache`, `Tool`, `Plugin`, `IDextoLogger`, etc.)
-  - Keep: all config‑driven exports (schemas, LLM types, MCP types, etc.)
+  - Remove: `AgentConfigSchema`, `ValidatedAgentConfig` (moved to agent‑config)
+  - Remove: DI surface schemas (`StorageSchema`, `CustomToolsSchema`, `PluginsConfigSchema`, `CompactionConfigSchema`, `LoggerConfigSchema`)
+  - Keep: all interface exports (`BlobStore`, `Database`, `Cache`, `Tool`, `DextoPlugin`, `CompactionStrategy`, `IDextoLogger`, `DextoAgentOptions`, etc.)
+  - Keep: module‑level config exports (sub‑schemas like `LLMConfigSchema`, `SessionConfigSchema`, etc. + their derived types)
   - Vet: `index.browser.ts` — browser‑safe exports subset. Remove registry exports here too.
-  - Exit: `packages/core/src/index.ts` has zero registry exports. Build + all downstream packages compile.
+  - Exit: `packages/core/src/index.ts` has zero registry exports, no `AgentConfigSchema`. Build + all downstream packages compile.
 
 - [ ] **1.29 Final validation — all registries gone from core**
   - `rg 'Registry' packages/core/src/ --type ts` → only LLM model registry (legitimate, not a provider registry)
@@ -1519,11 +1887,13 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
 
 - [ ] **2.2 `resolveServicesFromConfig(config, image)`**
   - Implements the factory resolution: `image.tools[config.type]` → validate → create
-  - Handles tool grouping (one factory → `Tool[]`)
+  - Handles unified tool resolution: `config.tools` (single array, replaces internalTools + customTools) → `Tool[]`
+  - Handles tool grouping (one factory → `Tool[]`, e.g., `builtin-tools` → [ask_user, search_history, ...])
   - Handles storage resolution (blob, database, cache)
-  - Handles plugin resolution
-  - Handles compaction resolution
+  - Handles unified plugin resolution: `config.plugins` (single array, replaces plugins.registry + plugins.custom) → `DextoPlugin[]`
+  - Handles compaction resolution: `config.compaction` → `CompactionStrategy`
   - Creates logger from config
+  - Builds `ToolCreationContext` and `PluginCreationContext` (with full `DextoAgent` reference — requires agent to exist before tools/plugins, may need two‑phase init or lazy binding)
   - Produces `ResolvedServices` object
   - Exit: unit tests with mock image + mock config produce correct concrete instances. Error cases tested (unknown type, validation failure).
 
@@ -1539,44 +1909,64 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
   - If any other code uses them, provide them in agent‑config as convenience wrappers
   - Exit: factory functions removed from core or re‑exported from agent‑config only
 
-- [ ] **2.5 Move/keep `AgentConfigSchema` for validation**
-  - Decision: does `AgentConfigSchema` stay in core (it defines the shape) or move to agent‑config (it's a config concern)?
-  - Recommendation: keep in core since many sub‑schemas reference core types. But `resolveServicesFromConfig` lives in agent‑config.
-  - Exit: clear ownership. Schema validates. Resolver consumes validated output.
+- [ ] **2.5 Move `AgentConfigSchema` + DI schemas to agent‑config**
+  - **Decision (made):** `AgentConfigSchema` moves to `@dexto/agent-config`. Core keeps module‑level sub‑schemas.
+  - Create `packages/agent-config/src/schemas/agent-config.ts` — imports core sub‑schemas + defines DI surface schemas locally
+  - Move DI surface schemas: `StorageSchema`, `ToolsConfigSchema` (unified), `PluginsConfigSchema` (unified), `CompactionConfigSchema`, `LoggerConfigSchema`
+  - Move `ValidatedAgentConfig` type to agent‑config
+  - Keep `AgentCardSchema` (shared) — decide location (may stay in core since `agentCard` is in `DextoAgentOptions`)
+  - Remove `AgentConfigSchema` + `ValidatedAgentConfig` from core's `schemas.ts` and barrel exports
+  - Exit: `AgentConfigSchema` lives in agent‑config, imports core sub‑schemas. Core has zero top‑level config schema. Build passes (downstream packages update imports).
+
+- [ ] **2.6 Define `ValidatedAgentConfig → DextoAgentOptions` transformer**
+  - Function in agent‑config that takes the full YAML‑validated config + resolved services and produces `DextoAgentOptions`
+  - Extracts config‑based sections, combines with DI instances
+  - This is the bridge between config world and DI world
+  - Exit: transformer tested, produces valid `DextoAgentOptions` from `ValidatedAgentConfig` + `ResolvedServices`.
 
 ---
 
 ### Phase 3: Image system rewrite
 > **Goal:** Images export `DextoImageModule` objects. No side effects, no `.toString()`, no registries.
 
-- [ ] **3.1 Rewrite `@dexto/image-local` as hand‑written `DextoImageModule`**
+- [ ] **3.1 Create `@dexto/tools-builtins` package (former internal tools)**
+  - New package: `packages/tools-builtins/`
+  - Move internal tool implementations from `packages/core/src/tools/internal-tools/implementations/` to this package
+  - Export a single `builtinToolsFactory: ToolFactory` that creates ask_user, search_history, delegate_to_url, list_resources, get_resource, invoke_skill
+  - Factory accepts `ToolCreationContext` to access services (approval, search, resources, prompts)
+  - Config schema: `{ type: 'builtin-tools', enabled?: string[] }` — omit `enabled` for all
+  - Exit: package builds, exports `ToolFactory`. Former internal tools work via factory. Build passes.
+
+- [ ] **3.2 Rewrite `@dexto/image-local` as hand‑written `DextoImageModule`**
   - Delete `dexto.image.ts` + bundler‑generated output
   - Write `index.ts` exporting `DextoImageModule` with factory maps
-  - Import tool providers from `@dexto/tools-filesystem`, `@dexto/tools-process`, etc.
-  - Import storage factories from core (or new locations)
-  - Verify existing tool providers (`fileSystemToolsProvider`, etc.) conform to `ToolFactory` interface — adapt if needed
+  - Tools map includes: `builtin-tools` (from `@dexto/tools-builtins`), `filesystem-tools`, `process-tools`, `todo-tools`, `plan-tools`
+  - Plugins map includes: `content-policy`, `response-sanitizer` (former built‑in plugins)
+  - Compaction map includes: `reactive-overflow`, `summary-based` (built‑in strategies)
+  - Storage map includes: `local`, `memory`, `sqlite`, `postgres`, `redis`
+  - Import all from existing packages, verify each conforms to factory interfaces
   - Exit: `import imageLocal from '@dexto/image-local'` returns typed `DextoImageModule`. No side effects on import. Build passes.
 
-- [ ] **3.2 Adapt existing tool provider packages**
+- [ ] **3.3 Adapt existing tool provider packages**
   - `@dexto/tools-filesystem`, `@dexto/tools-process`, `@dexto/tools-todo`, `@dexto/tools-plan`
   - Each currently exports a `CustomToolProvider<Type, Config>` — verify it matches `ToolFactory` or create adapter
   - Remove `customToolRegistry.register()` calls if any exist
   - Exit: each tool package exports a `ToolFactory`‑compatible object. No registry imports.
 
-- [ ] **3.3 Adapt storage providers in core**
+- [ ] **3.4 Adapt storage providers in core**
   - `localBlobStoreProvider`, `inMemoryBlobStoreProvider`, `sqliteProvider`, `postgresProvider`, `inMemoryCacheProvider`, `redisCacheProvider`
   - These currently register themselves as side effects in their `index.ts` barrel files
   - Remove auto‑registration. Export providers as `StorageFactory`‑compatible objects only.
   - Exit: no storage provider self‑registers. Each is a plain exported object.
 
-- [ ] **3.4 Update `@dexto/image-bundler`**
+- [ ] **3.5 Update `@dexto/image-bundler`**
   - Generate `DextoImageModule` object literal with explicit imports (not `register()` calls)
   - Folder name → type string mapping (`tools/jira/` → key `'jira'`)
   - Remove `.toString()` serialization logic entirely
   - Remove duck‑typing discovery — require explicit `export const provider` contract
   - Exit: bundler generates valid `DextoImageModule`. Can bundle a test image with convention folders.
 
-- [ ] **3.5 Remove old image infrastructure from core**
+- [ ] **3.6 Remove old image infrastructure from core**
   - Delete `packages/core/src/image/define-image.ts`
   - Delete `packages/core/src/image/types.ts` (old `ImageDefinition`, `ImageProvider`, etc.)
   - Remove image exports from `packages/core/src/index.ts`
