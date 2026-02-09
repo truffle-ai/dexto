@@ -80,9 +80,6 @@ export async function handleBillingStatusCommand(options: { buy?: boolean } = {}
         const errorMessage = error instanceof Error ? error.message : String(error);
         console.log(chalk.red(`❌ Failed to fetch billing info: ${errorMessage}`));
         console.log(chalk.dim('Your API key may be invalid. Try `dexto login` to refresh.'));
-        if (options.buy) {
-            await openCreditsPage();
-        }
     }
 
     if (options.buy) {
