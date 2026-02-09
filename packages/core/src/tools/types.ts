@@ -6,6 +6,16 @@ import type { JSONSchema7 } from 'json-schema';
 import type { ZodSchema } from 'zod';
 import type { ToolDisplayData } from './display-types.js';
 import type { ApprovalRequestDetails, ApprovalResponse } from '../approval/types.js';
+import type { ApprovalManager } from '../approval/manager.js';
+import type { DextoAgent } from '../agent/DextoAgent.js';
+import type { Cache } from '../storage/cache/types.js';
+import type { BlobStore } from '../storage/blob/types.js';
+import type { Database } from '../storage/database/types.js';
+import type { MCPManager } from '../mcp/manager.js';
+import type { PromptManager } from '../prompts/prompt-manager.js';
+import type { ResourceManager } from '../resources/manager.js';
+import type { SearchService } from '../search/search-service.js';
+import type { IDextoLogger } from '../logger/v2/types.js';
 
 /**
  * Context passed to tool execution
@@ -17,6 +27,43 @@ export interface ToolExecutionContext {
     abortSignal?: AbortSignal | undefined;
     /** Unique tool call ID for tracking parallel tool calls */
     toolCallId?: string | undefined;
+
+    // TODO: temporary glue code to be removed/verified
+    /**
+     * Runtime agent reference (DI refactor: provided by ToolManager on each execute()).
+     * Optional during migration; will become required once the DI-first surface is complete.
+     */
+    agent?: DextoAgent | undefined;
+
+    /**
+     * Logger scoped to the tool execution.
+     */
+    logger?: IDextoLogger | undefined;
+
+    /**
+     * Concrete storage backends (DI-first).
+     */
+    storage?:
+        | {
+              blob: BlobStore;
+              database: Database;
+              cache: Cache;
+          }
+        | undefined;
+
+    /**
+     * Runtime services available to tools.
+     * These are injected at execution time (not factory time) to avoid init ordering cycles.
+     */
+    services?:
+        | {
+              approval: ApprovalManager;
+              search: SearchService;
+              resources: ResourceManager;
+              prompts: PromptManager;
+              mcp: MCPManager;
+          }
+        | undefined;
 }
 
 /**

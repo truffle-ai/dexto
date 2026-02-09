@@ -1,10 +1,14 @@
 import type { InternalTool } from './types.js';
 import type { IDextoLogger } from '../logger/v2/types.js';
 import type { DextoAgent } from '../agent/DextoAgent.js';
-import { z } from 'zod';
+import type { z } from 'zod';
 import { ToolError } from './errors.js';
 import { BaseRegistry, type RegistryErrorFactory } from '../providers/base-registry.js';
 import { customToolSchemaRegistry } from './custom-tool-schema-registry.js';
+import type { ApprovalManager } from '../approval/manager.js';
+import type { ResourceManager } from '../resources/manager.js';
+import type { SearchService } from '../search/search-service.js';
+import type { StorageManager } from '../storage/index.js';
 
 /**
  * Context passed to custom tool providers when creating tools.
@@ -53,11 +57,12 @@ export interface ToolCreationContext {
      * External tool providers can add their own services using the index signature.
      */
     services?: {
-        searchService?: any;
-        approvalManager?: any;
-        resourceManager?: any;
-        storageManager?: import('../storage/index.js').StorageManager;
-        [key: string]: any; // Extensible for external tool providers
+        searchService?: SearchService;
+        approvalManager?: ApprovalManager;
+        resourceManager?: ResourceManager;
+        storageManager?: StorageManager;
+        // TODO: temporary glue code to be removed/verified
+        [key: string]: unknown; // Extensible for external tool providers
     };
 }
 
@@ -71,13 +76,13 @@ export interface ToolCreationContext {
  */
 export interface CustomToolProvider<
     TType extends string = string,
-    TConfig extends { type: TType } = any,
+    TConfig extends { type: TType } = { type: TType } & Record<string, unknown>,
 > {
     /** Unique type identifier matching the discriminator in config */
     type: TType;
 
     /** Zod schema for runtime validation of provider configuration */
-    configSchema: z.ZodType<TConfig, any, any>;
+    configSchema: z.ZodType<TConfig, z.ZodTypeDef, unknown>;
 
     /**
      * Factory function to create tools from validated configuration

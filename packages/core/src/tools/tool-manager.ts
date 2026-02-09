@@ -7,6 +7,7 @@ import type { ToolDisplayData } from './display-types.js';
 import { ToolError } from './errors.js';
 import { ToolErrorCode } from './error-codes.js';
 import { DextoRuntimeError } from '../errors/index.js';
+import type { DextoAgent } from '../agent/DextoAgent.js';
 import type { IDextoLogger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
 import type { AgentEventBus } from '../events/index.js';
@@ -173,7 +174,7 @@ export class ToolManager {
      * Set agent reference for custom tools (called after construction to avoid circular dependencies)
      * Must be called before initialize() if custom tools are configured
      */
-    setAgent(agent: any): void {
+    setAgent(agent: DextoAgent): void {
         if (this.internalToolsProvider) {
             this.internalToolsProvider.setAgent(agent);
             this.logger.debug('Agent reference configured for custom tools');
