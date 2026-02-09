@@ -609,13 +609,15 @@ Schemas that **stay in core** (config‑based surfaces, core managers need these
 - `packages/core/src/resources/schemas.ts` — `InternalResourcesSchema`
 - `packages/core/src/prompts/schemas.ts` — `PromptsSchema`
 
-Schemas that **move to `@dexto/agent-config`** (DI surfaces, core doesn't use these):
+Schemas that **move to `@dexto/agent-config`** (DI surface config shapes, core doesn't use these):
 - `packages/core/src/agent/schemas.ts` → `AgentConfigSchema` (top‑level composition)
 - `packages/core/src/tools/schemas.ts` → `CustomToolsSchema`, `InternalToolsSchema` (→ unified `ToolsConfigSchema`)
 - `packages/core/src/plugins/schemas.ts` → `PluginsConfigSchema` (→ unified)
 - `packages/core/src/context/compaction/schemas.ts` → `CompactionConfigSchema`
 - `packages/core/src/logger/v2/schemas.ts` → `LoggerConfigSchema`
-- `packages/core/src/storage/schemas.ts` → `StorageSchema`
+
+Schemas that **move to `@dexto/storage`** (live with implementations, used by `StorageFactory` objects):
+- `packages/core/src/storage/schemas.ts` → `StorageSchema` (top‑level composing sub‑schemas)
 - `packages/core/src/storage/blob/schemas.ts` → `LocalBlobStoreSchema`, `InMemoryBlobStoreSchema`
 - `packages/core/src/storage/database/schemas.ts` → database provider schemas
 - `packages/core/src/storage/cache/schemas.ts` → cache provider schemas
@@ -949,7 +951,7 @@ Two plugin sources in config, resolved inside core via `pluginRegistry`:
 plugins:
   registry:
     - type: memory-extraction
-      extractionModel: claude-haiku
+      extractionModel: claude-4.5-haiku
   custom:
     - name: my-plugin
       module: ./plugins/my-plugin.js
@@ -1511,7 +1513,7 @@ The `DextoAgent` constructor is identical in both cases — it always receives c
 
 1. **`AgentConfigSchema`** — the top‑level composition that glues all sub‑schemas into the YAML shape
 2. **`ValidatedAgentConfig`** type — the monolithic output of YAML parsing
-3. **DI surface schemas:** `StorageSchema`, `CustomToolsSchema` (→ `ToolsConfigSchema`), `PluginsConfigSchema`, `CompactionConfigSchema`, `LoggerConfigSchema`
+3. **DI surface schemas:** `CustomToolsSchema` (→ `ToolsConfigSchema`), `PluginsConfigSchema`, `CompactionConfigSchema`, `LoggerConfigSchema` — these move to `@dexto/agent-config`. Storage schemas move to `@dexto/storage` (live with implementations); `agent-config` imports from `@dexto/storage` to compose the top‑level schema.
 4. **The YAML → `DextoAgentOptions` transformation** — extract DI sections, resolve via image factories, pass remainder + instances
 
 Agent‑config **imports core's sub‑schemas** to compose the full YAML schema — no duplication:
@@ -1522,8 +1524,8 @@ import { LLMConfigSchema, SessionConfigSchema, McpServersConfigSchema,
          SystemPromptConfigSchema, MemoriesConfigSchema, ApprovalSchemas,
          TelemetrySchema, ResourcesSchema, PromptsSchema } from '@dexto/core';
 
-// DI surface schemas are LOCAL to agent-config (core doesn't need these)
-import { StorageConfigSchema } from './storage.js';
+// DI surface schemas — core doesn't need these
+import { StorageConfigSchema } from '@dexto/storage';  // lives with implementations
 import { ToolsConfigSchema } from './tools.js';
 import { PluginsConfigSchema } from './plugins.js';
 import { CompactionConfigSchema } from './compaction.js';
@@ -2145,7 +2147,7 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
   - Remove: `listAllProviders`, `hasProvider` from providers
   - Remove: `defineImage` and image types
   - Remove: `AgentConfigSchema`, `ValidatedAgentConfig` (moved to agent‑config)
-  - Remove: DI surface schemas (`StorageSchema`, `CustomToolsSchema`, `PluginsConfigSchema`, `CompactionConfigSchema`, `LoggerConfigSchema`)
+  - Remove: DI surface schemas (`CustomToolsSchema`, `PluginsConfigSchema`, `CompactionConfigSchema`, `LoggerConfigSchema`) — these move to agent‑config. Storage schemas move to `@dexto/storage`.
   - Keep: all interface exports (`BlobStore`, `Database`, `Cache`, `Tool`, `DextoPlugin`, `CompactionStrategy`, `IDextoLogger`, `DextoAgentOptions`, etc.)
   - Keep: module‑level config exports (sub‑schemas like `LLMConfigSchema`, `SessionConfigSchema`, etc. + their derived types)
   - Vet: `index.browser.ts` — browser‑safe exports subset. Remove registry exports here too.
