@@ -363,7 +363,7 @@ describe('Session Integration: Multi-Model Token Tracking', () => {
 
         // Verify session-level totals match sum of all models
         expect(metadata?.tokenUsage).toEqual(expectedTotals);
-        expect(metadata?.estimatedCost).toBe(expectedCost);
+        expect(metadata?.estimatedCost).toBeCloseTo(expectedCost, 10);
 
         // Should have 2 unique model entries
         expect(metadata?.modelStats).toHaveLength(2);
