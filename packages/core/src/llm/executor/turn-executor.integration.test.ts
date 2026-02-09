@@ -180,7 +180,6 @@ describe('TurnExecutor Integration Tests', () => {
         const systemPromptConfig = SystemPromptConfigSchema.parse('You are a helpful assistant.');
         const systemPromptManager = new SystemPromptManager(
             systemPromptConfig,
-            '/tmp', // configDir - not used with inline prompts
             memoryManager,
             undefined, // memoriesConfig
             logger

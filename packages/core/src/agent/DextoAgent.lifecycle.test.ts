@@ -133,7 +133,6 @@ describe('DextoAgent Lifecycle Management', () => {
             expect(agent.isStopped()).toBe(false);
             expect(mockCreateAgentServices).toHaveBeenCalledWith(
                 mockValidatedConfig,
-                undefined,
                 expect.anything(), // logger instance
                 expect.anything(), // eventBus instance
                 undefined
@@ -161,7 +160,6 @@ describe('DextoAgent Lifecycle Management', () => {
 
             expect(mockCreateAgentServices).toHaveBeenCalledWith(
                 validatedConfigWithServerModes,
-                undefined,
                 expect.anything(), // logger instance
                 expect.anything(), // eventBus instance
                 undefined

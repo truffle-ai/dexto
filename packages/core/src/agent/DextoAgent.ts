@@ -248,7 +248,6 @@ export class DextoAgent {
             // Pass logger and eventBus to services for dependency injection
             const services = await createAgentServices(
                 this.config,
-                this.configPath,
                 this.logger,
                 this.agentEventBus,
                 this.serviceOverrides

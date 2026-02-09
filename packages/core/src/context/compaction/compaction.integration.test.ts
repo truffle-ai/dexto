@@ -103,7 +103,6 @@ describe('Context Compaction Integration Tests', () => {
         const systemPromptConfig = SystemPromptConfigSchema.parse('You are a helpful assistant.');
         const systemPromptManager = new SystemPromptManager(
             systemPromptConfig,
-            '/tmp',
             memoryManager,
             undefined,
             logger

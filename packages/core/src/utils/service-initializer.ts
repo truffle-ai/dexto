@@ -1,24 +1,9 @@
 /*
- * Service Initializer: Centralized Wiring for Dexto Core Services
+ * Service initializer: internal wiring for the Dexto core runtime.
  *
- * This module is responsible for initializing and wiring together all core agent services (LLM, client manager, message manager, event bus, etc.)
- * for the Dexto application. It provides a single entry point for constructing the service graph, ensuring consistent dependency injection
- * and configuration across CLI, web, and test environments.
- *
- * **Configuration Pattern:**
- * - The primary source of configuration is the config file (e.g., `agent.yml`), which allows users to declaratively specify both high-level
- *   and low-level service options (such as compression strategies for ContextManager, LLM provider/model, etc.).
- * - For most use cases, the config file is sufficient and preferred, as it enables environment-specific, auditable, and user-friendly customization.
- *
- * **Service Architecture:**
- * - All services are initialized based on the provided configuration.
- * - For testing scenarios, mock the service dependencies directly using test frameworks rather than relying on service injection patterns.
- *
- * **Best Practice:**
- * - Use the config file for all user-facing and environment-specific configuration, including low-level service details.
- * - For testing, use proper mocking frameworks rather than service injection to ensure clean, maintainable tests.
- *
- * This pattern ensures a clean, scalable, and maintainable architecture, balancing flexibility with simplicity.
+ * NOTE: During the DI refactor, config→instance resolution is migrating out of core into
+ * `@dexto/agent-config`. This module should focus on orchestrating internal services and
+ * allow host overrides where needed (tests, servers, CLI).
  */
 
 import { MCPManager } from '../mcp/manager.js';
@@ -30,7 +15,6 @@ import { SystemPromptManager } from '../systemPrompt/manager.js';
 import { AgentStateManager } from '../agent/state-manager.js';
 import { SessionManager } from '../session/index.js';
 import { SearchService } from '../search/index.js';
-import { dirname, resolve } from 'path';
 import { createStorageManager, StorageManager } from '../storage/index.js';
 import { createAllowedToolsProvider } from '../tools/confirmation/allowed-tools-provider/factory.js';
 import type { IDextoLogger } from '../logger/v2/types.js';
@@ -84,7 +68,6 @@ export type InitializeServicesOptions = {
 /**
  * Initializes all agent services from a validated configuration.
  * @param config The validated agent configuration object
- * @param configPath Optional path to the config file (for relative path resolution)
  * @param logger Logger instance for this agent (dependency injection)
  * @param agentEventBus Pre-created event bus from DextoAgent constructor
  * @param overrides Optional service overrides for customization (e.g., sessionLoggerFactory)
@@ -92,7 +75,6 @@ export type InitializeServicesOptions = {
  */
 export async function createAgentServices(
     config: ValidatedAgentConfig,
-    configPath: string | undefined,
     logger: IDextoLogger,
     agentEventBus: AgentEventBus,
     overrides?: InitializeServicesOptions
@@ -158,7 +140,6 @@ export async function createAgentServices(
     logger.debug('Memory manager initialized');
 
     // 6.5 Initialize plugin manager
-    const configDir = configPath ? dirname(resolve(configPath)) : process.cwd();
     const plugins = await resolveLocalPluginsFromConfig({ config, logger });
     const pluginManager = new PluginManager(
         {
@@ -233,12 +214,8 @@ export async function createAgentServices(
     }
 
     // 9. Initialize prompt manager
-    logger.debug(
-        `[ServiceInitializer] Creating SystemPromptManager with configPath: ${configPath} → configDir: ${configDir}`
-    );
     const systemPromptManager = new SystemPromptManager(
         config.systemPrompt,
-        configDir,
         memoryManager,
         config.memories,
         logger

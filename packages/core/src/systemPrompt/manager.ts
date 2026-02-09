@@ -15,22 +15,17 @@ import { SystemPromptError } from './errors.js';
  */
 export class SystemPromptManager {
     private contributors: SystemPromptContributor[];
-    private configDir: string;
     private memoryManager: MemoryManager;
     private logger: IDextoLogger;
 
-    // TODO: move config dir logic somewhere else
     constructor(
         config: ValidatedSystemPromptConfig,
-        configDir: string,
         memoryManager: MemoryManager,
         memoriesConfig: ValidatedMemoriesConfig | undefined,
         logger: IDextoLogger
     ) {
-        this.configDir = configDir;
         this.memoryManager = memoryManager;
         this.logger = logger.createChild(DextoLogComponent.SYSTEM_PROMPT);
-        this.logger.debug(`[SystemPromptManager] Initializing with configDir: ${configDir}`);
 
         // Filter enabled contributors and create contributor instances
         const enabledContributors = config.contributors.filter((c) => c.enabled !== false);
