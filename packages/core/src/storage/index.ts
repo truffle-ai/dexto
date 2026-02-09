@@ -39,12 +39,11 @@
  * ## Registering Custom Providers
  *
  * ```typescript
- * import { databaseRegistry, cacheRegistry } from '@dexto/core';
+ * import { cacheRegistry } from '@dexto/core';
  *
  * // Register before loading config
- * databaseRegistry.register(mongoProvider);
  * cacheRegistry.register(memcachedProvider);
- * // Blob providers are resolved by product layers via images during the DI refactor.
+ * // Database/blob providers are resolved by product layers via images during the DI refactor.
  * ```
  */
 
@@ -62,7 +61,7 @@ export {
     StorageSchema,
 } from './schemas.js';
 
-export { createDatabase, databaseRegistry, DatabaseRegistry } from './database/index.js';
+export { createDatabase } from './database/index.js';
 export type { DatabaseProvider } from './database/index.js';
 
 export type { Database } from './database/types.js';

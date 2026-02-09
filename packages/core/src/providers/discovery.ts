@@ -1,5 +1,9 @@
 import { inMemoryBlobStoreProvider, localBlobStoreProvider } from '../storage/blob/index.js';
-import { databaseRegistry } from '../storage/database/index.js';
+import {
+    inMemoryDatabaseProvider,
+    postgresDatabaseProvider,
+    sqliteDatabaseProvider,
+} from '../storage/database/index.js';
 import { compactionRegistry } from '../context/compaction/index.js';
 import { customToolRegistry } from '../tools/custom-tool-registry.js';
 import { INTERNAL_TOOL_NAMES } from '../tools/internal-tools/constants.js';
@@ -116,8 +120,12 @@ export function listAllProviders(): ProviderDiscovery {
         return info;
     });
 
-    // Get database providers
-    const databaseProviders = databaseRegistry.getProviders().map((provider) => {
+    // Get database providers (built-ins only; custom providers move to images during DI refactor)
+    const databaseProviders = [
+        inMemoryDatabaseProvider,
+        sqliteDatabaseProvider,
+        postgresDatabaseProvider,
+    ].map((provider) => {
         const info: DiscoveredProvider = {
             type: provider.type,
             category: 'database',
@@ -185,7 +193,11 @@ export function hasProvider(category: ProviderCategory, type: string): boolean {
         case 'blob':
             return type === localBlobStoreProvider.type || type === inMemoryBlobStoreProvider.type;
         case 'database':
-            return databaseRegistry.has(type);
+            return (
+                type === inMemoryDatabaseProvider.type ||
+                type === sqliteDatabaseProvider.type ||
+                type === postgresDatabaseProvider.type
+            );
         case 'compaction':
             return compactionRegistry.has(type);
         case 'customTools':

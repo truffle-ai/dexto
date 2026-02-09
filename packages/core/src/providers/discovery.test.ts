@@ -7,8 +7,8 @@ import { z } from 'zod';
 
 describe('Provider Discovery API', () => {
     beforeEach(() => {
-        // Note: We don't clear registries because built-in providers are registered
-        // on module import. Tests work with the existing state.
+        // Note: This API is intentionally backed by a mix of registries (compaction/custom tools)
+        // and plain built-in exports (blob/database) during the DI refactor.
     });
 
     afterEach(() => {
@@ -54,6 +54,15 @@ describe('Provider Discovery API', () => {
             const localProvider = providers.blob.find((p) => p.type === 'local');
             expect(localProvider).toBeDefined();
             expect(localProvider?.category).toBe('blob');
+        });
+
+        it('should include built-in database providers', () => {
+            const providers = listAllProviders();
+
+            const types = providers.database.map((p) => p.type);
+            expect(types).toContain('in-memory');
+            expect(types).toContain('sqlite');
+            expect(types).toContain('postgres');
         });
 
         it('should include custom tool providers', () => {
@@ -122,6 +131,16 @@ describe('Provider Discovery API', () => {
 
         it('should return false for unregistered blob providers', () => {
             expect(hasProvider('blob', 'nonexistent')).toBe(false);
+        });
+
+        it('should return true for built-in database providers', () => {
+            expect(hasProvider('database', 'in-memory')).toBe(true);
+            expect(hasProvider('database', 'sqlite')).toBe(true);
+            expect(hasProvider('database', 'postgres')).toBe(true);
+        });
+
+        it('should return false for unknown database providers', () => {
+            expect(hasProvider('database', 'nonexistent')).toBe(false);
         });
 
         it('should return true for registered compaction providers', () => {

@@ -1,7 +1,8 @@
 /**
  * Built-in database providers.
  *
- * These providers are automatically registered when importing from @dexto/core.
+ * During the DI refactor, custom providers are resolved by product layers (CLI/server/platform)
+ * via typed image factories (`@dexto/agent-config`), not via core registries.
  */
 
 export { inMemoryDatabaseProvider } from './memory.js';
