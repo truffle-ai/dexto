@@ -450,7 +450,7 @@ export function createAgentConfigSchema(options: LLMValidationOptions = {}) {
             ).default({}),
 
             compaction: CompactionConfigSchema.describe(
-                'Context compaction configuration - custom providers can be registered via compactionRegistry'
+                'Context compaction configuration (custom strategies are provided via images during the DI refactor)'
             ).default(DEFAULT_COMPACTION_CONFIG),
         })
         .strict()

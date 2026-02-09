@@ -74,14 +74,11 @@ function generateImports(
 
     // Always import registries since we re-export them in generateFactory()
     // This ensures the re-exports don't reference unimported identifiers
-    imports.push(`import { customToolRegistry, compactionRegistry } from '@dexto/core';`);
+    imports.push(`import { customToolRegistry } from '@dexto/core';`);
 
     // Import discovered providers
     if (discoveredProviders) {
-        const categories = [
-            { key: 'customTools', label: 'Custom Tools' },
-            { key: 'compaction', label: 'Compaction' },
-        ] as const;
+        const categories = [{ key: 'customTools', label: 'Custom Tools' }] as const;
 
         for (const { key, label } of categories) {
             const providers = discoveredProviders[key];
@@ -119,7 +116,6 @@ function generateProviderRegistrations(
     if (discoveredProviders) {
         const categoryMap = [
             { key: 'customTools', registry: 'customToolRegistry', label: 'Custom Tools' },
-            { key: 'compaction', registry: 'compactionRegistry', label: 'Compaction' },
         ] as const;
 
         for (const { key, registry, label } of categoryMap) {
@@ -199,7 +195,6 @@ export function createAgent(config, configPath) {
  */
 export {
     customToolRegistry,
-    compactionRegistry,
 } from '@dexto/core';`;
 }
 
@@ -320,7 +315,6 @@ export declare const imageMetadata: ImageMetadata;
  */
 export {
     customToolRegistry,
-    compactionRegistry,
 } from '@dexto/core';${utilityExports}
 `;
 }

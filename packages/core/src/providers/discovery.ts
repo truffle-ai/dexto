@@ -4,7 +4,7 @@ import {
     postgresDatabaseProvider,
     sqliteDatabaseProvider,
 } from '../storage/database/index.js';
-import { compactionRegistry } from '../context/compaction/index.js';
+import { noopProvider, reactiveOverflowProvider } from '../context/compaction/index.js';
 import { customToolRegistry } from '../tools/custom-tool-registry.js';
 import { INTERNAL_TOOL_NAMES } from '../tools/internal-tools/constants.js';
 import { INTERNAL_TOOL_REGISTRY } from '../tools/internal-tools/registry.js';
@@ -95,8 +95,8 @@ export function listAllProviders(): ProviderDiscovery {
         return info;
     });
 
-    // Get compaction providers
-    const compactionProviders = compactionRegistry.getAll().map((provider) => {
+    // Get compaction providers (built-ins only; custom providers move to images during DI refactor)
+    const compactionProviders = [reactiveOverflowProvider, noopProvider].map((provider) => {
         const info: DiscoveredProvider = {
             type: provider.type,
             category: 'compaction',
@@ -199,7 +199,7 @@ export function hasProvider(category: ProviderCategory, type: string): boolean {
                 type === postgresDatabaseProvider.type
             );
         case 'compaction':
-            return compactionRegistry.has(type);
+            return type === reactiveOverflowProvider.type || type === noopProvider.type;
         case 'customTools':
             return customToolRegistry.has(type);
         default:

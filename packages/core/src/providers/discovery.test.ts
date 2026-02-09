@@ -1,14 +1,13 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { listAllProviders, getProvidersByCategory, hasProvider } from './discovery.js';
-import { compactionRegistry } from '../context/compaction/index.js';
 import { customToolRegistry } from '../tools/custom-tool-registry.js';
 import type { CustomToolProvider } from '../tools/custom-tool-registry.js';
 import { z } from 'zod';
 
 describe('Provider Discovery API', () => {
     beforeEach(() => {
-        // Note: This API is intentionally backed by a mix of registries (compaction/custom tools)
-        // and plain built-in exports (blob/database) during the DI refactor.
+        // Note: This API is intentionally backed by a mix of registries (custom tools)
+        // and plain built-in exports (blob/database/compaction) during the DI refactor.
     });
 
     afterEach(() => {

@@ -1,8 +1,12 @@
 import { z } from 'zod';
 import type { ICompactionStrategy } from './types.js';
-import type { CompactionContext, CompactionConfig } from './provider.js';
-import { compactionRegistry } from './registry.js';
+import type { CompactionContext, CompactionConfig, CompactionProvider } from './provider.js';
 import { ContextError } from '../errors.js';
+import { noopProvider } from './providers/noop-provider.js';
+import { reactiveOverflowProvider } from './providers/reactive-overflow-provider.js';
+
+// TODO: temporary glue code to be removed/verified
+// During the DI refactor, compaction strategy resolution moves out of core into `@dexto/agent-config`.
 
 /**
  * Create a compaction strategy from configuration.
@@ -27,15 +31,9 @@ export async function createCompactionStrategy(
         return null;
     }
 
-    // Get provider
-    const provider = compactionRegistry.get(config.type);
-    if (!provider) {
-        const available = compactionRegistry.getTypes();
-        throw ContextError.compactionInvalidType(config.type, available);
-    }
-
-    // Validate configuration
-    try {
+    const createFromProvider = async <TConfig extends CompactionConfig>(
+        provider: CompactionProvider<string, TConfig>
+    ): Promise<ICompactionStrategy> => {
         const validatedConfig = provider.configSchema.parse(config);
 
         // Check if LLM is required but not provided
@@ -43,7 +41,6 @@ export async function createCompactionStrategy(
             throw ContextError.compactionMissingLLM(config.type);
         }
 
-        // Create strategy instance
         const strategy = await provider.create(validatedConfig, context);
 
         context.logger.info(
@@ -51,6 +48,21 @@ export async function createCompactionStrategy(
         );
 
         return strategy;
+    };
+
+    // Validate configuration
+    try {
+        switch (config.type) {
+            case reactiveOverflowProvider.type:
+                return await createFromProvider(reactiveOverflowProvider);
+            case noopProvider.type:
+                return await createFromProvider(noopProvider);
+            default:
+                throw ContextError.compactionInvalidType(config.type, [
+                    reactiveOverflowProvider.type,
+                    noopProvider.type,
+                ]);
+        }
     } catch (error) {
         if (error instanceof z.ZodError) {
             throw ContextError.compactionValidation(config.type, error.errors);

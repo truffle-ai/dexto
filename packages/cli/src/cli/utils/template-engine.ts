@@ -664,7 +664,6 @@ export function generateDextoConfigFile(context: TemplateContext): string {
 import {
     blobStoreRegistry,
     customToolRegistry,
-    compactionRegistry,
 } from '@dexto/core';
 
 /**
@@ -955,7 +954,7 @@ export function generateDiscoveryScript(): string {
 /**
  * Provider Auto-Discovery Script
  *
- * Scans conventional folders (tools/, blob-store/, compaction/)
+ * Scans conventional folders (tools/, blob-store/)
  * and generates src/providers.ts with import + registration statements.
  */
 
@@ -968,7 +967,7 @@ const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, '..');
 
 interface ProviderInfo {
-    category: 'customTools' | 'blobStore' | 'compaction';
+    category: 'customTools' | 'blobStore';
     folderName: string;
     path: string;
     registryName: string;
@@ -977,7 +976,6 @@ interface ProviderInfo {
 const PROVIDER_CATEGORIES = [
     { folder: 'tools', category: 'customTools' as const, registry: 'customToolRegistry' },
     { folder: 'blob-store', category: 'blobStore' as const, registry: 'blobStoreRegistry' },
-    { folder: 'compaction', category: 'compaction' as const, registry: 'compactionRegistry' },
 ];
 
 async function discoverProviders(): Promise<ProviderInfo[]> {

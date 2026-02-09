@@ -13,14 +13,6 @@ vi.mock('../llm/services/factory.js', () => ({
 }));
 vi.mock('../context/compaction/index.js', () => ({
     createCompactionStrategy: vi.fn(),
-    compactionRegistry: {
-        register: vi.fn(),
-        get: vi.fn(),
-        has: vi.fn(),
-        getTypes: vi.fn(),
-        getAll: vi.fn(),
-        clear: vi.fn(),
-    },
 }));
 vi.mock('../llm/registry/index.js', async (importOriginal) => {
     const actual = (await importOriginal()) as typeof import('../llm/registry/index.js');

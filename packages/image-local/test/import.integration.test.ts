@@ -19,7 +19,6 @@ describe('Image Local - Import Integration', () => {
 
         // Verify all registries are exported with correct names
         expect(module.customToolRegistry).toBeDefined();
-        expect(module.compactionRegistry).toBeDefined();
     });
 
     it('should not reference old registry names', async () => {
@@ -35,8 +34,10 @@ describe('Image Local - Import Integration', () => {
         // Should not contain old name
         expect(content).not.toContain('compressionRegistry');
         expect(content).not.toContain('blobStoreRegistry');
+        expect(content).not.toContain('pluginRegistry');
+        expect(content).not.toContain('compactionRegistry');
 
         // Should contain new name
-        expect(content).toContain('compactionRegistry');
+        expect(content).toContain('customToolRegistry');
     });
 });
