@@ -17,6 +17,13 @@
  * - Single source of truth (provider schema defines everything)
  */
 
+/**
+ * TODO: temporary glue code to be removed/verified
+ *
+ * This registry exists only to support early custom-tool config validation while core still owns
+ * config parsing. It is planned for deletion once tool resolution moves to `@dexto/agent-config`.
+ */
+
 import { z } from 'zod';
 import type { IDextoLogger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';

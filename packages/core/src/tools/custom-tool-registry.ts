@@ -11,6 +11,17 @@ import type { SearchService } from '../search/search-service.js';
 import type { StorageManager } from '../storage/index.js';
 
 /**
+ * TODO: temporary glue code to be removed/verified
+ *
+ * Planned for deletion during the DI refactor (see PLAN task 1.10). Current importers:
+ * - `tools/index.ts` (re-exports)
+ * - `tools/internal-tools/provider.ts` (resolves custom tools)
+ * - `tools/schemas.ts` (builds config union schema)
+ * - `providers/discovery.ts` (provider listing)
+ * - Tests: `tools/custom-tool-registry.test.ts`, `providers/discovery.test.ts`
+ */
+
+/**
  * Context passed to custom tool providers when creating tools.
  * Provides access to the agent instance for bidirectional communication.
  *

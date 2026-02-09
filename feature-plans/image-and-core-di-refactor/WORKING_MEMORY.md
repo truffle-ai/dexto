@@ -17,14 +17,14 @@
 
 ## Current Task
 
-**Task:** **1.5 — `tools/custom-tool-registry.ts` — mark for deletion**
+**Task:** **1.6 — `tools/internal-tools/` — decouple built‑in tool creation**
 **Status:** _Not started_
 **Branch:** `rebuild-di`
 
 ### Plan
-- Identify all importers within core (`internal-tools/provider.ts`, `tool-manager.ts`, `schemas.ts`, `index.ts`).
-- Document the dependency map (what uses it and why).
-- Do not delete yet (planned for 1.10); just mark/prepare.
+- Update `InternalToolsProvider` to stop resolving custom tools via `customToolRegistry`.
+- Keep built-in internal tool implementations as plain exports.
+- Update/adjust any affected tests (`tools/internal-tools/provider.test.ts`).
 - Ensure `pnpm -C packages/core build` and `pnpm test` pass after the change.
 
 ### Notes
@@ -65,6 +65,7 @@ _Move tasks here after completion. Keep a brief log of what was done and any dev
 | 1.2 | `storage/database/` — decouple from registry | 2026-02-09 | Deleted database registry + tests; removed module-load auto-registration; `createDatabase()` now supports built-in types only (temporary glue); updated provider discovery to list built-in database providers. `pnpm -C packages/core build` + `pnpm test` pass. |
 | 1.3 | `storage/cache/` — decouple from registry | 2026-02-09 | Deleted cache registry + tests; removed module-load auto-registration; `createCache()` now supports built-in types only (temporary glue); added `StorageError.cacheInvalidConfig`; updated storage exports. `pnpm -C packages/core build` + `pnpm test` pass. |
 | 1.4 | `storage/storage-manager.ts` — accept concrete instances | 2026-02-09 | `StorageManager` now accepts concrete backends (`{ cache, database, blobStore }`); creation moved into `createStorageManager()` helper (temporary glue) and tagged. `pnpm -C packages/core build` + `pnpm test` pass. |
+| 1.5 | `tools/custom-tool-registry.ts` — mark for deletion | 2026-02-09 | Documented core dependency map + tagged `custom-tool-registry.ts` and `custom-tool-schema-registry.ts` as temporary glue. `pnpm -C packages/core build` + `pnpm test` pass. |
 
 ---
 
