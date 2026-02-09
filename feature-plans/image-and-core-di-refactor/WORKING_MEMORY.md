@@ -19,13 +19,13 @@
 
 ## Current Task
 
-**Task:** **1.14 — `session/` — vet**
+**Task:** **1.15 — `memory/` — vet**
 **Status:** _Not started_
 **Branch:** `rebuild-di`
 
 ### Plan
-- Audit `packages/core/src/session/` for registry imports/config-coupling drift.
-- Confirm session wiring is DI-compatible and contains no provider-registry coupling.
+- Audit `packages/core/src/memory/` for registry imports/config-coupling drift.
+- Confirm memory manager stays DI-compatible (database + logger).
 - If changes are needed, keep them minimal and keep `pnpm run build` + `pnpm test` passing.
 
 ### Notes
@@ -76,6 +76,7 @@ _Move tasks here after completion. Keep a brief log of what was done and any dev
 | 1.11 | `utils/service-initializer.ts` — rewrite | 2026-02-10 | Removed `configDir`/`configPath` from core service wiring; `SystemPromptManager` no longer takes `configDir`. Updated unit/integration tests. `pnpm run build` + `pnpm test` pass. |
 | 1.12 | `llm/` — vet | 2026-02-10 | No changes needed. Verified no provider registries/config-resolution coupling. (LLM “registry” is model metadata + capability helpers and is legitimate.) |
 | 1.13 | `mcp/` — vet | 2026-02-10 | No changes needed. Verified MCP stays config-driven; no provider registries or global registries involved. |
+| 1.14 | `session/` — vet | 2026-02-10 | No changes needed. Verified no provider registries; only references to LLM model registry helpers for token/pricing metadata (legitimate). |
 
 ---
 
