@@ -17,14 +17,14 @@
 
 ## Current Task
 
-**Task:** **1.1 — `storage/blob/` — decouple from registry**
+**Task:** **1.2 — `storage/database/` — decouple from registry**
 **Status:** _In progress_
 **Branch:** `rebuild-di`
 
 ### Plan
-- Identify all registry/factory/auto-register paths under `packages/core/src/storage/blob/`.
-- Remove `blobStoreRegistry` usage and auto-registration side effects; keep concrete implementations + schemas as plain exports.
-- Update any importers to use the new DI surface (or leave for later tasks if strictly required by ordering).
+- Identify all registry/factory/auto-register paths under `packages/core/src/storage/database/`.
+- Remove `databaseRegistry` usage and auto-registration side effects; keep concrete implementations + schemas as plain exports.
+- Update any importers (within core) to keep build passing.
 - Ensure `pnpm -C packages/core build` passes after the change.
 
 ### Notes
@@ -61,6 +61,7 @@ _Move tasks here after completion. Keep a brief log of what was done and any dev
 | 0.3 | Define `DextoAgentOptions` interface in core | 2026-02-09 | Added `packages/core/src/agent/agent-options.ts` + exported from `packages/core/src/agent/index.ts`; `pnpm -C packages/core build` passes. |
 | 0.4 | Clean DI surface interfaces in core | 2026-02-09 | Removed `any` from DI surface interfaces (`DextoPlugin` payload/config shapes, `ToolResult`, provider generics). `pnpm -C packages/core build` passes. |
 | 0.5 | Define `ToolExecutionContext` + `PluginExecutionContext` interfaces | 2026-02-09 | Expanded `ToolExecutionContext` with DI-friendly runtime fields; ensured `PluginExecutionContext` is `any`-free; removed remaining `any` from `ToolManager.setAgent`; tagged temporary glue with `TODO: temporary glue code to be removed/verified`. `pnpm -C packages/core build` + `pnpm -C packages/agent-config build` pass. |
+| 1.1 | `storage/blob/` — decouple from registry | 2026-02-09 | Deleted blob storage registry + tests; removed module-load auto-registration; `createBlobStore()` now supports built-in types only (temporary glue); updated provider discovery to list built-in blob providers. `pnpm -C packages/core build` passes. |
 
 ---
 
@@ -69,7 +70,7 @@ _Move tasks here after completion. Keep a brief log of what was done and any dev
 | Phase | Status | Notes |
 |-------|--------|-------|
 | Phase 0 — Foundation | Completed | 0.1–0.5 complete |
-| Phase 1A — Storage layer | In progress | Starting 1.1 |
+| Phase 1A — Storage layer | In progress | 1.1 complete; starting 1.2 |
 | Phase 1B — Tools layer | Not started | |
 | Phase 1C — Plugins layer | Not started | |
 | Phase 1D — Compaction | Not started | |
