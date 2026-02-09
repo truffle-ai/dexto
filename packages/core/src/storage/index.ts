@@ -36,15 +36,10 @@
  * await manager.disconnect();
  * ```
  *
- * ## Registering Custom Providers
+ * ## Custom Providers
  *
- * ```typescript
- * import { cacheRegistry } from '@dexto/core';
- *
- * // Register before loading config
- * cacheRegistry.register(memcachedProvider);
- * // Database/blob providers are resolved by product layers via images during the DI refactor.
- * ```
+ * During the DI refactor, custom storage providers are resolved by product layers (CLI/server/platform)
+ * via typed image factories (`@dexto/agent-config`), not via core registries.
  */
 
 // Main storage manager and utilities
@@ -81,7 +76,7 @@ export type {
 
 export { MemoryDatabaseStore } from './database/memory-database-store.js';
 
-export { createCache, cacheRegistry, CacheRegistry } from './cache/index.js';
+export { createCache } from './cache/index.js';
 export type { CacheProvider } from './cache/index.js';
 
 export type { Cache } from './cache/types.js';

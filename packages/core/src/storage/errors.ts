@@ -153,6 +153,25 @@ export class StorageError {
         ]);
     }
 
+    /**
+     * Invalid cache configuration
+     */
+    static cacheInvalidConfig(
+        message: string,
+        context?: Record<string, unknown>
+    ): DextoValidationError {
+        return new DextoValidationError([
+            {
+                code: StorageErrorCode.CACHE_INVALID_CONFIG,
+                message,
+                scope: ErrorScope.STORAGE,
+                type: ErrorType.USER,
+                severity: 'error' as const,
+                context: context || {},
+            },
+        ]);
+    }
+
     // ==================== Blob Storage Errors ====================
 
     /**

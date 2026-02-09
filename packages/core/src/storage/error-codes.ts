@@ -23,6 +23,9 @@ export enum StorageErrorCode {
     MIGRATION_FAILED = 'storage_migration_failed',
     DATABASE_INVALID_CONFIG = 'storage_database_invalid_config',
 
+    // Cache specific
+    CACHE_INVALID_CONFIG = 'storage_cache_invalid_config',
+
     // Blob storage - Configuration errors
     BLOB_INVALID_CONFIG = 'BLOB_INVALID_CONFIG',
 

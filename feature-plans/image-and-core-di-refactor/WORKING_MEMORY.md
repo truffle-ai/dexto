@@ -17,15 +17,15 @@
 
 ## Current Task
 
-**Task:** **1.3 — `storage/cache/` — decouple from registry**
+**Task:** **1.4 — `storage/storage-manager.ts` — accept concrete instances**
 **Status:** _Not started_
 **Branch:** `rebuild-di`
 
 ### Plan
-- Identify all registry/factory/auto-register paths under `packages/core/src/storage/cache/`.
-- Remove `cacheRegistry` usage and auto-registration side effects; keep concrete implementations + schemas as plain exports.
-- Update any importers (within core) to keep build passing.
-- Ensure `pnpm -C packages/core build` passes after the change.
+- Update `StorageManager` constructor to accept concrete instances: `{ blob, database, cache }`.
+- Remove calls to `createBlobStore()`, `createDatabase()`, and `createCache()`.
+- Update any call sites that construct `StorageManager` to resolve instances outside core.
+- Ensure `pnpm -C packages/core build` and `pnpm test` pass after the change.
 
 ### Notes
 _Log findings, issues, and progress here as you work._
@@ -63,6 +63,7 @@ _Move tasks here after completion. Keep a brief log of what was done and any dev
 | 0.5 | Define `ToolExecutionContext` + `PluginExecutionContext` interfaces | 2026-02-09 | Expanded `ToolExecutionContext` with DI-friendly runtime fields; ensured `PluginExecutionContext` is `any`-free; removed remaining `any` from `ToolManager.setAgent`; tagged temporary glue with `TODO: temporary glue code to be removed/verified`. `pnpm -C packages/core build` + `pnpm -C packages/agent-config build` pass. |
 | 1.1 | `storage/blob/` — decouple from registry | 2026-02-09 | Deleted blob storage registry + tests; removed module-load auto-registration; `createBlobStore()` now supports built-in types only (temporary glue); updated provider discovery to list built-in blob providers. `pnpm -C packages/core build` passes. |
 | 1.2 | `storage/database/` — decouple from registry | 2026-02-09 | Deleted database registry + tests; removed module-load auto-registration; `createDatabase()` now supports built-in types only (temporary glue); updated provider discovery to list built-in database providers. `pnpm -C packages/core build` + `pnpm test` pass. |
+| 1.3 | `storage/cache/` — decouple from registry | 2026-02-09 | Deleted cache registry + tests; removed module-load auto-registration; `createCache()` now supports built-in types only (temporary glue); added `StorageError.cacheInvalidConfig`; updated storage exports. `pnpm -C packages/core build` + `pnpm test` pass. |
 
 ---
 
