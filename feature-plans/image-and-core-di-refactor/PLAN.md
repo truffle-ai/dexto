@@ -16,6 +16,7 @@ This plan captures the current problems, the target architecture, and concrete b
 - **Image runtime divergence**: `image-local` uses bundler‑generated entrypoints with `imageMetadata` export; `image-cloud` uses hand‑written `index.ts` with `imageCloud` export (different shape). No shared contract is enforced. The CLI uses `|| null` fallbacks that silently ignore missing metadata.
 - **Mix of inline + convention approaches**: The bundler supports both inline `register()` functions and convention‑based folder discovery, but neither is well‑documented, and no production image uses convention‑based discovery. This creates confusion about the canonical approach.
 - **`defineImage()` adds minimal value**: It validates three string fields and returns the same object. The TypeScript interface is full of `any` and index signatures, so type checking is minimal. Compare to `defineConfig` in Vite which provides rich IntelliSense.
+- **`Requirements of registries to extend core for almost every feature surface`** - plugins, compaction, tools, storage, etc. This should be through DI
 
 ### Platform & repo‑level issues
 - **Duplication of logic**: platform re‑implements behavior already present in open‑source `@dexto/*` (e.g., Hono API contracts, client SDK patterns), increasing drift.
@@ -1230,9 +1231,13 @@ Many files import and use `ValidatedAgentConfig` as a pass‑through type. After
 
 ## 15. Summary
 
-- **Core should be DI‑first**: accept concrete storage, tools, plugins, logger. No config resolution inside core.
+- **Core should be DI‑first**: accept concrete storage, tools, plugins, compaction strategy, logger. No config resolution inside core.
+- **Unified tools**: `internalTools` + `customTools` merge into a single `tools` concept. All tools come from the image. Former "internal" tools move to `@dexto/tools-builtins` (or similar) as a standard `ToolFactory`. Core receives `Tool[]` and doesn't distinguish origins.
+- **Unified plugins**: `plugins.registry` + `plugins.custom` merge into a single `plugins` list. All plugins come from image factories. Core receives `DextoPlugin[]`.
+- **Compaction is DI**: Core receives a concrete `CompactionStrategy` instance. Custom strategies are provided via image factories, same pattern as tools/plugins.
+- **LLM stays config‑based**: Schemas, registry, factory, and resolver all stay in core. No changes needed for the DI refactor.
 - **Product layer owns config**: CLI/platform parse, merge defaults, and resolve via `@dexto/agent-config`.
-- **Images remain**, but as **typed `DextoImageModule` objects** with plain `Record<string, Factory>` maps for each extension point.
+- **Images remain**, but as **typed `DextoImageModule` objects** with plain `Record<string, Factory>` maps for each extension point (tools, storage, plugins, compaction).
 - **No registries anywhere.** The image object IS the lookup table. `BaseRegistry` class is removed entirely. The resolver does plain property access: `image.tools[config.type]`.
 - **Two ways to build images**: convention‑based (bundler generates object literal from folders) or hand‑written (for re‑exports or full control). Both produce the same `DextoImageModule` interface.
 - **Bundler emits explicit imports** into a plain object — no `.toString()`, no duck‑typing, no `register()` calls.
@@ -1240,6 +1245,7 @@ Many files import and use `ValidatedAgentConfig` as a pass‑through type. After
 - **Breaking changes are fine** — no compatibility shims needed.
 - **Platform code‑based agents** run in worker processes with `DEXTO_API_KEY` for LLM access via the existing gateway. No platform secrets exposed.
 - **Convention folder configurability and `include` shorthand are future enhancements** — ship with fixed conventions first.
+- **YAML UX unchanged**: Users still write `type: filesystem-tools` in config. The difference is that core no longer resolves type strings — the resolver layer does, using the image's factory maps.
 
 This preserves CLI UX while cleaning architecture, increasing type safety, and enabling both config‑based and code‑based agent customization paths.
 
@@ -1394,6 +1400,7 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
   - Vet: `llm/providers/local/` — local model provider. Verify no provider registry dependency.
   - Vet: `llm/formatters/` — message formatting. Likely no changes.
   - Vet: `llm/validation.test.ts`, `llm/schemas.ts` — stay
+  - Vet: How do we currently handle LLM config validation and LLM switching. What needs to move out of core here?
   - Exit: confirmed no registry imports in `llm/`. No changes needed. Document.
 
 - [ ] **1.13 `mcp/` — vet (expect: no changes)**
