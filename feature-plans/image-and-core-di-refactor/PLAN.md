@@ -6,6 +6,10 @@ This plan captures the current problems, the target architecture, and concrete b
 
 **Owner verification list:** [`USER_VERIFICATION.md`](./USER_VERIFICATION.md) tracks **owner-only** decisions and manual checks that we deliberately defer while implementing. **Add an entry whenever you discover an unresolved decision or a manual verification the owner must do.** Mark entries done when resolved. Phase 5.6 requires this list to be reviewed/cleared before Phase 6 (platform).
 
+**Temporary glue code:** Some “temporary glue code” is expected while we keep the repo building during the refactor. Whenever adding new glue, tag it with:
+`// TODO: temporary glue code to be removed/verified (remove-by: <phase.task>)`
+Default `remove-by` is **5.1** unless you know it can be removed earlier. **Low-churn backfill:** only add/remove `remove-by` tags when touching the surrounding code; Phase 5.1 is the hard cleanup gate.
+
 ---
 
 ## 1. Problems

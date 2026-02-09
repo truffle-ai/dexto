@@ -12,20 +12,21 @@
 3. **During a task:** Log findings, blockers, and decisions in "Current Task Notes."
 4. **After completing a task:** Move the task to "Completed Tasks," clear "Current Task Notes," and update "Current Task" to the next one.
 5. **If you discover something unexpected:** Add it to "Open Questions / Blockers" or "Key Decisions."
+6. **When adding glue code:** Tag it with `// TODO: temporary glue code to be removed/verified (remove-by: <phase.task>)` (default `remove-by: 5.1`). **Low-churn backfill:** only add/remove `remove-by` tags when touching the surrounding code; Phase 5.1 is the hard cleanup gate.
+7. **When you discover owner-only decisions or manual checks:** Add/update an item in `USER_VERIFICATION.md` (and mark items resolved when done).
 
 ---
 
 ## Current Task
 
-**Task:** **1.10 — `agent/DextoAgent.ts` — constructor accepts `DextoAgentOptions`**
+**Task:** **1.12 — `llm/` — vet**
 **Status:** _Not started_
 **Branch:** `rebuild-di`
 
 ### Plan
-- Update `DextoAgent` constructor to take a single `DextoAgentOptions` object.
-- Ensure `ToolExecutionContext` / `PluginExecutionContext` are built after full construction (avoid init cycles).
-- Remove remaining `ValidatedAgentConfig`-typed surfaces from agent shell (caller breaks expected; fix later phases).
-- Ensure `pnpm run build` and `pnpm test` pass.
+- Audit `packages/core/src/llm/` for registry imports/config-coupling drift.
+- Confirm no provider-registry coupling was introduced during Phase 1 changes.
+- If changes are needed, keep them minimal and keep `pnpm run build` + `pnpm test` passing.
 
 ### Notes
 _Log findings, issues, and progress here as you work._
@@ -71,6 +72,8 @@ _Move tasks here after completion. Keep a brief log of what was done and any dev
 | 1.7 | `tools/tool-manager.ts` — accept unified `Tool[]` + provide `ToolExecutionContext` at runtime | 2026-02-10 | `ToolManager` now accepts a unified local `Tool[]` (still `InternalTool` for now) and injects runtime `ToolExecutionContext` via a factory. Tool resolution moved out of `ToolManager` into `agent/resolve-local-tools.ts` + `DextoAgent.start()` as **temporary glue** (tagged). Updated tool-manager unit/integration tests + lifecycle mocks. `pnpm run build` + `pnpm test` pass. |
 | 1.8 | `plugins/manager.ts` — accept concrete `DextoPlugin[]` | 2026-02-10 | `PluginManager` now accepts pre-resolved plugins and no longer loads from file paths or registries. Deleted plugin registry + loader + builtins registration; added `agent/resolve-local-plugins.ts` as **temporary glue** for built-ins and updated bundler/templates to remove `pluginRegistry`. Added `plugins/manager.test.ts`. `pnpm run build` + `pnpm test` pass. |
 | 1.9 | `context/compaction/` — decouple from registry, accept `CompactionStrategy` | 2026-02-10 | Deleted compaction registry + tests; `createCompactionStrategy()` now resolves built-ins via a `switch` (temporary glue, tagged). Updated provider discovery + templates/bundler + integration tests. Added `context/compaction/factory.test.ts`. `pnpm run build` + `pnpm test` pass. |
+| 1.10 | `agent/DextoAgent.ts` — constructor accepts `DextoAgentOptions` | 2026-02-10 | `DextoAgent` now takes `{ config, configPath?, overrides?, logger? }` and does no config parsing in the constructor; callers validate config first. Updated agent-management, CLI/server, bundler output, and templates. `pnpm run build` + `pnpm test` pass. |
+| 1.11 | `utils/service-initializer.ts` — rewrite | 2026-02-10 | Removed `configDir`/`configPath` from core service wiring; `SystemPromptManager` no longer takes `configDir`. Updated unit/integration tests. `pnpm run build` + `pnpm test` pass. |
 
 ---
 
@@ -83,7 +86,7 @@ _Move tasks here after completion. Keep a brief log of what was done and any dev
 | Phase 1B — Tools layer | Completed | 1.5–1.7 complete |
 | Phase 1C — Plugins layer | Completed | 1.8 complete |
 | Phase 1D — Compaction | Completed | 1.9 complete |
-| Phase 1E — Agent shell | Not started | |
+| Phase 1E — Agent shell | In progress | 1.10–1.11 complete |
 | Phase 1F — Vet + cleanup | Not started | |
 | Phase 2 — Resolver | Not started | |
 | Phase 3 — Images | Not started | |
