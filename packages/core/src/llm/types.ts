@@ -16,7 +16,7 @@ export const LLM_PROVIDERS = [
     'bedrock',
     'local', // Native node-llama-cpp execution (GGUF models)
     'ollama', // Ollama server integration
-    'dexto', // Dexto gateway - routes through api.dexto.ai/v1 with billing
+    'dexto-nova', // Dexto gateway - routes through api.dexto.ai/v1 with billing
 ] as const;
 export type LLMProvider = (typeof LLM_PROVIDERS)[number];
 

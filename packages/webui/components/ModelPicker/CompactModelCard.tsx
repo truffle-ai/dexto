@@ -33,13 +33,13 @@ const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
     vertex: 'Vertex AI',
     bedrock: 'Bedrock',
     'openai-compatible': 'Custom',
-    dexto: 'Dexto Nova',
+    'dexto-nova': 'Dexto Nova',
 };
 
 // Providers that have multi-vendor models (don't strip provider prefixes from display name)
 const MULTI_VENDOR_PROVIDERS = new Set([
     'openrouter',
-    'dexto',
+    'dexto-nova',
     'openai-compatible',
     'litellm',
     'glama',

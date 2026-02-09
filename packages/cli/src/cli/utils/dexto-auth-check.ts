@@ -13,7 +13,7 @@
  *
  * ## Why This Exists
  *
- * When a user runs `dexto logout` while configured with `provider: dexto`,
+ * When a user runs `dexto logout` while configured with `provider: dexto-nova`,
  * their preferences.yml still points to Dexto. Without this check, the CLI
  * would attempt to use Dexto Nova credits and fail with "Invalid API key" errors.
  *
@@ -64,12 +64,12 @@ export async function checkDextoAuthState(
     // Get the effective LLM config considering all layers
     const effectiveLLM = await getEffectiveLLMConfig({ agentId });
 
-    // Not using dexto provider - nothing to check
-    if (!effectiveLLM || effectiveLLM.provider !== 'dexto') {
+    // Not using dexto-nova provider - nothing to check
+    if (!effectiveLLM || effectiveLLM.provider !== 'dexto-nova') {
         return { shouldContinue: true };
     }
 
-    // Using dexto provider - check if authenticated
+    // Using dexto-nova provider - check if authenticated
     const authenticated = await isAuthenticated();
     if (authenticated) {
         return { shouldContinue: true };
@@ -83,7 +83,7 @@ export async function checkDextoAuthState(
         );
         console.log(
             chalk.dim(
-                'Your preferences have provider: Dexto Nova (dexto), but no active session.\n'
+                'Your preferences have provider: Dexto Nova (dexto-nova), but no active session.\n'
             )
         );
         console.log(chalk.bold('To fix this:'));

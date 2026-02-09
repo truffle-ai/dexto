@@ -60,7 +60,7 @@ export function LLMConfigSection({
                         <option value="">Select provider...</option>
                         {LLM_PROVIDERS.map((p) => (
                             <option key={p} value={p}>
-                                {p === 'dexto' ? 'Dexto Nova' : p}
+                                {p === 'dexto-nova' ? 'Dexto Nova' : p}
                             </option>
                         ))}
                     </select>

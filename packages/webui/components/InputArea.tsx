@@ -195,7 +195,7 @@ export default function InputArea({
     }, [text]);
 
     // Fetch model capabilities (supported file types) via dedicated endpoint
-    // This handles gateway providers (dexto, openrouter) by resolving to underlying model capabilities
+    // This handles gateway providers (dexto-nova, openrouter) by resolving to underlying model capabilities
     const { data: capabilities } = useModelCapabilities(currentLLM?.provider, currentLLM?.model);
 
     // Extract supported file types from capabilities

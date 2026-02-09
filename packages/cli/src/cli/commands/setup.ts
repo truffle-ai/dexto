@@ -521,7 +521,7 @@ async function handleQuickStart(
  * Dexto setup flow - login if needed, select model, save preferences
  *
  * Config storage:
- * - provider: 'dexto' (the gateway provider)
+ * - provider: 'dexto-nova' (the gateway provider)
  * - model: OpenRouter-style ID (e.g., 'anthropic/claude-haiku-4.5')
  *
  * Runtime handles routing requests through the Dexto gateway to the underlying provider.
@@ -610,7 +610,7 @@ async function handleDextoProviderSetup(
     // Model selection - show popular models in OpenRouter format
     // NOTE: This list is intentionally hardcoded (not from registry) to include
     // curated hints for onboarding UX. Keep model IDs in sync with:
-    // packages/core/src/llm/registry/index.ts (LLM_REGISTRY.dexto.models)
+    // packages/core/src/llm/registry/index.ts (LLM_REGISTRY['dexto-nova'].models)
     const model = await p.select({
         message: 'Select a model to start with',
         options: [
@@ -686,8 +686,8 @@ async function handleDextoProviderSetup(
         return abort('Setup cancelled');
     }
 
-    // Dexto setup always uses 'dexto' provider with OpenRouter model IDs
-    const provider: LLMProvider = 'dexto';
+    // Dexto setup always uses 'dexto-nova' provider with OpenRouter model IDs
+    const provider: LLMProvider = 'dexto-nova';
 
     // Cast model to string (prompts library typing)
     const selectedModel = model as string;
@@ -701,7 +701,7 @@ async function handleDextoProviderSetup(
         return abort('Setup cancelled');
     }
 
-    // Save preferences with explicit dexto provider and OpenRouter model ID
+    // Save preferences with explicit dexto-nova provider and OpenRouter model ID
     const preferences = createInitialPreferences({
         provider,
         model: selectedModel,
@@ -717,7 +717,7 @@ async function handleDextoProviderSetup(
         provider,
         model: selectedModel,
         setupMode: 'interactive',
-        setupVariant: 'dexto',
+        setupVariant: 'dexto-nova',
         defaultMode,
     });
 
@@ -799,7 +799,7 @@ async function wizardStepSetupType(state: SetupWizardState): Promise<SetupWizard
 
     if (isDextoAuthEnabled()) {
         options.push({
-            value: 'dexto',
+            value: 'dexto-nova',
             label: `${chalk.magenta('★')} Dexto Nova`,
             hint: 'All models, one account - login to get started (recommended)',
         });
@@ -828,7 +828,7 @@ async function wizardStepSetupType(state: SetupWizardState): Promise<SetupWizard
         process.exit(0);
     }
 
-    if (setupType === 'dexto') {
+    if (setupType === 'dexto-nova') {
         // Handle Dexto Nova flow - login if needed, then proceed to model selection
         await handleDextoProviderSetup();
         return { ...state, step: 'complete', quickStartHandled: true };
@@ -1308,7 +1308,7 @@ async function promptCustomModelValues(
         'ollama',
         'local',
         'vertex',
-        ...(isDextoAuthEnabled() ? ['dexto'] : []),
+        ...(isDextoAuthEnabled() ? ['dexto-nova'] : []),
     ] as const;
 
     const effectiveProvider = initialModel?.provider ?? providerOverride;
@@ -1342,7 +1342,7 @@ async function promptCustomModelValues(
     }
 
     const trimmedName = typeof name === 'string' ? name.trim() : '';
-    if (provider === 'openrouter' || provider === 'glama' || provider === 'dexto') {
+    if (provider === 'openrouter' || provider === 'glama' || provider === 'dexto-nova') {
         const isValidFormat = trimmedName.includes('/');
         if (!isValidFormat) {
             p.log.warn('Model name should include a provider prefix, e.g. anthropic/claude-3.5');
@@ -1634,11 +1634,7 @@ async function showSettingsMenu(): Promise<void> {
             p.note(currentConfig, 'Current Configuration');
         }
 
-        const currentProviderLabel = currentPrefs?.llm.provider
-            ? currentPrefs.llm.provider === 'dexto'
-                ? 'dexto-nova'
-                : currentPrefs.llm.provider
-            : 'not set';
+        const currentProviderLabel = currentPrefs?.llm.provider ?? 'not set';
         const currentModelLabel = currentPrefs?.llm.model || 'not set';
 
         const options: Array<{ value: string; label: string; hint: string }> = [
@@ -1738,7 +1734,7 @@ async function changeModel(currentProvider?: LLMProvider): Promise<void> {
             message: 'Choose your model source',
             options: [
                 {
-                    value: 'dexto',
+                    value: 'dexto-nova',
                     label: `${chalk.magenta('★')} Dexto Nova`,
                     hint: 'All models, one account',
                 },
@@ -1755,7 +1751,7 @@ async function changeModel(currentProvider?: LLMProvider): Promise<void> {
             return;
         }
 
-        if (providerChoice === 'dexto') {
+        if (providerChoice === 'dexto-nova') {
             // Use the same Dexto setup flow as first-time setup
             const completed = await handleDextoProviderSetup({ exitOnCancel: false });
             if (!completed) {

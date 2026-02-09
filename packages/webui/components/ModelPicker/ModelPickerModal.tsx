@@ -5,7 +5,7 @@
  *
  * TODO: Implement "Run via" toggle for featured models
  * - Show a single model card with toggle buttons: "Dexto / Direct / OpenRouter"
- * - Toggle changes both provider AND model ID (e.g., dexto uses OpenRouter IDs,
+ * - Toggle changes both provider AND model ID (e.g., dexto-nova uses OpenRouter IDs,
  *   direct uses native IDs like claude-sonnet-4-5 vs anthropic/claude-sonnet-4.5)
  * - Disable toggles when credentials are missing (e.g., no ANTHROPIC_API_KEY)
  * - Requires a curated mapping table for featured models (provider/model pairs per backend)
@@ -117,7 +117,7 @@ export default function ModelPickerModal() {
         error: catalogError,
     } = useLLMCatalog({ enabled: open, scope: showAllModels ? 'all' : 'curated' });
 
-    // Load dexto auth status (for checking if user can use dexto provider)
+    // Load dexto auth status (for checking if user can use dexto-nova provider)
     const { data: dextoAuthStatus } = useDextoAuth(open);
 
     // Load custom models from API (always enabled so trigger shows correct icon)
@@ -491,9 +491,9 @@ export default function ModelPickerModal() {
             }
         }
 
-        // Dexto provider requires OAuth login via CLI, not manual API key entry
+        // Dexto Nova provider requires OAuth login via CLI, not manual API key entry
         // Check canUse from auth status API (requires both authentication AND API key)
-        if (!skipApiKeyCheck && providerId === 'dexto') {
+        if (!skipApiKeyCheck && providerId === 'dexto-nova') {
             if (!dextoAuthStatus?.canUse) {
                 setError('Run `dexto login` or `/login` from the CLI to authenticate with Dexto');
                 return;

@@ -55,7 +55,7 @@ export function ApiKeyModal({
         );
     };
 
-    const providerLabel = provider === 'dexto' ? 'Dexto Nova' : provider;
+    const providerLabel = provider === 'dexto-nova' ? 'Dexto Nova' : provider;
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>

@@ -1191,7 +1191,7 @@ program
                             `❌ Model '${opts.model}' looks like an OpenRouter-format ID (provider/model).`
                         );
                         console.error(
-                            `   This is ambiguous for --model inference. Please also pass --provider (e.g. --provider dexto or --provider openrouter).`
+                            `   This is ambiguous for --model inference. Please also pass --provider (e.g. --provider dexto-nova or --provider openrouter).`
                         );
                         safeExit('main', 1, 'ambiguous-model');
                     }

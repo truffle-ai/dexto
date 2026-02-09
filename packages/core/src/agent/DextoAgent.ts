@@ -2055,7 +2055,7 @@ export class DextoAgent {
     /**
      * Gets supported models for a specific provider.
      * Returns model information including metadata for the specified provider only.
-     * For gateway providers like 'dexto' with supportsAllRegistryModels, returns
+     * For gateway providers like 'dexto-nova' with supportsAllRegistryModels, returns
      * all models from all accessible providers with their original provider info.
      *
      * @param provider The provider to get models for

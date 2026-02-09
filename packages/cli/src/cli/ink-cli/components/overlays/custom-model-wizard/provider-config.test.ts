@@ -14,19 +14,22 @@ import { getAvailableProviders, getProviderByMenuIndex } from './provider-config
 const mockIsDextoAuthEnabled = vi.mocked(isDextoAuthEnabled);
 
 describe('custom-model-wizard provider ordering', () => {
-    it('puts dexto first when enabled', () => {
+    it('puts dexto-nova first when enabled', () => {
         mockIsDextoAuthEnabled.mockReturnValue(true);
 
-        const expected = ['dexto', ...CUSTOM_MODEL_PROVIDERS.filter((p) => p !== 'dexto')];
+        const expected = [
+            'dexto-nova',
+            ...CUSTOM_MODEL_PROVIDERS.filter((p) => p !== 'dexto-nova'),
+        ];
         expect(getAvailableProviders()).toEqual(expected);
-        expect(getProviderByMenuIndex(0)).toBe('dexto');
+        expect(getProviderByMenuIndex(0)).toBe('dexto-nova');
         expect(getProviderByMenuIndex(2)).toBe(expected[2]);
     });
 
-    it('hides dexto when disabled', () => {
+    it('hides dexto-nova when disabled', () => {
         mockIsDextoAuthEnabled.mockReturnValue(false);
 
-        const expected = CUSTOM_MODEL_PROVIDERS.filter((p) => p !== 'dexto');
+        const expected = CUSTOM_MODEL_PROVIDERS.filter((p) => p !== 'dexto-nova');
         expect(getAvailableProviders()).toEqual(expected);
         expect(getProviderByMenuIndex(0)).toBe(expected[0]);
         expect(getProviderByMenuIndex(999)).toBeUndefined();

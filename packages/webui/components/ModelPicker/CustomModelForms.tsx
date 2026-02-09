@@ -30,7 +30,7 @@ export type CustomModelProvider =
     | 'bedrock'
     | 'ollama'
     | 'local'
-    | 'dexto';
+    | 'dexto-nova';
 
 export interface CustomModelFormData {
     provider: CustomModelProvider;
@@ -95,7 +95,7 @@ const PROVIDER_OPTIONS: { value: CustomModelProvider; label: string; description
 
 // Dexto option is feature-flagged - shown separately when enabled
 const DEXTO_PROVIDER_OPTION = {
-    value: 'dexto' as const,
+    value: 'dexto-nova' as const,
     label: 'Dexto Nova',
     description: 'Access 100+ models with Nova credits (login required)',
 };
@@ -1046,11 +1046,11 @@ export function CustomModelForm({
     // Fetch provider API key status (not the actual key - it's masked for security)
     const { data: providerKeyData } = useProviderApiKey(formData.provider as LLMProvider);
 
-    // Fetch dexto auth status to conditionally show dexto provider option
+    // Fetch dexto auth status to conditionally show dexto-nova provider option
     const { data: dextoAuthStatus } = useDextoAuth();
     const showDextoProvider = dextoAuthStatus?.enabled ?? false;
 
-    // Build provider options list - include dexto when feature is enabled
+    // Build provider options list - include dexto-nova when feature is enabled
     const providerOptions = showDextoProvider
         ? [DEXTO_PROVIDER_OPTION, ...PROVIDER_OPTIONS]
         : PROVIDER_OPTIONS;
@@ -1060,9 +1060,9 @@ export function CustomModelForm({
         setLocalError(null);
     }, [formData.provider]);
 
-    // Reset provider to default if dexto is selected but becomes unavailable
+    // Reset provider to default if dexto-nova is selected but becomes unavailable
     useEffect(() => {
-        if (dextoAuthStatus && !showDextoProvider && formData.provider === 'dexto') {
+        if (dextoAuthStatus && !showDextoProvider && formData.provider === 'dexto-nova') {
             onChange({
                 ...formData,
                 provider: 'openai-compatible',
@@ -1148,7 +1148,7 @@ export function CustomModelForm({
                     return;
                 }
                 break;
-            case 'dexto':
+            case 'dexto-nova':
                 if (!formData.name.trim()) {
                     setLocalError('Model ID is required');
                     return;
@@ -1181,7 +1181,7 @@ export function CustomModelForm({
                     formData.filePath?.trim().startsWith('/') &&
                     formData.filePath?.trim().endsWith('.gguf')
                 );
-            case 'dexto':
+            case 'dexto-nova':
                 return formData.name.trim() && formData.name.includes('/');
             default:
                 return false;
@@ -1217,7 +1217,7 @@ export function CustomModelForm({
                 return <OllamaFields {...props} />;
             case 'local':
                 return <LocalFields {...props} />;
-            case 'dexto':
+            case 'dexto-nova':
                 return <DextoFields {...props} />;
             case 'openai-compatible':
             default:

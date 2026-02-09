@@ -43,7 +43,7 @@ describe('resolveAndValidateLLMConfig', () => {
     it('returns a validation error for gateway providers when model ID is not OpenRouter-format', async () => {
         const result = await resolveAndValidateLLMConfig(
             baseConfig,
-            { provider: 'dexto', model: 'gpt-5', apiKey: TEST_DEXTO_API_KEY },
+            { provider: 'dexto-nova', model: 'gpt-5', apiKey: TEST_DEXTO_API_KEY },
             mockLogger
         );
 
