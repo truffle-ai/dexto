@@ -231,8 +231,9 @@ my-image/
 │   └── salesforce/
 │       └── index.ts
 ├── storage/
-│   └── gcs/
-│       └── index.ts
+│   └── blob/
+│       └── gcs/
+│           └── index.ts
 └── plugins/
     └── audit-log/
         └── index.ts
@@ -240,7 +241,9 @@ my-image/
 
 Convention folders:
 - `tools/` — custom tool providers
-- `storage/` — storage backends (blob, database, cache — all in one folder)
+- `storage/blob/` — blob store backends
+- `storage/database/` — database backends
+- `storage/cache/` — cache backends
 - `plugins/` — lifecycle plugins
 - `compaction/` — compaction strategy providers
 
@@ -259,8 +262,9 @@ The bundler discovers these folders, generates **explicit imports into a plain o
 // Generated dist/index.js
 import { provider as jira } from './tools/jira/index.js';
 import { provider as salesforce } from './tools/salesforce/index.js';
-import { provider as gcs } from './storage/gcs/index.js';
+import { provider as gcs } from './storage/blob/gcs/index.js';
 import { provider as auditlog } from './plugins/audit-log/index.js';
+import { defaultLoggerFactory } from '@dexto/logger';
 import imageConfig from './dexto.image.js';
 
 const image: DextoImageModule = {
@@ -271,18 +275,21 @@ const image: DextoImageModule = {
     'salesforce': salesforce,
   },
   storage: {
-    'gcs': gcs,
+    blob: { 'gcs': gcs },
+    database: {},
+    cache: {},
   },
   plugins: {
     'audit-log': auditlog,
   },
   compaction: {},
+  logger: defaultLoggerFactory,
 };
 
 export default image;
 ```
 
-**The folder name becomes the type string used in config.** E.g. `tools/jira/` → `type: 'jira'` in YAML. Simple, predictable convention.
+**The folder name becomes the type string used in config.** E.g. `tools/jira/` → `type: 'jira'` in YAML. For storage: `storage/blob/gcs/` → `storage.blob.type: 'gcs'`. Simple, predictable convention.
 
 #### B) Hand‑written (for images that re‑export from external packages or need full control)
 
@@ -366,7 +373,10 @@ export default defineImage({
   name: 'image-local',
   include: {
     tools: ['@dexto/tools-filesystem', '@dexto/tools-process'],
-    storage: ['@dexto/core/blob-local'],
+    storage: {
+      blob: ['@dexto/storage/blob-local'],
+      // database/cache omitted for brevity
+    },
   },
   defaults: { ... },
 });
@@ -376,7 +386,7 @@ The bundler would generate explicit imports for these alongside convention folde
 
 #### Convention folder configurability (future enhancement)
 
-A separate config file (not `dexto.image.ts`) could allow overriding default folder paths, similar to how `next.config.ts` allows `src/` directory. **Not required for v1 — document as future enhancement.** Ship with fixed conventions first (`tools/`, `storage/`, `plugins/`, `compaction/`), add configurability when someone actually needs it.
+A separate config file (not `dexto.image.ts`) could allow overriding default folder paths, similar to how `next.config.ts` allows `src/` directory. **Not required for v1 — document as future enhancement.** Ship with fixed conventions first (`tools/`, `storage/blob/`, `storage/database/`, `storage/cache/`, `plugins/`, `compaction/`), add configurability when someone actually needs it.
 
 #### Migration: `image-cloud`
 `image-cloud` currently uses hand‑written `index.ts` with fire‑and‑forget registration. It must be migrated to export a `DextoImageModule` object with factory maps. Providers in `apps/platform/src/` can stay where they are — the hand‑written image just imports them and puts them in the right `Record` property.
@@ -562,7 +572,7 @@ export function resolveServicesFromConfig(
   image: DextoImageModule,
 ): ResolvedServices {
   // Logger first — storage factories may need it for internal logging
-  const logger = resolveFactory(image.logger, config.logger, 'logger', image.metadata.name);
+  const logger = resolveSingletonFactory(image.logger, config.logger, 'logger', image.metadata.name);
 
   // Storage — typed per category (blob/database/cache maps prevent mismatches)
   const storage = {
@@ -607,6 +617,23 @@ function resolveFactory<T>(
   }
   const validated = factory.configSchema.parse(config);
   return factory.create(validated, ...args);
+}
+
+// Logger helper — validate + create (no type string lookup)
+function resolveSingletonFactory<T>(
+  factory: { configSchema: z.ZodSchema; create: (config: unknown) => T },
+  config: unknown,
+  category: string,
+  imageName: string,
+): T {
+  try {
+    const validated = factory.configSchema.parse(config);
+    return factory.create(validated);
+  } catch (err) {
+    throw new DextoValidationError(
+      `Invalid ${category} config for image "${imageName}": ${err instanceof Error ? err.message : String(err)}`
+    );
+  }
 }
 ```
 
@@ -724,7 +751,7 @@ const agent = new DextoAgent({
 
 ### Code users (new image deployment — Next.js → Vercel model)
 1. User creates a project with `dexto create-image`
-2. Writes custom tools in `tools/`, custom storage in `storage/`, etc.
+2. Writes custom tools in `tools/`, custom storage in `storage/blob/` + `storage/database/` + `storage/cache/`, etc.
 3. Pushes to GitHub
 4. Connects repo to Dexto platform (like connecting a repo to Vercel)
 5. Platform builds the image (`dexto-bundle build`)
@@ -1136,7 +1163,7 @@ export const provider: PluginFactory = {
 | `plugins/builtins/content-policy.ts` | 135 | **MOVE to image** — becomes a `PluginFactory` entry in image-local |
 | `plugins/builtins/response-sanitizer.ts` | 121 | **MOVE to image** — becomes a `PluginFactory` entry in image-local |
 | `plugins/manager.ts` | 613 | **KEEP + update** — accept `DextoPlugin[]`, remove registry lookups |
-| `plugins/loader.ts` | 213 | **MOVE to agent-config** — file-based plugin loading is a resolver concern |
+| `plugins/loader.ts` | 213 | **DELETE** — file-based plugin loading removed (all plugins come from images) |
 | `plugins/types.ts` | 183 | **KEEP + update** — `DextoPlugin`, `PluginResult` interfaces. `PluginExecutionContext` updated to include `agent`, `logger`, `storage` (runtime services). Remove old `PluginCreationContext`. |
 | `plugins/error-codes.ts` | 46 | **KEEP** — no registry dependency |
 
@@ -1292,7 +1319,7 @@ constructor(config: ValidatedStorageConfig, logger: IDextoLogger) {
 }
 
 // Each factory function — same pattern (e.g., createBlobStore)
-function createBlobStore(config: { type: string; [key: string]: any }, logger: IDextoLogger): BlobStore {
+function createBlobStore(config: { type: string; [key: string]: unknown }, logger: IDextoLogger): BlobStore {
     const validatedConfig = blobStoreRegistry.validateConfig(config);     // global registry
     const provider = blobStoreRegistry.get(validatedConfig.type);         // global registry
     return provider.create(validatedConfig, logger);
@@ -1488,7 +1515,7 @@ Image defaults are useful — they let an image say "if you don't specify storag
   - Rationale: merging arrays by `type` is ambiguous (does config override defaults by type? append? prepend?). Full replacement is predictable.
 - **Missing fields:** If config omits a field entirely and image defaults provide it, the default is used.
 - Merging happens in `@dexto/agent-config` via `applyImageDefaults()`, not in core.
-- `configDir` is NOT passed into core. CLI's `enrichAgentConfig()` resolves all relative paths to absolute paths before merging/resolution.
+- `configDir` is NOT passed into core. Core does not perform path resolution; it consumes whatever paths it is given. Product layers can expand template vars (e.g., `${{dexto.agent_dir}}`) and inject absolute defaults (e.g., storage paths) before constructing the agent.
 
 ---
 
@@ -1801,7 +1828,7 @@ Deliverables: CLI command (`dexto schema generate`), optional VS Code extension,
 
 ### C) Convention folder configurability
 
-Custom image folder naming (e.g., `src/tools/` instead of `tools/`) via a separate config file, similar to `next.config.ts`. Ship with fixed conventions first (`tools/`, `storage/`, `plugins/`, `compaction/`), add configurability when requested.
+Custom image folder naming (e.g., `src/tools/` instead of `tools/`) via a separate config file, similar to `next.config.ts`. Ship with fixed conventions first (`tools/`, `storage/blob/`, `storage/database/`, `storage/cache/`, `plugins/`, `compaction/`), add configurability when requested.
 
 ### D) Image `include` shorthand
 
@@ -1929,7 +1956,7 @@ If a phase causes issues, `git revert` individual commits or ranges. Each commit
 - **Two ways to build images**: convention‑based (bundler generates object literal from folders) or hand‑written (for re‑exports or full control). Both produce the same `DextoImageModule` interface.
 - **Bundler emits explicit imports** into a plain object — no `.toString()`, no duck‑typing, no `register()` calls.
 - **Defaults merging is precise**: shallow merge at top level, config wins. Object sub-fields are atomic units (no deep merge bleed-through). Arrays replace entirely.
-- **`configDir` removed from core** — CLI's `enrichAgentConfig()` resolves all relative paths to absolute before they reach core.
+- **`configDir` removed from core** — core does not do path resolution. `configDir` was only needed for file-based plugin loading and debug context; plugins now come from images, and system-prompt file loading resolves paths independently.
 - **Breaking changes are fine** — no compatibility shims needed.
 - **Platform code‑based agents** run in worker processes with `DEXTO_API_KEY` for LLM access via the existing gateway. No platform secrets exposed.
 - **Convention folder configurability and `include` shorthand are future enhancements** — ship with fixed conventions first.
@@ -2067,7 +2094,7 @@ This preserves CLI UX while cleaning architecture, increasing type safety, and e
 - [ ] **1.8 `plugins/manager.ts` — accept concrete `DextoPlugin[]`**
   - `PluginManager.initialize()` currently uses `pluginRegistry.get()` for registry plugins + `loader.ts` for custom file paths → remove both resolution paths
   - After: receives pre‑resolved `DextoPlugin[]`
-  - `loader.ts` (loads plugins from file paths) → move to resolver in agent‑config or delete
+  - `loader.ts` (loads plugins from file paths) → **delete** (file-based plugins removed; use images)
   - `builtins/content-policy.ts`, `builtins/response-sanitizer.ts` — keep as plain exports for now, move to image factory in Phase 3
   - `registrations/builtins.ts` — delete (built‑in plugins will be registered via image, not core)
   - `registry.ts` (142 lines) → delete
@@ -2117,9 +2144,9 @@ This preserves CLI UX while cleaning architecture, increasing type safety, and e
     - `ApprovalManager` — uses config (policies are data)
     - `ResourceManager` — uses MCP manager + config
     - `SessionManager` — wires together all other services
-    - `SystemPromptManager` — uses config + memory manager (remove `configDir` param — CLI resolves all paths to absolute before reaching core)
+    - `SystemPromptManager` — uses config + memory manager (remove `configDir` param; file paths are resolved by contributors at runtime, and product layers can expand template vars)
   - May rename to `initializeInternalServices()` with a reduced signature
-  - **Remove `configDir` from core entirely** — `enrichAgentConfig()` in CLI already resolves all relative paths to absolute. Core doesn't need a path resolver.
+  - **Remove `configDir` from core entirely** — core doesn't need it (no file-based plugins; system prompt manager doesn't require it).
   - Exit: no registry imports, no `configDir`. Takes DI instances + config, wires internal dependencies only. Build passes.
 
 #### 1F — Remaining core sub‑modules (vet for registry/config coupling)
@@ -2156,7 +2183,7 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
 
 - [ ] **1.16 `systemPrompt/` — vet (expect: minor changes)**
   - `SystemPromptManager(config, configDir, memoryManager, memoriesConfig, logger)` — takes config (data) + concrete memory manager.
-  - **Remove `configDir` parameter** — CLI resolves all paths to absolute before they reach core. Replace any `configDir`‑relative path resolution with direct absolute paths.
+  - **Remove `configDir` parameter** — `SystemPromptManager` doesn't require it. Any path resolution is handled independently (contributors resolve paths; product layers can expand template vars).
   - Vet: `manager.ts`, `contributors.ts`, `in-built-prompts.ts`, `registry.ts` (is this a provider registry? Investigate), `schemas.ts`
   - **Risk:** `systemPrompt/registry.ts` — name suggests a registry pattern. Must investigate whether it's a provider registry or just a contributor registry (internal).
   - Exit: no `configDir` dependency. No provider registry dependency. Document any internal registries.
@@ -2255,7 +2282,7 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
 > **Goal:** The new package can take a `ValidatedAgentConfig` + `DextoImageModule` and produce a `DextoAgentOptions`.
 
 - [ ] **2.1 `applyImageDefaults(config, imageDefaults)`**
-  - Shallow merge implementation. Config wins. Arrays replace, don't merge.
+  - Merge semantics match Section 12: shallow top-level merge, 1-level-deep object merge with atomic sub-objects, arrays replace. Config wins.
   - Unit tests with various merge scenarios
   - Exit: function works, tests pass, handles edge cases (missing defaults, missing config sections)
 
@@ -2280,7 +2307,7 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
 
 - [ ] **2.4 Remove storage factory functions from core**
   - `createBlobStore()`, `createDatabase()`, `createCache()` — these use registries today → **delete from core**
-  - After: the resolver calls `image.storage[type].create()` directly (no standalone factories needed)
+  - After: the resolver calls `image.storage.blob[type].create()` / `image.storage.database[type].create()` / `image.storage.cache[type].create()` directly (no standalone factories needed)
   - `@dexto/storage` provides `StorageFactory` objects that images compose; the resolver invokes them
   - Exit: factory functions deleted from core. No standalone `createBlobStore`/`createDatabase`/`createCache` anywhere.
 
@@ -2364,6 +2391,11 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
 - [ ] **3.6 Update `@dexto/image-bundler`**
   - Generate `DextoImageModule` object literal with explicit imports (not `register()` calls)
   - Folder name → type string mapping (`tools/jira/` → key `'jira'`)
+  - Storage conventions:
+    - `storage/blob/<type>/` → `image.storage.blob['<type>']`
+    - `storage/database/<type>/` → `image.storage.database['<type>']`
+    - `storage/cache/<type>/` → `image.storage.cache['<type>']`
+  - Generated module includes `logger: defaultLoggerFactory` (from `@dexto/logger`)
   - Remove `.toString()` serialization logic entirely
   - Remove duck‑typing discovery — require explicit `export const provider` contract
   - Exit: bundler generates valid `DextoImageModule`. Can bundle a test image with convention folders. Proper documentation inside the repo for how to use this as well.
