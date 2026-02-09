@@ -1904,7 +1904,7 @@ This preserves CLI UX while cleaning architecture, increasing type safety, and e
 
 - [ ] **0.4 Define core interfaces for DI surfaces (if not already clean)**
   - Verify `BlobStore`, `Database`, `Cache`, `Tool` (InternalTool), `DextoPlugin`, `CompactionStrategy`, `IDextoLogger` interfaces exist and are clean (no `any`, no config coupling)
-  - `CompactionStrategy` interface must be defined if it doesn't exist as a standalone interface (currently may be embedded in compaction provider types)
+  - `CompactionStrategy` interface must be defined if it doesn't exist as a standalone interface (currently may be embedded in compaction provider types). make sure to refactor properly and delete unncessary code.
   - If any are missing or config‑coupled, define them
   - Exit: all DI surface interfaces are importable from `@dexto/core` with zero `any`
 
@@ -2115,8 +2115,8 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
   - **Add `agent.on()`, `agent.once()`, `agent.off()` to `DextoAgent`** — thin delegates to `this.agentEventBus`
   - Fully typed via `AgentEventMap` — same type safety as direct bus access
   - Update CLI/server to use `agent.on()` instead of `agent.agentEventBus.on()` (can be incremental)
-  - Deprecate direct `agent.agentEventBus` property access (mark with `@deprecated` JSDoc, remove in future)
-  - Exit: `agent.on('llm:chunk', handler)` works. Build + tests pass.
+  - Delete direct `agent.agentEventBus` property access completely from the codebase and from documentation that references it
+  - Exit: `agent.on('llm:chunk', handler)` works. Sufficient tests for other event cases. Build + tests pass.
 
 - [ ] **1.24 `errors/` — vet (expect: no changes)**
   - Error infrastructure. No config or registry dependency.
@@ -2129,6 +2129,7 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
   - Vet: `schema-metadata.ts`, `zod-schema-converter.ts` — schema utilities. Likely no changes.
   - Vet: `path.ts`, `env.ts`, `fs-walk.ts`, `debug.ts`, `defer.ts`, `result.ts`, `safe-stringify.ts`, `redactor.ts`, `user-info.ts`, `async-context.ts`, `error-conversion.ts` — general utilities. No registry dependency.
   - Exit: all utils vetted. Only `service-initializer.ts` changes.
+  - Ideal: There are some utils files that are duplicates of other ones in agent-management that were left here because we couldn't decouple fully. ideally as part of this, we should be able to delete those here also!
 
 - [ ] **1.26 `providers/` — delete registry infrastructure**
   - `base-registry.ts` (208 lines) — base class for all registries → delete
@@ -2188,6 +2189,7 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
   - Dynamic import wrapper that returns `DextoImageModule`
   - Validates the imported module conforms to `DextoImageModule` shape (runtime check)
   - Clear error if import fails or shape doesn't match
+  - Tests to validate error messages are clear for different shape problems
   - Exit: can load `@dexto/image-local` (once rewritten) and return typed module
 
 - [ ] **2.4 Remove storage factory functions from core**
