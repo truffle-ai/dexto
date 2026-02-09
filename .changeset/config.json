@@ -5,6 +5,7 @@
   "fixed": [[
     "dexto",
     "@dexto/core",
+    "@dexto/agent-config",
     "@dexto/client-sdk",
     "@dexto/agent-management",
     "@dexto/analytics",

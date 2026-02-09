@@ -118,6 +118,19 @@ importers:
         specifier: ^1.25.2
         version: 1.25.2(hono@4.10.4)(zod@3.25.76)
 
+  packages/agent-config:
+    dependencies:
+      '@dexto/core':
+        specifier: workspace:*
+        version: link:../core
+      zod:
+        specifier: ^3.25.0
+        version: 3.25.76
+    devDependencies:
+      '@types/node':
+        specifier: ^22.13.5
+        version: 22.19.0
+
   packages/agent-management:
     dependencies:
       '@dexto/core':
