@@ -1590,7 +1590,71 @@ Repeat for each module. Eventually core has zero Zod dependency. Each step is a 
 
 ---
 
-## 16. Summary
+## 16. Events vs Hooks
+
+### Current state
+
+The `AgentEventBus` is a fully typed `BaseTypedEventEmitter<AgentEventMap>` with compile‑time safety, `AbortSignal` cleanup, and clear tiers (`AgentEventBus` global vs `SessionEventBus` session‑scoped). There are ~91 `.on()` subscriptions across the codebase:
+
+| Layer | Count | Purpose |
+|-------|-------|---------|
+| Core (internal) | ~30 | Module coordination (ToolManager/PromptManager/ResourceManager listen to MCP events to sync state) |
+| CLI | ~27 | Rendering — stream chunks, show spinners, display compaction status |
+| Server | ~34 | SSE streaming, webhook delivery, approval coordination |
+| Tools | 0 subscribe, 1 emitter | Tools emit `service:event`, never subscribe |
+
+**Assessment:** The current internal event pattern is healthy. Core modules subscribe for coordination, CLI/server subscribe for presentation. No decoupling needed here — this is what event buses are for.
+
+### `agent.on()` convenience API
+
+Currently consumers access events via `agent.agentEventBus.on(...)`, which exposes internal implementation. We will add a convenience API:
+
+```typescript
+class DextoAgent {
+  on<K extends keyof AgentEventMap>(event: K, listener: AgentEventMap[K], options?: { signal?: AbortSignal }): this;
+  once<K extends keyof AgentEventMap>(event: K, listener: AgentEventMap[K], options?: { signal?: AbortSignal }): this;
+  off<K extends keyof AgentEventMap>(event: K, listener: AgentEventMap[K]): this;
+}
+```
+
+This delegates to `this.agentEventBus` internally. Over time, direct `agentEventBus` access can be deprecated in favor of the cleaner `agent.on()` surface.
+
+### Design principle: events for observation, hooks for modification
+
+Both patterns are complementary and should coexist:
+
+| | Events (`agent.on()`) | Hooks (plugin lifecycle) |
+|---|---|---|
+| **Timing** | Post‑hoc — "this happened" | Interception — "this is about to happen" |
+| **Can modify?** | No — read‑only observation | Yes — can transform, filter, block |
+| **Coupling** | Loose — emitter doesn't know listeners | Structured — explicit typed contract |
+| **Ordering** | Unordered | Priority‑ordered |
+| **Best for** | Logging, metrics, UI rendering, SSE streaming, webhooks | Policy enforcement, content transformation, approval gating, audit |
+
+**Use `agent.on()`** when you want to observe/react to what happened — rendering, logging, metrics, streaming, webhooks. Your code doesn't return anything or modify state.
+
+**Use a plugin with hooks** when you want to modify/intercept/gate behavior — content policy, approval logic, response transformation, custom compaction triggers. Your code influences the outcome.
+
+### Events emitted by core only
+
+Core managers (`ToolManager`, `TurnExecutor`, `ContextManager`, `PluginManager`) remain the sole event emitters. Extension points (tools, plugins, strategies) do **not** emit events — core emits before/after calling them. This ensures consistent event ordering and prevents extension points from producing invalid event sequences.
+
+### Future enhancement: plugin event access
+
+Plugins currently use hooks only (typed, discoverable, priority‑ordered). A future enhancement could add read‑only event access via a `subscribe` method on the plugin interface:
+
+```typescript
+interface DextoPlugin {
+  hooks?: { ... };
+  subscribe?: (agent: DextoAgent) => void;  // read-only event access
+}
+```
+
+This would let a single plugin both intercept (hooks) and observe (events) — e.g., an audit plugin that gates tool execution AND logs all LLM responses. Not needed for the initial refactor.
+
+---
+
+## 17. Summary
 
 - **Core should be DI‑first**: accept concrete storage, tools, plugins, compaction strategy, logger. No config resolution, no implementations inside core — only interfaces and orchestration.
 - **Unified tools**: `internalTools` + `customTools` merge into a single `tools` concept. All tools come from the image. Former "internal" tools move to `@dexto/tools-builtins` (or similar) as a standard `ToolFactory`. Core receives `Tool[]` and doesn't distinguish origins.
@@ -1612,12 +1676,13 @@ Repeat for each module. Eventually core has zero Zod dependency. Each step is a 
   - `@dexto/tools-builtins` — former internal tools as standard `ToolFactory`
   - Core keeps only interfaces (`BlobStore`, `Database`, `Cache`, `IDextoLogger`, `Tool`, `DextoPlugin`, `CompactionStrategy`) and orchestration (`StorageManager`, `ToolManager`, `PluginManager`, etc.)
 - **YAML UX unchanged**: Users still write `type: filesystem-tools` in config. The difference is that core no longer resolves type strings — the resolver layer does, using the image's factory maps.
+- **Events + hooks coexist**: `agent.on()` convenience API for passive observation (rendering, metrics, streaming). Plugin hooks for active modification (policy, transformation, gating). Core is the sole event emitter — extension points do not emit events.
 
 This preserves CLI UX while cleaning architecture, increasing type safety, and enabling both config‑based and code‑based agent customization paths.
 
 ---
 
-## 17. Tasklist
+## 18. Tasklist
 
 ### Phase 0: Foundation — new package + core interfaces
 > **Goal:** Establish the new package and define the target types before changing anything.
@@ -1851,10 +1916,14 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
   - Telemetry init currently happens in service initializer — may stay in internal wiring or move to resolver
   - Exit: document decision. Confirm no registry dependency.
 
-- [ ] **1.23 `events/` — vet (expect: no changes)**
+- [ ] **1.23 `events/` — vet + add `agent.on()` convenience API**
   - `AgentEventBus` is created early in DextoAgent constructor. No config dependency.
-  - Vet: `index.ts`
-  - Exit: confirmed no changes.
+  - Vet: `index.ts` — no registry imports expected
+  - **Add `agent.on()`, `agent.once()`, `agent.off()` to `DextoAgent`** — thin delegates to `this.agentEventBus`
+  - Fully typed via `AgentEventMap` — same type safety as direct bus access
+  - Update CLI/server to use `agent.on()` instead of `agent.agentEventBus.on()` (can be incremental)
+  - Deprecate direct `agent.agentEventBus` property access (mark with `@deprecated` JSDoc, remove in future)
+  - Exit: `agent.on('llm:chunk', handler)` works. Build + tests pass.
 
 - [ ] **1.24 `errors/` — vet (expect: no changes)**
   - Error infrastructure. No config or registry dependency.
