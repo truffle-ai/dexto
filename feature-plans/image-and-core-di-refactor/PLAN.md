@@ -2250,7 +2250,7 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
     - Database: `sqlite-store.ts` (319 lines), `postgres-store.ts` (407 lines), `memory-database-store.ts` (121 lines), `providers/sqlite.ts`, `providers/postgres.ts`, `providers/memory.ts`
     - Cache: `memory-cache-store.ts` (99 lines), `redis-store.ts` (182 lines), `providers/memory.ts`, `providers/redis.ts`
   - Move storage config schemas: `blob/schemas.ts`, `database/schemas.ts`, `cache/schemas.ts`, `schemas.ts`
-  - Move provider interfaces: `blob/provider.ts`, `database/provider.ts`, `cache/provider.ts`
+  - Move provider interfaces: `blob/provider.ts`, `database/provider.ts`, `cache/provider.ts`. Vet if these are still necssary as well.
   - Create `StorageFactory`‑compatible objects for each implementation (remove auto‑registration)
   - Provider-specific dependencies (`better-sqlite3`, `pg`, `ioredis`) move to this package
   - Core keeps: `BlobStore`/`Database`/`Cache` interfaces, `StorageManager`, error types
@@ -2275,7 +2275,7 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
   - Folder name → type string mapping (`tools/jira/` → key `'jira'`)
   - Remove `.toString()` serialization logic entirely
   - Remove duck‑typing discovery — require explicit `export const provider` contract
-  - Exit: bundler generates valid `DextoImageModule`. Can bundle a test image with convention folders.
+  - Exit: bundler generates valid `DextoImageModule`. Can bundle a test image with convention folders. Proper documentation inside the repo for how to use this as well.
 
 - [ ] **3.8 Remove old image infrastructure from core**
   - Delete `packages/core/src/image/define-image.ts`
@@ -2307,12 +2307,14 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
 - [ ] **4.4 Update `@dexto/agent-management` config enrichment**
   - `enrichAgentConfig()` may need updates for the new flow
   - Remove any config parsing responsibilities that moved to agent‑config
+  - might not even be required anymore if image concept can handle this natively. vet and discuss with the user
   - Exit: config enrichment works with new resolution flow. Build + tests pass.
 
 - [ ] **4.5 End‑to‑end smoke test**
   - Start CLI with default image → chat with agent → tools work (filesystem, process)
   - Start server mode → API calls work
   - Switch agents → works
+  - Request user to run the smoke test and give clear instructions
   - Exit: manual smoke test passes. All CI checks green (`pnpm run build && pnpm test && pnpm run lint && pnpm run typecheck`).
 
 ---
@@ -2354,7 +2356,7 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
 ---
 
 ### Phase 6: Platform migration (dexto‑cloud) — separate effort
-> **Goal:** Platform uses new resolution flow. Image‑cloud migrated.
+> **Goal:** Platform uses new resolution flow. Image‑cloud migrated. Stop here and do not start this phase until user asks you to.
 
 - [ ] **6.1 Rewrite `image-cloud` as `DextoImageModule`**
   - Hand‑written, imports Supabase blob provider, scheduler tools, etc.
