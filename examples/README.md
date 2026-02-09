@@ -114,7 +114,7 @@ The key pattern is:
 export function startMyBot(agent: DextoAgent) {
     // Platform-specific setup
     // Use agent.run() to process user input
-    // Use agent.agentEventBus to listen for events
+    // Use agent.on() to listen for events
     // Return your platform's client/connection object
 }
 ```
