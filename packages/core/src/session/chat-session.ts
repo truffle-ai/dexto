@@ -209,19 +209,20 @@ export class ChatSession {
     private setupTokenAccumulation(): void {
         this.tokenAccumulatorListener = (payload: SessionEventMap['llm:response']) => {
             if (payload.tokenUsage) {
-                // Calculate cost if pricing is available
-                let cost: number | undefined;
                 const llmConfig = this.services.stateManager.getLLMConfig(this.id);
-                const pricing = getModelPricing(llmConfig.provider, llmConfig.model);
-                if (pricing) {
-                    cost = calculateCost(payload.tokenUsage, pricing);
-                }
 
                 // Extract model info from payload (preferred) or fall back to config
                 const modelInfo = {
                     provider: payload.provider ?? llmConfig.provider,
                     model: payload.model ?? llmConfig.model,
                 };
+
+                // Calculate cost if pricing is available (using the actual model from payload)
+                let cost: number | undefined;
+                const pricing = getModelPricing(modelInfo.provider, modelInfo.model);
+                if (pricing) {
+                    cost = calculateCost(payload.tokenUsage, pricing);
+                }
 
                 // Fire and forget - don't block the event flow
                 this.services.sessionManager
