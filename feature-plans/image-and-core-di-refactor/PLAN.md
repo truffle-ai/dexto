@@ -1882,6 +1882,7 @@ This preserves CLI UX while cleaning architecture, increasing type safety, and e
 - [ ] **0.1 Create `@dexto/agent-config` package skeleton**
   - `packages/agent-config/package.json`, `tsconfig.json`, `src/index.ts`
   - Add to pnpm workspace, turbo pipeline, `.changeset/config.json` fixed array
+  - Follow same tsconfig/build patterns as the other packages. There are some specific things to reduce memory overload/etc. which we should follow.
   - Exit: package builds with `pnpm run build`, exports nothing yet
 
 - [ ] **0.2 Define `DextoImageModule` interface + factory types**
