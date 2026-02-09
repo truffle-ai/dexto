@@ -2,9 +2,9 @@
 /**
  * Dexto Authentication Check
  *
- * Validates that users configured to use Dexto credits are properly authenticated.
+ * Validates that users configured to use Dexto Nova credits are properly authenticated.
  * This prevents the confusing state where user is logged out but still has
- * Dexto credits configured (which would fail at runtime).
+ * Dexto Nova credits configured (which would fail at runtime).
  *
  * ## When This Check Runs
  *
@@ -15,10 +15,10 @@
  *
  * When a user runs `dexto logout` while configured with `provider: dexto`,
  * their preferences.yml still points to Dexto. Without this check, the CLI
- * would attempt to use Dexto credits and fail with "Invalid API key" errors.
+ * would attempt to use Dexto Nova credits and fail with "Invalid API key" errors.
  *
  * Instead, we catch this state early and offer clear options:
- * - Log back in to continue using Dexto credits
+ * - Log back in to continue using Dexto Nova credits
  * - Run setup to configure a different provider (BYOK)
  *
  * @module dexto-auth-check
@@ -35,8 +35,8 @@ export interface DextoAuthCheckResult {
 }
 
 /**
- * Check if user is configured to use Dexto credits but is not authenticated.
- * This can happen if user logged out after setting up with Dexto credits.
+ * Check if user is configured to use Dexto Nova credits but is not authenticated.
+ * This can happen if user logged out after setting up with Dexto Nova credits.
  *
  * Uses getEffectiveLLMConfig() to determine the actual LLM that will be used,
  * considering all config layers (local, preferences, bundled).
@@ -75,14 +75,20 @@ export async function checkDextoAuthState(
         return { shouldContinue: true };
     }
 
-    // User is configured for Dexto credits but not logged in
+    // User is configured for Dexto Nova credits but not logged in
     if (!interactive) {
         // Non-interactive mode - just show error and exit
-        console.log(chalk.red('\n❌ You are configured to use Dexto credits but not logged in.\n'));
-        console.log(chalk.dim('Your preferences have provider: dexto, but no active session.\n'));
+        console.log(
+            chalk.red('\n❌ You are configured to use Dexto Nova credits but not logged in.\n')
+        );
+        console.log(
+            chalk.dim(
+                'Your preferences have provider: Dexto Nova (dexto), but no active session.\n'
+            )
+        );
         console.log(chalk.bold('To fix this:'));
         console.log(
-            chalk.cyan('  • dexto login') + chalk.dim('  - Log back in to use Dexto credits')
+            chalk.cyan('  • dexto login') + chalk.dim('  - Log back in to use Dexto Nova credits')
         );
         console.log(
             chalk.cyan('  • dexto setup') + chalk.dim('  - Configure a different provider (BYOK)')
@@ -93,7 +99,7 @@ export async function checkDextoAuthState(
 
     // Interactive mode - prompt user
     console.log(chalk.yellow('\n⚠️  Dexto Authentication Required\n'));
-    console.log(chalk.dim('You are configured to use Dexto credits (provider: dexto)'));
+    console.log(chalk.dim('You are configured to use Dexto Nova credits (provider: Dexto Nova)'));
     console.log(chalk.dim('but you are not currently logged in.\n'));
 
     const action = await p.select({
@@ -102,7 +108,7 @@ export async function checkDextoAuthState(
             {
                 value: 'login' as const,
                 label: 'Log in to Dexto',
-                hint: 'Authenticate to use Dexto credits',
+                hint: 'Authenticate to use Dexto Nova credits',
             },
             {
                 value: 'setup' as const,

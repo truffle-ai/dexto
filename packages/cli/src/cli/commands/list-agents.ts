@@ -5,12 +5,14 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import chalk from 'chalk';
 import { z } from 'zod';
+import type { LLMProvider } from '@dexto/core';
 import {
     getDextoGlobalPath,
     globalPreferencesExist,
     loadGlobalPreferences,
     loadBundledRegistryAgents,
 } from '@dexto/agent-management';
+import { getProviderDisplayName } from '../utils/provider-setup.js';
 
 // Zod schema for list-agents command validation
 const ListAgentsCommandSchema = z
@@ -167,7 +169,7 @@ export async function handleListAgentsCommand(
     if (globalPreferencesExist()) {
         try {
             const preferences = await loadGlobalPreferences();
-            globalLLM = `${preferences.llm.provider}/${preferences.llm.model}`;
+            globalLLM = `${getProviderDisplayName(preferences.llm.provider)}/${preferences.llm.model}`;
         } catch {
             // Ignore preference loading errors
         }
@@ -188,7 +190,7 @@ export async function handleListAgentsCommand(
         for (const agent of installedAgents) {
             const llmInfo =
                 agent.llmProvider && agent.llmModel
-                    ? `${agent.llmProvider}/${agent.llmModel}`
+                    ? `${getProviderDisplayName(agent.llmProvider as LLMProvider)}/${agent.llmModel}`
                     : globalLLM || 'Unknown LLM';
 
             const llmDisplay = chalk.gray(`(${llmInfo})`);

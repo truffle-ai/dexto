@@ -424,7 +424,10 @@ export function createLlmRouter(getAgent: GetAgentFn) {
                 }
 
                 const info = LLM_REGISTRY[provider];
-                const displayName = provider.charAt(0).toUpperCase() + provider.slice(1);
+                const displayName =
+                    provider === 'dexto'
+                        ? 'Dexto Nova'
+                        : provider.charAt(0).toUpperCase() + provider.slice(1);
                 const keyStatus = getProviderKeyStatus(provider);
 
                 const models = (() => {

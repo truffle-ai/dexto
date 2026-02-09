@@ -461,8 +461,8 @@ export const PROVIDER_CONFIGS: Record<CustomModelProvider, ProviderConfig> = {
     },
 
     dexto: {
-        displayName: 'Dexto',
-        description: 'Access 100+ models with Dexto credits',
+        displayName: 'Dexto Nova',
+        description: 'Access 100+ models with Nova credits',
         steps: [
             {
                 field: 'name',
@@ -519,7 +519,7 @@ export const PROVIDER_CONFIGS: Record<CustomModelProvider, ProviderConfig> = {
         setupInfo: {
             title: 'Dexto Setup',
             description:
-                'Add OpenRouter-format models that use your Dexto credits. Requires login: run `dexto login` first.',
+                'Add OpenRouter-format models that use your Dexto Nova credits. Requires login: run `dexto login` first.',
             docsUrl: 'https://openrouter.ai/models',
         },
     },

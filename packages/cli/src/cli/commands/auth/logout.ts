@@ -29,7 +29,7 @@ export async function handleLogoutCommand(
             if (usingDextoCredits) {
                 console.log(
                     chalk.yellow(
-                        '\n⚠️  You are currently configured to use Dexto credits (provider: dexto)'
+                        '\n⚠️  You are currently configured to use Dexto Nova credits (provider: Dexto Nova)'
                     )
                 );
                 console.log(
@@ -42,7 +42,7 @@ export async function handleLogoutCommand(
 
             const shouldLogout = await p.confirm({
                 message: usingDextoCredits
-                    ? 'Logout will disable Dexto credits. Continue?'
+                    ? 'Logout will disable Dexto Nova credits. Continue?'
                     : 'Are you sure you want to logout?',
                 initialValue: false,
             });

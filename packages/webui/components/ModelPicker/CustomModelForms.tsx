@@ -96,8 +96,8 @@ const PROVIDER_OPTIONS: { value: CustomModelProvider; label: string; description
 // Dexto option is feature-flagged - shown separately when enabled
 const DEXTO_PROVIDER_OPTION = {
     value: 'dexto' as const,
-    label: 'Dexto',
-    description: 'Access 100+ models with Dexto credits (login required)',
+    label: 'Dexto Nova',
+    description: 'Access 100+ models with Nova credits (login required)',
 };
 
 // ============================================================================
@@ -881,7 +881,7 @@ function DextoFields({ formData, onChange, setLocalError }: ProviderFieldsProps)
                     <Info className="h-4 w-4 text-purple-500 mt-0.5 flex-shrink-0" />
                     <div className="space-y-1">
                         <p className="text-xs text-purple-700 dark:text-purple-300">
-                            Uses your Dexto credits with OpenRouter model IDs.
+                            Uses your Dexto Nova credits with OpenRouter model IDs.
                         </p>
                         <p className="text-xs text-muted-foreground">
                             Requires login: run{' '}

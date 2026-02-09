@@ -769,7 +769,7 @@ export default function ModelPickerModal() {
                         )}
                         <span className="text-sm">{triggerLabel}</span>
                         {currentLLM?.viaDexto && (
-                            <span className="text-xs text-muted-foreground">via Dexto</span>
+                            <span className="text-xs text-muted-foreground">via Dexto Nova</span>
                         )}
                         <ChevronDown
                             className={cn('h-3 w-3 transition-transform', open && 'rotate-180')}

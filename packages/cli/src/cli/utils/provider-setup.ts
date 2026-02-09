@@ -302,6 +302,7 @@ export async function selectProvider(): Promise<LLMProvider | '_back' | null> {
  * Get provider display name
  */
 export function getProviderDisplayName(provider: LLMProvider): string {
+    if (provider === 'dexto') return 'Dexto Nova';
     return PROVIDER_REGISTRY[provider]?.label || provider;
 }
 

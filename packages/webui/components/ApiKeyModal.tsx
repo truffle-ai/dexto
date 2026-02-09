@@ -55,11 +55,13 @@ export function ApiKeyModal({
         );
     };
 
+    const providerLabel = provider === 'dexto' ? 'Dexto Nova' : provider;
+
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-w-md">
                 <DialogHeader>
-                    <DialogTitle>Set {provider} API Key</DialogTitle>
+                    <DialogTitle>Set {providerLabel} API Key</DialogTitle>
                     <DialogDescription>
                         This key will be stored in your .env (env var {primaryEnvVar}). It is not
                         shared with the client.
@@ -79,7 +81,7 @@ export function ApiKeyModal({
                         type="password"
                         value={apiKey}
                         onChange={(e) => setApiKey(e.target.value)}
-                        placeholder={`Enter ${provider} API key`}
+                        placeholder={`Enter ${providerLabel} API key`}
                     />
                 </div>
 

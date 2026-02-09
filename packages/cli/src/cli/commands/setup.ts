@@ -524,7 +524,7 @@ async function handleQuickStart(
  * Runtime handles routing requests through the Dexto gateway to the underlying provider.
  */
 async function handleDextoProviderSetup(): Promise<void> {
-    console.log(chalk.magenta('\n★ Dexto Setup\n'));
+    console.log(chalk.magenta('\n★ Dexto Nova Setup\n'));
 
     // Check if user already has DEXTO_API_KEY
     const hasKey = await canUseDextoProvider();
@@ -690,7 +690,7 @@ async function handleDextoProviderSetup(): Promise<void> {
  * Users can go back to previous steps to change their selections.
  */
 async function handleInteractiveSetup(_options: CLISetupOptions): Promise<void> {
-    console.log(chalk.cyan('\n🗿 Dexto Setup\n'));
+    console.log(chalk.cyan('\n🗿 Dexto Nova Setup\n'));
 
     p.intro(chalk.cyan("Let's configure your AI agent"));
 
@@ -732,13 +732,13 @@ async function handleInteractiveSetup(_options: CLISetupOptions): Promise<void> 
  * Wizard Step: Setup Type (Quick Start vs Custom)
  */
 async function wizardStepSetupType(state: SetupWizardState): Promise<SetupWizardState> {
-    // Build options list - only show Dexto Credits when feature is enabled
+    // Build options list - only show Dexto Nova when feature is enabled
     const options: Array<{ value: string; label: string; hint: string }> = [];
 
     if (isDextoAuthEnabled()) {
         options.push({
             value: 'dexto',
-            label: `${chalk.magenta('★')} Dexto Credits`,
+            label: `${chalk.magenta('★')} Dexto Nova`,
             hint: 'All models, one account - login to get started (recommended)',
         });
     }
@@ -767,7 +767,7 @@ async function wizardStepSetupType(state: SetupWizardState): Promise<SetupWizard
     }
 
     if (setupType === 'dexto') {
-        // Handle Dexto Credits flow - login if needed, then proceed to model selection
+        // Handle Dexto Nova flow - login if needed, then proceed to model selection
         await handleDextoProviderSetup();
         return { ...state, step: 'complete', quickStartHandled: true };
     }
@@ -1657,7 +1657,7 @@ async function changeModel(currentProvider?: LLMProvider): Promise<void> {
             options: [
                 {
                     value: 'dexto',
-                    label: `${chalk.magenta('★')} Dexto Credits`,
+                    label: `${chalk.magenta('★')} Dexto Nova`,
                     hint: 'All models, one account',
                 },
                 {

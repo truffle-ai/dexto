@@ -33,7 +33,7 @@ const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
     vertex: 'Vertex AI',
     bedrock: 'Bedrock',
     'openai-compatible': 'Custom',
-    dexto: 'Dexto',
+    dexto: 'Dexto Nova',
 };
 
 // Providers that have multi-vendor models (don't strip provider prefixes from display name)

@@ -39,7 +39,7 @@ const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
     glama: 'Glama',
     local: 'Local',
     ollama: 'Ollama',
-    dexto: 'Dexto',
+    dexto: 'Dexto Nova',
 };
 
 // Parse display name into provider and model parts
