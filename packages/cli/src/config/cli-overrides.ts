@@ -219,7 +219,7 @@ function getEnvVarForProvider(provider: LLMProvider): string {
         local: '',
         ollama: '',
         // Dexto gateway uses DEXTO_API_KEY from `dexto login`
-        dexto: 'DEXTO_API_KEY',
+        'dexto-nova': 'DEXTO_API_KEY',
     };
     return envVarMap[provider];
 }

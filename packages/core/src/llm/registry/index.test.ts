@@ -761,8 +761,8 @@ describe('Bedrock Region Prefix Handling', () => {
 });
 
 describe('hasAllRegistryModelsSupport', () => {
-    it('returns true for dexto provider', () => {
-        expect(hasAllRegistryModelsSupport('dexto')).toBe(true);
+    it('returns true for dexto-nova provider', () => {
+        expect(hasAllRegistryModelsSupport('dexto-nova')).toBe(true);
     });
 
     it('returns true for openrouter provider', () => {
@@ -790,26 +790,26 @@ describe('getAllModelsForProvider', () => {
     });
 
     it('returns models from all accessible providers for gateway providers', () => {
-        const dextoModels = getAllModelsForProvider('dexto');
+        const dextoModels = getAllModelsForProvider('dexto-nova');
 
         // Should have models from multiple providers
         const providers = new Set(dextoModels.map((m) => m.originalProvider));
         expect(providers.size).toBeGreaterThan(1);
 
         // Gateway models come from:
-        // - Dexto's curated list
+        // - Dexto Nova's curated list
         // - OpenRouter's gateway catalog (models.dev)
-        expect(providers.has('dexto')).toBe(true);
+        expect(providers.has('dexto-nova')).toBe(true);
         expect(providers.has('openrouter')).toBe(true);
     });
 
     it('includes originalProvider for gateway provider models', () => {
-        const dextoModels = getAllModelsForProvider('dexto');
+        const dextoModels = getAllModelsForProvider('dexto-nova');
         expect(dextoModels.every((m) => m.originalProvider !== undefined)).toBe(true);
     });
 
     it('does not label gateway models as native providers', () => {
-        const dextoModels = getAllModelsForProvider('dexto');
+        const dextoModels = getAllModelsForProvider('dexto-nova');
         const providers = new Set(dextoModels.map((m) => m.originalProvider));
 
         expect(providers.has('openai')).toBe(false);
@@ -817,11 +817,11 @@ describe('getAllModelsForProvider', () => {
         expect(providers.has('google')).toBe(false);
     });
 
-    it('includes dexto native models with originalProvider set to dexto', () => {
-        const dextoModels = getAllModelsForProvider('dexto');
-        const dextoNativeModels = dextoModels.filter((m) => m.originalProvider === 'dexto');
+    it('includes dexto-nova native models with originalProvider set to dexto-nova', () => {
+        const dextoModels = getAllModelsForProvider('dexto-nova');
+        const dextoNativeModels = dextoModels.filter((m) => m.originalProvider === 'dexto-nova');
 
-        // Should include dexto's native models like glm-4.7 and minimax-m2.1
+        // Should include Dexto Nova's native models like glm-4.7 and minimax-m2.1
         expect(dextoNativeModels.length).toBeGreaterThan(0);
         const dextoNativeModelNames = dextoNativeModels.map((m) => m.name);
         expect(dextoNativeModelNames).toContain('z-ai/glm-4.7');
@@ -841,15 +841,15 @@ describe('isModelValidForProvider', () => {
 
     it('returns true for any model on gateway providers', () => {
         // Gateway providers require OpenRouter-format IDs.
-        expect(isModelValidForProvider('dexto', 'gpt-5-mini')).toBe(false);
-        expect(isModelValidForProvider('dexto', 'claude-haiku-4-5-20251001')).toBe(false);
+        expect(isModelValidForProvider('dexto-nova', 'gpt-5-mini')).toBe(false);
+        expect(isModelValidForProvider('dexto-nova', 'claude-haiku-4-5-20251001')).toBe(false);
         expect(isModelValidForProvider('openrouter', 'gpt-5-mini')).toBe(false);
     });
 
     it('returns true for OpenRouter format models on gateway providers', () => {
-        expect(isModelValidForProvider('dexto', 'anthropic/claude-opus-4.5')).toBe(true);
+        expect(isModelValidForProvider('dexto-nova', 'anthropic/claude-opus-4.5')).toBe(true);
         expect(isModelValidForProvider('openrouter', 'openai/gpt-5-mini')).toBe(true);
-        expect(isModelValidForProvider('dexto', 'custom/unknown-model')).toBe(true);
+        expect(isModelValidForProvider('dexto-nova', 'custom/unknown-model')).toBe(true);
     });
 });
 
@@ -859,13 +859,13 @@ describe('transformModelNameForProvider', () => {
             const result = transformModelNameForProvider(
                 'claude-haiku-4-5-20251001',
                 'anthropic',
-                'dexto'
+                'dexto-nova'
             );
             expect(result).toBe('anthropic/claude-haiku-4.5');
         });
 
         it('transforms OpenAI models to OpenRouter format', () => {
-            const result = transformModelNameForProvider('gpt-5-mini', 'openai', 'dexto');
+            const result = transformModelNameForProvider('gpt-5-mini', 'openai', 'dexto-nova');
             expect(result).toBe('openai/gpt-5-mini');
         });
 
@@ -888,7 +888,7 @@ describe('transformModelNameForProvider', () => {
         });
 
         it('transforms xAI models with x-ai prefix', () => {
-            const result = transformModelNameForProvider('grok-4', 'xai', 'dexto');
+            const result = transformModelNameForProvider('grok-4', 'xai', 'dexto-nova');
             expect(result).toBe('x-ai/grok-4');
         });
 
@@ -896,7 +896,7 @@ describe('transformModelNameForProvider', () => {
             const result = transformModelNameForProvider(
                 'anthropic/claude-opus-4.5',
                 'anthropic',
-                'dexto'
+                'dexto-nova'
             );
             expect(result).toBe('anthropic/claude-opus-4.5');
         });
@@ -905,7 +905,7 @@ describe('transformModelNameForProvider', () => {
             const result = transformModelNameForProvider(
                 'llama-3.3-70b-versatile',
                 'groq',
-                'dexto'
+                'dexto-nova'
             );
             expect(result).toBe('llama-3.3-70b-versatile');
         });
@@ -913,7 +913,7 @@ describe('transformModelNameForProvider', () => {
         it('does not transform when original provider is a gateway', () => {
             const result = transformModelNameForProvider(
                 'anthropic/claude-opus-4.5',
-                'dexto',
+                'dexto-nova',
                 'openrouter'
             );
             expect(result).toBe('anthropic/claude-opus-4.5');
@@ -940,18 +940,23 @@ describe('transformModelNameForProvider', () => {
 describe('Gateway provider integration with lookup functions', () => {
     describe('getMaxInputTokensForModel', () => {
         it('requires OpenRouter-format IDs for dexto token lookup', () => {
-            expect(() => getMaxInputTokensForModel('dexto', 'claude-haiku-4-5-20251001')).toThrow();
+            expect(() =>
+                getMaxInputTokensForModel('dexto-nova', 'claude-haiku-4-5-20251001')
+            ).toThrow();
         });
 
         it('handles OpenRouter format models', () => {
-            const result = getMaxInputTokensForModel('dexto', 'anthropic/claude-haiku-4.5');
+            const result = getMaxInputTokensForModel('dexto-nova', 'anthropic/claude-haiku-4.5');
             expect(result).toBeGreaterThan(0);
         });
     });
 
     describe('getSupportedFileTypesForModel', () => {
         it('uses per-model capabilities for known OpenRouter IDs', () => {
-            const result = getSupportedFileTypesForModel('dexto', 'anthropic/claude-haiku-4.5');
+            const result = getSupportedFileTypesForModel(
+                'dexto-nova',
+                'anthropic/claude-haiku-4.5'
+            );
             expect(result).toContain('pdf');
             expect(result).toContain('image');
         });
@@ -959,14 +964,14 @@ describe('Gateway provider integration with lookup functions', () => {
 
     describe('getModelPricing', () => {
         it('returns undefined for non-OpenRouter IDs on gateway', () => {
-            const result = getModelPricing('dexto', 'claude-haiku-4-5-20251001');
+            const result = getModelPricing('dexto-nova', 'claude-haiku-4-5-20251001');
             expect(result).toBeUndefined();
         });
     });
 
     describe('getModelDisplayName', () => {
         it('handles OpenRouter format models', () => {
-            const result = getModelDisplayName('anthropic/claude-haiku-4.5', 'dexto');
+            const result = getModelDisplayName('anthropic/claude-haiku-4.5', 'dexto-nova');
             expect(result).toBe('Claude 4.5 Haiku');
         });
     });

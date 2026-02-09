@@ -8,7 +8,7 @@
 /**
  * Check if Dexto authentication/provider is enabled.
  *
- * When disabled (default), the Dexto provider option is hidden from:
+ * When disabled (set DEXTO_FEATURE_AUTH=false), the Dexto provider option is hidden from:
  * - Onboarding/setup wizard
  * - Model selectors (CLI and WebUI)
  * - LLM catalog API responses
@@ -16,8 +16,10 @@
  * The underlying auth commands (dexto login, logout, billing) remain functional
  * for users who need to manage their account.
  *
- * Enable by setting DEXTO_FEATURE_AUTH=true in environment.
+ * Enabled by default. Set DEXTO_FEATURE_AUTH=false to disable.
  */
 export function isDextoAuthEnabled(): boolean {
-    return process.env.DEXTO_FEATURE_AUTH === 'true';
+    const flag = process.env.DEXTO_FEATURE_AUTH;
+    if (flag === undefined) return true;
+    return flag === 'true';
 }

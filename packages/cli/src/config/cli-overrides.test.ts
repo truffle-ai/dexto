@@ -157,10 +157,10 @@ describe('applyUserPreferences', () => {
         expect(result.llm.apiKey).toBe('$OPENAI_API_KEY');
     });
 
-    test('applies dexto provider preferences', () => {
+    test('applies dexto-nova provider preferences', () => {
         const preferences = {
             llm: {
-                provider: 'dexto' as const,
+                provider: 'dexto-nova' as const,
                 model: 'anthropic/claude-sonnet-4',
                 apiKey: '$DEXTO_API_KEY',
             },
@@ -168,7 +168,7 @@ describe('applyUserPreferences', () => {
 
         const result = applyUserPreferences(clone(baseAgentConfig), preferences);
 
-        expect(result.llm.provider).toBe('dexto');
+        expect(result.llm.provider).toBe('dexto-nova');
         expect(result.llm.model).toBe('anthropic/claude-sonnet-4');
         expect(result.llm.apiKey).toBe('$DEXTO_API_KEY');
     });

@@ -2825,7 +2825,7 @@
                         "bedrock",
                         "local",
                         "ollama",
-                        "dexto"
+                        "dexto-nova"
                       ],
                       "description": "LLM provider"
                     }
@@ -3156,7 +3156,7 @@
                             "bedrock",
                             "local",
                             "ollama",
-                            "dexto"
+                            "dexto-nova"
                           ],
                           "description": "LLM provider (e.g., 'openai', 'anthropic', 'google', 'groq')"
                         },
@@ -5509,7 +5509,7 @@
                               "additionalProperties": false,
                               "description": "Provider catalog entry with models and capabilities"
                             },
-                            "dexto": {
+                            "dexto-nova": {
                               "type": "object",
                               "properties": {
                                 "name": {
@@ -5792,7 +5792,7 @@
                           "bedrock",
                           "local",
                           "ollama",
-                          "dexto"
+                          "dexto-nova"
                         ],
                         "description": "LLM provider (e.g., 'openai', 'anthropic', 'google', 'groq')"
                       },
@@ -5899,7 +5899,7 @@
                             "bedrock",
                             "local",
                             "ollama",
-                            "dexto"
+                            "dexto-nova"
                           ],
                           "description": "LLM provider (e.g., 'openai', 'anthropic', 'google', 'groq')"
                         },
@@ -6017,7 +6017,7 @@
                               "ollama",
                               "local",
                               "vertex",
-                              "dexto"
+                              "dexto-nova"
                             ],
                             "default": "openai-compatible"
                           },
@@ -6099,7 +6099,7 @@
                       "ollama",
                       "local",
                       "vertex",
-                      "dexto"
+                      "dexto-nova"
                     ],
                     "default": "openai-compatible"
                   },
@@ -6178,7 +6178,7 @@
                             "ollama",
                             "local",
                             "vertex",
-                            "dexto"
+                            "dexto-nova"
                           ],
                           "default": "openai-compatible"
                         },
@@ -6314,7 +6314,7 @@
     "/api/llm/capabilities": {
       "get": {
         "summary": "Get Model Capabilities",
-        "description": "Returns the capabilities (supported file types) for a specific provider/model combination. Handles gateway providers (dexto, openrouter) by resolving to the underlying model capabilities.",
+        "description": "Returns the capabilities (supported file types) for a specific provider/model combination. Handles gateway providers (dexto-nova, openrouter) by resolving to the underlying model capabilities.",
         "tags": [
           "llm"
         ],
@@ -6339,7 +6339,7 @@
                 "bedrock",
                 "local",
                 "ollama",
-                "dexto"
+                "dexto-nova"
               ],
               "description": "LLM provider name"
             },
@@ -6387,7 +6387,7 @@
                         "bedrock",
                         "local",
                         "ollama",
-                        "dexto"
+                        "dexto-nova"
                       ],
                       "description": "Provider name"
                     },
@@ -7080,7 +7080,7 @@
                               "bedrock",
                               "local",
                               "ollama",
-                              "dexto"
+                              "dexto-nova"
                             ],
                             "description": "Provider identifier for assistant messages"
                           },
@@ -7733,7 +7733,7 @@
                                   "bedrock",
                                   "local",
                                   "ollama",
-                                  "dexto"
+                                  "dexto-nova"
                                 ],
                                 "description": "Provider identifier for assistant messages"
                               },
@@ -8151,7 +8151,7 @@
                                       "bedrock",
                                       "local",
                                       "ollama",
-                                      "dexto"
+                                      "dexto-nova"
                                     ],
                                     "description": "Provider identifier for assistant messages"
                                   },
@@ -12631,7 +12631,7 @@
                 "bedrock",
                 "local",
                 "ollama",
-                "dexto"
+                "dexto-nova"
               ],
               "description": "LLM provider identifier"
             },
@@ -12668,7 +12668,7 @@
                         "bedrock",
                         "local",
                         "ollama",
-                        "dexto"
+                        "dexto-nova"
                       ],
                       "description": "Provider identifier"
                     },
@@ -12731,7 +12731,7 @@
                       "bedrock",
                       "local",
                       "ollama",
-                      "dexto"
+                      "dexto-nova"
                     ],
                     "description": "LLM provider identifier (e.g., openai, anthropic)"
                   },
@@ -12785,7 +12785,7 @@
                         "bedrock",
                         "local",
                         "ollama",
-                        "dexto"
+                        "dexto-nova"
                       ],
                       "description": "Provider for which the key was saved"
                     },

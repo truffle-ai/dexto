@@ -1170,7 +1170,11 @@ export default function MessageList({
                                                                 </div>
                                                                 {msg.provider && (
                                                                     <div className="font-medium">
-                                                                        Provider: {msg.provider}
+                                                                        Provider:{' '}
+                                                                        {msg.provider ===
+                                                                        'dexto-nova'
+                                                                            ? 'Dexto Nova'
+                                                                            : msg.provider}
                                                                     </div>
                                                                 )}
                                                             </div>

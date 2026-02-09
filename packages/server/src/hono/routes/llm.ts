@@ -325,7 +325,7 @@ export function createLlmRouter(getAgent: GetAgentFn) {
         summary: 'Get Model Capabilities',
         description:
             'Returns the capabilities (supported file types) for a specific provider/model combination. ' +
-            'Handles gateway providers (dexto, openrouter) by resolving to the underlying model capabilities.',
+            'Handles gateway providers (dexto-nova, openrouter) by resolving to the underlying model capabilities.',
         tags: ['llm'],
         request: {
             query: z.object({
@@ -386,9 +386,9 @@ export function createLlmRouter(getAgent: GetAgentFn) {
             // Omit apiKey from response for security
             const { apiKey, ...configWithoutKey } = currentConfig;
 
-            // With explicit providers, viaDexto is simply whether the provider is 'dexto'
+            // With explicit providers, viaDexto is simply whether the provider is 'dexto-nova'
             // Only report viaDexto when the feature is enabled
-            const viaDexto = isDextoAuthEnabled() && currentConfig.provider === 'dexto';
+            const viaDexto = isDextoAuthEnabled() && currentConfig.provider === 'dexto-nova';
 
             return ctx.json({
                 config: {
@@ -418,13 +418,16 @@ export function createLlmRouter(getAgent: GetAgentFn) {
             const providers: Record<string, ProviderCatalog> = {};
 
             for (const provider of LLM_PROVIDERS) {
-                // Skip dexto provider when feature is not enabled
-                if (provider === 'dexto' && !isDextoAuthEnabled()) {
+                // Skip dexto-nova provider when feature is not enabled
+                if (provider === 'dexto-nova' && !isDextoAuthEnabled()) {
                     continue;
                 }
 
                 const info = LLM_REGISTRY[provider];
-                const displayName = provider.charAt(0).toUpperCase() + provider.slice(1);
+                const displayName =
+                    provider === 'dexto-nova'
+                        ? 'Dexto Nova'
+                        : provider.charAt(0).toUpperCase() + provider.slice(1);
                 const keyStatus = getProviderKeyStatus(provider);
 
                 const models = (() => {
@@ -562,7 +565,7 @@ export function createLlmRouter(getAgent: GetAgentFn) {
             const { provider, model } = ctx.req.valid('query');
 
             // getSupportedFileTypesForModel handles:
-            // 1. Gateway providers (dexto, openrouter) - resolves via resolveModelOrigin to underlying model
+            // 1. Gateway providers (dexto-nova, openrouter) - resolves via resolveModelOrigin to underlying model
             // 2. Native providers - direct lookup in registry
             // 3. Custom model providers (openai-compatible) - returns provider-level capabilities
             // Falls back to provider-level supportedFileTypes if model not found

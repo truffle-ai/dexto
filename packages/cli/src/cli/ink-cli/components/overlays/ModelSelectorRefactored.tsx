@@ -71,7 +71,7 @@ interface ModelOption {
     isCustom: boolean;
     baseURL?: string;
     reasoningEffort?: ReasoningEffort;
-    /** For gateway providers like dexto, the original provider this model comes from */
+    /** For gateway providers like dexto-nova, the original provider this model comes from */
     originalProvider?: LLMProvider;
 }
 
@@ -254,14 +254,14 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                         continue;
                     }
 
-                    // Skip dexto provider when feature is not enabled
-                    if (provider === 'dexto' && !isDextoAuthEnabled()) {
+                    // Skip dexto-nova provider when feature is not enabled
+                    if (provider === 'dexto-nova' && !isDextoAuthEnabled()) {
                         continue;
                     }
 
                     const providerModels = allModels[provider];
                     for (const model of providerModels) {
-                        // For dexto provider, models have originalProvider field
+                        // For dexto-nova provider, models have originalProvider field
                         // showing which provider the model originally came from
                         const originalProvider =
                             'originalProvider' in model ? model.originalProvider : undefined;

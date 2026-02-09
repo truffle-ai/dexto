@@ -460,9 +460,9 @@ export const PROVIDER_CONFIGS: Record<CustomModelProvider, ProviderConfig> = {
         },
     },
 
-    dexto: {
-        displayName: 'Dexto',
-        description: 'Access 100+ models with Dexto credits',
+    'dexto-nova': {
+        displayName: 'Dexto Nova',
+        description: 'Access 100+ models with Nova credits',
         steps: [
             {
                 field: 'name',
@@ -495,7 +495,7 @@ export const PROVIDER_CONFIGS: Record<CustomModelProvider, ProviderConfig> = {
         asyncValidation: {
             field: 'name',
             validate: async (modelId: string) => {
-                // Reuse OpenRouter validation since Dexto uses OpenRouter model IDs
+                // Reuse OpenRouter validation since Dexto Nova uses OpenRouter model IDs
                 let status = lookupOpenRouterModel(modelId);
 
                 // If cache is stale/empty, try to refresh
@@ -510,16 +510,16 @@ export const PROVIDER_CONFIGS: Record<CustomModelProvider, ProviderConfig> = {
                 }
 
                 if (status === 'invalid') {
-                    return `Model '${modelId}' not found. Dexto uses OpenRouter model IDs - check https://openrouter.ai/models`;
+                    return `Model '${modelId}' not found. Dexto Nova uses OpenRouter model IDs - check https://openrouter.ai/models`;
                 }
 
                 return null;
             },
         },
         setupInfo: {
-            title: 'Dexto Setup',
+            title: 'Dexto Nova Setup',
             description:
-                'Add OpenRouter-format models that use your Dexto credits. Requires login: run `dexto login` first.',
+                'Add OpenRouter-format models that use your Dexto Nova credits. Requires login: run `dexto login` first.',
             docsUrl: 'https://openrouter.ai/models',
         },
     },
@@ -543,19 +543,19 @@ export function getProviderLabel(provider: CustomModelProvider): string {
 
 /**
  * Get all available provider types.
- * Filters out 'dexto' when the feature flag is disabled.
+ * Filters out 'dexto-nova' when the feature flag is disabled.
  */
 export function getAvailableProviders(): CustomModelProvider[] {
     const dextoEnabled = isDextoAuthEnabled();
     const providers = CUSTOM_MODEL_PROVIDERS.filter(
-        (provider) => provider !== 'dexto' || dextoEnabled
+        (provider) => provider !== 'dexto-nova' || dextoEnabled
     );
     if (!dextoEnabled) {
         return providers;
     }
-    // When enabled, put Dexto first for better UX.
-    const withoutDexto = providers.filter((p) => p !== 'dexto');
-    return ['dexto', ...withoutDexto];
+    // When enabled, put Dexto Nova first for better UX.
+    const withoutDexto = providers.filter((p) => p !== 'dexto-nova');
+    return ['dexto-nova', ...withoutDexto];
 }
 
 /**

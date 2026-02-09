@@ -2,6 +2,7 @@
 
 import chalk from 'chalk';
 import { z } from 'zod';
+import open from 'open';
 import {
     getDefaultModelForProvider,
     LLM_PROVIDERS,
@@ -46,6 +47,8 @@ import {
 import { requiresSetup } from '../utils/setup-utils.js';
 import { canUseDextoProvider } from '../utils/dexto-setup.js';
 import { handleBrowserLogin } from './auth/login.js';
+import { loadAuth, getDextoApiClient } from '../auth/index.js';
+import { DEXTO_CREDITS_URL } from '../auth/constants.js';
 import * as p from '@clack/prompts';
 import { logger } from '@dexto/core';
 import { capture } from '../../analytics/index.js';
@@ -518,13 +521,24 @@ async function handleQuickStart(
  * Dexto setup flow - login if needed, select model, save preferences
  *
  * Config storage:
- * - provider: 'dexto' (the gateway provider)
+ * - provider: 'dexto-nova' (the gateway provider)
  * - model: OpenRouter-style ID (e.g., 'anthropic/claude-haiku-4.5')
  *
  * Runtime handles routing requests through the Dexto gateway to the underlying provider.
  */
-async function handleDextoProviderSetup(): Promise<void> {
-    console.log(chalk.magenta('\n★ Dexto Setup\n'));
+async function handleDextoProviderSetup(
+    options: { exitOnCancel?: boolean } = {}
+): Promise<boolean> {
+    const exitOnCancel = options.exitOnCancel ?? true;
+    const abort = (message: string, exitCode: number = 0): false => {
+        p.cancel(message);
+        if (exitOnCancel) {
+            process.exit(exitCode);
+        }
+        return false;
+    };
+
+    console.log(chalk.magenta('\n★ Dexto Nova Setup\n'));
 
     // Check if user already has DEXTO_API_KEY
     const hasKey = await canUseDextoProvider();
@@ -542,8 +556,7 @@ async function handleDextoProviderSetup(): Promise<void> {
         });
 
         if (p.isCancel(shouldLogin) || !shouldLogin) {
-            p.cancel('Setup cancelled');
-            process.exit(0);
+            return abort('Setup cancelled');
         }
 
         try {
@@ -553,23 +566,51 @@ async function handleDextoProviderSetup(): Promise<void> {
                 p.log.error(
                     'API key provisioning failed. Please try again or use `dexto setup` with a different provider.'
                 );
-                process.exit(1);
+                return abort('Setup cancelled', 1);
             }
             p.log.success('Login successful! Continuing with setup...');
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);
             p.log.error(`Login failed: ${errorMessage}`);
-            p.cancel('Setup cancelled - login required for Dexto');
-            process.exit(1);
+            return abort('Setup cancelled - login required for Dexto', 1);
         }
     } else {
-        p.log.success('Already logged in to Dexto');
+        const auth = await loadAuth();
+        const userLabel = auth?.email || auth?.userId || 'unknown';
+        p.log.success(`Logged in to Dexto as: ${userLabel}`);
+    }
+
+    const balance = await getCreditsBalance();
+    if (balance !== null) {
+        p.note(`$${balance.toFixed(2)} remaining`, 'Dexto Nova balance');
+    }
+
+    const shouldOpenCredits = await p.confirm({
+        message: 'Want to buy or top up Dexto Nova credits now?',
+        initialValue: false,
+    });
+
+    if (p.isCancel(shouldOpenCredits)) {
+        return abort('Setup cancelled');
+    }
+
+    if (shouldOpenCredits) {
+        await openCreditsPage();
+
+        const continueSetup = await p.confirm({
+            message: 'Continue choosing a model?',
+            initialValue: true,
+        });
+
+        if (p.isCancel(continueSetup) || !continueSetup) {
+            return abort('Setup cancelled');
+        }
     }
 
     // Model selection - show popular models in OpenRouter format
     // NOTE: This list is intentionally hardcoded (not from registry) to include
     // curated hints for onboarding UX. Keep model IDs in sync with:
-    // packages/core/src/llm/registry/index.ts (LLM_REGISTRY.dexto.models)
+    // packages/core/src/llm/registry/index.ts (LLM_REGISTRY['dexto-nova'].models)
     const model = await p.select({
         message: 'Select a model to start with',
         options: [
@@ -642,12 +683,11 @@ async function handleDextoProviderSetup(): Promise<void> {
     });
 
     if (p.isCancel(model)) {
-        p.cancel('Setup cancelled');
-        process.exit(0);
+        return abort('Setup cancelled');
     }
 
-    // Dexto setup always uses 'dexto' provider with OpenRouter model IDs
-    const provider: LLMProvider = 'dexto';
+    // Dexto setup always uses 'dexto-nova' provider with OpenRouter model IDs
+    const provider: LLMProvider = 'dexto-nova';
 
     // Cast model to string (prompts library typing)
     const selectedModel = model as string;
@@ -658,11 +698,10 @@ async function handleDextoProviderSetup(): Promise<void> {
     const defaultMode = await selectDefaultMode();
 
     if (defaultMode === null) {
-        p.cancel('Setup cancelled');
-        process.exit(0);
+        return abort('Setup cancelled');
     }
 
-    // Save preferences with explicit dexto provider and OpenRouter model ID
+    // Save preferences with explicit dexto-nova provider and OpenRouter model ID
     const preferences = createInitialPreferences({
         provider,
         model: selectedModel,
@@ -678,11 +717,34 @@ async function handleDextoProviderSetup(): Promise<void> {
         provider,
         model: selectedModel,
         setupMode: 'interactive',
-        setupVariant: 'dexto',
+        setupVariant: 'dexto-nova',
         defaultMode,
     });
 
     await showSetupComplete(provider, selectedModel, defaultMode, false);
+    return true;
+}
+
+async function openCreditsPage(): Promise<void> {
+    try {
+        await open(DEXTO_CREDITS_URL);
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        p.log.warn(`Unable to open browser: ${errorMessage}`);
+        p.log.info(`Open this link to buy credits: ${DEXTO_CREDITS_URL}`);
+    }
+}
+
+async function getCreditsBalance(): Promise<number | null> {
+    try {
+        const auth = await loadAuth();
+        if (!auth?.dextoApiKey) return null;
+        const apiClient = getDextoApiClient();
+        const usage = await apiClient.getUsageSummary(auth.dextoApiKey);
+        return usage.credits_usd;
+    } catch {
+        return null;
+    }
 }
 
 /**
@@ -690,7 +752,7 @@ async function handleDextoProviderSetup(): Promise<void> {
  * Users can go back to previous steps to change their selections.
  */
 async function handleInteractiveSetup(_options: CLISetupOptions): Promise<void> {
-    console.log(chalk.cyan('\n🗿 Dexto Setup\n'));
+    console.log(chalk.cyan('\n🗿 Dexto Nova Setup\n'));
 
     p.intro(chalk.cyan("Let's configure your AI agent"));
 
@@ -732,13 +794,13 @@ async function handleInteractiveSetup(_options: CLISetupOptions): Promise<void> 
  * Wizard Step: Setup Type (Quick Start vs Custom)
  */
 async function wizardStepSetupType(state: SetupWizardState): Promise<SetupWizardState> {
-    // Build options list - only show Dexto Credits when feature is enabled
+    // Build options list - only show Dexto Nova when feature is enabled
     const options: Array<{ value: string; label: string; hint: string }> = [];
 
     if (isDextoAuthEnabled()) {
         options.push({
-            value: 'dexto',
-            label: `${chalk.magenta('★')} Dexto Credits`,
+            value: 'dexto-nova',
+            label: `${chalk.magenta('★')} Dexto Nova`,
             hint: 'All models, one account - login to get started (recommended)',
         });
     }
@@ -766,8 +828,8 @@ async function wizardStepSetupType(state: SetupWizardState): Promise<SetupWizard
         process.exit(0);
     }
 
-    if (setupType === 'dexto') {
-        // Handle Dexto Credits flow - login if needed, then proceed to model selection
+    if (setupType === 'dexto-nova') {
+        // Handle Dexto Nova flow - login if needed, then proceed to model selection
         await handleDextoProviderSetup();
         return { ...state, step: 'complete', quickStartHandled: true };
     }
@@ -1246,7 +1308,7 @@ async function promptCustomModelValues(
         'ollama',
         'local',
         'vertex',
-        ...(isDextoAuthEnabled() ? ['dexto'] : []),
+        ...(isDextoAuthEnabled() ? ['dexto-nova'] : []),
     ] as const;
 
     const effectiveProvider = initialModel?.provider ?? providerOverride;
@@ -1280,7 +1342,7 @@ async function promptCustomModelValues(
     }
 
     const trimmedName = typeof name === 'string' ? name.trim() : '';
-    if (provider === 'openrouter' || provider === 'glama' || provider === 'dexto') {
+    if (provider === 'openrouter' || provider === 'glama' || provider === 'dexto-nova') {
         const isValidFormat = trimmedName.includes('/');
         if (!isValidFormat) {
             p.log.warn('Model name should include a provider prefix, e.g. anthropic/claude-3.5');
@@ -1572,40 +1634,53 @@ async function showSettingsMenu(): Promise<void> {
             p.note(currentConfig, 'Current Configuration');
         }
 
+        const currentProviderLabel = currentPrefs?.llm.provider ?? 'not set';
+        const currentModelLabel = currentPrefs?.llm.model || 'not set';
+
+        const options: Array<{ value: string; label: string; hint: string }> = [
+            {
+                value: 'model',
+                label: 'Change model',
+                hint: `Currently: ${currentProviderLabel} / ${currentModelLabel}`,
+            },
+            {
+                value: 'mode',
+                label: 'Change default mode',
+                hint: `Currently: ${currentPrefs?.defaults.defaultMode || 'web'}`,
+            },
+            {
+                value: 'apikey',
+                label: 'Update API key',
+                hint: 'Re-enter your API key',
+            },
+            {
+                value: 'reset',
+                label: 'Reset to defaults',
+                hint: 'Start fresh with a new configuration',
+            },
+            {
+                value: 'file',
+                label: 'View preferences file',
+                hint: 'See where your settings are stored',
+            },
+            {
+                value: 'exit',
+                label: 'Exit',
+                hint: 'Done making changes',
+            },
+        ];
+
+        if (isDextoAuthEnabled()) {
+            options.splice(2, 0, {
+                value: 'credits',
+                label: 'Buy Dexto Nova credits',
+                hint: 'Open billing page in your browser',
+            });
+        }
+
         const action = await p.select({
             message: 'What would you like to do?',
-            options: [
-                {
-                    value: 'model',
-                    label: 'Change model',
-                    hint: `Currently: ${currentPrefs?.llm.provider || 'not set'} / ${currentPrefs?.llm.model || 'not set'}`,
-                },
-                {
-                    value: 'mode',
-                    label: 'Change default mode',
-                    hint: `Currently: ${currentPrefs?.defaults.defaultMode || 'web'}`,
-                },
-                {
-                    value: 'apikey',
-                    label: 'Update API key',
-                    hint: 'Re-enter your API key',
-                },
-                {
-                    value: 'reset',
-                    label: 'Reset to defaults',
-                    hint: 'Start fresh with a new configuration',
-                },
-                {
-                    value: 'file',
-                    label: 'View preferences file',
-                    hint: 'See where your settings are stored',
-                },
-                {
-                    value: 'exit',
-                    label: 'Exit',
-                    hint: 'Done making changes',
-                },
-            ],
+            options,
         });
 
         // Exit conditions
@@ -1621,6 +1696,9 @@ async function showSettingsMenu(): Promise<void> {
                 break;
             case 'mode':
                 await changeDefaultMode();
+                break;
+            case 'credits':
+                await openCreditsPage();
                 break;
             case 'apikey':
                 await updateApiKey(currentPrefs?.llm.provider);
@@ -1656,8 +1734,8 @@ async function changeModel(currentProvider?: LLMProvider): Promise<void> {
             message: 'Choose your model source',
             options: [
                 {
-                    value: 'dexto',
-                    label: `${chalk.magenta('★')} Dexto Credits`,
+                    value: 'dexto-nova',
+                    label: `${chalk.magenta('★')} Dexto Nova`,
                     hint: 'All models, one account',
                 },
                 {
@@ -1673,9 +1751,12 @@ async function changeModel(currentProvider?: LLMProvider): Promise<void> {
             return;
         }
 
-        if (providerChoice === 'dexto') {
+        if (providerChoice === 'dexto-nova') {
             // Use the same Dexto setup flow as first-time setup
-            await handleDextoProviderSetup();
+            const completed = await handleDextoProviderSetup({ exitOnCancel: false });
+            if (!completed) {
+                return;
+            }
             return;
         }
 

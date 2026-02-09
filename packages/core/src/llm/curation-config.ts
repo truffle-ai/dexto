@@ -50,7 +50,7 @@ export const CURATED_MODEL_IDS_BY_PROVIDER: Partial<Record<LLMProvider, string[]
         'anthropic.claude-haiku-4-5-20251001-v1:0',
         'amazon.nova-pro-v1:0',
     ],
-    dexto: [
+    'dexto-nova': [
         'anthropic/claude-haiku-4.5',
         'anthropic/claude-sonnet-4.5',
         'anthropic/claude-opus-4.5',

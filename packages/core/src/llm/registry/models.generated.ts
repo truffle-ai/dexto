@@ -4836,5 +4836,5 @@ export const MODELS_BY_PROVIDER = {
     ],
     local: [],
     ollama: [],
-    dexto: [],
+    'dexto-nova': [],
 } satisfies Record<LLMProvider, ModelInfo[]>;

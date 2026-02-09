@@ -20,7 +20,7 @@ export const CUSTOM_MODEL_PROVIDERS = [
     'ollama',
     'local',
     'vertex',
-    'dexto',
+    'dexto-nova',
 ] as const;
 export type CustomModelProvider = (typeof CUSTOM_MODEL_PROVIDERS)[number];
 
@@ -34,7 +34,7 @@ export type CustomModelProvider = (typeof CUSTOM_MODEL_PROVIDERS)[number];
  * - ollama: optional baseURL (defaults to http://localhost:11434)
  * - local: no baseURL, uses local GGUF files via node-llama-cpp
  * - vertex: no baseURL, uses Google Cloud ADC
- * - dexto: OpenRouter gateway using Dexto credits, requires auth login, uses OpenRouter model IDs
+ * - dexto-nova: OpenRouter gateway using Dexto credits, requires auth login, uses OpenRouter model IDs
  *
  * TODO: For hosted deployments, API keys should be stored in a secure
  * key management service (e.g., AWS Secrets Manager, HashiCorp Vault)

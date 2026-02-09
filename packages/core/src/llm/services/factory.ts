@@ -108,13 +108,13 @@ export function createVercelModel(
             const glamaBaseURL = 'https://glama.ai/api/gateway/openai/v1';
             return createOpenAI({ apiKey: apiKey ?? '', baseURL: glamaBaseURL }).chat(model);
         }
-        case 'dexto': {
+        case 'dexto-nova': {
             // Dexto Gateway - OpenAI-compatible proxy with per-request billing
             // Routes through api.dexto.ai to OpenRouter, deducts from user balance
             // Requires DEXTO_API_KEY from `dexto login`
             //
             // Model IDs are in OpenRouter format (e.g., 'anthropic/claude-sonnet-4-5-20250929')
-            // Users explicitly choose `provider: dexto` in their config
+            // Users explicitly choose `provider: dexto-nova` in their config
             //
             // Note: 402 "insufficient credits" errors are handled in turn-executor.ts mapProviderError()
             const dextoBaseURL = 'https://api.dexto.ai/v1';

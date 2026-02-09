@@ -10,10 +10,10 @@ describe('resolveSubAgentLLM', () => {
         apiKey: '$ANTHROPIC_API_KEY',
     };
 
-    describe('gateway provider scenarios (dexto/openrouter)', () => {
-        test('parent with dexto + sub-agent with anthropic -> dexto + transformed model', () => {
+    describe('gateway provider scenarios (dexto-nova/openrouter)', () => {
+        test('parent with dexto-nova + sub-agent with anthropic -> dexto-nova + transformed model', () => {
             const parentLLM: LLMConfig = {
-                provider: 'dexto',
+                provider: 'dexto-nova',
                 model: 'anthropic/claude-sonnet-4',
                 apiKey: '$DEXTO_API_KEY',
             };
@@ -25,7 +25,7 @@ describe('resolveSubAgentLLM', () => {
             });
 
             expect(result.resolution).toBe('gateway-transform');
-            expect(result.llm.provider).toBe('dexto');
+            expect(result.llm.provider).toBe('dexto-nova');
             expect(result.llm.model).toBe('anthropic/claude-haiku-4.5'); // Transformed
             expect(result.llm.apiKey).toBe('$DEXTO_API_KEY'); // Parent's key
             expect(result.reason).toContain('gateway');
@@ -56,14 +56,14 @@ describe('resolveSubAgentLLM', () => {
             expect(result.llm.apiKey).toBe('$OPENROUTER_API_KEY');
         });
 
-        test('parent with dexto + sub-agent with google -> dexto + transformed model', () => {
+        test('parent with dexto-nova + sub-agent with google -> dexto-nova + transformed model', () => {
             const subAgentLLM: LLMConfig = {
                 provider: 'google',
                 model: 'gemini-2.0-flash',
                 apiKey: '$GOOGLE_API_KEY',
             };
             const parentLLM: LLMConfig = {
-                provider: 'dexto',
+                provider: 'dexto-nova',
                 model: 'anthropic/claude-opus-4',
                 apiKey: '$DEXTO_API_KEY',
             };
@@ -74,7 +74,7 @@ describe('resolveSubAgentLLM', () => {
             });
 
             expect(result.resolution).toBe('gateway-transform');
-            expect(result.llm.provider).toBe('dexto');
+            expect(result.llm.provider).toBe('dexto-nova');
             expect(result.llm.model).toBe('google/gemini-2.0-flash-001'); // Transformed
             expect(result.llm.apiKey).toBe('$DEXTO_API_KEY');
         });
@@ -168,7 +168,7 @@ describe('resolveSubAgentLLM', () => {
     describe('edge cases', () => {
         test('works without subAgentId parameter', () => {
             const parentLLM: LLMConfig = {
-                provider: 'dexto',
+                provider: 'dexto-nova',
                 model: 'anthropic/claude-sonnet-4',
                 apiKey: '$DEXTO_API_KEY',
             };
@@ -192,7 +192,7 @@ describe('resolveSubAgentLLM', () => {
                 temperature: 0.5,
             };
             const parentLLM: LLMConfig = {
-                provider: 'dexto',
+                provider: 'dexto-nova',
                 model: 'anthropic/claude-sonnet-4',
                 apiKey: '$DEXTO_API_KEY',
             };
@@ -213,10 +213,10 @@ describe('resolveSubAgentLLM', () => {
          * in different user configurations.
          */
 
-        test('new user with dexto (most common) -> explore-agent uses dexto + haiku', () => {
-            // User ran `dexto setup` and chose dexto provider
+        test('new user with dexto-nova (most common) -> explore-agent uses dexto-nova + haiku', () => {
+            // User ran `dexto setup` and chose dexto-nova provider
             const codingAgentLLM: LLMConfig = {
-                provider: 'dexto',
+                provider: 'dexto-nova',
                 model: 'anthropic/claude-sonnet-4',
                 apiKey: '$DEXTO_API_KEY',
             };
@@ -227,8 +227,8 @@ describe('resolveSubAgentLLM', () => {
                 subAgentId: 'explore-agent',
             });
 
-            // explore-agent should use dexto provider with haiku model
-            expect(result.llm.provider).toBe('dexto');
+            // explore-agent should use dexto-nova provider with haiku model
+            expect(result.llm.provider).toBe('dexto-nova');
             expect(result.llm.model).toBe('anthropic/claude-haiku-4.5');
             expect(result.llm.apiKey).toBe('$DEXTO_API_KEY');
             expect(result.resolution).toBe('gateway-transform');
