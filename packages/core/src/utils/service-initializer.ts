@@ -23,8 +23,8 @@
 
 import { MCPManager } from '../mcp/manager.js';
 import { ToolManager } from '../tools/tool-manager.js';
-import type { InternalToolsServices } from '../tools/internal-tools/registry.js';
-import type { InternalToolsConfig, CustomToolsConfig, ToolPolicies } from '../tools/schemas.js';
+import type { ToolPolicies } from '../tools/schemas.js';
+import type { InternalTool } from '../tools/types.js';
 import type { IAllowedToolsProvider } from '../tools/confirmation/allowed-tools-provider/types.js';
 import { SystemPromptManager } from '../systemPrompt/manager.js';
 import { AgentStateManager } from '../agent/state-manager.js';
@@ -67,9 +67,7 @@ export type ToolManagerFactoryOptions = {
     approvalMode: 'manual' | 'auto-approve' | 'auto-deny';
     agentEventBus: AgentEventBus;
     toolPolicies: ToolPolicies;
-    internalToolsConfig: InternalToolsConfig;
-    customToolsConfig: CustomToolsConfig;
-    internalToolsServices: InternalToolsServices & Record<string, unknown>;
+    tools: InternalTool[];
     logger: IDextoLogger;
 };
 
@@ -190,7 +188,7 @@ export async function createAgentServices(
     );
     await resourceManager.initialize();
 
-    // 8. Initialize tool manager with internal tools options
+    // 8. Initialize tool manager
     // 8.1 - Create allowed tools provider based on configuration
     const allowedToolsProvider = createAllowedToolsProvider(
         {
@@ -199,12 +197,6 @@ export async function createAgentServices(
         },
         logger
     );
-
-    // 8.2 - Initialize tool manager with direct ApprovalManager integration
-    const internalToolsServices: InternalToolsServices & Record<string, unknown> = {
-        searchService,
-        resourceManager,
-    };
 
     const toolManager =
         overrides?.toolManager ??
@@ -215,9 +207,7 @@ export async function createAgentServices(
             approvalMode: config.toolConfirmation.mode,
             agentEventBus,
             toolPolicies: config.toolConfirmation.toolPolicies,
-            internalToolsConfig: config.internalTools,
-            customToolsConfig: config.customTools,
-            internalToolsServices,
+            tools: [],
             logger,
         }) ??
         new ToolManager(
@@ -227,15 +217,10 @@ export async function createAgentServices(
             config.toolConfirmation.mode,
             agentEventBus,
             config.toolConfirmation.toolPolicies,
-            {
-                internalToolsServices,
-                internalToolsConfig: config.internalTools,
-                customToolsConfig: config.customTools,
-            },
+            [],
             logger
         );
-    // NOTE: toolManager.initialize() is called in DextoAgent.start() after agent reference is set
-    // This allows custom tools to access the agent for bidirectional communication
+    // NOTE: local tools + ToolExecutionContext are wired in DextoAgent.start()
 
     const mcpServerCount = Object.keys(config.mcpServers).length;
     if (mcpServerCount === 0) {

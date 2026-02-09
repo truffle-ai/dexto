@@ -17,16 +17,16 @@
 
 ## Current Task
 
-**Task:** **1.7 — `tools/tool-manager.ts` — accept unified `Tool[]` + provide `ToolExecutionContext` at runtime**
+**Task:** **1.8 — `plugins/manager.ts` — accept concrete `DextoPlugin[]`**
 **Status:** _Not started_
 **Branch:** `rebuild-di`
 
 ### Plan
-- Refactor `ToolManager` to accept pre-resolved `Tool[]` (no internal/custom split).
-- Provide `ToolExecutionContext` on each `execute()` call (late-binding, avoids init cycles).
-- Remove config resolution + registry imports from `ToolManager` (move to resolver/agent-config later).
-- Update `tool-manager.test.ts` + `tool-manager.integration.test.ts`.
-- Ensure `pnpm -C packages/core build` and `pnpm test` pass.
+- Refactor `PluginManager` to accept a pre-resolved `DextoPlugin[]` (no registry/custom split).
+- Delete registry + file-loader paths in core (`plugins/registry.ts`, `plugins/loader.ts`, `registrations/builtins.ts`).
+- Update plugin schemas wiring (schemas move to `@dexto/agent-config` in Phase 2).
+- Update tests (delete registry tests; update manager tests).
+- Ensure `pnpm run build` and `pnpm test` pass.
 
 ### Notes
 _Log findings, issues, and progress here as you work._
@@ -39,7 +39,7 @@ _Record important decisions made during implementation that aren't in the main p
 
 | Date | Decision | Reasoning |
 |------|----------|-----------|
-| — | — | — |
+| 2026-02-10 | Tool IDs must be fully-qualified (`internal--*`, `custom--*`) when handed to `ToolManager` | Keeps `ToolManager` DI-only and avoids re-introducing config/prefixing rules inside core. |
 
 ---
 
@@ -68,6 +68,7 @@ _Move tasks here after completion. Keep a brief log of what was done and any dev
 | 1.4 | `storage/storage-manager.ts` — accept concrete instances | 2026-02-09 | `StorageManager` now accepts concrete backends (`{ cache, database, blobStore }`); creation moved into `createStorageManager()` helper (temporary glue) and tagged. `pnpm -C packages/core build` + `pnpm test` pass. |
 | 1.5 | `tools/custom-tool-registry.ts` — mark for deletion | 2026-02-09 | Documented core dependency map + tagged `custom-tool-registry.ts` and `custom-tool-schema-registry.ts` as temporary glue. `pnpm -C packages/core build` + `pnpm test` pass. |
 | 1.6 | `tools/internal-tools/` — decouple built‑in tool creation | 2026-02-10 | `InternalToolsProvider` now handles built-in tools only (no `customToolRegistry` imports). Custom tool registration/execution moved into `ToolManager` as **temporary glue** (tagged). Updated `provider.test.ts` and added `ToolManager` coverage for custom tools. `pnpm -C packages/core build` + `pnpm test` pass. (Follow-up: rename `InternalTool` → `Tool` once tool surfaces are consolidated.) |
+| 1.7 | `tools/tool-manager.ts` — accept unified `Tool[]` + provide `ToolExecutionContext` at runtime | 2026-02-10 | `ToolManager` now accepts a unified local `Tool[]` (still `InternalTool` for now) and injects runtime `ToolExecutionContext` via a factory. Tool resolution moved out of `ToolManager` into `agent/resolve-local-tools.ts` + `DextoAgent.start()` as **temporary glue** (tagged). Updated tool-manager unit/integration tests + lifecycle mocks. `pnpm run build` + `pnpm test` pass. |
 
 ---
 
@@ -77,7 +78,7 @@ _Move tasks here after completion. Keep a brief log of what was done and any dev
 |-------|--------|-------|
 | Phase 0 — Foundation | Completed | 0.1–0.5 complete |
 | Phase 1A — Storage layer | Completed | 1.1–1.4 complete |
-| Phase 1B — Tools layer | In progress | 1.5–1.6 complete; next: 1.7 |
+| Phase 1B — Tools layer | Completed | 1.5–1.7 complete |
 | Phase 1C — Plugins layer | Not started | |
 | Phase 1D — Compaction | Not started | |
 | Phase 1E — Agent shell | Not started | |
@@ -95,4 +96,4 @@ _Record checkpoint validation results after each phase boundary._
 
 | Phase boundary | Date | Result | Issues |
 |----------------|------|--------|--------|
-| — | — | — | — |
+| After Phase 1B (commit 1.7) | 2026-02-10 | ✅ `pnpm run build` + `pnpm test` pass | — |

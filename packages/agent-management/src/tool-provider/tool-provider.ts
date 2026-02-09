@@ -62,7 +62,7 @@ export const agentSpawnerToolsProvider: CustomToolProvider<'agent-spawner', Agen
     configSchema: AgentSpawnerConfigSchema,
 
     create: (config, context): InternalTool[] => {
-        const { logger, agent } = context;
+        const { logger, agent, services } = context;
 
         const signalBus = new SignalBus();
         const taskRegistry = new TaskRegistry(signalBus);
@@ -79,8 +79,15 @@ export const agentSpawnerToolsProvider: CustomToolProvider<'agent-spawner', Agen
 
         // Wire up RuntimeService as taskForker for invoke_skill (context: fork support)
         // This enables skills with `context: fork` to execute in isolated subagents
-        agent.toolManager.setTaskForker(service);
-        logger.debug('RuntimeService wired as taskForker for context:fork skill support');
+        if (services) {
+            // TODO: temporary glue code to be removed/verified
+            services.taskForker = service;
+            logger.debug('RuntimeService wired as taskForker for context:fork skill support');
+        } else {
+            logger.warn(
+                'Tool provider services not available; forked skills (context: fork) will be disabled'
+            );
+        }
 
         const taskSessions = new Map<string, string>();
 

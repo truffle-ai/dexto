@@ -233,7 +233,7 @@ describe('TurnExecutor Integration Tests', () => {
             'auto-approve',
             agentEventBus,
             { alwaysAllow: [], alwaysDeny: [] },
-            { internalToolsServices: {}, internalToolsConfig: [] },
+            [],
             logger
         );
         await toolManager.initialize();

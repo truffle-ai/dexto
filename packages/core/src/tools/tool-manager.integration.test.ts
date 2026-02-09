@@ -4,13 +4,12 @@ import { MCPManager } from '../mcp/manager.js';
 import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
 import { ToolErrorCode } from './error-codes.js';
 import { ErrorScope, ErrorType } from '../errors/types.js';
-import type { InternalToolsServices } from './internal-tools/registry.js';
-import type { InternalToolsConfig } from './schemas.js';
 import type { IMCPClient } from '../mcp/types.js';
 import { AgentEventBus } from '../events/index.js';
 import { ApprovalManager } from '../approval/manager.js';
 import type { IAllowedToolsProvider } from './confirmation/allowed-tools-provider/types.js';
 import { createMockLogger } from '../logger/v2/test-utils.js';
+import { createSearchHistoryTool } from './internal-tools/implementations/search-history-tool.js';
 
 // Mock logger
 vi.mock('../logger/index.js', () => ({
@@ -28,9 +27,12 @@ describe('ToolManager Integration Tests', () => {
     let mcpManager: MCPManager;
     let approvalManager: ApprovalManager;
     let allowedToolsProvider: IAllowedToolsProvider;
-    let internalToolsServices: InternalToolsServices;
-    let internalToolsConfig: InternalToolsConfig;
     let mockAgentEventBus: AgentEventBus;
+    let mockSearchService: {
+        searchMessages: ReturnType<typeof vi.fn>;
+        searchSessions: ReturnType<typeof vi.fn>;
+    };
+    let internalSearchHistoryTool: any;
     const mockLogger = createMockLogger();
 
     beforeEach(() => {
@@ -69,18 +71,16 @@ describe('ToolManager Integration Tests', () => {
         } as any;
 
         // Mock SearchService for internal tools
-        const mockSearchService = {
+        mockSearchService = {
             searchMessages: vi
                 .fn()
                 .mockResolvedValue([{ id: '1', content: 'test message', role: 'user' }]),
             searchSessions: vi.fn().mockResolvedValue([{ id: 'session1', title: 'Test Session' }]),
-        } as any;
-
-        internalToolsServices = {
-            searchService: mockSearchService,
         };
-
-        internalToolsConfig = ['search_history'];
+        internalSearchHistoryTool = {
+            ...createSearchHistoryTool(mockSearchService as any),
+            id: 'internal--search_history',
+        };
     });
 
     describe('End-to-End Tool Execution', () => {
@@ -112,10 +112,7 @@ describe('ToolManager Integration Tests', () => {
                 'auto-approve',
                 mockAgentEventBus,
                 { alwaysAllow: [], alwaysDeny: [] },
-                {
-                    internalToolsServices: {},
-                    internalToolsConfig: [],
-                },
+                [],
                 mockLogger
             );
             await toolManager.initialize();
@@ -140,10 +137,7 @@ describe('ToolManager Integration Tests', () => {
                 'auto-approve',
                 mockAgentEventBus,
                 { alwaysAllow: [], alwaysDeny: [] },
-                {
-                    internalToolsServices,
-                    internalToolsConfig,
-                },
+                [internalSearchHistoryTool],
                 mockLogger
             );
 
@@ -156,7 +150,7 @@ describe('ToolManager Integration Tests', () => {
                 'test-call-id'
             );
 
-            expect(internalToolsServices.searchService?.searchMessages).toHaveBeenCalledWith(
+            expect(mockSearchService.searchMessages).toHaveBeenCalledWith(
                 'test query',
                 expect.objectContaining({
                     limit: 20, // Default from Zod schema
@@ -194,10 +188,7 @@ describe('ToolManager Integration Tests', () => {
                 'auto-approve',
                 mockAgentEventBus,
                 { alwaysAllow: [], alwaysDeny: [] },
-                {
-                    internalToolsServices,
-                    internalToolsConfig,
-                },
+                [internalSearchHistoryTool],
                 mockLogger
             );
 
@@ -274,10 +265,7 @@ describe('ToolManager Integration Tests', () => {
                 'auto-approve',
                 mockAgentEventBus,
                 { alwaysAllow: [], alwaysDeny: [] },
-                {
-                    internalToolsServices: {},
-                    internalToolsConfig: [],
-                },
+                [],
                 mockLogger
             );
             const result = await toolManager.executeTool('mcp--test_tool', {}, 'test-call-id');
@@ -323,10 +311,7 @@ describe('ToolManager Integration Tests', () => {
                 'auto-deny',
                 mockAgentEventBus,
                 { alwaysAllow: [], alwaysDeny: [] },
-                {
-                    internalToolsServices: {},
-                    internalToolsConfig: [],
-                },
+                [],
                 mockLogger
             );
 
@@ -360,10 +345,7 @@ describe('ToolManager Integration Tests', () => {
                 'auto-approve',
                 mockAgentEventBus,
                 { alwaysAllow: [], alwaysDeny: [] },
-                {
-                    internalToolsServices,
-                    internalToolsConfig,
-                },
+                [internalSearchHistoryTool],
                 mockLogger
             );
 
@@ -375,35 +357,6 @@ describe('ToolManager Integration Tests', () => {
             expect(Object.keys(allTools).filter((name) => name.startsWith('mcp--'))).toHaveLength(
                 0
             );
-        });
-
-        it('should handle internal tools initialization failures gracefully', async () => {
-            // Mock services that will cause tool initialization to fail
-            const failingServices: InternalToolsServices = {
-                // Missing searchService - should cause search_history tool to be skipped
-            };
-
-            const toolManager = new ToolManager(
-                mcpManager,
-                approvalManager,
-                allowedToolsProvider,
-                'auto-approve',
-                mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
-                {
-                    internalToolsServices: failingServices,
-                    internalToolsConfig,
-                },
-                mockLogger
-            );
-
-            await toolManager.initialize();
-
-            const allTools = await toolManager.getAllTools();
-            // Should not have any internal tools since searchService is missing
-            expect(
-                Object.keys(allTools).filter((name) => name.startsWith('internal--'))
-            ).toHaveLength(0);
         });
 
         it('should handle tool execution failures properly', async () => {
@@ -430,10 +383,7 @@ describe('ToolManager Integration Tests', () => {
                 'auto-approve',
                 mockAgentEventBus,
                 { alwaysAllow: [], alwaysDeny: [] },
-                {
-                    internalToolsServices: {},
-                    internalToolsConfig: [],
-                },
+                [],
                 mockLogger
             );
 
@@ -449,10 +399,6 @@ describe('ToolManager Integration Tests', () => {
                 searchSessions: vi.fn().mockRejectedValue(new Error('Search service failed')),
             } as any;
 
-            const failingServices: InternalToolsServices = {
-                searchService: failingSearchService,
-            };
-
             const toolManager = new ToolManager(
                 mcpManager,
                 approvalManager,
@@ -460,10 +406,12 @@ describe('ToolManager Integration Tests', () => {
                 'auto-approve',
                 mockAgentEventBus,
                 { alwaysAllow: [], alwaysDeny: [] },
-                {
-                    internalToolsServices: failingServices,
-                    internalToolsConfig,
-                },
+                [
+                    {
+                        ...createSearchHistoryTool(failingSearchService),
+                        id: 'internal--search_history',
+                    },
+                ],
                 mockLogger
             );
 
@@ -508,10 +456,7 @@ describe('ToolManager Integration Tests', () => {
                 'auto-approve',
                 mockAgentEventBus,
                 { alwaysAllow: [], alwaysDeny: [] },
-                {
-                    internalToolsServices,
-                    internalToolsConfig,
-                },
+                [],
                 mockLogger
             );
 
@@ -553,10 +498,7 @@ describe('ToolManager Integration Tests', () => {
                 'auto-approve',
                 mockAgentEventBus,
                 { alwaysAllow: [], alwaysDeny: [] },
-                {
-                    internalToolsServices: {},
-                    internalToolsConfig: [],
-                },
+                [],
                 mockLogger
             );
 
@@ -602,10 +544,7 @@ describe('ToolManager Integration Tests', () => {
                 'auto-approve',
                 mockAgentEventBus,
                 { alwaysAllow: [], alwaysDeny: [] },
-                {
-                    internalToolsServices,
-                    internalToolsConfig,
-                },
+                [internalSearchHistoryTool],
                 mockLogger
             );
 
@@ -633,7 +572,7 @@ describe('ToolManager Integration Tests', () => {
             expect(mockClient.callTool).toHaveBeenCalledWith('test_tool', { param: 'value' });
 
             // Verify internal tool was called with proper defaults
-            expect(internalToolsServices.searchService?.searchMessages).toHaveBeenCalledWith(
+            expect(mockSearchService.searchMessages).toHaveBeenCalledWith(
                 'test',
                 expect.objectContaining({
                     limit: 20, // Default from Zod schema

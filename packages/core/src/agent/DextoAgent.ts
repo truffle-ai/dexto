@@ -57,6 +57,8 @@ import type { SearchOptions, SearchResponse, SessionSearchResponse } from '../se
 import { safeStringify } from '@core/utils/safe-stringify.js';
 import { deriveHeuristicTitle, generateSessionTitle } from '../session/title-generator.js';
 import type { ApprovalHandler } from '../approval/types.js';
+import type { InternalToolsServices } from '../tools/internal-tools/registry.js';
+import { resolveLocalToolsFromConfig } from './resolve-local-tools.js';
 
 const requiredServices: (keyof AgentServices)[] = [
     'mcpManager',
@@ -337,13 +339,6 @@ export class DextoAgent {
             await promptManager.initialize();
             Object.assign(this, { promptManager });
 
-            // Set agent reference for custom tools (must be done before tool initialization)
-            // This allows custom tool providers to wire up bidirectional communication
-            services.toolManager.setAgent(this);
-
-            // Set prompt manager for invoke_skill tool (must be done before tool initialization)
-            services.toolManager.setPromptManager(promptManager);
-
             // Add skills contributor to system prompt if invoke_skill is enabled
             // This lists available skills so the LLM knows what it can invoke
             if (this.config.internalTools?.includes('invoke_skill')) {
@@ -357,9 +352,48 @@ export class DextoAgent {
                 this.logger.debug('Added SkillsContributor to system prompt');
             }
 
-            // Initialize toolManager now that agent and promptManager references are set
-            // Custom tools need agent access for bidirectional communication
-            // invoke_skill tool needs promptManager access
+            // Provide ToolExecutionContext to tools at runtime (late-binding to avoid init ordering cycles)
+            const toolExecutionStorage = {
+                blob: services.storageManager.getBlobStore(),
+                database: services.storageManager.getDatabase(),
+                cache: services.storageManager.getCache(),
+            };
+            const toolExecutionServices = {
+                approval: services.approvalManager,
+                search: services.searchService,
+                resources: services.resourceManager,
+                prompts: promptManager,
+                mcp: services.mcpManager,
+            };
+            services.toolManager.setToolExecutionContextFactory((baseContext) => ({
+                ...baseContext,
+                agent: this,
+                storage: toolExecutionStorage,
+                services: toolExecutionServices,
+            }));
+
+            // TODO: temporary glue code to be removed/verified
+            // Resolve internal + custom tools from config and register them with ToolManager.
+            const toolServices: InternalToolsServices & Record<string, unknown> = {
+                searchService: services.searchService,
+                approvalManager: services.approvalManager,
+                resourceManager: services.resourceManager,
+                promptManager,
+                storageManager: services.storageManager,
+            };
+
+            const toolsLogger = this.logger.createChild(DextoLogComponent.TOOLS);
+            const localTools = await resolveLocalToolsFromConfig({
+                agent: this,
+                internalToolsConfig: this.config.internalTools,
+                customToolsConfig: this.config.customTools,
+                services: toolServices,
+                logger: toolsLogger,
+            });
+
+            services.toolManager.setTools(localTools);
+
+            // Initialize toolManager after tools and context have been wired.
             await services.toolManager.initialize();
 
             // Initialize search service from services

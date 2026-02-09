@@ -33,4 +33,4 @@ export { ToolError } from './errors.js';
 export { ToolErrorCode } from './error-codes.js';
 
 // Unified tool manager (main interface for LLM)
-export { ToolManager, type InternalToolsOptions } from './tool-manager.js';
+export { ToolManager, type ToolExecutionContextFactory } from './tool-manager.js';
