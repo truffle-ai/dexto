@@ -9,7 +9,7 @@ This plan captures the current problems, the target architecture, and concrete b
 ### Coupling + typing issues
 - **Core is tightly coupled to config**: `StorageManager` and tool creation resolve providers from config (string `type`) inside core. This requires global registries and makes core dependent on higher‑level configuration concerns.
 - **Image layer erases types**: `ImageProvider` and `ImageDefaults` use `any` heavily (`configSchema: z.ZodType<any>`, `create: (config: any, deps: any) => any`, `[key: string]: any` index signatures). The image layer discards the stronger types used by provider packages.
-- **Image defaults aren't applied**: image `defaults` exist in definitions but are **not merged into agent config anywhere at runtime**. For example, `defaults.customTools` in `image-local` is never merged — it's dead metadata. This is a silent bug.
+- **Image defaults aren't applied**: image `defaults` exist in definitions but are **not merged into agent config anywhere at runtime**. For example, `defaults.tools` (formerly `defaults.customTools`) in `image-local` is never merged — it's dead metadata. This is a silent bug.
 - **Bundler uses `.toString()` injection**: `register` functions are stringified via `.toString()`, regex‑stripped (`replace(/^async\s*\(\)\s*=>\s*{/, '')`), and inlined into generated code. This is brittle (closures break, minification breaks, relative imports break) and not type‑checked.
 - **Duck‑typed auto‑discovery**: bundler registers any exported object with `type` + `create` properties, which can unintentionally register unrelated exports.
 - **Global mutable registries**: 6 provider registries (`customToolRegistry`, `blobStoreRegistry`, `databaseRegistry`, `cacheRegistry`, `pluginRegistry`, `compactionRegistry`) are module‑level singletons. Registration is order‑dependent, there is no isolation between agents in the same process, and tests must call `.clear()` to avoid pollution.
@@ -37,9 +37,15 @@ This plan captures the current problems, the target architecture, and concrete b
 
 ---
 
-## 3. Where this lives (one new package)
+## 3. Where this lives (new packages)
 
-We will add **one** new package: `@dexto/agent-config` to prevent `agent-management` from becoming a mega‑package and to make the DI boundary explicit.
+We will add **four** new packages as part of this refactor:
+- **`@dexto/agent-config`** — config parsing, validation, image default merging, and service resolution
+- **`@dexto/storage`** — all storage implementations extracted from core (SQLite, Postgres, local blob, memory, Redis)
+- **`@dexto/logger`** — logger implementations extracted from core (winston, v2 logger)
+- **`@dexto/tools-builtins`** — former "internal" tools (ask_user, search_history, etc.) as a standard `ToolFactory`
+
+This prevents `agent-management` from becoming a mega‑package, makes the DI boundary explicit, and ensures core contains only interfaces and orchestration.
 
 ### A) `@dexto/core` (runtime only)
 - Add **DI‑friendly constructors** for agent/runtime pieces (storage/tools/services).
@@ -144,13 +150,13 @@ interface ToolFactory {
 // Storage factory: produces a single storage backend instance
 interface StorageFactory {
   configSchema: z.ZodSchema;
-  create(config: unknown, context: StorageCreationContext): BlobStore | Database | Cache;
+  create(config: unknown, logger: IDextoLogger): BlobStore | Database | Cache;
 }
 
 // Plugin/compaction factories follow the same pattern
 interface PluginFactory {
   configSchema: z.ZodSchema;
-  create(config: unknown, context: PluginCreationContext): Plugin;
+  create(config: unknown, context: PluginCreationContext): DextoPlugin;
 }
 
 interface CompactionFactory {
@@ -239,12 +245,17 @@ For images like `image-local` where providers come from existing `@dexto/*` pack
 
 ```ts
 // image-local/index.ts
-import { localBlobStoreFactory, inMemoryBlobStoreFactory, sqliteFactory, inMemoryCacheFactory } from '@dexto/core';
+import { localBlobStoreFactory, inMemoryBlobStoreFactory, sqliteFactory, postgresFactory,
+         inMemoryDatabaseFactory, inMemoryCacheFactory, redisCacheFactory } from '@dexto/storage';
+import { defaultLoggerFactory } from '@dexto/logger';
+import { builtinToolsFactory } from '@dexto/tools-builtins';
 import { fileSystemToolsProvider } from '@dexto/tools-filesystem';
 import { processToolsProvider } from '@dexto/tools-process';
 import { todoToolsProvider } from '@dexto/tools-todo';
 import { planToolsProvider } from '@dexto/tools-plan';
 import { agentSpawnerToolsProvider } from '@dexto/agent-management';
+import { contentPolicyFactory, responseSanitizerFactory } from './plugins/index.js';
+import { reactiveOverflowFactory, noopCompactionFactory } from './compaction/index.js';
 
 const image: DextoImageModule = {
   metadata: {
@@ -258,17 +269,20 @@ const image: DextoImageModule = {
     storage: {
       blob: { type: 'local', storePath: './data/blobs' },
       database: { type: 'sqlite', path: './data/agent.db' },
-      cache: { type: 'in-memory' },
+      cache: { type: 'in-memory-cache' },
     },
-    customTools: [
+    tools: [
+      { type: 'builtin-tools' },
       { type: 'filesystem-tools', allowedPaths: ['.'], blockedPaths: ['.git', '.env'] },
       { type: 'process-tools', securityLevel: 'moderate' },
       { type: 'todo-tools' },
     ],
+    compaction: { type: 'reactive-overflow', maxContextPercentage: 80, targetPercentage: 50 },
   },
   // Plain objects — the image IS the lookup table
   tools: {
-    'filesystem-tools': fileSystemToolsProvider,   // already has configSchema + create()
+    'builtin-tools': builtinToolsFactory,          // former "internal tools" (ask_user, search_history, etc.)
+    'filesystem-tools': fileSystemToolsProvider,    // already has configSchema + create()
     'process-tools': processToolsProvider,
     'todo-tools': todoToolsProvider,
     'plan-tools': planToolsProvider,
@@ -278,10 +292,19 @@ const image: DextoImageModule = {
     'local': localBlobStoreFactory,
     'in-memory-blob': inMemoryBlobStoreFactory,
     'sqlite': sqliteFactory,
-    'in-memory': inMemoryCacheFactory,
+    'postgres': postgresFactory,
+    'in-memory-db': inMemoryDatabaseFactory,
+    'in-memory-cache': inMemoryCacheFactory,
+    'redis': redisCacheFactory,
   },
-  plugins: {},
-  compaction: {},
+  plugins: {
+    'content-policy': contentPolicyFactory,         // former built-in plugin
+    'response-sanitizer': responseSanitizerFactory,  // former built-in plugin
+  },
+  compaction: {
+    'reactive-overflow': reactiveOverflowFactory,
+    'noop': noopCompactionFactory,
+  },
 };
 
 export default image;
@@ -380,8 +403,8 @@ this.blobStore = createBlobStore(this.config.blob, this.logger);
 |--------|-------|--------|
 | Storage (blob, database, cache) | **DI** — accept concrete instances | These are code‑level backends with different implementations |
 | Tools | **DI** — accept concrete `Tool[]` | Tools are code, not data. Core sees a flat list of tool objects. |
-| Plugins | **DI** — accept concrete `Plugin[]` | Plugins are lifecycle hooks = code |
-| Logger | **DI** — accept concrete `Logger` instance | Logger is a service |
+| Plugins | **DI** — accept concrete `DextoPlugin[]` | Plugins are lifecycle hooks = code |
+| Logger | **DI** — accept concrete `IDextoLogger` instance | Logger is a service |
 | LLM | **Config** — keep as provider/model/apiKey | Naturally config‑driven, doesn't need DI |
 | System prompt + memories | **Config** — keep as data | Prompts are text/data |
 | Compaction | **DI** — accept concrete `CompactionStrategy` | Strategy is code; resolver creates instance from image's compaction factories |
@@ -421,7 +444,7 @@ new DextoAgent({
   tools: Tool[],
 
   // Plugins (DI — concrete plugin instances)
-  plugins: Plugin[],
+  plugins: DextoPlugin[],
 
   // Compaction (DI — concrete strategy instance)
   compaction: CompactionStrategy,
@@ -448,7 +471,7 @@ new DextoAgent({
 
 **Key changes from previous draft:**
 - **`tools` is a flat `Tool[]`** — no providers concept in core. The "provider" pattern (factory that creates tools from config) only exists in the resolver layer.
-- **`plugins` is a flat `Plugin[]`** — same principle.
+- **`plugins` is a flat `DextoPlugin[]`** — same principle.
 - **`logger` is a concrete instance** — not config.
 - **No `overrides` escape hatch** — everything is explicit. If you need to customize a manager, construct the services yourself.
 
@@ -467,9 +490,9 @@ const mergedConfig = applyImageDefaults(rawConfig, image.defaults);
 const resolved = resolveServicesFromConfig(mergedConfig, image);
 // resolved.storage = { blob: BlobStore, database: Database, cache: Cache }
 // resolved.tools = Tool[]
-// resolved.plugins = Plugin[]
+// resolved.plugins = DextoPlugin[]
 // resolved.compaction = CompactionStrategy
-// resolved.logger = Logger
+// resolved.logger = IDextoLogger
 ```
 
 3) **Core accepts concrete instances**:
@@ -493,33 +516,54 @@ This function lives in `@dexto/agent-config` and replaces what `createAgentServi
 export async function resolveServicesFromConfig(
   config: MergedAgentConfig,
   image: DextoImageModule,
+  agent: DextoAgent,   // passed for ToolCreationContext/PluginCreationContext
 ): Promise<ResolvedServices> {
-  return {
-    storage: {
-      blob: resolveFactory(image.storage, config.storage.blob, 'storage', image.metadata.name),
-      database: resolveFactory(image.storage, config.storage.database, 'storage', image.metadata.name),
-      cache: resolveFactory(image.storage, config.storage.cache, 'storage', image.metadata.name),
+  // Logger is resolved first — other contexts need it
+  const logger = createLogger(config.logger);
+
+  // Storage is resolved next — tool/plugin contexts need storage
+  const storage = {
+    blob: resolveFactory(image.storage, config.storage.blob, 'storage', image.metadata.name, logger),
+    database: resolveFactory(image.storage, config.storage.database, 'storage', image.metadata.name, logger),
+    cache: resolveFactory(image.storage, config.storage.cache, 'storage', image.metadata.name, logger),
+  };
+
+  // Build shared contexts for tools and plugins
+  const toolContext: ToolCreationContext = {
+    logger, storage, agent,
+    services: {
+      approval: agent.approvalManager,
+      search: agent.searchService,
+      resources: agent.resourceManager,
+      prompts: agent.promptManager,
+      mcp: agent.mcpManager,
     },
+  };
+  const pluginContext: PluginCreationContext = { logger, storage, agent };
+
+  return {
+    storage,
     tools: config.tools.flatMap(toolConfig =>
-      resolveFactory(image.tools, toolConfig, 'tools', image.metadata.name)
+      resolveFactory(image.tools, toolConfig, 'tools', image.metadata.name, toolContext)
       // type: 'filesystem-tools' + config → [readFileTool, writeFileTool, ...]
     ),
     plugins: await Promise.all(
       config.plugins.map(pluginConfig =>
-        resolveFactory(image.plugins, pluginConfig, 'plugins', image.metadata.name)
+        resolveFactory(image.plugins, pluginConfig, 'plugins', image.metadata.name, pluginContext)
       )
     ),
     compaction: resolveFactory(image.compaction, config.compaction, 'compaction', image.metadata.name),
-    logger: createLogger(config.logger),
+    logger,
   };
 }
 
-// The core resolution helper — just a property lookup + validation + create
+// The core resolution helper — property lookup + validation + create
 function resolveFactory<T>(
   factories: Record<string, { configSchema: z.ZodSchema; create: (config: unknown, context?: unknown) => T }>,
   config: { type: string; [key: string]: unknown },
   category: string,
   imageName: string,
+  context?: unknown,
 ): T {
   const factory = factories[config.type];
   if (!factory) {
@@ -530,9 +574,11 @@ function resolveFactory<T>(
     );
   }
   const validated = factory.configSchema.parse(config);
-  return factory.create(validated);
+  return factory.create(validated, context);
 }
 ```
+
+**Note:** The resolver needs the `DextoAgent` instance to build `ToolCreationContext`. This creates a two‑phase init: agent is constructed first (with placeholder tools/plugins), then resolver fills them in. Alternatively, the resolver receives a lazy reference. The exact init ordering is an implementation detail to solve in Phase 2.2.
 
 **No `BaseRegistry` class.** The "registry" is just `image.tools` / `image.storage` / etc. — plain objects that map type strings to factories. The resolver does a property lookup, validates the config, and calls `create()`.
 
@@ -541,7 +587,7 @@ function resolveFactory<T>(
 class StorageManager {
   constructor(
     { blob, cache, database }: { blob: BlobStore; cache: Cache; database: Database },
-    logger: Logger,
+    logger: IDextoLogger,
   ) {
     this.blobStore = blob;
     this.cache = cache;
@@ -622,6 +668,7 @@ const agent = new DextoAgent({
   storage: resolved.storage,
   tools: resolved.tools,
   plugins: resolved.plugins,
+  compaction: resolved.compaction,
   logger: resolved.logger,
 });
 ```
@@ -814,18 +861,15 @@ interface ToolCreationContext {
         mcp: McpService;              // access MCP servers/tools
     };
 
-    // Agent identity (read-only, narrow)
-    agent: {
-        id: string;
-        card: AgentCard;
-    };
+    // Full agent reference (simplicity now, narrow to interface later — TODO)
+    agent: DextoAgent;
 }
 ```
 
 **Key design choices:**
 - Services are **interfaces**, not concrete classes — tool authors depend on contracts, not implementations
 - No `[key: string]: any` escape hatch — every service is explicitly typed
-- No full `DextoAgent` reference — prevents circular dependency (agent holds tools, tools hold agent)
+- Full `DextoAgent` passed for simplicity — **TODO:** narrow to a dedicated `AgentContext` interface to prevent circular dependency concerns. Starting broad lets us move fast without repeatedly adjusting the surface.
 - `storage` is provided so tools can persist state (e.g., jira sync, todo lists)
 
 ### What a custom tool looks like
@@ -975,10 +1019,8 @@ interface PluginCreationContext {
         cache: Cache;
     };
 
-    agent: {
-        id: string;
-        card: AgentCard;
-    };
+    // Full agent reference (simplicity now, narrow to interface later — TODO)
+    agent: DextoAgent;
 }
 ```
 
@@ -1288,8 +1330,9 @@ export const supabaseBlobFactory: StorageFactory = {
         serviceKey: z.string(),
     }).strict(),
 
-    create(config, logger: IDextoLogger): BlobStore {
-        return new SupabaseBlobStore(config.bucket, config.projectUrl, config.serviceKey, logger);
+    create(config, context: IDextoLogger): BlobStore {
+        // Storage factories receive logger as context (lightweight — no full agent needed)
+        return new SupabaseBlobStore(config.bucket, config.projectUrl, config.serviceKey, context);
     },
 };
 ```
@@ -1377,7 +1420,7 @@ Image defaults are useful — they let an image say "if you don't specify storag
 **Strategy: shallow merge, config wins.**
 - If image default says `storage.blob.type: 'local'` and agent config says `storage.blob.type: 's3'`, the config wins.
 - If agent config doesn't specify `storage.blob` at all, the image default is used.
-- For arrays (like `customTools`), config replaces the default entirely (no array merging).
+- For arrays (like `tools`), config replaces the default entirely (no array merging).
 - Merging happens in `@dexto/agent-config` via `applyImageDefaults()`, not in core.
 
 ---
@@ -1387,14 +1430,17 @@ Image defaults are useful — they let an image say "if you don't specify storag
 **Breaking changes are acceptable.** No compatibility shims.
 
 ### Affected packages (in dependency order)
-1. `@dexto/core` — constructor changes, remove registries + `BaseRegistry` class, accept concrete instances
-2. `@dexto/agent-config` (new) — resolver, defaults merging (no registries — reads from image factory maps)
-3. `@dexto/image-bundler` — generate `DextoImageModule` with explicit imports, remove `.toString()`
-4. `@dexto/image-local` — rewrite as `DextoImageModule` (hand‑written or bundler)
-5. `@dexto/agent-management` — remove config parsing responsibilities
-6. `@dexto/cli` — use new resolution flow
-7. `@dexto/server` — use new resolution flow
-8. `dexto-cloud/apps/platform` — migrate `image-cloud` to `DextoImageModule`, use new resolution flow
+1. `@dexto/core` — constructor changes, remove registries + `BaseRegistry` class, accept concrete instances, extract implementations
+2. `@dexto/agent-config` (new) — resolver, defaults merging, `AgentConfigSchema`, `ValidatedAgentConfig`
+3. `@dexto/storage` (new) — all storage implementations + `StorageFactory` objects extracted from core
+4. `@dexto/logger` (new) — logger implementations + `LoggerFactory` extracted from core
+5. `@dexto/tools-builtins` (new) — former internal tools as standard `ToolFactory`
+6. `@dexto/image-bundler` — generate `DextoImageModule` with explicit imports, remove `.toString()`
+7. `@dexto/image-local` — rewrite as `DextoImageModule` (hand‑written, imports from storage/logger/tools-builtins)
+8. `@dexto/agent-management` — remove config parsing responsibilities
+9. `@dexto/cli` — use new resolution flow
+10. `@dexto/server` — use new resolution flow
+11. `dexto-cloud/apps/platform` — migrate `image-cloud` to `DextoImageModule`, use new resolution flow
 
 ### Error experience
 When a user's YAML references `type: filesystem-tools` but the image doesn't provide it, the resolver in `@dexto/agent-config` should produce a clear error:
@@ -1654,7 +1700,149 @@ This would let a single plugin both intercept (hooks) and observe (events) — e
 
 ---
 
-## 17. Summary
+## 17. Future enhancements (out of scope)
+
+These are related improvements that **depend on this refactor being complete** but are tracked as separate efforts. They are not part of the tasklist below.
+
+### A) Tool surface refactor
+
+**Tracked in:** `feature-plans/image-and-core-di-refactor/TOOL-SURFACE-REFACTOR.md`
+
+**Depends on:** Phase 1B (tools unified into `Tool[]`), Phase 3.1 (`@dexto/tools-builtins` exists)
+
+**What it does:** Removes hardcoded tool name knowledge from core, CLI, and WebUI. Currently ~25 tool names are hardcoded across ~30 files for display formatting, approval logic, and prompt inclusion. The refactor:
+- Removes the `internal--` / `custom--` prefix system from tool names
+- Extends the `Tool` interface with `display?`, `approval?`, `aliases?` metadata fields
+- Tools declare their own behavior (e.g., bash tool provides its own pattern key generator)
+- Core becomes truly tool‑agnostic — zero hardcoded tool names
+- CLI/WebUI read tool metadata from event payloads instead of maintaining parallel name checks
+
+**Why separate:** Touches different files (CLI rendering, WebUI components, prompt templates) and is a distinct conceptual change from the DI refactor. The DI refactor unifies tools; this refactor makes core tool‑agnostic.
+
+### B) YAML static validation (IDE extension)
+
+**Tracked in:** `feature-plans/yaml-schema-validation/PLAN.md`
+
+**Depends on:** Phase 2.5 (`AgentConfigSchema` in `@dexto/agent-config`), Phase 3.2 (`DextoImageModule` exists)
+
+**What it does:** Generates JSON Schema from the Zod `AgentConfigSchema`, enabling real‑time in‑editor validation for agent YAML configs. Three layers:
+1. **Base schema** — image‑agnostic JSON Schema from `AgentConfigSchema` (autocomplete for all fields)
+2. **Image‑specific schema** — constrains `tools[].type`, `storage.blob.type`, etc. to the image's factory keys
+3. **Per‑tool config** — JSON Schema `if/then` to validate tool‑specific config fields based on `type`
+
+Deliverables: CLI command (`dexto schema generate`), optional VS Code extension, published schemas per image version.
+
+### C) Convention folder configurability
+
+Custom image folder naming (e.g., `src/tools/` instead of `tools/`) via a separate config file, similar to `next.config.ts`. Ship with fixed conventions first (`tools/`, `storage/`, `plugins/`, `compaction/`), add configurability when requested.
+
+### D) Image `include` shorthand
+
+Allow `dexto.image.ts` to declare external package re‑exports without wrapper files:
+```yaml
+include:
+  tools: ['@dexto/tools-filesystem', '@dexto/tools-process']
+```
+Bundler generates imports automatically. Convenience feature, not required for v1.
+
+### E) Plugin event access
+
+Let plugins subscribe to agent events via a `subscribe` method on the plugin interface, enabling plugins that both intercept (hooks) and observe (events). See Section 16 for details.
+
+---
+
+## 18. Commit & PR strategy
+
+This is a large refactor (~80 files, 50+ tasks). We use a **single feature branch with one mega PR**, but with disciplined per‑task commits to ensure safe checkpointing and easy `git bisect`.
+
+### Principles
+
+1. **Every commit must leave the codebase buildable and testable.** Run `pnpm run build && pnpm test` after each commit. If a commit breaks the build, fix it before moving on.
+2. **One commit per task.** Each numbered task (1.1, 1.2, etc.) gets exactly one commit (or one squashed commit if you iterate). This makes `git bisect` useful and reverts clean.
+3. **Single PR, many commits.** All phases land in one mega PR on a long‑lived feature branch. The commit history within the PR provides the modularity — each commit is a self‑contained, buildable step.
+
+### Branch strategy
+
+```
+main
+  └── feat/di-refactor (single long-lived branch → one mega PR)
+        ├── commit: 0.1 — create agent-config package skeleton
+        ├── commit: 0.2 — define DextoImageModule + factory types
+        ├── commit: 0.3 — define DextoAgentOptions in core
+        ├── ...
+        ├── commit: 1.1 — decouple blob storage from registry
+        ├── commit: 1.2 — decouple database from registry
+        ├── ...
+        ├── commit: 5.4 — update documentation
+        └── commit: 5.5 — update OpenAPI docs
+```
+
+Phase 6 (platform) is a separate effort in `dexto-cloud`.
+
+### Commit message convention
+
+```
+refactor(scope): X.Y — short description
+
+Detailed explanation of what changed and why.
+Exit criteria met: [build/test/lint/typecheck pass]
+```
+
+Examples:
+```
+refactor(core/storage): 1.1 — decouple blob storage from registry
+
+- Delete blobStoreRegistry and blob factory function
+- Remove auto-registration from blob/index.ts
+- Keep BlobStore interface in core
+- Exit: zero registry imports in storage/blob/. Build + tests pass.
+```
+
+```
+refactor(core/tools): 1.7 — accept unified Tool[] in ToolManager
+
+- Remove InternalToolsSchema and CustomToolsSchema imports
+- ToolManager constructor takes Tool[] instead of separate configs
+- No internalTools/customTools distinction in core
+- Exit: ToolManager has zero registry imports. Build + tests pass.
+```
+
+### Phase checkpoints
+
+Even though this is one PR, validate at each phase boundary to catch drift early:
+
+| Phase boundary | Checkpoint validation |
+|----------------|----------------------|
+| **After Phase 0** (commit 0.5) | New package builds. Types compile. Zero `any` in new interfaces. |
+| **After Phase 1A** (commit 1.4) | `StorageManager` accepts concrete instances. Zero registry imports in `storage/`. |
+| **After Phase 1B** (commit 1.7) | `ToolManager` accepts `Tool[]`. Zero registry imports in `tools/`. |
+| **After Phase 1C** (commit 1.8) | `PluginManager` accepts `DextoPlugin[]`. Zero registry imports in `plugins/`. |
+| **After Phase 1D** (commit 1.9) | `ContextManager` accepts `CompactionStrategy`. Zero registry imports in `context/compaction/`. |
+| **After Phase 1E** (commit 1.23) | `DextoAgent` constructor takes `DextoAgentOptions`. `agent.on()` works. |
+| **After Phase 1F** (commit 1.29) | All registries deleted. `rg 'BaseRegistry\|blobStoreRegistry\|databaseRegistry\|cacheRegistry\|customToolRegistry\|pluginRegistry\|compactionRegistry' packages/core/src/` → zero results. |
+| **After Phase 2** (commit 2.6) | `resolveServicesFromConfig()` works with mock image. `AgentConfigSchema` in agent‑config. |
+| **After Phase 3** (commit 3.8) | `@dexto/tools-builtins`, `@dexto/storage`, `@dexto/logger` created. `image-local` exports typed `DextoImageModule`. |
+| **After Phase 4** (commit 4.5) | `dexto` CLI starts. Chat works. Server mode works. Manual smoke test passes. |
+| **After Phase 5** (commit 5.5) | Zero dead code. Full test pass. Docs updated. All quality checks green. |
+
+### Checkpoint validation command (run at every phase boundary)
+
+```bash
+pnpm run build && pnpm test && pnpm run lint && pnpm run typecheck
+```
+
+Additionally, at key milestones:
+- **After Phase 1 complete:** `rg 'BaseRegistry|blobStoreRegistry|databaseRegistry|cacheRegistry|customToolRegistry|pluginRegistry|compactionRegistry' packages/core/src/` → zero results
+- **After Phase 3 complete:** `import imageLocal from '@dexto/image-local'` returns typed `DextoImageModule`
+- **After Phase 4 complete:** Manual smoke test — start CLI, chat with agent, use tools, switch agents
+
+### Rollback within the PR
+
+If a phase causes issues, `git revert` individual commits or ranges. Each commit is atomic and buildable, so reverting a specific task's commit leaves the codebase in a working state. The per‑task commit discipline makes this safe even in a mega PR.
+
+---
+
+## 19. Summary
 
 - **Core should be DI‑first**: accept concrete storage, tools, plugins, compaction strategy, logger. No config resolution, no implementations inside core — only interfaces and orchestration.
 - **Unified tools**: `internalTools` + `customTools` merge into a single `tools` concept. All tools come from the image. Former "internal" tools move to `@dexto/tools-builtins` (or similar) as a standard `ToolFactory`. Core receives `Tool[]` and doesn't distinguish origins.
@@ -1682,7 +1870,7 @@ This preserves CLI UX while cleaning architecture, increasing type safety, and e
 
 ---
 
-## 18. Tasklist
+## 20. Tasklist
 
 ### Phase 0: Foundation — new package + core interfaces
 > **Goal:** Establish the new package and define the target types before changing anything.
