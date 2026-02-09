@@ -42,8 +42,8 @@ import {
 import type { ModelInfo } from '../llm/registry/index.js';
 import type { LLMProvider } from '../llm/types.js';
 import { createAgentServices } from '../utils/service-initializer.js';
-import type { AgentConfig, ValidatedAgentConfig, LLMValidationOptions } from './schemas.js';
-import { AgentConfigSchema, createAgentConfigSchema } from './schemas.js';
+import type { AgentConfig, ValidatedAgentConfig } from './schemas.js';
+import { AgentConfigSchema } from './schemas.js';
 import {
     AgentEventBus,
     type AgentEventMap,
@@ -59,6 +59,7 @@ import { deriveHeuristicTitle, generateSessionTitle } from '../session/title-gen
 import type { ApprovalHandler } from '../approval/types.js';
 import type { InternalToolsServices } from '../tools/internal-tools/registry.js';
 import { resolveLocalToolsFromConfig } from './resolve-local-tools.js';
+import type { DextoAgentOptions } from './agent-options.js';
 
 const requiredServices: (keyof AgentServices)[] = [
     'mcpManager',
@@ -184,6 +185,9 @@ export class DextoAgent {
     // Host overrides for service initialization (e.g. session logger factory)
     private serviceOverrides?: InitializeServicesOptions;
 
+    // Optional config file path (used for save/reload UX in product layers)
+    private configPath: string | undefined;
+
     // Logger instance for this agent (dependency injection)
     public readonly logger: IDextoLogger;
 
@@ -196,48 +200,26 @@ export class DextoAgent {
      * @param options.strict - When true (default), enforces API key and baseURL requirements.
      *                         When false, allows missing credentials for interactive configuration.
      */
-    constructor(
-        config: AgentConfig,
-        private configPath?: string,
-        options?: LLMValidationOptions & InitializeServicesOptions
-    ) {
-        // Validate and transform the input config using appropriate schema
-        const schema =
-            options?.strict === false
-                ? createAgentConfigSchema({ strict: false })
-                : AgentConfigSchema;
-        this.config = schema.parse(config);
+    constructor(options: DextoAgentOptions) {
+        this.config = options.config;
+        this.configPath = options.configPath;
 
-        // Create logger instance for this agent
-        // agentId is set by CLI enrichment from agentCard.name or filename
-        this.logger = createLogger({
-            config: this.config.logger,
-            agentId: this.config.agentId,
-            component: DextoLogComponent.AGENT,
-        });
+        // Create logger instance for this agent unless provided by host.
+        // agentId is set by CLI enrichment from agentCard.name or filename.
+        this.logger =
+            options.logger ??
+            createLogger({
+                config: this.config.logger,
+                agentId: this.config.agentId,
+                component: DextoLogComponent.AGENT,
+            });
 
-        // Capture host overrides to apply during start() when services are created.
-        const serviceOverrides: InitializeServicesOptions = {};
-
-        if (options?.sessionLoggerFactory) {
-            serviceOverrides.sessionLoggerFactory = options.sessionLoggerFactory;
-        }
-        if (options && 'mcpAuthProviderFactory' in options) {
-            serviceOverrides.mcpAuthProviderFactory = options.mcpAuthProviderFactory ?? null;
-        }
-        if (options?.toolManager) {
-            serviceOverrides.toolManager = options.toolManager;
-        }
-        if (options?.toolManagerFactory) {
-            serviceOverrides.toolManagerFactory = options.toolManagerFactory;
+        if (options.overrides) {
+            this.serviceOverrides = options.overrides;
         }
 
-        if (Object.keys(serviceOverrides).length > 0) {
-            this.serviceOverrides = serviceOverrides;
-        }
-
-        if (options?.mcpAuthProviderFactory) {
-            this.mcpAuthProviderFactory = options.mcpAuthProviderFactory;
+        if (options.overrides?.mcpAuthProviderFactory !== undefined) {
+            this.mcpAuthProviderFactory = options.overrides.mcpAuthProviderFactory;
         }
 
         // Create event bus early so it's available for approval handler creation
@@ -372,7 +354,7 @@ export class DextoAgent {
                 services: toolExecutionServices,
             }));
 
-            // TODO: temporary glue code to be removed/verified
+            // TODO: temporary glue code to be removed/verified (remove-by: 4.1)
             // Resolve internal + custom tools from config and register them with ToolManager.
             const toolServices: InternalToolsServices & Record<string, unknown> = {
                 searchService: services.searchService,

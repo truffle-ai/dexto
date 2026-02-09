@@ -18,13 +18,14 @@ describe('template-engine', () => {
                 imageName: '@dexto/image-local',
             });
 
-            expect(result).toContain("import { DextoAgent } from '@dexto/core'");
+            expect(result).toContain("import { AgentConfigSchema, DextoAgent } from '@dexto/core'");
             expect(result).toContain("import { loadAgentConfig } from '@dexto/agent-management'");
             expect(result).toContain('Starting my-app');
             expect(result).toContain(
                 "const config = await loadAgentConfig('./agents/default.yml')"
             );
-            expect(result).toContain('const agent = new DextoAgent(config');
+            expect(result).toContain('const validatedConfig = AgentConfigSchema.parse(config)');
+            expect(result).toContain('const agent = new DextoAgent({ config: validatedConfig');
             expect(result).toContain('await agent.start()');
         });
 

@@ -15,7 +15,12 @@
  */
 
 import { randomUUID } from 'crypto';
-import { DextoAgent, type IDextoLogger, type GenerateResponse } from '@dexto/core';
+import {
+    AgentConfigSchema,
+    DextoAgent,
+    type IDextoLogger,
+    type GenerateResponse,
+} from '@dexto/core';
 import { enrichAgentConfig } from '../config/index.js';
 import { AgentPool } from './AgentPool.js';
 import { RuntimeError } from './errors.js';
@@ -88,7 +93,8 @@ export class AgentRuntime {
             enrichedConfig.agentId = agentId;
 
             // Create the agent
-            const agent = new DextoAgent(enrichedConfig);
+            const validatedConfig = AgentConfigSchema.parse(enrichedConfig);
+            const agent = new DextoAgent({ config: validatedConfig });
 
             // Create the handle (status: starting)
             const sessionId = `session-${randomUUID().slice(0, 8)}`;

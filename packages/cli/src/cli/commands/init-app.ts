@@ -310,7 +310,8 @@ export async function createDextoExampleFile(directory: string): Promise<string>
 
     const indexTsLines = [
         "import 'dotenv/config';",
-        "import { DextoAgent, loadAgentConfig } from '@dexto/core';",
+        "import { AgentConfigSchema, DextoAgent } from '@dexto/core';",
+        "import { loadAgentConfig } from '@dexto/agent-management';",
         '',
         "console.log('🚀 Starting Dexto Basic Example\\n');",
         '',
@@ -318,8 +319,11 @@ export async function createDextoExampleFile(directory: string): Promise<string>
         '  // Load the agent configuration',
         `  const config = await loadAgentConfig('${configPath}');`,
         '',
+        '  // Validate and apply defaults',
+        '  const validatedConfig = AgentConfigSchema.parse(config);',
+        '',
         '  // Create a new DextoAgent instance',
-        '  const agent = new DextoAgent(config);',
+        `  const agent = new DextoAgent({ config: validatedConfig, configPath: '${configPath}' });`,
         '',
         '  // Start the agent (connects to MCP servers)',
         "  console.log('🔗 Connecting to MCP servers...');",

@@ -28,7 +28,7 @@ export function generateIndexForImage(context: TemplateContext): string {
 import '${context.imageName}';
 
 // Import from core packages
-import { DextoAgent } from '@dexto/core';
+import { AgentConfigSchema, DextoAgent } from '@dexto/core';
 import { loadAgentConfig } from '@dexto/agent-management';
 
 async function main() {
@@ -36,9 +36,10 @@ async function main() {
 
     // Load agent configuration
     const config = await loadAgentConfig('./agents/default.yml');
+    const validatedConfig = AgentConfigSchema.parse(config);
 
     // Create agent - providers already registered by image environment
-    const agent = new DextoAgent(config, './agents/default.yml');
+    const agent = new DextoAgent({ config: validatedConfig, configPath: './agents/default.yml' });
 
     await agent.start();
     console.log('✅ Agent started\\n');
@@ -76,7 +77,7 @@ export function generateWebServerIndex(context: TemplateContext): string {
 import '${context.imageName}';
 
 // Import from core packages
-import { DextoAgent } from '@dexto/core';
+import { AgentConfigSchema, DextoAgent } from '@dexto/core';
 import { loadAgentConfig } from '@dexto/agent-management';
 import { startDextoServer } from '@dexto/server';
 import { resolve } from 'node:path';
@@ -92,7 +93,8 @@ async function main() {
 
     // Create agent
     console.log('🤖 Creating agent...');
-    const agent = new DextoAgent(config, './agents/default.yml');
+    const validatedConfig = AgentConfigSchema.parse(config);
+    const agent = new DextoAgent({ config: validatedConfig, configPath: './agents/default.yml' });
     console.log('✅ Agent created\\n');
 
     // Start the server

@@ -1,6 +1,6 @@
 import { describe, test, expect, beforeEach, afterEach } from 'vitest';
 import { DextoAgent } from '../agent/DextoAgent.js';
-import type { AgentConfig } from '@core/agent/schemas.js';
+import { AgentConfigSchema, type AgentConfig } from '@core/agent/schemas.js';
 import type { SessionData } from './session-manager.js';
 
 /**
@@ -37,7 +37,8 @@ describe('Session Integration: Chat History Preservation', () => {
     };
 
     beforeEach(async () => {
-        agent = new DextoAgent(testConfig);
+        const validatedConfig = AgentConfigSchema.parse(testConfig);
+        agent = new DextoAgent({ config: validatedConfig });
         await agent.start();
     });
 

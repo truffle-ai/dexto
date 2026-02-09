@@ -1,7 +1,7 @@
 import os from 'node:os';
 import type { Context } from 'hono';
 import type { AgentCard } from '@dexto/core';
-import { DextoAgent, createAgentCard, logger, AgentError } from '@dexto/core';
+import { AgentConfigSchema, DextoAgent, createAgentCard, logger, AgentError } from '@dexto/core';
 import {
     loadAgentConfig,
     enrichAgentConfig,
@@ -132,7 +132,8 @@ async function createAgentFromId(agentId: string): Promise<DextoAgent> {
 
         // Create agent instance
         logger.info(`Creating agent: ${agentId} from ${agentPath}`);
-        return new DextoAgent(enrichedConfig, agentPath);
+        const validatedConfig = AgentConfigSchema.parse(enrichedConfig);
+        return new DextoAgent({ config: validatedConfig, configPath: agentPath });
     } catch (error) {
         throw new Error(
             `Failed to create agent '${agentId}': ${error instanceof Error ? error.message : String(error)}`
@@ -398,11 +399,12 @@ export async function initializeHonoApi(
             });
 
             // 4. Create new agent instance directly (will initialize fresh telemetry in createAgentServices)
-            newAgent = new DextoAgent(enrichedConfig, filePath);
+            const validatedConfig = AgentConfigSchema.parse(enrichedConfig);
+            newAgent = new DextoAgent({ config: validatedConfig, configPath: filePath });
 
             // 5. Use enriched agentId (derived from config or filename during enrichment)
             // enrichAgentConfig always sets agentId, so it's safe to assert non-null
-            const agentId = enrichedConfig.agentId!;
+            const agentId = validatedConfig.agentId!;
 
             // 6. Use common switch logic (register subscribers, start agent, stop previous)
             return await performAgentSwitch(newAgent, agentId, bridge);

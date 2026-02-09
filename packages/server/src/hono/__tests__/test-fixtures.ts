@@ -1,4 +1,4 @@
-import { DextoAgent, createAgentCard } from '@dexto/core';
+import { AgentConfigSchema, DextoAgent, createAgentCard } from '@dexto/core';
 import type { AgentConfig, AgentCard } from '@dexto/core';
 import type { Server as HttpServer } from 'node:http';
 import type { Context } from 'hono';
@@ -47,7 +47,8 @@ export function createTestAgentConfig(): AgentConfig {
  */
 export async function createTestAgent(config?: AgentConfig): Promise<DextoAgent> {
     const agentConfig = config ?? createTestAgentConfig();
-    const agent = new DextoAgent(agentConfig);
+    const validatedConfig = AgentConfigSchema.parse(agentConfig);
+    const agent = new DextoAgent({ config: validatedConfig });
     await agent.start();
     return agent;
 }

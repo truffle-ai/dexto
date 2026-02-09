@@ -70,7 +70,7 @@ function generateImports(
     }
 
     // Core imports
-    imports.push(`import { DextoAgent } from '@dexto/core';`);
+    imports.push(`import { AgentConfigSchema, DextoAgent } from '@dexto/core';`);
 
     // Always import registries since we re-export them in generateFactory()
     // This ensures the re-exports don't reference unimported identifiers
@@ -186,7 +186,8 @@ function generateFactory(): string {
  * @returns DextoAgent instance with providers already registered
  */
 export function createAgent(config, configPath) {
-    return new DextoAgent(config, configPath);
+    const validatedConfig = AgentConfigSchema.parse(config);
+    return new DextoAgent({ config: validatedConfig, configPath });
 }
 
 /**

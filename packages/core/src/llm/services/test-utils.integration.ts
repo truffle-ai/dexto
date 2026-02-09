@@ -5,7 +5,7 @@ import {
     PROVIDER_API_KEY_MAP,
 } from '../../utils/api-key-resolver.js';
 import type { LLMProvider } from '../types.js';
-import type { AgentConfig } from '../../agent/schemas.js';
+import { AgentConfigSchema, type AgentConfig } from '../../agent/schemas.js';
 
 /**
  * Shared utilities for LLM service integration tests
@@ -25,7 +25,8 @@ export async function createTestEnvironment(
     config: AgentConfig,
     sessionId: string = 'test-session'
 ): Promise<TestEnvironment> {
-    const agent = new DextoAgent(config);
+    const validatedConfig = AgentConfigSchema.parse(config);
+    const agent = new DextoAgent({ config: validatedConfig });
     await agent.start();
 
     return {

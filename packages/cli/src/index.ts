@@ -43,6 +43,7 @@ import {
     getAllSupportedModels,
     startLlmRegistryAutoUpdate,
     DextoAgent,
+    createAgentConfigSchema,
     type LLMProvider,
     isPath,
     resolveApiKeyForProvider,
@@ -681,7 +682,8 @@ async function bootstrapAgentFromGlobalOpts() {
     };
 
     // Use relaxed validation for session commands - they don't need LLM calls
-    const agent = new DextoAgent(enrichedConfig, resolvedPath, { strict: false });
+    const validatedConfig = createAgentConfigSchema({ strict: false }).parse(enrichedConfig);
+    const agent = new DextoAgent({ config: validatedConfig, configPath: resolvedPath });
     await agent.start();
 
     // Register graceful shutdown
@@ -1615,10 +1617,10 @@ program
                               })
                             : null;
 
-                    agent = new DextoAgent(validatedConfig, resolvedPath, {
-                        strict: !isInteractiveMode,
-                        sessionLoggerFactory,
-                        mcpAuthProviderFactory,
+                    agent = new DextoAgent({
+                        config: validatedConfig,
+                        configPath: resolvedPath,
+                        overrides: { sessionLoggerFactory, mcpAuthProviderFactory },
                     });
 
                     // Start the agent (initialize async services)

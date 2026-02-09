@@ -497,7 +497,7 @@ export default defineConfig({
 // Development: Providers auto-discovered at runtime (pnpm dev)
 // Production: Providers bundled at build time (pnpm build + pnpm start)
 
-import { DextoAgent } from '@dexto/core';
+import { AgentConfigSchema, DextoAgent } from '@dexto/core';
 import { loadAgentConfig } from '@dexto/agent-management';
 
 async function main() {
@@ -507,9 +507,10 @@ async function main() {
     // In dev mode: providers discovered at runtime from dexto.config.ts
     // In production: providers pre-registered at build time
     const config = await loadAgentConfig('./agents/default.yml');
+    const validatedConfig = AgentConfigSchema.parse(config);
 
     // Create agent
-    const agent = new DextoAgent(config, './agents/default.yml');
+    const agent = new DextoAgent({ config: validatedConfig, configPath: './agents/default.yml' });
 
     await agent.start();
     console.log('✅ Agent started\\n');
