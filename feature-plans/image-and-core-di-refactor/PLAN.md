@@ -4,6 +4,8 @@ This plan captures the current problems, the target architecture, and concrete b
 
 **Working memory:** [`WORKING_MEMORY.md`](./WORKING_MEMORY.md) is a colocated scratchpad that agents should actively update while working through this plan. It tracks the current task, decisions made, blockers, and progress. **Read it before starting work. Update it after each task.**
 
+**Owner verification list:** [`USER_VERIFICATION.md`](./USER_VERIFICATION.md) tracks **owner-only** decisions and manual checks that we deliberately defer while implementing. **Add an entry whenever you discover an unresolved decision or a manual verification the owner must do.** Mark entries done when resolved. Phase 5.6 requires this list to be reviewed/cleared before Phase 6 (platform).
+
 ---
 
 ## 1. Problems
@@ -2449,6 +2451,7 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
   - All `*Registry` classes, singleton instances, factory functions that used registries
   - `providers/discovery.ts` (unless we want a non‑registry version)
   - Registry test files
+  - Remove all `TODO: temporary glue code to be removed/verified` markers (they should not survive past cleanup)
   - Exit: no dead code. `pnpm run build` clean.
 
 - [ ] **5.2 Update all broken tests**
@@ -2475,6 +2478,15 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
 - [ ] **5.5 Update OpenAPI / server docs if affected**
   - Run `pnpm run sync-openapi-docs` if any API routes changed
   - Exit: OpenAPI spec up to date.
+
+---
+
+### Phase 5.6: Owner verification (pre‑platform gate)
+> **Goal:** Ensure all deferred owner decisions / manual verifications are resolved before starting Phase 6 (platform).
+
+- [ ] **5.6.1 Review and resolve `USER_VERIFICATION.md`**
+  - Resolve items, or explicitly defer them (move to a follow‑up plan) before proceeding
+  - Exit: `USER_VERIFICATION.md` is empty or all items are marked resolved with dates/notes.
 
 ---
 
@@ -2506,6 +2518,8 @@ Phase 0 (foundation) → Phase 1 (core DI) → Phase 2 (resolver) → Phase 3 (i
                                                                  Phase 4 (CLI/server)
                                                                        ↓
                                                                  Phase 5 (cleanup)
+                                                                       ↓
+                                                         Phase 5.6 (owner verification)
                                                                        ↓
                                                                  Phase 6 (platform)
 ```

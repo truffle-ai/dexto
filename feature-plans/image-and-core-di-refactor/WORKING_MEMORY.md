@@ -17,12 +17,15 @@
 
 ## Current Task
 
-**Task:** _None — not started_
-**Status:** _Not started_
-**Branch:** `feat/di-refactor`
+**Task:** **1.1 — `storage/blob/` — decouple from registry**
+**Status:** _In progress_
+**Branch:** `rebuild-di`
 
 ### Plan
-_Write your implementation plan here before starting._
+- Identify all registry/factory/auto-register paths under `packages/core/src/storage/blob/`.
+- Remove `blobStoreRegistry` usage and auto-registration side effects; keep concrete implementations + schemas as plain exports.
+- Update any importers to use the new DI surface (or leave for later tasks if strictly required by ordering).
+- Ensure `pnpm -C packages/core build` passes after the change.
 
 ### Notes
 _Log findings, issues, and progress here as you work._
@@ -53,7 +56,11 @@ _Move tasks here after completion. Keep a brief log of what was done and any dev
 
 | Task | Title | Date | Notes |
 |------|-------|------|-------|
-| — | — | — | — |
+| 0.1 | Create `@dexto/agent-config` package skeleton | 2026-02-09 | Added `packages/agent-config/` skeleton + fixed-versioning entry; `pnpm -C packages/agent-config build` passes; pnpm/turbo already include `packages/*` so no extra wiring needed. |
+| 0.2 | Define `DextoImageModule` + factory types | 2026-02-09 | Added `packages/agent-config/src/image/types.ts` + exports; added deps (`@dexto/core`, `zod`); `pnpm -C packages/agent-config build` passes. (Uses existing core types: `InternalTool` as `Tool`, `ICompactionStrategy` as `CompactionStrategy` for now.) |
+| 0.3 | Define `DextoAgentOptions` interface in core | 2026-02-09 | Added `packages/core/src/agent/agent-options.ts` + exported from `packages/core/src/agent/index.ts`; `pnpm -C packages/core build` passes. |
+| 0.4 | Clean DI surface interfaces in core | 2026-02-09 | Removed `any` from DI surface interfaces (`DextoPlugin` payload/config shapes, `ToolResult`, provider generics). `pnpm -C packages/core build` passes. |
+| 0.5 | Define `ToolExecutionContext` + `PluginExecutionContext` interfaces | 2026-02-09 | Expanded `ToolExecutionContext` with DI-friendly runtime fields; ensured `PluginExecutionContext` is `any`-free; removed remaining `any` from `ToolManager.setAgent`; tagged temporary glue with `TODO: temporary glue code to be removed/verified`. `pnpm -C packages/core build` + `pnpm -C packages/agent-config build` pass. |
 
 ---
 
@@ -61,8 +68,8 @@ _Move tasks here after completion. Keep a brief log of what was done and any dev
 
 | Phase | Status | Notes |
 |-------|--------|-------|
-| Phase 0 — Foundation | Not started | |
-| Phase 1A — Storage layer | Not started | |
+| Phase 0 — Foundation | Completed | 0.1–0.5 complete |
+| Phase 1A — Storage layer | In progress | Starting 1.1 |
 | Phase 1B — Tools layer | Not started | |
 | Phase 1C — Plugins layer | Not started | |
 | Phase 1D — Compaction | Not started | |
