@@ -1154,7 +1154,7 @@ export const provider: CompactionFactory = {
 ## 11. Before/After — Storage
 
 ### High‑level goal
-Storage becomes fully DI. Core receives concrete `BlobStore`, `Database`, and `Cache` instances via `DextoAgentOptions`. All storage factory functions (which currently do registry lookups) are removed from core. Storage provider resolution moves to the resolver layer. `StorageManager` becomes a thin wrapper that orchestrates lifecycle (connect/disconnect) over pre‑created instances.
+Storage becomes fully DI. Core receives concrete `BlobStore`, `Database`, and `Cache` instances via `DextoAgentOptions`. All storage implementations, factory functions, and config schemas are extracted from core into a new **`@dexto/storage`** package. Core keeps only the interfaces (`BlobStore`, `Database`, `Cache`) and `StorageManager` (lifecycle wrapper). `@dexto/storage` becomes the canonical collection of open-sourced storage implementations that images compose from.
 
 ### Before
 
@@ -1301,51 +1301,70 @@ export const supabaseBlobFactory: StorageFactory = {
 | **Blob** | | |
 | `storage/blob/registry.ts` | 59 | **DELETE** — global singleton registry |
 | `storage/blob/registry.test.ts` | 548 | **DELETE** — tests for deleted registry |
-| `storage/blob/factory.ts` | 54 | **DELETE** — registry-based factory function |
-| `storage/blob/schemas.ts` | 110 | **MOVE to agent-config** — `LocalBlobStoreSchema`, `InMemoryBlobStoreSchema`, `BlobStoreConfigSchema` |
-| `storage/blob/provider.ts` | 54 | **KEEP** — `BlobStoreProvider` interface (used by image factories) |
-| `storage/blob/types.ts` | 163 | **KEEP** — `BlobStore` interface, `BlobInput`, `BlobMetadata`, etc. |
-| `storage/blob/local-blob-store.ts` | 586 | **KEEP** — implementation, exported for image-local to use |
-| `storage/blob/memory-blob-store.ts` | 418 | **KEEP** — implementation, exported for image-local to use |
-| `storage/blob/providers/local.ts` | 28 | **KEEP as plain export** — becomes `StorageFactory` entry in image-local (remove auto-registration) |
-| `storage/blob/providers/memory.ts` | 28 | **KEEP as plain export** — becomes `StorageFactory` entry in image-local (remove auto-registration) |
-| `storage/blob/index.ts` | 83 | **KEEP + update** — remove auto-registration side effects, keep exports |
+| `storage/blob/factory.ts` | 54 | **DELETE** — registry-based factory, replaced by `StorageFactory.create()` |
+| `storage/blob/schemas.ts` | 110 | **MOVE to `@dexto/storage`** — factory config schemas live with implementations |
+| `storage/blob/provider.ts` | 54 | **MOVE to `@dexto/storage`** — `BlobStoreProvider` interface, used by factories |
+| `storage/blob/types.ts` | 163 | **KEEP in core** — `BlobStore` interface (core's contract) |
+| `storage/blob/local-blob-store.ts` | 586 | **MOVE to `@dexto/storage`** — implementation |
+| `storage/blob/memory-blob-store.ts` | 418 | **MOVE to `@dexto/storage`** — implementation |
+| `storage/blob/providers/local.ts` | 28 | **MOVE to `@dexto/storage`** — becomes `StorageFactory` entry (remove auto-registration) |
+| `storage/blob/providers/memory.ts` | 28 | **MOVE to `@dexto/storage`** — becomes `StorageFactory` entry (remove auto-registration) |
+| `storage/blob/index.ts` | 83 | **REWRITE** — core barrel only exports `BlobStore` interface; `@dexto/storage` gets its own barrel |
 | **Database** | | |
 | `storage/database/registry.ts` | 59 | **DELETE** — global singleton registry |
 | `storage/database/registry.test.ts` | 224 | **DELETE** — tests for deleted registry |
-| `storage/database/factory.ts` | 56 | **DELETE** — registry-based factory function |
-| `storage/database/schemas.ts` | 101 | **MOVE to agent-config** — `SqliteDatabaseSchema`, `PostgresDatabaseSchema`, discriminated union |
-| `storage/database/provider.ts` | 60 | **KEEP** — `DatabaseProvider` interface |
-| `storage/database/types.ts` | 24 | **KEEP** — `Database` interface |
-| `storage/database/sqlite-store.ts` | 319 | **KEEP** — implementation |
-| `storage/database/postgres-store.ts` | 407 | **KEEP** — implementation |
-| `storage/database/memory-database-store.ts` | 121 | **KEEP** — implementation |
-| `storage/database/providers/sqlite.ts` | 52 | **KEEP as plain export** — becomes `StorageFactory` entry (remove auto-registration) |
-| `storage/database/providers/postgres.ts` | 43 | **KEEP as plain export** — becomes `StorageFactory` entry (remove auto-registration) |
-| `storage/database/providers/memory.ts` | 28 | **KEEP as plain export** — becomes `StorageFactory` entry (remove auto-registration) |
-| `storage/database/index.ts` | 84 | **KEEP + update** — remove auto-registration side effects |
+| `storage/database/factory.ts` | 56 | **DELETE** — registry-based factory |
+| `storage/database/schemas.ts` | 101 | **MOVE to `@dexto/storage`** — factory config schemas |
+| `storage/database/provider.ts` | 60 | **MOVE to `@dexto/storage`** — `DatabaseProvider` interface |
+| `storage/database/types.ts` | 24 | **KEEP in core** — `Database` interface |
+| `storage/database/sqlite-store.ts` | 319 | **MOVE to `@dexto/storage`** — implementation |
+| `storage/database/postgres-store.ts` | 407 | **MOVE to `@dexto/storage`** — implementation |
+| `storage/database/memory-database-store.ts` | 121 | **MOVE to `@dexto/storage`** — implementation |
+| `storage/database/providers/sqlite.ts` | 52 | **MOVE to `@dexto/storage`** — becomes `StorageFactory` entry |
+| `storage/database/providers/postgres.ts` | 43 | **MOVE to `@dexto/storage`** — becomes `StorageFactory` entry |
+| `storage/database/providers/memory.ts` | 28 | **MOVE to `@dexto/storage`** — becomes `StorageFactory` entry |
+| `storage/database/index.ts` | 84 | **REWRITE** — core barrel only exports `Database` interface |
 | **Cache** | | |
 | `storage/cache/registry.ts` | 59 | **DELETE** — global singleton registry |
 | `storage/cache/registry.test.ts` | 215 | **DELETE** — tests for deleted registry |
-| `storage/cache/factory.ts` | 54 | **DELETE** — registry-based factory function |
-| `storage/cache/schemas.ts` | 77 | **MOVE to agent-config** — `InMemoryCacheSchema`, `RedisCacheSchema`, discriminated union |
-| `storage/cache/provider.ts` | 60 | **KEEP** — `CacheProvider` interface |
-| `storage/cache/types.ts` | 16 | **KEEP** — `Cache` interface |
-| `storage/cache/memory-cache-store.ts` | 99 | **KEEP** — implementation |
-| `storage/cache/redis-store.ts` | 182 | **KEEP** — implementation |
-| `storage/cache/providers/memory.ts` | 29 | **KEEP as plain export** — becomes `StorageFactory` entry (remove auto-registration) |
-| `storage/cache/providers/redis.ts` | 48 | **KEEP as plain export** — becomes `StorageFactory` entry (remove auto-registration) |
-| `storage/cache/index.ts` | 74 | **KEEP + update** — remove auto-registration side effects |
+| `storage/cache/factory.ts` | 54 | **DELETE** — registry-based factory |
+| `storage/cache/schemas.ts` | 77 | **MOVE to `@dexto/storage`** — factory config schemas |
+| `storage/cache/provider.ts` | 60 | **MOVE to `@dexto/storage`** — `CacheProvider` interface |
+| `storage/cache/types.ts` | 16 | **KEEP in core** — `Cache` interface |
+| `storage/cache/memory-cache-store.ts` | 99 | **MOVE to `@dexto/storage`** — implementation |
+| `storage/cache/redis-store.ts` | 182 | **MOVE to `@dexto/storage`** — implementation |
+| `storage/cache/providers/memory.ts` | 29 | **MOVE to `@dexto/storage`** — becomes `StorageFactory` entry |
+| `storage/cache/providers/redis.ts` | 48 | **MOVE to `@dexto/storage`** — becomes `StorageFactory` entry |
+| `storage/cache/index.ts` | 74 | **REWRITE** — core barrel only exports `Cache` interface |
 | **Top-level storage** | | |
-| `storage/storage-manager.ts` | 274 | **KEEP + rewrite** — accept concrete instances, remove factory calls |
-| `storage/schemas.ts` | 61 | **MOVE to agent-config** — top-level `StorageSchema` composing sub-schemas |
-| `storage/schemas.test.ts` | 436 | **MOVE to agent-config** — tests for moved schema |
-| `storage/errors.ts` | 428 | **KEEP** — error factory |
-| `storage/error-codes.ts` | 60 | **KEEP** — error codes |
-| `storage/types.ts` | 6 | **KEEP** — type re-exports |
-| `storage/index.ts` | 113 | **KEEP + update** — remove registry re-exports |
+| `storage/storage-manager.ts` | 274 | **KEEP in core + rewrite** — accept concrete instances, remove factory calls |
+| `storage/schemas.ts` | 61 | **MOVE to `@dexto/storage`** — top-level `StorageSchema` composing sub-schemas |
+| `storage/schemas.test.ts` | 436 | **MOVE to `@dexto/storage`** — tests for moved schema |
+| `storage/errors.ts` | 428 | **KEEP in core** — error factory (errors are part of the contract) |
+| `storage/error-codes.ts` | 60 | **KEEP in core** — error codes |
+| `storage/types.ts` | 6 | **KEEP in core** — type re-exports |
+| `storage/index.ts` | 113 | **REWRITE** — only export interfaces + `StorageManager` |
 
-**Summary:** 9 files deleted (3 registries + 3 registry tests + 3 factories), 5 files moved to agent-config, 25+ files kept.
+**Summary:** 9 files deleted (3 registries + 3 registry tests + 3 factories). ~20 files move to `@dexto/storage` (implementations, factories, schemas). Core keeps interfaces, `StorageManager`, error types.
+
+### Dependency graph after extraction
+
+```
+@dexto/core
+  ├── BlobStore interface
+  ├── Database interface
+  ├── Cache interface
+  └── StorageManager (lifecycle wrapper)
+       ↑
+@dexto/storage
+  ├── Implementations: SqliteStore, PostgresStore, LocalBlobStore, MemoryBlobStore, etc.
+  ├── StorageFactory objects: sqliteFactory, postgresFactory, localBlobFactory, etc.
+  ├── Config schemas: SqliteDatabaseSchema, PostgresDatabaseSchema, etc.
+  └── Provider-specific deps: better-sqlite3, pg, ioredis
+       ↑
+@dexto/image-local
+  └── storage: { 'sqlite': sqliteFactory, 'local': localBlobFactory, ... }
+```
 
 ---
 
@@ -1573,7 +1592,7 @@ Repeat for each module. Eventually core has zero Zod dependency. Each step is a 
 
 ## 16. Summary
 
-- **Core should be DI‑first**: accept concrete storage, tools, plugins, compaction strategy, logger. No config resolution inside core.
+- **Core should be DI‑first**: accept concrete storage, tools, plugins, compaction strategy, logger. No config resolution, no implementations inside core — only interfaces and orchestration.
 - **Unified tools**: `internalTools` + `customTools` merge into a single `tools` concept. All tools come from the image. Former "internal" tools move to `@dexto/tools-builtins` (or similar) as a standard `ToolFactory`. Core receives `Tool[]` and doesn't distinguish origins.
 - **Unified plugins**: `plugins.registry` + `plugins.custom` merge into a single `plugins` list. All plugins come from image factories. Core receives `DextoPlugin[]`.
 - **Compaction is DI**: Core receives a concrete `CompactionStrategy` instance. Custom strategies are provided via image factories, same pattern as tools/plugins.
@@ -1587,6 +1606,11 @@ Repeat for each module. Eventually core has zero Zod dependency. Each step is a 
 - **Breaking changes are fine** — no compatibility shims needed.
 - **Platform code‑based agents** run in worker processes with `DEXTO_API_KEY` for LLM access via the existing gateway. No platform secrets exposed.
 - **Convention folder configurability and `include` shorthand are future enhancements** — ship with fixed conventions first.
+- **Implementation packages extracted from core:**
+  - `@dexto/storage` — all storage implementations + `StorageFactory` objects (SQLite, Postgres, local blob, memory, Redis)
+  - `@dexto/logger` — logger implementations + `LoggerFactory` (winston, v2 logger)
+  - `@dexto/tools-builtins` — former internal tools as standard `ToolFactory`
+  - Core keeps only interfaces (`BlobStore`, `Database`, `Cache`, `IDextoLogger`, `Tool`, `DextoPlugin`, `CompactionStrategy`) and orchestration (`StorageManager`, `ToolManager`, `PluginManager`, etc.)
 - **YAML UX unchanged**: Users still write `type: filesystem-tools` in config. The difference is that core no longer resolves type strings — the resolver layer does, using the image's factory maps.
 
 This preserves CLI UX while cleaning architecture, increasing type safety, and enabling both config‑based and code‑based agent customization paths.
@@ -1813,12 +1837,13 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
   - Vet: `prompt-manager.ts`, `providers/config-prompt-provider.ts`, `providers/custom-prompt-provider.ts`, `providers/mcp-prompt-provider.ts`, `schemas.ts`
   - Exit: confirmed no registry imports.
 
-- [ ] **1.21 `logger/` — vet (expect: DI change)**
+- [ ] **1.21 `logger/` — vet (expect: DI change, implementation moves to `@dexto/logger` in Phase 3)**
   - Logger becomes a DI instance. Core receives `IDextoLogger`, doesn't create it from config.
-  - Vet: `logger.ts` (v1), `v2/` (v2 logger system — 10 files). Understand which is used.
-  - `LoggerConfigSchema` stays for config validation (in resolver layer).
-  - Logger creation (`createLogger(config)`) moves to resolver.
-  - Exit: core uses `IDextoLogger` interface only. No logger creation from config in core.
+  - Vet: `logger.ts` (v1), `v2/` (v2 logger system — ~10 files). Understand which is used.
+  - Phase 1: make core depend only on `IDextoLogger` interface. Move `createLogger()` calls out of core.
+  - Phase 3: extract all implementation files to `@dexto/logger` package (task 3.5).
+  - `LoggerConfigSchema` moves to `@dexto/logger` (config schema lives with the implementation).
+  - Exit (Phase 1): core uses `IDextoLogger` interface only. No logger creation from config in core.
 
 - [ ] **1.22 `telemetry/` — vet (expect: minimal changes)**
   - Telemetry is config‑driven (`OtelConfigurationSchema`).
@@ -1903,11 +1928,11 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
   - Clear error if import fails or shape doesn't match
   - Exit: can load `@dexto/image-local` (once rewritten) and return typed module
 
-- [ ] **2.4 Move storage factory functions to agent‑config**
-  - `createBlobStore()`, `createDatabase()`, `createCache()` — these use registries today
-  - After: they're no longer needed as standalone functions. The resolver calls `image.storage[type].create()` directly.
-  - If any other code uses them, provide them in agent‑config as convenience wrappers
-  - Exit: factory functions removed from core or re‑exported from agent‑config only
+- [ ] **2.4 Remove storage factory functions from core**
+  - `createBlobStore()`, `createDatabase()`, `createCache()` — these use registries today → **delete from core**
+  - After: the resolver calls `image.storage[type].create()` directly (no standalone factories needed)
+  - `@dexto/storage` provides `StorageFactory` objects that images compose; the resolver invokes them
+  - Exit: factory functions deleted from core. No standalone `createBlobStore`/`createDatabase`/`createCache` anywhere.
 
 - [ ] **2.5 Move `AgentConfigSchema` + DI schemas to agent‑config**
   - **Decision (made):** `AgentConfigSchema` moves to `@dexto/agent-config`. Core keeps module‑level sub‑schemas.
@@ -1940,11 +1965,12 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
 - [ ] **3.2 Rewrite `@dexto/image-local` as hand‑written `DextoImageModule`**
   - Delete `dexto.image.ts` + bundler‑generated output
   - Write `index.ts` exporting `DextoImageModule` with factory maps
-  - Tools map includes: `builtin-tools` (from `@dexto/tools-builtins`), `filesystem-tools`, `process-tools`, `todo-tools`, `plan-tools`
-  - Plugins map includes: `content-policy`, `response-sanitizer` (former built‑in plugins)
-  - Compaction map includes: `reactive-overflow`, `summary-based` (built‑in strategies)
-  - Storage map includes: `local`, `memory`, `sqlite`, `postgres`, `redis`
-  - Import all from existing packages, verify each conforms to factory interfaces
+  - Dependencies: `@dexto/tools-builtins`, `@dexto/tools-filesystem`, `@dexto/tools-process`, `@dexto/tools-todo`, `@dexto/tools-plan`, `@dexto/storage`, `@dexto/logger`
+  - Tools map: `builtin-tools` (from `@dexto/tools-builtins`), `filesystem-tools`, `process-tools`, `todo-tools`, `plan-tools`
+  - Plugins map: `content-policy`, `response-sanitizer` (former built‑in plugins)
+  - Compaction map: `reactive-overflow`, `noop` (built‑in strategies from core)
+  - Storage map: `local`, `in-memory-blob`, `sqlite`, `postgres`, `in-memory-db`, `in-memory-cache`, `redis` (all from `@dexto/storage`)
+  - Logger: default logger factory from `@dexto/logger`
   - Exit: `import imageLocal from '@dexto/image-local'` returns typed `DextoImageModule`. No side effects on import. Build passes.
 
 - [ ] **3.3 Adapt existing tool provider packages**
@@ -1953,20 +1979,41 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
   - Remove `customToolRegistry.register()` calls if any exist
   - Exit: each tool package exports a `ToolFactory`‑compatible object. No registry imports.
 
-- [ ] **3.4 Adapt storage providers in core**
-  - `localBlobStoreProvider`, `inMemoryBlobStoreProvider`, `sqliteProvider`, `postgresProvider`, `inMemoryCacheProvider`, `redisCacheProvider`
-  - These currently register themselves as side effects in their `index.ts` barrel files
-  - Remove auto‑registration. Export providers as `StorageFactory`‑compatible objects only.
-  - Exit: no storage provider self‑registers. Each is a plain exported object.
+- [ ] **3.4 Create `@dexto/storage` package (extract from core)**
+  - New package: `packages/storage/`
+  - Move ALL storage implementations from `packages/core/src/storage/`:
+    - Blob: `local-blob-store.ts` (586 lines), `memory-blob-store.ts` (418 lines), `providers/local.ts`, `providers/memory.ts`
+    - Database: `sqlite-store.ts` (319 lines), `postgres-store.ts` (407 lines), `memory-database-store.ts` (121 lines), `providers/sqlite.ts`, `providers/postgres.ts`, `providers/memory.ts`
+    - Cache: `memory-cache-store.ts` (99 lines), `redis-store.ts` (182 lines), `providers/memory.ts`, `providers/redis.ts`
+  - Move storage config schemas: `blob/schemas.ts`, `database/schemas.ts`, `cache/schemas.ts`, `schemas.ts`
+  - Move provider interfaces: `blob/provider.ts`, `database/provider.ts`, `cache/provider.ts`
+  - Create `StorageFactory`‑compatible objects for each implementation (remove auto‑registration)
+  - Provider-specific dependencies (`better-sqlite3`, `pg`, `ioredis`) move to this package
+  - Core keeps: `BlobStore`/`Database`/`Cache` interfaces, `StorageManager`, error types
+  - Core's storage barrel exports only interfaces + `StorageManager`
+  - `@dexto/storage` depends on `@dexto/core` (for interface types)
+  - Exit: `@dexto/storage` builds, exports all `StorageFactory` objects. Core's storage layer is interfaces only. Build passes.
 
-- [ ] **3.5 Update `@dexto/image-bundler`**
+- [ ] **3.5 Create `@dexto/logger` package (extract from core)**
+  - New package: `packages/logger/`
+  - Move logger implementations from `packages/core/src/logger/`:
+    - v1 logger (`logger.ts`) and v2 logger system (`v2/` — ~10 files)
+    - `createLogger()` factory function
+    - Logger config schema (`LoggerConfigSchema`)
+    - Logger-specific dependencies (winston, chalk, etc.)
+  - Core keeps: `IDextoLogger` interface only
+  - Create `LoggerFactory`‑compatible object for use in images
+  - `@dexto/logger` depends on `@dexto/core` (for `IDextoLogger` interface)
+  - Exit: `@dexto/logger` builds, exports `LoggerFactory`. Core's logger is interface-only. Build passes.
+
+- [ ] **3.7 Update `@dexto/image-bundler`**
   - Generate `DextoImageModule` object literal with explicit imports (not `register()` calls)
   - Folder name → type string mapping (`tools/jira/` → key `'jira'`)
   - Remove `.toString()` serialization logic entirely
   - Remove duck‑typing discovery — require explicit `export const provider` contract
   - Exit: bundler generates valid `DextoImageModule`. Can bundle a test image with convention folders.
 
-- [ ] **3.6 Remove old image infrastructure from core**
+- [ ] **3.8 Remove old image infrastructure from core**
   - Delete `packages/core/src/image/define-image.ts`
   - Delete `packages/core/src/image/types.ts` (old `ImageDefinition`, `ImageProvider`, etc.)
   - Remove image exports from `packages/core/src/index.ts`
@@ -2076,9 +2123,18 @@ Phase 0 (foundation) → Phase 1 (core DI) → Phase 2 (resolver) → Phase 3 (i
 
 **Phases 1 and 2 can partially overlap:** as each core module is decoupled (1.1, 1.2, 1.3), the corresponding resolver section (2.2) can be built to exercise it.
 
+**New packages created:**
+- `@dexto/agent-config` — resolver, config schemas, image loading
+- `@dexto/storage` — all storage implementations + `StorageFactory` objects
+- `@dexto/logger` — logger implementations + `LoggerFactory`
+- `@dexto/tools-builtins` — former internal tools as `ToolFactory`
+
 **Estimated blast radius:**
 - ~80 files import from registries → all need updating
 - ~20 files import `ValidatedAgentConfig` for constructor paths → need `DextoAgentOptions`
+- ~20 files move from core to `@dexto/storage` (implementations, schemas, providers)
+- ~10 files move from core to `@dexto/logger` (implementations, schemas)
+- ~6 files move from core to `@dexto/tools-builtins` (internal tool implementations)
 - ~15 test files test registry behavior → delete or rewrite
 - ~6 registry classes + 6 singleton instances → all deleted
 - 1 service initializer (316 lines) → rewritten/moved
