@@ -72,16 +72,15 @@ function generateImports(
     // Core imports
     imports.push(`import { DextoAgent } from '@dexto/core';`);
 
-    // Always import all registries since we re-export them in generateFactory()
+    // Always import registries since we re-export them in generateFactory()
     // This ensures the re-exports don't reference unimported identifiers
     imports.push(
-        `import { customToolRegistry, pluginRegistry, compactionRegistry, blobStoreRegistry } from '@dexto/core';`
+        `import { customToolRegistry, pluginRegistry, compactionRegistry } from '@dexto/core';`
     );
 
     // Import discovered providers
     if (discoveredProviders) {
         const categories = [
-            { key: 'blobStore', label: 'Blob Storage' },
             { key: 'customTools', label: 'Custom Tools' },
             { key: 'compaction', label: 'Compaction' },
             { key: 'plugins', label: 'Plugins' },
@@ -122,7 +121,6 @@ function generateProviderRegistrations(
     // Auto-register discovered providers
     if (discoveredProviders) {
         const categoryMap = [
-            { key: 'blobStore', registry: 'blobStoreRegistry', label: 'Blob Storage' },
             { key: 'customTools', registry: 'customToolRegistry', label: 'Custom Tools' },
             { key: 'compaction', registry: 'compactionRegistry', label: 'Compaction' },
             { key: 'plugins', registry: 'pluginRegistry', label: 'Plugins' },
@@ -207,7 +205,6 @@ export {
     customToolRegistry,
     pluginRegistry,
     compactionRegistry,
-    blobStoreRegistry,
 } from '@dexto/core';`;
 }
 
@@ -330,7 +327,6 @@ export {
     customToolRegistry,
     pluginRegistry,
     compactionRegistry,
-    blobStoreRegistry,
 } from '@dexto/core';${utilityExports}
 `;
 }

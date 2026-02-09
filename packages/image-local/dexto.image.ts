@@ -28,19 +28,6 @@ export default defineImage({
     // Provider registration
     // These providers are registered as side-effects when the image is imported
     providers: {
-        // Blob storage providers from core
-        blobStore: {
-            register: async () => {
-                const { localBlobStoreProvider, inMemoryBlobStoreProvider } = await import(
-                    '@dexto/core'
-                );
-                const { blobStoreRegistry } = await import('@dexto/core');
-
-                blobStoreRegistry.register(localBlobStoreProvider);
-                blobStoreRegistry.register(inMemoryBlobStoreProvider);
-            },
-        },
-
         // Custom tool providers from separate packages
         customTools: {
             register: async () => {
