@@ -301,9 +301,16 @@ export async function selectProvider(): Promise<LLMProvider | '_back' | null> {
 /**
  * Get provider display name
  */
-export function getProviderDisplayName(provider: LLMProvider): string {
+export function getProviderDisplayName(provider: LLMProvider | string): string {
     if (provider === 'dexto') return 'Dexto Nova';
-    return PROVIDER_REGISTRY[provider]?.label || provider;
+    if (isLLMProvider(provider)) {
+        return PROVIDER_REGISTRY[provider]?.label || provider;
+    }
+    return provider;
+}
+
+function isLLMProvider(value: string): value is LLMProvider {
+    return (LLM_PROVIDERS as readonly string[]).includes(value);
 }
 
 /**

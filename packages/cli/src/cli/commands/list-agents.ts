@@ -5,7 +5,6 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import chalk from 'chalk';
 import { z } from 'zod';
-import type { LLMProvider } from '@dexto/core';
 import {
     getDextoGlobalPath,
     globalPreferencesExist,
@@ -190,7 +189,7 @@ export async function handleListAgentsCommand(
         for (const agent of installedAgents) {
             const llmInfo =
                 agent.llmProvider && agent.llmModel
-                    ? `${getProviderDisplayName(agent.llmProvider as LLMProvider)}/${agent.llmModel}`
+                    ? `${getProviderDisplayName(agent.llmProvider)}/${agent.llmModel}`
                     : globalLLM || 'Unknown LLM';
 
             const llmDisplay = chalk.gray(`(${llmInfo})`);
