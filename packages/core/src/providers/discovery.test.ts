@@ -1,17 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { listAllProviders, getProvidersByCategory, hasProvider } from './discovery.js';
-import { blobStoreRegistry } from '../storage/blob/index.js';
 import { compactionRegistry } from '../context/compaction/index.js';
 import { customToolRegistry } from '../tools/custom-tool-registry.js';
 import type { CustomToolProvider } from '../tools/custom-tool-registry.js';
 import { z } from 'zod';
 
 describe('Provider Discovery API', () => {
-    // Store original registry state
-    const _originalBlobProviders = blobStoreRegistry.getTypes();
-    const _originalCompressionProviders = compactionRegistry.getTypes();
-    const _originalCustomToolProviders = customToolRegistry.getTypes();
-
     beforeEach(() => {
         // Note: We don't clear registries because built-in providers are registered
         // on module import. Tests work with the existing state.

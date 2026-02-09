@@ -1,54 +1,53 @@
 import type { BlobStore } from './types.js';
 import type { IDextoLogger } from '../../logger/v2/types.js';
-import { blobStoreRegistry } from './registry.js';
+import { StorageError } from '../errors.js';
+import {
+    BLOB_STORE_TYPES,
+    BlobStoreConfigSchema,
+    InMemoryBlobStoreSchema,
+    LocalBlobStoreSchema,
+} from './schemas.js';
+import { InMemoryBlobStore } from './memory-blob-store.js';
+import { LocalBlobStore } from './local-blob-store.js';
 
 /**
- * Create a blob store based on configuration using the provider registry.
+ * Create a blob store based on configuration.
  *
- * This factory function:
- * 1. Validates the configuration against the registered provider's schema
- * 2. Looks up the provider in the registry
- * 3. Calls the provider's create method to instantiate the blob store
+ * NOTE: This currently supports only core built-in providers. Custom providers are
+ * resolved by the product-layer resolver (`@dexto/agent-config`) during the DI refactor.
  *
  * The configuration type is determined at runtime by the 'type' field,
- * which must match a registered provider. Custom providers can be registered
- * via blobStoreRegistry.register() before calling this function.
+ * which must match an available provider.
  *
  * @param config - Blob store configuration with a 'type' discriminator
  * @param logger - Logger instance for the blob store
  * @returns A BlobStore implementation
- * @throws Error if the provider type is not registered or validation fails
- *
- * @example
- * ```typescript
- * // Using built-in provider
- * const blob = createBlobStore({ type: 'local', storePath: '/tmp/blobs' }, logger);
- *
- * // Using custom provider (registered beforehand)
- * import { blobStoreRegistry } from '@dexto/core';
- * import { s3Provider } from './storage/s3-provider.js';
- *
- * blobStoreRegistry.register(s3Provider);
- * const blob = createBlobStore({ type: 's3', bucket: 'my-bucket' }, logger);
- * ```
+ * @throws Error if validation fails or the provider type is unknown
  */
 export function createBlobStore(
-    config: { type: string; [key: string]: any },
+    // TODO: temporary glue code to be removed/verified
+    config: unknown,
     logger: IDextoLogger
 ): BlobStore {
-    // Validate config against provider schema and get provider
-    const validatedConfig = blobStoreRegistry.validateConfig(config);
-    const provider = blobStoreRegistry.get(validatedConfig.type);
-
-    if (!provider) {
-        // This should never happen after validateConfig, but handle it defensively
-        throw new Error(`Provider '${validatedConfig.type}' not found in registry`);
+    const parsedConfig = BlobStoreConfigSchema.safeParse(config);
+    if (!parsedConfig.success) {
+        throw StorageError.blobInvalidConfig(parsedConfig.error.message);
     }
 
-    // Log which provider is being used
-    const providerName = provider.metadata?.displayName || validatedConfig.type;
-    logger.info(`Using ${providerName} blob store`);
+    const type = parsedConfig.data.type;
 
-    // Create and return the blob store instance
-    return provider.create(validatedConfig, logger);
+    switch (type) {
+        case 'local': {
+            const localConfig = LocalBlobStoreSchema.parse(config);
+            logger.info('Using Local Filesystem blob store');
+            return new LocalBlobStore(localConfig, logger);
+        }
+        case 'in-memory': {
+            const memoryConfig = InMemoryBlobStoreSchema.parse(config);
+            logger.info('Using In-Memory blob store');
+            return new InMemoryBlobStore(memoryConfig, logger);
+        }
+        default:
+            throw StorageError.unknownBlobProvider(type, [...BLOB_STORE_TYPES]);
+    }
 }

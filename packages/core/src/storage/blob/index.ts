@@ -9,8 +9,8 @@
  * - `in-memory`: Store blobs in RAM (for testing/development)
  *
  * ## Custom Providers
- * Custom providers (e.g., S3, Azure, Supabase) can be registered at the
- * CLI/server layer before configuration loading.
+ * During the DI refactor, custom providers are resolved by product layers (CLI/server/platform)
+ * via typed image factories (`@dexto/agent-config`), not via core registries.
  *
  * ## Usage
  *
@@ -21,38 +21,11 @@
  * const blob = createBlobStore({ type: 'local', storePath: '/tmp' }, logger);
  * ```
  *
- * ### Registering custom providers
- * ```typescript
- * import { blobStoreRegistry, type BlobStoreProvider } from '@dexto/core';
- *
- * const s3Provider: BlobStoreProvider<'s3', S3Config> = {
- *   type: 's3',
- *   configSchema: S3ConfigSchema,
- *   create: (config, logger) => new S3BlobStore(config, logger),
- * };
- *
- * blobStoreRegistry.register(s3Provider);
- * const blob = createBlobStore({ type: 's3', bucket: 'my-bucket' }, logger);
- * ```
+ * Custom providers are configured via images and resolved before core construction.
  */
-
-// Import built-in providers
-import { blobStoreRegistry } from './registry.js';
-import { localBlobStoreProvider, inMemoryBlobStoreProvider } from './providers/index.js';
-
-// Register built-in providers on module load
-// This ensures they're available when importing from @dexto/core
-// Guard against duplicate registration when module is imported multiple times
-if (!blobStoreRegistry.has('local')) {
-    blobStoreRegistry.register(localBlobStoreProvider);
-}
-if (!blobStoreRegistry.has('in-memory')) {
-    blobStoreRegistry.register(inMemoryBlobStoreProvider);
-}
 
 // Export public API
 export { createBlobStore } from './factory.js';
-export { blobStoreRegistry, BlobStoreRegistry } from './registry.js';
 export type { BlobStoreProvider } from './provider.js';
 
 // Export types and interfaces
@@ -65,6 +38,9 @@ export type {
     BlobStats,
     StoredBlobMetadata,
 } from './types.js';
+
+// Export built-in providers (plain exports; no auto-registration)
+export { localBlobStoreProvider, inMemoryBlobStoreProvider } from './providers/index.js';
 
 // Export schemas and config types
 export {

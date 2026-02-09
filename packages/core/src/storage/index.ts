@@ -39,12 +39,12 @@
  * ## Registering Custom Providers
  *
  * ```typescript
- * import { databaseRegistry, cacheRegistry, blobStoreRegistry } from '@dexto/core';
+ * import { databaseRegistry, cacheRegistry } from '@dexto/core';
  *
  * // Register before loading config
  * databaseRegistry.register(mongoProvider);
  * cacheRegistry.register(memcachedProvider);
- * blobStoreRegistry.register(s3Provider);
+ * // Blob providers are resolved by product layers via images during the DI refactor.
  * ```
  */
 
@@ -93,7 +93,7 @@ export type { CacheConfig, InMemoryCacheConfig, RedisCacheConfig } from './schem
 
 export { MemoryCacheStore } from './cache/memory-cache-store.js';
 
-export { createBlobStore, blobStoreRegistry, BlobStoreRegistry } from './blob/index.js';
+export { createBlobStore } from './blob/index.js';
 export type { BlobStoreProvider } from './blob/index.js';
 
 export type { BlobStore } from './blob/types.js';

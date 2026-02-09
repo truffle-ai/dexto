@@ -75,8 +75,8 @@ export type LocalBlobStoreConfig = z.output<typeof LocalBlobStoreSchema>;
  * This schema uses `.passthrough()` to accept any provider-specific configuration.
  * It only validates that a `type` field exists as a string.
  *
- * Detailed validation happens at runtime via blobStoreRegistry.validateConfig(),
- * which looks up the registered provider and validates against its specific schema.
+ * Detailed validation for non-built-in providers happens in the product layer during the DI refactor
+ * (via `@dexto/agent-config` image factories). Core built-ins are validated in `createBlobStore()`.
  *
  * This approach allows:
  * - Custom providers to be registered at the CLI/server layer
@@ -85,8 +85,8 @@ export type LocalBlobStoreConfig = z.output<typeof LocalBlobStoreSchema>;
  *
  * Example flow:
  * 1. Config passes this schema (basic structure check)
- * 2. blobStoreRegistry.validateConfig(config) validates against provider schema
- * 3. Provider's create() method receives validated, typed config
+ * 2. Product layer resolves provider + validates against provider schema
+ * 3. Core receives a concrete `BlobStore` instance (DI)
  */
 export const BlobStoreConfigSchema = z
     .object({
