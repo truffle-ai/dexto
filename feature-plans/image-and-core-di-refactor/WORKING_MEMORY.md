@@ -17,15 +17,16 @@
 
 ## Current Task
 
-**Task:** **1.6 — `tools/internal-tools/` — decouple built‑in tool creation**
+**Task:** **1.7 — `tools/tool-manager.ts` — accept unified `Tool[]` + provide `ToolExecutionContext` at runtime**
 **Status:** _Not started_
 **Branch:** `rebuild-di`
 
 ### Plan
-- Update `InternalToolsProvider` to stop resolving custom tools via `customToolRegistry`.
-- Keep built-in internal tool implementations as plain exports.
-- Update/adjust any affected tests (`tools/internal-tools/provider.test.ts`).
-- Ensure `pnpm -C packages/core build` and `pnpm test` pass after the change.
+- Refactor `ToolManager` to accept pre-resolved `Tool[]` (no internal/custom split).
+- Provide `ToolExecutionContext` on each `execute()` call (late-binding, avoids init cycles).
+- Remove config resolution + registry imports from `ToolManager` (move to resolver/agent-config later).
+- Update `tool-manager.test.ts` + `tool-manager.integration.test.ts`.
+- Ensure `pnpm -C packages/core build` and `pnpm test` pass.
 
 ### Notes
 _Log findings, issues, and progress here as you work._
@@ -66,6 +67,7 @@ _Move tasks here after completion. Keep a brief log of what was done and any dev
 | 1.3 | `storage/cache/` — decouple from registry | 2026-02-09 | Deleted cache registry + tests; removed module-load auto-registration; `createCache()` now supports built-in types only (temporary glue); added `StorageError.cacheInvalidConfig`; updated storage exports. `pnpm -C packages/core build` + `pnpm test` pass. |
 | 1.4 | `storage/storage-manager.ts` — accept concrete instances | 2026-02-09 | `StorageManager` now accepts concrete backends (`{ cache, database, blobStore }`); creation moved into `createStorageManager()` helper (temporary glue) and tagged. `pnpm -C packages/core build` + `pnpm test` pass. |
 | 1.5 | `tools/custom-tool-registry.ts` — mark for deletion | 2026-02-09 | Documented core dependency map + tagged `custom-tool-registry.ts` and `custom-tool-schema-registry.ts` as temporary glue. `pnpm -C packages/core build` + `pnpm test` pass. |
+| 1.6 | `tools/internal-tools/` — decouple built‑in tool creation | 2026-02-10 | `InternalToolsProvider` now handles built-in tools only (no `customToolRegistry` imports). Custom tool registration/execution moved into `ToolManager` as **temporary glue** (tagged). Updated `provider.test.ts` and added `ToolManager` coverage for custom tools. `pnpm -C packages/core build` + `pnpm test` pass. (Follow-up: rename `InternalTool` → `Tool` once tool surfaces are consolidated.) |
 
 ---
 
@@ -74,8 +76,8 @@ _Move tasks here after completion. Keep a brief log of what was done and any dev
 | Phase | Status | Notes |
 |-------|--------|-------|
 | Phase 0 — Foundation | Completed | 0.1–0.5 complete |
-| Phase 1A — Storage layer | In progress | 1.1 complete; starting 1.2 |
-| Phase 1B — Tools layer | Not started | |
+| Phase 1A — Storage layer | Completed | 1.1–1.4 complete |
+| Phase 1B — Tools layer | In progress | 1.5–1.6 complete; next: 1.7 |
 | Phase 1C — Plugins layer | Not started | |
 | Phase 1D — Compaction | Not started | |
 | Phase 1E — Agent shell | Not started | |

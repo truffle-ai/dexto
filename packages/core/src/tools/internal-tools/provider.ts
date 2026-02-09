@@ -1,62 +1,38 @@
 import { ToolExecutionContext, ToolSet, InternalTool } from '../types.js';
 import type { IDextoLogger } from '../../logger/v2/types.js';
-import type { DextoAgent } from '../../agent/DextoAgent.js';
 import { ToolError } from '../errors.js';
 import { convertZodSchemaToJsonSchema } from '../../utils/schema.js';
 import { InternalToolsServices, getInternalToolInfo, type AgentFeature } from './registry.js';
 import type { PromptManager } from '../../prompts/prompt-manager.js';
-import type { InternalToolsConfig, CustomToolsConfig } from '../schemas.js';
-import { customToolRegistry, type ToolCreationContext } from '../custom-tool-registry.js';
-import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
-import { ToolErrorCode } from '../error-codes.js';
+import type { InternalToolsConfig } from '../schemas.js';
 
 /**
- * Provider for built-in internal tools and custom tool providers
+ * Provider for built-in internal tools
  *
  * This provider manages:
  * 1. Built-in internal tools that are shipped with the core system
- * 2. Custom tools registered via the customToolRegistry
  *
  * Benefits:
  * - Clean separation: ToolManager doesn't need to know about specific services
  * - Easy to extend: Just add new tools and services as needed
  * - Lightweight: Direct tool management without complex infrastructure
  * - No unnecessary ProcessedInternalTool wrapper - uses InternalTool directly
- * - Custom tools follow the same provider pattern as blob storage
  */
 type ToolServices = InternalToolsServices & Record<string, unknown>;
 
 export class InternalToolsProvider {
     private services: ToolServices;
     private internalTools: Map<string, InternalTool> = new Map(); // Built-in internal tools
-    private customTools: Map<string, InternalTool> = new Map(); // Custom tool provider tools
     private config: InternalToolsConfig;
-    private customToolConfigs: CustomToolsConfig;
     private logger: IDextoLogger;
-    private agent?: DextoAgent; // Set after construction to avoid circular dependency
 
-    constructor(
-        services: ToolServices,
-        config: InternalToolsConfig = [],
-        customToolConfigs: CustomToolsConfig = [],
-        logger: IDextoLogger
-    ) {
+    constructor(services: ToolServices, config: InternalToolsConfig = [], logger: IDextoLogger) {
         this.services = services;
         this.config = config;
-        this.customToolConfigs = customToolConfigs;
         this.logger = logger;
         this.logger.debug('InternalToolsProvider initialized with config:', {
             config,
-            customToolConfigs,
         });
-    }
-
-    /**
-     * Set agent reference after construction (avoids circular dependency)
-     * Must be called before initialize() if custom tools need agent access
-     */
-    setAgent(agent: DextoAgent): void {
-        this.agent = agent;
     }
 
     /**
@@ -78,7 +54,6 @@ export class InternalToolsProvider {
 
     /**
      * Initialize the internal tools provider by registering all available internal tools
-     * and custom tools from the registry
      */
     async initialize(): Promise<void> {
         this.logger.info('Initializing InternalToolsProvider...');
@@ -91,17 +66,9 @@ export class InternalToolsProvider {
                 this.logger.info('No internal tools enabled by configuration');
             }
 
-            // Register custom tools from registry
-            if (this.customToolConfigs.length > 0) {
-                this.registerCustomTools();
-            } else {
-                this.logger.debug('No custom tool providers configured');
-            }
-
             const internalCount = this.internalTools.size;
-            const customCount = this.customTools.size;
             this.logger.info(
-                `InternalToolsProvider initialized with ${internalCount + customCount} tools (${internalCount} internal, ${customCount} custom)`
+                `InternalToolsProvider initialized with ${internalCount} internal tool(s)`
             );
         } catch (error) {
             this.logger.error(
@@ -163,78 +130,10 @@ export class InternalToolsProvider {
     }
 
     /**
-     * Register custom tools from the custom tool registry.
-     * Tools are stored by their original ID - prefixing is handled by ToolManager.
-     */
-    private registerCustomTools(): void {
-        if (!this.agent) {
-            throw ToolError.configInvalid(
-                'Agent reference not set. Call setAgent() before initialize() when using custom tools.'
-            );
-        }
-
-        const context: ToolCreationContext = {
-            logger: this.logger,
-            agent: this.agent,
-            services: {
-                ...this.services,
-                // Include storageManager from agent services for custom tools that need persistence
-                storageManager: this.agent.services?.storageManager,
-            },
-        };
-
-        for (const toolConfig of this.customToolConfigs) {
-            try {
-                // Validate config against provider schema
-                const validatedConfig = customToolRegistry.validateConfig(toolConfig);
-                const provider = customToolRegistry.get(validatedConfig.type);
-
-                if (!provider) {
-                    const availableTypes = customToolRegistry.getTypes();
-                    throw ToolError.unknownCustomToolProvider(validatedConfig.type, availableTypes);
-                }
-
-                // Create tools from provider
-                const tools = provider.create(validatedConfig, context);
-
-                // Register each tool by its ID (no prefix - ToolManager handles prefixing)
-                for (const tool of tools) {
-                    // Check for conflicts with other custom tools
-                    if (this.customTools.has(tool.id)) {
-                        this.logger.warn(
-                            `Custom tool '${tool.id}' conflicts with existing custom tool. Skipping.`
-                        );
-                        continue;
-                    }
-
-                    this.customTools.set(tool.id, tool);
-                    this.logger.debug(
-                        `Registered custom tool: ${tool.id} from provider '${provider.metadata?.displayName || validatedConfig.type}'`
-                    );
-                }
-            } catch (error) {
-                // Re-throw validation errors (unknown provider, invalid config)
-                // These are user errors that should fail fast
-                if (
-                    error instanceof DextoRuntimeError &&
-                    error.code === ToolErrorCode.CUSTOM_TOOL_PROVIDER_UNKNOWN
-                ) {
-                    throw error;
-                }
-
-                // Log and continue for other errors (e.g., provider initialization failures)
-                this.logger.error(
-                    `Failed to register custom tool provider: ${error instanceof Error ? error.message : String(error)}`
-                );
-            }
-        }
-    }
-
-    /**
-     * Check if a tool exists (checks both internal and custom tools)
+     * Check if a tool exists
      */
     hasTool(toolName: string): boolean {
-        return this.internalTools.has(toolName) || this.customTools.has(toolName);
+        return this.internalTools.has(toolName);
     }
 
     /**
@@ -245,18 +144,11 @@ export class InternalToolsProvider {
     }
 
     /**
-     * Check if a custom tool exists
-     */
-    hasCustomTool(toolName: string): boolean {
-        return this.customTools.has(toolName);
-    }
-
-    /**
      * Get an internal tool by name
      * Returns undefined if tool doesn't exist
      */
     getTool(toolName: string): InternalTool | undefined {
-        return this.internalTools.get(toolName) || this.customTools.get(toolName);
+        return this.internalTools.get(toolName);
     }
 
     /**
@@ -269,15 +161,11 @@ export class InternalToolsProvider {
         abortSignal?: AbortSignal,
         toolCallId?: string
     ): Promise<unknown> {
-        // Check internal tools first, then custom tools
-        const tool = this.internalTools.get(toolName) || this.customTools.get(toolName);
+        const tool = this.internalTools.get(toolName);
         if (!tool) {
             this.logger.error(`❌ No tool found: ${toolName}`);
             this.logger.debug(
                 `Available internal tools: ${Array.from(this.internalTools.keys()).join(', ')}`
-            );
-            this.logger.debug(
-                `Available custom tools: ${Array.from(this.customTools.keys()).join(', ')}`
             );
             throw ToolError.notFound(toolName);
         }
@@ -311,29 +199,12 @@ export class InternalToolsProvider {
     }
 
     /**
-     * Get internal tools in ToolSet format (excludes custom tools)
+     * Get internal tools in ToolSet format
      */
     getInternalTools(): ToolSet {
         const toolSet: ToolSet = {};
 
         for (const [name, tool] of this.internalTools) {
-            toolSet[name] = {
-                name: tool.id,
-                description: tool.description,
-                parameters: convertZodSchemaToJsonSchema(tool.inputSchema, this.logger),
-            };
-        }
-
-        return toolSet;
-    }
-
-    /**
-     * Get custom tools in ToolSet format (excludes internal tools)
-     */
-    getCustomTools(): ToolSet {
-        const toolSet: ToolSet = {};
-
-        for (const [name, tool] of this.customTools) {
             toolSet[name] = {
                 name: tool.id,
                 description: tool.description,
@@ -352,24 +223,17 @@ export class InternalToolsProvider {
     }
 
     /**
-     * Get custom tool names
-     */
-    getCustomToolNames(): string[] {
-        return Array.from(this.customTools.keys());
-    }
-
-    /**
-     * Get all tool names (internal + custom)
+     * Get all tool names
      */
     getToolNames(): string[] {
-        return [...this.internalTools.keys(), ...this.customTools.keys()];
+        return [...this.internalTools.keys()];
     }
 
     /**
      * Get tool count
      */
     getToolCount(): number {
-        return this.internalTools.size + this.customTools.size;
+        return this.internalTools.size;
     }
 
     /**
@@ -377,12 +241,5 @@ export class InternalToolsProvider {
      */
     getInternalToolCount(): number {
         return this.internalTools.size;
-    }
-
-    /**
-     * Get custom tool count
-     */
-    getCustomToolCount(): number {
-        return this.customTools.size;
     }
 }

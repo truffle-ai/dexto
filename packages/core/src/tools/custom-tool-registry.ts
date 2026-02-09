@@ -15,7 +15,7 @@ import type { StorageManager } from '../storage/index.js';
  *
  * Planned for deletion during the DI refactor (see PLAN task 1.10). Current importers:
  * - `tools/index.ts` (re-exports)
- * - `tools/internal-tools/provider.ts` (resolves custom tools)
+ * - `tools/tool-manager.ts` (resolves custom tools — temporary glue)
  * - `tools/schemas.ts` (builds config union schema)
  * - `providers/discovery.ts` (provider listing)
  * - Tests: `tools/custom-tool-registry.test.ts`, `providers/discovery.test.ts`

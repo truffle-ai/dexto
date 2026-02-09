@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { z } from 'zod';
 import { ToolManager } from './tool-manager.js';
 import { MCPManager } from '../mcp/manager.js';
 import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
@@ -9,6 +10,8 @@ import type { ApprovalManager } from '../approval/manager.js';
 import type { IAllowedToolsProvider } from './confirmation/allowed-tools-provider/types.js';
 import { ApprovalStatus } from '../approval/types.js';
 import { createMockLogger } from '../logger/v2/test-utils.js';
+import { customToolRegistry } from './custom-tool-registry.js';
+import { customToolSchemaRegistry } from './custom-tool-schema-registry.js';
 
 // Mock logger
 vi.mock('../logger/index.js', () => ({
@@ -223,6 +226,132 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             ).rejects.toThrow(
                 'Internal tools not initialized, cannot execute: internal--search_history'
             );
+        });
+    });
+
+    describe('Custom Tool Initialization', () => {
+        const TEST_PROVIDER_TYPE = 'tool-manager-test-provider';
+        const MISSING_PROVIDER_TYPE = 'tool-manager-test-missing-provider';
+
+        let schemaSnapshot: Array<{ type: string; schema: any }>;
+
+        beforeEach(() => {
+            schemaSnapshot = customToolSchemaRegistry
+                .getRegisteredTypes()
+                .map((type) => ({ type, schema: customToolSchemaRegistry.get(type)! }));
+        });
+
+        const restoreSchemaRegistry = () => {
+            customToolSchemaRegistry.clear();
+            for (const { type, schema } of schemaSnapshot) {
+                customToolSchemaRegistry.register(type, schema);
+            }
+        };
+
+        afterEach(() => {
+            customToolRegistry.unregister(TEST_PROVIDER_TYPE);
+            restoreSchemaRegistry();
+        });
+
+        it('should throw if agent not set before initialization with custom tools', async () => {
+            const toolManager = new ToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'manual',
+                mockAgentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                {
+                    internalToolsConfig: [],
+                    internalToolsServices: {} as any,
+                    customToolsConfig: [{ type: TEST_PROVIDER_TYPE } as any],
+                },
+                mockLogger
+            );
+
+            await expect(toolManager.initialize()).rejects.toThrow(
+                'Agent reference not set. Call setAgent() before initialize() when using custom tools.'
+            );
+        });
+
+        it('should throw on unknown custom tool provider type', async () => {
+            const toolManager = new ToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'manual',
+                mockAgentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                {
+                    internalToolsConfig: [],
+                    internalToolsServices: {} as any,
+                    customToolsConfig: [{ type: MISSING_PROVIDER_TYPE } as any],
+                },
+                mockLogger
+            );
+
+            toolManager.setAgent({ services: {} } as any);
+
+            const error = (await toolManager.initialize().catch((e) => e)) as DextoRuntimeError;
+            expect(error).toBeInstanceOf(DextoRuntimeError);
+            expect(error.code).toBe(ToolErrorCode.CUSTOM_TOOL_PROVIDER_UNKNOWN);
+            expect(error.scope).toBe(ErrorScope.TOOLS);
+            expect(error.type).toBe(ErrorType.USER);
+        });
+
+        it('should register and execute custom tools through ToolManager', async () => {
+            customToolRegistry.unregister(TEST_PROVIDER_TYPE);
+
+            customToolRegistry.register({
+                type: TEST_PROVIDER_TYPE,
+                configSchema: z
+                    .object({
+                        type: z.literal(TEST_PROVIDER_TYPE),
+                        greeting: z.string(),
+                    })
+                    .strict(),
+                create: (config: any) => [
+                    {
+                        id: 'hello',
+                        description: 'Say hello',
+                        inputSchema: z
+                            .object({
+                                name: z.string(),
+                            })
+                            .strict(),
+                        execute: async (input: any) => `${config.greeting}, ${input.name}`,
+                    },
+                ],
+            } as any);
+
+            const toolManager = new ToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'auto-approve',
+                mockAgentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                {
+                    internalToolsConfig: [],
+                    internalToolsServices: {} as any,
+                    customToolsConfig: [{ type: TEST_PROVIDER_TYPE, greeting: 'Hello' } as any],
+                },
+                mockLogger
+            );
+
+            toolManager.setAgent({ services: {} } as any);
+            await toolManager.initialize();
+
+            (mockMcpManager.getAllTools as ReturnType<typeof vi.fn>).mockResolvedValue({});
+            const allTools = await toolManager.getAllTools();
+            expect(allTools['custom--hello']).toBeDefined();
+
+            const result = await toolManager.executeTool(
+                'custom--hello',
+                { name: 'World' },
+                'call-1'
+            );
+            expect(result).toEqual({ result: 'Hello, World' });
         });
     });
 
