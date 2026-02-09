@@ -139,6 +139,10 @@ export interface AgentEventSubscriber {
         'getConfig',
         'getEffectiveConfig',
         'registerSubscriber',
+        'on',
+        'once',
+        'off',
+        'emit',
         'ensureStarted',
     ],
 })
@@ -150,7 +154,7 @@ export class DextoAgent {
      */
     public readonly mcpManager!: MCPManager;
     public readonly systemPromptManager!: SystemPromptManager;
-    public readonly agentEventBus!: AgentEventBus;
+    private readonly agentEventBus: AgentEventBus;
     public readonly promptManager!: PromptManager;
     public readonly stateManager!: AgentStateManager;
     public readonly sessionManager!: SessionManager;
@@ -497,6 +501,44 @@ export class DextoAgent {
         if (this._isStarted) {
             subscriber.subscribe(this.agentEventBus);
         }
+    }
+
+    /**
+     * Convenience event subscription APIs (typed delegates to {@link AgentEventBus}).
+     *
+     * Prefer these over reaching into the internal event bus directly.
+     */
+    public on<K extends keyof AgentEventMap>(
+        event: K,
+        listener: AgentEventMap[K] extends void ? () => void : (payload: AgentEventMap[K]) => void,
+        options?: { signal?: AbortSignal }
+    ): this {
+        this.agentEventBus.on(event, listener, options);
+        return this;
+    }
+
+    public once<K extends keyof AgentEventMap>(
+        event: K,
+        listener: AgentEventMap[K] extends void ? () => void : (payload: AgentEventMap[K]) => void,
+        options?: { signal?: AbortSignal }
+    ): this {
+        this.agentEventBus.once(event, listener, options);
+        return this;
+    }
+
+    public off<K extends keyof AgentEventMap>(
+        event: K,
+        listener: AgentEventMap[K] extends void ? () => void : (payload: AgentEventMap[K]) => void
+    ): this {
+        this.agentEventBus.off(event, listener);
+        return this;
+    }
+
+    public emit<K extends keyof AgentEventMap>(
+        event: K,
+        ...args: AgentEventMap[K] extends void ? [] : [AgentEventMap[K]]
+    ): boolean {
+        return this.agentEventBus.emit(event, ...args);
     }
 
     /**

@@ -218,12 +218,9 @@ export class RuntimeService implements TaskForker {
         // Track current tool for emissions (persists between events)
         let currentTool = '';
 
-        const subAgentBus = subAgentHandle.agent.agentEventBus;
-        const parentBus = this.parentAgent.agentEventBus;
-
         // Helper to emit progress event
         const emitProgress = (tool: string, args?: Record<string, unknown>) => {
-            parentBus.emit('service:event', {
+            this.parentAgent.emit('service:event', {
                 service: 'agent-spawner',
                 event: 'progress',
                 toolCallId,
@@ -291,13 +288,13 @@ export class RuntimeService implements TaskForker {
         };
 
         // Subscribe to sub-agent's events
-        subAgentBus.on('llm:tool-call', toolCallHandler);
-        subAgentBus.on('llm:response', responseHandler);
+        subAgentHandle.agent.on('llm:tool-call', toolCallHandler);
+        subAgentHandle.agent.on('llm:response', responseHandler);
 
         // Return cleanup function
         return () => {
-            subAgentBus.off('llm:tool-call', toolCallHandler);
-            subAgentBus.off('llm:response', responseHandler);
+            subAgentHandle.agent.off('llm:tool-call', toolCallHandler);
+            subAgentHandle.agent.off('llm:response', responseHandler);
         };
     }
 

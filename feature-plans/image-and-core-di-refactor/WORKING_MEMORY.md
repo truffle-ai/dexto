@@ -19,15 +19,14 @@
 
 ## Current Task
 
-**Task:** **1.23 — `events/` — vet + add `agent.on()` convenience API**
+**Task:** **1.24 — `errors/` — vet**
 **Status:** _Not started_
 **Branch:** `rebuild-di`
 
 ### Plan
-- Vet `packages/core/src/events/` for DI/registry coupling (expect: none).
-- Add `agent.on()`, `agent.once()`, `agent.off()` thin delegates to `agentEventBus` (typed via `AgentEventMap`).
-- Update a minimal set of call sites/tests to use `agent.on()` (incremental is OK).
-- If changes are needed, keep them minimal and keep `pnpm run build` + `pnpm test` passing.
+- Vet `packages/core/src/errors/` for DI/registry coupling (expect: none).
+- Confirm error classes/mapping are stable and don’t pull in provider registries.
+- Exit: either no changes, or minimal changes with `pnpm run build` + `pnpm test` passing.
 
 ### Notes
 _Log findings, issues, and progress here as you work._
@@ -42,6 +41,7 @@ _Record important decisions made during implementation that aren't in the main p
 |------|----------|-----------|
 | 2026-02-10 | Tool IDs must be fully-qualified (`internal--*`, `custom--*`) when handed to `ToolManager` | Keeps `ToolManager` DI-only and avoids re-introducing config/prefixing rules inside core. |
 | 2026-02-10 | `PluginManager` no longer loads plugins from config | Keeps `PluginManager` DI-only; config→instance resolution moved to a temporary resolver helper. |
+| 2026-02-10 | Expose `agent.on/once/off/emit` and remove external `agentEventBus` access | Keeps typed events ergonomic while preventing host layers from reaching into core internals; allows gradual migration of subscribers/tools without passing the bus around. |
 
 ---
 
@@ -86,6 +86,7 @@ _Move tasks here after completion. Keep a brief log of what was done and any dev
 | 1.20 | `prompts/` — vet | 2026-02-10 | No changes needed. Prompt manager/providers are config-driven + DI-compatible; no provider registries involved. |
 | 1.21 | `logger/` — vet | 2026-02-10 | Core no longer creates loggers from config; `DextoAgentOptions.logger` is required and host layers construct loggers (via `createLogger(...)`) and pass them in. Updated agent-management, CLI/server call sites, image bundler output, and CLI templates/tests. `pnpm run build` + `pnpm test` pass. |
 | 1.22 | `telemetry/` — vet | 2026-02-10 | No changes needed. Telemetry is config-driven (`OtelConfigurationSchema`) and registry-free. Init stays in `service-initializer.ts` and is idempotent via a global singleton. |
+| 1.23 | `events/` — vet | 2026-02-10 | Added `DextoAgent.on/once/off/emit` typed delegates and made the internal bus non-public. Migrated CLI/server/tooling to use `agent.*` APIs or `agent.registerSubscriber(...)` instead of `agent.agentEventBus.*`. Updated streaming glue to accept an event emitter (emit-only) for auto-approvals. `pnpm run build` + `pnpm test` pass. |
 
 ---
 

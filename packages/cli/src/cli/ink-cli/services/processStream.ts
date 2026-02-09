@@ -87,8 +87,8 @@ export interface ProcessStreamOptions {
     useStreaming?: boolean;
     /** Ref to check if "accept all edits" mode is enabled (reads .current for latest value) */
     autoApproveEditsRef: { current: boolean };
-    /** Event bus for emitting auto-approval responses */
-    eventBus: import('@dexto/core').AgentEventBus;
+    /** Event emitter for emitting auto-approval responses */
+    eventBus: Pick<import('@dexto/core').AgentEventBus, 'emit'>;
     /** Sound notification service for playing sounds on events */
     soundService?: import('../utils/soundNotification.js').SoundNotificationService;
     /** Optional setter for todos (from service:event todo updates) */

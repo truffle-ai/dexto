@@ -100,7 +100,7 @@ export const agentSpawnerToolsProvider: CustomToolProvider<'agent-spawner', Agen
                 : tasks;
             const runningCount = scopedTasks.filter((task) => task.status === 'running').length;
 
-            agent.agentEventBus.emit('service:event', {
+            agent.emit('service:event', {
                 service: 'orchestration',
                 event: 'tasks-updated',
                 sessionId: sessionId ?? '',
@@ -120,7 +120,7 @@ export const agentSpawnerToolsProvider: CustomToolProvider<'agent-spawner', Agen
                 return;
             }
 
-            agent.agentEventBus.emit('tool:background-completed', {
+            agent.emit('tool:background-completed', {
                 toolCallId: taskId,
                 sessionId,
             });
@@ -181,7 +181,7 @@ export const agentSpawnerToolsProvider: CustomToolProvider<'agent-spawner', Agen
                             })
                             .catch(() => undefined);
                     } else {
-                        agent.agentEventBus.emit('run:invoke', {
+                        agent.emit('run:invoke', {
                             sessionId,
                             content,
                             source: 'external',
@@ -240,10 +240,10 @@ export const agentSpawnerToolsProvider: CustomToolProvider<'agent-spawner', Agen
         };
 
         const backgroundAbortController = new AbortController();
-        agent.agentEventBus.on('tool:background', handleBackground, {
+        agent.on('tool:background', handleBackground, {
             signal: backgroundAbortController.signal,
         });
-        agent.agentEventBus.on('agent:stopped', () => {
+        agent.on('agent:stopped', () => {
             backgroundAbortController.abort();
         });
 

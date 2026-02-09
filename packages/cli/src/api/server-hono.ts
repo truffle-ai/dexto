@@ -223,9 +223,9 @@ export async function initializeHonoApi(
     async function wireServicesToAgent(agent: DextoAgent): Promise<void> {
         logger.debug('Wiring services to agent...');
 
-        // Subscribe to event bus (methods handle aborting previous subscriptions)
-        webhookSubscriber.subscribe(agent.agentEventBus);
-        sseSubscriber.subscribe(agent.agentEventBus);
+        // Register subscribers (DextoAgent handles (re-)subscription on start/restart)
+        agent.registerSubscriber(webhookSubscriber);
+        agent.registerSubscriber(sseSubscriber);
         // Note: ApprovalCoordinator doesn't subscribe to agent event bus
         // It's a separate coordination channel between handler and server
     }

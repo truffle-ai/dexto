@@ -144,8 +144,8 @@ export async function startDextoServer(
 
     // Wire SSE subscribers to agent event bus
     logger.debug('Wiring event subscribers to agent...');
-    webhookSubscriber.subscribe(agent.agentEventBus);
-    sseSubscriber.subscribe(agent.agentEventBus);
+    agent.registerSubscriber(webhookSubscriber);
+    agent.registerSubscriber(sseSubscriber);
 
     // Start the agent
     logger.info('Starting agent...');

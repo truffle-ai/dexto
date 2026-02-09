@@ -64,10 +64,9 @@ export const todoToolsProvider: CustomToolProvider<'todo-tools', TodoToolsConfig
         }
 
         const database = storageManager.getDatabase();
-        const eventBus = agent.agentEventBus;
 
         // Create TodoService with validated config
-        const todoService = new TodoService(database, eventBus, logger, {
+        const todoService = new TodoService(database, agent, logger, {
             maxTodosPerSession: config.maxTodosPerSession,
             enableEvents: config.enableEvents,
         });

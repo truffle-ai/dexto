@@ -548,7 +548,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                                 {
                                     useStreaming,
                                     autoApproveEditsRef,
-                                    eventBus: agent.agentEventBus,
+                                    eventBus: agent,
                                     setTodos,
                                     ...(soundService && { soundService }),
                                 }
@@ -693,7 +693,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                             {
                                 useStreaming,
                                 autoApproveEditsRef,
-                                eventBus: agent.agentEventBus,
+                                eventBus: agent,
                                 setTodos,
                                 ...(soundService && { soundService }),
                             }

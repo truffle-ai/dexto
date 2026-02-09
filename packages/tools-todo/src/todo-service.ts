@@ -15,19 +15,21 @@ import { TODO_STATUS_VALUES } from './types.js';
 const DEFAULT_MAX_TODOS = 100;
 const TODOS_KEY_PREFIX = 'todos:';
 
+type TodoEventEmitter = Pick<AgentEventBus, 'emit'>;
+
 /**
  * TodoService - Manages todo lists for agent workflow tracking
  */
 export class TodoService {
     private database: Database;
-    private eventBus: AgentEventBus;
+    private eventBus: TodoEventEmitter;
     private logger: IDextoLogger;
     private config: Required<TodoConfig>;
     private initialized: boolean = false;
 
     constructor(
         database: Database,
-        eventBus: AgentEventBus,
+        eventBus: TodoEventEmitter,
         logger: IDextoLogger,
         config: TodoConfig = {}
     ) {

@@ -1678,7 +1678,7 @@ program
                             const { createCLIApprovalHandler } = await import(
                                 './cli/approval/index.js'
                             );
-                            const handler = createCLIApprovalHandler(agent.agentEventBus);
+                            const handler = createCLIApprovalHandler(agent);
                             agent.setApprovalHandler(handler);
 
                             logger.debug('CLI approval handler configured for Ink CLI');
@@ -1767,7 +1767,7 @@ program
 
                             const { CLISubscriber } = await import('./cli/cli-subscriber.js');
                             const cliSubscriber = new CLISubscriber();
-                            cliSubscriber.subscribe(agent.agentEventBus);
+                            agent.registerSubscriber(cliSubscriber);
 
                             try {
                                 await cliSubscriber.runAndWait(

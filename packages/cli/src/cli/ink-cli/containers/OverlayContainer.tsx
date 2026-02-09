@@ -172,8 +172,6 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
         },
         ref
     ) {
-        const eventBus = agent.agentEventBus;
-
         // Refs to overlay components for input handling
         const approvalRef = useRef<ApprovalPromptHandle>(null);
         const slashAutocompleteRef = useRef<SlashCommandAutocompleteHandle>(null);
@@ -336,7 +334,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                 enableAcceptEditsMode?: boolean;
                 rememberDirectory?: boolean;
             }) => {
-                if (!approval || !eventBus) return;
+                if (!approval) return;
 
                 // Enable "accept all edits" mode if requested
                 if (options.enableAcceptEditsMode) {
@@ -359,7 +357,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     }));
                 }
 
-                eventBus.emit('approval:response', {
+                agent.emit('approval:response', {
                     approvalId: approval.approvalId,
                     status: ApprovalStatus.APPROVED,
                     sessionId: approval.sessionId,
@@ -373,19 +371,19 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
 
                 completeApproval();
             },
-            [approval, eventBus, completeApproval, setUi]
+            [approval, agent, completeApproval, setUi]
         );
 
         const handleDeny = useCallback(
             (feedback?: string) => {
-                if (!approval || !eventBus) return;
+                if (!approval) return;
 
                 // Include user feedback in the denial message if provided
                 const message = feedback
                     ? `User requested changes: ${feedback}`
                     : 'User denied the tool execution';
 
-                eventBus.emit('approval:response', {
+                agent.emit('approval:response', {
                     approvalId: approval.approvalId,
                     status: ApprovalStatus.DENIED,
                     sessionId: approval.sessionId,
@@ -395,13 +393,13 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
 
                 completeApproval();
             },
-            [approval, eventBus, completeApproval]
+            [approval, agent, completeApproval]
         );
 
         const handleCancelApproval = useCallback(() => {
-            if (!approval || !eventBus) return;
+            if (!approval) return;
 
-            eventBus.emit('approval:response', {
+            agent.emit('approval:response', {
                 approvalId: approval.approvalId,
                 status: ApprovalStatus.CANCELLED,
                 sessionId: approval.sessionId,
@@ -410,7 +408,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
             });
 
             completeApproval();
-        }, [approval, eventBus, completeApproval]);
+        }, [approval, agent, completeApproval]);
 
         // Helper: Check if error is due to missing API key
         const isApiKeyMissingError = (error: unknown): LLMProvider | null => {
