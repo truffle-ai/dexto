@@ -2,6 +2,8 @@
 
 This plan captures the current problems, the target architecture, and concrete before/after behavior with code snippets. It is written to preserve the current CLI UX while making core DI‑friendly and fixing the image system.
 
+**Working memory:** [`WORKING_MEMORY.md`](./WORKING_MEMORY.md) is a colocated scratchpad that agents should actively update while working through this plan. It tracks the current task, decisions made, blockers, and progress. **Read it before starting work. Update it after each task.**
+
 ---
 
 ## 1. Problems
@@ -1825,7 +1827,7 @@ Even though this is one PR, validate at each phase boundary to catch drift early
 | **After Phase 1E** (commit 1.23) | `DextoAgent` constructor takes `DextoAgentOptions`. `agent.on()` works. |
 | **After Phase 1F** (commit 1.29) | All registries deleted. `rg 'BaseRegistry\|blobStoreRegistry\|databaseRegistry\|cacheRegistry\|customToolRegistry\|pluginRegistry\|compactionRegistry' packages/core/src/` → zero results. |
 | **After Phase 2** (commit 2.6) | `resolveServicesFromConfig()` works with mock image. `AgentConfigSchema` in agent‑config. |
-| **After Phase 3** (commit 3.8) | `@dexto/tools-builtins`, `@dexto/storage`, `@dexto/logger` created. `image-local` exports typed `DextoImageModule`. |
+| **After Phase 3** (commit 3.7) | `@dexto/tools-builtins`, `@dexto/storage`, `@dexto/logger` created. `image-local` exports typed `DextoImageModule`. |
 | **After Phase 4** (commit 4.5) | `dexto` CLI starts. Chat works. Server mode works. Manual smoke test passes. |
 | **After Phase 5** (commit 5.5) | Zero dead code. Full test pass. Docs updated. All quality checks green. |
 
@@ -1923,12 +1925,14 @@ This preserves CLI UX while cleaning architecture, increasing type safety, and e
 
 #### 1A — Storage layer (`packages/core/src/storage/`)
 
+> **Note on implementations:** Phase 1A only removes registries and factory wiring. All concrete implementations (`LocalBlobStore`, `SqliteStore`, `MemoryCache`, etc.) remain in core as plain exports throughout Phases 1–2. They are physically extracted to `@dexto/storage` in Phase 3.2. This keeps Phase 1 focused on DI changes and avoids combining a large file move with the registry removal.
+
 - [ ] **1.1 `storage/blob/` — decouple from registry**
   - Files: `registry.ts` (59 lines), `factory.ts` (55 lines), `provider.ts`, `providers/local.ts`, `providers/memory.ts`, `local-blob-store.ts`, `memory-blob-store.ts`, `schemas.ts`, `types.ts`, `index.ts`
   - `factory.ts` calls `blobStoreRegistry.validateConfig()` + `.get()` → remove this path from core. Factory moves to resolver or is deleted.
   - `providers/local.ts` and `providers/memory.ts` auto‑register in `index.ts` → remove auto‑registration, keep as plain exports
   - `registry.ts` + `registry.test.ts` → delete
-  - `schemas.ts` (provider config schemas: `LocalBlobStoreSchema`, `InMemoryBlobStoreSchema`) → stay, but move usage to resolver layer
+  - `schemas.ts` (provider config schemas: `LocalBlobStoreSchema`, `InMemoryBlobStoreSchema`) → stay in core for now (moves to `@dexto/storage` in Phase 3.2)
   - `types.ts` (`BlobStore` interface, `BlobStoreProvider` type) → `BlobStore` interface stays in core, `BlobStoreProvider` type may move to agent‑config
   - Exit: zero registry imports in `storage/blob/`. `BlobStore` interface clean. Build + tests pass.
 
@@ -1953,7 +1957,7 @@ This preserves CLI UX while cleaning architecture, increasing type safety, and e
 
 #### 1B — Tools layer (`packages/core/src/tools/`)
 
-**Key change: `internalTools` + `customTools` unify into a single `tools: Tool[]`.** Core receives a flat list. It doesn't distinguish "built‑in" from "custom." Former "internal" tools (ask_user, search_history, etc.) move out of core into `@dexto/tools-builtins` as a standard `ToolFactory` (Phase 3).
+**Key change: `internalTools` + `customTools` unify into a single `tools: Tool[]`.** Core receives a flat list. It doesn't distinguish "built‑in" from "custom." Former "internal" tools (ask_user, search_history, etc.) stay in core as plain exports during Phase 1, then move to `@dexto/tools-builtins` in Phase 3.1.
 
 - [ ] **1.5 `tools/custom-tool-registry.ts` — mark for deletion**
   - `CustomToolRegistry` (160 lines) + `custom-tool-schema-registry.ts` → will be deleted in 1.10
@@ -1979,7 +1983,7 @@ This preserves CLI UX while cleaning architecture, increasing type safety, and e
 
 #### 1C — Plugins layer (`packages/core/src/plugins/`)
 
-**Key change: `plugins.registry` + `plugins.custom` unify into a single `plugins: DextoPlugin[]`.** Core receives a flat list. Built‑in plugins (content‑policy, response‑sanitizer) become standard `PluginFactory` entries in the image, same pattern as tools.
+**Key change: `plugins.registry` + `plugins.custom` unify into a single `plugins: DextoPlugin[]`.** Core receives a flat list. Built‑in plugins (content‑policy, response‑sanitizer) stay in core as plain exports during Phase 1, then become `PluginFactory` entries in image‑local (Phase 3.5).
 
 - [ ] **1.8 `plugins/manager.ts` — accept concrete `DextoPlugin[]`**
   - `PluginManager.initialize()` currently uses `pluginRegistry.get()` for registry plugins + `loader.ts` for custom file paths → remove both resolution paths
@@ -1995,7 +1999,7 @@ This preserves CLI UX while cleaning architecture, increasing type safety, and e
 
 #### 1D — Context / Compaction (`packages/core/src/context/`)
 
-**Key change: Compaction is DI.** Core receives a concrete `CompactionStrategy` instance. No config‑based strategy resolution in core.
+**Key change: Compaction is DI.** Core receives a concrete `CompactionStrategy` instance. No config‑based strategy resolution in core. Built‑in strategies (reactive‑overflow, noop) stay in core as plain exports during Phase 1, then become `CompactionFactory` entries in image‑local (Phase 3.5).
 
 - [ ] **1.9 `context/compaction/` — decouple from registry, accept `CompactionStrategy`**
   - Files: `registry.ts` (32 lines), `factory.ts`, `provider.ts`, `providers/reactive-overflow-provider.ts`, `strategies/`, `schemas.ts`, `types.ts`
@@ -2095,11 +2099,11 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
   - Vet: `prompt-manager.ts`, `providers/config-prompt-provider.ts`, `providers/custom-prompt-provider.ts`, `providers/mcp-prompt-provider.ts`, `schemas.ts`
   - Exit: confirmed no registry imports.
 
-- [ ] **1.21 `logger/` — vet (expect: DI change, implementation moves to `@dexto/logger` in Phase 3)**
+- [ ] **1.21 `logger/` — vet (expect: DI change, implementation moves to `@dexto/logger` in Phase 3.3)**
   - Logger becomes a DI instance. Core receives `IDextoLogger`, doesn't create it from config.
   - Vet: `logger.ts` (v1), `v2/` (v2 logger system — ~10 files). Understand which is used.
-  - Phase 1: make core depend only on `IDextoLogger` interface. Move `createLogger()` calls out of core.
-  - Phase 3: extract all implementation files to `@dexto/logger` package (task 3.5).
+  - Phase 1: make core depend only on `IDextoLogger` interface. Move `createLogger()` calls out of core. Implementations stay in core as plain exports.
+  - Phase 3.3: extract all implementation files to `@dexto/logger` package.
   - `LoggerConfigSchema` moves to `@dexto/logger` (config schema lives with the implementation).
   - Exit (Phase 1): core uses `IDextoLogger` interface only. No logger creation from config in core.
 
@@ -2217,6 +2221,7 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
 
 ### Phase 3: Image system rewrite
 > **Goal:** Images export `DextoImageModule` objects. No side effects, no `.toString()`, no registries.
+> **Ordering rationale:** Extraction packages (3.1–3.3) must be created before image‑local (3.5) can import from them. Tool adapter work (3.4) is independent.
 
 - [ ] **3.1 Create `@dexto/tools-builtins` package (former internal tools)**
   - New package: `packages/tools-builtins/`
@@ -2226,31 +2231,14 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
   - Config schema: `{ type: 'builtin-tools', enabled?: string[] }` — omit `enabled` for all
   - Exit: package builds, exports `ToolFactory`. Former internal tools work via factory. Build passes.
 
-- [ ] **3.2 Rewrite `@dexto/image-local` as hand‑written `DextoImageModule`**
-  - Delete `dexto.image.ts` + bundler‑generated output
-  - Write `index.ts` exporting `DextoImageModule` with factory maps
-  - Dependencies: `@dexto/tools-builtins`, `@dexto/tools-filesystem`, `@dexto/tools-process`, `@dexto/tools-todo`, `@dexto/tools-plan`, `@dexto/storage`, `@dexto/logger`
-  - Tools map: `builtin-tools` (from `@dexto/tools-builtins`), `filesystem-tools`, `process-tools`, `todo-tools`, `plan-tools`
-  - Plugins map: `content-policy`, `response-sanitizer` (former built‑in plugins)
-  - Compaction map: `reactive-overflow`, `noop` (built‑in strategies from core)
-  - Storage map: `local`, `in-memory-blob`, `sqlite`, `postgres`, `in-memory-db`, `in-memory-cache`, `redis` (all from `@dexto/storage`)
-  - Logger: default logger factory from `@dexto/logger`
-  - Exit: `import imageLocal from '@dexto/image-local'` returns typed `DextoImageModule`. No side effects on import. Build passes.
-
-- [ ] **3.3 Adapt existing tool provider packages**
-  - `@dexto/tools-filesystem`, `@dexto/tools-process`, `@dexto/tools-todo`, `@dexto/tools-plan`
-  - Each currently exports a `CustomToolProvider<Type, Config>` — verify it matches `ToolFactory` or create adapter
-  - Remove `customToolRegistry.register()` calls if any exist
-  - Exit: each tool package exports a `ToolFactory`‑compatible object. No registry imports.
-
-- [ ] **3.4 Create `@dexto/storage` package (extract from core)**
+- [ ] **3.2 Create `@dexto/storage` package (extract from core)**
   - New package: `packages/storage/`
   - Move ALL storage implementations from `packages/core/src/storage/`:
     - Blob: `local-blob-store.ts` (586 lines), `memory-blob-store.ts` (418 lines), `providers/local.ts`, `providers/memory.ts`
     - Database: `sqlite-store.ts` (319 lines), `postgres-store.ts` (407 lines), `memory-database-store.ts` (121 lines), `providers/sqlite.ts`, `providers/postgres.ts`, `providers/memory.ts`
     - Cache: `memory-cache-store.ts` (99 lines), `redis-store.ts` (182 lines), `providers/memory.ts`, `providers/redis.ts`
   - Move storage config schemas: `blob/schemas.ts`, `database/schemas.ts`, `cache/schemas.ts`, `schemas.ts`
-  - Move provider interfaces: `blob/provider.ts`, `database/provider.ts`, `cache/provider.ts`. Vet if these are still necssary as well.
+  - Move provider interfaces: `blob/provider.ts`, `database/provider.ts`, `cache/provider.ts`. Vet if these are still necessary as well.
   - Create `StorageFactory`‑compatible objects for each implementation (remove auto‑registration)
   - Provider-specific dependencies (`better-sqlite3`, `pg`, `ioredis`) move to this package
   - Core keeps: `BlobStore`/`Database`/`Cache` interfaces, `StorageManager`, error types
@@ -2258,7 +2246,7 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
   - `@dexto/storage` depends on `@dexto/core` (for interface types)
   - Exit: `@dexto/storage` builds, exports all `StorageFactory` objects. Core's storage layer is interfaces only. Build passes.
 
-- [ ] **3.5 Create `@dexto/logger` package (extract from core)**
+- [ ] **3.3 Create `@dexto/logger` package (extract from core)**
   - New package: `packages/logger/`
   - Move logger implementations from `packages/core/src/logger/`:
     - v1 logger (`logger.ts`) and v2 logger system (`v2/` — ~10 files)
@@ -2270,14 +2258,32 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
   - `@dexto/logger` depends on `@dexto/core` (for `IDextoLogger` interface)
   - Exit: `@dexto/logger` builds, exports `LoggerFactory`. Core's logger is interface-only. Build passes.
 
-- [ ] **3.7 Update `@dexto/image-bundler`**
+- [ ] **3.4 Adapt existing tool provider packages**
+  - `@dexto/tools-filesystem`, `@dexto/tools-process`, `@dexto/tools-todo`, `@dexto/tools-plan`
+  - Each currently exports a `CustomToolProvider<Type, Config>` — verify it matches `ToolFactory` or create adapter
+  - Remove `customToolRegistry.register()` calls if any exist
+  - Exit: each tool package exports a `ToolFactory`‑compatible object. No registry imports.
+
+- [ ] **3.5 Rewrite `@dexto/image-local` as hand‑written `DextoImageModule`**
+  - **Depends on:** 3.1 (tools-builtins), 3.2 (storage), 3.3 (logger), 3.4 (tool adapters)
+  - Delete `dexto.image.ts` + bundler‑generated output
+  - Write `index.ts` exporting `DextoImageModule` with factory maps
+  - Dependencies: `@dexto/tools-builtins`, `@dexto/tools-filesystem`, `@dexto/tools-process`, `@dexto/tools-todo`, `@dexto/tools-plan`, `@dexto/storage`, `@dexto/logger`
+  - Tools map: `builtin-tools` (from `@dexto/tools-builtins`), `filesystem-tools`, `process-tools`, `todo-tools`, `plan-tools`
+  - Plugins map: `content-policy`, `response-sanitizer` (former built‑in plugins)
+  - Compaction map: `reactive-overflow`, `noop` (built‑in strategies from core)
+  - Storage map: `local`, `in-memory-blob`, `sqlite`, `postgres`, `in-memory-db`, `in-memory-cache`, `redis` (all from `@dexto/storage`)
+  - Logger: default logger factory from `@dexto/logger`
+  - Exit: `import imageLocal from '@dexto/image-local'` returns typed `DextoImageModule`. No side effects on import. Build passes.
+
+- [ ] **3.6 Update `@dexto/image-bundler`**
   - Generate `DextoImageModule` object literal with explicit imports (not `register()` calls)
   - Folder name → type string mapping (`tools/jira/` → key `'jira'`)
   - Remove `.toString()` serialization logic entirely
   - Remove duck‑typing discovery — require explicit `export const provider` contract
   - Exit: bundler generates valid `DextoImageModule`. Can bundle a test image with convention folders. Proper documentation inside the repo for how to use this as well.
 
-- [ ] **3.8 Remove old image infrastructure from core**
+- [ ] **3.7 Remove old image infrastructure from core**
   - Delete `packages/core/src/image/define-image.ts`
   - Delete `packages/core/src/image/types.ts` (old `ImageDefinition`, `ImageProvider`, etc.)
   - Remove image exports from `packages/core/src/index.ts`
