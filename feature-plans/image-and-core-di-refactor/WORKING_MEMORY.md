@@ -19,14 +19,14 @@
 
 ## Current Task
 
-**Task:** **1.24 — `errors/` — vet**
+**Task:** **1.25 — `utils/` — vet remaining utilities**
 **Status:** _Not started_
 **Branch:** `rebuild-di`
 
 ### Plan
-- Vet `packages/core/src/errors/` for DI/registry coupling (expect: none).
-- Confirm error classes/mapping are stable and don’t pull in provider registries.
-- Exit: either no changes, or minimal changes with `pnpm run build` + `pnpm test` passing.
+- Vet `packages/core/src/utils/` (excluding `service-initializer.ts`, already handled in 1.11).
+- Confirm remaining utilities don’t pull in provider registries or do path-resolution work that belongs in host layers.
+- Exit: confirm no changes (or minimal changes) with `pnpm run build` + `pnpm test` passing.
 
 ### Notes
 _Log findings, issues, and progress here as you work._
@@ -87,6 +87,7 @@ _Move tasks here after completion. Keep a brief log of what was done and any dev
 | 1.21 | `logger/` — vet | 2026-02-10 | Core no longer creates loggers from config; `DextoAgentOptions.logger` is required and host layers construct loggers (via `createLogger(...)`) and pass them in. Updated agent-management, CLI/server call sites, image bundler output, and CLI templates/tests. `pnpm run build` + `pnpm test` pass. |
 | 1.22 | `telemetry/` — vet | 2026-02-10 | No changes needed. Telemetry is config-driven (`OtelConfigurationSchema`) and registry-free. Init stays in `service-initializer.ts` and is idempotent via a global singleton. |
 | 1.23 | `events/` — vet | 2026-02-10 | Added `DextoAgent.on/once/off/emit` typed delegates and made the internal bus non-public. Migrated CLI/server/tooling to use `agent.*` APIs or `agent.registerSubscriber(...)` instead of `agent.agentEventBus.*`. Updated streaming glue to accept an event emitter (emit-only) for auto-approvals. `pnpm run build` + `pnpm test` pass. |
+| 1.24 | `errors/` — vet | 2026-02-10 | No changes needed. Error infrastructure is registry-free and remains DI-neutral. |
 
 ---
 
