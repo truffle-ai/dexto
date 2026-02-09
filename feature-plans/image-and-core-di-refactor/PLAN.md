@@ -614,6 +614,8 @@ Schemas that **move to `@dexto/agent-config`** (DI surface config shapes, core d
 - `packages/core/src/tools/schemas.ts` → `CustomToolsSchema`, `InternalToolsSchema` (→ unified `ToolsConfigSchema`)
 - `packages/core/src/plugins/schemas.ts` → `PluginsConfigSchema` (→ unified)
 - `packages/core/src/context/compaction/schemas.ts` → `CompactionConfigSchema`
+
+Schemas that **move to `@dexto/logger`** (live with implementations):
 - `packages/core/src/logger/v2/schemas.ts` → `LoggerConfigSchema`
 
 Schemas that **move to `@dexto/storage`** (live with implementations, used by `StorageFactory` objects):
@@ -1483,7 +1485,7 @@ Request → Platform orchestrator → spawn worker process
 
 **Why this works:**
 - **No secrets exposure**: The `dexto` provider already exists in core. It uses `DEXTO_API_KEY` (the user's own credential) to route through `api.dexto.ai/v1`. The gateway adds real LLM provider keys server‑side. User code never sees platform API keys.
-- **BYOK support**: If a user has Bring Your Own Key configured, the gateway resolves their stored keys server‑side. The agent environment doesn't change — still just `DEXTO_API_KEY`.
+- **BYOK support [future feature] **: If a user has Bring Your Own Key configured, the gateway resolves their stored keys server‑side. The agent environment doesn't change — still just `DEXTO_API_KEY`.
 - **Low cost**: Worker processes (Node.js child_process pool) provide process‑level isolation without the overhead of Docker containers. Sandbox containers are only needed for coding agents that require filesystem/process access.
 - **Same gateway path**: This is the same network path CLI users already use with `provider: dexto`. No extra infrastructure.
 
@@ -1507,13 +1509,13 @@ The `DextoAgent` constructor is identical in both cases — it always receives c
 
 **Phase 1 goal (Option A):** Move the top‑level `AgentConfigSchema` composition and DI surface schemas out of core into `@dexto/agent-config`. Core keeps module‑level schemas for config‑based surfaces only.
 
-**Long‑term goal (Option C):** Incrementally replace remaining `z.output` types in core with plain TypeScript interfaces, one module at a time, until core has zero Zod dependency. Each module refactor is a standalone PR. Option A paves the way by establishing the boundary.
+**Long‑term goal (Option C):** Incrementally replace remaining `z.output` types in core with plain TypeScript interfaces, one module at a time, until core has zero Zod dependency. Option A paves the way by establishing the boundary.
 
 ### What moves to `@dexto/agent-config`
 
 1. **`AgentConfigSchema`** — the top‑level composition that glues all sub‑schemas into the YAML shape
 2. **`ValidatedAgentConfig`** type — the monolithic output of YAML parsing
-3. **DI surface schemas:** `CustomToolsSchema` (→ `ToolsConfigSchema`), `PluginsConfigSchema`, `CompactionConfigSchema`, `LoggerConfigSchema` — these move to `@dexto/agent-config`. Storage schemas move to `@dexto/storage` (live with implementations); `agent-config` imports from `@dexto/storage` to compose the top‑level schema.
+3. **DI surface schemas:** `CustomToolsSchema` (→ `ToolsConfigSchema`), `PluginsConfigSchema`, `CompactionConfigSchema` — these move to `@dexto/agent-config`. `StorageConfigSchema` moves to `@dexto/storage`, `LoggerConfigSchema` moves to `@dexto/logger` (schemas live with implementations). `agent-config` imports from both to compose the top‑level schema.
 4. **The YAML → `DextoAgentOptions` transformation** — extract DI sections, resolve via image factories, pass remainder + instances
 
 Agent‑config **imports core's sub‑schemas** to compose the full YAML schema — no duplication:
@@ -1529,7 +1531,7 @@ import { StorageConfigSchema } from '@dexto/storage';  // lives with implementat
 import { ToolsConfigSchema } from './tools.js';
 import { PluginsConfigSchema } from './plugins.js';
 import { CompactionConfigSchema } from './compaction.js';
-import { LoggerConfigSchema } from './logger.js';
+import { LoggerConfigSchema } from '@dexto/logger';     // lives with implementations
 
 export const AgentConfigSchema = z.object({
     agentId: z.string().default('coding-agent'),
@@ -2147,7 +2149,7 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
   - Remove: `listAllProviders`, `hasProvider` from providers
   - Remove: `defineImage` and image types
   - Remove: `AgentConfigSchema`, `ValidatedAgentConfig` (moved to agent‑config)
-  - Remove: DI surface schemas (`CustomToolsSchema`, `PluginsConfigSchema`, `CompactionConfigSchema`, `LoggerConfigSchema`) — these move to agent‑config. Storage schemas move to `@dexto/storage`.
+  - Remove: DI surface schemas (`CustomToolsSchema`, `PluginsConfigSchema`, `CompactionConfigSchema`) → agent‑config. `StorageSchema` → `@dexto/storage`. `LoggerConfigSchema` → `@dexto/logger`.
   - Keep: all interface exports (`BlobStore`, `Database`, `Cache`, `Tool`, `DextoPlugin`, `CompactionStrategy`, `IDextoLogger`, `DextoAgentOptions`, etc.)
   - Keep: module‑level config exports (sub‑schemas like `LLMConfigSchema`, `SessionConfigSchema`, etc. + their derived types)
   - Vet: `index.browser.ts` — browser‑safe exports subset. Remove registry exports here too.
@@ -2196,7 +2198,7 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
 - [ ] **2.5 Move `AgentConfigSchema` + DI schemas to agent‑config**
   - **Decision (made):** `AgentConfigSchema` moves to `@dexto/agent-config`. Core keeps module‑level sub‑schemas.
   - Create `packages/agent-config/src/schemas/agent-config.ts` — imports core sub‑schemas + defines DI surface schemas locally
-  - Move DI surface schemas: `StorageSchema`, `ToolsConfigSchema` (unified), `PluginsConfigSchema` (unified), `CompactionConfigSchema`, `LoggerConfigSchema`
+  - Move DI surface schemas: `ToolsConfigSchema` (unified), `PluginsConfigSchema` (unified), `CompactionConfigSchema` → agent‑config. Import `StorageConfigSchema` from `@dexto/storage` and `LoggerConfigSchema` from `@dexto/logger`.
   - Move `ValidatedAgentConfig` type to agent‑config
   - Keep `AgentCardSchema` (shared) — decide location (may stay in core since `agentCard` is in `DextoAgentOptions`)
   - Remove `AgentConfigSchema` + `ValidatedAgentConfig` from core's `schemas.ts` and barrel exports
