@@ -20,6 +20,7 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import {
     AgentConfigSchema,
+    createLogger,
     logger,
     DextoAgent,
     DextoValidationError,
@@ -228,7 +229,11 @@ export class AgentManager {
 
             // Load agent instance
             logger.debug(`Loading agent: ${id} from ${configPath}`);
-            return new DextoAgent({ config: validatedConfig, configPath });
+            const agentLogger = createLogger({
+                config: validatedConfig.logger,
+                agentId: validatedConfig.agentId,
+            });
+            return new DextoAgent({ config: validatedConfig, configPath, logger: agentLogger });
         } catch (error) {
             // Convert ZodError to DextoValidationError for better error messages
             if (error instanceof ZodError) {

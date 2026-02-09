@@ -6,6 +6,7 @@ import type { AgentServices } from '../utils/service-initializer.js';
 import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
 import { ErrorScope, ErrorType } from '../errors/types.js';
 import { AgentErrorCode } from './error-codes.js';
+import { createLogger } from '../logger/factory.js';
 
 // Mock the createAgentServices function
 vi.mock('../utils/service-initializer.js', () => ({
@@ -19,6 +20,11 @@ describe('DextoAgent Lifecycle Management', () => {
     let mockConfig: AgentConfig;
     let mockValidatedConfig: ValidatedAgentConfig;
     let mockServices: AgentServices;
+
+    const createTestAgent = (config: ValidatedAgentConfig) => {
+        const agentLogger = createLogger({ config: config.logger, agentId: config.agentId });
+        return new DextoAgent({ config, logger: agentLogger });
+    };
 
     beforeEach(() => {
         vi.resetAllMocks();
@@ -116,7 +122,7 @@ describe('DextoAgent Lifecycle Management', () => {
 
     describe('Constructor Patterns', () => {
         test('should create agent with config (new pattern)', () => {
-            const agent = new DextoAgent({ config: mockValidatedConfig });
+            const agent = createTestAgent(mockValidatedConfig);
 
             expect(agent.isStarted()).toBe(false);
             expect(agent.isStopped()).toBe(false);
@@ -125,7 +131,7 @@ describe('DextoAgent Lifecycle Management', () => {
 
     describe('start() Method', () => {
         test('should start successfully with valid config', async () => {
-            const agent = new DextoAgent({ config: mockValidatedConfig });
+            const agent = createTestAgent(mockValidatedConfig);
 
             await agent.start();
 
@@ -154,7 +160,7 @@ describe('DextoAgent Lifecycle Management', () => {
                 },
             };
             const validatedConfigWithServerModes = AgentConfigSchema.parse(configWithServerModes);
-            const agent = new DextoAgent({ config: validatedConfigWithServerModes });
+            const agent = createTestAgent(validatedConfigWithServerModes);
 
             await agent.start();
 
@@ -167,7 +173,7 @@ describe('DextoAgent Lifecycle Management', () => {
         });
 
         test('should throw error when starting twice', async () => {
-            const agent = new DextoAgent({ config: mockValidatedConfig });
+            const agent = createTestAgent(mockValidatedConfig);
 
             await agent.start();
 
@@ -181,7 +187,7 @@ describe('DextoAgent Lifecycle Management', () => {
         });
 
         test('should handle start failure gracefully', async () => {
-            const agent = new DextoAgent({ config: mockValidatedConfig });
+            const agent = createTestAgent(mockValidatedConfig);
             mockCreateAgentServices.mockRejectedValue(new Error('Service initialization failed'));
 
             await expect(agent.start()).rejects.toThrow('Service initialization failed');
@@ -191,7 +197,7 @@ describe('DextoAgent Lifecycle Management', () => {
 
     describe('stop() Method', () => {
         test('should stop successfully after start', async () => {
-            const agent = new DextoAgent({ config: mockValidatedConfig });
+            const agent = createTestAgent(mockValidatedConfig);
             await agent.start();
 
             await agent.stop();
@@ -204,7 +210,7 @@ describe('DextoAgent Lifecycle Management', () => {
         });
 
         test('should throw error when stopping before start', async () => {
-            const agent = new DextoAgent({ config: mockValidatedConfig });
+            const agent = createTestAgent(mockValidatedConfig);
 
             await expect(agent.stop()).rejects.toThrow(
                 expect.objectContaining({
@@ -216,7 +222,7 @@ describe('DextoAgent Lifecycle Management', () => {
         });
 
         test('should warn when stopping twice but not throw', async () => {
-            const agent = new DextoAgent({ config: mockValidatedConfig });
+            const agent = createTestAgent(mockValidatedConfig);
             await agent.start();
             await agent.stop();
 
@@ -225,7 +231,7 @@ describe('DextoAgent Lifecycle Management', () => {
         });
 
         test('should handle partial cleanup failures gracefully', async () => {
-            const agent = new DextoAgent({ config: mockValidatedConfig });
+            const agent = createTestAgent(mockValidatedConfig);
             await agent.start();
 
             // Make session cleanup fail
@@ -258,7 +264,7 @@ describe('DextoAgent Lifecycle Management', () => {
         ];
 
         test.each(testMethods)('$name should throw before start()', async ({ name, args }) => {
-            const agent = new DextoAgent({ config: mockValidatedConfig });
+            const agent = createTestAgent(mockValidatedConfig);
 
             let thrownError: DextoRuntimeError | undefined;
             try {
@@ -277,7 +283,7 @@ describe('DextoAgent Lifecycle Management', () => {
         });
 
         test.each(testMethods)('$name should throw after stop()', async ({ name, args }) => {
-            const agent = new DextoAgent({ config: mockValidatedConfig });
+            const agent = createTestAgent(mockValidatedConfig);
             await agent.start();
             await agent.stop();
 
@@ -298,7 +304,7 @@ describe('DextoAgent Lifecycle Management', () => {
         });
 
         test('isStarted and isStopped should work without start() (read-only)', () => {
-            const agent = new DextoAgent({ config: mockValidatedConfig });
+            const agent = createTestAgent(mockValidatedConfig);
 
             expect(() => agent.isStarted()).not.toThrow();
             expect(() => agent.isStopped()).not.toThrow();
@@ -307,7 +313,7 @@ describe('DextoAgent Lifecycle Management', () => {
 
     describe('Session Auto-Approve Tools Cleanup (Memory Leak Fix)', () => {
         test('endSession should call clearSessionAutoApproveTools', async () => {
-            const agent = new DextoAgent({ config: mockValidatedConfig });
+            const agent = createTestAgent(mockValidatedConfig);
 
             // Add clearSessionAutoApproveTools mock to toolManager
             mockServices.toolManager.clearSessionAutoApproveTools = vi.fn();
@@ -324,7 +330,7 @@ describe('DextoAgent Lifecycle Management', () => {
         });
 
         test('deleteSession should call clearSessionAutoApproveTools', async () => {
-            const agent = new DextoAgent({ config: mockValidatedConfig });
+            const agent = createTestAgent(mockValidatedConfig);
 
             // Add clearSessionAutoApproveTools mock to toolManager
             mockServices.toolManager.clearSessionAutoApproveTools = vi.fn();
@@ -343,7 +349,7 @@ describe('DextoAgent Lifecycle Management', () => {
         });
 
         test('clearSessionAutoApproveTools should be called before session cleanup', async () => {
-            const agent = new DextoAgent({ config: mockValidatedConfig });
+            const agent = createTestAgent(mockValidatedConfig);
             const callOrder: string[] = [];
 
             mockServices.toolManager.clearSessionAutoApproveTools = vi.fn(() => {
@@ -363,7 +369,7 @@ describe('DextoAgent Lifecycle Management', () => {
 
     describe('Integration Tests', () => {
         test('should handle complete lifecycle without errors', async () => {
-            const agent = new DextoAgent({ config: mockValidatedConfig });
+            const agent = createTestAgent(mockValidatedConfig);
 
             // Initial state
             expect(agent.isStarted()).toBe(false);
@@ -384,7 +390,7 @@ describe('DextoAgent Lifecycle Management', () => {
         });
 
         test('should handle resource cleanup in correct order', async () => {
-            const agent = new DextoAgent({ config: mockValidatedConfig });
+            const agent = createTestAgent(mockValidatedConfig);
             await agent.start();
 
             const cleanupOrder: string[] = [];

@@ -1,7 +1,14 @@
 import os from 'node:os';
 import type { Context } from 'hono';
 import type { AgentCard } from '@dexto/core';
-import { AgentConfigSchema, DextoAgent, createAgentCard, logger, AgentError } from '@dexto/core';
+import {
+    AgentConfigSchema,
+    DextoAgent,
+    createAgentCard,
+    createLogger,
+    logger,
+    AgentError,
+} from '@dexto/core';
 import {
     loadAgentConfig,
     enrichAgentConfig,
@@ -133,7 +140,15 @@ async function createAgentFromId(agentId: string): Promise<DextoAgent> {
         // Create agent instance
         logger.info(`Creating agent: ${agentId} from ${agentPath}`);
         const validatedConfig = AgentConfigSchema.parse(enrichedConfig);
-        return new DextoAgent({ config: validatedConfig, configPath: agentPath });
+        const agentLogger = createLogger({
+            config: validatedConfig.logger,
+            agentId: validatedConfig.agentId,
+        });
+        return new DextoAgent({
+            config: validatedConfig,
+            configPath: agentPath,
+            logger: agentLogger,
+        });
     } catch (error) {
         throw new Error(
             `Failed to create agent '${agentId}': ${error instanceof Error ? error.message : String(error)}`
@@ -400,7 +415,15 @@ export async function initializeHonoApi(
 
             // 4. Create new agent instance directly (will initialize fresh telemetry in createAgentServices)
             const validatedConfig = AgentConfigSchema.parse(enrichedConfig);
-            newAgent = new DextoAgent({ config: validatedConfig, configPath: filePath });
+            const agentLogger = createLogger({
+                config: validatedConfig.logger,
+                agentId: validatedConfig.agentId,
+            });
+            newAgent = new DextoAgent({
+                config: validatedConfig,
+                configPath: filePath,
+                logger: agentLogger,
+            });
 
             // 5. Use enriched agentId (derived from config or filename during enrichment)
             // enrichAgentConfig always sets agentId, so it's safe to assert non-null

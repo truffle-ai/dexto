@@ -19,13 +19,13 @@
 
 ## Current Task
 
-**Task:** **1.21 — `logger/` — vet**
+**Task:** **1.22 — `telemetry/` — vet**
 **Status:** _Not started_
 **Branch:** `rebuild-di`
 
 ### Plan
-- Audit `packages/core/src/logger/` usage in core and confirm DI boundaries.
-- Confirm core depends on `IDextoLogger` interface (impl extraction later).
+- Audit `packages/core/src/telemetry/` usage in core and confirm DI boundaries.
+- Confirm telemetry stays optional and DI-friendly (no global registries or config resolution inside core).
 - If changes are needed, keep them minimal and keep `pnpm run build` + `pnpm test` passing.
 
 ### Notes
@@ -83,6 +83,7 @@ _Move tasks here after completion. Keep a brief log of what was done and any dev
 | 1.18 | `search/` — vet | 2026-02-10 | No changes needed. `SearchService` is DI-compatible (database + logger) and registry-free. |
 | 1.19 | `resources/` — vet | 2026-02-10 | No changes needed. `ResourceManager` stays config-driven and DI-compatible; no provider registries involved. |
 | 1.20 | `prompts/` — vet | 2026-02-10 | No changes needed. Prompt manager/providers are config-driven + DI-compatible; no provider registries involved. |
+| 1.21 | `logger/` — vet | 2026-02-10 | Core no longer creates loggers from config; `DextoAgentOptions.logger` is required and host layers construct loggers (via `createLogger(...)`) and pass them in. Updated agent-management, CLI/server call sites, image bundler output, and CLI templates/tests. `pnpm run build` + `pnpm test` pass. |
 
 ---
 

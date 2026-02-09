@@ -14,7 +14,6 @@ import { AgentStateManager } from './state-manager.js';
 import { SessionManager, ChatSession, SessionError } from '../session/index.js';
 import type { SessionMetadata } from '../session/index.js';
 import { AgentServices, type InitializeServicesOptions } from '../utils/service-initializer.js';
-import { createLogger } from '../logger/factory.js';
 import type { IDextoLogger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
 import { Telemetry } from '../telemetry/telemetry.js';
@@ -106,7 +105,9 @@ export interface AgentEventSubscriber {
  * @example
  * ```typescript
  * // Create and start agent
- * const agent = new DextoAgent(config);
+ * const validatedConfig = AgentConfigSchema.parse(config);
+ * const agentLogger = createLogger({ config: validatedConfig.logger, agentId: validatedConfig.agentId });
+ * const agent = new DextoAgent({ config: validatedConfig, logger: agentLogger });
  * await agent.start();
  *
  * // Process user messages
@@ -116,8 +117,8 @@ export interface AgentEventSubscriber {
  * await agent.switchLLM({ model: 'gpt-5' });
  *
  * // Manage sessions
- * const session = agent.createSession('user-123');
- * const response = await agent.run("Hello", undefined, 'user-123');
+ * const session = await agent.createSession('user-123');
+ * const response = await agent.run("Hello", undefined, undefined, session.id);
  *
  * // Connect MCP servers
  * await agent.addMcpServer('filesystem', { command: 'mcp-filesystem' });
@@ -204,15 +205,8 @@ export class DextoAgent {
         this.config = options.config;
         this.configPath = options.configPath;
 
-        // Create logger instance for this agent unless provided by host.
-        // agentId is set by CLI enrichment from agentCard.name or filename.
-        this.logger =
-            options.logger ??
-            createLogger({
-                config: this.config.logger,
-                agentId: this.config.agentId,
-                component: DextoLogComponent.AGENT,
-            });
+        // Agent logger is always provided by the host (typically created from config).
+        this.logger = options.logger;
 
         if (options.overrides) {
             this.serviceOverrides = options.overrides;

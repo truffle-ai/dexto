@@ -25,7 +25,7 @@
  */
 
 import { promises as fs } from 'fs';
-import { AgentConfigSchema, DextoAgent, type AgentConfig } from '@dexto/core';
+import { AgentConfigSchema, DextoAgent, createLogger, type AgentConfig } from '@dexto/core';
 import { getDextoGlobalPath } from './utils/path.js';
 import { deriveDisplayName } from './registry/types.js';
 import { loadBundledRegistryAgents } from './registry/registry.js';
@@ -190,7 +190,11 @@ export const AgentFactory = {
 
         // Create and return unstarted agent
         const validatedConfig = AgentConfigSchema.parse(enrichedConfig);
-        return new DextoAgent({ config: validatedConfig });
+        const logger = createLogger({
+            config: validatedConfig.logger,
+            agentId: validatedConfig.agentId,
+        });
+        return new DextoAgent({ config: validatedConfig, logger });
     },
 };
 

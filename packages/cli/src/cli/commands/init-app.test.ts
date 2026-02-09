@@ -80,7 +80,7 @@ describe('Init Module', () => {
                 // Verify content contains expected elements
                 const content = await fs.readFile(examplePath, 'utf8');
                 expect(content).toContain(
-                    "import { AgentConfigSchema, DextoAgent } from '@dexto/core'"
+                    "import { AgentConfigSchema, DextoAgent, createLogger } from '@dexto/core'"
                 );
                 expect(content).toContain(
                     "import { loadAgentConfig } from '@dexto/agent-management'"
@@ -90,6 +90,7 @@ describe('Init Module', () => {
                 expect(content).toContain(
                     'const validatedConfig = AgentConfigSchema.parse(config)'
                 );
+                expect(content).toContain('const agentLogger = createLogger({');
                 expect(content).toContain('const agent = new DextoAgent({ config: validatedConfig');
             } finally {
                 process.chdir(originalCwd);

@@ -43,10 +43,12 @@ export interface DextoAgentOptions {
     overrides?: InitializeServicesOptions | undefined;
 
     /**
-     * Optional logger override.
-     * When omitted, core will create a logger from `config.logger`.
+     * Logger instance scoped to this agent.
+     *
+     * Product layers should typically create this from `config.logger` via `createLogger()`,
+     * but may supply a custom implementation.
      */
-    logger?: IDextoLogger | undefined;
+    logger: IDextoLogger;
 
     /**
      * Concrete storage backends (DI-first, optional during transition).

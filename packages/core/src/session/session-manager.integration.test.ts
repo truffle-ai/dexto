@@ -1,6 +1,7 @@
 import { describe, test, expect, beforeEach, afterEach } from 'vitest';
 import { DextoAgent } from '../agent/DextoAgent.js';
 import { AgentConfigSchema, type AgentConfig } from '@core/agent/schemas.js';
+import { createLogger } from '../logger/factory.js';
 import type { SessionData } from './session-manager.js';
 
 /**
@@ -38,7 +39,11 @@ describe('Session Integration: Chat History Preservation', () => {
 
     beforeEach(async () => {
         const validatedConfig = AgentConfigSchema.parse(testConfig);
-        agent = new DextoAgent({ config: validatedConfig });
+        const logger = createLogger({
+            config: validatedConfig.logger,
+            agentId: validatedConfig.agentId,
+        });
+        agent = new DextoAgent({ config: validatedConfig, logger });
         await agent.start();
     });
 

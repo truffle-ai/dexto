@@ -36,6 +36,7 @@ if (isDextoAuthEnabled()) {
 
 import {
     logger,
+    createLogger,
     DextoLogger,
     FileTransport,
     DextoLogComponent,
@@ -683,7 +684,15 @@ async function bootstrapAgentFromGlobalOpts() {
 
     // Use relaxed validation for session commands - they don't need LLM calls
     const validatedConfig = createAgentConfigSchema({ strict: false }).parse(enrichedConfig);
-    const agent = new DextoAgent({ config: validatedConfig, configPath: resolvedPath });
+    const agentLogger = createLogger({
+        config: validatedConfig.logger,
+        agentId: validatedConfig.agentId,
+    });
+    const agent = new DextoAgent({
+        config: validatedConfig,
+        configPath: resolvedPath,
+        logger: agentLogger,
+    });
     await agent.start();
 
     // Register graceful shutdown
@@ -1617,9 +1626,14 @@ program
                               })
                             : null;
 
+                    const agentLogger = createLogger({
+                        config: validatedConfig.logger,
+                        agentId: validatedConfig.agentId,
+                    });
                     agent = new DextoAgent({
                         config: validatedConfig,
                         configPath: resolvedPath,
+                        logger: agentLogger,
                         overrides: { sessionLoggerFactory, mcpAuthProviderFactory },
                     });
 

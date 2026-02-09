@@ -17,6 +17,7 @@
 import { randomUUID } from 'crypto';
 import {
     AgentConfigSchema,
+    createLogger,
     DextoAgent,
     type IDextoLogger,
     type GenerateResponse,
@@ -94,7 +95,11 @@ export class AgentRuntime {
 
             // Create the agent
             const validatedConfig = AgentConfigSchema.parse(enrichedConfig);
-            const agent = new DextoAgent({ config: validatedConfig });
+            const agentLogger = createLogger({
+                config: validatedConfig.logger,
+                agentId: validatedConfig.agentId,
+            });
+            const agent = new DextoAgent({ config: validatedConfig, logger: agentLogger });
 
             // Create the handle (status: starting)
             const sessionId = `session-${randomUUID().slice(0, 8)}`;
