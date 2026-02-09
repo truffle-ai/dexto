@@ -19,13 +19,13 @@
 
 ## Current Task
 
-**Task:** **1.13 — `mcp/` — vet**
+**Task:** **1.14 — `session/` — vet**
 **Status:** _Not started_
 **Branch:** `rebuild-di`
 
 ### Plan
-- Audit `packages/core/src/mcp/` for registry imports/config-coupling drift.
-- Confirm MCP stays config-driven and DI-compatible.
+- Audit `packages/core/src/session/` for registry imports/config-coupling drift.
+- Confirm session wiring is DI-compatible and contains no provider-registry coupling.
 - If changes are needed, keep them minimal and keep `pnpm run build` + `pnpm test` passing.
 
 ### Notes
@@ -75,6 +75,7 @@ _Move tasks here after completion. Keep a brief log of what was done and any dev
 | 1.10 | `agent/DextoAgent.ts` — constructor accepts `DextoAgentOptions` | 2026-02-10 | `DextoAgent` now takes `{ config, configPath?, overrides?, logger? }` and does no config parsing in the constructor; callers validate config first. Updated agent-management, CLI/server, bundler output, and templates. `pnpm run build` + `pnpm test` pass. |
 | 1.11 | `utils/service-initializer.ts` — rewrite | 2026-02-10 | Removed `configDir`/`configPath` from core service wiring; `SystemPromptManager` no longer takes `configDir`. Updated unit/integration tests. `pnpm run build` + `pnpm test` pass. |
 | 1.12 | `llm/` — vet | 2026-02-10 | No changes needed. Verified no provider registries/config-resolution coupling. (LLM “registry” is model metadata + capability helpers and is legitimate.) |
+| 1.13 | `mcp/` — vet | 2026-02-10 | No changes needed. Verified MCP stays config-driven; no provider registries or global registries involved. |
 
 ---
 
