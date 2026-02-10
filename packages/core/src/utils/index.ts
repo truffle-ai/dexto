@@ -16,6 +16,7 @@ export * from './safe-stringify.js';
 export * from './api-key-resolver.js';
 export * from './defer.js';
 export * from './async-context.js';
+export * from './env.js';
 
 // API key STORAGE has been moved to @dexto/agent-management
 // These functions write to .env files and are CLI/server concerns, not core runtime

@@ -26,6 +26,7 @@ import {
     generateBashPatternSuggestions,
     isDangerousCommand,
 } from './bash-pattern-utils.js';
+import { isBackgroundTasksEnabled } from '../utils/env.js';
 /**
  * Options for internal tools configuration in ToolManager
  */
@@ -720,6 +721,7 @@ export class ToolManager {
     ): Promise<import('./types.js').ToolExecutionResult> {
         const { toolArgs: rawToolArgs, meta } = extractToolCallMeta(args);
         let toolArgs = rawToolArgs;
+        const backgroundTasksEnabled = isBackgroundTasksEnabled();
 
         this.logger.debug(`🔧 Tool execution requested: '${toolName}' (toolCallId: ${toolCallId})`);
         this.logger.debug(`Tool args: ${JSON.stringify(toolArgs, null, 2)}`);
@@ -816,7 +818,16 @@ export class ToolManager {
                 }
                 this.logger.debug(`🎯 MCP routing: '${toolName}' -> '${actualToolName}'`);
 
-                const runInBackground = meta.runInBackground === true && sessionId !== undefined;
+                const runInBackground =
+                    backgroundTasksEnabled &&
+                    meta.runInBackground === true &&
+                    sessionId !== undefined;
+                if (meta.runInBackground === true && !backgroundTasksEnabled) {
+                    this.logger.debug(
+                        'Background tool execution disabled; running synchronously instead.',
+                        { toolName }
+                    );
+                }
                 if (runInBackground) {
                     const backgroundSessionId = sessionId;
                     const { result: backgroundResult, promise } = registerBackgroundTask(
@@ -851,7 +862,16 @@ export class ToolManager {
                 }
                 this.logger.debug(`🎯 Internal routing: '${toolName}' -> '${actualToolName}'`);
 
-                const runInBackground = meta.runInBackground === true && sessionId !== undefined;
+                const runInBackground =
+                    backgroundTasksEnabled &&
+                    meta.runInBackground === true &&
+                    sessionId !== undefined;
+                if (meta.runInBackground === true && !backgroundTasksEnabled) {
+                    this.logger.debug(
+                        'Background tool execution disabled; running synchronously instead.',
+                        { toolName }
+                    );
+                }
                 if (runInBackground) {
                     const backgroundSessionId = sessionId;
                     const { result: backgroundResult, promise } = registerBackgroundTask(
@@ -898,7 +918,16 @@ export class ToolManager {
                 }
                 this.logger.debug(`🎯 Custom routing: '${toolName}' -> '${actualToolName}'`);
 
-                const runInBackground = meta.runInBackground === true && sessionId !== undefined;
+                const runInBackground =
+                    backgroundTasksEnabled &&
+                    meta.runInBackground === true &&
+                    sessionId !== undefined;
+                if (meta.runInBackground === true && !backgroundTasksEnabled) {
+                    this.logger.debug(
+                        'Background tool execution disabled; running synchronously instead.',
+                        { toolName }
+                    );
+                }
                 if (runInBackground) {
                     const backgroundSessionId = sessionId;
                     const { result: backgroundResult, promise } = registerBackgroundTask(

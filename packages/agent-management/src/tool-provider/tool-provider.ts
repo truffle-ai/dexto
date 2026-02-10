@@ -63,7 +63,6 @@ export const agentSpawnerToolsProvider: CustomToolProvider<'agent-spawner', Agen
 
     create: (config, context): InternalTool[] => {
         const { logger, agent } = context;
-
         const signalBus = new SignalBus();
         const taskRegistry = new TaskRegistry(signalBus);
         const conditionEngine = new ConditionEngine(taskRegistry, signalBus, logger);
@@ -240,18 +239,7 @@ export const agentSpawnerToolsProvider: CustomToolProvider<'agent-spawner', Agen
             backgroundAbortController.abort();
         });
 
-        const tool = createSpawnAgentTool(service, taskRegistry, (taskId, promise, sessionId) => {
-            if (sessionId) {
-                taskSessions.set(taskId, sessionId);
-            }
-
-            emitTasksUpdate(sessionId);
-            promise.finally(() => {
-                taskSessions.delete(taskId);
-                emitTasksUpdate(sessionId);
-                triggerBackgroundCompletion(taskId, sessionId);
-            });
-        });
+        const tool = createSpawnAgentTool(service);
 
         return [
             tool,
