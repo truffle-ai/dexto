@@ -278,25 +278,32 @@ export async function startInkCliRefactored(
                 // Detailed token breakdown per model
                 const tokens = modelStat.tokenUsage;
                 process.stdout.write(
-                    chalk.gray(`      Input:   ${tokens.inputTokens.toLocaleString()}`) + '\n'
+                    chalk.gray(`      Input tokens:       ${tokens.inputTokens.toLocaleString()}`) +
+                        '\n'
                 );
                 process.stdout.write(
-                    chalk.gray(`      Output:  ${tokens.outputTokens.toLocaleString()}`) + '\n'
+                    chalk.gray(
+                        `      Output tokens:      ${tokens.outputTokens.toLocaleString()}`
+                    ) + '\n'
                 );
-                if (tokens.reasoningTokens > 0) {
-                    process.stdout.write(
-                        chalk.gray(`      Reasoning: ${tokens.reasoningTokens.toLocaleString()}`) +
-                            '\n'
-                    );
-                }
-                if (tokens.cacheReadTokens > 0) {
-                    process.stdout.write(
-                        chalk.cyan(`      Cache Read: ${tokens.cacheReadTokens.toLocaleString()}`) +
-                            '\n'
-                    );
-                }
                 process.stdout.write(
-                    chalk.gray(`      Total:   ${tokens.totalTokens.toLocaleString()}`) + '\n'
+                    chalk.gray(
+                        `      Reasoning tokens:   ${tokens.reasoningTokens.toLocaleString()}`
+                    ) + '\n'
+                );
+                process.stdout.write(
+                    chalk.gray(
+                        `      Cache read tokens:  ${tokens.cacheReadTokens.toLocaleString()}`
+                    ) + '\n'
+                );
+                process.stdout.write(
+                    chalk.gray(
+                        `      Cache write tokens: ${tokens.cacheWriteTokens.toLocaleString()}`
+                    ) + '\n'
+                );
+                process.stdout.write(
+                    chalk.gray(`      Total tokens:       ${tokens.totalTokens.toLocaleString()}`) +
+                        '\n'
                 );
 
                 if (modelStat.estimatedCost > 0) {
@@ -306,7 +313,7 @@ export async function startInkCliRefactored(
                             : modelStat.estimatedCost < 1
                               ? `$${modelStat.estimatedCost.toFixed(3)}`
                               : `$${modelStat.estimatedCost.toFixed(2)}`;
-                    process.stdout.write(chalk.gray(`      Cost:    ${costStr}`) + '\n');
+                    process.stdout.write(chalk.gray(`      Cost:               ${costStr}`) + '\n');
                 }
             }
         }
@@ -331,30 +338,24 @@ export async function startInkCliRefactored(
 
             process.stdout.write(chalk.gray('\n  Token Usage:') + '\n');
             process.stdout.write(
-                chalk.gray(`    Input:       ${inputTokens.toLocaleString()}`) + '\n'
+                chalk.gray(`    Input tokens:       ${inputTokens.toLocaleString()}`) + '\n'
             );
             process.stdout.write(
-                chalk.gray(`    Output:      ${outputTokens.toLocaleString()}`) + '\n'
+                chalk.gray(`    Output tokens:      ${outputTokens.toLocaleString()}`) + '\n'
             );
-            if (reasoningTokens > 0) {
-                process.stdout.write(
-                    chalk.gray(`    Reasoning:   ${reasoningTokens.toLocaleString()}`) + '\n'
-                );
-            }
-            if (cacheReadTokens > 0) {
-                process.stdout.write(
-                    chalk.cyan(
-                        `    Cache Read:  ${cacheReadTokens.toLocaleString()} (💰 ${cacheSavingsPercent}% savings)`
-                    ) + '\n'
-                );
-            }
-            if (cacheWriteTokens > 0) {
-                process.stdout.write(
-                    chalk.yellow(`    Cache Write: ${cacheWriteTokens.toLocaleString()}`) + '\n'
-                );
-            }
             process.stdout.write(
-                chalk.gray(`    Total:       ${totalTokens.toLocaleString()}`) + '\n'
+                chalk.gray(`    Reasoning tokens:   ${reasoningTokens.toLocaleString()}`) + '\n'
+            );
+            const cacheReadLabel =
+                cacheReadTokens > 0
+                    ? `${cacheReadTokens.toLocaleString()} (💰 ${cacheSavingsPercent}% savings)`
+                    : cacheReadTokens.toLocaleString();
+            process.stdout.write(chalk.gray(`    Cache read tokens:  ${cacheReadLabel}`) + '\n');
+            process.stdout.write(
+                chalk.gray(`    Cache write tokens: ${cacheWriteTokens.toLocaleString()}`) + '\n'
+            );
+            process.stdout.write(
+                chalk.gray(`    Total tokens:       ${totalTokens.toLocaleString()}`) + '\n'
             );
         }
 
@@ -371,7 +372,7 @@ export async function startInkCliRefactored(
         }
 
         process.stdout.write(chalk.dim('─'.repeat(50)) + '\n');
-        process.stdout.write('\n' + chalk.rgb(255, 165, 0)('Exiting AI CLI. Goodbye!') + '\n');
+        process.stdout.write('\n' + chalk.rgb(255, 165, 0)('Exiting Dexto CLI. Goodbye!') + '\n');
 
         clearExitStats();
     }

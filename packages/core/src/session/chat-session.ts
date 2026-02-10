@@ -224,12 +224,6 @@ export class ChatSession {
                     cost = calculateCost(payload.tokenUsage, pricing);
                 }
 
-                // Extract model info from payload (preferred) or fall back to config
-                const modelInfo = {
-                    provider: payload.provider ?? llmConfig.provider,
-                    model: payload.model ?? llmConfig.model,
-                };
-
                 // Fire and forget - don't block the event flow
                 this.services.sessionManager
                     .accumulateTokenUsage(this.id, payload.tokenUsage, cost, modelInfo)
