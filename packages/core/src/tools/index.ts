@@ -22,9 +22,6 @@ export {
     type ToolCreationContext,
 } from './custom-tool-registry.js';
 
-// Custom tool schema registry for early validation
-export { customToolSchemaRegistry } from './custom-tool-schema-registry.js';
-
 // Schemas/types
 export * from './schemas.js';
 
