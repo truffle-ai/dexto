@@ -1,5 +1,15 @@
 # @dexto/webui
 
+## 1.5.9
+
+### Patch Changes
+
+- Updated dependencies [8d37b8a]
+    - @dexto/core@1.5.9
+    - @dexto/client-sdk@1.5.9
+    - @dexto/analytics@1.5.9
+    - @dexto/registry@1.5.9
+
 ## 1.5.8
 
 ### Patch Changes

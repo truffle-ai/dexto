@@ -1,5 +1,12 @@
 # @dexto/tools-plan
 
+## 1.5.9
+
+### Patch Changes
+
+- Updated dependencies [8d37b8a]
+    - @dexto/core@1.5.9
+
 ## 1.5.8
 
 ### Patch Changes
