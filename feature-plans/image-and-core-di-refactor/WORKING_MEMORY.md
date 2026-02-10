@@ -19,15 +19,15 @@
 
 ## Current Task
 
-**Task:** **2.3 `loadImage(imageName)` helper**
+**Task:** **3.1 Create `@dexto/tools-builtins` package**
 **Status:** _Not started_
 **Branch:** `rebuild-di`
 
 ### Plan
-- Add `loadImage(imageName)` dynamic import wrapper returning `DextoImageModule`
-- Validate the imported module has the expected `DextoImageModule` shape at runtime (clear errors)
-- Unit tests for import failure + shape mismatch
-- Exit: can load `@dexto/image-local` (once rewritten) and return typed module
+- Create `packages/tools-builtins/` (fixed versioning, tsup build)
+- Move built-in tool implementations out of core (or adapt via re-exports if needed for low churn)
+- Export `builtinToolsFactory: ToolFactory` (config only; tools use `ToolExecutionContext` at runtime)
+- Exit: package builds and can be used from `@dexto/image-local` in Phase 3.5
 
 ### Notes
 _Log findings, issues, and progress here as you work._
@@ -98,6 +98,7 @@ _Move tasks here after completion. Keep a brief log of what was done and any dev
 | 2.1 | `applyImageDefaults(config, imageDefaults)` | 2026-02-10 | Defined `ImageDefaults` as `Partial<AgentConfig>` and implemented `applyImageDefaults()` in agent-config (shallow merge + 1-level object merge; arrays atomic). Added unit tests. `pnpm -w build:packages` + `pnpm -w test` pass. |
 | 2.2 | `resolveServicesFromConfig(config, image)` | 2026-02-10 | Implemented service resolver for `logger`/`storage`/`tools`/`plugins`/`compaction` with clear unknown-type errors. Tools honor `enabled: false` and strip `enabled` before validating strict factory schemas. Added unit tests. `pnpm -w build:packages` + `pnpm -w test` pass. |
 | 2.6 | `ValidatedAgentConfig → DextoAgentOptions` transformer | 2026-02-10 | Added `toDextoAgentOptions()` bridge in agent-config (validated config + resolved services → `DextoAgentOptions`). Unit test added. `pnpm -w build:packages` + `pnpm -w test` pass. |
+| 2.3 | `loadImage(imageName)` helper | 2026-02-10 | Added `loadImage()` dynamic import wrapper + runtime shape validation for `DextoImageModule` (with clear error messages). Unit tests cover success + import failure + shape mismatch. `pnpm -w build:packages` + `pnpm -w test` pass. |
 
 ---
 
@@ -112,8 +113,8 @@ _Move tasks here after completion. Keep a brief log of what was done and any dev
 | Phase 1D — Compaction | Completed | 1.9 complete |
 | Phase 1E — Agent shell | Completed | 1.10–1.11 complete |
 | Phase 1F — Vet + cleanup | Completed | 1.12–1.29 complete |
-| Phase 2 — Resolver | In progress | 2.5 + 2.1 complete |
-| Phase 3 — Images | Not started | |
+| Phase 2 — Resolver | Completed | 2.5, 2.1, 2.2, 2.6, 2.3 complete (2.4 deferred) |
+| Phase 3 — Images | In progress | |
 | Phase 4 — CLI/Server | Not started | |
 | Phase 5 — Cleanup | Not started | |
 
@@ -129,3 +130,4 @@ _Record checkpoint validation results after each phase boundary._
 | After Phase 1C (commit 1.8) | 2026-02-10 | ✅ `pnpm run build` + `pnpm test` pass | — |
 | After Phase 1D (commit 1.9) | 2026-02-10 | ✅ `pnpm run build` + `pnpm test` pass | — |
 | After Phase 1F (commit 1.29) | 2026-02-10 | ✅ `pnpm run build` + `pnpm test` + `pnpm run lint` + `pnpm run typecheck` pass | — |
+| After Phase 2 | 2026-02-10 | ✅ `pnpm -w run build:packages` + `pnpm -w test` pass | — |

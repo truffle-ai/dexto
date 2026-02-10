@@ -26,6 +26,7 @@ export type {
 } from './schemas/agent-config.js';
 
 export { applyImageDefaults } from './resolver/apply-image-defaults.js';
+export { loadImage } from './resolver/load-image.js';
 export { resolveServicesFromConfig } from './resolver/resolve-services-from-config.js';
 export { toDextoAgentOptions } from './resolver/to-dexto-agent-options.js';
 
