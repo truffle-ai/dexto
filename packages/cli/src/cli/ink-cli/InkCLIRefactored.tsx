@@ -223,8 +223,157 @@ export async function startInkCliRefactored(
         }
     );
 
+    // Register exit handler so commands can trigger graceful exit
+    const { registerExitHandler } = await import(
+        '../commands/interactive-commands/exit-handler.js'
+    );
+    registerExitHandler(() => inkApp.unmount());
+
     await inkApp.waitUntilExit();
 
     // Disable bracketed paste mode to restore normal terminal behavior
     disableBracketedPaste();
+
+    // Display session stats if available (after Ink has unmounted)
+    const { getExitStats, clearExitStats } = await import(
+        '../commands/interactive-commands/exit-stats.js'
+    );
+    const exitStats = getExitStats();
+    if (exitStats) {
+        const chalk = (await import('chalk')).default;
+
+        // Add visual separation - clear space like Gemini CLI does
+        // This creates a clean slate showing only the exit command and summary
+        process.stdout.write('\n'.repeat(1));
+
+        process.stdout.write(chalk.bold.cyan('📊 Session Summary') + '\n');
+        process.stdout.write(chalk.dim('─'.repeat(50)) + '\n');
+
+        // Session ID
+        if (exitStats.sessionId) {
+            process.stdout.write(chalk.gray(`  Session ID:  ${exitStats.sessionId}`) + '\n');
+        }
+
+        // Duration
+        if (exitStats.duration) {
+            process.stdout.write(chalk.gray(`  Duration:    ${exitStats.duration}`) + '\n');
+        }
+
+        // Message count
+        if (exitStats.messageCount.total > 0) {
+            process.stdout.write(
+                chalk.gray(
+                    `  Messages:    ${exitStats.messageCount.total} total (${exitStats.messageCount.user} user, ${exitStats.messageCount.assistant} assistant)`
+                ) + '\n'
+            );
+        }
+        // Multi-model breakdown (if multiple models were used)
+        if (exitStats.modelStats && exitStats.modelStats.length > 1) {
+            process.stdout.write(chalk.gray('\n  Models Used:') + '\n');
+
+            for (const modelStat of exitStats.modelStats) {
+                const modelLabel = `${modelStat.model} (${modelStat.messageCount} msgs)`;
+                process.stdout.write(chalk.gray(`    • ${modelLabel}`) + '\n');
+
+                // Detailed token breakdown per model
+                const tokens = modelStat.tokenUsage;
+                process.stdout.write(
+                    chalk.gray(`      Input tokens:       ${tokens.inputTokens.toLocaleString()}`) +
+                        '\n'
+                );
+                process.stdout.write(
+                    chalk.gray(
+                        `      Output tokens:      ${tokens.outputTokens.toLocaleString()}`
+                    ) + '\n'
+                );
+                process.stdout.write(
+                    chalk.gray(
+                        `      Reasoning tokens:   ${tokens.reasoningTokens.toLocaleString()}`
+                    ) + '\n'
+                );
+                process.stdout.write(
+                    chalk.gray(
+                        `      Cache read tokens:  ${tokens.cacheReadTokens.toLocaleString()}`
+                    ) + '\n'
+                );
+                process.stdout.write(
+                    chalk.gray(
+                        `      Cache write tokens: ${tokens.cacheWriteTokens.toLocaleString()}`
+                    ) + '\n'
+                );
+                process.stdout.write(
+                    chalk.gray(`      Total tokens:       ${tokens.totalTokens.toLocaleString()}`) +
+                        '\n'
+                );
+
+                if (modelStat.estimatedCost > 0) {
+                    const costStr =
+                        modelStat.estimatedCost < 0.01
+                            ? `$${modelStat.estimatedCost.toFixed(4)}`
+                            : modelStat.estimatedCost < 1
+                              ? `$${modelStat.estimatedCost.toFixed(3)}`
+                              : `$${modelStat.estimatedCost.toFixed(2)}`;
+                    process.stdout.write(chalk.gray(`      Cost:               ${costStr}`) + '\n');
+                }
+            }
+        }
+
+        // Token usage
+        if (exitStats.tokenUsage) {
+            const {
+                inputTokens,
+                outputTokens,
+                reasoningTokens,
+                cacheReadTokens,
+                cacheWriteTokens,
+                totalTokens,
+            } = exitStats.tokenUsage;
+
+            // Calculate cache savings percentage
+            const totalInputWithCache = inputTokens + cacheReadTokens;
+            const cacheSavingsPercent =
+                totalInputWithCache > 0
+                    ? ((cacheReadTokens / totalInputWithCache) * 100).toFixed(1)
+                    : '0.0';
+
+            process.stdout.write(chalk.gray('\n  Token Usage:') + '\n');
+            process.stdout.write(
+                chalk.gray(`    Input tokens:       ${inputTokens.toLocaleString()}`) + '\n'
+            );
+            process.stdout.write(
+                chalk.gray(`    Output tokens:      ${outputTokens.toLocaleString()}`) + '\n'
+            );
+            process.stdout.write(
+                chalk.gray(`    Reasoning tokens:   ${reasoningTokens.toLocaleString()}`) + '\n'
+            );
+            const cacheReadLabel =
+                cacheReadTokens > 0
+                    ? `${cacheReadTokens.toLocaleString()} (💰 ${cacheSavingsPercent}% savings)`
+                    : cacheReadTokens.toLocaleString();
+            process.stdout.write(chalk.gray(`    Cache read tokens:  ${cacheReadLabel}`) + '\n');
+            process.stdout.write(
+                chalk.gray(`    Cache write tokens: ${cacheWriteTokens.toLocaleString()}`) + '\n'
+            );
+            process.stdout.write(
+                chalk.gray(`    Total tokens:       ${totalTokens.toLocaleString()}`) + '\n'
+            );
+        }
+
+        // Estimated cost
+        if (exitStats.estimatedCost !== undefined) {
+            const cost = exitStats.estimatedCost;
+            const costStr =
+                cost < 0.01
+                    ? `$${cost.toFixed(4)}`
+                    : cost < 1
+                      ? `$${cost.toFixed(3)}`
+                      : `$${cost.toFixed(2)}`;
+            process.stdout.write(chalk.green(`\n  Estimated Cost: ${costStr}`) + '\n');
+        }
+
+        process.stdout.write(chalk.dim('─'.repeat(50)) + '\n');
+        process.stdout.write('\n' + chalk.rgb(255, 165, 0)('Exiting Dexto CLI. Goodbye!') + '\n');
+
+        clearExitStats();
+    }
 }
