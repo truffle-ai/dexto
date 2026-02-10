@@ -10,6 +10,7 @@ import type {
     InternalTool as Tool,
 } from '@dexto/core';
 import type { z } from 'zod';
+import type { AgentConfig } from '../schemas/agent-config.js';
 
 // TODO: temporary glue code to be removed/verified
 export type ImageTarget =
@@ -32,7 +33,7 @@ export type ImageConstraint =
     | 'browser-compatible';
 
 // TODO: temporary glue code to be removed/verified
-export type ImageDefaults = unknown;
+export type ImageDefaults = Partial<AgentConfig>;
 
 export interface ToolFactoryMetadata {
     displayName: string;

@@ -24,3 +24,5 @@ export type {
     ValidatedAgentConfig,
     ToolFactoryEntry,
 } from './schemas/agent-config.js';
+
+export { applyImageDefaults } from './resolver/apply-image-defaults.js';
