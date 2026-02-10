@@ -1,5 +1,21 @@
 import type { DextoImageModule } from '../image/types.js';
 
+export type ImageImporter = (specifier: string) => Promise<unknown>;
+
+let configuredImageImporter: ImageImporter | undefined;
+
+/**
+ * Configure how images are dynamically imported.
+ *
+ * Why: In strict package manager layouts (pnpm), a helper inside `@dexto/agent-config`
+ * cannot reliably `import('@dexto/image-local')` because that image is not a dependency
+ * of agent-config. Hosts (CLI/server/apps) should call `setImageImporter((s) => import(s))`
+ * from their entrypoint so the import resolves relative to the host package.
+ */
+export function setImageImporter(importer: ImageImporter | undefined): void {
+    configuredImageImporter = importer;
+}
+
 type PlainObject = Record<string, unknown>;
 
 function isPlainObject(value: unknown): value is PlainObject {
@@ -124,10 +140,14 @@ function extractImageExport(module: unknown): unknown {
 export async function loadImage(imageName: string): Promise<DextoImageModule> {
     let module: unknown;
     try {
-        module = await import(imageName);
+        const importer = configuredImageImporter ?? ((specifier: string) => import(specifier));
+        module = await importer(imageName);
     } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        throw new Error(`Failed to import image '${imageName}': ${message}`);
+        throw new Error(
+            `Failed to import image '${imageName}': ${message}\n` +
+                `If you're running under pnpm (strict dependency boundaries), call setImageImporter((s) => import(s)) from the host entrypoint.`
+        );
     }
 
     const candidate = extractImageExport(module);

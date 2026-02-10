@@ -52,6 +52,7 @@ import {
     createAgentConfigSchema,
     loadImage,
     resolveServicesFromConfig,
+    setImageImporter,
     toDextoAgentOptions,
     type DextoImageModule,
     type ValidatedAgentConfig,
@@ -128,6 +129,9 @@ import { initializeMcpToolAggregationServer } from './api/mcp/tool-aggregation-h
 import { CLIConfigOverrides } from './config/cli-overrides.js';
 
 const program = new Command();
+
+// Ensure `loadImage('@dexto/image-*')` resolves relative to the host package (pnpm-safe).
+setImageImporter((specifier) => import(specifier));
 
 // Initialize analytics early (no-op if disabled)
 await initAnalytics({ appVersion: pkg.version });
