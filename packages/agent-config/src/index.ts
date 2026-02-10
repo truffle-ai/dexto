@@ -27,5 +27,6 @@ export type {
 
 export { applyImageDefaults } from './resolver/apply-image-defaults.js';
 export { resolveServicesFromConfig } from './resolver/resolve-services-from-config.js';
+export { toDextoAgentOptions } from './resolver/to-dexto-agent-options.js';
 
 export type { ResolvedServices } from './resolver/types.js';

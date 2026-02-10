@@ -19,14 +19,15 @@
 
 ## Current Task
 
-**Task:** **2.6 `ValidatedAgentConfig → DextoAgentOptions` transformer**
+**Task:** **2.3 `loadImage(imageName)` helper**
 **Status:** _Not started_
 **Branch:** `rebuild-di`
 
 ### Plan
-- Define transformer that combines `ValidatedAgentConfig` + `ResolvedServices` into `DextoAgentOptions`
-- Unit tests for a minimal validated config + resolved services object
-- Exit: produces valid `DextoAgentOptions` without importing zod/schemas into core
+- Add `loadImage(imageName)` dynamic import wrapper returning `DextoImageModule`
+- Validate the imported module has the expected `DextoImageModule` shape at runtime (clear errors)
+- Unit tests for import failure + shape mismatch
+- Exit: can load `@dexto/image-local` (once rewritten) and return typed module
 
 ### Notes
 _Log findings, issues, and progress here as you work._
@@ -96,6 +97,7 @@ _Move tasks here after completion. Keep a brief log of what was done and any dev
 | 2.5 | Move `AgentConfigSchema` + DI schemas to agent‑config | 2026-02-10 | Moved `AgentConfigSchema`/`ValidatedAgentConfig` into `@dexto/agent-config` and updated CLI/server/agent-management/webui/image-bundler imports. Unified tool config to `tools: ToolFactoryEntry[]` (A+B+C semantics + common `enabled?: boolean`). Added `packages/core/src/agent/runtime-config.ts` (schema-free core runtime config). Updated first-party `agents/*.yml`. Re-enabled schema coverage by moving `AgentConfigSchema` tests into agent-config. `pnpm -w build:packages` + `pnpm -w test` pass. |
 | 2.1 | `applyImageDefaults(config, imageDefaults)` | 2026-02-10 | Defined `ImageDefaults` as `Partial<AgentConfig>` and implemented `applyImageDefaults()` in agent-config (shallow merge + 1-level object merge; arrays atomic). Added unit tests. `pnpm -w build:packages` + `pnpm -w test` pass. |
 | 2.2 | `resolveServicesFromConfig(config, image)` | 2026-02-10 | Implemented service resolver for `logger`/`storage`/`tools`/`plugins`/`compaction` with clear unknown-type errors. Tools honor `enabled: false` and strip `enabled` before validating strict factory schemas. Added unit tests. `pnpm -w build:packages` + `pnpm -w test` pass. |
+| 2.6 | `ValidatedAgentConfig → DextoAgentOptions` transformer | 2026-02-10 | Added `toDextoAgentOptions()` bridge in agent-config (validated config + resolved services → `DextoAgentOptions`). Unit test added. `pnpm -w build:packages` + `pnpm -w test` pass. |
 
 ---
 
