@@ -2456,7 +2456,7 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
   - Verified: `pnpm -w run build:packages` + `pnpm -w test` pass
   - Exit: config enrichment works with new resolution flow. Build + tests pass.
 
-- [ ] **4.5 End‑to‑end smoke test**
+- [x] **4.5 End‑to‑end smoke test**
   - Start CLI with default image → chat with agent → tools work (filesystem, process)
   - Start server mode → API calls work
   - Switch agents → works

@@ -19,19 +19,21 @@
 
 ## Current Task
 
-**Task:** **4.5 End-to-end smoke test**
+**Task:** **5.0 Flatten DextoAgentOptions + remove core config indirection**
 **Status:** _Not started_
 **Branch:** `rebuild-di`
 
 ### Plan
-- Request owner to run a quick smoke test:
-  - `pnpm -C packages/cli dev` (or `pnpm -w build:packages` then run `packages/cli/dist/index.js`) and verify `--mode web` + `--mode server`
-  - Switch agents via UI/API (`switchAgentById`, `switchAgentByPath`) and confirm chat + tools still work
-- Exit: manual smoke test passes; all CI checks green
+- Execute Phase 5.0 tasklist (see `PLAN.md`)
+- Exit: `pnpm -w run build:packages` + `pnpm -w test` pass
 
 ### Notes
 _Log findings, issues, and progress here as you work._
-2026-02-10: Phase 4.4 completed: agent-management agent creation surfaces now use the image DI flow (`loadImage()` → defaults → `resolveServicesFromConfig()` → `toDextoAgentOptions()`). Removed core glue (`createLogger`/`createStorageManager`) and dropped the `@dexto/storage` dependency from `@dexto/agent-management`. Exported `cleanNullValues()` from `@dexto/agent-config`. `pnpm -w run build:packages` + `pnpm -w test` pass.
+2026-02-10: Phase 4.5 completed:
+- Fixed pnpm runtime image loading by adding `setImageImporter()` to `@dexto/agent-config` and configuring it in the CLI entrypoint.
+- Smoke (repo/dev): headless prompt works, server mode works (`/health`, `/api/tools`, `/api/message-sync`), agent switching works.
+- Note: existing `~/.dexto/agents/*` configs that still use `internalTools`/`customTools` need `dexto sync-agents` (or use `--dev` when testing in-repo).
+- Validation: `pnpm -w run build:packages`, `pnpm -w test`, `pnpm -w run lint`, `pnpm -w run typecheck` all pass.
 
 ---
 
@@ -48,6 +50,7 @@ _Record important decisions made during implementation that aren't in the main p
 | 2026-02-10 | Defer `@dexto/logger` extraction (keep logger in core for now) | Avoids core codepaths needing `console.*` fallbacks/inline loggers and reduces churn; revisit later with a cleaner types-vs-impl split if extraction is still desired. |
 | 2026-02-10 | `resolveServicesFromConfig()` prefixes tool IDs + wraps plugins | Ensures tools are fully-qualified (`internal--*`/`custom--*`) and plugin blocking semantics match legacy behavior before handing instances to core. |
 | 2026-02-10 | Reactive-overflow compaction remains core-owned (per session) | DI compaction creation at config-resolution time cannot supply a per-session `LanguageModel`. Resolver skips DI for `reactive-overflow`; core continues to create it during session init. |
+| 2026-02-10 | `loadImage()` supports host-configured importer (`setImageImporter`) | `@dexto/agent-config` cannot reliably `import('@dexto/image-*')` under pnpm unless the image is a direct dependency; hosts configure the importer to resolve relative to the host package. |
 
 ---
 
@@ -113,6 +116,7 @@ _Move tasks here after completion. Keep a brief log of what was done and any dev
 | 4.2 | Update CLI server mode (`packages/cli/src/api/server-hono.ts`) | 2026-02-10 | Server mode agent switching now uses the same image DI flow as the CLI entrypoint (`loadImage()` → `applyImageDefaults()` → `resolveServicesFromConfig()` → `toDextoAgentOptions()`). Removed `imageMetadata`/`bundledPlugins` plumbing and ensured switched agents reuse the session file-logger override. Added small CLI utils for `cleanNullValues()` + `createFileSessionLoggerFactory()` to avoid duplication. `pnpm -w run build:packages` + `pnpm -w test` pass. |
 | 4.3 | Update `@dexto/server` if needed | 2026-02-10 | No code changes required; server consumes a `DextoAgent` instance. Verified `pnpm -w run build:packages` + `pnpm -w test` pass. |
 | 4.4 | Update `@dexto/agent-management` config enrichment + agent creation surfaces | 2026-02-10 | `AgentManager.loadAgent`, `AgentFactory.createAgent`, and `AgentRuntime.spawnAgent` now create agents via image DI resolution (`loadImage()` + defaults + resolver) instead of core glue (`createLogger`/`createStorageManager`). Added shared `cleanNullValues()` export in agent-config. Removed unused `@dexto/storage` dependency from agent-management. `pnpm -w run build:packages` + `pnpm -w test` pass. |
+| 4.5 | End-to-end smoke test | 2026-02-10 | Fixed pnpm image import via `setImageImporter()` and wired it in the CLI entrypoint. Manual smoke: headless prompt, server mode APIs, and agent switching work. Also fixed typecheck breakages in core/webui/agent-management after `tools` schema + storage extraction. `pnpm -w run build:packages` + `pnpm -w test` + `pnpm -w run lint` + `pnpm -w run typecheck` pass. |
 
 ---
 
@@ -129,7 +133,7 @@ _Move tasks here after completion. Keep a brief log of what was done and any dev
 | Phase 1F — Vet + cleanup | Completed | 1.12–1.29 complete |
 | Phase 2 — Resolver | Completed | 2.5, 2.1, 2.2, 2.6, 2.3 complete (2.4 deferred) |
 | Phase 3 — Images | Completed | 3.3 deferred; 3.5 image-local + 3.6 bundler updated |
-| Phase 4 — CLI/Server | In progress | 4.1 complete; 4.2 next |
+| Phase 4 — CLI/Server | Completed | 4.1–4.5 complete |
 | Phase 5 — Cleanup | Not started | |
 
 ---
@@ -146,3 +150,4 @@ _Record checkpoint validation results after each phase boundary._
 | After Phase 1F (commit 1.29) | 2026-02-10 | ✅ `pnpm run build` + `pnpm test` + `pnpm run lint` + `pnpm run typecheck` pass | — |
 | After Phase 2 | 2026-02-10 | ✅ `pnpm -w run build:packages` + `pnpm -w test` pass | — |
 | After Phase 3 (commit 3.6) | 2026-02-10 | ✅ `pnpm -w run build:packages` + `pnpm -w test` pass | Logger extraction deferred; compaction DI mismatch tracked (remove-by: 4.1) |
+| After Phase 4 (commit 4.5) | 2026-02-10 | ✅ `pnpm -w run build:packages` + `pnpm -w test` + `pnpm -w run lint` + `pnpm -w run typecheck` pass | Manual smoke pass; pnpm image import fixed via `setImageImporter()`. |
