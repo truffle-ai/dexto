@@ -1,9 +1,8 @@
 import type { InternalTool } from './types.js';
 import type { IDextoLogger } from '../logger/v2/types.js';
 import type { DextoAgent } from '../agent/DextoAgent.js';
-import type { z } from 'zod';
+import { z } from 'zod';
 import { ToolError } from './errors.js';
-import { BaseRegistry, type RegistryErrorFactory } from '../providers/base-registry.js';
 import { customToolSchemaRegistry } from './custom-tool-schema-registry.js';
 import type { ApprovalManager } from '../approval/manager.js';
 import type { ResourceManager } from '../resources/manager.js';
@@ -11,14 +10,13 @@ import type { SearchService } from '../search/search-service.js';
 import type { StorageManager } from '../storage/index.js';
 
 /**
- * TODO: temporary glue code to be removed/verified
+ * TODO: temporary glue code to be removed/verified (remove-by: 5.1)
  *
- * Planned for deletion during the DI refactor (see PLAN task 1.10). Current importers:
+ * Planned for deletion during the DI refactor. Current importers:
  * - `tools/index.ts` (re-exports)
  * - `tools/tool-manager.ts` (resolves custom tools — temporary glue)
  * - `tools/schemas.ts` (builds config union schema)
- * - `providers/discovery.ts` (provider listing)
- * - Tests: `tools/custom-tool-registry.test.ts`, `providers/discovery.test.ts`
+ * - Tests: `tools/custom-tool-registry.test.ts`
  */
 
 /**
@@ -72,7 +70,7 @@ export interface ToolCreationContext {
         approvalManager?: ApprovalManager;
         resourceManager?: ResourceManager;
         storageManager?: StorageManager;
-        // TODO: temporary glue code to be removed/verified
+        // TODO: temporary glue code to be removed/verified (remove-by: 5.1)
         [key: string]: unknown; // Extensible for external tool providers
     };
 }
@@ -112,31 +110,17 @@ export interface CustomToolProvider<
 }
 
 /**
- * Error factory for custom tool registry errors.
- * Uses ToolError for consistent error handling.
- */
-const customToolErrorFactory: RegistryErrorFactory = {
-    alreadyRegistered: (type: string) => ToolError.customToolProviderAlreadyRegistered(type),
-    notFound: (type: string, availableTypes: string[]) =>
-        ToolError.unknownCustomToolProvider(type, availableTypes),
-};
-
-/**
  * Registry for custom tool providers.
  * Mirrors BlobStoreRegistry pattern for consistency across Dexto provider system.
  *
  * Custom tool providers can be registered from external code (CLI, apps, examples)
  * and are validated at runtime using their Zod schemas.
  *
- * Extends BaseRegistry for common registry functionality.
- *
  * When a provider is registered, its config schema is also registered in the
  * customToolSchemaRegistry for early validation at config load time.
  */
-export class CustomToolRegistry extends BaseRegistry<CustomToolProvider> {
-    constructor() {
-        super(customToolErrorFactory);
-    }
+export class CustomToolRegistry {
+    private providers = new Map<string, CustomToolProvider>();
 
     /**
      * Register a custom tool provider.
@@ -145,9 +129,12 @@ export class CustomToolRegistry extends BaseRegistry<CustomToolProvider> {
      * @param provider - The custom tool provider to register
      * @throws Error if a provider with the same type is already registered
      */
-    override register(provider: CustomToolProvider): void {
-        // Register the provider with the base registry
-        super.register(provider);
+    register(provider: CustomToolProvider): void {
+        if (this.providers.has(provider.type)) {
+            throw ToolError.customToolProviderAlreadyRegistered(provider.type);
+        }
+
+        this.providers.set(provider.type, provider);
 
         // Also register the provider's config schema for early validation
         customToolSchemaRegistry.register(provider.type, provider.configSchema);
@@ -161,10 +148,65 @@ export class CustomToolRegistry extends BaseRegistry<CustomToolProvider> {
      * @param type - The provider type to unregister
      * @returns true if the provider was unregistered, false if it wasn't registered
      */
-    override unregister(type: string): boolean {
+    unregister(type: string): boolean {
         // Only unregister from this registry, not from schema registry
         // Schema registry should persist for the lifetime of the application
-        return super.unregister(type);
+        return this.providers.delete(type);
+    }
+
+    /**
+     * Get a registered provider by type.
+     *
+     * @param type - The provider type identifier
+     * @returns The provider if found, undefined otherwise
+     */
+    get(type: string): CustomToolProvider | undefined {
+        return this.providers.get(type);
+    }
+
+    /**
+     * Check if a provider is registered.
+     *
+     * @param type - The provider type identifier
+     * @returns true if registered, false otherwise
+     */
+    has(type: string): boolean {
+        return this.providers.has(type);
+    }
+
+    /**
+     * Get all registered provider types.
+     *
+     * @returns Array of provider type identifiers
+     */
+    getTypes(): string[] {
+        return Array.from(this.providers.keys());
+    }
+
+    /**
+     * Clear all registered providers.
+     * Primarily useful for testing.
+     */
+    clear(): void {
+        this.providers.clear();
+    }
+
+    /**
+     * Validate a configuration against a provider's schema.
+     *
+     * @param config - Raw configuration object with a 'type' field
+     * @returns Validated configuration object
+     * @throws Error if type is missing, provider not found, or validation fails
+     */
+    validateConfig(config: unknown): { type: string } & Record<string, unknown> {
+        const parsed = z.object({ type: z.string() }).passthrough().parse(config);
+
+        const provider = this.providers.get(parsed.type);
+        if (!provider) {
+            throw ToolError.unknownCustomToolProvider(parsed.type, this.getTypes());
+        }
+
+        return provider.configSchema.parse(config) as { type: string } & Record<string, unknown>;
     }
 }
 

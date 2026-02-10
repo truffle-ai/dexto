@@ -1,5 +1,16 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
-import { listAllProviders } from '@dexto/core';
+import {
+    INTERNAL_TOOL_NAMES,
+    INTERNAL_TOOL_REGISTRY,
+    customToolRegistry,
+    inMemoryBlobStoreProvider,
+    inMemoryDatabaseProvider,
+    localBlobStoreProvider,
+    noopProvider,
+    postgresDatabaseProvider,
+    reactiveOverflowProvider,
+    sqliteDatabaseProvider,
+} from '@dexto/core';
 
 const DiscoveredProviderSchema = z
     .object({
@@ -39,6 +50,73 @@ const DiscoveryResponseSchema = z
     })
     .describe('Discovery response with providers grouped by category');
 
+type DiscoveryMetadataValue = string | number | boolean | null;
+type DiscoveryMetadata = Record<string, DiscoveryMetadataValue>;
+
+function toMetadata(metadata: Record<string, unknown> | undefined): DiscoveryMetadata | undefined {
+    if (!metadata) {
+        return undefined;
+    }
+
+    const result: DiscoveryMetadata = {};
+    for (const [key, value] of Object.entries(metadata)) {
+        if (value === undefined) {
+            continue;
+        }
+
+        if (
+            value === null ||
+            typeof value === 'string' ||
+            typeof value === 'number' ||
+            typeof value === 'boolean'
+        ) {
+            result[key] = value;
+        }
+    }
+
+    return Object.keys(result).length > 0 ? result : undefined;
+}
+
+function listDiscoveryProviders() {
+    const blob = [localBlobStoreProvider, inMemoryBlobStoreProvider].map((provider) => ({
+        type: provider.type,
+        category: 'blob' as const,
+        metadata: toMetadata(provider.metadata),
+    }));
+
+    const database = [
+        inMemoryDatabaseProvider,
+        sqliteDatabaseProvider,
+        postgresDatabaseProvider,
+    ].map((provider) => ({
+        type: provider.type,
+        category: 'database' as const,
+        metadata: toMetadata(provider.metadata),
+    }));
+
+    const compaction = [reactiveOverflowProvider, noopProvider].map((provider) => ({
+        type: provider.type,
+        category: 'compaction' as const,
+        metadata: toMetadata(provider.metadata),
+    }));
+
+    const customTools = customToolRegistry.getTypes().map((type) => {
+        const provider = customToolRegistry.get(type);
+        return {
+            type,
+            category: 'customTools' as const,
+            metadata: provider?.metadata ? toMetadata(provider.metadata) : undefined,
+        };
+    });
+
+    const internalTools = INTERNAL_TOOL_NAMES.map((name) => ({
+        name,
+        description: INTERNAL_TOOL_REGISTRY[name].description,
+    }));
+
+    return { blob, database, compaction, customTools, internalTools };
+}
+
 export function createDiscoveryRouter() {
     const app = new OpenAPIHono();
 
@@ -58,7 +136,6 @@ export function createDiscoveryRouter() {
     });
 
     return app.openapi(discoveryRoute, async (ctx) => {
-        const providers = listAllProviders();
-        return ctx.json(providers);
+        return ctx.json(listDiscoveryProviders());
     });
 }
