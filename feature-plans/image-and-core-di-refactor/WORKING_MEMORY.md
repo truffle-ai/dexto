@@ -19,18 +19,20 @@
 
 ## Current Task
 
-**Task:** **3.3 Create `@dexto/logger` package**
+**Task:** **3.4 Adapt existing tool provider packages**
 **Status:** _Not started_
 **Branch:** `rebuild-di`
 
 ### Plan
-- Create `packages/logger/` (fixed versioning, tsup build)
-- Move logger implementations + config schema out of core into this package
-- Core keeps `IDextoLogger` interface only
-- Exit: `@dexto/logger` builds and images can import a `LoggerFactory`
+- `@dexto/tools-filesystem`, `@dexto/tools-process`, `@dexto/tools-todo`, `@dexto/tools-plan`
+- Verify each exports a `ToolFactory`-compatible object (or add adapter)
+- Ensure no registry imports / side-effect registration
+- Exit: each tool package builds and `@dexto/image-local` can consume factories
 
 ### Notes
 _Log findings, issues, and progress here as you work._
+
+2026-02-10: Owner chose to defer Phase 3.3 (`@dexto/logger` extraction) for now and keep logger implementation + schemas in `@dexto/core`, to avoid core-level `console.*` fallbacks/inline loggers and additional package churn. Revisit later (likely via a dedicated interface-only package if we still want extraction).
 
 ---
 
@@ -44,6 +46,7 @@ _Record important decisions made during implementation that aren't in the main p
 | 2026-02-10 | `PluginManager` no longer loads plugins from config | Keeps `PluginManager` DI-only; config→instance resolution moved to a temporary resolver helper. |
 | 2026-02-10 | Expose `agent.on/once/off/emit` and remove external `agentEventBus` access | Keeps typed events ergonomic while preventing host layers from reaching into core internals; allows gradual migration of subscribers/tools without passing the bus around. |
 | 2026-02-10 | Core no longer resolves storage from config | Core remains interface-only; host layers supply a `StorageManager` (temporary glue via `@dexto/storage/createStorageManager`) until the image resolver is fully integrated. |
+| 2026-02-10 | Defer `@dexto/logger` extraction (keep logger in core for now) | Avoids core codepaths needing `console.*` fallbacks/inline loggers and reduces churn; revisit later with a cleaner types-vs-impl split if extraction is still desired. |
 
 ---
 

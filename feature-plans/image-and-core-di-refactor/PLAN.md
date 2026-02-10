@@ -47,13 +47,13 @@ Default `remove-by` is **5.1** unless you know it can be removed earlier. **Low-
 
 ## 3. Where this lives (new packages)
 
-We will add **four** new packages as part of this refactor:
+We will add **three** new packages as part of this refactor (logger extraction is deferred for now):
 - **`@dexto/agent-config`** — config parsing, validation, image default merging, and service resolution
 - **`@dexto/storage`** — all storage implementations extracted from core (SQLite, Postgres, local blob, memory, Redis)
-- **`@dexto/logger`** — logger implementations extracted from core (winston, v2 logger)
 - **`@dexto/tools-builtins`** — former "internal" tools (ask_user, search_history, etc.) as a standard `ToolFactory`
+- **(Deferred / split) `@dexto/logger`** — extracting logger impl + schemas from core surfaced layering issues (core utilities relied on a global logger), forcing `console.*` fallbacks or wider DI threading. We keep logger in `@dexto/core` for now and revisit extraction later with a clean types-vs-impl split (see Phase 3.3 notes).
 
-This prevents `agent-management` from becoming a mega‑package, makes the DI boundary explicit, and ensures core contains only interfaces and orchestration.
+This prevents `agent-management` from becoming a mega‑package, makes the DI boundary explicit, and ensures core contains only interfaces and orchestration for the main DI surfaces (storage/tools/plugins/compaction). Logger remains in core for now.
 
 ### A) `@dexto/core` (runtime only)
 - Add **DI‑friendly constructors** for agent/runtime pieces (storage/tools/services).
@@ -270,7 +270,7 @@ import { provider as jira } from './tools/jira/index.js';
 import { provider as salesforce } from './tools/salesforce/index.js';
 import { provider as gcs } from './storage/blob/gcs/index.js';
 import { provider as auditlog } from './plugins/audit-log/index.js';
-import { defaultLoggerFactory } from '@dexto/logger';
+import { defaultLoggerFactory } from '@dexto/core'; // Phase 3.3 deferred; logger stays in core for now
 import imageConfig from './dexto.image.js';
 
 const image: DextoImageModule = {
@@ -305,7 +305,7 @@ For images like `image-local` where providers come from existing `@dexto/*` pack
 // image-local/index.ts
 import { localBlobStoreFactory, inMemoryBlobStoreFactory, sqliteFactory, postgresFactory,
          inMemoryDatabaseFactory, inMemoryCacheFactory, redisCacheFactory } from '@dexto/storage';
-import { defaultLoggerFactory } from '@dexto/logger';
+import { defaultLoggerFactory } from '@dexto/core'; // Phase 3.3 deferred; logger stays in core for now
 import { builtinToolsFactory } from '@dexto/tools-builtins';
 import { fileSystemToolsProvider } from '@dexto/tools-filesystem';
 import { processToolsProvider } from '@dexto/tools-process';
@@ -680,8 +680,8 @@ Schemas that **move to `@dexto/agent-config`** (DI surface config shapes, core d
 - `packages/core/src/plugins/schemas.ts` → `PluginsConfigSchema` (→ unified)
 - `packages/core/src/context/compaction/schemas.ts` → `CompactionConfigSchema`
 
-Schemas that **move to `@dexto/logger`** (live with implementations):
-- `packages/core/src/logger/v2/schemas.ts` → `LoggerConfigSchema`
+Schemas that were planned to **move to `@dexto/logger`** (live with implementations):
+- `packages/core/src/logger/v2/schemas.ts` → `LoggerConfigSchema` (**deferred**; stays in core for now — see Phase 3.3 split notes)
 
 Schemas that **move to `@dexto/storage`** (live with implementations, used by `StorageFactory` objects):
 - `packages/core/src/storage/schemas.ts` → `StorageSchema` (top‑level composing sub‑schemas)
@@ -787,7 +787,7 @@ External project:
 import { s3BlobStoreFactory } from './storage/s3.js';
 import { myInternalToolsFactory } from './tools/internal-api.js';
 import { sqliteFactory, inMemoryCacheFactory } from '@dexto/storage';
-import { defaultLoggerFactory } from '@dexto/logger';
+import { defaultLoggerFactory } from '@dexto/core'; // Phase 3.3 deferred; logger stays in core for now
 
 const image: DextoImageModule = {
   metadata: { name: 'my-org', version: '1.0.0', description: 'Custom image' },
@@ -1537,7 +1537,7 @@ Image defaults are useful — they let an image say "if you don't specify storag
 1. `@dexto/core` — constructor changes, remove registries + `BaseRegistry` class, accept concrete instances, extract implementations
 2. `@dexto/agent-config` (new) — resolver, defaults merging, `AgentConfigSchema`, `ValidatedAgentConfig`
 3. `@dexto/storage` (new) — all storage implementations + `StorageFactory` objects extracted from core
-4. `@dexto/logger` (new) — logger implementations + `LoggerFactory` extracted from core
+4. `@dexto/logger` (deferred) — planned logger extraction + `LoggerFactory` (see Phase 3.3 split notes)
 5. `@dexto/tools-builtins` (new) — former internal tools as standard `ToolFactory`
 6. `@dexto/image-bundler` — generate `DextoImageModule` with explicit imports, remove `.toString()`
 7. `@dexto/image-local` — rewrite as `DextoImageModule` (hand‑written, imports from storage/logger/tools-builtins)
@@ -1615,7 +1615,7 @@ The `DextoAgent` constructor is identical in both cases — it always receives c
 
 1. **`AgentConfigSchema`** — the top‑level composition that glues all sub‑schemas into the YAML shape
 2. **`ValidatedAgentConfig`** type — the monolithic output of YAML parsing
-3. **DI surface schemas:** `CustomToolsSchema` (→ `ToolsConfigSchema`), `PluginsConfigSchema`, `CompactionConfigSchema` — these move to `@dexto/agent-config`. `StorageConfigSchema` moves to `@dexto/storage`, `LoggerConfigSchema` moves to `@dexto/logger` (schemas live with implementations). `agent-config` imports from both to compose the top‑level schema.
+3. **DI surface schemas:** `CustomToolsSchema` (→ `ToolsConfigSchema`), `PluginsConfigSchema`, `CompactionConfigSchema` — these move to `@dexto/agent-config`. `StorageConfigSchema` moves to `@dexto/storage`. `LoggerConfigSchema` stays in `@dexto/core` for now (Phase 3.3 deferred).
 4. **The YAML → `DextoAgentOptions` transformation** — extract DI sections, resolve via image factories, pass remainder + instances
 
 Agent‑config **imports core's sub‑schemas** to compose the full YAML schema — no duplication:
@@ -1631,7 +1631,7 @@ import { StorageConfigSchema } from '@dexto/storage';  // lives with implementat
 import { ToolsConfigSchema } from './tools.js';
 import { PluginsConfigSchema } from './plugins.js';
 import { CompactionConfigSchema } from './compaction.js';
-import { LoggerConfigSchema } from '@dexto/logger';     // lives with implementations
+    import { LoggerConfigSchema } from '@dexto/core';       // stays in core (Phase 3.3 deferred)
 
 export const AgentConfigSchema = z.object({
     agentId: z.string().default('coding-agent'),
@@ -1925,7 +1925,7 @@ Even though this is one PR, validate at each phase boundary to catch drift early
 | **After Phase 1E** (commit 1.23) | `DextoAgent` constructor takes `DextoAgentOptions`. `agent.on()` works. |
 | **After Phase 1F** (commit 1.29) | All registries deleted. `rg 'BaseRegistry\|blobStoreRegistry\|databaseRegistry\|cacheRegistry\|customToolRegistry\|pluginRegistry\|compactionRegistry' packages/core/src/` → zero results. |
 | **After Phase 2** (commit 2.6) | `resolveServicesFromConfig()` works with mock image. `AgentConfigSchema` in agent‑config. |
-| **After Phase 3** (commit 3.7) | `@dexto/tools-builtins`, `@dexto/storage`, `@dexto/logger` created. `image-local` exports typed `DextoImageModule`. |
+| **After Phase 3** (commit 3.7) | `@dexto/tools-builtins`, `@dexto/storage` created. Logger extraction (3.3) deferred (logger remains in core). `image-local` exports typed `DextoImageModule`. |
 | **After Phase 4** (commit 4.5) | `dexto` CLI starts. Chat works. Server mode works. Manual smoke test passes. |
 | **After Phase 5** (commit 5.5) | Zero dead code. Full test pass. Docs updated. All quality checks green. |
 
@@ -1972,7 +1972,7 @@ If a phase causes issues, `git revert` individual commits or ranges. Each commit
 - **Convention folder configurability and `include` shorthand are future enhancements** — ship with fixed conventions first.
 - **Implementation packages extracted from core:**
   - `@dexto/storage` — all storage implementations + typed `StorageFactory` objects (SQLite, Postgres, local blob, memory, Redis) + storage config schemas
-  - `@dexto/logger` — logger implementations + `LoggerFactory` + logger config schema (winston, v2 logger)
+  - `@dexto/logger` — (deferred) logger extraction + `LoggerFactory` + logger config schema (see Phase 3.3 split notes; logger stays in core for now)
   - `@dexto/tools-builtins` — former internal tools as standard `ToolFactory`
   - Core keeps only interfaces (`BlobStore`, `Database`, `Cache`, `IDextoLogger`, `Tool`, `DextoPlugin`, `CompactionStrategy`, `ToolExecutionContext`, `PluginExecutionContext`) and orchestration (`StorageManager`, `ToolManager`, `PluginManager`, etc.)
 - **YAML UX unchanged**: Users still write `type: filesystem-tools` in config. The difference is that core no longer resolves type strings — the resolver layer does, using the image's factory maps.
@@ -2218,12 +2218,12 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
   - Vet: `prompt-manager.ts`, `providers/config-prompt-provider.ts`, `providers/custom-prompt-provider.ts`, `providers/mcp-prompt-provider.ts`, `schemas.ts`
   - Exit: confirmed no registry imports.
 
-- [ ] **1.21 `logger/` — vet (expect: DI change, implementation moves to `@dexto/logger` in Phase 3.3)**
+- [ ] **1.21 `logger/` — vet (expect: DI change; implementation extraction deferred)**
   - Logger becomes a DI instance. Core receives `IDextoLogger`, doesn't create it from config.
   - Vet: `logger.ts` (v1), `v2/` (v2 logger system — ~10 files). Understand which is used.
   - Phase 1: make core depend only on `IDextoLogger` interface. Move `createLogger()` calls out of core. Implementations stay in core as plain exports.
-  - Phase 3.3: extract all implementation files to `@dexto/logger` package.
-  - `LoggerConfigSchema` moves to `@dexto/logger` (config schema lives with the implementation).
+  - Phase 3.3 (original plan): extract logger impl + schemas to `@dexto/logger`.
+  - **Update (2026-02-10):** extraction is split/deferred (see Phase 3.3 notes) due to layering issues; keep `createLogger()` + `LoggerConfigSchema` in core for now.
   - Exit (Phase 1): core uses `IDextoLogger` interface only. No logger creation from config in core.
 
 - [ ] **1.22 `telemetry/` — vet (expect: minimal changes)**
@@ -2274,7 +2274,7 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
   - Remove: `listAllProviders`, `hasProvider` from providers
   - Remove: `defineImage` and image types
   - Remove: `AgentConfigSchema`, `ValidatedAgentConfig` (moved to agent‑config)
-  - Remove: DI surface schemas (`CustomToolsSchema`, `PluginsConfigSchema`, `CompactionConfigSchema`) → agent‑config. `StorageSchema` → `@dexto/storage`. `LoggerConfigSchema` → `@dexto/logger`.
+  - Remove: DI surface schemas (`CustomToolsSchema`, `PluginsConfigSchema`, `CompactionConfigSchema`) → agent‑config. `StorageSchema` → `@dexto/storage`. `LoggerConfigSchema` stays in core for now (Phase 3.3 deferred).
   - Keep: all interface exports (`BlobStore`, `Database`, `Cache`, `Tool`, `DextoPlugin`, `CompactionStrategy`, `IDextoLogger`, `DextoAgentOptions`, etc.)
   - Keep: module‑level config exports (sub‑schemas like `LLMConfigSchema`, `SessionConfigSchema`, etc. + their derived types)
   - Vet: `index.browser.ts` — browser‑safe exports subset. Remove registry exports here too.
@@ -2302,7 +2302,7 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
   - Resolve naming collision: the old per‑tool limits object currently lives at `config.tools` in core (`ToolsConfigSchema` record). With unified `tools: [...]`, either:
     - rename it to `toolLimits` (or similar), or
     - delete it for now (it is currently schema-only; no runtime usage).
-  - Move DI surface schemas: `PluginsConfigSchema` (unified), `CompactionConfigSchema` → agent‑config. Import `StorageConfigSchema` from `@dexto/storage` and `LoggerConfigSchema` from `@dexto/logger`.
+  - Move DI surface schemas: `PluginsConfigSchema` (unified), `CompactionConfigSchema` → agent‑config. Import `StorageConfigSchema` from `@dexto/storage` and `LoggerConfigSchema` from `@dexto/core` (Phase 3.3 deferred).
   - Move `ValidatedAgentConfig` type to agent‑config
   - Keep `AgentCardSchema` (shared) — decide location (may stay in core since `agentCard` is in `DextoAgentOptions`)
   - Remove `AgentConfigSchema` + `ValidatedAgentConfig` from core's `schemas.ts` and barrel exports
@@ -2349,7 +2349,7 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
 
 ### Phase 3: Image system rewrite
 > **Goal:** Images export `DextoImageModule` objects. No side effects, no `.toString()`, no registries.
-> **Ordering rationale:** Extraction packages (3.1–3.3) must be created before image‑local (3.5) can import from them. Tool adapter work (3.4) is independent.
+> **Ordering rationale:** Extraction packages (3.1–3.2) must be created before image‑local (3.5) can import from them. Tool adapter work (3.4) is independent. (Logger extraction 3.3 is split/deferred.)
 
 - [ ] **3.1 Create `@dexto/tools-builtins` package (former internal tools)**
   - New package: `packages/tools-builtins/`
@@ -2374,17 +2374,14 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
   - `@dexto/storage` depends on `@dexto/core` (for interface types)
   - Exit: `@dexto/storage` builds, exports all `StorageFactory` objects. Core's storage layer is interfaces only. Build passes.
 
-- [ ] **3.3 Create `@dexto/logger` package (extract from core)**
-  - New package: `packages/logger/`
-  - Move logger implementations from `packages/core/src/logger/`:
-    - v1 logger (`logger.ts`) and v2 logger system (`v2/` — ~10 files)
-    - `createLogger()` factory function
-    - Logger config schema (`LoggerConfigSchema`)
-    - Logger-specific dependencies (winston, chalk, etc.)
-  - Core keeps: `IDextoLogger` interface only
-  - Create `LoggerFactory`‑compatible object for use in images
-  - `@dexto/logger` depends on `@dexto/core` (for `IDextoLogger` interface)
-  - Exit: `@dexto/logger` builds, exports `LoggerFactory`. Core's logger is interface-only. Build passes.
+- [ ] **3.3 Logger extraction (split; deferred)**
+  - We attempted to extract logger impl + schemas into `@dexto/logger`, but hit a layering issue:
+    - `@dexto/logger` naturally depends on `@dexto/core` for `IDextoLogger`/`DextoLogComponent` (+ typed errors), so core cannot import logger impl back without a dependency cycle.
+    - A few **core** utilities used a global logger for best-effort diagnostics (telemetry shutdown warning, LLM registry auto-update, OpenRouter model registry refresh). After extraction, those callsites would need `console.*` fallbacks or additional DI threading.
+  - **Decision (2026-02-10):** keep logger implementation + `LoggerConfigSchema` in `@dexto/core` for now so this refactor doesn’t get blocked by logging concerns.
+  - Split follow-up (optional) if we want extraction later without the `console.*` smell:
+    - [ ] **3.3a Create `@dexto/logger-types`** (interfaces/enums only; no Node deps)
+    - [ ] **3.3b Create `@dexto/logger`** (impl + schemas + factories) depending on `@dexto/logger-types` (not core)
 
 - [ ] **3.4 Adapt existing tool provider packages**
   - `@dexto/tools-filesystem`, `@dexto/tools-process`, `@dexto/tools-todo`, `@dexto/tools-plan`
@@ -2393,10 +2390,10 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
   - Exit: each tool package exports a `ToolFactory`‑compatible object. No registry imports.
 
 - [ ] **3.5 Rewrite `@dexto/image-local` as hand‑written `DextoImageModule`**
-  - **Depends on:** 3.1 (tools-builtins), 3.2 (storage), 3.3 (logger), 3.4 (tool adapters)
+  - **Depends on:** 3.1 (tools-builtins), 3.2 (storage), 3.4 (tool adapters). (Logger stays in core for now.)
   - Delete `dexto.image.ts` + bundler‑generated output
   - Write `index.ts` exporting `DextoImageModule` with factory maps
-  - Dependencies: `@dexto/tools-builtins`, `@dexto/tools-filesystem`, `@dexto/tools-process`, `@dexto/tools-todo`, `@dexto/tools-plan`, `@dexto/storage`, `@dexto/logger`
+  - Dependencies: `@dexto/tools-builtins`, `@dexto/tools-filesystem`, `@dexto/tools-process`, `@dexto/tools-todo`, `@dexto/tools-plan`, `@dexto/storage`
   - Tools map: `builtin-tools` (from `@dexto/tools-builtins`), `filesystem-tools`, `process-tools`, `todo-tools`, `plan-tools`
   - Plugins map: `content-policy`, `response-sanitizer` (former built‑in plugins)
   - Compaction map: `reactive-overflow`, `noop` (built‑in strategies from core)
@@ -2404,7 +2401,7 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
     - `blob: { 'local': localBlobStoreFactory, 'in-memory': inMemoryBlobStoreFactory }`
     - `database: { 'sqlite': sqliteFactory, 'postgres': postgresFactory, 'in-memory': inMemoryDatabaseFactory }`
     - `cache: { 'in-memory': inMemoryCacheFactory, 'redis': redisCacheFactory }`
-  - Logger: default logger factory from `@dexto/logger`
+  - Logger: default logger factory wrapper around `@dexto/core`’s `createLogger()` + `LoggerConfigSchema` (until 3.3 is revisited)
   - Exit: `import imageLocal from '@dexto/image-local'` returns typed `DextoImageModule`. No side effects on import. Build passes.
 
 - [ ] **3.6 Update `@dexto/image-bundler`**
@@ -2414,7 +2411,7 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
     - `storage/blob/<type>/` → `image.storage.blob['<type>']`
     - `storage/database/<type>/` → `image.storage.database['<type>']`
     - `storage/cache/<type>/` → `image.storage.cache['<type>']`
-  - Generated module includes `logger: defaultLoggerFactory` (from `@dexto/logger`)
+  - Generated module includes `logger: defaultLoggerFactory` (wrapper around core `createLogger()` + `LoggerConfigSchema`, until 3.3 is revisited)
   - Remove `.toString()` serialization logic entirely
   - Remove duck‑typing discovery — require explicit `export const provider` contract
   - Exit: bundler generates valid `DextoImageModule`. Can bundle a test image with convention folders. Proper documentation inside the repo for how to use this as well.
@@ -2566,14 +2563,14 @@ Phase 0 (foundation) → Phase 1 (core DI) → Phase 2 (resolver) → Phase 3 (i
 **New packages created:**
 - `@dexto/agent-config` — resolver, config schemas, image loading
 - `@dexto/storage` — all storage implementations + `StorageFactory` objects
-- `@dexto/logger` — logger implementations + `LoggerFactory`
+- `@dexto/logger` — (deferred) logger extraction; keep in core for now (see Phase 3.3 split notes)
 - `@dexto/tools-builtins` — former internal tools as `ToolFactory`
 
 **Estimated blast radius:**
 - ~80 files import from registries → all need updating
 - ~20 files import `ValidatedAgentConfig` for constructor paths → need `DextoAgentOptions`
 - ~20 files move from core to `@dexto/storage` (implementations, schemas, providers)
-- ~10 files move from core to `@dexto/logger` (implementations, schemas)
+- ~10 files would move from core to `@dexto/logger` if/when Phase 3.3 is revisited (currently deferred)
 - ~6 files move from core to `@dexto/tools-builtins` (internal tool implementations)
 - ~15 test files test registry behavior → delete or rewrite
 - ~6 registry classes + 6 singleton instances → all deleted
