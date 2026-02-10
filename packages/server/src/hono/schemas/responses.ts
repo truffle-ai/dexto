@@ -232,6 +232,35 @@ export { InternalResourceConfigSchema } from '@dexto/core';
 
 // --- Session Schemas ---
 
+export const SessionTokenUsageSchema = z
+    .object({
+        inputTokens: z.number().int().nonnegative().describe('Number of input tokens'),
+        outputTokens: z.number().int().nonnegative().describe('Number of output tokens'),
+        reasoningTokens: z.number().int().nonnegative().describe('Number of reasoning tokens'),
+        cacheReadTokens: z.number().int().nonnegative().describe('Number of cache read tokens'),
+        cacheWriteTokens: z.number().int().nonnegative().describe('Number of cache write tokens'),
+        totalTokens: z.number().int().nonnegative().describe('Total tokens used'),
+    })
+    .strict()
+    .describe('Session-level token usage (all fields required for cumulative totals)');
+
+export const ModelStatisticsSchema = z
+    .object({
+        provider: z.string().describe('LLM provider identifier'),
+        model: z.string().describe('Model identifier'),
+        messageCount: z
+            .number()
+            .int()
+            .nonnegative()
+            .describe('Number of messages using this model'),
+        tokenUsage: SessionTokenUsageSchema.describe('Token usage for this model'),
+        estimatedCost: z.number().nonnegative().describe('Estimated cost in USD for this model'),
+        firstUsedAt: z.number().int().positive().describe('First use timestamp (Unix ms)'),
+        lastUsedAt: z.number().int().positive().describe('Last use timestamp (Unix ms)'),
+    })
+    .strict()
+    .describe('Per-model statistics within a session');
+
 export const SessionMetadataSchema = z
     .object({
         id: z.string().describe('Unique session identifier'),
@@ -253,10 +282,24 @@ export const SessionMetadataSchema = z
             .nonnegative()
             .describe('Total number of messages in session'),
         title: z.string().optional().nullable().describe('Optional session title'),
+        tokenUsage: SessionTokenUsageSchema.optional().describe(
+            'Aggregate token usage across all models'
+        ),
+        estimatedCost: z
+            .number()
+            .nonnegative()
+            .optional()
+            .describe('Total estimated cost in USD across all models'),
+        modelStats: z
+            .array(ModelStatisticsSchema)
+            .optional()
+            .describe('Per-model usage statistics (for multi-model sessions)'),
     })
     .strict()
     .describe('Session metadata');
 
+export type SessionTokenUsage = z.output<typeof SessionTokenUsageSchema>;
+export type ModelStatistics = z.output<typeof ModelStatisticsSchema>;
 export type SessionMetadata = z.output<typeof SessionMetadataSchema>;
 
 // --- Search Schemas ---

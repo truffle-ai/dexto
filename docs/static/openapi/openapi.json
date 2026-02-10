@@ -6467,6 +6467,151 @@
                             "type": "string",
                             "nullable": true,
                             "description": "Optional session title"
+                          },
+                          "tokenUsage": {
+                            "type": "object",
+                            "properties": {
+                              "inputTokens": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "description": "Number of input tokens"
+                              },
+                              "outputTokens": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "description": "Number of output tokens"
+                              },
+                              "reasoningTokens": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "description": "Number of reasoning tokens"
+                              },
+                              "cacheReadTokens": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "description": "Number of cache read tokens"
+                              },
+                              "cacheWriteTokens": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "description": "Number of cache write tokens"
+                              },
+                              "totalTokens": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "description": "Total tokens used"
+                              }
+                            },
+                            "required": [
+                              "inputTokens",
+                              "outputTokens",
+                              "reasoningTokens",
+                              "cacheReadTokens",
+                              "cacheWriteTokens",
+                              "totalTokens"
+                            ],
+                            "additionalProperties": false,
+                            "description": "Aggregate token usage across all models"
+                          },
+                          "estimatedCost": {
+                            "type": "number",
+                            "minimum": 0,
+                            "description": "Total estimated cost in USD across all models"
+                          },
+                          "modelStats": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "provider": {
+                                  "type": "string",
+                                  "description": "LLM provider identifier"
+                                },
+                                "model": {
+                                  "type": "string",
+                                  "description": "Model identifier"
+                                },
+                                "messageCount": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "description": "Number of messages using this model"
+                                },
+                                "tokenUsage": {
+                                  "type": "object",
+                                  "properties": {
+                                    "inputTokens": {
+                                      "type": "integer",
+                                      "minimum": 0,
+                                      "description": "Number of input tokens"
+                                    },
+                                    "outputTokens": {
+                                      "type": "integer",
+                                      "minimum": 0,
+                                      "description": "Number of output tokens"
+                                    },
+                                    "reasoningTokens": {
+                                      "type": "integer",
+                                      "minimum": 0,
+                                      "description": "Number of reasoning tokens"
+                                    },
+                                    "cacheReadTokens": {
+                                      "type": "integer",
+                                      "minimum": 0,
+                                      "description": "Number of cache read tokens"
+                                    },
+                                    "cacheWriteTokens": {
+                                      "type": "integer",
+                                      "minimum": 0,
+                                      "description": "Number of cache write tokens"
+                                    },
+                                    "totalTokens": {
+                                      "type": "integer",
+                                      "minimum": 0,
+                                      "description": "Total tokens used"
+                                    }
+                                  },
+                                  "required": [
+                                    "inputTokens",
+                                    "outputTokens",
+                                    "reasoningTokens",
+                                    "cacheReadTokens",
+                                    "cacheWriteTokens",
+                                    "totalTokens"
+                                  ],
+                                  "additionalProperties": false,
+                                  "description": "Token usage for this model"
+                                },
+                                "estimatedCost": {
+                                  "type": "number",
+                                  "minimum": 0,
+                                  "description": "Estimated cost in USD for this model"
+                                },
+                                "firstUsedAt": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "exclusiveMinimum": true,
+                                  "description": "First use timestamp (Unix ms)"
+                                },
+                                "lastUsedAt": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "exclusiveMinimum": true,
+                                  "description": "Last use timestamp (Unix ms)"
+                                }
+                              },
+                              "required": [
+                                "provider",
+                                "model",
+                                "messageCount",
+                                "tokenUsage",
+                                "estimatedCost",
+                                "firstUsedAt",
+                                "lastUsedAt"
+                              ],
+                              "additionalProperties": false,
+                              "description": "Per-model statistics within a session"
+                            },
+                            "description": "Per-model usage statistics (for multi-model sessions)"
                           }
                         },
                         "required": [
@@ -6551,6 +6696,151 @@
                           "type": "string",
                           "nullable": true,
                           "description": "Optional session title"
+                        },
+                        "tokenUsage": {
+                          "type": "object",
+                          "properties": {
+                            "inputTokens": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Number of input tokens"
+                            },
+                            "outputTokens": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Number of output tokens"
+                            },
+                            "reasoningTokens": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Number of reasoning tokens"
+                            },
+                            "cacheReadTokens": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Number of cache read tokens"
+                            },
+                            "cacheWriteTokens": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Number of cache write tokens"
+                            },
+                            "totalTokens": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Total tokens used"
+                            }
+                          },
+                          "required": [
+                            "inputTokens",
+                            "outputTokens",
+                            "reasoningTokens",
+                            "cacheReadTokens",
+                            "cacheWriteTokens",
+                            "totalTokens"
+                          ],
+                          "additionalProperties": false,
+                          "description": "Aggregate token usage across all models"
+                        },
+                        "estimatedCost": {
+                          "type": "number",
+                          "minimum": 0,
+                          "description": "Total estimated cost in USD across all models"
+                        },
+                        "modelStats": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "provider": {
+                                "type": "string",
+                                "description": "LLM provider identifier"
+                              },
+                              "model": {
+                                "type": "string",
+                                "description": "Model identifier"
+                              },
+                              "messageCount": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "description": "Number of messages using this model"
+                              },
+                              "tokenUsage": {
+                                "type": "object",
+                                "properties": {
+                                  "inputTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of input tokens"
+                                  },
+                                  "outputTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of output tokens"
+                                  },
+                                  "reasoningTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of reasoning tokens"
+                                  },
+                                  "cacheReadTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of cache read tokens"
+                                  },
+                                  "cacheWriteTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of cache write tokens"
+                                  },
+                                  "totalTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Total tokens used"
+                                  }
+                                },
+                                "required": [
+                                  "inputTokens",
+                                  "outputTokens",
+                                  "reasoningTokens",
+                                  "cacheReadTokens",
+                                  "cacheWriteTokens",
+                                  "totalTokens"
+                                ],
+                                "additionalProperties": false,
+                                "description": "Token usage for this model"
+                              },
+                              "estimatedCost": {
+                                "type": "number",
+                                "minimum": 0,
+                                "description": "Estimated cost in USD for this model"
+                              },
+                              "firstUsedAt": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "exclusiveMinimum": true,
+                                "description": "First use timestamp (Unix ms)"
+                              },
+                              "lastUsedAt": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "exclusiveMinimum": true,
+                                "description": "Last use timestamp (Unix ms)"
+                              }
+                            },
+                            "required": [
+                              "provider",
+                              "model",
+                              "messageCount",
+                              "tokenUsage",
+                              "estimatedCost",
+                              "firstUsedAt",
+                              "lastUsedAt"
+                            ],
+                            "additionalProperties": false,
+                            "description": "Per-model statistics within a session"
+                          },
+                          "description": "Per-model usage statistics (for multi-model sessions)"
                         }
                       },
                       "required": [
@@ -6631,6 +6921,151 @@
                           "type": "string",
                           "nullable": true,
                           "description": "Optional session title"
+                        },
+                        "tokenUsage": {
+                          "type": "object",
+                          "properties": {
+                            "inputTokens": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Number of input tokens"
+                            },
+                            "outputTokens": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Number of output tokens"
+                            },
+                            "reasoningTokens": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Number of reasoning tokens"
+                            },
+                            "cacheReadTokens": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Number of cache read tokens"
+                            },
+                            "cacheWriteTokens": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Number of cache write tokens"
+                            },
+                            "totalTokens": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Total tokens used"
+                            }
+                          },
+                          "required": [
+                            "inputTokens",
+                            "outputTokens",
+                            "reasoningTokens",
+                            "cacheReadTokens",
+                            "cacheWriteTokens",
+                            "totalTokens"
+                          ],
+                          "additionalProperties": false,
+                          "description": "Aggregate token usage across all models"
+                        },
+                        "estimatedCost": {
+                          "type": "number",
+                          "minimum": 0,
+                          "description": "Total estimated cost in USD across all models"
+                        },
+                        "modelStats": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "provider": {
+                                "type": "string",
+                                "description": "LLM provider identifier"
+                              },
+                              "model": {
+                                "type": "string",
+                                "description": "Model identifier"
+                              },
+                              "messageCount": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "description": "Number of messages using this model"
+                              },
+                              "tokenUsage": {
+                                "type": "object",
+                                "properties": {
+                                  "inputTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of input tokens"
+                                  },
+                                  "outputTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of output tokens"
+                                  },
+                                  "reasoningTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of reasoning tokens"
+                                  },
+                                  "cacheReadTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of cache read tokens"
+                                  },
+                                  "cacheWriteTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of cache write tokens"
+                                  },
+                                  "totalTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Total tokens used"
+                                  }
+                                },
+                                "required": [
+                                  "inputTokens",
+                                  "outputTokens",
+                                  "reasoningTokens",
+                                  "cacheReadTokens",
+                                  "cacheWriteTokens",
+                                  "totalTokens"
+                                ],
+                                "additionalProperties": false,
+                                "description": "Token usage for this model"
+                              },
+                              "estimatedCost": {
+                                "type": "number",
+                                "minimum": 0,
+                                "description": "Estimated cost in USD for this model"
+                              },
+                              "firstUsedAt": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "exclusiveMinimum": true,
+                                "description": "First use timestamp (Unix ms)"
+                              },
+                              "lastUsedAt": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "exclusiveMinimum": true,
+                                "description": "Last use timestamp (Unix ms)"
+                              }
+                            },
+                            "required": [
+                              "provider",
+                              "model",
+                              "messageCount",
+                              "tokenUsage",
+                              "estimatedCost",
+                              "firstUsedAt",
+                              "lastUsedAt"
+                            ],
+                            "additionalProperties": false,
+                            "description": "Per-model statistics within a session"
+                          },
+                          "description": "Per-model usage statistics (for multi-model sessions)"
                         },
                         "history": {
                           "type": "integer",
@@ -6784,6 +7219,151 @@
                           "type": "string",
                           "nullable": true,
                           "description": "Optional session title"
+                        },
+                        "tokenUsage": {
+                          "type": "object",
+                          "properties": {
+                            "inputTokens": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Number of input tokens"
+                            },
+                            "outputTokens": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Number of output tokens"
+                            },
+                            "reasoningTokens": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Number of reasoning tokens"
+                            },
+                            "cacheReadTokens": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Number of cache read tokens"
+                            },
+                            "cacheWriteTokens": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Number of cache write tokens"
+                            },
+                            "totalTokens": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Total tokens used"
+                            }
+                          },
+                          "required": [
+                            "inputTokens",
+                            "outputTokens",
+                            "reasoningTokens",
+                            "cacheReadTokens",
+                            "cacheWriteTokens",
+                            "totalTokens"
+                          ],
+                          "additionalProperties": false,
+                          "description": "Aggregate token usage across all models"
+                        },
+                        "estimatedCost": {
+                          "type": "number",
+                          "minimum": 0,
+                          "description": "Total estimated cost in USD across all models"
+                        },
+                        "modelStats": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "provider": {
+                                "type": "string",
+                                "description": "LLM provider identifier"
+                              },
+                              "model": {
+                                "type": "string",
+                                "description": "Model identifier"
+                              },
+                              "messageCount": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "description": "Number of messages using this model"
+                              },
+                              "tokenUsage": {
+                                "type": "object",
+                                "properties": {
+                                  "inputTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of input tokens"
+                                  },
+                                  "outputTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of output tokens"
+                                  },
+                                  "reasoningTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of reasoning tokens"
+                                  },
+                                  "cacheReadTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of cache read tokens"
+                                  },
+                                  "cacheWriteTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of cache write tokens"
+                                  },
+                                  "totalTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Total tokens used"
+                                  }
+                                },
+                                "required": [
+                                  "inputTokens",
+                                  "outputTokens",
+                                  "reasoningTokens",
+                                  "cacheReadTokens",
+                                  "cacheWriteTokens",
+                                  "totalTokens"
+                                ],
+                                "additionalProperties": false,
+                                "description": "Token usage for this model"
+                              },
+                              "estimatedCost": {
+                                "type": "number",
+                                "minimum": 0,
+                                "description": "Estimated cost in USD for this model"
+                              },
+                              "firstUsedAt": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "exclusiveMinimum": true,
+                                "description": "First use timestamp (Unix ms)"
+                              },
+                              "lastUsedAt": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "exclusiveMinimum": true,
+                                "description": "Last use timestamp (Unix ms)"
+                              }
+                            },
+                            "required": [
+                              "provider",
+                              "model",
+                              "messageCount",
+                              "tokenUsage",
+                              "estimatedCost",
+                              "firstUsedAt",
+                              "lastUsedAt"
+                            ],
+                            "additionalProperties": false,
+                            "description": "Per-model statistics within a session"
+                          },
+                          "description": "Per-model usage statistics (for multi-model sessions)"
                         }
                       },
                       "required": [
@@ -7302,6 +7882,151 @@
                           "type": "string",
                           "nullable": true,
                           "description": "Optional session title"
+                        },
+                        "tokenUsage": {
+                          "type": "object",
+                          "properties": {
+                            "inputTokens": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Number of input tokens"
+                            },
+                            "outputTokens": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Number of output tokens"
+                            },
+                            "reasoningTokens": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Number of reasoning tokens"
+                            },
+                            "cacheReadTokens": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Number of cache read tokens"
+                            },
+                            "cacheWriteTokens": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Number of cache write tokens"
+                            },
+                            "totalTokens": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Total tokens used"
+                            }
+                          },
+                          "required": [
+                            "inputTokens",
+                            "outputTokens",
+                            "reasoningTokens",
+                            "cacheReadTokens",
+                            "cacheWriteTokens",
+                            "totalTokens"
+                          ],
+                          "additionalProperties": false,
+                          "description": "Aggregate token usage across all models"
+                        },
+                        "estimatedCost": {
+                          "type": "number",
+                          "minimum": 0,
+                          "description": "Total estimated cost in USD across all models"
+                        },
+                        "modelStats": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "provider": {
+                                "type": "string",
+                                "description": "LLM provider identifier"
+                              },
+                              "model": {
+                                "type": "string",
+                                "description": "Model identifier"
+                              },
+                              "messageCount": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "description": "Number of messages using this model"
+                              },
+                              "tokenUsage": {
+                                "type": "object",
+                                "properties": {
+                                  "inputTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of input tokens"
+                                  },
+                                  "outputTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of output tokens"
+                                  },
+                                  "reasoningTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of reasoning tokens"
+                                  },
+                                  "cacheReadTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of cache read tokens"
+                                  },
+                                  "cacheWriteTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of cache write tokens"
+                                  },
+                                  "totalTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Total tokens used"
+                                  }
+                                },
+                                "required": [
+                                  "inputTokens",
+                                  "outputTokens",
+                                  "reasoningTokens",
+                                  "cacheReadTokens",
+                                  "cacheWriteTokens",
+                                  "totalTokens"
+                                ],
+                                "additionalProperties": false,
+                                "description": "Token usage for this model"
+                              },
+                              "estimatedCost": {
+                                "type": "number",
+                                "minimum": 0,
+                                "description": "Estimated cost in USD for this model"
+                              },
+                              "firstUsedAt": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "exclusiveMinimum": true,
+                                "description": "First use timestamp (Unix ms)"
+                              },
+                              "lastUsedAt": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "exclusiveMinimum": true,
+                                "description": "Last use timestamp (Unix ms)"
+                              }
+                            },
+                            "required": [
+                              "provider",
+                              "model",
+                              "messageCount",
+                              "tokenUsage",
+                              "estimatedCost",
+                              "firstUsedAt",
+                              "lastUsedAt"
+                            ],
+                            "additionalProperties": false,
+                            "description": "Per-model statistics within a session"
+                          },
+                          "description": "Per-model usage statistics (for multi-model sessions)"
                         },
                         "isBusy": {
                           "type": "boolean",
