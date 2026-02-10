@@ -7,8 +7,8 @@ export default defineConfig({
             // @core is used internally within the core package only
             '@core': path.resolve(__dirname, 'packages/core/src'),
             // Workspace aliases for packages used directly in tests
-            '@dexto/storage': path.resolve(__dirname, 'packages/storage/src/index.ts'),
             '@dexto/storage/schemas': path.resolve(__dirname, 'packages/storage/src/schemas.ts'),
+            '@dexto/storage': path.resolve(__dirname, 'packages/storage/src/index.ts'),
         },
     },
     test: {

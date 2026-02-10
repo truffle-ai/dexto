@@ -7,6 +7,7 @@
 
 // Main provider export
 export { processToolsProvider } from './tool-provider.js';
+export { processToolsFactory } from './tool-factory.js';
 
 // Service and utilities (for advanced use cases)
 export { ProcessService } from './process-service.js';

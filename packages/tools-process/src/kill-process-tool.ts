@@ -7,6 +7,7 @@
 import { z } from 'zod';
 import { InternalTool, ToolExecutionContext } from '@dexto/core';
 import { ProcessService } from './process-service.js';
+import type { ProcessServiceGetter } from './bash-exec-tool.js';
 
 const KillProcessInputSchema = z
     .object({
@@ -19,18 +20,25 @@ type KillProcessInput = z.input<typeof KillProcessInputSchema>;
 /**
  * Create the kill_process internal tool
  */
-export function createKillProcessTool(processService: ProcessService): InternalTool {
+export function createKillProcessTool(
+    processService: ProcessService | ProcessServiceGetter
+): InternalTool {
+    const getProcessService: ProcessServiceGetter =
+        typeof processService === 'function' ? processService : async () => processService;
+
     return {
         id: 'kill_process',
         description:
             "Terminate a background process started with bash_exec. Sends SIGTERM signal first, then SIGKILL if process doesn't terminate within 5 seconds. Only works on processes started by this agent. Returns success status and whether the process was running. Does not require additional approval (process was already approved when started).",
         inputSchema: KillProcessInputSchema,
-        execute: async (input: unknown, _context?: ToolExecutionContext) => {
+        execute: async (input: unknown, context?: ToolExecutionContext) => {
+            const resolvedProcessService = await getProcessService(context);
+
             // Input is validated by provider before reaching here
             const { process_id } = input as KillProcessInput;
 
             // Kill process using ProcessService
-            await processService.killProcess(process_id);
+            await resolvedProcessService.killProcess(process_id);
 
             // Note: killProcess returns void and doesn't throw if process already stopped
             return {

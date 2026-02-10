@@ -37,6 +37,7 @@ export const PLUGIN_PATH = path.resolve(__dirname, '..');
 
 // Tool provider (for direct registration if needed)
 export { planToolsProvider } from './tool-provider.js';
+export { planToolsFactory } from './tool-factory.js';
 
 // Service (for advanced use cases)
 export { PlanService } from './plan-service.js';

@@ -1,6 +1,6 @@
 import { describe, test, expect, beforeAll } from 'vitest';
 import { CustomPromptProvider } from './custom-prompt-provider.js';
-import { MemoryDatabaseStore } from '../../storage/database/memory-database-store.js';
+import { MemoryDatabaseStore } from '@dexto/storage';
 
 const mockLogger = {
     debug: () => {},

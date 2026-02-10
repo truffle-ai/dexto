@@ -19,20 +19,24 @@
 
 ## Current Task
 
-**Task:** **3.4 Adapt existing tool provider packages**
+**Task:** **3.5 Rewrite `@dexto/image-local` as hand-written `DextoImageModule`**
 **Status:** _Not started_
 **Branch:** `rebuild-di`
 
 ### Plan
-- `@dexto/tools-filesystem`, `@dexto/tools-process`, `@dexto/tools-todo`, `@dexto/tools-plan`
-- Verify each exports a `ToolFactory`-compatible object (or add adapter)
-- Ensure no registry imports / side-effect registration
-- Exit: each tool package builds and `@dexto/image-local` can consume factories
+- Delete bundler-based image-local entrypoints (`dexto.image.ts` + generated output)
+- Write a hand-written `index.ts` exporting a typed `DextoImageModule` (no side effects)
+- Wire factory maps:
+  - `tools`: `builtin-tools`, `filesystem-tools`, `process-tools`, `todo-tools`, `plan-tools`
+  - `storage`: blob/database/cache factories from `@dexto/storage`
+  - `plugins`: `content-policy`, `response-sanitizer` (from core)
+  - `compaction`: `reactive-overflow`, `noop` (from core)
+  - `logger`: wrapper around core `createLogger()` + `LoggerConfigSchema` (Phase 3.3 deferred)
+- Exit: `import imageLocal from '@dexto/image-local'` returns a `DextoImageModule`; build/tests pass
 
 ### Notes
 _Log findings, issues, and progress here as you work._
-
-2026-02-10: Owner chose to defer Phase 3.3 (`@dexto/logger` extraction) for now and keep logger implementation + schemas in `@dexto/core`, to avoid core-level `console.*` fallbacks/inline loggers and additional package churn. Revisit later (likely via a dedicated interface-only package if we still want extraction).
+2026-02-10: Phase 3.4 completed: `@dexto/tools-filesystem`, `@dexto/tools-process`, `@dexto/tools-todo`, `@dexto/tools-plan` now export `ToolFactory` objects for image consumption. `pnpm -w run build:packages` + `pnpm -w test` pass.
 
 ---
 
@@ -105,6 +109,7 @@ _Move tasks here after completion. Keep a brief log of what was done and any dev
 | 2.3 | `loadImage(imageName)` helper | 2026-02-10 | Added `loadImage()` dynamic import wrapper + runtime shape validation for `DextoImageModule` (with clear error messages). Unit tests cover success + import failure + shape mismatch. `pnpm -w build:packages` + `pnpm -w test` pass. |
 | 3.1 | Create `@dexto/tools-builtins` package | 2026-02-10 | Added `packages/tools-builtins/` and exported `builtinToolsFactory` (`builtin-tools` + optional `enabledTools`). Tool implementations use `ToolExecutionContext` services at runtime. `pnpm -w build:packages` + `pnpm -w test` pass. |
 | 3.2 | Create `@dexto/storage` package | 2026-02-10 | Added `packages/storage/` (schemas + providers + factories) and removed concrete storage implementations/schemas from core (core is interfaces + `StorageManager` only). Updated host layers (CLI/server/agent-management) to inject `overrides.storageManager`. Updated webui to import storage types/constants from `@dexto/storage/schemas`. `pnpm -w build:packages` passes. |
+| 3.4 | Adapt existing tool provider packages | 2026-02-10 | Added `ToolFactory` exports for `@dexto/tools-filesystem`, `@dexto/tools-process`, `@dexto/tools-todo`, `@dexto/tools-plan` for image-local consumption (registry-free). `pnpm -w build:packages` + `pnpm -w test` pass. |
 
 ---
 

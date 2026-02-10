@@ -43,7 +43,16 @@ type BashExecInput = z.input<typeof BashExecInputSchema>;
 /**
  * Create the bash_exec internal tool
  */
-export function createBashExecTool(processService: ProcessService): InternalTool {
+export type ProcessServiceGetter = (
+    context?: ToolExecutionContext
+) => ProcessService | Promise<ProcessService>;
+
+export function createBashExecTool(
+    processService: ProcessService | ProcessServiceGetter
+): InternalTool {
+    const getProcessService: ProcessServiceGetter =
+        typeof processService === 'function' ? processService : async () => processService;
+
     return {
         id: 'bash_exec',
         description: `Execute a shell command in the project root directory.
@@ -110,6 +119,8 @@ Security: Dangerous commands are blocked. Injection attempts are detected. Requi
         },
 
         execute: async (input: unknown, context?: ToolExecutionContext) => {
+            const resolvedProcessService = await getProcessService(context);
+
             // Input is validated by provider before reaching here
             const { command, description, timeout, run_in_background, cwd } =
                 input as BashExecInput;
@@ -117,7 +128,8 @@ Security: Dangerous commands are blocked. Injection attempts are detected. Requi
             // Validate cwd to prevent path traversal
             let validatedCwd: string | undefined = cwd;
             if (cwd) {
-                const baseDir = processService.getConfig().workingDirectory || process.cwd();
+                const baseDir =
+                    resolvedProcessService.getConfig().workingDirectory || process.cwd();
 
                 // Resolve cwd to absolute path
                 const candidatePath = path.isAbsolute(cwd)
@@ -141,7 +153,7 @@ Security: Dangerous commands are blocked. Injection attempts are detected. Requi
 
             // Execute command using ProcessService
             // Note: Approval is handled at ToolManager level with pattern-based approval
-            const result = await processService.executeCommand(command, {
+            const result = await resolvedProcessService.executeCommand(command, {
                 description,
                 timeout,
                 runInBackground: run_in_background,

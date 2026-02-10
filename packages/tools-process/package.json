@@ -24,6 +24,7 @@
     "shell"
   ],
   "dependencies": {
+    "@dexto/agent-config": "workspace:*",
     "@dexto/core": "workspace:*",
     "zod": "^3.25.0"
   },

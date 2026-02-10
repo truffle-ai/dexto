@@ -38,7 +38,7 @@ const DEFAULT_ENVIRONMENT: Record<string, string> = {};
  * Services receive fully-validated config from this schema and use it as-is,
  * with no additional defaults or fallbacks needed.
  */
-const ProcessToolsConfigSchema = z
+export const ProcessToolsConfigSchema = z
     .object({
         type: z.literal('process-tools'),
         securityLevel: z
@@ -100,7 +100,7 @@ const ProcessToolsConfigSchema = z
     })
     .strict();
 
-type ProcessToolsConfig = z.output<typeof ProcessToolsConfigSchema>;
+export type ProcessToolsConfig = z.output<typeof ProcessToolsConfigSchema>;
 
 /**
  * Process tools provider.

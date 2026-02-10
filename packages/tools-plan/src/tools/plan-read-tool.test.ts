@@ -80,7 +80,7 @@ describe('plan_read tool', () => {
             expect(result.content).toBe(content);
             expect(result.status).toBe('draft');
             expect(result.title).toBe(title);
-            expect(result.path).toBe(`.dexto/plans/${sessionId}/plan.md`);
+            expect(result.path).toBe(path.join(tempDir, sessionId, 'plan.md'));
         });
 
         it('should return ISO timestamps', async () => {

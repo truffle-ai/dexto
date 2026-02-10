@@ -8,6 +8,7 @@
 import { z } from 'zod';
 import type { InternalTool, ToolExecutionContext } from '@dexto/core';
 import type { PlanService } from '../plan-service.js';
+import type { PlanServiceGetter } from '../plan-service-getter.js';
 import { PlanError } from '../errors.js';
 
 const PlanReadInputSchema = z.object({}).strict();
@@ -15,7 +16,10 @@ const PlanReadInputSchema = z.object({}).strict();
 /**
  * Creates the plan_read tool
  */
-export function createPlanReadTool(planService: PlanService): InternalTool {
+export function createPlanReadTool(planService: PlanService | PlanServiceGetter): InternalTool {
+    const getPlanService: PlanServiceGetter =
+        typeof planService === 'function' ? planService : async () => planService;
+
     return {
         id: 'plan_read',
         description:
@@ -23,11 +27,12 @@ export function createPlanReadTool(planService: PlanService): InternalTool {
         inputSchema: PlanReadInputSchema,
 
         execute: async (_input: unknown, context?: ToolExecutionContext) => {
+            const resolvedPlanService = await getPlanService(context);
             if (!context?.sessionId) {
                 throw PlanError.sessionIdRequired();
             }
 
-            const plan = await planService.read(context.sessionId);
+            const plan = await resolvedPlanService.read(context.sessionId);
 
             if (!plan) {
                 return {
@@ -38,7 +43,7 @@ export function createPlanReadTool(planService: PlanService): InternalTool {
 
             return {
                 exists: true,
-                path: `.dexto/plans/${context.sessionId}/plan.md`,
+                path: resolvedPlanService.getPlanPath(context.sessionId),
                 content: plan.content,
                 status: plan.meta.status,
                 title: plan.meta.title,

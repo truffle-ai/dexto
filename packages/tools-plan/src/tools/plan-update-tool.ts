@@ -9,6 +9,7 @@ import { z } from 'zod';
 import { createPatch } from 'diff';
 import type { InternalTool, ToolExecutionContext, DiffDisplayData } from '@dexto/core';
 import type { PlanService } from '../plan-service.js';
+import type { PlanServiceGetter } from '../plan-service-getter.js';
 import { PlanError } from '../errors.js';
 
 const PlanUpdateInputSchema = z
@@ -45,7 +46,10 @@ function generateDiffPreview(
 /**
  * Creates the plan_update tool
  */
-export function createPlanUpdateTool(planService: PlanService): InternalTool {
+export function createPlanUpdateTool(planService: PlanService | PlanServiceGetter): InternalTool {
+    const getPlanService: PlanServiceGetter =
+        typeof planService === 'function' ? planService : async () => planService;
+
     return {
         id: 'plan_update',
         description:
@@ -59,6 +63,7 @@ export function createPlanUpdateTool(planService: PlanService): InternalTool {
             input: unknown,
             context?: ToolExecutionContext
         ): Promise<DiffDisplayData> => {
+            const resolvedPlanService = await getPlanService(context);
             const { content: newContent } = input as PlanUpdateInput;
 
             if (!context?.sessionId) {
@@ -66,25 +71,26 @@ export function createPlanUpdateTool(planService: PlanService): InternalTool {
             }
 
             // Read existing plan
-            const existing = await planService.read(context.sessionId);
+            const existing = await resolvedPlanService.read(context.sessionId);
             if (!existing) {
                 throw PlanError.planNotFound(context.sessionId);
             }
 
             // Generate diff preview
-            const planPath = planService.getPlanPath(context.sessionId);
+            const planPath = resolvedPlanService.getPlanPath(context.sessionId);
             return generateDiffPreview(planPath, existing.content, newContent);
         },
 
         execute: async (input: unknown, context?: ToolExecutionContext) => {
+            const resolvedPlanService = await getPlanService(context);
             const { content } = input as PlanUpdateInput;
 
             if (!context?.sessionId) {
                 throw PlanError.sessionIdRequired();
             }
 
-            const result = await planService.update(context.sessionId, content);
-            const planPath = planService.getPlanPath(context.sessionId);
+            const result = await resolvedPlanService.update(context.sessionId, content);
+            const planPath = resolvedPlanService.getPlanPath(context.sessionId);
 
             return {
                 success: true,

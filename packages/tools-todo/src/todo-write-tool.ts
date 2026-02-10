@@ -60,7 +60,14 @@ const TodoWriteInputSchema = z
 /**
  * Create todo_write internal tool
  */
-export function createTodoWriteTool(todoService: TodoService): InternalTool {
+export type TodoServiceGetter = (
+    context?: ToolExecutionContext
+) => TodoService | Promise<TodoService>;
+
+export function createTodoWriteTool(todoService: TodoService | TodoServiceGetter): InternalTool {
+    const getTodoService: TodoServiceGetter =
+        typeof todoService === 'function' ? todoService : async () => todoService;
+
     return {
         id: 'todo_write',
         description: `Track progress on multi-step tasks. Use for:
@@ -74,6 +81,8 @@ IMPORTANT: This replaces the entire todo list. Always include ALL tasks (pending
         inputSchema: TodoWriteInputSchema,
 
         execute: async (input: unknown, context?: ToolExecutionContext): Promise<unknown> => {
+            const resolvedTodoService = await getTodoService(context);
+
             // Validate input against schema
             const validatedInput = TodoWriteInputSchema.parse(input);
 
@@ -81,7 +90,8 @@ IMPORTANT: This replaces the entire todo list. Always include ALL tasks (pending
             const sessionId = context?.sessionId ?? 'default';
 
             // Update todos in todo service
-            const result = await todoService.updateTodos(sessionId, validatedInput.todos);
+            await resolvedTodoService.initialize();
+            const result = await resolvedTodoService.updateTodos(sessionId, validatedInput.todos);
 
             // Count by status for summary
             const completed = result.todos.filter((t) => t.status === 'completed').length;

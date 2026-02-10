@@ -55,7 +55,7 @@ type FileSystemToolName = (typeof FILESYSTEM_TOOL_NAMES)[number];
  * Services receive fully-validated config from this schema and use it as-is,
  * with no additional defaults or fallbacks needed.
  */
-const FileSystemToolsConfigSchema = z
+export const FileSystemToolsConfigSchema = z
     .object({
         type: z.literal('filesystem-tools'),
         allowedPaths: z
@@ -107,7 +107,7 @@ const FileSystemToolsConfigSchema = z
     })
     .strict();
 
-type FileSystemToolsConfig = z.output<typeof FileSystemToolsConfigSchema>;
+export type FileSystemToolsConfig = z.output<typeof FileSystemToolsConfigSchema>;
 
 /**
  * FileSystem tools provider.

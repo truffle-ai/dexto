@@ -26,7 +26,7 @@ type PlanToolName = (typeof PLAN_TOOL_NAMES)[number];
 /**
  * Configuration schema for Plan tools provider
  */
-const PlanToolsConfigSchema = z
+export const PlanToolsConfigSchema = z
     .object({
         type: z.literal('plan-tools'),
         basePath: z
@@ -42,7 +42,7 @@ const PlanToolsConfigSchema = z
     })
     .strict();
 
-type PlanToolsConfig = z.output<typeof PlanToolsConfigSchema>;
+export type PlanToolsConfig = z.output<typeof PlanToolsConfigSchema>;
 
 /**
  * Plan tools provider

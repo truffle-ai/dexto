@@ -1075,7 +1075,7 @@ describe('SessionManager', () => {
                 { role: 'user', content: 'How are you?' },
                 { role: 'assistant', content: 'I am doing well, thank you!' },
             ];
-            await realStorageBackends.database.set(messagesKey, mockChatHistory);
+            await realStorageManager.getDatabase().set(messagesKey, mockChatHistory);
 
             // Verify session exists in memory
             expect(realSessionManager['sessions'].has(sessionId)).toBe(true);
@@ -1085,10 +1085,10 @@ describe('SessionManager', () => {
 
             // Update session metadata to mark it as expired
             const sessionKey = `session:${sessionId}`;
-            const sessionData = await realStorageBackends.database.get(sessionKey);
+            const sessionData = await realStorageManager.getDatabase().get(sessionKey);
             if (sessionData) {
                 sessionData.lastActivity = Date.now() - 200; // Mark as expired
-                await realStorageBackends.database.set(sessionKey, sessionData);
+                await realStorageManager.getDatabase().set(sessionKey, sessionData);
             }
 
             // Trigger cleanup manually (simulating periodic cleanup)
@@ -1098,11 +1098,11 @@ describe('SessionManager', () => {
             expect(realSessionManager['sessions'].has(sessionId)).toBe(false);
 
             // Session metadata should still exist
-            const preservedSessionData = await realStorageBackends.database.get(sessionKey);
+            const preservedSessionData = await realStorageManager.getDatabase().get(sessionKey);
             expect(preservedSessionData).toBeDefined();
 
             // Chat history should still exist
-            const preservedHistory = await realStorageBackends.database.get(messagesKey);
+            const preservedHistory = await realStorageManager.getDatabase().get(messagesKey);
             expect(preservedHistory).toEqual(mockChatHistory);
 
             // Step 4: Access session again - should restore from storage
@@ -1114,16 +1114,15 @@ describe('SessionManager', () => {
             expect(realSessionManager['sessions'].has(sessionId)).toBe(true);
 
             // Chat history should still be accessible
-            const finalHistory = await realStorageBackends.database.get(messagesKey);
+            const finalHistory = await realStorageManager.getDatabase().get(messagesKey);
             expect(finalHistory).toEqual(mockChatHistory);
 
             // Step 5: Verify new messages can be added to restored session
-            await realStorageBackends.database.set(messagesKey, [
-                ...mockChatHistory,
-                { role: 'user', content: 'Still here!' },
-            ]);
+            await realStorageManager
+                .getDatabase()
+                .set(messagesKey, [...mockChatHistory, { role: 'user', content: 'Still here!' }]);
 
-            const updatedHistory = await realStorageBackends.database.get(messagesKey);
+            const updatedHistory = await realStorageManager.getDatabase().get(messagesKey);
             expect(updatedHistory).toHaveLength(5);
             expect(updatedHistory[4]).toEqual({ role: 'user', content: 'Still here!' });
         });
@@ -1137,18 +1136,18 @@ describe('SessionManager', () => {
             const messagesKey = `messages:${sessionId}`;
             const sessionKey = `session:${sessionId}`;
             const mockHistory = [{ role: 'user', content: 'Test message' }];
-            await realStorageBackends.database.set(messagesKey, mockHistory);
+            await realStorageManager.getDatabase().set(messagesKey, mockHistory);
 
             // Verify everything exists
-            expect(await realStorageBackends.database.get(sessionKey)).toBeDefined();
-            expect(await realStorageBackends.database.get(messagesKey)).toEqual(mockHistory);
+            expect(await realStorageManager.getDatabase().get(sessionKey)).toBeDefined();
+            expect(await realStorageManager.getDatabase().get(messagesKey)).toEqual(mockHistory);
 
             // Explicitly delete session
             await realSessionManager.deleteSession(sessionId);
 
             // Everything should be gone
             expect(realSessionManager['sessions'].has(sessionId)).toBe(false);
-            expect(await realStorageBackends.database.get(sessionKey)).toBeUndefined();
+            expect(await realStorageManager.getDatabase().get(sessionKey)).toBeUndefined();
 
             // Note: Chat history is also deleted via session.reset() which calls
             // ContextManager's resetConversation() method, but since we're mocking
@@ -1164,16 +1163,20 @@ describe('SessionManager', () => {
             // Create multiple sessions with different histories
             for (let i = 0; i < sessionIds.length; i++) {
                 await realSessionManager.createSession(sessionIds[i]);
-                await realStorageBackends.database.set(`messages:${sessionIds[i]}`, histories[i]);
+                await realStorageManager
+                    .getDatabase()
+                    .set(`messages:${sessionIds[i]}`, histories[i]);
             }
 
             // Mark all as expired and cleanup
             await new Promise((resolve) => setTimeout(resolve, 150));
             for (const sessionId of sessionIds) {
-                const sessionData = await realStorageBackends.database.get(`session:${sessionId}`);
+                const sessionData = await realStorageManager
+                    .getDatabase()
+                    .get(`session:${sessionId}`);
                 if (sessionData) {
                     sessionData.lastActivity = Date.now() - 200;
-                    await realStorageBackends.database.set(`session:${sessionId}`, sessionData);
+                    await realStorageManager.getDatabase().set(`session:${sessionId}`, sessionData);
                 }
             }
 
@@ -1191,7 +1194,7 @@ describe('SessionManager', () => {
                 expect(restoredSession).toBeDefined();
                 expect(restoredSession!.id).toBe(sessionId);
 
-                const history = await realStorageBackends.database.get(`messages:${sessionId}`);
+                const history = await realStorageManager.getDatabase().get(`messages:${sessionId}`);
                 expect(history).toEqual(histories[i]);
             }
 

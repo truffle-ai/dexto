@@ -623,6 +623,9 @@ importers:
 
   packages/tools-filesystem:
     dependencies:
+      '@dexto/agent-config':
+        specifier: workspace:*
+        version: link:../agent-config
       '@dexto/core':
         specifier: workspace:*
         version: link:../core
@@ -654,6 +657,9 @@ importers:
 
   packages/tools-plan:
     dependencies:
+      '@dexto/agent-config':
+        specifier: workspace:*
+        version: link:../agent-config
       '@dexto/core':
         specifier: workspace:*
         version: link:../core
@@ -682,6 +688,9 @@ importers:
 
   packages/tools-process:
     dependencies:
+      '@dexto/agent-config':
+        specifier: workspace:*
+        version: link:../agent-config
       '@dexto/core':
         specifier: workspace:*
         version: link:../core
@@ -698,6 +707,9 @@ importers:
 
   packages/tools-todo:
     dependencies:
+      '@dexto/agent-config':
+        specifier: workspace:*
+        version: link:../agent-config
       '@dexto/core':
         specifier: workspace:*
         version: link:../core

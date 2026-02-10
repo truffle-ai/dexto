@@ -1,4 +1,4 @@
-// NOTE: Intentionally named `*.integration.test.ts` so it is excluded from core package builds.
+// NOTE: Shared helpers for LLM service integration tests (not itself a test file).
 import { DextoAgent } from '../../agent/DextoAgent.js';
 import {
     resolveApiKeyForProvider,

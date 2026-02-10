@@ -7,6 +7,7 @@
 
 // Main provider export
 export { todoToolsProvider } from './tool-provider.js';
+export { todoToolsFactory } from './tool-factory.js';
 
 // Service and utilities (for advanced use cases)
 export { TodoService } from './todo-service.js';

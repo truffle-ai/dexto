@@ -8,6 +8,7 @@
 import { z } from 'zod';
 import type { InternalTool, ToolExecutionContext, FileDisplayData } from '@dexto/core';
 import type { PlanService } from '../plan-service.js';
+import type { PlanServiceGetter } from '../plan-service-getter.js';
 import { PlanError } from '../errors.js';
 
 const PlanCreateInputSchema = z
@@ -26,7 +27,10 @@ type PlanCreateInput = z.input<typeof PlanCreateInputSchema>;
 /**
  * Creates the plan_create tool
  */
-export function createPlanCreateTool(planService: PlanService): InternalTool {
+export function createPlanCreateTool(planService: PlanService | PlanServiceGetter): InternalTool {
+    const getPlanService: PlanServiceGetter =
+        typeof planService === 'function' ? planService : async () => planService;
+
     return {
         id: 'plan_create',
         description:
@@ -40,6 +44,7 @@ export function createPlanCreateTool(planService: PlanService): InternalTool {
             input: unknown,
             context?: ToolExecutionContext
         ): Promise<FileDisplayData> => {
+            const resolvedPlanService = await getPlanService(context);
             const { content } = input as PlanCreateInput;
 
             if (!context?.sessionId) {
@@ -47,14 +52,14 @@ export function createPlanCreateTool(planService: PlanService): InternalTool {
             }
 
             // Check if plan already exists
-            const exists = await planService.exists(context.sessionId);
+            const exists = await resolvedPlanService.exists(context.sessionId);
             if (exists) {
                 throw PlanError.planAlreadyExists(context.sessionId);
             }
 
             // Return preview for approval UI
             const lineCount = content.split('\n').length;
-            const planPath = planService.getPlanPath(context.sessionId);
+            const planPath = resolvedPlanService.getPlanPath(context.sessionId);
             return {
                 type: 'file',
                 path: planPath,
@@ -66,14 +71,15 @@ export function createPlanCreateTool(planService: PlanService): InternalTool {
         },
 
         execute: async (input: unknown, context?: ToolExecutionContext) => {
+            const resolvedPlanService = await getPlanService(context);
             const { title, content } = input as PlanCreateInput;
 
             if (!context?.sessionId) {
                 throw PlanError.sessionIdRequired();
             }
 
-            const plan = await planService.create(context.sessionId, content, { title });
-            const planPath = planService.getPlanPath(context.sessionId);
+            const plan = await resolvedPlanService.create(context.sessionId, content, { title });
+            const planPath = resolvedPlanService.getPlanPath(context.sessionId);
 
             return {
                 success: true,

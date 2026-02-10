@@ -20,7 +20,7 @@ const DEFAULT_ENABLE_EVENTS = true;
 /**
  * Configuration schema for Todo tools provider.
  */
-const TodoToolsConfigSchema = z
+export const TodoToolsConfigSchema = z
     .object({
         type: z.literal('todo-tools'),
         maxTodosPerSession: z
@@ -36,7 +36,7 @@ const TodoToolsConfigSchema = z
     })
     .strict();
 
-type TodoToolsConfig = z.output<typeof TodoToolsConfigSchema>;
+export type TodoToolsConfig = z.output<typeof TodoToolsConfigSchema>;
 
 /**
  * Todo tools provider.
