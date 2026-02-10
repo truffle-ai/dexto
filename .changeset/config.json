@@ -15,6 +15,7 @@
     "@dexto/image-bundler",
     "@dexto/image-local",
     "@dexto/tools-filesystem",
+    "@dexto/tools-builtins",
     "@dexto/tools-process",
     "@dexto/tools-todo",
     "@dexto/tools-plan",

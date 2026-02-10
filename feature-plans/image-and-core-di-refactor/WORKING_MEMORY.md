@@ -19,15 +19,15 @@
 
 ## Current Task
 
-**Task:** **3.1 Create `@dexto/tools-builtins` package**
+**Task:** **3.2 Create `@dexto/storage` package**
 **Status:** _Not started_
 **Branch:** `rebuild-di`
 
 ### Plan
-- Create `packages/tools-builtins/` (fixed versioning, tsup build)
-- Move built-in tool implementations out of core (or adapt via re-exports if needed for low churn)
-- Export `builtinToolsFactory: ToolFactory` (config only; tools use `ToolExecutionContext` at runtime)
-- Exit: package builds and can be used from `@dexto/image-local` in Phase 3.5
+- Create `packages/storage/` (fixed versioning, tsup build)
+- Move storage implementations + schemas out of core into this package
+- Provide `*Factory` objects per backend (blob/database/cache)
+- Exit: `@dexto/storage` builds and core keeps interfaces + `StorageManager`
 
 ### Notes
 _Log findings, issues, and progress here as you work._
@@ -99,6 +99,7 @@ _Move tasks here after completion. Keep a brief log of what was done and any dev
 | 2.2 | `resolveServicesFromConfig(config, image)` | 2026-02-10 | Implemented service resolver for `logger`/`storage`/`tools`/`plugins`/`compaction` with clear unknown-type errors. Tools honor `enabled: false` and strip `enabled` before validating strict factory schemas. Added unit tests. `pnpm -w build:packages` + `pnpm -w test` pass. |
 | 2.6 | `ValidatedAgentConfig → DextoAgentOptions` transformer | 2026-02-10 | Added `toDextoAgentOptions()` bridge in agent-config (validated config + resolved services → `DextoAgentOptions`). Unit test added. `pnpm -w build:packages` + `pnpm -w test` pass. |
 | 2.3 | `loadImage(imageName)` helper | 2026-02-10 | Added `loadImage()` dynamic import wrapper + runtime shape validation for `DextoImageModule` (with clear error messages). Unit tests cover success + import failure + shape mismatch. `pnpm -w build:packages` + `pnpm -w test` pass. |
+| 3.1 | Create `@dexto/tools-builtins` package | 2026-02-10 | Added `packages/tools-builtins/` and exported `builtinToolsFactory` (`builtin-tools` + optional `enabledTools`). Tool implementations use `ToolExecutionContext` services at runtime. `pnpm -w build:packages` + `pnpm -w test` pass. |
 
 ---
 
