@@ -857,10 +857,11 @@ One `tools` field. Everything from image factories. Core sees `Tool[]`.
 # coding-agent.yml — after
 tools:
   - type: builtin-tools
-    enabled: [ask_user, search_history, invoke_skill]
+    enabledTools: [ask_user, search_history, invoke_skill]
   - type: filesystem-tools
     allowedPaths: ["."]
   - type: process-tools
+    enabled: false
 ```
 
 Built‑in tools move to a `@dexto/tools-builtins` package (or similar) and become a normal tool factory:
@@ -870,7 +871,7 @@ Built‑in tools move to a `@dexto/tools-builtins` package (or similar) and beco
 export const builtinToolsFactory: ToolFactory = {
     configSchema: z.object({
         type: z.literal('builtin-tools'),
-        enabled: z.array(z.enum([
+        enabledTools: z.array(z.enum([
             'ask_user', 'search_history', 'delegate_to_url',
             'list_resources', 'get_resource', 'invoke_skill',
         ])).optional().describe('Which built-in tools to enable. Omit for all.'),
@@ -898,8 +899,8 @@ export const builtinToolsFactory: ToolFactory = {
             },
             // ... delegate_to_url, list_resources, get_resource, invoke_skill
         ];
-        if (config.enabled) {
-            return allTools.filter(t => config.enabled.includes(t.name));
+        if (config.enabledTools) {
+            return allTools.filter(t => config.enabledTools.includes(t.name));
         }
         return allTools;
     },
@@ -1519,6 +1520,9 @@ Image defaults are useful — they let an image say "if you don't specify storag
   - Example: image defaults `storage.blob: { type: 'local', storePath: './data/blobs' }`, config specifies `storage.blob: { type: 's3', bucket: 'my-bucket' }` → result is `{ type: 's3', bucket: 'my-bucket' }` (no `storePath` bleeds through from defaults).
 - **Array fields (`tools`, `plugins`):** Config **replaces** the default array entirely (no concatenation, no merging-by-type). If config specifies `tools: [...]`, those are the tools. If config omits `tools`, the image default `tools` array is used.
   - Rationale: merging arrays by `type` is ambiguous (does config override defaults by type? append? prepend?). Full replacement is predictable.
+  - **Common `enabled` flag for tool factory entries:** Each entry in `tools: [...]` MAY include `enabled: false` to disable that tool factory without deleting the config block. The resolver MUST:
+    - skip disabled entries (treat them as absent), and
+    - strip `enabled` before validating against the factory's `.strict()` `configSchema` to avoid schema failures.
 - **Missing fields:** If config omits a field entirely and image defaults provide it, the default is used.
 - Merging happens in `@dexto/agent-config` via `applyImageDefaults()`, not in core.
 - `configDir` is NOT passed into core. Core does not perform path resolution; it consumes whatever paths it is given. Product layers can expand template vars (e.g., `${{dexto.agent_dir}}`) and inject absolute defaults (e.g., storage paths) before constructing the agent.
@@ -2287,6 +2291,23 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
 ### Phase 2: Build the resolver (`@dexto/agent-config`)
 > **Goal:** The new package can take a `ValidatedAgentConfig` + `DextoImageModule` and produce a `DextoAgentOptions`.
 
+- [ ] **2.5 Move `AgentConfigSchema` + DI schemas to agent‑config**
+  - **Decision (made):** `AgentConfigSchema` moves to `@dexto/agent-config`. Core keeps module‑level sub‑schemas.
+  - Create `packages/agent-config/src/schemas/agent-config.ts` — imports core sub‑schemas + defines DI surface schemas locally
+  - **Unify tool selection/config into one `tools: [...]` array** (removes `internalTools` + `customTools`). Breaking change OK — update all first‑party configs.
+  - **Add common `enabled?: boolean` to tool factory entries here (this step owns the schema design).**
+    - Semantics: `enabled: false` means "skip this entry entirely" (do not validate or create).
+    - Implementation note: since many tool factory schemas are `.strict()`, the resolver must strip `enabled` before validating against `factory.configSchema`.
+    - Add a short comment in the agent‑config schema + resolver explaining A+B+C semantics (defaults vs override vs enabled) and how to migrate to Option D (`{ type, enabled?, config }`) if we ever need more shared fields.
+  - Resolve naming collision: the old per‑tool limits object currently lives at `config.tools` in core (`ToolsConfigSchema` record). With unified `tools: [...]`, either:
+    - rename it to `toolLimits` (or similar), or
+    - delete it for now (it is currently schema-only; no runtime usage).
+  - Move DI surface schemas: `PluginsConfigSchema` (unified), `CompactionConfigSchema` → agent‑config. Import `StorageConfigSchema` from `@dexto/storage` and `LoggerConfigSchema` from `@dexto/logger`.
+  - Move `ValidatedAgentConfig` type to agent‑config
+  - Keep `AgentCardSchema` (shared) — decide location (may stay in core since `agentCard` is in `DextoAgentOptions`)
+  - Remove `AgentConfigSchema` + `ValidatedAgentConfig` from core's `schemas.ts` and barrel exports
+  - Exit: `AgentConfigSchema` lives in agent‑config, imports core sub‑schemas. Core has zero top‑level config schema. Build passes (downstream packages update imports).
+
 - [ ] **2.1 `applyImageDefaults(config, imageDefaults)`**
   - Merge semantics match Section 12: shallow top-level merge, 1-level-deep object merge with atomic sub-objects, arrays replace. Config wins.
   - Unit tests with various merge scenarios
@@ -2295,6 +2316,8 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
 - [ ] **2.2 `resolveServicesFromConfig(config, image)`**
   - Implements the factory resolution: `image.tools[config.type]` → validate → create
   - Handles unified tool resolution: `config.tools` (single array, replaces internalTools + customTools) → `Tool[]`
+    - Skip entries with `enabled: false`
+    - Strip `enabled` before validating against `factory.configSchema`
   - Handles tool grouping (one factory → `Tool[]`, e.g., `builtin-tools` → [ask_user, search_history, ...])
   - Handles storage resolution: uses typed sub-maps (`image.storage.blob`, `image.storage.database`, `image.storage.cache`)
   - Handles unified plugin resolution: `config.plugins` (single array, replaces plugins.registry + plugins.custom) → `DextoPlugin[]`
@@ -2304,6 +2327,12 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
   - Produces `ResolvedServices` object
   - Exit: unit tests with mock image + mock config produce correct concrete instances. Error cases tested (unknown type, validation failure).
 
+- [ ] **2.6 Define `ValidatedAgentConfig → DextoAgentOptions` transformer**
+  - Function in agent‑config that takes the full YAML‑validated config + resolved services and produces `DextoAgentOptions`
+  - Extracts config‑based sections, combines with DI instances
+  - This is the bridge between config world and DI world
+  - Exit: transformer tested, produces valid `DextoAgentOptions` from `ValidatedAgentConfig` + `ResolvedServices`.
+
 - [ ] **2.3 `loadImage(imageName)` helper**
   - Dynamic import wrapper that returns `DextoImageModule`
   - Validates the imported module conforms to `DextoImageModule` shape (runtime check)
@@ -2312,25 +2341,9 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
   - Exit: can load `@dexto/image-local` (once rewritten) and return typed module
 
 - [ ] **2.4 Remove storage factory functions from core**
-  - `createBlobStore()`, `createDatabase()`, `createCache()` — these use registries today → **delete from core**
-  - After: the resolver calls `image.storage.blob[type].create()` / `image.storage.database[type].create()` / `image.storage.cache[type].create()` directly (no standalone factories needed)
-  - `@dexto/storage` provides `StorageFactory` objects that images compose; the resolver invokes them
-  - Exit: factory functions deleted from core. No standalone `createBlobStore`/`createDatabase`/`createCache` anywhere.
-
-- [ ] **2.5 Move `AgentConfigSchema` + DI schemas to agent‑config**
-  - **Decision (made):** `AgentConfigSchema` moves to `@dexto/agent-config`. Core keeps module‑level sub‑schemas.
-  - Create `packages/agent-config/src/schemas/agent-config.ts` — imports core sub‑schemas + defines DI surface schemas locally
-  - Move DI surface schemas: `ToolsConfigSchema` (unified), `PluginsConfigSchema` (unified), `CompactionConfigSchema` → agent‑config. Import `StorageConfigSchema` from `@dexto/storage` and `LoggerConfigSchema` from `@dexto/logger`.
-  - Move `ValidatedAgentConfig` type to agent‑config
-  - Keep `AgentCardSchema` (shared) — decide location (may stay in core since `agentCard` is in `DextoAgentOptions`)
-  - Remove `AgentConfigSchema` + `ValidatedAgentConfig` from core's `schemas.ts` and barrel exports
-  - Exit: `AgentConfigSchema` lives in agent‑config, imports core sub‑schemas. Core has zero top‑level config schema. Build passes (downstream packages update imports).
-
-- [ ] **2.6 Define `ValidatedAgentConfig → DextoAgentOptions` transformer**
-  - Function in agent‑config that takes the full YAML‑validated config + resolved services and produces `DextoAgentOptions`
-  - Extracts config‑based sections, combines with DI instances
-  - This is the bridge between config world and DI world
-  - Exit: transformer tested, produces valid `DextoAgentOptions` from `ValidatedAgentConfig` + `ResolvedServices`.
+  - **Defer** until Phase 5.1 cleanup (or after Phase 4 integration) to avoid churn while CLI/server still use transitional wiring.
+  - `createBlobStore()`, `createDatabase()`, `createCache()` — delete once the resolver path is end‑to‑end
+  - Exit: no standalone `createBlobStore`/`createDatabase`/`createCache` anywhere.
 
 ---
 
@@ -2343,7 +2356,7 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
   - Move internal tool implementations from `packages/core/src/tools/internal-tools/implementations/` to this package
   - Export a single `builtinToolsFactory: ToolFactory` that creates ask_user, search_history, delegate_to_url, list_resources, get_resource, invoke_skill
   - Factory `create()` takes **only config** — tools access services at runtime via `ToolExecutionContext` (approval, search, resources, prompts passed per-execution by `ToolManager`)
-  - Config schema: `{ type: 'builtin-tools', enabled?: string[] }` — omit `enabled` for all
+  - Config schema: `{ type: 'builtin-tools', enabledTools?: string[] }` — omit `enabledTools` for all
   - Exit: package builds, exports `ToolFactory`. Former internal tools work via factory. Build passes.
 
 - [ ] **3.2 Create `@dexto/storage` package (extract from core)**

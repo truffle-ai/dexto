@@ -19,14 +19,17 @@
 
 ## Current Task
 
-**Task:** **2.1 `applyImageDefaults(config, imageDefaults)`**
+**Task:** **2.5 Move `AgentConfigSchema` + DI schemas to agent‑config**
 **Status:** _Not started_
 **Branch:** `rebuild-di`
 
 ### Plan
-- Implement merge semantics (Section 12) + unit tests
-- Exit: function works, tests pass, edge cases covered
-_Paused: owner requested stopping before Phase 2._
+- Update Phase 2 execution order: **2.5 → 2.1 → 2.2 → 2.6 → 2.3** (defer 2.4)
+- Define unified `tools: [...]` array (replaces `internalTools` + `customTools`) in `@dexto/agent-config`
+- Add common `enabled?: boolean` for tool factory entries (skip + strip before validation)
+- Resolve the `tools` naming collision (old per-tool limits record): rename to `toolLimits` or delete (schema-only today)
+- Move top-level `AgentConfigSchema` + `ValidatedAgentConfig` out of core; update downstream imports
+- Exit: build + tests pass after schema move/unification
 
 ### Notes
 _Log findings, issues, and progress here as you work._
