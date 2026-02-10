@@ -6,8 +6,8 @@ import {
     createAgentConfigSchema,
     type AgentConfig,
     type ValidatedAgentConfig,
-    type LLMValidationOptions,
-} from '@dexto/core';
+} from '@dexto/agent-config';
+import type { LLMValidationOptions } from '@dexto/core';
 import { interactiveApiKeySetup } from './api-key-setup.js';
 import { LLMErrorCode } from '@dexto/core';
 import type { LLMProvider } from '@dexto/core';

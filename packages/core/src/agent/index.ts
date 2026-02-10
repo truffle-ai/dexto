@@ -1,16 +1,9 @@
 export { DextoAgent } from './DextoAgent.js';
 export {
-    AgentConfigSchema,
     AgentCardSchema,
     SecuritySchemeSchema,
     type AgentCard,
     type ValidatedAgentCard,
-} from './schemas.js';
-export {
-    type ValidatedAgentConfig,
-    type AgentConfig,
-    type LLMValidationOptions,
-    createAgentConfigSchema,
 } from './schemas.js';
 export { createAgentCard } from './agentCard.js';
 export * from './errors.js';

@@ -2,7 +2,8 @@ import React from 'react';
 import { Input } from '../../ui/input';
 import { LabelWithTooltip } from '../../ui/label-with-tooltip';
 import { Collapsible } from '../../ui/collapsible';
-import type { AgentConfig, CacheType, DatabaseType } from '@dexto/core';
+import type { AgentConfig } from '@dexto/agent-config';
+import type { CacheType, DatabaseType } from '@dexto/core';
 import { CACHE_TYPES, DATABASE_TYPES } from '@dexto/core';
 
 type StorageConfig = NonNullable<AgentConfig['storage']>;

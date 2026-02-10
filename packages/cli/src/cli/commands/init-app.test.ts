@@ -80,8 +80,9 @@ describe('Init Module', () => {
                 // Verify content contains expected elements
                 const content = await fs.readFile(examplePath, 'utf8');
                 expect(content).toContain(
-                    "import { AgentConfigSchema, DextoAgent, createLogger } from '@dexto/core'"
+                    "import { AgentConfigSchema } from '@dexto/agent-config'"
                 );
+                expect(content).toContain("import { DextoAgent, createLogger } from '@dexto/core'");
                 expect(content).toContain(
                     "import { loadAgentConfig } from '@dexto/agent-management'"
                 );

@@ -1,7 +1,20 @@
 import { describe, test, expect, vi, beforeEach } from 'vitest';
 import { DextoAgent } from './DextoAgent.js';
-import type { AgentConfig, ValidatedAgentConfig } from './schemas.js';
-import { AgentConfigSchema } from './schemas.js';
+import type { AgentRuntimeConfig } from './runtime-config.js';
+import { LLMConfigSchema } from '@core/llm/schemas.js';
+import { LoggerConfigSchema } from '@core/logger/index.js';
+import { StorageSchema } from '@core/storage/schemas.js';
+import { SystemPromptConfigSchema } from '@core/systemPrompt/schemas.js';
+import { SessionConfigSchema } from '@core/session/schemas.js';
+import { ToolConfirmationConfigSchema, ElicitationConfigSchema } from '@core/tools/schemas.js';
+import { InternalResourcesSchema } from '@core/resources/schemas.js';
+import { PromptsSchema } from '@core/prompts/schemas.js';
+import { PluginsConfigSchema } from '@core/plugins/schemas.js';
+import {
+    CompactionConfigSchema,
+    DEFAULT_COMPACTION_CONFIG,
+} from '@core/context/compaction/schemas.js';
+import { McpServerConfigSchema } from '@core/mcp/schemas.js';
 import type { AgentServices } from '../utils/service-initializer.js';
 import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
 import { ErrorScope, ErrorType } from '../errors/types.js';
@@ -17,11 +30,10 @@ import { createAgentServices } from '../utils/service-initializer.js';
 const mockCreateAgentServices = vi.mocked(createAgentServices);
 
 describe('DextoAgent Lifecycle Management', () => {
-    let mockConfig: AgentConfig;
-    let mockValidatedConfig: ValidatedAgentConfig;
+    let mockValidatedConfig: AgentRuntimeConfig;
     let mockServices: AgentServices;
 
-    const createTestAgent = (config: ValidatedAgentConfig) => {
+    const createTestAgent = (config: AgentRuntimeConfig) => {
         const agentLogger = createLogger({ config: config.logger, agentId: config.agentId });
         return new DextoAgent({ config, logger: agentLogger });
     };
@@ -29,32 +41,42 @@ describe('DextoAgent Lifecycle Management', () => {
     beforeEach(() => {
         vi.resetAllMocks();
 
-        mockConfig = {
-            systemPrompt: 'You are a helpful assistant',
-            llm: {
+        mockValidatedConfig = {
+            systemPrompt: SystemPromptConfigSchema.parse('You are a helpful assistant'),
+            llm: LLMConfigSchema.parse({
                 provider: 'openai',
                 model: 'gpt-5',
                 apiKey: 'test-key',
                 maxIterations: 50,
                 maxInputTokens: 128000,
-            },
+            }),
+            agentFile: { discoverInCwd: true },
+            agentId: 'test-agent',
             mcpServers: {},
-            sessions: {
+            tools: [],
+            logger: LoggerConfigSchema.parse({ level: 'error', transports: [{ type: 'silent' }] }),
+            storage: StorageSchema.parse({
+                cache: { type: 'in-memory' },
+                database: { type: 'in-memory' },
+                blob: { type: 'in-memory' },
+            }),
+            sessions: SessionConfigSchema.parse({
                 maxSessions: 10,
                 sessionTTL: 3600,
-            },
-            toolConfirmation: {
+            }),
+            toolConfirmation: ToolConfirmationConfigSchema.parse({
                 mode: 'auto-approve',
                 timeout: 120000,
-            },
-            elicitation: {
+            }),
+            elicitation: ElicitationConfigSchema.parse({
                 enabled: false,
                 timeout: 120000,
-            },
+            }),
+            internalResources: InternalResourcesSchema.parse([]),
+            prompts: PromptsSchema.parse([]),
+            plugins: PluginsConfigSchema.parse({}),
+            compaction: CompactionConfigSchema.parse(DEFAULT_COMPACTION_CONFIG),
         };
-
-        // Create the validated config that DextoAgent actually uses
-        mockValidatedConfig = AgentConfigSchema.parse(mockConfig);
 
         mockServices = {
             mcpManager: {
@@ -146,20 +168,19 @@ describe('DextoAgent Lifecycle Management', () => {
         });
 
         test('should start with per-server connection modes in config', async () => {
-            const configWithServerModes = {
-                ...mockConfig,
+            const validatedConfigWithServerModes: AgentRuntimeConfig = {
+                ...mockValidatedConfig,
                 mcpServers: {
-                    filesystem: {
+                    filesystem: McpServerConfigSchema.parse({
                         type: 'stdio' as const,
                         command: 'npx',
                         args: ['@modelcontextprotocol/server-filesystem', '.'],
                         env: {},
                         timeout: 30000,
                         connectionMode: 'strict' as const,
-                    },
+                    }),
                 },
             };
-            const validatedConfigWithServerModes = AgentConfigSchema.parse(configWithServerModes);
             const agent = createTestAgent(validatedConfigWithServerModes);
 
             await agent.start();

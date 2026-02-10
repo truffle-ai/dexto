@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@dexto/analytics": "workspace:*",
+    "@dexto/agent-config": "workspace:*",
     "@dexto/client-sdk": "workspace:*",
     "@dexto/core": "workspace:*",
     "@dexto/registry": "workspace:*",

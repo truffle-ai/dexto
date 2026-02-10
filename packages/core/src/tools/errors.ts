@@ -225,7 +225,7 @@ export class ToolError {
             message,
             { toolName, missingFeatures },
             [
-                `Remove '${toolName}' from internalTools in your agent config`,
+                `Remove '${toolName}' from tools[].enabledTools (builtin-tools) in your agent config`,
                 `Or enable required features: ${missingFeatures.map((f) => `${f}.enabled: true`).join(', ')}`,
             ]
         );

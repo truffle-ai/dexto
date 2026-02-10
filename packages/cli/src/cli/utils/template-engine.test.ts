@@ -18,9 +18,8 @@ describe('template-engine', () => {
                 imageName: '@dexto/image-local',
             });
 
-            expect(result).toContain(
-                "import { AgentConfigSchema, DextoAgent, createLogger } from '@dexto/core'"
-            );
+            expect(result).toContain("import { AgentConfigSchema } from '@dexto/agent-config'");
+            expect(result).toContain("import { DextoAgent, createLogger } from '@dexto/core'");
             expect(result).toContain("import { loadAgentConfig } from '@dexto/agent-management'");
             expect(result).toContain('Starting my-app');
             expect(result).toContain(

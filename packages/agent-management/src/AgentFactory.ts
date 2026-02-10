@@ -25,7 +25,8 @@
  */
 
 import { promises as fs } from 'fs';
-import { AgentConfigSchema, DextoAgent, createLogger, type AgentConfig } from '@dexto/core';
+import { AgentConfigSchema, type AgentConfig } from '@dexto/agent-config';
+import { DextoAgent, createLogger } from '@dexto/core';
 import { getDextoGlobalPath } from './utils/path.js';
 import { deriveDisplayName } from './registry/types.js';
 import { loadBundledRegistryAgents } from './registry/registry.js';

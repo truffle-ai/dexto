@@ -27,7 +27,8 @@ import {
     ChevronDown,
     Server,
 } from 'lucide-react';
-import type { AgentConfig, ContributorConfig } from '@dexto/core';
+import type { AgentConfig } from '@dexto/agent-config';
+import type { ContributorConfig } from '@dexto/core';
 import { LLM_PROVIDERS, MCP_SERVER_TYPES } from '@dexto/core';
 import { cn } from '@/lib/utils';
 import { useDiscovery } from '../hooks/useDiscovery';

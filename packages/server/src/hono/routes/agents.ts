@@ -1,12 +1,7 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { DextoAgent } from '@dexto/core';
-import {
-    logger,
-    safeStringify,
-    AgentConfigSchema,
-    type LLMProvider,
-    zodToIssues,
-} from '@dexto/core';
+import { AgentConfigSchema } from '@dexto/agent-config';
+import { logger, safeStringify, type LLMProvider, zodToIssues } from '@dexto/core';
 import {
     getPrimaryApiKeyEnvVar,
     saveProviderApiKey,
@@ -881,8 +876,22 @@ export function createAgentsRouter(getAgent: GetAgentFn, context: AgentsRouterCo
                 // Enrich config before reloading into agent (core expects enriched config with paths)
                 const enrichedConfig = enrichAgentConfig(newConfig, agentPath);
 
+                // Validate the enriched config (core expects validated config)
+                const reloadedConfigResult = AgentConfigSchema.safeParse(enrichedConfig);
+                if (!reloadedConfigResult.success) {
+                    throw new DextoValidationError(
+                        reloadedConfigResult.error.errors.map((err) => ({
+                            code: AgentErrorCode.INVALID_CONFIG,
+                            message: `${err.path.join('.')}: ${err.message}`,
+                            scope: ErrorScope.AGENT,
+                            type: ErrorType.USER,
+                            severity: 'error',
+                        }))
+                    );
+                }
+
                 // Reload into agent (core's job - handles restart automatically)
-                const reloadResult = await agent.reload(enrichedConfig);
+                const reloadResult = await agent.reload(reloadedConfigResult.data);
 
                 if (reloadResult.restarted) {
                     logger.info(

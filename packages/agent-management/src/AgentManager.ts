@@ -18,14 +18,8 @@
 
 import { promises as fs } from 'fs';
 import path from 'path';
-import {
-    AgentConfigSchema,
-    createLogger,
-    logger,
-    DextoAgent,
-    DextoValidationError,
-    zodToIssues,
-} from '@dexto/core';
+import { AgentConfigSchema } from '@dexto/agent-config';
+import { createLogger, logger, DextoAgent, DextoValidationError, zodToIssues } from '@dexto/core';
 import { loadAgentConfig, enrichAgentConfig } from './config/index.js';
 import { RegistryError } from './registry/errors.js';
 import { z, ZodError } from 'zod';

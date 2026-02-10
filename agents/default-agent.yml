@@ -109,12 +109,14 @@ elicitation:
   enabled: true            # Enable ask_user tool and MCP server elicitations
   # timeout: <optional>    # Time to wait for user input (ms). Omit for no timeout (wait indefinitely)
 
-# Internal tools - built-in Dexto capabilities
-internalTools:
-  - ask_user  # Allows the agent to ask you questions and collect structured input
-  - delegate_to_url
-  - list_resources
-  - get_resource
+# Tools - unified tool factory configuration (builtins + custom tool providers)
+tools:
+  - type: builtin-tools
+    enabledTools:
+      - ask_user  # Allows the agent to ask you questions and collect structured input
+      - delegate_to_url
+      - list_resources
+      - get_resource
 
 # Internal resources configuration - manages file system access and blob storage
 # NOTE: Blob storage capacity and backend settings are in the 'storage.blob' section above

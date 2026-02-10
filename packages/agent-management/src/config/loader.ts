@@ -1,7 +1,7 @@
 import { promises as fs } from 'fs';
 import path from 'path';
 import { parse as parseYaml } from 'yaml';
-import type { AgentConfig } from '@dexto/core';
+import type { AgentConfig } from '@dexto/agent-config';
 import type { IDextoLogger } from '@dexto/core';
 import { ConfigError } from './errors.js';
 import { getDextoPath } from '../utils/path.js';

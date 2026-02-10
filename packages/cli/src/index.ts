@@ -44,12 +44,12 @@ import {
     getAllSupportedModels,
     startLlmRegistryAutoUpdate,
     DextoAgent,
-    createAgentConfigSchema,
     type LLMProvider,
     isPath,
     resolveApiKeyForProvider,
     getPrimaryApiKeyEnvVar,
 } from '@dexto/core';
+import { createAgentConfigSchema, type ValidatedAgentConfig } from '@dexto/agent-config';
 import {
     resolveAgentPath,
     loadAgentConfig,
@@ -58,7 +58,6 @@ import {
     resolveBundledScript,
     getDextoPath,
 } from '@dexto/agent-management';
-import type { ValidatedAgentConfig } from '@dexto/core';
 import { startHonoApiServer } from './api/server-hono.js';
 import { validateCliOptions, handleCliOptionsError } from './cli/utils/options.js';
 import { validateAgentConfig } from './cli/utils/config-validation.js';

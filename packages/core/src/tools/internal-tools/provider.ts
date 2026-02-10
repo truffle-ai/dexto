@@ -112,7 +112,7 @@ export class InternalToolsProvider {
                     toolName,
                     missingFeatures,
                     `Tool '${toolName}' requires features which are currently disabled: ${missingFeatures.join(', ')}. ` +
-                        `Either remove '${toolName}' from internalTools, or enable: ${missingFeatures.map((f) => `${f}.enabled: true`).join(', ')}`
+                        `Either remove '${toolName}' from tools[].enabledTools (builtin-tools), or enable: ${missingFeatures.map((f) => `${f}.enabled: true`).join(', ')}`
                 );
             }
 

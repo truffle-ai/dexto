@@ -47,7 +47,7 @@ import {
 } from '../ui/dialog';
 import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip';
 import * as yaml from 'yaml';
-import type { AgentConfig } from '@dexto/core';
+import type { AgentConfig } from '@dexto/agent-config';
 
 interface CustomizePanelProps {
     isOpen: boolean;

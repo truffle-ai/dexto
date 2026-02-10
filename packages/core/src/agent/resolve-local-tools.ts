@@ -1,5 +1,5 @@
 import type { IDextoLogger } from '../logger/v2/types.js';
-import type { InternalToolsConfig, CustomToolsConfig } from '../tools/schemas.js';
+import { InternalToolsSchema } from '../tools/schemas.js';
 import type { InternalToolsServices } from '../tools/internal-tools/registry.js';
 import type { InternalTool } from '../tools/types.js';
 import { InternalToolsProvider } from '../tools/internal-tools/provider.js';
@@ -7,6 +7,8 @@ import { customToolRegistry, type ToolCreationContext } from '../tools/custom-to
 import { ToolError } from '../tools/errors.js';
 import { ToolErrorCode } from '../tools/error-codes.js';
 import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
+import type { ToolFactoryEntry } from './runtime-config.js';
+import { INTERNAL_TOOL_NAMES } from '../tools/internal-tools/constants.js';
 
 // TODO: temporary glue code to be removed/verified
 // During the DI refactor, tool resolution will move out of core into `@dexto/agent-config`.
@@ -16,12 +18,13 @@ const CUSTOM_TOOL_PREFIX = 'custom--';
 
 export async function resolveLocalToolsFromConfig(options: {
     agent: import('./DextoAgent.js').DextoAgent;
-    internalToolsConfig: InternalToolsConfig;
-    customToolsConfig: CustomToolsConfig;
+    toolsConfig: ToolFactoryEntry[] | undefined;
     services: InternalToolsServices & Record<string, unknown>;
     logger: IDextoLogger;
 }): Promise<InternalTool[]> {
-    const { agent, internalToolsConfig, customToolsConfig, services, logger } = options;
+    const { agent, toolsConfig, services, logger } = options;
+
+    const enabledEntries = (toolsConfig ?? []).filter((t) => t.enabled !== false);
 
     const tools: InternalTool[] = [];
     const seenIds = new Set<string>();
@@ -34,8 +37,18 @@ export async function resolveLocalToolsFromConfig(options: {
     };
 
     // 1) Internal tools (built-ins)
-    if (internalToolsConfig.length > 0) {
-        const provider = new InternalToolsProvider(services, internalToolsConfig, logger);
+    const builtinEntries = enabledEntries.filter((t) => t.type === 'builtin-tools');
+    const builtinEnabledTools = builtinEntries.flatMap((entry) => {
+        const maybeList = entry.enabledTools;
+        if (maybeList === undefined) {
+            return [...INTERNAL_TOOL_NAMES];
+        }
+        return InternalToolsSchema.parse(maybeList);
+    });
+
+    if (builtinEnabledTools.length > 0) {
+        const uniqueEnabledTools = Array.from(new Set(builtinEnabledTools));
+        const provider = new InternalToolsProvider(services, uniqueEnabledTools, logger);
         await provider.initialize();
 
         for (const toolName of provider.getToolNames()) {
@@ -56,16 +69,23 @@ export async function resolveLocalToolsFromConfig(options: {
     }
 
     // 2) Custom tools (image/tool providers)
-    if (customToolsConfig.length > 0) {
+    const customEntries = enabledEntries.filter((t) => t.type !== 'builtin-tools');
+    if (customEntries.length > 0) {
         const context: ToolCreationContext = {
             logger,
             agent,
             services,
         };
 
-        for (const toolConfig of customToolsConfig) {
+        for (const toolConfig of customEntries) {
             try {
-                const validatedConfig = customToolRegistry.validateConfig(toolConfig);
+                // Many tool provider schemas are strict; `enabled` is a common wrapper field.
+                // Strip it before per-provider validation.
+                const { enabled: _enabled, ...configWithoutEnabled } = toolConfig;
+
+                const validatedConfig = customToolRegistry.validateConfig(
+                    configWithoutEnabled as unknown as Record<string, unknown>
+                );
                 const provider = customToolRegistry.get(validatedConfig.type);
                 if (!provider) {
                     const availableTypes = customToolRegistry.getTypes();

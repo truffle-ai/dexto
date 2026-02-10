@@ -41,8 +41,7 @@ import {
 import type { ModelInfo } from '../llm/registry/index.js';
 import type { LLMProvider } from '../llm/types.js';
 import { createAgentServices } from '../utils/service-initializer.js';
-import type { AgentConfig, ValidatedAgentConfig } from './schemas.js';
-import { AgentConfigSchema } from './schemas.js';
+import type { AgentRuntimeConfig } from './runtime-config.js';
 import {
     AgentEventBus,
     type AgentEventMap,
@@ -171,7 +170,7 @@ export class DextoAgent {
     private _isStopped: boolean = false;
 
     // Store config for async initialization (accessible before start() for setup)
-    public config: ValidatedAgentConfig;
+    public config: AgentRuntimeConfig;
 
     // Event subscribers (e.g., SSE, Webhook handlers)
     private eventSubscribers: Set<AgentEventSubscriber> = new Set();
@@ -318,19 +317,6 @@ export class DextoAgent {
             await promptManager.initialize();
             Object.assign(this, { promptManager });
 
-            // Add skills contributor to system prompt if invoke_skill is enabled
-            // This lists available skills so the LLM knows what it can invoke
-            if (this.config.internalTools?.includes('invoke_skill')) {
-                const skillsContributor = new SkillsContributor(
-                    'skills',
-                    50, // Priority after memories (40) but before most other content
-                    promptManager,
-                    this.logger
-                );
-                services.systemPromptManager.addContributor(skillsContributor);
-                this.logger.debug('Added SkillsContributor to system prompt');
-            }
-
             // Provide ToolExecutionContext to tools at runtime (late-binding to avoid init ordering cycles)
             const toolExecutionStorage = {
                 blob: services.storageManager.getBlobStore(),
@@ -364,11 +350,23 @@ export class DextoAgent {
             const toolsLogger = this.logger.createChild(DextoLogComponent.TOOLS);
             const localTools = await resolveLocalToolsFromConfig({
                 agent: this,
-                internalToolsConfig: this.config.internalTools,
-                customToolsConfig: this.config.customTools,
+                toolsConfig: this.config.tools,
                 services: toolServices,
                 logger: toolsLogger,
             });
+
+            // Add skills contributor to system prompt if invoke_skill is enabled.
+            // This lists available skills so the LLM knows what it can invoke.
+            if (localTools.some((t) => t.id === 'internal--invoke_skill')) {
+                const skillsContributor = new SkillsContributor(
+                    'skills',
+                    50, // Priority after memories (40) but before most other content
+                    promptManager,
+                    this.logger
+                );
+                services.systemPromptManager.addContributor(skillsContributor);
+                this.logger.debug('Added SkillsContributor to system prompt');
+            }
 
             services.toolManager.setTools(localTools);
 
@@ -2851,7 +2849,7 @@ export class DextoAgent {
      * @returns The effective configuration object (validated with defaults applied)
      * @remarks Requires agent to be started. Use `agent.config` for pre-start access.
      */
-    public getEffectiveConfig(sessionId?: string): Readonly<ValidatedAgentConfig> {
+    public getEffectiveConfig(sessionId?: string): Readonly<AgentRuntimeConfig> {
         this.ensureStarted();
         return sessionId
             ? this.stateManager.getRuntimeConfig(sessionId)
@@ -2882,14 +2880,14 @@ export class DextoAgent {
      *
      * TODO: improve hot reload capabilites so that we don't always require a restart
      */
-    public async reload(newConfig: AgentConfig): Promise<{
+    public async reload(newConfig: AgentRuntimeConfig): Promise<{
         restarted: boolean;
         changesApplied: string[];
     }> {
         this.logger.info('Reloading agent configuration');
 
         const oldConfig = this.config;
-        const validated = AgentConfigSchema.parse(newConfig);
+        const validated = newConfig;
 
         // Detect what changed
         const changesApplied = this.detectConfigChanges(oldConfig, validated);
@@ -2925,8 +2923,8 @@ export class DextoAgent {
      * @returns Array of restart-required change descriptions
      */
     public detectConfigChanges(
-        oldConfig: ValidatedAgentConfig,
-        newConfig: ValidatedAgentConfig
+        oldConfig: AgentRuntimeConfig,
+        newConfig: AgentRuntimeConfig
     ): string[] {
         const changes: string[] = [];
 
@@ -2953,9 +2951,9 @@ export class DextoAgent {
             changes.push('Tool confirmation');
         }
 
-        // Internal tools changes require restart (InternalToolsProvider caches config)
-        if (JSON.stringify(oldConfig.internalTools) !== JSON.stringify(newConfig.internalTools)) {
-            changes.push('Internal tools');
+        // Tools config changes require restart (tool set and policies are wired during start)
+        if (JSON.stringify(oldConfig.tools) !== JSON.stringify(newConfig.tools)) {
+            changes.push('Tools');
         }
 
         // MCP server changes require restart

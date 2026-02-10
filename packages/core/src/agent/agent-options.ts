@@ -6,7 +6,7 @@ import type { IDextoLogger } from '../logger/v2/types.js';
 import type { DextoPlugin } from '../plugins/types.js';
 import type { InternalTool as Tool } from '../tools/types.js'; // TODO: temporary glue code to be removed/verified (remove-by: 5.1)
 import type { InitializeServicesOptions } from '../utils/service-initializer.js';
-import type { ValidatedAgentConfig } from './schemas.js';
+import type { AgentRuntimeConfig } from './runtime-config.js';
 
 /**
  * Constructor options for {@link DextoAgent}.
@@ -26,7 +26,7 @@ export interface DextoAgentOptions {
      * NOTE: This is still the source of truth for runtime config surfaces (export, reload, etc.)
      * during the refactor. DI-first resolution moves to `@dexto/agent-config` in later phases.
      */
-    config: ValidatedAgentConfig;
+    config: AgentRuntimeConfig;
 
     /**
      * Optional file path of the agent config currently in use (for save/reload UX).

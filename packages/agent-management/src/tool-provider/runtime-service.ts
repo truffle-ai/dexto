@@ -11,7 +11,8 @@
  * - Always cleans up agents after task completion (synchronous model)
  */
 
-import type { DextoAgent, IDextoLogger, AgentConfig, TaskForker } from '@dexto/core';
+import type { AgentConfig } from '@dexto/agent-config';
+import type { DextoAgent, IDextoLogger, TaskForker } from '@dexto/core';
 import { DextoRuntimeError, ErrorType } from '@dexto/core';
 import { AgentRuntime } from '../runtime/AgentRuntime.js';
 import { createDelegatingApprovalHandler } from '../runtime/approval-delegation.js';
@@ -638,14 +639,33 @@ export class RuntimeService implements TaskForker {
 
                 // Override certain settings for sub-agent behavior
                 // Filter out agent-spawner to prevent nested spawning (depth=1 limit)
-                const filteredCustomTools = loadedConfig.customTools
-                    ? loadedConfig.customTools.filter(
-                          (tool) =>
-                              typeof tool === 'object' &&
-                              tool !== null &&
-                              'type' in tool &&
-                              tool.type !== 'agent-spawner'
-                      )
+                // Also remove internal tools that don't work in subagent context (ask_user/invoke_skill).
+                const filteredTools = loadedConfig.tools
+                    ? loadedConfig.tools
+                          .filter((tool) => tool.enabled !== false)
+                          .filter((tool) => tool.type !== 'agent-spawner')
+                          .map((tool) => {
+                              if (tool.type !== 'builtin-tools') {
+                                  return tool;
+                              }
+
+                              const enabledTools = tool.enabledTools;
+                              if (!Array.isArray(enabledTools)) {
+                                  return tool;
+                              }
+
+                              const filteredEnabledTools = enabledTools.filter(
+                                  (t) => t !== 'ask_user' && t !== 'invoke_skill'
+                              );
+                              return { ...tool, enabledTools: filteredEnabledTools };
+                          })
+                          .filter((tool) => {
+                              if (tool.type !== 'builtin-tools') {
+                                  return true;
+                              }
+                              const enabledTools = tool.enabledTools;
+                              return !Array.isArray(enabledTools) || enabledTools.length > 0;
+                          })
                     : undefined;
 
                 return {
@@ -655,7 +675,7 @@ export class RuntimeService implements TaskForker {
                         ...loadedConfig.toolConfirmation,
                         mode: toolConfirmationMode,
                     },
-                    customTools: filteredCustomTools,
+                    tools: filteredTools,
                     // Suppress sub-agent console logs entirely using silent transport
                     logger: {
                         level: 'error' as const,
@@ -680,25 +700,35 @@ export class RuntimeService implements TaskForker {
             // Inherit MCP servers from parent so subagent has tool access
             mcpServers: parentConfig.mcpServers ? { ...parentConfig.mcpServers } : {},
 
-            // Inherit internal tools from parent, excluding tools that don't work in subagent context
-            // - ask_user: Subagents can't interact with the user directly
-            // - invoke_skill: Avoid nested skill invocations for simplicity
-            internalTools: parentConfig.internalTools
-                ? parentConfig.internalTools.filter(
-                      (tool) => tool !== 'ask_user' && tool !== 'invoke_skill'
-                  )
-                : [],
+            // Inherit tools from parent, excluding tools that don't work in subagent context:
+            // - agent-spawner: prevent nested spawning (depth=1 limit)
+            // - ask_user/invoke_skill: subagents can't ask the user; avoid nested skill invocations
+            tools: parentConfig.tools
+                ? parentConfig.tools
+                      .filter((tool) => tool.enabled !== false)
+                      .filter((tool) => tool.type !== 'agent-spawner')
+                      .map((tool) => {
+                          if (tool.type !== 'builtin-tools') {
+                              return tool;
+                          }
 
-            // Inherit custom tools from parent, excluding agent-spawner to prevent nested spawning (depth=1 limit)
-            // - agent-spawner: Sub-agents should not spawn their own sub-agents
-            customTools: parentConfig.customTools
-                ? parentConfig.customTools.filter(
-                      (tool) =>
-                          typeof tool === 'object' &&
-                          tool !== null &&
-                          'type' in tool &&
-                          tool.type !== 'agent-spawner'
-                  )
+                          const enabledTools = tool.enabledTools;
+                          if (!Array.isArray(enabledTools)) {
+                              return tool;
+                          }
+
+                          const filteredEnabledTools = enabledTools.filter(
+                              (t) => t !== 'ask_user' && t !== 'invoke_skill'
+                          );
+                          return { ...tool, enabledTools: filteredEnabledTools };
+                      })
+                      .filter((tool) => {
+                          if (tool.type !== 'builtin-tools') {
+                              return true;
+                          }
+                          const enabledTools = tool.enabledTools;
+                          return !Array.isArray(enabledTools) || enabledTools.length > 0;
+                      })
                 : [],
 
             // Suppress sub-agent console logs entirely using silent transport

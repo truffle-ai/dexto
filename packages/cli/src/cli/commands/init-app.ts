@@ -310,7 +310,8 @@ export async function createDextoExampleFile(directory: string): Promise<string>
 
     const indexTsLines = [
         "import 'dotenv/config';",
-        "import { AgentConfigSchema, DextoAgent, createLogger } from '@dexto/core';",
+        "import { AgentConfigSchema } from '@dexto/agent-config';",
+        "import { DextoAgent, createLogger } from '@dexto/core';",
         "import { loadAgentConfig } from '@dexto/agent-management';",
         '',
         "console.log('🚀 Starting Dexto Basic Example\\n');",

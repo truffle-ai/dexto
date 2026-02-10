@@ -7,6 +7,7 @@
   },
   "dependencies": {
     "@clack/prompts": "^0.10.1",
+    "@dexto/agent-config": "workspace:*",
     "@dexto/agent-management": "workspace:*",
     "@dexto/analytics": "workspace:*",
     "@dexto/core": "workspace:*",

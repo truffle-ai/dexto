@@ -25,6 +25,7 @@
     "./package.json": "./package.json"
   },
   "dependencies": {
+    "@dexto/agent-config": "workspace:*",
     "@dexto/agent-management": "workspace:*",
     "@dexto/core": "workspace:*",
     "@dexto/image-local": "workspace:*",

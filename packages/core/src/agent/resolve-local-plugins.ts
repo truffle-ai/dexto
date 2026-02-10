@@ -1,5 +1,5 @@
 import type { IDextoLogger } from '../logger/v2/types.js';
-import type { ValidatedAgentConfig } from './schemas.js';
+import type { AgentRuntimeConfig } from './runtime-config.js';
 import { DextoRuntimeError, ErrorScope, ErrorType } from '../errors/index.js';
 import { PluginErrorCode } from '../plugins/error-codes.js';
 import type { DextoPlugin, PluginExecutionContext, PluginResult } from '../plugins/types.js';
@@ -109,7 +109,7 @@ function coerceBuiltInPluginConfig(value: unknown, pluginName: string): BuiltInP
 }
 
 export async function resolveLocalPluginsFromConfig(options: {
-    config: ValidatedAgentConfig;
+    config: AgentRuntimeConfig;
     logger: IDextoLogger;
 }): Promise<DextoPlugin[]> {
     const { config, logger } = options;

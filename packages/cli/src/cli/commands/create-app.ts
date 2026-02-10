@@ -497,7 +497,8 @@ export default defineConfig({
 // Development: Providers auto-discovered at runtime (pnpm dev)
 // Production: Providers bundled at build time (pnpm build + pnpm start)
 
-	import { AgentConfigSchema, DextoAgent, createLogger } from '@dexto/core';
+	import { AgentConfigSchema } from '@dexto/agent-config';
+	import { DextoAgent, createLogger } from '@dexto/core';
 	import { loadAgentConfig } from '@dexto/agent-management';
 
 async function main() {

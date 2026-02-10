@@ -1,7 +1,7 @@
 import type { MCPManager } from '../mcp/manager.js';
 import type { PromptSet, PromptProvider, PromptInfo, ResolvedPromptResult } from './types.js';
 import type { GetPromptResult } from '@modelcontextprotocol/sdk/types.js';
-import type { ValidatedAgentConfig } from '../agent/schemas.js';
+import type { AgentRuntimeConfig } from '../agent/runtime-config.js';
 import type { PromptsConfig } from './schemas.js';
 import type { AgentEventBus } from '../events/index.js';
 import { MCPPromptProvider } from './providers/mcp-prompt-provider.js';
@@ -35,7 +35,7 @@ export class PromptManager {
     constructor(
         mcpManager: MCPManager,
         resourceManager: ResourceManager,
-        agentConfig: ValidatedAgentConfig,
+        agentConfig: AgentRuntimeConfig,
         private readonly eventBus: AgentEventBus,
         private readonly database: Database,
         logger: IDextoLogger

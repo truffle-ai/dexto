@@ -1,14 +1,8 @@
 import os from 'node:os';
 import type { Context } from 'hono';
 import type { AgentCard } from '@dexto/core';
-import {
-    AgentConfigSchema,
-    DextoAgent,
-    createAgentCard,
-    createLogger,
-    logger,
-    AgentError,
-} from '@dexto/core';
+import { AgentConfigSchema } from '@dexto/agent-config';
+import { DextoAgent, createAgentCard, createLogger, logger, AgentError } from '@dexto/core';
 import {
     loadAgentConfig,
     enrichAgentConfig,

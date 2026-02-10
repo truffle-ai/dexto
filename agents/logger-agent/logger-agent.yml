@@ -77,9 +77,11 @@ elicitation:
   enabled: true
   # timeout: omitted = infinite wait
 
-# Internal tools
-internalTools:
-  - ask_user
+# Tools - unified tool factory configuration (builtins + custom tool providers)
+tools:
+  - type: builtin-tools
+    enabledTools:
+      - ask_user
 
 # Internal resources configuration
 internalResources:

@@ -15,13 +15,8 @@
  */
 
 import { randomUUID } from 'crypto';
-import {
-    AgentConfigSchema,
-    createLogger,
-    DextoAgent,
-    type IDextoLogger,
-    type GenerateResponse,
-} from '@dexto/core';
+import { AgentConfigSchema } from '@dexto/agent-config';
+import { createLogger, DextoAgent, type IDextoLogger, type GenerateResponse } from '@dexto/core';
 import { enrichAgentConfig } from '../config/index.js';
 import { AgentPool } from './AgentPool.js';
 import { RuntimeError } from './errors.js';

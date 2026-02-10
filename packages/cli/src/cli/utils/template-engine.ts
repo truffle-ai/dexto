@@ -28,7 +28,8 @@ export function generateIndexForImage(context: TemplateContext): string {
 import '${context.imageName}';
 
 // Import from core packages
-import { AgentConfigSchema, DextoAgent, createLogger } from '@dexto/core';
+import { AgentConfigSchema } from '@dexto/agent-config';
+import { DextoAgent, createLogger } from '@dexto/core';
 import { loadAgentConfig } from '@dexto/agent-management';
 
 async function main() {
@@ -82,7 +83,8 @@ export function generateWebServerIndex(context: TemplateContext): string {
 import '${context.imageName}';
 
 // Import from core packages
-import { AgentConfigSchema, DextoAgent, createLogger } from '@dexto/core';
+import { AgentConfigSchema } from '@dexto/agent-config';
+import { DextoAgent, createLogger } from '@dexto/core';
 import { loadAgentConfig } from '@dexto/agent-management';
 import { startDextoServer } from '@dexto/server';
 import { resolve } from 'node:path';

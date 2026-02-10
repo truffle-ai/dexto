@@ -19,7 +19,8 @@
  * - Merge strategy configuration for non-LLM fields
  */
 
-import type { AgentConfig, LLMConfig, LLMProvider } from '@dexto/core';
+import type { AgentConfig } from '@dexto/agent-config';
+import type { LLMConfig, LLMProvider } from '@dexto/core';
 import type { GlobalPreferences } from '@dexto/agent-management';
 
 /**

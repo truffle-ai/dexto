@@ -146,13 +146,12 @@ elicitation:
   enabled: true
   # timeout: omitted = infinite wait (no timeout for CLI)
 
-# Internal tools - core tools that are always available
-internalTools:
-  - ask_user       # Ask questions and collect input
-  - invoke_skill   # Invoke skills/prompts during execution
-
-# Custom tools - filesystem and process tools from image-local
-customTools:
+# Tools - unified tool factory configuration (builtins + custom tool providers)
+tools:
+  - type: builtin-tools
+    enabledTools:
+      - ask_user       # Ask questions and collect input
+      - invoke_skill   # Invoke skills/prompts during execution
   - type: filesystem-tools
     allowedPaths: ["."]
     blockedPaths: [".git", "node_modules/.bin", ".env"]

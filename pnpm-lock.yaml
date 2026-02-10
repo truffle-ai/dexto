@@ -133,6 +133,9 @@ importers:
 
   packages/agent-management:
     dependencies:
+      '@dexto/agent-config':
+        specifier: workspace:*
+        version: link:../agent-config
       '@dexto/core':
         specifier: workspace:*
         version: link:../core
@@ -167,6 +170,9 @@ importers:
       '@clack/prompts':
         specifier: ^0.10.1
         version: 0.10.1
+      '@dexto/agent-config':
+        specifier: workspace:*
+        version: link:../agent-config
       '@dexto/agent-management':
         specifier: workspace:*
         version: link:../agent-management
@@ -440,6 +446,9 @@ importers:
 
   packages/image-bundler:
     dependencies:
+      '@dexto/agent-config':
+        specifier: workspace:*
+        version: link:../agent-config
       '@dexto/core':
         specifier: workspace:*
         version: link:../core
@@ -465,6 +474,9 @@ importers:
 
   packages/image-local:
     dependencies:
+      '@dexto/agent-config':
+        specifier: workspace:*
+        version: link:../agent-config
       '@dexto/agent-management':
         specifier: workspace:*
         version: link:../agent-management
@@ -515,6 +527,9 @@ importers:
 
   packages/server:
     dependencies:
+      '@dexto/agent-config':
+        specifier: workspace:*
+        version: link:../agent-config
       '@dexto/agent-management':
         specifier: workspace:*
         version: link:../agent-management
@@ -649,6 +664,9 @@ importers:
 
   packages/webui:
     dependencies:
+      '@dexto/agent-config':
+        specifier: workspace:*
+        version: link:../agent-config
       '@dexto/analytics':
         specifier: workspace:*
         version: link:../analytics

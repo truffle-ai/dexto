@@ -1,5 +1,6 @@
-import { AgentConfigSchema, DextoAgent, createAgentCard, createLogger } from '@dexto/core';
-import type { AgentConfig, AgentCard } from '@dexto/core';
+import { AgentConfigSchema, type AgentConfig } from '@dexto/agent-config';
+import { DextoAgent, createAgentCard, createLogger } from '@dexto/core';
+import type { AgentCard } from '@dexto/core';
 import type { Server as HttpServer } from 'node:http';
 import type { Context } from 'hono';
 import { createDextoApp } from '../index.js';

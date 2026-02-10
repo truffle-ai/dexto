@@ -18,7 +18,7 @@ import { SearchService } from '../search/index.js';
 import { createStorageManager, StorageManager } from '../storage/index.js';
 import { createAllowedToolsProvider } from '../tools/confirmation/allowed-tools-provider/factory.js';
 import type { IDextoLogger } from '../logger/v2/types.js';
-import type { ValidatedAgentConfig } from '@core/agent/schemas.js';
+import type { AgentRuntimeConfig } from '@core/agent/runtime-config.js';
 import { AgentEventBus } from '../events/index.js';
 import { ResourceManager } from '../resources/manager.js';
 import { ApprovalManager } from '../approval/manager.js';
@@ -74,7 +74,7 @@ export type InitializeServicesOptions = {
  * @returns All the initialized services required for a Dexto agent
  */
 export async function createAgentServices(
-    config: ValidatedAgentConfig,
+    config: AgentRuntimeConfig,
     logger: IDextoLogger,
     agentEventBus: AgentEventBus,
     overrides?: InitializeServicesOptions
@@ -207,10 +207,13 @@ export async function createAgentServices(
         logger.debug(`MCPManager initialized with ${mcpServerCount} MCP server(s)`);
     }
 
-    if (config.internalTools.length === 0) {
-        logger.info('No internal tools enabled by configuration');
+    const enabledToolTypes = (config.tools ?? [])
+        .filter((t) => t.enabled !== false)
+        .map((t) => t.type);
+    if (enabledToolTypes.length === 0) {
+        logger.info('No tools enabled by configuration');
     } else {
-        logger.info(`Internal tools enabled: ${config.internalTools.join(', ')}`);
+        logger.info(`Tools enabled: ${enabledToolTypes.join(', ')}`);
     }
 
     // 9. Initialize prompt manager
