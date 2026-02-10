@@ -2464,6 +2464,21 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
 ### Phase 5: Cleanup + testing
 > **Goal:** Remove all dead code, fix all broken tests, add new tests.
 
+- [ ] **5.0 Flatten `DextoAgentOptions` + remove core config indirection**
+  - **Goal:** Match the “Proposed DextoAgent surface” in this plan: everything at the top level (no `options.config` wrapper), and core only tracks *config-like* runtime settings it truly owns.
+  - Introduce a core type like `AgentRuntimeSettings` that includes only config-based surfaces core actually uses at runtime:
+    - Keep: LLM, MCP servers, sessions, toolConfirmation/elicitation, systemPrompt/memories/prompts, telemetry, internalResources, greeting/agentCard, etc.
+    - Remove from core “settings”: any image-bounded DI surfaces and host concerns (`storage`, `tools`, `plugins`, `compaction`, `logger` config, `image`, etc.)
+  - Change `DextoAgentOptions` to be flat:
+    - `DextoAgentOptions = AgentRuntimeSettings & { logger: IDextoLogger; storage: ...; tools: ...; plugins: ...; compaction?: ...; overrides?: ... }`
+    - No `config` subfield.
+  - Move/delete host-only fields from core:
+    - Remove `configPath`/`getAgentFilePath()`/`reload()` from core (these are CLI/server/agent-management concerns)
+    - Remove `agentFile` config from core (instruction discovery belongs to host layers / contributors, not core runtime)
+  - Update `AgentStateManager` to track/export only `AgentRuntimeSettings` (or a patch/delta), not a YAML-shaped “full agent config”
+  - **Glue strategy clarification:** Phase 4 should make transitional glue paths *unused* (product layers supply DI instances). Phase 5 deletes them and removes all `// TODO: temporary glue code...` markers.
+  - Exit: `DextoAgentOptions` is flat; core has no file-path concerns; CLI/server still support edit/reload UX via host-managed config; build + tests pass.
+
 - [ ] **5.1 Delete dead registry code**
   - All `*Registry` classes, singleton instances, factory functions that used registries
   - `providers/discovery.ts` (unless we want a non‑registry version)
