@@ -2,21 +2,19 @@ import { defineConfig } from 'tsup';
 
 export default defineConfig([
     {
-        entry: [
-            'src/**/*.ts',
-            '!src/**/*.test.ts',
-            '!src/**/*.integration.test.ts',
-            '!src/**/*.integration.ts',
-        ],
+        entry: ['src/**/*.ts'],
         format: ['cjs', 'esm'],
         outDir: 'dist',
-        dts: false, // Disable DTS generation in tsup to avoid worker memory issues
+        dts: {
+            compilerOptions: {
+                skipLibCheck: true,
+            },
+        },
         platform: 'node',
         bundle: false,
         clean: true,
         tsconfig: './tsconfig.json',
         esbuildOptions(options) {
-            // Suppress empty import meta warnings which tsup anyway fixes
             options.logOverride = {
                 ...(options.logOverride ?? {}),
                 'empty-import-meta': 'silent',

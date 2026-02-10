@@ -12,7 +12,7 @@
     }
   },
   "scripts": {
-    "build": "tsx ../image-bundler/dist/cli.js build",
+    "build": "tsup",
     "test": "vitest run",
     "test:integ": "vitest run",
     "typecheck": "tsc --noEmit",
@@ -30,13 +30,15 @@
     "@dexto/agent-config": "workspace:*",
     "@dexto/agent-management": "workspace:*",
     "@dexto/core": "workspace:*",
+    "@dexto/storage": "workspace:*",
+    "@dexto/tools-builtins": "workspace:*",
     "@dexto/tools-filesystem": "workspace:*",
     "@dexto/tools-plan": "workspace:*",
     "@dexto/tools-process": "workspace:*",
     "@dexto/tools-todo": "workspace:*"
   },
   "devDependencies": {
-    "@dexto/image-bundler": "workspace:*",
+    "tsup": "^8.0.0",
     "typescript": "^5.3.3"
   },
   "files": [

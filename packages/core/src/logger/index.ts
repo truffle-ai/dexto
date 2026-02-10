@@ -1,6 +1,11 @@
 // Logger factory for dependency injection
 export { createLogger } from './factory.js';
 export type { CreateLoggerOptions } from './factory.js';
+export {
+    defaultLoggerFactory,
+    DefaultLoggerFactoryConfigSchema,
+} from './default-logger-factory.js';
+export type { DefaultLoggerFactoryConfig } from './default-logger-factory.js';
 
 // Multi-transport logger - v2
 export type { LogLevel, LogEntry, IDextoLogger, ILoggerTransport } from './v2/types.js';

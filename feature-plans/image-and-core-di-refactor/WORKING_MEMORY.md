@@ -19,24 +19,19 @@
 
 ## Current Task
 
-**Task:** **3.5 Rewrite `@dexto/image-local` as hand-written `DextoImageModule`**
+**Task:** **3.6 Update `@dexto/image-bundler`**
 **Status:** _Not started_
 **Branch:** `rebuild-di`
 
 ### Plan
-- Delete bundler-based image-local entrypoints (`dexto.image.ts` + generated output)
-- Write a hand-written `index.ts` exporting a typed `DextoImageModule` (no side effects)
-- Wire factory maps:
-  - `tools`: `builtin-tools`, `filesystem-tools`, `process-tools`, `todo-tools`, `plan-tools`
-  - `storage`: blob/database/cache factories from `@dexto/storage`
-  - `plugins`: `content-policy`, `response-sanitizer` (from core)
-  - `compaction`: `reactive-overflow`, `noop` (from core)
-  - `logger`: wrapper around core `createLogger()` + `LoggerConfigSchema` (Phase 3.3 deferred)
-- Exit: `import imageLocal from '@dexto/image-local'` returns a `DextoImageModule`; build/tests pass
+- Rewrite the bundler output to generate a `DextoImageModule` object literal with explicit imports
+- Remove `.toString()` injection and duck-typed export discovery
+- Align folder conventions to typed maps (`tools/*`, `storage/{blob,database,cache}/*`, etc.)
+- Exit: bundler generates a valid module that `loadImage()` can import + validate; build/tests pass
 
 ### Notes
 _Log findings, issues, and progress here as you work._
-2026-02-10: Phase 3.4 completed: `@dexto/tools-filesystem`, `@dexto/tools-process`, `@dexto/tools-todo`, `@dexto/tools-plan` now export `ToolFactory` objects for image consumption. `pnpm -w run build:packages` + `pnpm -w test` pass.
+2026-02-10: Phase 3.5 completed: `@dexto/image-local` now exports a hand-written `DextoImageModule` with factory maps (no side effects). `pnpm -w run build:packages` passes; `pnpm -C packages/image-local test` passes.
 
 ---
 
@@ -58,7 +53,7 @@ _Record important decisions made during implementation that aren't in the main p
 
 _Things that need resolution before proceeding. Remove when resolved (move to Key Decisions)._
 
-- _None yet_
+- **Compaction DI mismatch:** `reactive-overflow` needs a per-session `LanguageModel` instance, but the image resolver creates compaction strategies at config resolution time. `@dexto/image-local` includes a placeholder compaction factory that throws (tagged glue, remove-by: 4.1).
 
 ---
 
@@ -110,6 +105,7 @@ _Move tasks here after completion. Keep a brief log of what was done and any dev
 | 3.1 | Create `@dexto/tools-builtins` package | 2026-02-10 | Added `packages/tools-builtins/` and exported `builtinToolsFactory` (`builtin-tools` + optional `enabledTools`). Tool implementations use `ToolExecutionContext` services at runtime. `pnpm -w build:packages` + `pnpm -w test` pass. |
 | 3.2 | Create `@dexto/storage` package | 2026-02-10 | Added `packages/storage/` (schemas + providers + factories) and removed concrete storage implementations/schemas from core (core is interfaces + `StorageManager` only). Updated host layers (CLI/server/agent-management) to inject `overrides.storageManager`. Updated webui to import storage types/constants from `@dexto/storage/schemas`. `pnpm -w build:packages` passes. |
 | 3.4 | Adapt existing tool provider packages | 2026-02-10 | Added `ToolFactory` exports for `@dexto/tools-filesystem`, `@dexto/tools-process`, `@dexto/tools-todo`, `@dexto/tools-plan` for image-local consumption (registry-free). `pnpm -w build:packages` + `pnpm -w test` pass. |
+| 3.5 | Rewrite `@dexto/image-local` as hand-written `DextoImageModule` | 2026-02-10 | Deleted bundler entrypoint and replaced with hand-written `DextoImageModule` export. Added `defaultLoggerFactory` in core and a lazy `agentSpawnerToolsFactory` adapter in agent-management. Included a temporary placeholder for `reactive-overflow` compaction (remove-by: 4.1). `pnpm -w build:packages` + `pnpm -C packages/image-local test` pass. |
 
 ---
 
