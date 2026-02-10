@@ -26,3 +26,6 @@ export type {
 } from './schemas/agent-config.js';
 
 export { applyImageDefaults } from './resolver/apply-image-defaults.js';
+export { resolveServicesFromConfig } from './resolver/resolve-services-from-config.js';
+
+export type { ResolvedServices } from './resolver/types.js';
