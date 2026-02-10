@@ -1,9 +1,15 @@
 import os from 'node:os';
 import type { Context } from 'hono';
 import type { AgentCard } from '@dexto/core';
-import { AgentConfigSchema } from '@dexto/agent-config';
-import { DextoAgent, createAgentCard, createLogger, logger, AgentError } from '@dexto/core';
-import { createStorageManager } from '@dexto/storage';
+import {
+    AgentConfigSchema,
+    applyImageDefaults,
+    loadImage,
+    resolveServicesFromConfig,
+    toDextoAgentOptions,
+    type DextoImageModule,
+} from '@dexto/agent-config';
+import { DextoAgent, createAgentCard, logger, AgentError } from '@dexto/core';
 import {
     loadAgentConfig,
     enrichAgentConfig,
@@ -14,6 +20,8 @@ import {
     loadGlobalPreferences,
 } from '@dexto/agent-management';
 import { applyUserPreferences } from '../config/cli-overrides.js';
+import { cleanNullValues } from '../utils/clean-null-values.js';
+import { createFileSessionLoggerFactory } from '../utils/session-logger-factory.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import {
     createDextoApp,
@@ -32,33 +40,15 @@ import { registerGracefulShutdown } from '../utils/graceful-shutdown.js';
 
 const DEFAULT_AGENT_VERSION = '1.0.0';
 
-/**
- * Load image dynamically based on config and environment
- * Priority: Config image field > Environment variable > Default
- * Images are optional, but default to image-local for convenience
- *
- * @returns Image metadata including bundled plugins, or null if image has no metadata export
- */
+const sessionLoggerFactory = createFileSessionLoggerFactory();
+
 async function loadImageForConfig(config: {
     image?: string | undefined;
-}): Promise<{ bundledPlugins?: string[] } | null> {
+}): Promise<DextoImageModule> {
     const imageName = config.image || process.env.DEXTO_IMAGE || '@dexto/image-local';
-
-    try {
-        const imageModule = await import(imageName);
-        logger.debug(`Loaded image: ${imageName}`);
-
-        // Extract metadata if available (built images export imageMetadata)
-        if (imageModule.imageMetadata) {
-            return imageModule.imageMetadata;
-        }
-
-        return null;
-    } catch (err) {
-        const errorMsg = `Failed to load image '${imageName}': ${err instanceof Error ? err.message : String(err)}`;
-        logger.error(errorMsg);
-        throw new Error(errorMsg);
-    }
+    const image = await loadImage(imageName);
+    logger.debug(`Loaded image: ${imageName}`);
+    return image;
 }
 
 /**
@@ -123,29 +113,27 @@ async function createAgentFromId(agentId: string): Promise<DextoAgent> {
             }
         }
 
-        // Load image to get bundled plugins
-        const imageMetadata = await loadImageForConfig(config);
+        const cleanedConfig = cleanNullValues(config);
 
-        // Enrich config with per-agent paths and bundled plugins
-        const enrichedConfig = enrichAgentConfig(config, agentPath, {
+        const image = await loadImageForConfig(cleanedConfig);
+        const configWithImageDefaults = applyImageDefaults(cleanedConfig, image.defaults);
+
+        // Enrich config with per-agent paths BEFORE validation
+        const enrichedConfig = enrichAgentConfig(configWithImageDefaults, agentPath, {
             logLevel: 'info', // Server uses info-level logging for visibility
-            bundledPlugins: imageMetadata?.bundledPlugins || [],
         });
 
-        // Create agent instance
         logger.info(`Creating agent: ${agentId} from ${agentPath}`);
         const validatedConfig = AgentConfigSchema.parse(enrichedConfig);
-        const agentLogger = createLogger({
-            config: validatedConfig.logger,
-            agentId: validatedConfig.agentId,
-        });
-        const storageManager = await createStorageManager(validatedConfig.storage, agentLogger);
-        return new DextoAgent({
-            config: validatedConfig,
-            configPath: agentPath,
-            logger: agentLogger,
-            overrides: { storageManager },
-        });
+        const services = await resolveServicesFromConfig(validatedConfig, image);
+        return new DextoAgent(
+            toDextoAgentOptions({
+                config: validatedConfig,
+                services,
+                configPath: agentPath,
+                overrides: { sessionLoggerFactory },
+            })
+        );
     } catch (error) {
         throw new Error(
             `Failed to create agent '${agentId}': ${error instanceof Error ? error.message : String(error)}`
@@ -401,32 +389,30 @@ export async function initializeHonoApi(
                 }
             }
 
-            // 3. Load image first to get bundled plugins
-            const imageMetadata = await loadImageForConfig(config);
+            const cleanedConfig = cleanNullValues(config);
+            const image = await loadImageForConfig(cleanedConfig);
+            const configWithImageDefaults = applyImageDefaults(cleanedConfig, image.defaults);
 
-            // 3.5. Enrich config with per-agent paths and bundled plugins from image
-            const enrichedConfig = enrichAgentConfig(config, filePath, {
+            // 3.5. Enrich config with per-agent paths BEFORE validation
+            const enrichedConfig = enrichAgentConfig(configWithImageDefaults, filePath, {
                 logLevel: 'info', // Server uses info-level logging for visibility
-                bundledPlugins: imageMetadata?.bundledPlugins || [],
             });
 
             // 4. Create new agent instance directly (will initialize fresh telemetry in createAgentServices)
             const validatedConfig = AgentConfigSchema.parse(enrichedConfig);
-            const agentLogger = createLogger({
-                config: validatedConfig.logger,
-                agentId: validatedConfig.agentId,
-            });
-            const storageManager = await createStorageManager(validatedConfig.storage, agentLogger);
-            newAgent = new DextoAgent({
-                config: validatedConfig,
-                configPath: filePath,
-                logger: agentLogger,
-                overrides: { storageManager },
-            });
+            const services = await resolveServicesFromConfig(validatedConfig, image);
+            newAgent = new DextoAgent(
+                toDextoAgentOptions({
+                    config: validatedConfig,
+                    services,
+                    configPath: filePath,
+                    overrides: { sessionLoggerFactory },
+                })
+            );
 
             // 5. Use enriched agentId (derived from config or filename during enrichment)
             // enrichAgentConfig always sets agentId, so it's safe to assert non-null
-            const agentId = validatedConfig.agentId!;
+            const agentId = validatedConfig.agentId;
 
             // 6. Use common switch logic (register subscribers, start agent, stop previous)
             return await performAgentSwitch(newAgent, agentId, bridge);

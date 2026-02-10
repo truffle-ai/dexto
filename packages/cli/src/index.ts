@@ -13,6 +13,8 @@ import * as p from '@clack/prompts';
 import chalk from 'chalk';
 import { initAnalytics, capture, getWebUIAnalyticsConfig } from './analytics/index.js';
 import { withAnalytics, safeExit, ExitSignal } from './analytics/wrapper.js';
+import { cleanNullValues } from './utils/clean-null-values.js';
+import { createFileSessionLoggerFactory } from './utils/session-logger-factory.js';
 
 // Use createRequire to import package.json without experimental warning
 const require = createRequire(import.meta.url);
@@ -36,9 +38,6 @@ if (isDextoAuthEnabled()) {
 
 import {
     logger,
-    DextoLogger,
-    FileTransport,
-    DextoLogComponent,
     getProviderFromModel,
     getAllSupportedModels,
     startLlmRegistryAutoUpdate,
@@ -63,7 +62,6 @@ import {
     globalPreferencesExist,
     loadGlobalPreferences,
     resolveBundledScript,
-    getDextoPath,
 } from '@dexto/agent-management';
 import { startHonoApiServer } from './api/server-hono.js';
 import { validateCliOptions, handleCliOptionsError } from './cli/utils/options.js';
@@ -141,43 +139,6 @@ const versionCheckPromise = checkForUpdates(pkg.version);
 // Start self-updating LLM registry refresh (models.dev + OpenRouter mapping).
 // Uses a cached snapshot on disk and refreshes in the background.
 startLlmRegistryAutoUpdate();
-
-/**
- * Recursively removes null values from an object.
- * This handles YAML files that have explicit `apiKey: null` entries
- * which would otherwise cause "Expected string, received null" validation errors.
- */
-function cleanNullValues<T extends Record<string, unknown>>(obj: T): T {
-    if (obj === null || obj === undefined) return obj;
-    if (typeof obj !== 'object') return obj;
-    if (Array.isArray(obj)) {
-        return obj.map((item) =>
-            typeof item === 'object' && item !== null
-                ? cleanNullValues(item as Record<string, unknown>)
-                : item
-        ) as unknown as T;
-    }
-
-    const cleaned: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(obj)) {
-        if (value === null) {
-            // Skip null values - they become undefined (missing)
-            continue;
-        }
-        if (typeof value === 'object' && !Array.isArray(value)) {
-            cleaned[key] = cleanNullValues(value as Record<string, unknown>);
-        } else if (Array.isArray(value)) {
-            cleaned[key] = value.map((item) =>
-                typeof item === 'object' && item !== null
-                    ? cleanNullValues(item as Record<string, unknown>)
-                    : item
-            );
-        } else {
-            cleaned[key] = value;
-        }
-    }
-    return cleaned as T;
-}
 
 // 1) GLOBAL OPTIONS
 program
@@ -1603,28 +1564,7 @@ program
                     // Config is already enriched and validated - ready for agent creation
                     // DextoAgent will parse/validate again (parse-twice pattern)
                     // isInteractiveMode is already defined above for validateAgentConfig
-                    const sessionLoggerFactory: import('@dexto/core').SessionLoggerFactory = ({
-                        baseLogger,
-                        agentId,
-                        sessionId,
-                    }) => {
-                        // Sanitize sessionId to prevent path traversal attacks
-                        // Allow only alphanumeric, dots, hyphens, and underscores
-                        const safeSessionId = sessionId.replace(/[^a-zA-Z0-9._-]/g, '_');
-                        const logFilePath = getDextoPath(
-                            'logs',
-                            path.join(agentId, `${safeSessionId}.log`)
-                        );
-
-                        // Standalone per-session file logger.
-                        return new DextoLogger({
-                            level: baseLogger.getLevel(),
-                            agentId,
-                            sessionId,
-                            component: DextoLogComponent.SESSION,
-                            transports: [new FileTransport({ path: logFilePath })],
-                        });
-                    };
+                    const sessionLoggerFactory = createFileSessionLoggerFactory();
 
                     const mcpAuthProviderFactory =
                         opts.mode === 'cli'

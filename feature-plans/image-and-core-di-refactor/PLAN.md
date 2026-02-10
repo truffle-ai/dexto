@@ -2434,8 +2434,10 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
   - Remove `imageMetadata?.bundledPlugins` pattern (images no longer export `imageMetadata`)
   - Exit: `dexto` CLI starts successfully with `@dexto/image-local`. Chat works end‑to‑end.
 
-- [ ] **4.2 Update CLI server mode (`packages/cli/src/api/server-hono.ts`)**
-  - Agent switching (`createAgentFromId()`) uses new resolution flow
+- [x] **4.2 Update CLI server mode (`packages/cli/src/api/server-hono.ts`)**
+  - Agent switching (`createAgentFromId()` + switch-by-path) uses new resolution flow: `loadImage()` → `applyImageDefaults()` → `resolveServicesFromConfig()` → `toDextoAgentOptions()`
+  - Removed `imageMetadata` / `bundledPlugins` plumbing (images no longer export metadata)
+  - Switch-created agents reuse the same `sessionLoggerFactory` override (per-session file logs)
   - Exit: `dexto serve` starts, can switch agents, chat works.
 
 - [ ] **4.3 Update `@dexto/server` if needed**
