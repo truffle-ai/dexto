@@ -31,3 +31,5 @@ export { resolveServicesFromConfig } from './resolver/resolve-services-from-conf
 export { toDextoAgentOptions } from './resolver/to-dexto-agent-options.js';
 
 export type { ResolvedServices } from './resolver/types.js';
+
+export { cleanNullValues } from './utils/clean-null-values.js';

@@ -13,7 +13,6 @@ import * as p from '@clack/prompts';
 import chalk from 'chalk';
 import { initAnalytics, capture, getWebUIAnalyticsConfig } from './analytics/index.js';
 import { withAnalytics, safeExit, ExitSignal } from './analytics/wrapper.js';
-import { cleanNullValues } from './utils/clean-null-values.js';
 import { createFileSessionLoggerFactory } from './utils/session-logger-factory.js';
 
 // Use createRequire to import package.json without experimental warning
@@ -49,6 +48,7 @@ import {
 } from '@dexto/core';
 import {
     applyImageDefaults,
+    cleanNullValues,
     createAgentConfigSchema,
     loadImage,
     resolveServicesFromConfig,

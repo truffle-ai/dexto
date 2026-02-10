@@ -15,10 +15,7 @@
  */
 
 import { randomUUID } from 'crypto';
-import { AgentConfigSchema } from '@dexto/agent-config';
-import { createLogger, DextoAgent, type IDextoLogger, type GenerateResponse } from '@dexto/core';
-import { createStorageManager } from '@dexto/storage';
-import { enrichAgentConfig } from '../config/index.js';
+import type { IDextoLogger, GenerateResponse } from '@dexto/core';
 import { AgentPool } from './AgentPool.js';
 import { RuntimeError } from './errors.js';
 import type {
@@ -29,6 +26,7 @@ import type {
     AgentFilter,
 } from './types.js';
 import { AgentRuntimeConfigSchema, type ValidatedAgentRuntimeConfig } from './schemas.js';
+import { createDextoAgentFromConfig } from '../agent-creation.js';
 
 /**
  * Options for creating an AgentRuntime
@@ -78,28 +76,10 @@ export class AgentRuntime {
         }
 
         try {
-            // Enrich the config with runtime paths
-            // Skip plugin discovery for subagents to avoid duplicate warnings
-            const enrichedConfig = enrichAgentConfig(
-                config.agentConfig,
-                undefined, // No config path
-                { isInteractiveCli: false, skipPluginDiscovery: true }
-            );
-
-            // Override agentId in enriched config
-            enrichedConfig.agentId = agentId;
-
-            // Create the agent
-            const validatedConfig = AgentConfigSchema.parse(enrichedConfig);
-            const agentLogger = createLogger({
-                config: validatedConfig.logger,
-                agentId: validatedConfig.agentId,
-            });
-            const storageManager = await createStorageManager(validatedConfig.storage, agentLogger);
-            const agent = new DextoAgent({
-                config: validatedConfig,
-                logger: agentLogger,
-                overrides: { storageManager },
+            const agent = await createDextoAgentFromConfig({
+                config: config.agentConfig,
+                enrichOptions: { isInteractiveCli: false, skipPluginDiscovery: true },
+                agentIdOverride: agentId,
             });
 
             // Create the handle (status: starting)

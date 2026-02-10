@@ -4,6 +4,7 @@ import type { AgentCard } from '@dexto/core';
 import {
     AgentConfigSchema,
     applyImageDefaults,
+    cleanNullValues,
     loadImage,
     resolveServicesFromConfig,
     toDextoAgentOptions,
@@ -20,7 +21,6 @@ import {
     loadGlobalPreferences,
 } from '@dexto/agent-management';
 import { applyUserPreferences } from '../config/cli-overrides.js';
-import { cleanNullValues } from '../utils/clean-null-values.js';
 import { createFileSessionLoggerFactory } from '../utils/session-logger-factory.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import {

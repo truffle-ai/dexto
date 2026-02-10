@@ -2445,14 +2445,15 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
   - Verified: `pnpm -w run build:packages` + `pnpm -w test` pass
   - Exit: server package builds and integration tests pass.
 
-- [ ] **4.4 Update `@dexto/agent-management` config enrichment**
-  - `enrichAgentConfig()` may need updates for the new flow
-  - Remove any config parsing responsibilities that moved to agent‑config
-  - Update `@dexto/agent-management` agent creation surfaces to use the new resolution flow (not core glue):
+- [x] **4.4 Update `@dexto/agent-management` config enrichment**
+  - `enrichAgentConfig()` remains host-only (paths + prompt/plugin discovery), not service construction
+  - Updated agent creation surfaces to use the new image DI flow (no core glue):
     - `AgentManager.loadAgent(...)`
     - `AgentFactory.createAgent(...)`
     - `AgentRuntime.spawnAgent(...)`
-  - might not even be required anymore if image concept can handle this natively. vet and discuss with the user
+  - Removed `createLogger()` / `createStorageManager()` usage from agent-management (now uses `loadImage()` → defaults → `resolveServicesFromConfig()` → `toDextoAgentOptions()`)
+  - Exported `cleanNullValues()` from `@dexto/agent-config` for shared YAML-null cleanup
+  - Verified: `pnpm -w run build:packages` + `pnpm -w test` pass
   - Exit: config enrichment works with new resolution flow. Build + tests pass.
 
 - [ ] **4.5 End‑to‑end smoke test**

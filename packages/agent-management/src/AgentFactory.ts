@@ -25,13 +25,11 @@
  */
 
 import { promises as fs } from 'fs';
-import { AgentConfigSchema, type AgentConfig } from '@dexto/agent-config';
-import { DextoAgent, createLogger } from '@dexto/core';
-import { createStorageManager } from '@dexto/storage';
+import type { AgentConfig } from '@dexto/agent-config';
+import type { DextoAgent } from '@dexto/core';
 import { getDextoGlobalPath } from './utils/path.js';
 import { deriveDisplayName } from './registry/types.js';
 import { loadBundledRegistryAgents } from './registry/registry.js';
-import { enrichAgentConfig } from './config/index.js';
 import {
     installBundledAgent,
     installCustomAgent,
@@ -39,6 +37,7 @@ import {
     type InstallOptions,
 } from './installation.js';
 import type { AgentMetadata } from './AgentManager.js';
+import { createDextoAgentFromConfig } from './agent-creation.js';
 
 /**
  * Options for listing agents
@@ -183,21 +182,10 @@ export const AgentFactory = {
             } as AgentConfig;
         }
 
-        // Enrich with runtime paths (logs, database, blob storage)
-        const enrichedConfig = enrichAgentConfig(
-            configToEnrich,
-            undefined, // No config path for inline configs
-            options?.isInteractiveCli ?? false
-        );
-
-        // Create and return unstarted agent
-        const validatedConfig = AgentConfigSchema.parse(enrichedConfig);
-        const logger = createLogger({
-            config: validatedConfig.logger,
-            agentId: validatedConfig.agentId,
+        return await createDextoAgentFromConfig({
+            config: configToEnrich,
+            enrichOptions: { isInteractiveCli: options?.isInteractiveCli ?? false },
         });
-        const storageManager = await createStorageManager(validatedConfig.storage, logger);
-        return new DextoAgent({ config: validatedConfig, logger, overrides: { storageManager } });
     },
 };
 

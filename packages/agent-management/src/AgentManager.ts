@@ -18,12 +18,12 @@
 
 import { promises as fs } from 'fs';
 import path from 'path';
-import { AgentConfigSchema } from '@dexto/agent-config';
-import { createLogger, logger, DextoAgent, DextoValidationError, zodToIssues } from '@dexto/core';
-import { createStorageManager } from '@dexto/storage';
-import { loadAgentConfig, enrichAgentConfig } from './config/index.js';
+import { logger, DextoValidationError, zodToIssues } from '@dexto/core';
+import type { DextoAgent } from '@dexto/core';
+import { loadAgentConfig } from './config/index.js';
 import { RegistryError } from './registry/errors.js';
 import { z, ZodError } from 'zod';
+import { createDextoAgentFromConfig } from './agent-creation.js';
 
 /**
  * Agent metadata - describes an agent in the registry
@@ -217,24 +217,11 @@ export class AgentManager {
         const configPath = path.resolve(this.basePath, entry.configPath);
 
         try {
-            // Load and enrich agent config
             const config = await loadAgentConfig(configPath);
-            const enrichedConfig = enrichAgentConfig(config, configPath);
-            const validatedConfig = AgentConfigSchema.parse(enrichedConfig);
 
             // Load agent instance
             logger.debug(`Loading agent: ${id} from ${configPath}`);
-            const agentLogger = createLogger({
-                config: validatedConfig.logger,
-                agentId: validatedConfig.agentId,
-            });
-            const storageManager = await createStorageManager(validatedConfig.storage, agentLogger);
-            return new DextoAgent({
-                config: validatedConfig,
-                configPath,
-                logger: agentLogger,
-                overrides: { storageManager },
-            });
+            return await createDextoAgentFromConfig({ config, configPath });
         } catch (error) {
             // Convert ZodError to DextoValidationError for better error messages
             if (error instanceof ZodError) {

@@ -19,19 +19,19 @@
 
 ## Current Task
 
-**Task:** **4.4 Update `@dexto/agent-management` config enrichment + agent creation surfaces**
+**Task:** **4.5 End-to-end smoke test**
 **Status:** _Not started_
 **Branch:** `rebuild-di`
 
 ### Plan
-- Audit `AgentManager` / `AgentFactory` / `AgentRuntime` for any remaining config→instance resolution in core-glue style
-- Migrate any remaining agent creation to the new flow (`loadImage()` → defaults → enrichment → validation → `resolveServicesFromConfig()` → `toDextoAgentOptions()`)
-- Keep `enrichAgentConfig()` focused on host-only concerns (paths, prompt/plugin discovery), not service construction
-- Exit: agent-management builds + tests pass; host layers no longer need transitional storage/logger glue paths
+- Request owner to run a quick smoke test:
+  - `pnpm -C packages/cli dev` (or `pnpm -w build:packages` then run `packages/cli/dist/index.js`) and verify `--mode web` + `--mode server`
+  - Switch agents via UI/API (`switchAgentById`, `switchAgentByPath`) and confirm chat + tools still work
+- Exit: manual smoke test passes; all CI checks green
 
 ### Notes
 _Log findings, issues, and progress here as you work._
-2026-02-10: Phase 4.3 verified: `@dexto/server` required no code changes; `pnpm -w run build:packages` + `pnpm -w test` pass.
+2026-02-10: Phase 4.4 completed: agent-management agent creation surfaces now use the image DI flow (`loadImage()` → defaults → `resolveServicesFromConfig()` → `toDextoAgentOptions()`). Removed core glue (`createLogger`/`createStorageManager`) and dropped the `@dexto/storage` dependency from `@dexto/agent-management`. Exported `cleanNullValues()` from `@dexto/agent-config`. `pnpm -w run build:packages` + `pnpm -w test` pass.
 
 ---
 
@@ -112,6 +112,7 @@ _Move tasks here after completion. Keep a brief log of what was done and any dev
 | 4.1 | Update CLI entry point (`packages/cli/src/index.ts`) | 2026-02-10 | CLI now loads typed images (`loadImage()`), applies defaults, resolves services, and constructs `DextoAgent` via `toDextoAgentOptions()` (no `imageMetadata`). Core consumes DI-provided `storage/tools/plugins` and bridges storage backends into a `StorageManager`. Removed image-bundler `imageMetadata` export and deprecated `bundledPlugins` in image definitions. `pnpm -w run build:packages` + `pnpm -w test` pass. |
 | 4.2 | Update CLI server mode (`packages/cli/src/api/server-hono.ts`) | 2026-02-10 | Server mode agent switching now uses the same image DI flow as the CLI entrypoint (`loadImage()` → `applyImageDefaults()` → `resolveServicesFromConfig()` → `toDextoAgentOptions()`). Removed `imageMetadata`/`bundledPlugins` plumbing and ensured switched agents reuse the session file-logger override. Added small CLI utils for `cleanNullValues()` + `createFileSessionLoggerFactory()` to avoid duplication. `pnpm -w run build:packages` + `pnpm -w test` pass. |
 | 4.3 | Update `@dexto/server` if needed | 2026-02-10 | No code changes required; server consumes a `DextoAgent` instance. Verified `pnpm -w run build:packages` + `pnpm -w test` pass. |
+| 4.4 | Update `@dexto/agent-management` config enrichment + agent creation surfaces | 2026-02-10 | `AgentManager.loadAgent`, `AgentFactory.createAgent`, and `AgentRuntime.spawnAgent` now create agents via image DI resolution (`loadImage()` + defaults + resolver) instead of core glue (`createLogger`/`createStorageManager`). Added shared `cleanNullValues()` export in agent-config. Removed unused `@dexto/storage` dependency from agent-management. `pnpm -w run build:packages` + `pnpm -w test` pass. |
 
 ---
 
