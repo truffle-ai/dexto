@@ -1,29 +1,26 @@
 /**
- * Dexto Base Image Definition
+ * Legacy Image Definition Types (bundler-only)
  *
- * Base images are pre-configured backend surfaces that bundle providers,
- * utilities, and defaults for specific deployment targets.
+ * TODO: temporary glue code to be removed/verified (remove-by: 5.1)
  *
- * Like Alpine Linux or Ubuntu, but for AI agents.
+ * These types represent the legacy `dexto.image.ts` shape consumed by `@dexto/image-bundler`.
+ * The long-term replacement is the typed `DextoImageModule` contract in `@dexto/agent-config`.
  */
-
-import type { z } from 'zod';
 
 /**
  * Generic provider interface that all provider types should extend.
- * Provides common structure for type-safe provider registration.
  *
- * Note: This is a simplified interface for image definitions.
- * Actual provider implementations should use the specific provider
- * interfaces from their respective modules (e.g., BlobStoreProvider).
+ * Note: This is a simplified interface for legacy image definitions.
+ * Concrete provider implementations should use the specific provider interfaces
+ * from their respective modules (e.g., BlobStoreProvider).
  */
 export interface ImageProvider<TType extends string = string> {
     /** Unique type identifier for this provider (e.g., 'sqlite', 'local', 's3') */
     type: TType;
-    /** Zod schema for validating provider configuration */
-    configSchema: z.ZodType<any>;
-    /** Factory function to create provider instance */
-    create: (config: any, deps: any) => any;
+    /** Schema-like object for validating provider configuration (legacy) */
+    configSchema: unknown;
+    /** Factory function to create provider instance (legacy) */
+    create: (config: unknown, deps: unknown) => unknown;
     /** Optional metadata about the provider */
     metadata?: ProviderMetadata;
 }
@@ -65,7 +62,7 @@ export interface ProviderCategoryConfig {
 
 /**
  * Complete image definition structure.
- * This is what dexto.image.ts exports.
+ * This is what legacy `dexto.image.ts` exports.
  */
 export interface ImageDefinition {
     /** Unique name for this image (e.g., 'local', 'cloud', 'edge') */
@@ -143,13 +140,6 @@ export interface ImageDefinition {
      * Bundled plugin paths.
      * Absolute paths to plugin directories containing .dexto-plugin or .claude-plugin manifests.
      * These plugins are automatically discovered alongside user/project plugins.
-     *
-     * Example:
-     * ```typescript
-     * import { PLUGIN_PATH as planToolsPluginPath } from '@dexto/tools-plan';
-     *
-     * bundledPlugins: [planToolsPluginPath]
-     * ```
      */
     bundledPlugins?: string[];
 }
@@ -244,35 +234,4 @@ export interface ImageMetadata {
     extends?: string;
     /** Bundled plugin paths (absolute paths to plugin directories) */
     bundledPlugins?: string[];
-}
-
-/**
- * Result of building an image.
- * Contains the generated code and metadata.
- */
-export interface ImageBuildResult {
-    /** Generated JavaScript code for the image entry point */
-    code: string;
-    /** Generated TypeScript definitions */
-    types: string;
-    /** Image metadata */
-    metadata: ImageMetadata;
-    /** Warnings encountered during build */
-    warnings?: string[];
-}
-
-/**
- * Options for building an image.
- */
-export interface ImageBuildOptions {
-    /** Path to dexto.image.ts file */
-    imagePath: string;
-    /** Output directory for built image */
-    outDir: string;
-    /** Whether to generate source maps */
-    sourcemap?: boolean;
-    /** Whether to minify output */
-    minify?: boolean;
-    /** Additional validation rules */
-    strict?: boolean;
 }

@@ -19,18 +19,15 @@
 
 ## Current Task
 
-**Task:** **1.27 — `image/` — remove old image infrastructure from core**
+**Task:** **1.28 — `index.ts` barrel — remove deleted exports**
 **Status:** _Not started_
 **Branch:** `rebuild-di`
 
 ### Plan
-- Delete `packages/core/src/image/` (old infra):
-  - `define-image.ts`
-  - `types.ts`
-  - `index.ts`
-- Remove image exports from `packages/core/src/index.ts`
-- Update any call sites still importing `defineImage` / old image types
-- Exit: `packages/core/src/image/` deleted; repo builds + tests pass.
+- Remove remaining deleted exports from `packages/core/src/index.ts`
+- Vet `packages/core/src/index.browser.ts` for any now-invalid exports
+- Ensure downstream packages compile without importing removed symbols
+- Exit: `packages/core` index barrels contain no deleted/registry/image exports; build + tests pass.
 
 ### Notes
 _Log findings, issues, and progress here as you work._
@@ -94,6 +91,7 @@ _Move tasks here after completion. Keep a brief log of what was done and any dev
 | 1.24 | `errors/` — vet | 2026-02-10 | No changes needed. Error infrastructure is registry-free and remains DI-neutral. |
 | 1.25 | `utils/` — vet | 2026-02-10 | No changes needed. Verified `packages/core/src/utils/` (excluding `service-initializer.ts`) has no provider-registry coupling; remaining utilities are DI-neutral. |
 | 1.26 | `providers/` — delete registry infrastructure | 2026-02-10 | Deleted `packages/core/src/providers/*` and removed core exports. Refactored `CustomToolRegistry` to no longer depend on `BaseRegistry`. Moved `/discovery` provider listing logic into server route. `pnpm run build` + `pnpm test` pass. |
+| 1.27 | `image/` — remove old image infrastructure from core | 2026-02-10 | Deleted `packages/core/src/image/*` and removed core exports. Moved legacy image definition types + validation into `@dexto/image-bundler`, updated `@dexto/image-local` and CLI templates to stop importing `defineImage` from core. `pnpm run build` + `pnpm test` pass. |
 
 ---
 
@@ -107,7 +105,7 @@ _Move tasks here after completion. Keep a brief log of what was done and any dev
 | Phase 1C — Plugins layer | Completed | 1.8 complete |
 | Phase 1D — Compaction | Completed | 1.9 complete |
 | Phase 1E — Agent shell | Completed | 1.10–1.11 complete |
-| Phase 1F — Vet + cleanup | In progress | 1.12–1.26 complete; 1.27 next |
+| Phase 1F — Vet + cleanup | In progress | 1.12–1.27 complete; 1.28 next |
 | Phase 2 — Resolver | Not started | |
 | Phase 3 — Images | Not started | |
 | Phase 4 — CLI/Server | Not started | |

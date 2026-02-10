@@ -600,9 +600,9 @@ header h1 {
 export function generateDextoImageFile(context: TemplateContext): string {
     const extendsField = context.baseImage ? `    extends: '${context.baseImage}',\n` : '';
 
-    return `import { defineImage } from '@dexto/core';
+    return `import type { ImageDefinition } from '@dexto/image-bundler';
 
-export default defineImage({
+const image = {
     name: '${context.imageName || context.projectName}',
     version: '1.0.0',
     description: '${context.description}',
@@ -618,22 +618,9 @@ ${extendsField}
     // The bundler will automatically register them when the image is imported.
 
     providers: {
-        // Manual registration for built-in core providers
-        // (These come from core, not from our providers/ folder)
-        // TODO: This is a hack to get the local blob store provider to work. Should be auto-registered or dealt with in a better way.
-        blobStore: {
-            register: async () => {
-                const { localBlobStoreProvider, inMemoryBlobStoreProvider } = await import(
-                    '@dexto/core'
-                );
-                const { blobStoreRegistry } = await import('@dexto/core');
-
-                blobStoreRegistry.register(localBlobStoreProvider);
-                blobStoreRegistry.register(inMemoryBlobStoreProvider);
-
-                console.log('✓ Registered core blob storage providers: local, in-memory');
-            },
-        },
+        // Placeholder category to satisfy legacy validation.
+        // Actual providers are discovered from convention-based folders.
+        customTools: { providers: [] },
     },
 
     defaults: {
@@ -657,7 +644,9 @@ ${extendsField}
     },
 
     constraints: ['filesystem-required', 'offline-capable'],
-});
+} satisfies ImageDefinition;
+
+export default image;
 `;
 }
 

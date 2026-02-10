@@ -57,11 +57,13 @@ describe('template-engine', () => {
                 imageName: 'my-image',
             });
 
-            expect(result).toContain("import { defineImage } from '@dexto/core'");
-            expect(result).toContain('export default defineImage({');
+            expect(result).toContain("import type { ImageDefinition } from '@dexto/image-bundler'");
+            expect(result).toContain('const image = {');
             expect(result).toContain("name: 'my-image'");
             expect(result).toContain("version: '1.0.0'");
             expect(result).toContain("description: 'Test image'");
+            expect(result).toContain('} satisfies ImageDefinition;');
+            expect(result).toContain('export default image;');
         });
 
         it('should include convention-based auto-discovery comments', () => {

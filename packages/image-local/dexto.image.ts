@@ -13,10 +13,10 @@
  * Services are initialized on-demand when tools are used.
  */
 
-import { defineImage } from '@dexto/core';
+import type { ImageDefinition } from '@dexto/image-bundler';
 import { PLUGIN_PATH as planToolsPluginPath } from '@dexto/tools-plan';
 
-export default defineImage({
+const image = {
     name: 'image-local',
     version: '1.0.0',
     description: 'Local development image with filesystem and process tools',
@@ -88,4 +88,6 @@ export default defineImage({
 
     // Runtime constraints
     constraints: ['filesystem-required', 'offline-capable'],
-});
+} satisfies ImageDefinition;
+
+export default image;

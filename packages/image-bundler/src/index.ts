@@ -7,3 +7,10 @@
 
 export { bundle } from './bundler.js';
 export type { BundleOptions, BundleResult, GeneratedCode } from './types.js';
+export type {
+    ImageDefinition,
+    ImageTarget,
+    ImageConstraint,
+    ImageDefaults,
+    ImageMetadata,
+} from './image-definition/types.js';

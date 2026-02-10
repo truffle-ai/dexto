@@ -5,8 +5,8 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, resolve, relative, extname } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { validateImageDefinition } from '@dexto/core';
-import type { ImageDefinition } from '@dexto/core';
+import { validateImageDefinition } from './image-definition/validate-image-definition.js';
+import type { ImageDefinition } from './image-definition/types.js';
 import type { BundleOptions, BundleResult } from './types.js';
 import { generateEntryPoint } from './generator.js';
 import ts from 'typescript';
