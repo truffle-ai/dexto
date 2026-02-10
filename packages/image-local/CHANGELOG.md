@@ -1,5 +1,17 @@
 # @dexto/image-local
 
+## 1.5.9
+
+### Patch Changes
+
+- Updated dependencies [8d37b8a]
+    - @dexto/core@1.5.9
+    - @dexto/agent-management@1.5.9
+    - @dexto/tools-filesystem@1.5.9
+    - @dexto/tools-plan@1.5.9
+    - @dexto/tools-process@1.5.9
+    - @dexto/tools-todo@1.5.9
+
 ## 1.5.8
 
 ### Patch Changes

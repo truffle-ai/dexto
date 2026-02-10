@@ -1,5 +1,17 @@
 # dexto
 
+## 1.5.9
+
+### Patch Changes
+
+- Updated dependencies [8d37b8a]
+    - @dexto/server@1.5.9
+    - @dexto/core@1.5.9
+    - @dexto/agent-management@1.5.9
+    - @dexto/analytics@1.5.9
+    - @dexto/image-local@1.5.9
+    - @dexto/registry@1.5.9
+
 ## 1.5.8
 
 ### Patch Changes

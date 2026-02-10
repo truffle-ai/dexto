@@ -1,5 +1,7 @@
 # @dexto/orchestration
 
+## 1.5.9
+
 ## 1.5.8
 
 ### Patch Changes
