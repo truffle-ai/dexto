@@ -19,14 +19,16 @@
 
 ## Current Task
 
-**Task:** **1.25 — `utils/` — vet remaining utilities**
+**Task:** **1.26 — `providers/` — delete registry infrastructure**
 **Status:** _Not started_
 **Branch:** `rebuild-di`
 
 ### Plan
-- Vet `packages/core/src/utils/` (excluding `service-initializer.ts`, already handled in 1.11).
-- Confirm remaining utilities don’t pull in provider registries or do path-resolution work that belongs in host layers.
-- Exit: confirm no changes (or minimal changes) with `pnpm run build` + `pnpm test` passing.
+- Delete/empty `packages/core/src/providers/`:
+  - `base-registry.ts` + tests
+  - `discovery.ts` + tests (if any remain)
+  - remove/adjust any remaining imports (core and non-core)
+- Exit: `providers/` removed (or contains no registry infrastructure). `pnpm run build` + `pnpm test` pass.
 
 ### Notes
 _Log findings, issues, and progress here as you work._
@@ -88,6 +90,7 @@ _Move tasks here after completion. Keep a brief log of what was done and any dev
 | 1.22 | `telemetry/` — vet | 2026-02-10 | No changes needed. Telemetry is config-driven (`OtelConfigurationSchema`) and registry-free. Init stays in `service-initializer.ts` and is idempotent via a global singleton. |
 | 1.23 | `events/` — vet | 2026-02-10 | Added `DextoAgent.on/once/off/emit` typed delegates and made the internal bus non-public. Migrated CLI/server/tooling to use `agent.*` APIs or `agent.registerSubscriber(...)` instead of `agent.agentEventBus.*`. Updated streaming glue to accept an event emitter (emit-only) for auto-approvals. `pnpm run build` + `pnpm test` pass. |
 | 1.24 | `errors/` — vet | 2026-02-10 | No changes needed. Error infrastructure is registry-free and remains DI-neutral. |
+| 1.25 | `utils/` — vet | 2026-02-10 | No changes needed. Verified `packages/core/src/utils/` (excluding `service-initializer.ts`) has no provider-registry coupling; remaining utilities are DI-neutral. |
 
 ---
 
