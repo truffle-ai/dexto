@@ -89,9 +89,9 @@ export async function resolveServicesFromConfig(
     const cacheConfig = cacheFactory.configSchema.parse(config.storage.cache);
 
     const storage = {
-        blob: blobFactory.create(blobConfig, logger),
-        database: databaseFactory.create(databaseConfig, logger),
-        cache: cacheFactory.create(cacheConfig, logger),
+        blob: await blobFactory.create(blobConfig, logger),
+        database: await databaseFactory.create(databaseConfig, logger),
+        cache: await cacheFactory.create(cacheConfig, logger),
     };
 
     // 3) Tools

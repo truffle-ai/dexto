@@ -4,7 +4,6 @@ import type { ValidatedServerConfigs } from '../mcp/schemas.js';
 import type { ValidatedMemoriesConfig } from '../memory/schemas.js';
 import type { ValidatedInternalResourcesConfig } from '../resources/schemas.js';
 import type { ValidatedSessionConfig } from '../session/schemas.js';
-import type { ValidatedStorageConfig } from '../storage/schemas.js';
 import type { ValidatedSystemPromptConfig } from '../systemPrompt/schemas.js';
 import type {
     ValidatedToolConfirmationConfig,
@@ -48,7 +47,7 @@ export interface AgentRuntimeConfig {
     tools?: ToolFactoryEntry[] | undefined;
 
     logger: LoggerConfig;
-    storage: ValidatedStorageConfig;
+    storage: unknown;
     sessions: ValidatedSessionConfig;
 
     toolConfirmation: ValidatedToolConfirmationConfig;

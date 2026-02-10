@@ -1,3 +1,4 @@
+// NOTE: Intentionally named `*.integration.test.ts` so it is excluded from core package builds.
 import { DextoAgent } from '../../agent/DextoAgent.js';
 import {
     resolveApiKeyForProvider,
@@ -9,7 +10,7 @@ import type { AgentRuntimeConfig } from '../../agent/runtime-config.js';
 import { SystemPromptConfigSchema } from '../../systemPrompt/schemas.js';
 import { LLMConfigSchema } from '../schemas.js';
 import { LoggerConfigSchema } from '../../logger/v2/schemas.js';
-import { StorageSchema } from '../../storage/schemas.js';
+import { StorageSchema, createStorageManager, type ValidatedStorageConfig } from '@dexto/storage';
 import { SessionConfigSchema } from '../../session/schemas.js';
 import { ToolConfirmationConfigSchema, ElicitationConfigSchema } from '../../tools/schemas.js';
 import { ServerConfigsSchema } from '../../mcp/schemas.js';
@@ -44,7 +45,11 @@ export async function createTestEnvironment(
         config: config.logger,
         agentId: config.agentId,
     });
-    const agent = new DextoAgent({ config, logger });
+    const storageManager = await createStorageManager(
+        config.storage as ValidatedStorageConfig,
+        logger
+    );
+    const agent = new DextoAgent({ config, logger, overrides: { storageManager } });
     await agent.start();
 
     return {

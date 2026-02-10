@@ -17,6 +17,7 @@
     "@dexto/agent-config": "workspace:*",
     "@dexto/core": "workspace:*",
     "@dexto/orchestration": "workspace:*",
+    "@dexto/storage": "workspace:*",
     "yaml": "^2.7.1",
     "zod": "^3.25.0"
   },

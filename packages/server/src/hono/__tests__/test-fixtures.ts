@@ -1,6 +1,7 @@
 import { AgentConfigSchema, type AgentConfig } from '@dexto/agent-config';
 import { DextoAgent, createAgentCard, createLogger } from '@dexto/core';
 import type { AgentCard } from '@dexto/core';
+import { createStorageManager } from '@dexto/storage';
 import type { Server as HttpServer } from 'node:http';
 import type { Context } from 'hono';
 import { createDextoApp } from '../index.js';
@@ -53,7 +54,12 @@ export async function createTestAgent(config?: AgentConfig): Promise<DextoAgent>
         config: validatedConfig.logger,
         agentId: validatedConfig.agentId,
     });
-    const agent = new DextoAgent({ config: validatedConfig, logger });
+    const storageManager = await createStorageManager(validatedConfig.storage, logger);
+    const agent = new DextoAgent({
+        config: validatedConfig,
+        logger,
+        overrides: { storageManager },
+    });
     await agent.start();
     return agent;
 }

@@ -20,6 +20,7 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import { AgentConfigSchema } from '@dexto/agent-config';
 import { createLogger, logger, DextoAgent, DextoValidationError, zodToIssues } from '@dexto/core';
+import { createStorageManager } from '@dexto/storage';
 import { loadAgentConfig, enrichAgentConfig } from './config/index.js';
 import { RegistryError } from './registry/errors.js';
 import { z, ZodError } from 'zod';
@@ -227,7 +228,13 @@ export class AgentManager {
                 config: validatedConfig.logger,
                 agentId: validatedConfig.agentId,
             });
-            return new DextoAgent({ config: validatedConfig, configPath, logger: agentLogger });
+            const storageManager = await createStorageManager(validatedConfig.storage, agentLogger);
+            return new DextoAgent({
+                config: validatedConfig,
+                configPath,
+                logger: agentLogger,
+                overrides: { storageManager },
+            });
         } catch (error) {
             // Convert ZodError to DextoValidationError for better error messages
             if (error instanceof ZodError) {

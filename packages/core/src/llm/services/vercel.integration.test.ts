@@ -4,7 +4,7 @@ import {
     TestConfigs,
     providerRequiresApiKey,
     cleanupTestEnvironment,
-} from './test-utils.integration.js';
+} from './test-utils.integration.test.js';
 import { ErrorScope, ErrorType } from '@core/errors/index.js';
 import { LLMErrorCode } from '../error-codes.js';
 import { resolveApiKeyForProvider } from '@core/utils/api-key-resolver.js';

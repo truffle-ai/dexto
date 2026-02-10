@@ -14,6 +14,7 @@
     "@dexto/image-local": "workspace:*",
     "@dexto/registry": "workspace:*",
     "@dexto/server": "workspace:*",
+    "@dexto/storage": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.25.2",
     "@opentelemetry/instrumentation-http": "^0.210.0",
     "@opentelemetry/instrumentation-undici": "^0.20.0",

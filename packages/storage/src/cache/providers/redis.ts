@@ -1,7 +1,7 @@
 import type { CacheProvider } from '../provider.js';
 import type { RedisCacheConfig } from '../schemas.js';
 import { RedisCacheSchema } from '../schemas.js';
-import { StorageError } from '../../errors.js';
+import { StorageError } from '@dexto/core';
 
 /**
  * Provider for Redis cache storage.

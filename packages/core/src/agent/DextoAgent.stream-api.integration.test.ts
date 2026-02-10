@@ -4,7 +4,7 @@ import {
     TestConfigs,
     requiresApiKey,
     cleanupTestEnvironment,
-} from '../llm/services/test-utils.integration.js';
+} from '../llm/services/test-utils.integration.test.js';
 import type { StreamingEvent } from '../events/index.js';
 
 /**

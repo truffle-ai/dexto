@@ -1,7 +1,5 @@
 import { z } from 'zod';
-import { EnvExpandedString } from '@core/utils/result.js';
-import { StorageErrorCode } from '../error-codes.js';
-import { ErrorScope, ErrorType } from '@core/errors/types.js';
+import { EnvExpandedString, ErrorScope, ErrorType, StorageErrorCode } from '@dexto/core';
 
 export const CACHE_TYPES = ['in-memory', 'redis'] as const;
 export type CacheType = (typeof CACHE_TYPES)[number];

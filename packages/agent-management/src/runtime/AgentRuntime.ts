@@ -17,6 +17,7 @@
 import { randomUUID } from 'crypto';
 import { AgentConfigSchema } from '@dexto/agent-config';
 import { createLogger, DextoAgent, type IDextoLogger, type GenerateResponse } from '@dexto/core';
+import { createStorageManager } from '@dexto/storage';
 import { enrichAgentConfig } from '../config/index.js';
 import { AgentPool } from './AgentPool.js';
 import { RuntimeError } from './errors.js';
@@ -94,7 +95,12 @@ export class AgentRuntime {
                 config: validatedConfig.logger,
                 agentId: validatedConfig.agentId,
             });
-            const agent = new DextoAgent({ config: validatedConfig, logger: agentLogger });
+            const storageManager = await createStorageManager(validatedConfig.storage, agentLogger);
+            const agent = new DextoAgent({
+                config: validatedConfig,
+                logger: agentLogger,
+                overrides: { storageManager },
+            });
 
             // Create the handle (status: starting)
             const sessionId = `session-${randomUUID().slice(0, 8)}`;

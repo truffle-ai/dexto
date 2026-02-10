@@ -1,10 +1,9 @@
 import { dirname } from 'path';
 import { mkdirSync } from 'fs';
 import type { Database } from './types.js';
-import type { IDextoLogger } from '../../logger/v2/types.js';
-import { DextoLogComponent } from '../../logger/v2/types.js';
+import type { IDextoLogger } from '@dexto/core';
+import { DextoLogComponent, StorageError } from '@dexto/core';
 import type { SqliteDatabaseConfig } from './schemas.js';
-import { StorageError } from '../errors.js';
 
 // Dynamic import for better-sqlite3
 let BetterSqlite3Database: any;

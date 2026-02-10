@@ -9,12 +9,12 @@ import { MemoryHistoryProvider } from '../../session/history/memory.js';
 import { ResourceManager } from '../../resources/index.js';
 import { MCPManager } from '../../mcp/manager.js';
 import { MemoryManager } from '../../memory/index.js';
-import { createStorageManager, StorageManager } from '../../storage/storage-manager.js';
+import { StorageManager } from '../../storage/storage-manager.js';
+import { createStorageManager, type ValidatedStorageConfig } from '@dexto/storage';
 import { createLogger } from '../../logger/factory.js';
 import type { ModelMessage } from 'ai';
 import type { LanguageModel } from 'ai';
 import type { ValidatedLLMConfig } from '../../llm/schemas.js';
-import type { ValidatedStorageConfig } from '../../storage/schemas.js';
 import type { IDextoLogger } from '../../logger/v2/types.js';
 import type { InternalMessage } from '../types.js';
 

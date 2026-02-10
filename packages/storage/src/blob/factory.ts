@@ -1,6 +1,6 @@
 import type { BlobStore } from './types.js';
-import type { IDextoLogger } from '../../logger/v2/types.js';
-import { StorageError } from '../errors.js';
+import type { IDextoLogger } from '@dexto/core';
+import { StorageError } from '@dexto/core';
 import {
     BLOB_STORE_TYPES,
     BlobStoreConfigSchema,

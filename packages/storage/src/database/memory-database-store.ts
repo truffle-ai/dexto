@@ -1,5 +1,5 @@
 import type { Database } from './types.js';
-import { StorageError } from '../errors.js';
+import { StorageError } from '@dexto/core';
 
 /**
  * In-memory database store for development and testing.

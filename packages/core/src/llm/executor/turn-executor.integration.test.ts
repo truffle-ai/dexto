@@ -11,13 +11,13 @@ import { MemoryHistoryProvider } from '../../session/history/memory.js';
 import { MCPManager } from '../../mcp/manager.js';
 import { ApprovalManager } from '../../approval/manager.js';
 import { createLogger } from '../../logger/factory.js';
-import { createStorageManager, StorageManager } from '../../storage/storage-manager.js';
+import { StorageManager } from '../../storage/storage-manager.js';
+import { createStorageManager, type ValidatedStorageConfig } from '@dexto/storage';
 import { MemoryManager } from '../../memory/index.js';
 import { SystemPromptConfigSchema } from '../../systemPrompt/schemas.js';
 import type { LanguageModel, ModelMessage } from 'ai';
 import type { LLMContext } from '../types.js';
 import type { ValidatedLLMConfig } from '../schemas.js';
-import type { ValidatedStorageConfig } from '../../storage/schemas.js';
 import type { IDextoLogger } from '../../logger/v2/types.js';
 
 // Only mock the AI SDK's streamText/generateText - everything else is real

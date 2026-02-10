@@ -2,9 +2,8 @@ import { promises as fs, createReadStream } from 'fs';
 import path from 'path';
 import { createHash } from 'crypto';
 import { pathToFileURL } from 'url';
-import type { IDextoLogger } from '../../logger/v2/types.js';
-import { DextoLogComponent } from '../../logger/v2/types.js';
-import { StorageError } from '../errors.js';
+import type { IDextoLogger } from '@dexto/core';
+import { DextoLogComponent, StorageError } from '@dexto/core';
 import type {
     BlobStore,
     BlobInput,

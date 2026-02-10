@@ -27,6 +27,7 @@
 import { promises as fs } from 'fs';
 import { AgentConfigSchema, type AgentConfig } from '@dexto/agent-config';
 import { DextoAgent, createLogger } from '@dexto/core';
+import { createStorageManager } from '@dexto/storage';
 import { getDextoGlobalPath } from './utils/path.js';
 import { deriveDisplayName } from './registry/types.js';
 import { loadBundledRegistryAgents } from './registry/registry.js';
@@ -195,7 +196,8 @@ export const AgentFactory = {
             config: validatedConfig.logger,
             agentId: validatedConfig.agentId,
         });
-        return new DextoAgent({ config: validatedConfig, logger });
+        const storageManager = await createStorageManager(validatedConfig.storage, logger);
+        return new DextoAgent({ config: validatedConfig, logger, overrides: { storageManager } });
     },
 };
 

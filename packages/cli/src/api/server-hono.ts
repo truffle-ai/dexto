@@ -3,6 +3,7 @@ import type { Context } from 'hono';
 import type { AgentCard } from '@dexto/core';
 import { AgentConfigSchema } from '@dexto/agent-config';
 import { DextoAgent, createAgentCard, createLogger, logger, AgentError } from '@dexto/core';
+import { createStorageManager } from '@dexto/storage';
 import {
     loadAgentConfig,
     enrichAgentConfig,
@@ -138,10 +139,12 @@ async function createAgentFromId(agentId: string): Promise<DextoAgent> {
             config: validatedConfig.logger,
             agentId: validatedConfig.agentId,
         });
+        const storageManager = await createStorageManager(validatedConfig.storage, agentLogger);
         return new DextoAgent({
             config: validatedConfig,
             configPath: agentPath,
             logger: agentLogger,
+            overrides: { storageManager },
         });
     } catch (error) {
         throw new Error(
@@ -413,10 +416,12 @@ export async function initializeHonoApi(
                 config: validatedConfig.logger,
                 agentId: validatedConfig.agentId,
             });
+            const storageManager = await createStorageManager(validatedConfig.storage, agentLogger);
             newAgent = new DextoAgent({
                 config: validatedConfig,
                 configPath: filePath,
                 logger: agentLogger,
+                overrides: { storageManager },
             });
 
             // 5. Use enriched agentId (derived from config or filename during enrichment)

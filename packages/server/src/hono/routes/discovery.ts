@@ -3,14 +3,16 @@ import {
     INTERNAL_TOOL_NAMES,
     INTERNAL_TOOL_REGISTRY,
     customToolRegistry,
-    inMemoryBlobStoreProvider,
-    inMemoryDatabaseProvider,
-    localBlobStoreProvider,
     noopProvider,
-    postgresDatabaseProvider,
     reactiveOverflowProvider,
-    sqliteDatabaseProvider,
 } from '@dexto/core';
+import {
+    inMemoryBlobStoreProvider,
+    localBlobStoreProvider,
+    inMemoryDatabaseProvider,
+    sqliteDatabaseProvider,
+    postgresDatabaseProvider,
+} from '@dexto/storage';
 
 const DiscoveredProviderSchema = z
     .object({

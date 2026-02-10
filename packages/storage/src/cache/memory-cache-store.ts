@@ -1,5 +1,5 @@
 import type { Cache } from './types.js';
-import { StorageError } from '../errors.js';
+import { StorageError } from '@dexto/core';
 
 /**
  * In-memory cache store for development and testing.

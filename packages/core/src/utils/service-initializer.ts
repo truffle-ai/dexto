@@ -15,7 +15,8 @@ import { SystemPromptManager } from '../systemPrompt/manager.js';
 import { AgentStateManager } from '../agent/state-manager.js';
 import { SessionManager } from '../session/index.js';
 import { SearchService } from '../search/index.js';
-import { createStorageManager, StorageManager } from '../storage/index.js';
+import { StorageManager } from '../storage/index.js';
+import { AgentError } from '../agent/errors.js';
 import { createAllowedToolsProvider } from '../tools/confirmation/allowed-tools-provider/factory.js';
 import type { IDextoLogger } from '../logger/v2/types.js';
 import type { AgentRuntimeConfig } from '@core/agent/runtime-config.js';
@@ -62,6 +63,7 @@ export type InitializeServicesOptions = {
     mcpAuthProviderFactory?: import('../mcp/types.js').McpAuthProviderFactory | null;
     toolManager?: ToolManager;
     toolManagerFactory?: ToolManagerFactory;
+    storageManager?: StorageManager;
 };
 
 // High-level factory to load, validate, and wire up all agent services in one call
@@ -92,12 +94,20 @@ export async function createAgentServices(
 
     // 2. Initialize storage manager (schema provides in-memory defaults, CLI enrichment adds filesystem paths)
     logger.debug('Initializing storage manager');
-    const storageManager = await createStorageManager(config.storage, logger);
+    const storageManager =
+        overrides?.storageManager ??
+        (() => {
+            throw AgentError.initializationFailed(
+                'StorageManager must be provided via overrides.storageManager during the DI refactor'
+            );
+        })();
 
-    logger.debug('Storage manager initialized', {
-        cache: config.storage.cache.type,
-        database: config.storage.database.type,
-    });
+    if (!storageManager.isConnected()) {
+        await storageManager.initialize();
+        await storageManager.connect();
+    }
+
+    logger.debug('Storage manager initialized', await storageManager.getInfo());
 
     // 3. Initialize approval system (generalized user approval)
     // Created before MCP manager since MCP manager depends on it for elicitation support

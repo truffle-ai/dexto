@@ -19,15 +19,15 @@
 
 ## Current Task
 
-**Task:** **3.2 Create `@dexto/storage` package**
+**Task:** **3.3 Create `@dexto/logger` package**
 **Status:** _Not started_
 **Branch:** `rebuild-di`
 
 ### Plan
-- Create `packages/storage/` (fixed versioning, tsup build)
-- Move storage implementations + schemas out of core into this package
-- Provide `*Factory` objects per backend (blob/database/cache)
-- Exit: `@dexto/storage` builds and core keeps interfaces + `StorageManager`
+- Create `packages/logger/` (fixed versioning, tsup build)
+- Move logger implementations + config schema out of core into this package
+- Core keeps `IDextoLogger` interface only
+- Exit: `@dexto/logger` builds and images can import a `LoggerFactory`
 
 ### Notes
 _Log findings, issues, and progress here as you work._
@@ -43,6 +43,7 @@ _Record important decisions made during implementation that aren't in the main p
 | 2026-02-10 | Tool IDs must be fully-qualified (`internal--*`, `custom--*`) when handed to `ToolManager` | Keeps `ToolManager` DI-only and avoids re-introducing config/prefixing rules inside core. |
 | 2026-02-10 | `PluginManager` no longer loads plugins from config | Keeps `PluginManager` DI-only; config→instance resolution moved to a temporary resolver helper. |
 | 2026-02-10 | Expose `agent.on/once/off/emit` and remove external `agentEventBus` access | Keeps typed events ergonomic while preventing host layers from reaching into core internals; allows gradual migration of subscribers/tools without passing the bus around. |
+| 2026-02-10 | Core no longer resolves storage from config | Core remains interface-only; host layers supply a `StorageManager` (temporary glue via `@dexto/storage/createStorageManager`) until the image resolver is fully integrated. |
 
 ---
 
@@ -100,6 +101,7 @@ _Move tasks here after completion. Keep a brief log of what was done and any dev
 | 2.6 | `ValidatedAgentConfig → DextoAgentOptions` transformer | 2026-02-10 | Added `toDextoAgentOptions()` bridge in agent-config (validated config + resolved services → `DextoAgentOptions`). Unit test added. `pnpm -w build:packages` + `pnpm -w test` pass. |
 | 2.3 | `loadImage(imageName)` helper | 2026-02-10 | Added `loadImage()` dynamic import wrapper + runtime shape validation for `DextoImageModule` (with clear error messages). Unit tests cover success + import failure + shape mismatch. `pnpm -w build:packages` + `pnpm -w test` pass. |
 | 3.1 | Create `@dexto/tools-builtins` package | 2026-02-10 | Added `packages/tools-builtins/` and exported `builtinToolsFactory` (`builtin-tools` + optional `enabledTools`). Tool implementations use `ToolExecutionContext` services at runtime. `pnpm -w build:packages` + `pnpm -w test` pass. |
+| 3.2 | Create `@dexto/storage` package | 2026-02-10 | Added `packages/storage/` (schemas + providers + factories) and removed concrete storage implementations/schemas from core (core is interfaces + `StorageManager` only). Updated host layers (CLI/server/agent-management) to inject `overrides.storageManager`. Updated webui to import storage types/constants from `@dexto/storage/schemas`. `pnpm -w build:packages` passes. |
 
 ---
 

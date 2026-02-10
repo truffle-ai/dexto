@@ -1,6 +1,6 @@
 import type { Cache } from './types.js';
-import type { IDextoLogger } from '../../logger/v2/types.js';
-import { StorageError } from '../errors.js';
+import type { IDextoLogger } from '@dexto/core';
+import { StorageError } from '@dexto/core';
 import { CACHE_TYPES, CacheConfigSchema } from './schemas.js';
 import { inMemoryCacheProvider, redisCacheProvider } from './providers/index.js';
 

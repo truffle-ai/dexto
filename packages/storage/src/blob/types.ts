@@ -1,9 +1,9 @@
-export type { BlobStore } from './types.js';
 export type {
+    BlobStore,
     BlobInput,
     BlobMetadata,
     StoredBlobMetadata,
     BlobReference,
     BlobData,
     BlobStats,
-} from './types.js';
+} from '@dexto/core';

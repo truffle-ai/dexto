@@ -1,9 +1,8 @@
 import { Redis } from 'ioredis';
 import type { Cache } from './types.js';
 import type { RedisCacheConfig } from './schemas.js';
-import type { IDextoLogger } from '../../logger/v2/types.js';
-import { DextoLogComponent } from '../../logger/v2/types.js';
-import { StorageError } from '../errors.js';
+import type { IDextoLogger } from '@dexto/core';
+import { DextoLogComponent, StorageError } from '@dexto/core';
 
 /**
  * Redis cache store for production cache operations.

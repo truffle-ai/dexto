@@ -4,6 +4,7 @@
 // Runtime utilities (actually used by client packages)
 export { toError } from './utils/error-conversion.js'; // Used by webui package
 export { zodToIssues } from './utils/result.js'; // Used by client-sdk package
+export { EnvExpandedString } from './utils/result.js'; // Used by @dexto/storage schemas in browser bundles
 export { ErrorScope, ErrorType } from './errors/types.js'; // Used by client-sdk package
 
 // Type-only exports (used as types, no runtime overhead)
@@ -54,9 +55,8 @@ export {
     DEFAULT_MCP_CONNECTION_MODE,
 } from './mcp/schemas.js';
 
-// Storage types and constants (used by webui)
-export type { CacheType, DatabaseType } from './storage/schemas.js';
-export { CACHE_TYPES, DATABASE_TYPES } from './storage/schemas.js';
+// Storage errors (used by @dexto/storage schemas in browser bundles)
+export { StorageErrorCode } from './storage/error-codes.js';
 
 // Tool confirmation types and constants (used by webui)
 export type { ToolConfirmationMode, AllowedToolsStorageType } from './tools/schemas.js';

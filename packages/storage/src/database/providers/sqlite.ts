@@ -1,7 +1,7 @@
 import type { DatabaseProvider } from '../provider.js';
 import type { SqliteDatabaseConfig } from '../schemas.js';
 import { SqliteDatabaseSchema } from '../schemas.js';
-import { StorageError } from '../../errors.js';
+import { StorageError } from '@dexto/core';
 
 /**
  * Provider for SQLite database storage.

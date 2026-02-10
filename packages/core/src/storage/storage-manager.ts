@@ -1,11 +1,6 @@
 import type { Cache } from './cache/types.js';
 import type { Database } from './database/types.js';
 import type { BlobStore } from './blob/types.js';
-import type { ValidatedStorageConfig } from './schemas.js';
-// Import factories from index files for consistent public surface
-import { createCache } from './cache/index.js';
-import { createDatabase } from './database/index.js';
-import { createBlobStore } from './blob/index.js';
 import { StorageError } from './errors.js';
 import type { IDextoLogger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
@@ -55,7 +50,7 @@ export class StorageManager {
 
     /**
      * Connect all storage backends.
-     * Must call initialize() first, or use createStorageManager() helper.
+     * Must call initialize() first.
      */
     async connect(): Promise<void> {
         if (!this.initialized) {
@@ -255,27 +250,4 @@ export class StorageManager {
             overall: cacheHealthy && databaseHealthy && blobHealthy,
         };
     }
-}
-
-/**
- * Create and initialize a storage manager.
- * This is a convenience helper that combines initialization and connection.
- * Per-agent paths are provided via CLI enrichment layer before this point.
- * @param config Storage configuration with explicit paths
- */
-export async function createStorageManager(
-    config: ValidatedStorageConfig,
-    logger: IDextoLogger
-): Promise<StorageManager> {
-    // TODO: temporary glue code to be removed/verified
-    // In Phase 2, product layers resolve storage instances via images/resolver and call `new StorageManager()`.
-    const storageLogger = logger.createChild(DextoLogComponent.STORAGE);
-    const cache = await createCache(config.cache, storageLogger);
-    const database = await createDatabase(config.database, storageLogger);
-    const blobStore = createBlobStore(config.blob, storageLogger);
-
-    const manager = new StorageManager({ cache, database, blobStore }, logger);
-    await manager.initialize();
-    await manager.connect();
-    return manager;
 }

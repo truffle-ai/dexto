@@ -1,6 +1,6 @@
 import type { z } from 'zod';
 import type { BlobStore } from './types.js';
-import type { IDextoLogger } from '../../logger/v2/types.js';
+import type { IDextoLogger } from '@dexto/core';
 
 /**
  * Provider interface for creating blob store instances.

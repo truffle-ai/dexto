@@ -3,8 +3,8 @@ import { Input } from '../../ui/input';
 import { LabelWithTooltip } from '../../ui/label-with-tooltip';
 import { Collapsible } from '../../ui/collapsible';
 import type { AgentConfig } from '@dexto/agent-config';
-import type { CacheType, DatabaseType } from '@dexto/core';
-import { CACHE_TYPES, DATABASE_TYPES } from '@dexto/core';
+import type { CacheType, DatabaseType } from '@dexto/storage/schemas';
+import { CACHE_TYPES, DATABASE_TYPES } from '@dexto/storage/schemas';
 
 type StorageConfig = NonNullable<AgentConfig['storage']>;
 

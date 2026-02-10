@@ -1,9 +1,8 @@
 import { Pool, PoolClient } from 'pg';
 import type { Database } from './types.js';
 import type { PostgresDatabaseConfig } from './schemas.js';
-import type { IDextoLogger } from '../../logger/v2/types.js';
-import { DextoLogComponent } from '../../logger/v2/types.js';
-import { StorageError } from '../errors.js';
+import type { IDextoLogger } from '@dexto/core';
+import { DextoLogComponent, StorageError } from '@dexto/core';
 
 /**
  * PostgreSQL database store for production database operations.

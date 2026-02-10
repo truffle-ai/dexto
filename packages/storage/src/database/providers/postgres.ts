@@ -1,7 +1,7 @@
 import type { DatabaseProvider } from '../provider.js';
 import type { PostgresDatabaseConfig } from '../schemas.js';
 import { PostgresDatabaseSchema } from '../schemas.js';
-import { StorageError } from '../../errors.js';
+import { StorageError } from '@dexto/core';
 
 /**
  * Provider for PostgreSQL database storage.

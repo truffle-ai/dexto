@@ -1,23 +1,23 @@
 import type { z } from 'zod';
-import type { Database } from './types.js';
-import type { IDextoLogger } from '../../logger/v2/types.js';
+import type { Cache } from './types.js';
+import type { IDextoLogger } from '@dexto/core';
 
 /**
- * Provider interface for creating database instances.
+ * Provider interface for creating cache instances.
  *
  * This interface uses TypeScript generics to enforce type safety:
- * - TType: The literal type string (e.g., 'sqlite', 'postgres')
+ * - TType: The literal type string (e.g., 'redis', 'in-memory')
  * - TConfig: The configuration type with discriminator { type: TType }
  *
  * This ensures that the provider type matches the config type discriminator,
  * providing compile-time safety for provider implementations.
  */
-export interface DatabaseProvider<
+export interface CacheProvider<
     TType extends string = string,
     TConfig extends { type: TType } = any,
 > {
     /**
-     * Unique identifier for this provider (e.g., 'sqlite', 'postgres', 'in-memory').
+     * Unique identifier for this provider (e.g., 'redis', 'in-memory', 'memcached').
      * Must match the 'type' field in the configuration.
      */
     type: TType;
@@ -33,28 +33,28 @@ export interface DatabaseProvider<
     configSchema: z.ZodType<TConfig, any, any>;
 
     /**
-     * Factory function to create a Database instance.
+     * Factory function to create a Cache instance.
      *
-     * Unlike blob store providers (which are sync), database providers may return
-     * a Promise to support lazy loading of optional dependencies (e.g., better-sqlite3, pg).
+     * Unlike blob store providers (which are sync), cache providers may return
+     * a Promise to support lazy loading of optional dependencies (e.g., ioredis).
      *
      * @param config - Validated configuration specific to this provider
-     * @param logger - Logger instance for the database
-     * @returns A Database implementation (or Promise for async providers)
+     * @param logger - Logger instance for the cache
+     * @returns A Cache implementation (or Promise for async providers)
      */
-    create(config: TConfig, logger: IDextoLogger): Database | Promise<Database>;
+    create(config: TConfig, logger: IDextoLogger): Cache | Promise<Cache>;
 
     /**
      * Optional metadata for documentation, UIs, and discovery.
      */
     metadata?: {
-        /** Human-readable name (e.g., "SQLite", "PostgreSQL") */
+        /** Human-readable name (e.g., "Redis", "Memcached") */
         displayName: string;
-        /** Brief description of this storage backend */
+        /** Brief description of this cache backend */
         description: string;
         /** Whether this provider requires network connectivity */
         requiresNetwork?: boolean;
-        /** Whether this provider supports list operations (append/getRange) */
-        supportsListOperations?: boolean;
+        /** Whether this provider supports TTL (time-to-live) */
+        supportsTTL?: boolean;
     };
 }

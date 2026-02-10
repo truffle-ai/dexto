@@ -49,17 +49,17 @@ export interface ToolFactory<TConfig = unknown> {
 
 export interface BlobStoreFactory<TConfig = unknown> {
     configSchema: z.ZodType<TConfig, z.ZodTypeDef, unknown>;
-    create(config: TConfig, logger: IDextoLogger): BlobStore;
+    create(config: TConfig, logger: IDextoLogger): BlobStore | Promise<BlobStore>;
 }
 
 export interface DatabaseFactory<TConfig = unknown> {
     configSchema: z.ZodType<TConfig, z.ZodTypeDef, unknown>;
-    create(config: TConfig, logger: IDextoLogger): Database;
+    create(config: TConfig, logger: IDextoLogger): Database | Promise<Database>;
 }
 
 export interface CacheFactory<TConfig = unknown> {
     configSchema: z.ZodType<TConfig, z.ZodTypeDef, unknown>;
-    create(config: TConfig, logger: IDextoLogger): Cache;
+    create(config: TConfig, logger: IDextoLogger): Cache | Promise<Cache>;
 }
 
 export interface PluginFactory<TConfig = unknown> {

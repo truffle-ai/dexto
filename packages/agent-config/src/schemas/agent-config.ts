@@ -12,11 +12,11 @@ import {
     PluginsConfigSchema,
     PromptsSchema,
     SessionConfigSchema,
-    StorageSchema,
     SystemPromptConfigSchema,
     ToolConfirmationConfigSchema,
     InternalResourcesSchema,
 } from '@dexto/core';
+import { StorageSchema } from '@dexto/storage/schemas';
 import { z } from 'zod';
 
 // ========================================

@@ -50,6 +50,7 @@ import {
     getPrimaryApiKeyEnvVar,
 } from '@dexto/core';
 import { createAgentConfigSchema, type ValidatedAgentConfig } from '@dexto/agent-config';
+import { createStorageManager } from '@dexto/storage';
 import {
     resolveAgentPath,
     loadAgentConfig,
@@ -687,10 +688,12 @@ async function bootstrapAgentFromGlobalOpts() {
         config: validatedConfig.logger,
         agentId: validatedConfig.agentId,
     });
+    const storageManager = await createStorageManager(validatedConfig.storage, agentLogger);
     const agent = new DextoAgent({
         config: validatedConfig,
         configPath: resolvedPath,
         logger: agentLogger,
+        overrides: { storageManager },
     });
     await agent.start();
 
@@ -1629,11 +1632,15 @@ program
                         config: validatedConfig.logger,
                         agentId: validatedConfig.agentId,
                     });
+                    const storageManager = await createStorageManager(
+                        validatedConfig.storage,
+                        agentLogger
+                    );
                     agent = new DextoAgent({
                         config: validatedConfig,
                         configPath: resolvedPath,
                         logger: agentLogger,
-                        overrides: { sessionLoggerFactory, mcpAuthProviderFactory },
+                        overrides: { sessionLoggerFactory, mcpAuthProviderFactory, storageManager },
                     });
 
                     // Start the agent (initialize async services)

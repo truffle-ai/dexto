@@ -2449,6 +2449,10 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
 - [ ] **4.4 Update `@dexto/agent-management` config enrichment**
   - `enrichAgentConfig()` may need updates for the new flow
   - Remove any config parsing responsibilities that moved to agent‑config
+  - Update `@dexto/agent-management` agent creation surfaces to use the new resolution flow (not core glue):
+    - `AgentManager.loadAgent(...)`
+    - `AgentFactory.createAgent(...)`
+    - `AgentRuntime.spawnAgent(...)`
   - might not even be required anymore if image concept can handle this natively. vet and discuss with the user
   - Exit: config enrichment works with new resolution flow. Build + tests pass.
 
@@ -2484,6 +2488,7 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
   - `providers/discovery.ts` (unless we want a non‑registry version)
   - Registry test files
   - Remove all `TODO: temporary glue code to be removed/verified` markers (they should not survive past cleanup)
+  - Exit check: `rg "temporary glue code|remove-by:" packages` returns zero results
   - Exit: no dead code. `pnpm run build` clean.
 
 - [ ] **5.2 Update all broken tests**

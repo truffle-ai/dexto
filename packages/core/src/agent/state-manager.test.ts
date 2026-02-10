@@ -4,7 +4,7 @@ import { AgentEventBus } from '../events/index.js';
 import { LLMConfigSchema } from '@core/llm/schemas.js';
 import { McpServerConfigSchema } from '@core/mcp/schemas.js';
 import { LoggerConfigSchema } from '@core/logger/index.js';
-import { StorageSchema } from '@core/storage/schemas.js';
+import { StorageSchema } from '@dexto/storage';
 import { SystemPromptConfigSchema } from '@core/systemPrompt/schemas.js';
 import { SessionConfigSchema } from '@core/session/schemas.js';
 import { ToolConfirmationConfigSchema, ElicitationConfigSchema } from '@core/tools/schemas.js';

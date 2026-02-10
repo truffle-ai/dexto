@@ -1,6 +1,6 @@
 import type { Database } from './types.js';
-import type { IDextoLogger } from '../../logger/v2/types.js';
-import { StorageError } from '../errors.js';
+import type { IDextoLogger } from '@dexto/core';
+import { StorageError } from '@dexto/core';
 import { DATABASE_TYPES, DatabaseConfigSchema } from './schemas.js';
 import {
     inMemoryDatabaseProvider,

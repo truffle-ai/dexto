@@ -4,7 +4,7 @@ import type { AgentRuntimeConfig } from '@core/agent/runtime-config.js';
 import { SystemPromptConfigSchema } from '@core/systemPrompt/schemas.js';
 import { LLMConfigSchema } from '@core/llm/schemas.js';
 import { LoggerConfigSchema } from '@core/logger/index.js';
-import { StorageSchema } from '@core/storage/schemas.js';
+import { StorageSchema, createStorageManager } from '@dexto/storage';
 import { SessionConfigSchema } from '@core/session/schemas.js';
 import { ToolConfirmationConfigSchema, ElicitationConfigSchema } from '@core/tools/schemas.js';
 import { InternalResourcesSchema } from '@core/resources/schemas.js';
@@ -24,6 +24,12 @@ import type { SessionData } from './session-manager.js';
 describe('Session Integration: Chat History Preservation', () => {
     let agent: DextoAgent;
 
+    const storageConfig = StorageSchema.parse({
+        cache: { type: 'in-memory' },
+        database: { type: 'in-memory' },
+        blob: { type: 'in-memory' },
+    });
+
     const testConfig: AgentRuntimeConfig = {
         systemPrompt: SystemPromptConfigSchema.parse('You are a helpful assistant.'),
         llm: LLMConfigSchema.parse({
@@ -39,11 +45,7 @@ describe('Session Integration: Chat History Preservation', () => {
             level: 'warn',
             transports: [{ type: 'console', colorize: false }],
         }),
-        storage: StorageSchema.parse({
-            cache: { type: 'in-memory' },
-            database: { type: 'in-memory' },
-            blob: { type: 'in-memory' },
-        }),
+        storage: storageConfig,
         sessions: SessionConfigSchema.parse({
             maxSessions: 10,
             sessionTTL: 100, // 100ms for fast testing
@@ -67,7 +69,8 @@ describe('Session Integration: Chat History Preservation', () => {
             config: testConfig.logger,
             agentId: testConfig.agentId,
         });
-        agent = new DextoAgent({ config: testConfig, logger });
+        const storageManager = await createStorageManager(storageConfig, logger);
+        agent = new DextoAgent({ config: testConfig, logger, overrides: { storageManager } });
         await agent.start();
     });
 

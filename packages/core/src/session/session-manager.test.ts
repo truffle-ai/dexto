@@ -3,7 +3,7 @@ import { SessionManager } from './session-manager.js';
 import { ChatSession } from './chat-session.js';
 import { type ValidatedLLMConfig } from '@core/llm/schemas.js';
 import { LLMConfigSchema } from '@core/llm/schemas.js';
-import { StorageSchema } from '@core/storage/schemas.js';
+import { StorageSchema, createStorageManager } from '@dexto/storage';
 import { ErrorScope, ErrorType } from '@core/errors/types.js';
 import { SessionErrorCode } from './error-codes.js';
 import { createMockLogger } from '@core/logger/v2/test-utils.js';
@@ -1023,26 +1023,23 @@ describe('SessionManager', () => {
     });
 
     describe('End-to-End Chat History Preservation', () => {
-        let realStorageBackends: any;
+        let realStorageManager: any;
         let realSessionManager: SessionManager;
 
         beforeEach(async () => {
-            // Create real storage manager for end-to-end testing
-            const { createStorageManager } = await import('../storage/index.js');
-
             const storageConfig = StorageSchema.parse({
                 cache: { type: 'in-memory' as const },
                 database: { type: 'in-memory' as const },
                 blob: { type: 'local', storePath: '/tmp/test-blobs' },
             });
 
-            realStorageBackends = await createStorageManager(storageConfig, mockLogger);
+            realStorageManager = await createStorageManager(storageConfig, mockLogger);
 
             // Create SessionManager with real storage and short TTL for faster testing
             realSessionManager = new SessionManager(
                 {
                     ...mockServices,
-                    storageManager: realStorageBackends,
+                    storageManager: realStorageManager,
                 },
                 {
                     maxSessions: 10,
@@ -1058,9 +1055,8 @@ describe('SessionManager', () => {
             if (realSessionManager) {
                 await realSessionManager.cleanup();
             }
-            if (realStorageBackends) {
-                await realStorageBackends.database.disconnect();
-                await realStorageBackends.cache.disconnect();
+            if (realStorageManager) {
+                await realStorageManager.disconnect();
             }
         });
 
