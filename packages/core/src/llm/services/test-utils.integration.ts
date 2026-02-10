@@ -10,7 +10,6 @@ import type { AgentRuntimeConfig } from '../../agent/runtime-config.js';
 import { SystemPromptConfigSchema } from '../../systemPrompt/schemas.js';
 import { LLMConfigSchema } from '../schemas.js';
 import { LoggerConfigSchema } from '../../logger/v2/schemas.js';
-import { StorageSchema, createStorageManager, type ValidatedStorageConfig } from '@dexto/storage';
 import { SessionConfigSchema } from '../../session/schemas.js';
 import { ToolConfirmationConfigSchema, ElicitationConfigSchema } from '../../tools/schemas.js';
 import { ServerConfigsSchema } from '../../mcp/schemas.js';
@@ -22,6 +21,7 @@ import {
     DEFAULT_COMPACTION_CONFIG,
 } from '../../context/compaction/schemas.js';
 import { createLogger } from '../../logger/factory.js';
+import { createInMemoryStorageManager } from '../../test-utils/in-memory-storage.js';
 
 /**
  * Shared utilities for LLM service integration tests
@@ -45,10 +45,7 @@ export async function createTestEnvironment(
         config: config.logger,
         agentId: config.agentId,
     });
-    const storageManager = await createStorageManager(
-        config.storage as ValidatedStorageConfig,
-        logger
-    );
+    const storageManager = await createInMemoryStorageManager(logger);
     const agent = new DextoAgent({ config, logger, overrides: { storageManager } });
     await agent.start();
 
@@ -100,11 +97,11 @@ export const TestConfigs = {
             agentId: 'test-agent',
             mcpServers: ServerConfigsSchema.parse({}),
             tools: [],
-            storage: StorageSchema.parse({
+            storage: {
                 cache: { type: 'in-memory' },
                 database: { type: 'in-memory' },
                 blob: { type: 'local', storePath: '/tmp/test-blobs' },
-            }),
+            },
             sessions: SessionConfigSchema.parse({
                 maxSessions: 10,
                 sessionTTL: 60000, // 60s for tests
@@ -156,11 +153,11 @@ export const TestConfigs = {
             agentId: 'test-agent',
             mcpServers: ServerConfigsSchema.parse({}),
             tools: [],
-            storage: StorageSchema.parse({
+            storage: {
                 cache: { type: 'in-memory' },
                 database: { type: 'in-memory' },
                 blob: { type: 'local', storePath: '/tmp/test-blobs' },
-            }),
+            },
             sessions: SessionConfigSchema.parse({
                 maxSessions: 10,
                 sessionTTL: 60000,
@@ -232,11 +229,11 @@ export const TestConfigs = {
             agentFile: { discoverInCwd: false },
             agentId: 'test-agent',
             mcpServers: ServerConfigsSchema.parse({}),
-            storage: StorageSchema.parse({
+            storage: {
                 cache: { type: 'in-memory' },
                 database: { type: 'in-memory' },
                 blob: { type: 'local', storePath: '/tmp/test-blobs' },
-            }),
+            },
             sessions: SessionConfigSchema.parse({
                 maxSessions: 10,
                 sessionTTL: 60000,

@@ -55,9 +55,7 @@ export default function FormEditorTabs({ config, onChange, errors = {} }: FormEd
     const behaviorErrors = Object.keys(errors).filter((k) => k.startsWith('systemPrompt')).length;
     const toolsErrors = Object.keys(errors).filter(
         (k) =>
-            k.startsWith('mcpServers') ||
-            k.startsWith('internalTools') ||
-            k.startsWith('customTools')
+            k.startsWith('mcpServers') || k.startsWith('tools') || k.startsWith('toolConfirmation')
     ).length;
 
     return (
@@ -398,22 +396,44 @@ function ToolsTab({ config, onChange, errors }: TabProps) {
     const { data: discovery, isLoading: discoveryLoading } = useDiscovery();
     const servers = Object.entries(config.mcpServers || {});
 
-    const enabledInternalTools = (config.internalTools || []) as string[];
+    const toolEntries = config.tools ?? [];
+    const builtinToolsEntry = toolEntries.find((t) => t.type === 'builtin-tools');
+
+    const enabledInternalTools = (() => {
+        const enabledTools = builtinToolsEntry?.enabledTools;
+        if (
+            Array.isArray(enabledTools) &&
+            enabledTools.every((toolName) => typeof toolName === 'string')
+        ) {
+            return enabledTools;
+        }
+        return discovery?.internalTools?.map((tool) => tool.name) ?? [];
+    })();
+
     const toggleInternalTool = (toolName: string) => {
-        const next = enabledInternalTools.includes(toolName)
+        const nextEnabledTools = enabledInternalTools.includes(toolName)
             ? enabledInternalTools.filter((t) => t !== toolName)
             : [...enabledInternalTools, toolName];
-        onChange({ ...config, internalTools: next as typeof config.internalTools });
+
+        const otherEntries = toolEntries.filter((t) => t.type !== 'builtin-tools');
+        const nextBuiltinToolsEntry = {
+            ...(builtinToolsEntry ?? { type: 'builtin-tools' }),
+            enabledTools: nextEnabledTools,
+        };
+
+        onChange({ ...config, tools: [...otherEntries, nextBuiltinToolsEntry] });
     };
 
-    const enabledCustomTools = (config.customTools || []).map((t) => t.type);
+    const enabledCustomTools = toolEntries
+        .filter((t) => t.type !== 'builtin-tools')
+        .map((t) => t.type);
     const toggleCustomTool = (toolType: string) => {
-        const current = config.customTools || [];
-        const isEnabled = current.some((t) => t.type === toolType);
-        const next = isEnabled
-            ? current.filter((t) => t.type !== toolType)
-            : [...current, { type: toolType }];
-        onChange({ ...config, customTools: next });
+        const isEnabled = toolEntries.some((t) => t.type === toolType);
+        const nextTools = isEnabled
+            ? toolEntries.filter((t) => t.type !== toolType)
+            : [...toolEntries, { type: toolType }];
+
+        onChange({ ...config, tools: nextTools });
     };
 
     const toolPolicies = config.toolConfirmation?.toolPolicies || {

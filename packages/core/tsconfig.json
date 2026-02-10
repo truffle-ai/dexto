@@ -18,6 +18,7 @@
     "**/*.spec.ts",
     "**/*.integration.test.ts",
     "**/*.integration.ts",
+    "src/test-utils/**/*",
     "dist",
     "node_modules"
   ]

@@ -4,7 +4,6 @@ import type { AgentRuntimeConfig } from '@core/agent/runtime-config.js';
 import { SystemPromptConfigSchema } from '@core/systemPrompt/schemas.js';
 import { LLMConfigSchema } from '@core/llm/schemas.js';
 import { LoggerConfigSchema } from '@core/logger/index.js';
-import { StorageSchema, createStorageManager } from '@dexto/storage';
 import { SessionConfigSchema } from '@core/session/schemas.js';
 import { ToolConfirmationConfigSchema, ElicitationConfigSchema } from '@core/tools/schemas.js';
 import { InternalResourcesSchema } from '@core/resources/schemas.js';
@@ -16,6 +15,8 @@ import {
 } from '@core/context/compaction/schemas.js';
 import { createLogger } from '../logger/factory.js';
 import type { SessionData } from './session-manager.js';
+import { ServerConfigsSchema } from '@core/mcp/schemas.js';
+import { createInMemoryStorageManager } from '@core/test-utils/in-memory-storage.js';
 
 /**
  * Full end-to-end integration tests for chat history preservation.
@@ -23,12 +24,6 @@ import type { SessionData } from './session-manager.js';
  */
 describe('Session Integration: Chat History Preservation', () => {
     let agent: DextoAgent;
-
-    const storageConfig = StorageSchema.parse({
-        cache: { type: 'in-memory' },
-        database: { type: 'in-memory' },
-        blob: { type: 'in-memory' },
-    });
 
     const testConfig: AgentRuntimeConfig = {
         systemPrompt: SystemPromptConfigSchema.parse('You are a helpful assistant.'),
@@ -39,13 +34,13 @@ describe('Session Integration: Chat History Preservation', () => {
         }),
         agentFile: { discoverInCwd: true },
         agentId: 'integration-test-agent',
-        mcpServers: {},
+        mcpServers: ServerConfigsSchema.parse({}),
         tools: [],
         logger: LoggerConfigSchema.parse({
             level: 'warn',
             transports: [{ type: 'console', colorize: false }],
         }),
-        storage: storageConfig,
+        storage: {},
         sessions: SessionConfigSchema.parse({
             maxSessions: 10,
             sessionTTL: 100, // 100ms for fast testing
@@ -69,7 +64,7 @@ describe('Session Integration: Chat History Preservation', () => {
             config: testConfig.logger,
             agentId: testConfig.agentId,
         });
-        const storageManager = await createStorageManager(storageConfig, logger);
+        const storageManager = await createInMemoryStorageManager(logger);
         agent = new DextoAgent({ config: testConfig, logger, overrides: { storageManager } });
         await agent.start();
     });

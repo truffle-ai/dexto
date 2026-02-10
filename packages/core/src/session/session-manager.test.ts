@@ -3,10 +3,10 @@ import { SessionManager } from './session-manager.js';
 import { ChatSession } from './chat-session.js';
 import { type ValidatedLLMConfig } from '@core/llm/schemas.js';
 import { LLMConfigSchema } from '@core/llm/schemas.js';
-import { StorageSchema, createStorageManager } from '@dexto/storage';
 import { ErrorScope, ErrorType } from '@core/errors/types.js';
 import { SessionErrorCode } from './error-codes.js';
 import { createMockLogger } from '@core/logger/v2/test-utils.js';
+import { createInMemoryStorageManager } from '@core/test-utils/in-memory-storage.js';
 
 // Mock dependencies
 vi.mock('./chat-session.js');
@@ -1027,13 +1027,7 @@ describe('SessionManager', () => {
         let realSessionManager: SessionManager;
 
         beforeEach(async () => {
-            const storageConfig = StorageSchema.parse({
-                cache: { type: 'in-memory' as const },
-                database: { type: 'in-memory' as const },
-                blob: { type: 'local', storePath: '/tmp/test-blobs' },
-            });
-
-            realStorageManager = await createStorageManager(storageConfig, mockLogger);
+            realStorageManager = await createInMemoryStorageManager(mockLogger);
 
             // Create SessionManager with real storage and short TTL for faster testing
             realSessionManager = new SessionManager(

@@ -10,7 +10,7 @@ import { ResourceManager } from '../../resources/index.js';
 import { MCPManager } from '../../mcp/manager.js';
 import { MemoryManager } from '../../memory/index.js';
 import { StorageManager } from '../../storage/storage-manager.js';
-import { createStorageManager, type ValidatedStorageConfig } from '@dexto/storage';
+import { createInMemoryStorageManager } from '@core/test-utils/in-memory-storage.js';
 import { createLogger } from '../../logger/factory.js';
 import type { ModelMessage } from 'ai';
 import type { LanguageModel } from 'ai';
@@ -72,16 +72,7 @@ describe('Context Compaction Integration Tests', () => {
         });
 
         // Create real storage manager with in-memory backends
-        const storageConfig = {
-            cache: { type: 'in-memory' },
-            database: { type: 'in-memory' },
-            blob: {
-                type: 'in-memory',
-                maxBlobSize: 10 * 1024 * 1024,
-                maxTotalSize: 100 * 1024 * 1024,
-            },
-        } as unknown as ValidatedStorageConfig;
-        storageManager = await createStorageManager(storageConfig, logger);
+        storageManager = await createInMemoryStorageManager(logger);
 
         // Create real MCP and resource managers
         mcpManager = new MCPManager(logger);

@@ -2,9 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AgentStateManager } from './state-manager.js';
 import { AgentEventBus } from '../events/index.js';
 import { LLMConfigSchema } from '@core/llm/schemas.js';
-import { McpServerConfigSchema } from '@core/mcp/schemas.js';
+import { McpServerConfigSchema, ServerConfigsSchema } from '@core/mcp/schemas.js';
 import { LoggerConfigSchema } from '@core/logger/index.js';
-import { StorageSchema } from '@dexto/storage';
 import { SystemPromptConfigSchema } from '@core/systemPrompt/schemas.js';
 import { SessionConfigSchema } from '@core/session/schemas.js';
 import { ToolConfirmationConfigSchema, ElicitationConfigSchema } from '@core/tools/schemas.js';
@@ -58,14 +57,10 @@ describe('AgentStateManager Events', () => {
             llm,
             agentFile: { discoverInCwd: true },
             agentId: 'test-agent',
-            mcpServers: { test: mcpServer },
+            mcpServers: ServerConfigsSchema.parse({ test: mcpServer }),
             tools: [],
             logger: LoggerConfigSchema.parse({ level: 'error', transports: [{ type: 'silent' }] }),
-            storage: StorageSchema.parse({
-                cache: { type: 'in-memory' },
-                database: { type: 'in-memory' },
-                blob: { type: 'in-memory' },
-            }),
+            storage: {},
             sessions: SessionConfigSchema.parse({ maxSessions: 100, sessionTTL: 3600000 }),
             toolConfirmation: ToolConfirmationConfigSchema.parse({
                 mode: 'manual',

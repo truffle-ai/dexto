@@ -3,7 +3,6 @@ import { DextoAgent } from './DextoAgent.js';
 import type { AgentRuntimeConfig } from './runtime-config.js';
 import { LLMConfigSchema } from '@core/llm/schemas.js';
 import { LoggerConfigSchema } from '@core/logger/index.js';
-import { StorageSchema } from '@dexto/storage';
 import { SystemPromptConfigSchema } from '@core/systemPrompt/schemas.js';
 import { SessionConfigSchema } from '@core/session/schemas.js';
 import { ToolConfirmationConfigSchema, ElicitationConfigSchema } from '@core/tools/schemas.js';
@@ -14,7 +13,7 @@ import {
     CompactionConfigSchema,
     DEFAULT_COMPACTION_CONFIG,
 } from '@core/context/compaction/schemas.js';
-import { McpServerConfigSchema } from '@core/mcp/schemas.js';
+import { ServerConfigsSchema } from '@core/mcp/schemas.js';
 import type { AgentServices } from '../utils/service-initializer.js';
 import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
 import { ErrorScope, ErrorType } from '../errors/types.js';
@@ -52,14 +51,10 @@ describe('DextoAgent Lifecycle Management', () => {
             }),
             agentFile: { discoverInCwd: true },
             agentId: 'test-agent',
-            mcpServers: {},
+            mcpServers: ServerConfigsSchema.parse({}),
             tools: [],
             logger: LoggerConfigSchema.parse({ level: 'error', transports: [{ type: 'silent' }] }),
-            storage: StorageSchema.parse({
-                cache: { type: 'in-memory' },
-                database: { type: 'in-memory' },
-                blob: { type: 'in-memory' },
-            }),
+            storage: {},
             sessions: SessionConfigSchema.parse({
                 maxSessions: 10,
                 sessionTTL: 3600,
@@ -170,16 +165,16 @@ describe('DextoAgent Lifecycle Management', () => {
         test('should start with per-server connection modes in config', async () => {
             const validatedConfigWithServerModes: AgentRuntimeConfig = {
                 ...mockValidatedConfig,
-                mcpServers: {
-                    filesystem: McpServerConfigSchema.parse({
+                mcpServers: ServerConfigsSchema.parse({
+                    filesystem: {
                         type: 'stdio' as const,
                         command: 'npx',
                         args: ['@modelcontextprotocol/server-filesystem', '.'],
                         env: {},
                         timeout: 30000,
                         connectionMode: 'strict' as const,
-                    }),
-                },
+                    },
+                }),
             };
             const agent = createTestAgent(validatedConfigWithServerModes);
 
