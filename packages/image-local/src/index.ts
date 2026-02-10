@@ -6,7 +6,6 @@ import {
     defaultLoggerFactory,
     NoOpCompactionStrategy,
     NoOpConfigSchema,
-    ReactiveOverflowConfigSchema,
 } from '@dexto/core';
 import {
     localBlobStoreFactory,
@@ -37,19 +36,6 @@ const responseSanitizerFactory: PluginFactory = {
 const noopCompactionFactory: CompactionFactory = {
     configSchema: NoOpConfigSchema,
     create: (_config) => new NoOpCompactionStrategy(),
-};
-
-// TODO: temporary glue code to be removed/verified (remove-by: 4.1)
-// Compaction strategies like `reactive-overflow` require a per-session LanguageModel instance.
-// Until compaction DI is properly wired (or core owns compaction strategy creation),
-// keep this factory as a placeholder and let core continue to create compaction from config.
-const reactiveOverflowCompactionFactory: CompactionFactory = {
-    configSchema: ReactiveOverflowConfigSchema,
-    create: () => {
-        throw new Error(
-            'reactive-overflow compaction is not yet supported by the image resolver; core still creates compaction strategies per session'
-        );
-    },
 };
 
 const imageLocal: DextoImageModule = {
@@ -104,7 +90,6 @@ const imageLocal: DextoImageModule = {
     },
     compaction: {
         noop: noopCompactionFactory,
-        'reactive-overflow': reactiveOverflowCompactionFactory,
     },
     logger: defaultLoggerFactory,
 };

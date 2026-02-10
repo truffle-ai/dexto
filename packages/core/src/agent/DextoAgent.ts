@@ -7,6 +7,7 @@ import { SystemPromptManager } from '../systemPrompt/manager.js';
 import { SkillsContributor } from '../systemPrompt/contributors.js';
 import { ResourceManager, expandMessageReferences } from '../resources/index.js';
 import { expandBlobReferences } from '../context/utils.js';
+import { StorageManager } from '../storage/index.js';
 import type { InternalMessage } from '../context/types.js';
 import { PromptManager } from '../prompts/index.js';
 import type { PromptsConfig } from '../prompts/schemas.js';
@@ -49,7 +50,7 @@ import {
     type StreamingEventName,
 } from '../events/index.js';
 import type { IMCPClient } from '../mcp/types.js';
-import type { ToolSet } from '../tools/types.js';
+import type { InternalTool, ToolSet } from '../tools/types.js';
 import { SearchService } from '../search/index.js';
 import type { SearchOptions, SearchResponse, SessionSearchResponse } from '../search/index.js';
 import { safeStringify } from '@core/utils/safe-stringify.js';
@@ -189,6 +190,10 @@ export class DextoAgent {
     // Host overrides for service initialization (e.g. session logger factory)
     private serviceOverrides?: InitializeServicesOptions;
 
+    // TODO: temporary glue code to be removed/verified (remove-by: 4.1)
+    // DI-provided local tools. When omitted, core falls back to legacy config-based resolution.
+    private injectedTools?: InternalTool[] | undefined;
+
     // Optional config file path (used for save/reload UX in product layers)
     private configPath: string | undefined;
 
@@ -211,12 +216,34 @@ export class DextoAgent {
         // Agent logger is always provided by the host (typically created from config).
         this.logger = options.logger;
 
-        if (options.overrides) {
-            this.serviceOverrides = options.overrides;
+        this.injectedTools = options.tools;
+
+        const overrides: InitializeServicesOptions = { ...(options.overrides ?? {}) };
+
+        if (overrides.storageManager === undefined && options.storage !== undefined) {
+            // TODO: temporary glue code to be removed/verified (remove-by: 4.1)
+            // Core services still require a StorageManager, but product layers now resolve concrete
+            // storage backends via images. Bridge by constructing a StorageManager here.
+            overrides.storageManager = new StorageManager(
+                {
+                    cache: options.storage.cache,
+                    database: options.storage.database,
+                    blobStore: options.storage.blob,
+                },
+                this.logger
+            );
         }
 
-        if (options.overrides?.mcpAuthProviderFactory !== undefined) {
-            this.mcpAuthProviderFactory = options.overrides.mcpAuthProviderFactory;
+        if (overrides.plugins === undefined && options.plugins !== undefined) {
+            overrides.plugins = options.plugins;
+        }
+
+        if (Object.values(overrides).some((value) => value !== undefined)) {
+            this.serviceOverrides = overrides;
+        }
+
+        if (overrides.mcpAuthProviderFactory !== undefined) {
+            this.mcpAuthProviderFactory = overrides.mcpAuthProviderFactory;
         }
 
         // Create event bus early so it's available for approval handler creation
@@ -337,23 +364,29 @@ export class DextoAgent {
                 services: toolExecutionServices,
             }));
 
-            // TODO: temporary glue code to be removed/verified (remove-by: 4.1)
-            // Resolve internal + custom tools from config and register them with ToolManager.
-            const toolServices: InternalToolsServices & Record<string, unknown> = {
-                searchService: services.searchService,
-                approvalManager: services.approvalManager,
-                resourceManager: services.resourceManager,
-                promptManager,
-                storageManager: services.storageManager,
-            };
-
             const toolsLogger = this.logger.createChild(DextoLogComponent.TOOLS);
-            const localTools = await resolveLocalToolsFromConfig({
-                agent: this,
-                toolsConfig: this.config.tools,
-                services: toolServices,
-                logger: toolsLogger,
-            });
+
+            let localTools: InternalTool[];
+            if (this.injectedTools !== undefined) {
+                localTools = this.injectedTools;
+            } else {
+                // TODO: temporary glue code to be removed/verified (remove-by: 4.1)
+                // Resolve internal + custom tools from config and register them with ToolManager.
+                const toolServices: InternalToolsServices & Record<string, unknown> = {
+                    searchService: services.searchService,
+                    approvalManager: services.approvalManager,
+                    resourceManager: services.resourceManager,
+                    promptManager,
+                    storageManager: services.storageManager,
+                };
+
+                localTools = await resolveLocalToolsFromConfig({
+                    agent: this,
+                    toolsConfig: this.config.tools,
+                    services: toolServices,
+                    logger: toolsLogger,
+                });
+            }
 
             // Add skills contributor to system prompt if invoke_skill is enabled.
             // This lists available skills so the LLM knows what it can invoke.

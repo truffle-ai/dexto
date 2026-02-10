@@ -1,13 +1,91 @@
-import { z } from 'zod';
-import type { DextoPlugin } from '@dexto/core';
+import type { DextoPlugin, IDextoLogger, PluginExecutionContext, PluginResult } from '@dexto/core';
 import type { ValidatedAgentConfig, ToolFactoryEntry } from '../schemas/agent-config.js';
 import type { DextoImageModule } from '../image/types.js';
 import type { ResolvedServices } from './types.js';
 
 type PlainObject = Record<string, unknown>;
 
+const INTERNAL_TOOL_PREFIX = 'internal--';
+const CUSTOM_TOOL_PREFIX = 'custom--';
+
 function isPlainObject(value: unknown): value is PlainObject {
     return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function qualifyToolId(prefix: string, id: string): string {
+    if (id.startsWith(INTERNAL_TOOL_PREFIX) || id.startsWith(CUSTOM_TOOL_PREFIX)) {
+        return id;
+    }
+    return `${prefix}${id}`;
+}
+
+function wrapPluginWithBlockingBehavior(options: {
+    name: string;
+    plugin: DextoPlugin;
+    blocking: boolean;
+    logger: IDextoLogger;
+}): DextoPlugin & { name: string } {
+    const { name, plugin, blocking, logger } = options;
+
+    const coerceResult = (result: PluginResult): PluginResult => {
+        if (blocking) {
+            return result;
+        }
+        return {
+            ...result,
+            cancel: false,
+        };
+    };
+
+    const wrap = <TPayload extends object>(
+        fn: (payload: TPayload, context: PluginExecutionContext) => Promise<PluginResult>
+    ) => {
+        return async (
+            payload: TPayload,
+            context: PluginExecutionContext
+        ): Promise<PluginResult> => {
+            try {
+                const result = await fn(payload, context);
+                return coerceResult(result);
+            } catch (error) {
+                if (blocking) {
+                    throw error;
+                }
+
+                logger.warn(`Non-blocking plugin '${name}' threw error`, {
+                    error: error instanceof Error ? error.message : String(error),
+                });
+
+                return {
+                    ok: false,
+                    cancel: false,
+                    message: error instanceof Error ? error.message : String(error),
+                };
+            }
+        };
+    };
+
+    const wrapped: DextoPlugin & { name: string } = {
+        name,
+    };
+
+    if (plugin.beforeLLMRequest) {
+        wrapped.beforeLLMRequest = wrap(plugin.beforeLLMRequest.bind(plugin));
+    }
+    if (plugin.beforeToolCall) {
+        wrapped.beforeToolCall = wrap(plugin.beforeToolCall.bind(plugin));
+    }
+    if (plugin.afterToolResult) {
+        wrapped.afterToolResult = wrap(plugin.afterToolResult.bind(plugin));
+    }
+    if (plugin.beforeResponse) {
+        wrapped.beforeResponse = wrap(plugin.beforeResponse.bind(plugin));
+    }
+    if (plugin.cleanup) {
+        wrapped.cleanup = plugin.cleanup.bind(plugin);
+    }
+
+    return wrapped;
 }
 
 // Tool factory entries share `enabled?: boolean` (see A+B+C semantics in the plan).
@@ -39,15 +117,21 @@ function resolveByType<TFactory>(options: {
     return factory;
 }
 
-function coercePluginPriority(config: unknown): number {
+type BuiltInPluginConfig = {
+    priority: number;
+    enabled?: boolean;
+    blocking?: boolean;
+} & Record<string, unknown>;
+
+function coerceBuiltInPluginConfig(config: unknown, pluginName: string): BuiltInPluginConfig {
     if (!isPlainObject(config)) {
-        throw new Error('Invalid plugin config: expected an object');
+        throw new Error(`Invalid plugin config for '${pluginName}': expected an object`);
     }
     const priority = config.priority;
     if (typeof priority !== 'number' || !Number.isInteger(priority)) {
-        throw new Error('Invalid plugin config: priority must be an integer');
+        throw new Error(`Invalid plugin config for '${pluginName}': priority must be an integer`);
     }
-    return priority;
+    return config as BuiltInPluginConfig;
 }
 
 export async function resolveServicesFromConfig(
@@ -96,9 +180,12 @@ export async function resolveServicesFromConfig(
 
     // 3) Tools
     const toolEntries = config.tools ?? image.defaults?.tools ?? [];
-    const tools = toolEntries.flatMap((entry) => {
+    const tools: ResolvedServices['tools'] = [];
+    const toolIds = new Set<string>();
+
+    for (const entry of toolEntries) {
         if (entry.enabled === false) {
-            return [];
+            continue;
         }
 
         const factory = resolveByType({
@@ -109,8 +196,17 @@ export async function resolveServicesFromConfig(
         });
 
         const validatedConfig = factory.configSchema.parse(stripEnabled(entry));
-        return factory.create(validatedConfig);
-    });
+        const prefix = entry.type === 'builtin-tools' ? INTERNAL_TOOL_PREFIX : CUSTOM_TOOL_PREFIX;
+        for (const tool of factory.create(validatedConfig)) {
+            const qualifiedId = qualifyToolId(prefix, tool.id);
+            if (toolIds.has(qualifiedId)) {
+                logger.warn(`Tool id conflict for '${qualifiedId}'. Skipping duplicate tool.`);
+                continue;
+            }
+            toolIds.add(qualifiedId);
+            tools.push({ ...tool, id: qualifiedId });
+        }
+    }
 
     // 4) Plugins (built-ins only for now)
     if (config.plugins.custom.length > 0 || config.plugins.registry.length > 0) {
@@ -119,14 +215,21 @@ export async function resolveServicesFromConfig(
         );
     }
 
-    const pluginEntries: Array<{ type: string; config: unknown; priority: number }> = [];
+    const pluginEntries: Array<{
+        type: string;
+        config: unknown;
+        priority: number;
+        blocking: boolean;
+    }> = [];
 
     const contentPolicyConfig = config.plugins.contentPolicy;
     if (contentPolicyConfig && (contentPolicyConfig as { enabled?: boolean }).enabled !== false) {
+        const cfg = coerceBuiltInPluginConfig(contentPolicyConfig, 'content-policy');
         pluginEntries.push({
             type: 'content-policy',
             config: contentPolicyConfig,
-            priority: coercePluginPriority(contentPolicyConfig),
+            priority: cfg.priority,
+            blocking: cfg.blocking ?? true,
         });
     }
 
@@ -135,16 +238,26 @@ export async function resolveServicesFromConfig(
         responseSanitizerConfig &&
         (responseSanitizerConfig as { enabled?: boolean }).enabled !== false
     ) {
+        const cfg = coerceBuiltInPluginConfig(responseSanitizerConfig, 'response-sanitizer');
         pluginEntries.push({
             type: 'response-sanitizer',
             config: responseSanitizerConfig,
-            priority: coercePluginPriority(responseSanitizerConfig),
+            priority: cfg.priority,
+            blocking: cfg.blocking ?? false,
         });
     }
 
     const plugins: DextoPlugin[] = [];
+    const priorities = new Set<number>();
     pluginEntries.sort((a, b) => a.priority - b.priority);
     for (const entry of pluginEntries) {
+        if (priorities.has(entry.priority)) {
+            throw new Error(
+                `Duplicate plugin priority: ${entry.priority}. Each plugin must have a unique priority.`
+            );
+        }
+        priorities.add(entry.priority);
+
         const factory = resolveByType({
             kind: 'plugin',
             type: entry.type,
@@ -160,27 +273,34 @@ export async function resolveServicesFromConfig(
             }
             await plugin.initialize(parsedConfig);
         }
-        plugins.push(plugin);
+
+        plugins.push(
+            wrapPluginWithBlockingBehavior({
+                name: entry.type,
+                plugin,
+                blocking: entry.blocking,
+                logger,
+            })
+        );
     }
 
     // 5) Compaction
     let compaction: ResolvedServices['compaction'] = undefined;
     if (config.compaction.enabled !== false) {
-        const factory = resolveByType({
-            kind: 'compaction',
-            type: config.compaction.type,
-            factories: image.compaction,
-            imageName,
-        });
+        if (config.compaction.type === 'reactive-overflow') {
+            // TODO: temporary glue code to be removed/verified (remove-by: 4.1)
+            // `reactive-overflow` compaction requires a per-session LanguageModel instance.
+            // Core still constructs it at session init time from config.
+        } else {
+            const factory = resolveByType({
+                kind: 'compaction',
+                type: config.compaction.type,
+                factories: image.compaction,
+                imageName,
+            });
 
-        try {
             const parsedConfig = factory.configSchema.parse(config.compaction);
             compaction = factory.create(parsedConfig);
-        } catch (error) {
-            if (error instanceof z.ZodError) {
-                throw error;
-            }
-            throw error;
         }
     }
 

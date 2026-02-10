@@ -43,7 +43,7 @@ export async function bundle(options: BundleOptions): Promise<BundleResult> {
 
     // 4. Generate code
     console.log(`🔨 Generating entry point...`);
-    const generated = generateEntryPoint(definition, coreVersion, discoveredProviders);
+    const generated = generateEntryPoint(definition, discoveredProviders);
 
     // 5. Ensure output directory exists
     const outDir = resolve(options.outDir);

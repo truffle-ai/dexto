@@ -36,7 +36,6 @@ if (isDextoAuthEnabled()) {
 
 import {
     logger,
-    createLogger,
     DextoLogger,
     FileTransport,
     DextoLogComponent,
@@ -49,8 +48,15 @@ import {
     resolveApiKeyForProvider,
     getPrimaryApiKeyEnvVar,
 } from '@dexto/core';
-import { createAgentConfigSchema, type ValidatedAgentConfig } from '@dexto/agent-config';
-import { createStorageManager } from '@dexto/storage';
+import {
+    applyImageDefaults,
+    createAgentConfigSchema,
+    loadImage,
+    resolveServicesFromConfig,
+    toDextoAgentOptions,
+    type DextoImageModule,
+    type ValidatedAgentConfig,
+} from '@dexto/agent-config';
 import {
     resolveAgentPath,
     loadAgentConfig,
@@ -639,7 +645,7 @@ async function bootstrapAgentFromGlobalOpts() {
     const rawConfig = await loadAgentConfig(resolvedPath);
     const mergedConfig = applyCLIOverrides(rawConfig, globalOpts);
 
-    // Load image first to get bundled plugins
+    // Load image first to apply defaults and resolve DI services
     // Priority: CLI flag > Agent config > Environment variable > Default
     const imageName =
         globalOpts.image || // --image flag
@@ -647,10 +653,9 @@ async function bootstrapAgentFromGlobalOpts() {
         process.env.DEXTO_IMAGE || // DEXTO_IMAGE env var
         '@dexto/image-local'; // Default for convenience
 
-    let imageMetadata: { bundledPlugins?: string[] } | null = null;
+    let image: DextoImageModule;
     try {
-        const imageModule = await import(imageName);
-        imageMetadata = imageModule.imageMetadata || null;
+        image = await loadImage(imageName);
     } catch (_err) {
         console.error(`❌ Failed to load image '${imageName}'`);
         console.error(
@@ -661,10 +666,11 @@ async function bootstrapAgentFromGlobalOpts() {
         safeExit('bootstrap', 1, 'image-load-failed');
     }
 
-    // Enrich config with bundled plugins from image
-    const enrichedConfig = enrichAgentConfig(mergedConfig, resolvedPath, {
+    const configWithImageDefaults = applyImageDefaults(mergedConfig, image.defaults);
+
+    // Enrich config with per-agent paths BEFORE validation
+    const enrichedConfig = enrichAgentConfig(configWithImageDefaults, resolvedPath, {
         logLevel: 'info', // CLI uses info-level logging for visibility
-        bundledPlugins: imageMetadata?.bundledPlugins || [],
     });
 
     // Override approval config for read-only commands (never run conversations)
@@ -684,17 +690,10 @@ async function bootstrapAgentFromGlobalOpts() {
 
     // Use relaxed validation for session commands - they don't need LLM calls
     const validatedConfig = createAgentConfigSchema({ strict: false }).parse(enrichedConfig);
-    const agentLogger = createLogger({
-        config: validatedConfig.logger,
-        agentId: validatedConfig.agentId,
-    });
-    const storageManager = await createStorageManager(validatedConfig.storage, agentLogger);
-    const agent = new DextoAgent({
-        config: validatedConfig,
-        configPath: resolvedPath,
-        logger: agentLogger,
-        overrides: { storageManager },
-    });
+    const services = await resolveServicesFromConfig(validatedConfig, image);
+    const agent = new DextoAgent(
+        toDextoAgentOptions({ config: validatedConfig, services, configPath: resolvedPath })
+    );
     await agent.start();
 
     // Register graceful shutdown
@@ -1238,6 +1237,8 @@ program
                 // ——— ENHANCED PREFERENCE-AWARE CONFIG LOADING ———
                 let validatedConfig: ValidatedAgentConfig;
                 let resolvedPath: string;
+                let image: DextoImageModule;
+                let imageName: string;
 
                 // Determine validation mode early - used throughout config loading and agent creation
                 // Use relaxed validation for interactive modes (web/cli) where users can configure later
@@ -1450,36 +1451,42 @@ program
                     // This prevents "Expected string, received null" errors for optional fields
                     const cleanedConfig = cleanNullValues(mergedConfig);
 
-                    // Load image first to get bundled plugins
+                    // Load image first to apply defaults and resolve DI services
                     // Priority: CLI flag > Agent config > Environment variable > Default
-                    const imageNameForEnrichment =
+                    imageName =
                         opts.image || // --image flag
                         cleanedConfig.image || // image field in agent config
                         process.env.DEXTO_IMAGE || // DEXTO_IMAGE env var
                         '@dexto/image-local'; // Default for convenience
 
-                    let imageMetadataForEnrichment: { bundledPlugins?: string[] } | null = null;
                     try {
-                        const imageModule = await import(imageNameForEnrichment);
-                        imageMetadataForEnrichment = imageModule.imageMetadata || null;
-                        logger.debug(`Loaded image for enrichment: ${imageNameForEnrichment}`);
+                        image = await loadImage(imageName);
+                        logger.debug(`Loaded image: ${imageName}`);
                     } catch (err) {
-                        console.error(`❌ Failed to load image '${imageNameForEnrichment}'`);
+                        console.error(`❌ Failed to load image '${imageName}'`);
                         if (err instanceof Error) {
                             logger.debug(`Image load error: ${err.message}`);
                         }
                         safeExit('main', 1, 'image-load-failed');
                     }
 
-                    // Enrich config with per-agent paths and bundled plugins BEFORE validation
+                    const configWithImageDefaults = applyImageDefaults(
+                        cleanedConfig,
+                        image.defaults
+                    );
+
+                    // Enrich config with per-agent paths BEFORE validation
                     // Enrichment adds filesystem paths to storage (schema has in-memory defaults)
                     // Interactive CLI mode: only log to file (console would interfere with chat UI)
                     const isInteractiveCli = opts.mode === 'cli' && !headlessInput;
-                    const enrichedConfig = enrichAgentConfig(cleanedConfig, resolvedPath, {
-                        isInteractiveCli,
-                        logLevel: 'info', // CLI uses info-level logging for visibility
-                        bundledPlugins: imageMetadataForEnrichment?.bundledPlugins || [],
-                    });
+                    const enrichedConfig = enrichAgentConfig(
+                        configWithImageDefaults,
+                        resolvedPath,
+                        {
+                            isInteractiveCli,
+                            logLevel: 'info', // CLI uses info-level logging for visibility
+                        }
+                    );
 
                     // Validate enriched config with interactive setup if needed (for API key issues)
                     // isInteractiveMode is defined above the try block
@@ -1511,10 +1518,10 @@ program
                     if (
                         !opts.image &&
                         validatedConfig.image &&
-                        validatedConfig.image !== imageNameForEnrichment
+                        validatedConfig.image !== imageName
                     ) {
                         console.error(
-                            `❌ Config specifies image '${validatedConfig.image}' but '${imageNameForEnrichment}' was loaded instead`
+                            `❌ Config specifies image '${validatedConfig.image}' but '${imageName}' was loaded instead`
                         );
                         console.error(
                             `💡 Either remove 'image' from config or ensure it matches the loaded image`
@@ -1628,20 +1635,15 @@ program
                               })
                             : null;
 
-                    const agentLogger = createLogger({
-                        config: validatedConfig.logger,
-                        agentId: validatedConfig.agentId,
-                    });
-                    const storageManager = await createStorageManager(
-                        validatedConfig.storage,
-                        agentLogger
+                    const services = await resolveServicesFromConfig(validatedConfig, image);
+                    agent = new DextoAgent(
+                        toDextoAgentOptions({
+                            config: validatedConfig,
+                            services,
+                            configPath: resolvedPath,
+                            overrides: { sessionLoggerFactory, mcpAuthProviderFactory },
+                        })
                     );
-                    agent = new DextoAgent({
-                        config: validatedConfig,
-                        configPath: resolvedPath,
-                        logger: agentLogger,
-                        overrides: { sessionLoggerFactory, mcpAuthProviderFactory, storageManager },
-                    });
 
                     // Start the agent (initialize async services)
                     // - web/server modes: initializeHonoApi will set approval handler and start the agent

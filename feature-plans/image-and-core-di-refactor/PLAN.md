@@ -2428,10 +2428,10 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
 ### Phase 4: CLI + Server integration
 > **Goal:** CLI and server use the new resolution flow. End‑to‑end agent startup works.
 
-- [ ] **4.1 Update CLI entry point (`packages/cli/src/index.ts`)**
+- [x] **4.1 Update CLI entry point (`packages/cli/src/index.ts`)**
   - Replace side‑effect image import with `loadImage()` from agent‑config
   - Call `applyImageDefaults()` + `resolveServicesFromConfig()` before creating `DextoAgent`
-  - Remove `imageMetadata?.bundledPlugins` pattern — bundled plugins are now in `image.defaults` or resolved directly
+  - Remove `imageMetadata?.bundledPlugins` pattern (images no longer export `imageMetadata`)
   - Exit: `dexto` CLI starts successfully with `@dexto/image-local`. Chat works end‑to‑end.
 
 - [ ] **4.2 Update CLI server mode (`packages/cli/src/api/server-hono.ts`)**

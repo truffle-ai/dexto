@@ -21,15 +21,16 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /**
  * Path to the plugin directory containing .dexto-plugin manifest.
- * Use this in image definitions to declare bundled plugins.
+ * Host layers can pass this to `enrichAgentConfig(..., { bundledPlugins: [...] })`
+ * to include the plugin in discovery.
  *
  * @example
  * ```typescript
  * import { PLUGIN_PATH } from '@dexto/tools-plan';
+ * import { enrichAgentConfig } from '@dexto/agent-management';
  *
- * export default defineImage({
+ * const enriched = enrichAgentConfig(config, configPath, {
  *   bundledPlugins: [PLUGIN_PATH],
- *   // ...
  * });
  * ```
  */

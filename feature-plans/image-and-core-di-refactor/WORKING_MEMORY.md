@@ -19,20 +19,19 @@
 
 ## Current Task
 
-**Task:** **4.1 Update CLI entry point (`packages/cli/src/index.ts`)**
+**Task:** **4.2 Update CLI server mode (`packages/cli/src/api/server-hono.ts`)**
 **Status:** _Not started_
 **Branch:** `rebuild-di`
 
 ### Plan
-- Replace side-effect image import with `loadImage()` from `@dexto/agent-config`
-- Apply image defaults + resolve services: `applyImageDefaults()` → `resolveServicesFromConfig()`
-- Use `toDextoAgentOptions()` (validated config + resolved services → `DextoAgentOptions`)
-- Remove `imageMetadata?.bundledPlugins` enrichment path (temporary; see Phase 3.6 notes)
-- Exit: `dexto` CLI starts successfully with `@dexto/image-local`; basic chat/tools work end-to-end
+- Replace `imageMetadata`/side-effect image import with `loadImage()` from `@dexto/agent-config`
+- Apply image defaults + resolve services before agent creation: `applyImageDefaults()` → `resolveServicesFromConfig()` → `toDextoAgentOptions()`
+- Ensure agent switching (`createAgentFromId()`, path switching) uses the new resolution flow
+- Exit: `dexto serve` starts, can switch agents, chat works end-to-end
 
 ### Notes
 _Log findings, issues, and progress here as you work._
-2026-02-10: Phase 3.6 completed: `@dexto/image-bundler` now generates a typed `DextoImageModule` entrypoint (no side effects). `pnpm -w run build:packages` + `pnpm -w test` pass.
+2026-02-10: Phase 4.1 completed: CLI entrypoint now uses `loadImage()` + `applyImageDefaults()` + `resolveServicesFromConfig()` + `toDextoAgentOptions()` (no `imageMetadata` plumbing). Core now consumes DI-provided `storage/tools/plugins` (bridges storage backends → `StorageManager`); `pnpm -w run build:packages` + `pnpm -w test` pass.
 
 ---
 
@@ -47,6 +46,8 @@ _Record important decisions made during implementation that aren't in the main p
 | 2026-02-10 | Expose `agent.on/once/off/emit` and remove external `agentEventBus` access | Keeps typed events ergonomic while preventing host layers from reaching into core internals; allows gradual migration of subscribers/tools without passing the bus around. |
 | 2026-02-10 | Core no longer resolves storage from config | Core remains interface-only; host layers supply a `StorageManager` (temporary glue via `@dexto/storage/createStorageManager`) until the image resolver is fully integrated. |
 | 2026-02-10 | Defer `@dexto/logger` extraction (keep logger in core for now) | Avoids core codepaths needing `console.*` fallbacks/inline loggers and reduces churn; revisit later with a cleaner types-vs-impl split if extraction is still desired. |
+| 2026-02-10 | `resolveServicesFromConfig()` prefixes tool IDs + wraps plugins | Ensures tools are fully-qualified (`internal--*`/`custom--*`) and plugin blocking semantics match legacy behavior before handing instances to core. |
+| 2026-02-10 | Reactive-overflow compaction remains core-owned (per session) | DI compaction creation at config-resolution time cannot supply a per-session `LanguageModel`. Resolver skips DI for `reactive-overflow`; core continues to create it during session init. |
 
 ---
 
@@ -54,7 +55,7 @@ _Record important decisions made during implementation that aren't in the main p
 
 _Things that need resolution before proceeding. Remove when resolved (move to Key Decisions)._
 
-- **Compaction DI mismatch:** `reactive-overflow` needs a per-session `LanguageModel` instance, but the image resolver creates compaction strategies at config resolution time. `@dexto/image-local` includes a placeholder compaction factory that throws (tagged glue, remove-by: 4.1).
+- None currently.
 
 ---
 
@@ -108,6 +109,7 @@ _Move tasks here after completion. Keep a brief log of what was done and any dev
 | 3.4 | Adapt existing tool provider packages | 2026-02-10 | Added `ToolFactory` exports for `@dexto/tools-filesystem`, `@dexto/tools-process`, `@dexto/tools-todo`, `@dexto/tools-plan` for image-local consumption (registry-free). `pnpm -w build:packages` + `pnpm -w test` pass. |
 | 3.5 | Rewrite `@dexto/image-local` as hand-written `DextoImageModule` | 2026-02-10 | Deleted bundler entrypoint and replaced with hand-written `DextoImageModule` export. Added `defaultLoggerFactory` in core and a lazy `agentSpawnerToolsFactory` adapter in agent-management. Included a temporary placeholder for `reactive-overflow` compaction (remove-by: 4.1). `pnpm -w build:packages` + `pnpm -C packages/image-local test` pass. |
 | 3.6 | Update `@dexto/image-bundler` | 2026-02-10 | Bundler now generates a `DextoImageModule` (explicit imports, no `.toString()`, no duck-typing). Providers are discovered from convention folders and must export `provider`. Updated `dexto create-image` scaffolding/templates to match new folder structure + provider contract. Added a bundler integration test. `pnpm -w build:packages` + `pnpm -w test` pass. |
+| 4.1 | Update CLI entry point (`packages/cli/src/index.ts`) | 2026-02-10 | CLI now loads typed images (`loadImage()`), applies defaults, resolves services, and constructs `DextoAgent` via `toDextoAgentOptions()` (no `imageMetadata`). Core consumes DI-provided `storage/tools/plugins` and bridges storage backends into a `StorageManager`. Removed image-bundler `imageMetadata` export and deprecated `bundledPlugins` in image definitions. `pnpm -w run build:packages` + `pnpm -w test` pass. |
 
 ---
 
@@ -124,7 +126,7 @@ _Move tasks here after completion. Keep a brief log of what was done and any dev
 | Phase 1F — Vet + cleanup | Completed | 1.12–1.29 complete |
 | Phase 2 — Resolver | Completed | 2.5, 2.1, 2.2, 2.6, 2.3 complete (2.4 deferred) |
 | Phase 3 — Images | Completed | 3.3 deferred; 3.5 image-local + 3.6 bundler updated |
-| Phase 4 — CLI/Server | In progress | 4.1 next |
+| Phase 4 — CLI/Server | In progress | 4.1 complete; 4.2 next |
 | Phase 5 — Cleanup | Not started | |
 
 ---

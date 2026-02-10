@@ -69,18 +69,6 @@ export function validateImageDefinition(definition: ImageDefinition): void {
         }
     }
 
-    // Validate bundled plugins if provided
-    if (definition.bundledPlugins) {
-        if (!Array.isArray(definition.bundledPlugins)) {
-            throw new Error('Image bundledPlugins must be an array');
-        }
-        for (const pluginPath of definition.bundledPlugins) {
-            if (typeof pluginPath !== 'string') {
-                throw new Error('Image bundledPlugins entries must be strings');
-            }
-        }
-    }
-
     // Validate utils if provided
     if (definition.utils) {
         for (const [name, path] of Object.entries(definition.utils)) {

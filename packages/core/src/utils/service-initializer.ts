@@ -26,6 +26,7 @@ import { ApprovalManager } from '../approval/manager.js';
 import { MemoryManager } from '../memory/index.js';
 import { PluginManager } from '../plugins/manager.js';
 import { resolveLocalPluginsFromConfig } from '../agent/resolve-local-plugins.js';
+import type { DextoPlugin } from '../plugins/types.js';
 
 /**
  * Type for the core agent services returned by createAgentServices
@@ -64,6 +65,8 @@ export type InitializeServicesOptions = {
     toolManager?: ToolManager;
     toolManagerFactory?: ToolManagerFactory;
     storageManager?: StorageManager;
+    // TODO: temporary glue code to be removed/verified (remove-by: 4.1)
+    plugins?: DextoPlugin[] | undefined;
 };
 
 // High-level factory to load, validate, and wire up all agent services in one call
@@ -150,7 +153,7 @@ export async function createAgentServices(
     logger.debug('Memory manager initialized');
 
     // 6.5 Initialize plugin manager
-    const plugins = await resolveLocalPluginsFromConfig({ config, logger });
+    const plugins = overrides?.plugins ?? (await resolveLocalPluginsFromConfig({ config, logger }));
     const pluginManager = new PluginManager(
         {
             agentEventBus,

@@ -190,7 +190,7 @@ describe('resolveServicesFromConfig', () => {
         expect(services.storage.database.getStoreType()).toBe('in-memory');
         expect(services.storage.cache.getStoreType()).toBe('in-memory');
 
-        expect(services.tools.map((t) => t.id)).toEqual(['foo']);
+        expect(services.tools.map((t) => t.id)).toEqual(['custom--foo']);
         expect(fooFactoryCreate).toHaveBeenCalledTimes(1);
         expect(fooFactoryCreate).toHaveBeenCalledWith({ type: 'foo-tools', foo: 123 });
         expect(barFactoryCreate).not.toHaveBeenCalled();
@@ -217,7 +217,7 @@ describe('resolveServicesFromConfig', () => {
         expect(validated.tools).toBeUndefined();
 
         const services = await resolveServicesFromConfig(validated, image);
-        expect(services.tools.map((t) => t.id)).toEqual(['foo']);
+        expect(services.tools.map((t) => t.id)).toEqual(['custom--foo']);
     });
 
     it('throws a clear error for unknown tool types', async () => {
