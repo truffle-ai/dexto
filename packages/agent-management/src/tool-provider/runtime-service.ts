@@ -20,6 +20,7 @@ import { getAgentRegistry } from '../registry/registry.js';
 import type { AgentRegistryEntry } from '../registry/types.js';
 import { deriveDisplayName } from '../registry/types.js';
 import { resolveBundledScript } from '../utils/path.js';
+import * as path from 'path';
 import type { AgentSpawnerConfig } from './schemas.js';
 import type { SpawnAgentOutput } from './types.js';
 import { resolveSubAgentLLM } from './llm-resolution.js';
@@ -32,6 +33,12 @@ export class RuntimeService implements TaskForker {
     private logger: IDextoLogger;
 
     private resolveBundledAgentConfig(agentId: string): string | null {
+        const baseDir = 'agents';
+        const normalizedPath = path.relative(baseDir, path.join(baseDir, agentId));
+        if (normalizedPath.startsWith('..') || path.isAbsolute(normalizedPath)) {
+            return null;
+        }
+
         const candidates = [
             `agents/${agentId}/${agentId}.yml`,
             `agents/${agentId}/${agentId}.yaml`,
