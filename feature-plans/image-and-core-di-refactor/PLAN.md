@@ -2440,9 +2440,9 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
   - Switch-created agents reuse the same `sessionLoggerFactory` override (per-session file logs)
   - Exit: `dexto serve` starts, can switch agents, chat works.
 
-- [ ] **4.3 Update `@dexto/server` if needed**
-  - Server receives `DextoAgent` instance — may need minimal changes
-  - Verify `startDextoServer(agent)` still works with new agent shape
+- [x] **4.3 Update `@dexto/server` if needed**
+  - No code changes needed; server already consumes a `DextoAgent` instance
+  - Verified: `pnpm -w run build:packages` + `pnpm -w test` pass
   - Exit: server package builds and integration tests pass.
 
 - [ ] **4.4 Update `@dexto/agent-management` config enrichment**

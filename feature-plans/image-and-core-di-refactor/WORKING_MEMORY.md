@@ -19,18 +19,19 @@
 
 ## Current Task
 
-**Task:** **4.3 Update `@dexto/server` if needed**
+**Task:** **4.4 Update `@dexto/agent-management` config enrichment + agent creation surfaces**
 **Status:** _Not started_
 **Branch:** `rebuild-di`
 
 ### Plan
-- Verify `@dexto/server` is compatible with DI-created `DextoAgent` instances (no more config-coupled assumptions)
-- Run quick local smoke of server init paths (webhook/SSE + MCP handlers)
-- Exit: server package builds and integration tests pass
+- Audit `AgentManager` / `AgentFactory` / `AgentRuntime` for any remaining config→instance resolution in core-glue style
+- Migrate any remaining agent creation to the new flow (`loadImage()` → defaults → enrichment → validation → `resolveServicesFromConfig()` → `toDextoAgentOptions()`)
+- Keep `enrichAgentConfig()` focused on host-only concerns (paths, prompt/plugin discovery), not service construction
+- Exit: agent-management builds + tests pass; host layers no longer need transitional storage/logger glue paths
 
 ### Notes
 _Log findings, issues, and progress here as you work._
-2026-02-10: Phase 4.2 completed: `packages/cli/src/api/server-hono.ts` agent switching now uses `loadImage()` + `applyImageDefaults()` + `resolveServicesFromConfig()` + `toDextoAgentOptions()` (no `imageMetadata` / `bundledPlugins`). `pnpm -w run build:packages` + `pnpm -w test` pass.
+2026-02-10: Phase 4.3 verified: `@dexto/server` required no code changes; `pnpm -w run build:packages` + `pnpm -w test` pass.
 
 ---
 
@@ -110,6 +111,7 @@ _Move tasks here after completion. Keep a brief log of what was done and any dev
 | 3.6 | Update `@dexto/image-bundler` | 2026-02-10 | Bundler now generates a `DextoImageModule` (explicit imports, no `.toString()`, no duck-typing). Providers are discovered from convention folders and must export `provider`. Updated `dexto create-image` scaffolding/templates to match new folder structure + provider contract. Added a bundler integration test. `pnpm -w build:packages` + `pnpm -w test` pass. |
 | 4.1 | Update CLI entry point (`packages/cli/src/index.ts`) | 2026-02-10 | CLI now loads typed images (`loadImage()`), applies defaults, resolves services, and constructs `DextoAgent` via `toDextoAgentOptions()` (no `imageMetadata`). Core consumes DI-provided `storage/tools/plugins` and bridges storage backends into a `StorageManager`. Removed image-bundler `imageMetadata` export and deprecated `bundledPlugins` in image definitions. `pnpm -w run build:packages` + `pnpm -w test` pass. |
 | 4.2 | Update CLI server mode (`packages/cli/src/api/server-hono.ts`) | 2026-02-10 | Server mode agent switching now uses the same image DI flow as the CLI entrypoint (`loadImage()` → `applyImageDefaults()` → `resolveServicesFromConfig()` → `toDextoAgentOptions()`). Removed `imageMetadata`/`bundledPlugins` plumbing and ensured switched agents reuse the session file-logger override. Added small CLI utils for `cleanNullValues()` + `createFileSessionLoggerFactory()` to avoid duplication. `pnpm -w run build:packages` + `pnpm -w test` pass. |
+| 4.3 | Update `@dexto/server` if needed | 2026-02-10 | No code changes required; server consumes a `DextoAgent` instance. Verified `pnpm -w run build:packages` + `pnpm -w test` pass. |
 
 ---
 
