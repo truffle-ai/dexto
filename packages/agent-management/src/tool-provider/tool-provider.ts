@@ -35,12 +35,6 @@ function bindOrchestrationTool(
     };
 }
 
-function isBackgroundTasksEnabled(): boolean {
-    const value = process.env.DEXTO_BACKGROUND_TASKS_ENABLED;
-    if (value === undefined) return false;
-    return /^(1|true|yes|on)$/i.test(value.trim());
-}
-
 /**
  * Agent Spawner Tools Provider
  *
@@ -69,8 +63,6 @@ export const agentSpawnerToolsProvider: CustomToolProvider<'agent-spawner', Agen
 
     create: (config, context): InternalTool[] => {
         const { logger, agent } = context;
-        const backgroundTasksEnabled = isBackgroundTasksEnabled();
-
         const signalBus = new SignalBus();
         const taskRegistry = new TaskRegistry(signalBus);
         const conditionEngine = new ConditionEngine(taskRegistry, signalBus, logger);
@@ -116,9 +108,6 @@ export const agentSpawnerToolsProvider: CustomToolProvider<'agent-spawner', Agen
         };
 
         const triggerBackgroundCompletion = (taskId: string, sessionId?: string) => {
-            if (!backgroundTasksEnabled) {
-                return;
-            }
             if (!sessionId) {
                 return;
             }
@@ -199,10 +188,6 @@ export const agentSpawnerToolsProvider: CustomToolProvider<'agent-spawner', Agen
         };
 
         const handleBackground = (event: ToolBackgroundEvent) => {
-            if (!backgroundTasksEnabled) {
-                event.promise.catch(() => undefined);
-                return;
-            }
             const taskId = event.toolCallId;
             if (taskRegistry.has(taskId)) {
                 return;
@@ -254,18 +239,7 @@ export const agentSpawnerToolsProvider: CustomToolProvider<'agent-spawner', Agen
             backgroundAbortController.abort();
         });
 
-        const tool = createSpawnAgentTool(service, taskRegistry, (taskId, promise, sessionId) => {
-            if (sessionId) {
-                taskSessions.set(taskId, sessionId);
-            }
-
-            emitTasksUpdate(sessionId);
-            promise.finally(() => {
-                taskSessions.delete(taskId);
-                emitTasksUpdate(sessionId);
-                triggerBackgroundCompletion(taskId, sessionId);
-            });
-        });
+        const tool = createSpawnAgentTool(service);
 
         return [
             tool,
