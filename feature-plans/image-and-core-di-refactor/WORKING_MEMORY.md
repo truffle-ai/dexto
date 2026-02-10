@@ -19,15 +19,14 @@
 
 ## Current Task
 
-**Task:** **1.29 Final validation — all registries gone from core**
+**Task:** **2.1 `applyImageDefaults(config, imageDefaults)`**
 **Status:** _Not started_
 **Branch:** `rebuild-di`
 
 ### Plan
-- `rg 'Registry' packages/core/src/ --type ts` → only LLM model registry (legitimate, not a provider registry)
-- `rg 'registry' packages/core/src/ --type ts -i` → audit remaining hits
-- `pnpm run build && pnpm test && pnpm run lint && pnpm run typecheck` → all pass
-- Exit: core is registry‑free. All quality checks pass.
+- Implement merge semantics (Section 12) + unit tests
+- Exit: function works, tests pass, edge cases covered
+_Paused: owner requested stopping before Phase 2._
 
 ### Notes
 _Log findings, issues, and progress here as you work._
@@ -93,6 +92,7 @@ _Move tasks here after completion. Keep a brief log of what was done and any dev
 | 1.26 | `providers/` — delete registry infrastructure | 2026-02-10 | Deleted `packages/core/src/providers/*` and removed core exports. Refactored `CustomToolRegistry` to no longer depend on `BaseRegistry`. Moved `/discovery` provider listing logic into server route. `pnpm run build` + `pnpm test` pass. |
 | 1.27 | `image/` — remove old image infrastructure from core | 2026-02-10 | Deleted `packages/core/src/image/*` and removed core exports. Moved legacy image definition types + validation into `@dexto/image-bundler`, updated `@dexto/image-local` and CLI templates to stop importing `defineImage` from core. `pnpm run build` + `pnpm test` pass. |
 | 1.28 | `index.ts` barrel — remove deleted exports | 2026-02-10 | Removed `customToolSchemaRegistry` from public exports (it’s an internal implementation detail). Audited core index barrels for now-deleted provider/image exports. `pnpm run build` + `pnpm test` pass. |
+| 1.29 | Final validation — all registries gone from core | 2026-02-10 | Verified no legacy provider registry symbols remain (only a `BaseRegistry` mention in a comment). Ran `pnpm run build && pnpm test && pnpm run lint && pnpm run typecheck` (all pass). Fixed a core typecheck failure in `custom-tool-registry.test.ts` by using a typed `SearchService` stub. |
 
 ---
 
@@ -106,7 +106,7 @@ _Move tasks here after completion. Keep a brief log of what was done and any dev
 | Phase 1C — Plugins layer | Completed | 1.8 complete |
 | Phase 1D — Compaction | Completed | 1.9 complete |
 | Phase 1E — Agent shell | Completed | 1.10–1.11 complete |
-| Phase 1F — Vet + cleanup | In progress | 1.12–1.28 complete; 1.29 next |
+| Phase 1F — Vet + cleanup | Completed | 1.12–1.29 complete |
 | Phase 2 — Resolver | Not started | |
 | Phase 3 — Images | Not started | |
 | Phase 4 — CLI/Server | Not started | |
@@ -123,3 +123,4 @@ _Record checkpoint validation results after each phase boundary._
 | After Phase 1B (commit 1.7) | 2026-02-10 | ✅ `pnpm run build` + `pnpm test` pass | — |
 | After Phase 1C (commit 1.8) | 2026-02-10 | ✅ `pnpm run build` + `pnpm test` pass | — |
 | After Phase 1D (commit 1.9) | 2026-02-10 | ✅ `pnpm run build` + `pnpm test` pass | — |
+| After Phase 1F (commit 1.29) | 2026-02-10 | ✅ `pnpm run build` + `pnpm test` + `pnpm run lint` + `pnpm run typecheck` pass | — |

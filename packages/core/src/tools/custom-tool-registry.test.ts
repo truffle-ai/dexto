@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { ToolErrorCode } from './error-codes.js';
 import { ErrorScope, ErrorType } from '../errors/types.js';
 import type { IDextoLogger } from '../logger/v2/types.js';
+import type { SearchService } from '../search/search-service.js';
 import { customToolSchemaRegistry } from './custom-tool-schema-registry.js';
 
 // Mock logger for testing
@@ -478,7 +479,7 @@ describe('CustomToolRegistry', () => {
         it('provider can access services from creation context', () => {
             const servicesSpy = vi.fn();
             const mockServices = {
-                searchService: { search: vi.fn() },
+                searchService: {} as SearchService,
                 customService: { custom: vi.fn() },
             };
 
