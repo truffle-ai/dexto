@@ -307,6 +307,48 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             );
         });
 
+        it('should ignore runInBackground when background tasks are disabled', async () => {
+            const originalEnv = process.env.DEXTO_BACKGROUND_TASKS_ENABLED;
+            process.env.DEXTO_BACKGROUND_TASKS_ENABLED = 'false';
+            try {
+                mockMcpManager.executeTool = vi.fn().mockResolvedValue('sync-result');
+                const emitSpy = vi.fn();
+                mockAgentEventBus.emit = emitSpy as typeof mockAgentEventBus.emit;
+
+                const toolManager = new ToolManager(
+                    mockMcpManager,
+                    mockApprovalManager,
+                    mockAllowedToolsProvider,
+                    'auto-approve',
+                    mockAgentEventBus,
+                    { alwaysAllow: [], alwaysDeny: [] },
+                    { internalToolsConfig: [], internalToolsServices: {} as any },
+                    mockLogger
+                );
+
+                const response = await toolManager.executeTool(
+                    'mcp--file_read',
+                    {
+                        path: '/test',
+                        __dexto: {
+                            runInBackground: true,
+                        },
+                    },
+                    'call-123',
+                    'session-1'
+                );
+
+                expect(response.result).toBe('sync-result');
+                expect(emitSpy).not.toHaveBeenCalledWith('tool:background', expect.anything());
+            } finally {
+                if (originalEnv === undefined) {
+                    delete process.env.DEXTO_BACKGROUND_TASKS_ENABLED;
+                } else {
+                    process.env.DEXTO_BACKGROUND_TASKS_ENABLED = originalEnv;
+                }
+            }
+        });
+
         it('should request approval without sessionId when not provided', async () => {
             mockMcpManager.executeTool = vi.fn().mockResolvedValue('result');
 

@@ -5,7 +5,11 @@
  * The sub-agent will execute the task and return the result.
  */
 
-import type { InternalTool, ToolExecutionContext } from '@dexto/core';
+import {
+    isBackgroundTasksEnabled,
+    type InternalTool,
+    type ToolExecutionContext,
+} from '@dexto/core';
 import type { TaskRegistry } from '@dexto/orchestration';
 import { SpawnAgentInputSchema, type SpawnAgentInput } from './schemas.js';
 import type { RuntimeService } from './runtime-service.js';
@@ -88,7 +92,8 @@ export function createSpawnAgentTool(
                 options.sessionId = context.sessionId;
             }
 
-            if (context?.toolCallId && taskRegistry) {
+            const backgroundTasksEnabled = isBackgroundTasksEnabled();
+            if (backgroundTasksEnabled && context?.toolCallId && taskRegistry) {
                 const promise = service.spawnAndExecute(options).then((result) => {
                     if (!result.success) {
                         throw new Error(result.error ?? 'Unknown error');

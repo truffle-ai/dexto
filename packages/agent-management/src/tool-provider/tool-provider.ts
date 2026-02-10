@@ -15,7 +15,7 @@ import {
     type OrchestrationTool,
     type OrchestrationToolContext,
 } from '@dexto/orchestration';
-import type { ToolBackgroundEvent } from '@dexto/core';
+import { isBackgroundTasksEnabled, type ToolBackgroundEvent } from '@dexto/core';
 import { AgentSpawnerConfigSchema, type AgentSpawnerConfig } from './schemas.js';
 import { RuntimeService } from './runtime-service.js';
 import { createSpawnAgentTool } from './spawn-agent-tool.js';
@@ -63,6 +63,7 @@ export const agentSpawnerToolsProvider: CustomToolProvider<'agent-spawner', Agen
 
     create: (config, context): InternalTool[] => {
         const { logger, agent } = context;
+        const backgroundTasksEnabled = isBackgroundTasksEnabled();
 
         const signalBus = new SignalBus();
         const taskRegistry = new TaskRegistry(signalBus);
@@ -109,6 +110,9 @@ export const agentSpawnerToolsProvider: CustomToolProvider<'agent-spawner', Agen
         };
 
         const triggerBackgroundCompletion = (taskId: string, sessionId?: string) => {
+            if (!backgroundTasksEnabled) {
+                return;
+            }
             if (!sessionId) {
                 return;
             }
@@ -189,6 +193,10 @@ export const agentSpawnerToolsProvider: CustomToolProvider<'agent-spawner', Agen
         };
 
         const handleBackground = (event: ToolBackgroundEvent) => {
+            if (!backgroundTasksEnabled) {
+                event.promise.catch(() => undefined);
+                return;
+            }
             const taskId = event.toolCallId;
             if (taskRegistry.has(taskId)) {
                 return;
