@@ -195,8 +195,10 @@ export async function createTsconfigForImage(projectPath: string): Promise<void>
         include: [
             'dexto.image.ts',
             'tools/**/*',
-            'blob-store/**/*',
-            'compression/**/*',
+            'storage/blob/**/*',
+            'storage/database/**/*',
+            'storage/cache/**/*',
+            'compaction/**/*',
             'plugins/**/*',
         ],
         exclude: ['node_modules', 'dist'],

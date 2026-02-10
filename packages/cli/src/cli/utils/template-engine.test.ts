@@ -75,10 +75,12 @@ describe('template-engine', () => {
             expect(result).toContain(
                 '// Providers are AUTO-DISCOVERED from convention-based folders'
             );
-            expect(result).toContain('//   tools/         - Custom tool providers');
-            expect(result).toContain('//   blob-store/    - Blob storage providers');
-            expect(result).toContain('//   compression/   - Compression strategy providers');
-            expect(result).toContain('//   plugins/       - Plugin providers');
+            expect(result).toContain('//   tools/<type>/index.ts');
+            expect(result).toContain('//   storage/blob/<type>/index.ts');
+            expect(result).toContain('//   storage/database/<type>/index.ts');
+            expect(result).toContain('//   storage/cache/<type>/index.ts');
+            expect(result).toContain('//   plugins/<type>/index.ts');
+            expect(result).toContain('//   compaction/<type>/index.ts');
         });
 
         it('should include extends field when baseImage provided', () => {
@@ -132,7 +134,7 @@ describe('template-engine', () => {
             expect(result).toContain('storage: {');
             expect(result).toContain("type: 'local'");
             expect(result).toContain("type: 'sqlite'");
-            expect(result).toContain('logging: {');
+            expect(result).toContain('logger: {');
         });
     });
 
@@ -213,7 +215,7 @@ describe('template-engine', () => {
             expect(result).toContain('pnpm add my-image');
         });
 
-        it('should use harness terminology for runtime behavior', () => {
+        it('should describe the DextoImageModule contract', () => {
             const result = generateImageReadme({
                 projectName: 'my-image',
                 packageName: 'my-image',
@@ -221,9 +223,8 @@ describe('template-engine', () => {
                 imageName: 'my-image',
             });
 
-            expect(result).toContain('agent harness packaged as an npm module');
-            expect(result).toContain('complete runtime harness');
-            expect(result).toContain('The harness provides:');
+            expect(result).toContain('exports a typed `DextoImageModule`');
+            expect(result).toContain('plain object');
         });
 
         it('should include extends note when baseImage provided', () => {
@@ -251,7 +252,7 @@ describe('template-engine', () => {
             expect(result).toContain('Discovers providers from convention-based folders');
         });
 
-        it('should include architecture explanation', () => {
+        it('should document convention folders', () => {
             const result = generateImageReadme({
                 projectName: 'my-image',
                 packageName: 'my-image',
@@ -259,9 +260,8 @@ describe('template-engine', () => {
                 imageName: 'my-image',
             });
 
-            expect(result).toContain('## Architecture');
-            expect(result).toContain('When imported, this image:');
-            expect(result).toContain('Auto-registers providers (side effect)');
+            expect(result).toContain('storage/blob/<type>/');
+            expect(result).toContain('compaction/<type>/');
         });
     });
 
@@ -270,18 +270,18 @@ describe('template-engine', () => {
             const result = generateExampleTool();
 
             expect(result).toContain("import { z } from 'zod'");
-            expect(result).toContain('import type { CustomToolProvider');
+            expect(result).toContain("import type { ToolFactory } from '@dexto/agent-config'");
             expect(result).toContain('InternalTool');
             expect(result).toContain("type: z.literal('example-tool')");
-            expect(result).toContain('export const exampleToolProvider: CustomToolProvider');
+            expect(result).toContain('export const provider: ToolFactory');
         });
 
         it('should generate tool with custom name', () => {
             const result = generateExampleTool('weather-api');
 
             expect(result).toContain("type: z.literal('weather-api')");
-            expect(result).toContain('export const weatherApiProvider: CustomToolProvider');
-            expect(result).toContain("id: 'weatherApi'");
+            expect(result).toContain('export const provider: ToolFactory');
+            expect(result).toContain("id: 'weather-api'");
         });
 
         it('should include zod schemas', () => {
@@ -305,12 +305,12 @@ describe('template-engine', () => {
         it('should include create function with tool definition', () => {
             const result = generateExampleTool('test-tool');
 
-            expect(result).toContain('create: (config');
-            expect(result).toContain('context');
-            expect(result).toContain('InternalTool[]');
+            expect(result).toContain('create: (_config)');
             expect(result).toContain('const tool: InternalTool = {');
             expect(result).toContain('inputSchema: z.object({');
-            expect(result).toContain('execute: async (input');
+            expect(result).toContain(
+                'execute: async (input: unknown, context: ToolExecutionContext)'
+            );
         });
     });
 

@@ -19,19 +19,20 @@
 
 ## Current Task
 
-**Task:** **3.6 Update `@dexto/image-bundler`**
+**Task:** **4.1 Update CLI entry point (`packages/cli/src/index.ts`)**
 **Status:** _Not started_
 **Branch:** `rebuild-di`
 
 ### Plan
-- Rewrite the bundler output to generate a `DextoImageModule` object literal with explicit imports
-- Remove `.toString()` injection and duck-typed export discovery
-- Align folder conventions to typed maps (`tools/*`, `storage/{blob,database,cache}/*`, etc.)
-- Exit: bundler generates a valid module that `loadImage()` can import + validate; build/tests pass
+- Replace side-effect image import with `loadImage()` from `@dexto/agent-config`
+- Apply image defaults + resolve services: `applyImageDefaults()` → `resolveServicesFromConfig()`
+- Use `toDextoAgentOptions()` (validated config + resolved services → `DextoAgentOptions`)
+- Remove `imageMetadata?.bundledPlugins` enrichment path (temporary; see Phase 3.6 notes)
+- Exit: `dexto` CLI starts successfully with `@dexto/image-local`; basic chat/tools work end-to-end
 
 ### Notes
 _Log findings, issues, and progress here as you work._
-2026-02-10: Phase 3.5 completed: `@dexto/image-local` now exports a hand-written `DextoImageModule` with factory maps (no side effects). `pnpm -w run build:packages` passes; `pnpm -C packages/image-local test` passes.
+2026-02-10: Phase 3.6 completed: `@dexto/image-bundler` now generates a typed `DextoImageModule` entrypoint (no side effects). `pnpm -w run build:packages` + `pnpm -w test` pass.
 
 ---
 
@@ -106,6 +107,7 @@ _Move tasks here after completion. Keep a brief log of what was done and any dev
 | 3.2 | Create `@dexto/storage` package | 2026-02-10 | Added `packages/storage/` (schemas + providers + factories) and removed concrete storage implementations/schemas from core (core is interfaces + `StorageManager` only). Updated host layers (CLI/server/agent-management) to inject `overrides.storageManager`. Updated webui to import storage types/constants from `@dexto/storage/schemas`. `pnpm -w build:packages` passes. |
 | 3.4 | Adapt existing tool provider packages | 2026-02-10 | Added `ToolFactory` exports for `@dexto/tools-filesystem`, `@dexto/tools-process`, `@dexto/tools-todo`, `@dexto/tools-plan` for image-local consumption (registry-free). `pnpm -w build:packages` + `pnpm -w test` pass. |
 | 3.5 | Rewrite `@dexto/image-local` as hand-written `DextoImageModule` | 2026-02-10 | Deleted bundler entrypoint and replaced with hand-written `DextoImageModule` export. Added `defaultLoggerFactory` in core and a lazy `agentSpawnerToolsFactory` adapter in agent-management. Included a temporary placeholder for `reactive-overflow` compaction (remove-by: 4.1). `pnpm -w build:packages` + `pnpm -C packages/image-local test` pass. |
+| 3.6 | Update `@dexto/image-bundler` | 2026-02-10 | Bundler now generates a `DextoImageModule` (explicit imports, no `.toString()`, no duck-typing). Providers are discovered from convention folders and must export `provider`. Updated `dexto create-image` scaffolding/templates to match new folder structure + provider contract. Added a bundler integration test. `pnpm -w build:packages` + `pnpm -w test` pass. |
 
 ---
 
@@ -121,8 +123,8 @@ _Move tasks here after completion. Keep a brief log of what was done and any dev
 | Phase 1E — Agent shell | Completed | 1.10–1.11 complete |
 | Phase 1F — Vet + cleanup | Completed | 1.12–1.29 complete |
 | Phase 2 — Resolver | Completed | 2.5, 2.1, 2.2, 2.6, 2.3 complete (2.4 deferred) |
-| Phase 3 — Images | In progress | |
-| Phase 4 — CLI/Server | Not started | |
+| Phase 3 — Images | Completed | 3.3 deferred; 3.5 image-local + 3.6 bundler updated |
+| Phase 4 — CLI/Server | In progress | 4.1 next |
 | Phase 5 — Cleanup | Not started | |
 
 ---
@@ -138,3 +140,4 @@ _Record checkpoint validation results after each phase boundary._
 | After Phase 1D (commit 1.9) | 2026-02-10 | ✅ `pnpm run build` + `pnpm test` pass | — |
 | After Phase 1F (commit 1.29) | 2026-02-10 | ✅ `pnpm run build` + `pnpm test` + `pnpm run lint` + `pnpm run typecheck` pass | — |
 | After Phase 2 | 2026-02-10 | ✅ `pnpm -w run build:packages` + `pnpm -w test` pass | — |
+| After Phase 3 (commit 3.6) | 2026-02-10 | ✅ `pnpm -w run build:packages` + `pnpm -w test` pass | Logger extraction deferred; compaction DI mismatch tracked (remove-by: 4.1) |

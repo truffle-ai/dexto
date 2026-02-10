@@ -3,7 +3,7 @@
  */
 
 import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, statSync } from 'node:fs';
-import { dirname, join, resolve, relative, extname } from 'node:path';
+import { dirname, join, resolve, relative, extname, basename } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { validateImageDefinition } from './image-definition/validate-image-definition.js';
 import type { ImageDefinition } from './image-definition/types.js';
@@ -38,7 +38,7 @@ export async function bundle(options: BundleOptions): Promise<BundleResult> {
     // 3.5. Discover providers from convention-based folders
     console.log(`🔍 Discovering providers from folders...`);
     const imageDir = dirname(options.imagePath);
-    const discoveredProviders = discoverProviders(imageDir);
+    const discoveredProviders = discoverProviders(imageDir, warnings);
     console.log(`✅ Discovered ${discoveredProviders.totalCount} provider(s)`);
 
     // 4. Generate code
@@ -51,17 +51,58 @@ export async function bundle(options: BundleOptions): Promise<BundleResult> {
         mkdirSync(outDir, { recursive: true });
     }
 
-    // 5.5. Compile provider category folders
+    // 5.5. Compile provider folders
     console.log(`🔨 Compiling provider source files...`);
-    const categories = ['blob-store', 'tools', 'compaction', 'plugins'];
     let compiledCount = 0;
 
-    for (const category of categories) {
-        const categoryDir = join(imageDir, category);
-        if (existsSync(categoryDir)) {
-            compileSourceFiles(categoryDir, join(outDir, category));
-            compiledCount++;
-        }
+    // tools/
+    const toolsDir = join(imageDir, 'tools');
+    if (existsSync(toolsDir)) {
+        compileSourceFiles(toolsDir, join(outDir, 'tools'));
+        compiledCount++;
+    }
+
+    // plugins/
+    const pluginsDir = join(imageDir, 'plugins');
+    if (existsSync(pluginsDir)) {
+        compileSourceFiles(pluginsDir, join(outDir, 'plugins'));
+        compiledCount++;
+    }
+
+    // compaction/ (preferred) or compression/ (legacy)
+    const compactionDir = existsSync(join(imageDir, 'compaction'))
+        ? join(imageDir, 'compaction')
+        : existsSync(join(imageDir, 'compression'))
+          ? join(imageDir, 'compression')
+          : null;
+    if (compactionDir) {
+        compileSourceFiles(compactionDir, join(outDir, 'compaction'));
+        compiledCount++;
+    }
+
+    // storage/blob (preferred) or blob-store (legacy)
+    const storageBlobDir = existsSync(join(imageDir, 'storage', 'blob'))
+        ? join(imageDir, 'storage', 'blob')
+        : existsSync(join(imageDir, 'blob-store'))
+          ? join(imageDir, 'blob-store')
+          : null;
+    if (storageBlobDir) {
+        compileSourceFiles(storageBlobDir, join(outDir, 'storage', 'blob'));
+        compiledCount++;
+    }
+
+    // storage/database/
+    const storageDatabaseDir = join(imageDir, 'storage', 'database');
+    if (existsSync(storageDatabaseDir)) {
+        compileSourceFiles(storageDatabaseDir, join(outDir, 'storage', 'database'));
+        compiledCount++;
+    }
+
+    // storage/cache/
+    const storageCacheDir = join(imageDir, 'storage', 'cache');
+    if (existsSync(storageCacheDir)) {
+        compileSourceFiles(storageCacheDir, join(outDir, 'storage', 'cache'));
+        compiledCount++;
     }
 
     if (compiledCount > 0) {
@@ -69,6 +110,10 @@ export async function bundle(options: BundleOptions): Promise<BundleResult> {
             `✅ Compiled ${compiledCount} provider categor${compiledCount === 1 ? 'y' : 'ies'}`
         );
     }
+
+    // 5.6. Validate discovered providers export the required contract
+    console.log(`🔍 Validating provider exports...`);
+    await validateDiscoveredProviders(outDir, discoveredProviders);
 
     // 6. Write generated files
     const entryFile = join(outDir, 'index.js');
@@ -279,11 +324,20 @@ function findTypeScriptFiles(dir: string): string[] {
 /**
  * Provider discovery result for a single category
  */
+export interface DiscoveredProvider {
+    type: string;
+    importPath: string;
+}
+
 export interface DiscoveredProviders {
-    blobStore: string[];
-    customTools: string[];
-    compaction: string[];
-    plugins: string[];
+    tools: DiscoveredProvider[];
+    storage: {
+        blob: DiscoveredProvider[];
+        database: DiscoveredProvider[];
+        cache: DiscoveredProvider[];
+    };
+    plugins: DiscoveredProvider[];
+    compaction: DiscoveredProvider[];
     totalCount: number;
 }
 
@@ -304,58 +358,208 @@ export interface DiscoveredProviders {
  *   <folder>/index.ts    - Auto-discovered and registered
  *   <folder>/other.ts    - Ignored unless imported by index.ts
  */
-function discoverProviders(imageDir: string): DiscoveredProviders {
+function discoverProviders(imageDir: string, warnings: string[]): DiscoveredProviders {
     const result: DiscoveredProviders = {
-        blobStore: [],
-        customTools: [],
-        compaction: [],
+        tools: [],
+        storage: {
+            blob: [],
+            database: [],
+            cache: [],
+        },
         plugins: [],
+        compaction: [],
         totalCount: 0,
     };
 
-    // Category mapping: folder name -> property name
-    const categories = {
-        'blob-store': 'blobStore',
-        tools: 'customTools',
-        compaction: 'compaction',
-        plugins: 'plugins',
-    } as const;
+    const discoverFolder = (options: {
+        srcDir: string;
+        importBase: string;
+        label: string;
+    }): DiscoveredProvider[] => {
+        const { srcDir, importBase, label } = options;
 
-    for (const [folderName, propName] of Object.entries(categories)) {
-        const categoryDir = join(imageDir, folderName);
-
-        if (!existsSync(categoryDir)) {
-            continue;
+        if (!existsSync(srcDir)) {
+            return [];
         }
 
-        // Find all provider folders (those with index.ts)
-        const providerFolders = readdirSync(categoryDir)
-            .filter((entry) => {
-                const entryPath = join(categoryDir, entry);
-                const stat = statSync(entryPath);
+        const providerFolders = readdirSync(srcDir).filter((entry) => {
+            const entryPath = join(srcDir, entry);
+            const stat = statSync(entryPath);
+            if (!stat.isDirectory()) {
+                return false;
+            }
 
-                // Must be a directory
-                if (!stat.isDirectory()) {
-                    return false;
-                }
-
-                // Must contain index.ts
-                const indexPath = join(entryPath, 'index.ts');
-                return existsSync(indexPath);
-            })
-            .map((folder) => {
-                // Return relative path for imports
-                return `./${folderName}/${folder}/index.js`;
-            });
+            const indexPath = join(entryPath, 'index.ts');
+            return existsSync(indexPath);
+        });
 
         if (providerFolders.length > 0) {
-            result[propName as keyof Omit<DiscoveredProviders, 'totalCount'>].push(
-                ...providerFolders
-            );
-            result.totalCount += providerFolders.length;
-            console.log(`   Found ${providerFolders.length} provider(s) in ${folderName}/`);
+            console.log(`   Found ${providerFolders.length} provider(s) in ${label}`);
         }
+
+        return providerFolders.map((type) => ({
+            type,
+            importPath: `./${importBase}/${type}/index.js`,
+        }));
+    };
+
+    // tools/
+    result.tools = discoverFolder({
+        srcDir: join(imageDir, 'tools'),
+        importBase: 'tools',
+        label: 'tools/',
+    });
+
+    // plugins/
+    result.plugins = discoverFolder({
+        srcDir: join(imageDir, 'plugins'),
+        importBase: 'plugins',
+        label: 'plugins/',
+    });
+
+    // compaction/ (preferred) or compression/ (legacy)
+    const compactionSrcDir = existsSync(join(imageDir, 'compaction'))
+        ? join(imageDir, 'compaction')
+        : existsSync(join(imageDir, 'compression'))
+          ? join(imageDir, 'compression')
+          : null;
+    if (compactionSrcDir) {
+        if (basename(compactionSrcDir) === 'compression') {
+            warnings.push(
+                "Legacy folder 'compression/' detected. Prefer 'compaction/' going forward."
+            );
+        }
+        result.compaction = discoverFolder({
+            srcDir: compactionSrcDir,
+            importBase: 'compaction',
+            label: `${relative(imageDir, compactionSrcDir)}/`,
+        });
+    }
+
+    // storage/blob (preferred) or blob-store (legacy)
+    const storageBlobSrcDir = existsSync(join(imageDir, 'storage', 'blob'))
+        ? join(imageDir, 'storage', 'blob')
+        : existsSync(join(imageDir, 'blob-store'))
+          ? join(imageDir, 'blob-store')
+          : null;
+    if (storageBlobSrcDir) {
+        if (basename(storageBlobSrcDir) === 'blob-store') {
+            warnings.push(
+                "Legacy folder 'blob-store/' detected. Prefer 'storage/blob/' going forward."
+            );
+        }
+        result.storage.blob = discoverFolder({
+            srcDir: storageBlobSrcDir,
+            importBase: 'storage/blob',
+            label: `${relative(imageDir, storageBlobSrcDir)}/`,
+        });
+    }
+
+    // storage/database/
+    result.storage.database = discoverFolder({
+        srcDir: join(imageDir, 'storage', 'database'),
+        importBase: 'storage/database',
+        label: 'storage/database/',
+    });
+
+    // storage/cache/
+    result.storage.cache = discoverFolder({
+        srcDir: join(imageDir, 'storage', 'cache'),
+        importBase: 'storage/cache',
+        label: 'storage/cache/',
+    });
+
+    result.totalCount =
+        result.tools.length +
+        result.plugins.length +
+        result.compaction.length +
+        result.storage.blob.length +
+        result.storage.database.length +
+        result.storage.cache.length;
+
+    if (result.totalCount === 0) {
+        warnings.push(
+            'No providers discovered from convention folders. This image will not be able to resolve tools/storage unless it extends a base image.'
+        );
     }
 
     return result;
+}
+
+async function validateProviderExport(options: {
+    outDir: string;
+    kind: string;
+    entry: DiscoveredProvider;
+}): Promise<void> {
+    const { outDir, kind, entry } = options;
+
+    const absolutePath = resolve(outDir, entry.importPath);
+    const fileUrl = pathToFileURL(absolutePath).href;
+
+    let module: unknown;
+    try {
+        module = await import(fileUrl);
+    } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        throw new Error(
+            `Failed to import ${kind} provider '${entry.type}' (${entry.importPath}): ${message}`
+        );
+    }
+
+    if (!module || typeof module !== 'object') {
+        throw new Error(
+            `Invalid ${kind} provider '${entry.type}' (${entry.importPath}): expected an object module export`
+        );
+    }
+
+    const provider = (module as Record<string, unknown>).provider;
+    if (!provider || typeof provider !== 'object') {
+        throw new Error(
+            `Invalid ${kind} provider '${entry.type}' (${entry.importPath}): missing 'provider' export`
+        );
+    }
+
+    const configSchema = (provider as Record<string, unknown>).configSchema;
+    const create = (provider as Record<string, unknown>).create;
+
+    const parse = (configSchema as { parse?: unknown } | null | undefined)?.parse;
+    if (!configSchema || typeof configSchema !== 'object' || typeof parse !== 'function') {
+        throw new Error(
+            `Invalid ${kind} provider '${entry.type}' (${entry.importPath}): provider.configSchema must be a Zod schema`
+        );
+    }
+
+    if (typeof create !== 'function') {
+        throw new Error(
+            `Invalid ${kind} provider '${entry.type}' (${entry.importPath}): provider.create must be a function`
+        );
+    }
+}
+
+async function validateDiscoveredProviders(
+    outDir: string,
+    discovered: DiscoveredProviders
+): Promise<void> {
+    const validations: Array<Promise<void>> = [];
+
+    for (const entry of discovered.tools) {
+        validations.push(validateProviderExport({ outDir, kind: 'tool', entry }));
+    }
+    for (const entry of discovered.plugins) {
+        validations.push(validateProviderExport({ outDir, kind: 'plugin', entry }));
+    }
+    for (const entry of discovered.compaction) {
+        validations.push(validateProviderExport({ outDir, kind: 'compaction', entry }));
+    }
+    for (const entry of discovered.storage.blob) {
+        validations.push(validateProviderExport({ outDir, kind: 'storage.blob', entry }));
+    }
+    for (const entry of discovered.storage.database) {
+        validations.push(validateProviderExport({ outDir, kind: 'storage.database', entry }));
+    }
+    for (const entry of discovered.storage.cache) {
+        validations.push(validateProviderExport({ outDir, kind: 'storage.cache', entry }));
+    }
+
+    await Promise.all(validations);
 }

@@ -43,36 +43,6 @@ export function validateImageDefinition(definition: ImageDefinition): void {
         );
     }
 
-    // Validate provider categories
-    // Allow empty providers if extending a base image (providers inherited from base)
-    const hasProviders =
-        definition.providers &&
-        Object.values(definition.providers).some((config) => config !== undefined);
-
-    if (!hasProviders && !definition.extends) {
-        throw new Error(
-            'Image must either define at least one provider category or extend a base image'
-        );
-    }
-
-    for (const [category, config] of Object.entries(definition.providers)) {
-        if (!config) continue;
-
-        if (!config.providers && !config.register) {
-            throw new Error(
-                `Provider category '${category}' must have either 'providers' array or 'register' function`
-            );
-        }
-
-        if (config.providers && !Array.isArray(config.providers)) {
-            throw new Error(`Provider category '${category}' providers must be an array`);
-        }
-
-        if (config.register && typeof config.register !== 'function') {
-            throw new Error(`Provider category '${category}' register must be a function`);
-        }
-    }
-
     // Validate constraints if provided
     const validConstraints = [
         'filesystem-required',
@@ -95,6 +65,18 @@ export function validateImageDefinition(definition: ImageDefinition): void {
                 throw new Error(
                     `Invalid constraint '${constraint}'. Valid constraints: ${validConstraints.join(', ')}`
                 );
+            }
+        }
+    }
+
+    // Validate bundled plugins if provided
+    if (definition.bundledPlugins) {
+        if (!Array.isArray(definition.bundledPlugins)) {
+            throw new Error('Image bundledPlugins must be an array');
+        }
+        for (const pluginPath of definition.bundledPlugins) {
+            if (typeof pluginPath !== 'string') {
+                throw new Error('Image bundledPlugins entries must be strings');
             }
         }
     }

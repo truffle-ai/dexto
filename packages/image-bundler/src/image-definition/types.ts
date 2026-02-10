@@ -1,219 +1,75 @@
 /**
- * Legacy Image Definition Types (bundler-only)
+ * Image Definition Types (bundler-only)
  *
- * TODO: temporary glue code to be removed/verified (remove-by: 5.1)
+ * The bundler consumes a `dexto.image.ts` file that declares metadata and defaults.
+ * Concrete tools/storage/plugins/compaction providers are discovered from convention folders
+ * and must `export const provider = ...` from their `index.ts`.
+ */
+
+import type { ImageConstraint, ImageDefaults, ImageTarget } from '@dexto/agent-config';
+
+export type { ImageConstraint, ImageDefaults, ImageTarget };
+
+/**
+ * Image definition structure consumed by `@dexto/image-bundler`.
  *
- * These types represent the legacy `dexto.image.ts` shape consumed by `@dexto/image-bundler`.
- * The long-term replacement is the typed `DextoImageModule` contract in `@dexto/agent-config`.
- */
-
-/**
- * Generic provider interface that all provider types should extend.
- *
- * Note: This is a simplified interface for legacy image definitions.
- * Concrete provider implementations should use the specific provider interfaces
- * from their respective modules (e.g., BlobStoreProvider).
- */
-export interface ImageProvider<TType extends string = string> {
-    /** Unique type identifier for this provider (e.g., 'sqlite', 'local', 's3') */
-    type: TType;
-    /** Schema-like object for validating provider configuration (legacy) */
-    configSchema: unknown;
-    /** Factory function to create provider instance (legacy) */
-    create: (config: unknown, deps: unknown) => unknown;
-    /** Optional metadata about the provider */
-    metadata?: ProviderMetadata;
-}
-
-/**
- * Metadata about a provider's characteristics and requirements
- */
-export interface ProviderMetadata {
-    /** Human-readable display name */
-    displayName?: string;
-    /** Brief description of what this provider does */
-    description?: string;
-    /** Whether this provider requires network connectivity */
-    requiresNetwork?: boolean;
-    /** Whether this provider requires filesystem access */
-    requiresFilesystem?: boolean;
-    /** Persistence level of storage providers */
-    persistenceLevel?: 'ephemeral' | 'persistent';
-    /** Platforms this provider is compatible with */
-    platforms?: ('node' | 'browser' | 'edge' | 'worker')[];
-}
-
-/**
- * Registry function that registers providers on module initialization.
- * Called automatically when the image is imported.
- */
-export type ProviderRegistrationFn = () => void | Promise<void>;
-
-/**
- * Configuration for a single provider category in an image.
- * Supports both direct provider objects and registration functions.
- */
-export interface ProviderCategoryConfig {
-    /** Direct provider objects to register */
-    providers?: ImageProvider[];
-    /** Registration function for complex initialization */
-    register?: ProviderRegistrationFn;
-}
-
-/**
- * Complete image definition structure.
- * This is what legacy `dexto.image.ts` exports.
+ * Note: Provider factories are discovered from folders; this file is metadata + defaults only.
  */
 export interface ImageDefinition {
-    /** Unique name for this image (e.g., 'local', 'cloud', 'edge') */
+    /** Unique name for this image (e.g., 'image-local') */
     name: string;
     /** Semantic version of this image */
     version: string;
-    /** Brief description of this image's purpose and target environment */
+    /** Brief description of this image's purpose */
     description: string;
+
     /** Target deployment environment (for documentation and validation) */
     target?: ImageTarget;
 
-    /**
-     * Provider categories to register.
-     * Each category can include direct providers or a registration function.
-     */
-    providers: {
-        /** Blob storage providers (e.g., local filesystem, S3, R2) */
-        blobStore?: ProviderCategoryConfig;
-        /** Database providers (e.g., SQLite, PostgreSQL, D1) */
-        database?: ProviderCategoryConfig;
-        /** Cache providers (e.g., in-memory, Redis, KV) */
-        cache?: ProviderCategoryConfig;
-        /** Custom tool providers (e.g., datetime helpers, API integrations) */
-        customTools?: ProviderCategoryConfig;
-        /** Plugin providers (e.g., audit logging, content filtering) */
-        plugins?: ProviderCategoryConfig;
-        /** Compression strategy providers (e.g., sliding window, summarization) */
-        compression?: ProviderCategoryConfig;
-    };
+    /** Runtime constraints this image requires (for validation and error messages) */
+    constraints?: ImageConstraint[];
+
+    /** Parent image package name to extend (optional) */
+    extends?: string;
 
     /**
-     * Default configuration values.
-     * Used when agent config doesn't specify values.
-     * Merged with agent config during agent creation.
+     * Default configuration values (merged into agent config; config wins).
+     *
+     * This must match the `AgentConfig` shape. Unknown fields will be rejected by schema validation.
      */
     defaults?: ImageDefaults;
 
     /**
-     * Runtime constraints this image requires.
-     * Used for validation and error messages.
+     * Bundled plugin paths (absolute paths to plugin directories).
+     *
+     * TODO: temporary glue code to be removed/verified (remove-by: 4.1)
+     * The current CLI enrichment flow still supports this.
      */
-    constraints?: ImageConstraint[];
+    bundledPlugins?: string[];
 
     /**
-     * Utilities exported by this image.
-     * Maps utility name to file path (relative to image root).
-     *
-     * Example:
-     * {
-     *   configEnrichment: './utils/config.js',
-     *   lifecycle: './utils/lifecycle.js'
-     * }
+     * Utility exports (optional).
+     * Maps export name to file path (relative to image root).
      */
     utils?: Record<string, string>;
 
     /**
-     * Selective named exports from packages.
-     * Allows re-exporting specific types and values from dependencies.
-     *
-     * Example:
-     * {
-     *   '@dexto/core': ['logger', 'createAgentCard', 'type DextoAgent'],
-     *   '@dexto/utils': ['formatDate', 'parseConfig']
-     * }
+     * Selective named exports from packages (optional).
      */
     exports?: Record<string, string[]>;
 
     /**
-     * Parent image to extend (for image inheritance).
-     * Optional: enables creating specialized images from base images.
+     * Legacy provider configuration (deprecated / ignored).
+     *
+     * Kept only for backwards compatibility with older `dexto.image.ts` templates that included
+     * a placeholder `providers` object for validation.
      */
-    extends?: string;
-
-    /**
-     * Bundled plugin paths.
-     * Absolute paths to plugin directories containing .dexto-plugin or .claude-plugin manifests.
-     * These plugins are automatically discovered alongside user/project plugins.
-     */
-    bundledPlugins?: string[];
-}
-
-/**
- * Target deployment environments for images.
- * Helps users choose the right image for their use case.
- */
-export type ImageTarget =
-    | 'local-development'
-    | 'cloud-production'
-    | 'edge-serverless'
-    | 'embedded-iot'
-    | 'enterprise'
-    | 'custom';
-
-/**
- * Runtime constraints that an image requires.
- * Used for validation and helpful error messages.
- */
-export type ImageConstraint =
-    | 'filesystem-required'
-    | 'network-required'
-    | 'offline-capable'
-    | 'serverless-compatible'
-    | 'cold-start-optimized'
-    | 'low-memory'
-    | 'edge-compatible'
-    | 'browser-compatible';
-
-/**
- * Default configuration values provided by an image.
- * These are used when agent config doesn't specify values.
- */
-export interface ImageDefaults {
-    /** Default storage configuration */
-    storage?: {
-        database?: {
-            type: string;
-            [key: string]: any;
-        };
-        blob?: {
-            type: string;
-            [key: string]: any;
-        };
-        cache?: {
-            type: string;
-            [key: string]: any;
-        };
-    };
-    /** Default logging configuration */
-    logging?: {
-        level?: 'debug' | 'info' | 'warn' | 'error';
-        fileLogging?: boolean;
-        [key: string]: any;
-    };
-    /** Default LLM configuration */
-    llm?: {
-        provider?: string;
-        model?: string;
-        [key: string]: any;
-    };
-    /** Default tool configuration */
-    tools?: {
-        internalTools?: string[];
-        [key: string]: any;
-    };
-    /** Other default values */
-    [key: string]: any;
+    providers?: unknown;
 }
 
 /**
  * Metadata about a built image (generated by bundler).
- * Included in the compiled image output.
+ * Included in the compiled image output as `export const imageMetadata`.
  */
 export interface ImageMetadata {
     /** Image name */

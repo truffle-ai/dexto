@@ -611,19 +611,14 @@ const image = {
     target: '${context.target || 'local-development'}',
 ${extendsField}
     // Providers are AUTO-DISCOVERED from convention-based folders:
-    //   tools/         - Custom tool providers
-    //   blob-store/    - Blob storage providers
-    //   compression/   - Compression strategy providers
-    //   plugins/       - Plugin providers
+    //   tools/<type>/index.ts
+    //   storage/blob/<type>/index.ts
+    //   storage/database/<type>/index.ts
+    //   storage/cache/<type>/index.ts
+    //   plugins/<type>/index.ts
+    //   compaction/<type>/index.ts
     //
-    // Each provider must export from an index.ts file in its folder.
-    // The bundler will automatically register them when the image is imported.
-
-    providers: {
-        // Placeholder category to satisfy legacy validation.
-        // Actual providers are discovered from convention-based folders.
-        customTools: { providers: [] },
-    },
+    // Each provider module must export a provider constant (export const provider = ...).
 
     defaults: {
         storage: {
@@ -639,9 +634,9 @@ ${extendsField}
                 type: 'in-memory',
             },
         },
-        logging: {
+        logger: {
             level: 'info',
-            fileLogging: true,
+            transports: [{ type: 'console', colorize: true }],
         },
     },
 
@@ -730,16 +725,14 @@ ${context.description}${extendsNote}
 
 ## What is this?
 
-A **Dexto image** - a pre-configured agent harness packaged as an npm module.
-Install it, import it, and you have a complete runtime harness ready to use.
+A **Dexto image** is a distributable npm module that exports a typed \`DextoImageModule\` (a plain object)
+describing tool/storage/plugin/compaction factories + optional default config.
 
 ## What's Included
 
-The harness provides:
-- ✅ Pre-registered providers (auto-discovered from convention-based folders)
-- ✅ Runtime orchestration
-- ✅ Context management
-- ✅ Default configurations
+This package contains:
+- ✅ Provider factories (auto-discovered from convention-based folders)
+- ✅ Optional defaults (\`image.defaults\`) that merge into agent config (config wins)
 
 ## Quick Start
 
@@ -747,34 +740,26 @@ The harness provides:
 # Build the image
 pnpm run build
 
-# Use in your app
+# Install it
 pnpm add ${imageName}
 \`\`\`
 
 ## Usage
 
-\`\`\`typescript
-import { createAgent } from '${imageName}';
-import { loadAgentConfig } from '@dexto/agent-management';
-
-const config = await loadAgentConfig('./agents/default.yml');
-
-// Import creates the harness (providers auto-registered)
-const agent = createAgent(config);
-
-// The harness handles everything
-await agent.start();
-\`\`\`
+Set \`image: '${imageName}'\` in your agent config (or pass \`--image\` in the CLI), then run Dexto.
 
 ## Adding Providers
 
 Add your custom providers to convention-based folders:
-- \`tools/\` - Custom tool providers
-- \`blob-store/\` - Blob storage providers
-- \`compression/\` - Compression strategies
-- \`plugins/\` - Plugin providers
+- \`tools/<type>/\` - Tool factories
+- \`storage/blob/<type>/\` - Blob storage factories
+- \`storage/database/<type>/\` - Database factories
+- \`storage/cache/<type>/\` - Cache factories
+- \`plugins/<type>/\` - Plugin factories
+- \`compaction/<type>/\` - Compaction factories
 
 **Convention:** Each provider lives in its own folder with an \`index.ts\` file.
+Each \`index.ts\` must export a \`provider\` constant (e.g. \`export const provider = myToolFactory;\`).
 
 Example:
 \`\`\`
@@ -791,20 +776,10 @@ tools/
 pnpm run build
 \`\`\`
 
-This runs \`dexto-bundle build\` which:
+This runs \`dexto-bundle build\`, which:
 1. Discovers providers from convention-based folders
-2. Generates \`dist/index.js\` with side-effect registration
-3. Exports \`createAgent()\` factory function
-
-## Architecture
-
-When imported, this image:
-1. Auto-registers providers (side effect)
-2. Exposes harness factory (\`createAgent\`)
-3. Re-exports registries for runtime customization
-
-The resulting harness manages your agent's runtime, including provider lifecycle,
-context management, and tool orchestration.
+2. Compiles provider source files to \`dist/\`
+3. Generates \`dist/index.js\` exporting a \`DextoImageModule\` (no side effects)
 
 ## Publishing
 
@@ -832,7 +807,8 @@ export function generateExampleTool(toolName: string = 'example-tool'): string {
     // Convert kebab-case to camelCase for provider name
     const providerName = toolName.replace(/-([a-z])/g, (_, char) => char.toUpperCase());
     return `import { z } from 'zod';
-import type { CustomToolProvider, InternalTool, ToolCreationContext } from '@dexto/core';
+import type { ToolFactory } from '@dexto/agent-config';
+import type { InternalTool, ToolExecutionContext } from '@dexto/core';
 
 const ConfigSchema = z
     .object({
@@ -844,29 +820,31 @@ const ConfigSchema = z
 type ${providerName.charAt(0).toUpperCase() + providerName.slice(1)}Config = z.output<typeof ConfigSchema>;
 
 /**
- * Example custom tool provider
+ * Example tool factory provider
  *
- * This demonstrates how to create a custom tool that can be used by the agent.
- * The tool is auto-discovered by the bundler when placed in the tools/ folder.
+ * This demonstrates how to create a tool factory that can be used by an image.
+ * The bundler auto-discovers this module when placed in tools/<type>/index.ts.
+ *
+ * Contract: export a provider constant with { configSchema, create }.
  */
-export const ${providerName}Provider: CustomToolProvider<'${toolName}', ${providerName.charAt(0).toUpperCase() + providerName.slice(1)}Config> = {
-    type: '${toolName}',
+export const provider: ToolFactory<${providerName.charAt(0).toUpperCase() + providerName.slice(1)}Config> = {
     configSchema: ConfigSchema,
-
-    create: (config: ${providerName.charAt(0).toUpperCase() + providerName.slice(1)}Config, context: ToolCreationContext): InternalTool[] => {
-        // Create and return tools
+    metadata: {
+        displayName: 'Example Tool',
+        description: 'Example tool factory provider',
+        category: 'utilities',
+    },
+    create: (_config) => {
         const tool: InternalTool = {
-            id: '${providerName}',
-            description: 'An example custom tool that demonstrates the tool provider pattern',
+            id: '${toolName}',
+            description: 'An example tool that demonstrates the tool factory pattern',
             inputSchema: z.object({
                 input: z.string().describe('Input text to process'),
             }),
-
-            execute: async (input: unknown) => {
+            execute: async (input: unknown, context: ToolExecutionContext) => {
                 const { input: inputText } = input as { input: string };
                 context.logger.info(\`Example tool called with: \${inputText}\`);
 
-                // Your tool logic here
                 return {
                     result: \`Processed: \${inputText}\`,
                 };
@@ -874,12 +852,6 @@ export const ${providerName}Provider: CustomToolProvider<'${toolName}', ${provid
         };
 
         return [tool];
-    },
-
-    metadata: {
-        displayName: 'Example Tool',
-        description: 'Example custom tool provider',
-        category: 'utilities',
     },
 };
 `;

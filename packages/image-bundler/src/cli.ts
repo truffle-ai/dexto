@@ -82,7 +82,11 @@ program
                     `   1. Install it: pnpm add ${packageName}@file:../${packageName.split('/').pop()}`
                 )
             );
-            console.log(pc.dim(`   2. Import it:  import { createAgent } from '${packageName}';`));
+            console.log(
+                pc.dim(
+                    `   2. Use it:      set \`image: "${packageName}"\` in your agent config (or pass --image in the CLI)`
+                )
+            );
             console.log(pc.dim(`\n   Or publish to npm and install normally.`));
         } catch (error) {
             console.error(pc.red('\n❌ Build failed:'), error);

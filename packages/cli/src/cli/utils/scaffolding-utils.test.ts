@@ -314,7 +314,10 @@ describe('scaffolding-utils', () => {
                     include: expect.arrayContaining([
                         'dexto.image.ts',
                         'tools/**/*',
-                        'blob-store/**/*',
+                        'storage/blob/**/*',
+                        'storage/database/**/*',
+                        'storage/cache/**/*',
+                        'compaction/**/*',
                     ]),
                 }),
                 { spaces: 2 }

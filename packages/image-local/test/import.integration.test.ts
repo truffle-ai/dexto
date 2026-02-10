@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { loadImage } from '@dexto/agent-config';
+import path from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 /**
  * Integration test to ensure image-local can be imported successfully and
@@ -7,7 +9,14 @@ import { loadImage } from '@dexto/agent-config';
  */
 describe('Image Local - Import Integration', () => {
     it('loads as a valid DextoImageModule', async () => {
-        const image = await loadImage('@dexto/image-local');
+        const metaResolve = (import.meta as unknown as { resolve?: (s: string) => string }).resolve;
+        const imageSpecifier = metaResolve
+            ? metaResolve('@dexto/image-local')
+            : pathToFileURL(
+                  path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'dist', 'index.js')
+              ).href;
+
+        const image = await loadImage(imageSpecifier);
 
         expect(image.metadata.name).toBe('image-local');
 

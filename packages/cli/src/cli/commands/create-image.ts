@@ -136,13 +136,17 @@ export async function createImage(name?: string): Promise<string> {
 
         // Create convention-based folders
         await ensureDirectory('tools');
-        await ensureDirectory('blob-store');
-        await ensureDirectory('compression');
+        await ensureDirectory('storage/blob');
+        await ensureDirectory('storage/database');
+        await ensureDirectory('storage/cache');
+        await ensureDirectory('compaction');
         await ensureDirectory('plugins');
 
         // Create .gitkeep files for empty directories
-        await fs.writeFile('blob-store/.gitkeep', '');
-        await fs.writeFile('compression/.gitkeep', '');
+        await fs.writeFile('storage/blob/.gitkeep', '');
+        await fs.writeFile('storage/database/.gitkeep', '');
+        await fs.writeFile('storage/cache/.gitkeep', '');
+        await fs.writeFile('compaction/.gitkeep', '');
         await fs.writeFile('plugins/.gitkeep', '');
 
         // Create example tool if requested
@@ -210,7 +214,11 @@ export async function createImage(name?: string): Promise<string> {
         const bundlerVersion = isDextoSource ? 'workspace:*' : '^1.3.0';
 
         // Determine dependencies based on whether extending
-        const dependencies: string[] = [`@dexto/core@${coreVersion}`, 'zod'];
+        const dependencies: string[] = [
+            `@dexto/core@${coreVersion}`,
+            `@dexto/agent-config@${coreVersion}`,
+            'zod',
+        ];
         const devDependencies = [
             'typescript@^5.0.0',
             '@types/node@^20.0.0',
@@ -250,10 +258,12 @@ export async function createImage(name?: string): Promise<string> {
         console.log(
             `\n${chalk.gray('Add your custom providers to the convention-based folders:')}`
         );
-        console.log(`  ${chalk.gray('tools/')}       - Custom tool providers`);
-        console.log(`  ${chalk.gray('blob-store/')}  - Blob storage providers`);
-        console.log(`  ${chalk.gray('compression/')} - Compression strategies`);
-        console.log(`  ${chalk.gray('plugins/')}     - Plugin providers`);
+        console.log(`  ${chalk.gray('tools/')}            - Tool factories`);
+        console.log(`  ${chalk.gray('storage/blob/')}     - Blob storage factories`);
+        console.log(`  ${chalk.gray('storage/database/')} - Database factories`);
+        console.log(`  ${chalk.gray('storage/cache/')}    - Cache factories`);
+        console.log(`  ${chalk.gray('compaction/')}       - Compaction factories`);
+        console.log(`  ${chalk.gray('plugins/')}          - Plugin factories`);
         console.log(`\n${chalk.gray('Learn more:')} https://docs.dexto.ai/docs/guides/images\n`);
     } catch (error) {
         if (spinner) {
