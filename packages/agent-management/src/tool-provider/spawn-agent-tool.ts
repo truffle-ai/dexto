@@ -5,11 +5,7 @@
  * The sub-agent will execute the task and return the result.
  */
 
-import {
-    isBackgroundTasksEnabled,
-    type InternalTool,
-    type ToolExecutionContext,
-} from '@dexto/core';
+import type { InternalTool, ToolExecutionContext } from '@dexto/core';
 import type { TaskRegistry } from '@dexto/orchestration';
 import { SpawnAgentInputSchema, type SpawnAgentInput } from './schemas.js';
 import type { RuntimeService } from './runtime-service.js';
@@ -56,6 +52,12 @@ ${agentsList}
 - If a sub-agent's LLM fails, it automatically falls back to your LLM`;
 }
 
+function isBackgroundTasksEnabled(): boolean {
+    const value = process.env.DEXTO_BACKGROUND_TASKS_ENABLED;
+    if (value === undefined) return false;
+    return /^(1|true|yes|on)$/i.test(value.trim());
+}
+
 export function createSpawnAgentTool(
     service: RuntimeService,
     taskRegistry?: TaskRegistry,
@@ -92,8 +94,7 @@ export function createSpawnAgentTool(
                 options.sessionId = context.sessionId;
             }
 
-            const backgroundTasksEnabled = isBackgroundTasksEnabled();
-            if (backgroundTasksEnabled && context?.toolCallId && taskRegistry) {
+            if (isBackgroundTasksEnabled() && context?.toolCallId && taskRegistry) {
                 const promise = service.spawnAndExecute(options).then((result) => {
                     if (!result.success) {
                         throw new Error(result.error ?? 'Unknown error');

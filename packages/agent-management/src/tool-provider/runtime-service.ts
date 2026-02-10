@@ -18,6 +18,8 @@ import { createDelegatingApprovalHandler } from '../runtime/approval-delegation.
 import { loadAgentConfig } from '../config/loader.js';
 import { getAgentRegistry } from '../registry/registry.js';
 import type { AgentRegistryEntry } from '../registry/types.js';
+import { deriveDisplayName } from '../registry/types.js';
+import { resolveBundledScript } from '../utils/path.js';
 import type { AgentSpawnerConfig } from './schemas.js';
 import type { SpawnAgentOutput } from './types.js';
 import { resolveSubAgentLLM } from './llm-resolution.js';
@@ -28,6 +30,37 @@ export class RuntimeService implements TaskForker {
     private parentAgent: DextoAgent;
     private config: AgentSpawnerConfig;
     private logger: IDextoLogger;
+
+    private resolveBundledAgentConfig(agentId: string): string | null {
+        const candidates = [
+            `agents/${agentId}/${agentId}.yml`,
+            `agents/${agentId}/${agentId}.yaml`,
+            `agents/${agentId}.yml`,
+            `agents/${agentId}.yaml`,
+        ];
+
+        for (const candidate of candidates) {
+            try {
+                return resolveBundledScript(candidate);
+            } catch {
+                // Try the next candidate
+            }
+        }
+
+        return null;
+    }
+
+    private createFallbackRegistryEntry(agentId: string): AgentRegistryEntry {
+        return {
+            id: agentId,
+            name: deriveDisplayName(agentId),
+            description: 'Agent specified in config (registry entry not found)',
+            author: 'unknown',
+            tags: [],
+            source: agentId,
+            type: 'custom',
+        };
+    }
 
     constructor(parentAgent: DextoAgent, config: AgentSpawnerConfig, logger: IDextoLogger) {
         this.parentAgent = parentAgent;
@@ -609,14 +642,30 @@ export class RuntimeService implements TaskForker {
 
         // If agentId is provided, resolve from registry
         if (agentId) {
-            const registry = getAgentRegistry();
+            let configPath: string | null = null;
+            try {
+                const registry = getAgentRegistry();
 
-            if (!registry.hasAgent(agentId)) {
-                this.logger.warn(`Agent '${agentId}' not found in registry. Using default config.`);
-            } else {
-                // resolveAgent handles installation if needed
-                const configPath = await registry.resolveAgent(agentId);
-                this.logger.debug(`Loading agent config from registry: ${configPath}`);
+                if (!registry.hasAgent(agentId)) {
+                    this.logger.warn(
+                        `Agent '${agentId}' not found in registry. Trying bundled config paths.`
+                    );
+                } else {
+                    // resolveAgent handles installation if needed
+                    configPath = await registry.resolveAgent(agentId);
+                }
+            } catch (error) {
+                this.logger.warn(
+                    `Failed to load agent registry for '${agentId}'. Trying bundled config paths. (${error instanceof Error ? error.message : String(error)})`
+                );
+            }
+
+            if (!configPath) {
+                configPath = this.resolveBundledAgentConfig(agentId);
+            }
+
+            if (configPath) {
+                this.logger.debug(`Loading agent config from registry/bundled path: ${configPath}`);
                 const loadedConfig = await loadAgentConfig(configPath, this.logger);
 
                 // Determine LLM config based on options
@@ -666,6 +715,10 @@ export class RuntimeService implements TaskForker {
                     },
                 };
             }
+
+            this.logger.warn(
+                `Agent '${agentId}' not found in registry or bundled paths. Using default config.`
+            );
         }
 
         // Fallback: minimal config inheriting parent's LLM and tools
@@ -719,17 +772,26 @@ export class RuntimeService implements TaskForker {
      * Returns agent metadata from registry, filtered by allowedAgents if configured.
      */
     getAvailableAgents(): AgentRegistryEntry[] {
-        const registry = getAgentRegistry();
-        const allAgents = registry.getAvailableAgents();
+        let allAgents: Record<string, AgentRegistryEntry>;
+        try {
+            const registry = getAgentRegistry();
+            allAgents = registry.getAvailableAgents();
+        } catch (error) {
+            this.logger.warn(
+                `Failed to load agent registry for spawn_agent description: ${error instanceof Error ? error.message : String(error)}`
+            );
+            if (this.config.allowedAgents && this.config.allowedAgents.length > 0) {
+                return this.config.allowedAgents.map((id) => this.createFallbackRegistryEntry(id));
+            }
+            return [];
+        }
 
         // If allowedAgents is configured, filter to only those
         if (this.config.allowedAgents && this.config.allowedAgents.length > 0) {
             const result: AgentRegistryEntry[] = [];
             for (const id of this.config.allowedAgents) {
                 const agent = allAgents[id];
-                if (agent) {
-                    result.push(agent);
-                }
+                result.push(agent ?? this.createFallbackRegistryEntry(id));
             }
             return result;
         }

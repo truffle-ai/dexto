@@ -15,7 +15,7 @@ import {
     type OrchestrationTool,
     type OrchestrationToolContext,
 } from '@dexto/orchestration';
-import { isBackgroundTasksEnabled, type ToolBackgroundEvent } from '@dexto/core';
+import type { ToolBackgroundEvent } from '@dexto/core';
 import { AgentSpawnerConfigSchema, type AgentSpawnerConfig } from './schemas.js';
 import { RuntimeService } from './runtime-service.js';
 import { createSpawnAgentTool } from './spawn-agent-tool.js';
@@ -33,6 +33,12 @@ function bindOrchestrationTool(
         inputSchema: tool.inputSchema as InternalTool['inputSchema'],
         execute: (input: unknown) => tool.execute(input, context),
     };
+}
+
+function isBackgroundTasksEnabled(): boolean {
+    const value = process.env.DEXTO_BACKGROUND_TASKS_ENABLED;
+    if (value === undefined) return false;
+    return /^(1|true|yes|on)$/i.test(value.trim());
 }
 
 /**
