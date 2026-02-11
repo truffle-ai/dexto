@@ -1,11 +1,7 @@
 import type { AgentConfig } from '../schemas/agent-config.js';
 import type { ImageDefaults } from '../image/types.js';
-
-type PlainObject = Record<string, unknown>;
-
-function isPlainObject(value: unknown): value is PlainObject {
-    return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
+import type { PlainObject } from './utils.js';
+import { isPlainObject } from './utils.js';
 
 /**
  * Apply image defaults to an *unvalidated* agent config.

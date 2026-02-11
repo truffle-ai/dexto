@@ -1,4 +1,5 @@
 import type { DextoImageModule } from '../image/types.js';
+import { isPlainObject, isSchemaLike } from './utils.js';
 
 export type ImageImporter = (specifier: string) => Promise<unknown>;
 
@@ -14,16 +15,6 @@ let configuredImageImporter: ImageImporter | undefined;
  */
 export function setImageImporter(importer: ImageImporter | undefined): void {
     configuredImageImporter = importer;
-}
-
-type PlainObject = Record<string, unknown>;
-
-function isPlainObject(value: unknown): value is PlainObject {
-    return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function isSchemaLike(value: unknown): boolean {
-    return isPlainObject(value) && typeof value.parse === 'function';
 }
 
 function assertFactoryMap(

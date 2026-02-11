@@ -2,15 +2,11 @@ import type { DextoPlugin, IDextoLogger, PluginExecutionContext, PluginResult } 
 import type { ValidatedAgentConfig, ToolFactoryEntry } from '../schemas/agent-config.js';
 import type { DextoImageModule } from '../image/types.js';
 import type { ResolvedServices } from './types.js';
-
-type PlainObject = Record<string, unknown>;
+import type { PlainObject } from './utils.js';
+import { isPlainObject } from './utils.js';
 
 const INTERNAL_TOOL_PREFIX = 'internal--';
 const CUSTOM_TOOL_PREFIX = 'custom--';
-
-function isPlainObject(value: unknown): value is PlainObject {
-    return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
 
 function qualifyToolId(prefix: string, id: string): string {
     if (id.startsWith(INTERNAL_TOOL_PREFIX) || id.startsWith(CUSTOM_TOOL_PREFIX)) {
