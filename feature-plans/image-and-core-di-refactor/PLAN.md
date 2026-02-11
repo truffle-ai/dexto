@@ -2372,6 +2372,7 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
   - Move storage config schemas: `blob/schemas.ts`, `database/schemas.ts`, `cache/schemas.ts`, `schemas.ts`
   - Move provider interfaces: `blob/provider.ts`, `database/provider.ts`, `cache/provider.ts`. Vet if these are still necessary as well.
   - Create `StorageFactory`‑compatible objects for each implementation (remove auto‑registration)
+  - Do **not** keep config‑driven helpers like `createCache/createDatabase/createBlobStore` or `createStorageManager()` — storage is resolved via image factory maps in `@dexto/agent-config`, and core constructs a `StorageManager` from injected backends.
   - Provider-specific dependencies (`better-sqlite3`, `pg`, `ioredis`) move to this package
   - Core keeps: `BlobStore`/`Database`/`Cache` interfaces, `StorageManager`, error types
   - Core's storage barrel exports only interfaces + `StorageManager`
