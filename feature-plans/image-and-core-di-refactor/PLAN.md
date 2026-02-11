@@ -136,8 +136,8 @@ interface DextoImageModule {
     name: string;
     version: string;
     description: string;
-    target?: ImageTarget;
-    constraints?: ImageConstraint[];
+    target?: string;
+    constraints?: string[];
   };
   defaults?: ImageDefaults;  // Typed defaults, no index signatures
 
@@ -1987,13 +1987,13 @@ This preserves CLI UX while cleaning architecture, increasing type safety, and e
 ### Phase 0: Foundation — new package + core interfaces
 > **Goal:** Establish the new package and define the target types before changing anything.
 
-- [ ] **0.1 Create `@dexto/agent-config` package skeleton**
+- [x] **0.1 Create `@dexto/agent-config` package skeleton**
   - `packages/agent-config/package.json`, `tsconfig.json`, `src/index.ts`
   - Add to pnpm workspace, turbo pipeline, `.changeset/config.json` fixed array
   - Follow same tsconfig/build patterns as the other packages. There are some specific things to reduce memory overload/etc. which we should follow.
   - Exit: package builds with `pnpm run build`, exports nothing yet
 
-- [ ] **0.2 Define `DextoImageModule` interface + factory types**
+- [x] **0.2 Define `DextoImageModule` interface + factory types**
   - `packages/agent-config/src/image/types.ts`
   - `DextoImageModule`, `ToolFactory`, `BlobStoreFactory`, `DatabaseFactory`, `CacheFactory`, `PluginFactory`, `CompactionFactory`, `LoggerFactory`
   - Storage factories split per category: `storage: { blob: Record<string, BlobStoreFactory>; database: Record<string, DatabaseFactory>; cache: Record<string, CacheFactory> }`
@@ -2001,7 +2001,7 @@ This preserves CLI UX while cleaning architecture, increasing type safety, and e
   - Zero `any` types. Use `unknown` + Zod for validation.
   - Exit: types compile, can be imported from `@dexto/agent-config`
 
-- [ ] **0.3 Define `DextoAgentOptions` interface in core**
+- [x] **0.3 Define `DextoAgentOptions` interface in core**
   - New type in `packages/core/src/agent/types.ts` (or similar)
   - Combines config fields (Zod‑derived, for LLM/MCP/sessions/etc.) + DI instances:
     - `storage: { blob: BlobStore; database: Database; cache: Cache }`
@@ -2012,13 +2012,13 @@ This preserves CLI UX while cleaning architecture, increasing type safety, and e
   - This is the NEW constructor type. `ValidatedAgentConfig` moves to `@dexto/agent-config` for YAML validation only.
   - Exit: type compiles, documents every field with JSDoc
 
-- [ ] **0.4 Define core interfaces for DI surfaces (if not already clean)**
+- [x] **0.4 Define core interfaces for DI surfaces (if not already clean)**
   - Verify `BlobStore`, `Database`, `Cache`, `Tool` (InternalTool), `DextoPlugin`, `CompactionStrategy`, `IDextoLogger` interfaces exist and are clean (no `any`, no config coupling)
   - `CompactionStrategy` interface must be defined if it doesn't exist as a standalone interface (currently may be embedded in compaction provider types). make sure to refactor properly and delete unncessary code.
   - If any are missing or config‑coupled, define them
   - Exit: all DI surface interfaces are importable from `@dexto/core` with zero `any`
 
-- [ ] **0.5 Define `ToolExecutionContext` and `PluginExecutionContext` interfaces**
+- [x] **0.5 Define `ToolExecutionContext` and `PluginExecutionContext` interfaces**
   - **`ToolExecutionContext`** (runtime — provided by `ToolManager` when tools execute):
     - `agent: DextoAgent` (full agent for now — **TODO: narrow to interface later**)
     - `logger: IDextoLogger`
@@ -2041,7 +2041,7 @@ This preserves CLI UX while cleaning architecture, increasing type safety, and e
 
 > **Note on implementations:** Phase 1A only removes registries and factory wiring. All concrete implementations (`LocalBlobStore`, `SqliteStore`, `MemoryCache`, etc.) remain in core as plain exports throughout Phases 1–2. They are physically extracted to `@dexto/storage` in Phase 3.2. This keeps Phase 1 focused on DI changes and avoids combining a large file move with the registry removal.
 
-- [ ] **1.1 `storage/blob/` — decouple from registry**
+- [x] **1.1 `storage/blob/` — decouple from registry**
   - Files: `registry.ts` (59 lines), `factory.ts` (55 lines), `provider.ts`, `providers/local.ts`, `providers/memory.ts`, `local-blob-store.ts`, `memory-blob-store.ts`, `schemas.ts`, `types.ts`, `index.ts`
   - `factory.ts` calls `blobStoreRegistry.validateConfig()` + `.get()` → remove this path from core. Factory moves to resolver or is deleted.
   - `providers/local.ts` and `providers/memory.ts` auto‑register in `index.ts` → remove auto‑registration, keep as plain exports
@@ -2050,19 +2050,19 @@ This preserves CLI UX while cleaning architecture, increasing type safety, and e
   - `types.ts` (`BlobStore` interface, `BlobStoreProvider` type) → `BlobStore` interface stays in core, `BlobStoreProvider` type may move to agent‑config
   - Exit: zero registry imports in `storage/blob/`. `BlobStore` interface clean. Build + tests pass.
 
-- [ ] **1.2 `storage/database/` — decouple from registry**
+- [x] **1.2 `storage/database/` — decouple from registry**
   - Files: `registry.ts` (59 lines), `factory.ts` (57 lines), `providers/in-memory.ts`, `providers/sqlite.ts`, `providers/postgres.ts`, `schemas.ts`, `types.ts`, `index.ts`
   - Same pattern as blob: remove factory → registry path, remove auto‑registration, delete registry
   - `Database` interface stays in core
   - Exit: zero registry imports in `storage/database/`. Build + tests pass.
 
-- [ ] **1.3 `storage/cache/` — decouple from registry**
+- [x] **1.3 `storage/cache/` — decouple from registry**
   - Files: `registry.ts` (59 lines), `factory.ts` (55 lines), `providers/in-memory.ts`, `providers/redis.ts`, `schemas.ts`, `types.ts`, `index.ts`
   - Same pattern as blob/database
   - `Cache` interface stays in core
   - Exit: zero registry imports in `storage/cache/`. Build + tests pass.
 
-- [ ] **1.4 `storage/storage-manager.ts` — accept concrete instances**
+- [x] **1.4 `storage/storage-manager.ts` — accept concrete instances**
   - Change constructor from `(config: ValidatedStorageConfig, logger)` to `({ blob, database, cache }, logger)`
   - Remove calls to `createBlobStore()`, `createDatabase()`, `createCache()`
   - `storage-manager.ts` should only orchestrate access to the three backends, not create them
@@ -2073,12 +2073,12 @@ This preserves CLI UX while cleaning architecture, increasing type safety, and e
 
 **Key change: `internalTools` + `customTools` unify into a single `tools: Tool[]`.** Core receives a flat list. It doesn't distinguish "built‑in" from "custom." Former "internal" tools (ask_user, search_history, etc.) stay in core as plain exports during Phase 1, then move to `@dexto/tools-builtins` in Phase 3.1.
 
-- [ ] **1.5 `tools/custom-tool-registry.ts` — mark for deletion**
+- [x] **1.5 `tools/custom-tool-registry.ts` — mark for deletion**
   - `CustomToolRegistry` (160 lines) + `custom-tool-schema-registry.ts` → will be deleted in 1.10
   - First: identify all importers within core (internal‑tools/provider.ts, tool-manager.ts, schemas.ts, index.ts)
   - Exit: dependency map documented.
 
-- [ ] **1.6 `tools/internal-tools/` — decouple built‑in tool creation**
+- [x] **1.6 `tools/internal-tools/` — decouple built‑in tool creation**
   - `InternalToolsProvider` currently: (a) creates built‑in tools from hardcoded implementations, (b) resolves custom tools via `customToolRegistry` → remove (b) entirely
   - Built‑in tool *implementations* (`ask-user-tool.ts`, `search-history-tool.ts`, etc.) stay in core for now as plain exports — they'll be moved to `@dexto/tools-builtins` in Phase 3
   - `InternalToolsProvider` itself may become unnecessary (since all tools arrive as `Tool[]`) — assess whether to keep as internal wiring or remove
@@ -2086,7 +2086,7 @@ This preserves CLI UX while cleaning architecture, increasing type safety, and e
   - Update `provider.test.ts`
   - Exit: `InternalToolsProvider` has zero imports from `customToolRegistry`. Build + tests pass.
 
-- [ ] **1.7 `tools/tool-manager.ts` — accept unified `Tool[]` + provide `ToolExecutionContext` at runtime**
+- [x] **1.7 `tools/tool-manager.ts` — accept unified `Tool[]` + provide `ToolExecutionContext` at runtime**
   - Currently receives `CustomToolsConfig` (Zod type) + `internalTools` (string array) separately
   - After: receives a single `Tool[]` — all tools pre‑resolved. No `internalTools`/`customTools` distinction.
   - `ToolManager` also receives (or builds) a `ToolExecutionContext` that it provides to tools on every `execute()` call. This context is built by `DextoAgent` after full construction (no init cycle).
@@ -2101,7 +2101,7 @@ This preserves CLI UX while cleaning architecture, increasing type safety, and e
 
 **Key change: `plugins.registry` + `plugins.custom` unify into a single `plugins: DextoPlugin[]`.** Core receives a flat list. Built‑in plugins (content‑policy, response‑sanitizer) stay in core as plain exports during Phase 1, then become `PluginFactory` entries in image‑local (Phase 3.5).
 
-- [ ] **1.8 `plugins/manager.ts` — accept concrete `DextoPlugin[]`**
+- [x] **1.8 `plugins/manager.ts` — accept concrete `DextoPlugin[]`**
   - `PluginManager.initialize()` currently uses `pluginRegistry.get()` for registry plugins + `loader.ts` for custom file paths → remove both resolution paths
   - After: receives pre‑resolved `DextoPlugin[]`
   - `loader.ts` (loads plugins from file paths) → **delete** (file-based plugins removed; use images)
@@ -2117,7 +2117,7 @@ This preserves CLI UX while cleaning architecture, increasing type safety, and e
 
 **Key change: Compaction is DI.** Core receives a concrete `CompactionStrategy` instance. No config‑based strategy resolution in core. Built‑in strategies (reactive‑overflow, noop) stay in core as plain exports during Phase 1, then become `CompactionFactory` entries in image‑local (Phase 3.5).
 
-- [ ] **1.9 `context/compaction/` — decouple from registry, accept `CompactionStrategy`**
+- [x] **1.9 `context/compaction/` — decouple from registry, accept `CompactionStrategy`**
   - Files: `registry.ts` (32 lines), `factory.ts`, `provider.ts`, `providers/reactive-overflow-provider.ts`, `strategies/`, `schemas.ts`, `types.ts`
   - `factory.ts` calls `compactionRegistry.get()` → delete (resolution moves to resolver: `image.compaction[config.type].create()`)
   - `registry.ts` → delete
@@ -2130,7 +2130,7 @@ This preserves CLI UX while cleaning architecture, increasing type safety, and e
 
 #### 1E — Agent shell + service initializer (`packages/core/src/agent/`, `utils/`)
 
-- [ ] **1.10 `agent/DextoAgent.ts` — constructor accepts `DextoAgentOptions`**
+- [x] **1.10 `agent/DextoAgent.ts` — constructor accepts `DextoAgentOptions`**
   - Change constructor from `(config: AgentConfig, configPath?, options?)` to `(options: DextoAgentOptions)`
   - `DextoAgentOptions` includes concrete storage, tools, plugins, compaction, logger + config sections for LLM/MCP/sessions/etc.
   - Remove `serviceOverrides` / `InitializeServicesOptions` pattern
@@ -2145,7 +2145,7 @@ This preserves CLI UX while cleaning architecture, increasing type safety, and e
   - Vet: `agent/agentCard.ts` — likely no changes
   - Exit: constructor compiles with new type. `ToolExecutionContext` built internally. Callers outside core will break (expected — fixed in Phase 4).
 
-- [ ] **1.11 `utils/service-initializer.ts` — rewrite**
+- [x] **1.11 `utils/service-initializer.ts` — rewrite**
   - Currently 316 lines creating all services from config
   - After: most creation moves to resolver layer. What remains is **internal wiring** that can't move:
     - `SearchService(database, logger)` — uses resolved database
@@ -2163,7 +2163,7 @@ This preserves CLI UX while cleaning architecture, increasing type safety, and e
 
 Each of these sub‑modules must be checked for registry imports or tight coupling to `ValidatedAgentConfig` fields that are becoming DI. Most should require NO changes, but must be verified.
 
-- [ ] **1.12 `llm/` — vet (expect: no changes)**
+- [x] **1.12 `llm/` — vet (expect: no changes)**
   - LLM stays config‑driven (`ValidatedLLMConfig`). No registries involved (LLM registry is model metadata, not a provider registry).
   - Vet: `services/factory.ts` (creates Vercel model from config — stays), `services/vercel.ts`, `executor/turn-executor.ts`
   - Vet: `llm/registry/` — this is the MODEL registry (model names, pricing, capabilities). Completely separate from provider registries. Stays as‑is.
@@ -2173,12 +2173,12 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
   - LLM config validation and switching stay entirely in core. `switchLLM()` uses `LLMConfigSchema` (stays in core). No changes needed.
   - Exit: confirmed no registry imports in `llm/`. No changes needed. Document.
 
-- [ ] **1.13 `mcp/` — vet (expect: no changes)**
+- [x] **1.13 `mcp/` — vet (expect: no changes)**
   - MCP stays config‑driven. `MCPManager` constructor takes `logger`, `initializeFromConfig()` takes `ValidatedServerConfigs`.
   - Vet: `manager.ts`, `mcp-client.ts`, `resolver.ts`, `schemas.ts`, `types.ts`
   - Exit: confirmed no registry imports in `mcp/`. No changes needed. Document.
 
-- [ ] **1.14 `session/` — vet (expect: minimal changes)**
+- [x] **1.14 `session/` — vet (expect: minimal changes)**
   - `SessionManager` constructor takes services + config. Services come from service initializer.
   - After: services come from `DextoAgentOptions` → internal wiring.
   - Vet: `session-manager.ts`, `chat-session.ts`, `history/database.ts`, `history/factory.ts`, `history/memory.ts`
@@ -2186,39 +2186,39 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
   - Vet: `schemas.ts` — `SessionConfigSchema` stays
   - Exit: confirmed no registry imports. Session types compatible with new wiring.
 
-- [ ] **1.15 `memory/` — vet (expect: no changes)**
+- [x] **1.15 `memory/` — vet (expect: no changes)**
   - `MemoryManager(database, logger)` — already takes concrete `Database` instance.
   - Vet: `manager.ts`, `schemas.ts`, `types.ts`
   - Exit: confirmed no changes needed. Already DI‑compatible.
 
-- [ ] **1.16 `systemPrompt/` — vet (expect: minor changes)**
+- [x] **1.16 `systemPrompt/` — vet (expect: minor changes)**
   - `SystemPromptManager(config, configDir, memoryManager, memoriesConfig, logger)` — takes config (data) + concrete memory manager.
   - **Remove `configDir` parameter** — `SystemPromptManager` doesn't require it. Any path resolution is handled independently (contributors resolve paths; product layers can expand template vars).
   - Vet: `manager.ts`, `contributors.ts`, `in-built-prompts.ts`, `registry.ts` (is this a provider registry? Investigate), `schemas.ts`
   - **Risk:** `systemPrompt/registry.ts` — name suggests a registry pattern. Must investigate whether it's a provider registry or just a contributor registry (internal).
   - Exit: no `configDir` dependency. No provider registry dependency. Document any internal registries.
 
-- [ ] **1.17 `approval/` — vet (expect: no changes)**
+- [x] **1.17 `approval/` — vet (expect: no changes)**
   - `ApprovalManager` takes config (policies are data).
   - Vet: `manager.ts`, `factory.ts`, `schemas.ts`, `types.ts`
   - Exit: confirmed no registry imports. No changes.
 
-- [ ] **1.18 `search/` — vet (expect: no changes)**
+- [x] **1.18 `search/` — vet (expect: no changes)**
   - `SearchService(database, logger)` — already takes concrete `Database`.
   - Vet: all files in `search/`
   - Exit: confirmed no changes.
 
-- [ ] **1.19 `resources/` — vet (expect: no changes)**
+- [x] **1.19 `resources/` — vet (expect: no changes)**
   - `ResourceManager` takes MCP manager + config.
   - Vet: `internal-provider.ts`, `handlers/`, `schemas.ts`
   - Exit: confirmed no registry imports.
 
-- [ ] **1.20 `prompts/` — vet (expect: no changes)**
+- [x] **1.20 `prompts/` — vet (expect: no changes)**
   - `PromptManager` handles prompt loading from config + MCP.
   - Vet: `prompt-manager.ts`, `providers/config-prompt-provider.ts`, `providers/custom-prompt-provider.ts`, `providers/mcp-prompt-provider.ts`, `schemas.ts`
   - Exit: confirmed no registry imports.
 
-- [ ] **1.21 `logger/` — vet (expect: DI change; implementation extraction deferred)**
+- [x] **1.21 `logger/` — vet (expect: DI change; implementation extraction deferred)**
   - Logger becomes a DI instance. Core receives `IDextoLogger`, doesn't create it from config.
   - Vet: `logger.ts` (v1), `v2/` (v2 logger system — ~10 files). Understand which is used.
   - Phase 1: make core depend only on `IDextoLogger` interface. Move `createLogger()` calls out of core. Implementations stay in core as plain exports.
@@ -2226,13 +2226,13 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
   - **Update (2026-02-10):** extraction is split/deferred (see Phase 3.3 notes) due to layering issues; keep `createLogger()` + `LoggerConfigSchema` in core for now.
   - Exit (Phase 1): core uses `IDextoLogger` interface only. No logger creation from config in core.
 
-- [ ] **1.22 `telemetry/` — vet (expect: minimal changes)**
+- [x] **1.22 `telemetry/` — vet (expect: minimal changes)**
   - Telemetry is config‑driven (`OtelConfigurationSchema`).
   - Vet: `telemetry.ts`, `decorators.ts`, `exporters.ts`, `utils.ts`, `schemas.ts`
   - Telemetry init currently happens in service initializer — may stay in internal wiring or move to resolver
   - Exit: document decision. Confirm no registry dependency.
 
-- [ ] **1.23 `events/` — vet + add `agent.on()` convenience API**
+- [x] **1.23 `events/` — vet + add `agent.on()` convenience API**
   - `AgentEventBus` is created early in DextoAgent constructor. No config dependency.
   - Vet: `index.ts` — no registry imports expected
   - **Add `agent.on()`, `agent.once()`, `agent.off()` to `DextoAgent`** — thin delegates to `this.agentEventBus`
@@ -2241,11 +2241,11 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
   - Delete direct `agent.agentEventBus` property access completely from the codebase and from documentation that references it
   - Exit: `agent.on('llm:chunk', handler)` works. Sufficient tests for other event cases. Build + tests pass.
 
-- [ ] **1.24 `errors/` — vet (expect: no changes)**
+- [x] **1.24 `errors/` — vet (expect: no changes)**
   - Error infrastructure. No config or registry dependency.
   - Exit: confirmed no changes.
 
-- [ ] **1.25 `utils/` — vet remaining utilities**
+- [x] **1.25 `utils/` — vet remaining utilities**
   - `service-initializer.ts` → covered in 1.11
   - Vet: `api-key-resolver.ts` — resolves API keys from env. Likely no changes.
   - Vet: `execution-context.ts` — detects dexto‑source vs project vs global. May need update if path resolution changes.
@@ -2254,7 +2254,7 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
   - Exit: all utils vetted. Only `service-initializer.ts` changes.
   - Ideal: There are some utils files that are duplicates of other ones in agent-management that were left here because we couldn't decouple fully. ideally as part of this, we should be able to delete those here also!
 
-- [ ] **1.26 `providers/` — delete registry infrastructure**
+- [x] **1.26 `providers/` — delete registry infrastructure**
   - `base-registry.ts` (208 lines) — base class for all registries → delete
   - `base-registry.test.ts` → delete
   - `discovery.ts` (178 lines) — `listAllProviders()`, `hasProvider()` — queries all registries → delete
@@ -2262,14 +2262,14 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
   - Vet: any other files in `providers/` — `index.ts` barrel exports
   - Exit: `providers/` directory deleted or emptied. Build passes.
 
-- [ ] **1.27 `image/` — remove old image infrastructure from core**
+- [x] **1.27 `image/` — remove old image infrastructure from core**
   - `define-image.ts` (213 lines) → delete
   - `types.ts` (old `ImageDefinition`, `ImageProvider`, etc.) → delete
   - `index.ts` → delete
   - `DextoImageModule` now lives in `@dexto/agent-config`
   - Exit: `packages/core/src/image/` directory deleted. No image exports from core.
 
-- [ ] **1.28 `index.ts` barrel — remove deleted exports**
+- [x] **1.28 `index.ts` barrel — remove deleted exports**
   - Remove: all registry exports (`customToolRegistry`, `blobStoreRegistry`, `databaseRegistry`, `cacheRegistry`, `pluginRegistry`, `compactionRegistry`, `BaseRegistry`)
   - Remove: `listAllProviders`, `hasProvider` from providers
   - Remove: `defineImage` and image types
@@ -2280,7 +2280,7 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
   - Vet: `index.browser.ts` — browser‑safe exports subset. Remove registry exports here too.
   - Exit: `packages/core/src/index.ts` has zero registry exports, no `AgentConfigSchema`. Build + all downstream packages compile.
 
-- [ ] **1.29 Final validation — all registries gone from core**
+- [x] **1.29 Final validation — all registries gone from core**
   - `rg 'Registry' packages/core/src/ --type ts` → only LLM model registry (legitimate, not a provider registry)
   - `rg 'registry' packages/core/src/ --type ts -i` → audit remaining hits
   - `pnpm run build && pnpm test && pnpm run lint && pnpm run typecheck` → all pass
@@ -2291,7 +2291,7 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
 ### Phase 2: Build the resolver (`@dexto/agent-config`)
 > **Goal:** The new package can take a `ValidatedAgentConfig` + `DextoImageModule` and produce a `DextoAgentOptions`.
 
-- [ ] **2.5 Move `AgentConfigSchema` + DI schemas to agent‑config**
+- [x] **2.5 Move `AgentConfigSchema` + DI schemas to agent‑config**
   - **Decision (made):** `AgentConfigSchema` moves to `@dexto/agent-config`. Core keeps module‑level sub‑schemas.
   - Create `packages/agent-config/src/schemas/agent-config.ts` — imports core sub‑schemas + defines DI surface schemas locally
   - **Unify tool selection/config into one `tools: [...]` array** (removes `internalTools` + `customTools`). Breaking change OK — update all first‑party configs.
@@ -2308,12 +2308,12 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
   - Remove `AgentConfigSchema` + `ValidatedAgentConfig` from core's `schemas.ts` and barrel exports
   - Exit: `AgentConfigSchema` lives in agent‑config, imports core sub‑schemas. Core has zero top‑level config schema. Build passes (downstream packages update imports).
 
-- [ ] **2.1 `applyImageDefaults(config, imageDefaults)`**
+- [x] **2.1 `applyImageDefaults(config, imageDefaults)`**
   - Merge semantics match Section 12: shallow top-level merge, 1-level-deep object merge with atomic sub-objects, arrays replace. Config wins.
   - Unit tests with various merge scenarios
   - Exit: function works, tests pass, handles edge cases (missing defaults, missing config sections)
 
-- [ ] **2.2 `resolveServicesFromConfig(config, image)`**
+- [x] **2.2 `resolveServicesFromConfig(config, image)`**
   - Implements the factory resolution: `image.tools[config.type]` → validate → create
   - Handles unified tool resolution: `config.tools` (single array, replaces internalTools + customTools) → `Tool[]`
     - Skip entries with `enabled: false`
@@ -2327,13 +2327,13 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
   - Produces `ResolvedServices` object
   - Exit: unit tests with mock image + mock config produce correct concrete instances. Error cases tested (unknown type, validation failure).
 
-- [ ] **2.6 Define `ValidatedAgentConfig → DextoAgentOptions` transformer**
+- [x] **2.6 Define `ValidatedAgentConfig → DextoAgentOptions` transformer**
   - Function in agent‑config that takes the full YAML‑validated config + resolved services and produces `DextoAgentOptions`
   - Extracts config‑based sections, combines with DI instances
   - This is the bridge between config world and DI world
   - Exit: transformer tested, produces valid `DextoAgentOptions` from `ValidatedAgentConfig` + `ResolvedServices`.
 
-- [ ] **2.3 `loadImage(imageName)` helper**
+- [x] **2.3 `loadImage(imageName)` helper**
   - Dynamic import wrapper that returns `DextoImageModule`
   - Validates the imported module conforms to `DextoImageModule` shape (runtime check)
   - Clear error if import fails or shape doesn't match
@@ -2522,9 +2522,18 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
 ### Phase 5.6: Owner verification (pre‑platform gate)
 > **Goal:** Ensure all deferred owner decisions / manual verifications are resolved before starting Phase 6 (platform).
 
-- [ ] **5.6.1 Review and resolve `USER_VERIFICATION.md`**
+- [x] **5.6.1 Review and resolve `USER_VERIFICATION.md`**
   - Resolve items, or explicitly defer them (move to a follow‑up plan) before proceeding
   - Exit: `USER_VERIFICATION.md` is empty or all items are marked resolved with dates/notes.
+
+---
+
+### Phase 7: Image resolution (CLI + Platform) — follow‑up plan
+> **Goal:** Make `image:` resolution deterministic for the globally-installed CLI (and define a compatible platform policy).
+
+**Why:** Even with the DI refactor, `loadImage()` ultimately relies on host module resolution. A global CLI cannot reliably import images that are only installed in a project’s `node_modules`. This needs an explicit “image store / image registry” strategy.
+
+**Plan:** See [`IMAGE_RESOLUTION_PLAN.md`](./IMAGE_RESOLUTION_PLAN.md).
 
 ---
 
@@ -2549,15 +2558,6 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
 
 ---
 
-### Phase 7: Image resolution (CLI + Platform) — follow‑up plan
-> **Goal:** Make `image:` resolution deterministic for the globally-installed CLI (and define a compatible platform policy).
-
-**Why:** Even with the DI refactor, `loadImage()` ultimately relies on host module resolution. A global CLI cannot reliably import images that are only installed in a project’s `node_modules`. This needs an explicit “image store / image registry” strategy.
-
-**Plan:** See [`IMAGE_RESOLUTION_PLAN.md`](./IMAGE_RESOLUTION_PLAN.md).
-
----
-
 ### Dependency order
 ```
 Phase 0 (foundation) → Phase 1 (core DI) → Phase 2 (resolver) → Phase 3 (images)
@@ -2568,9 +2568,9 @@ Phase 0 (foundation) → Phase 1 (core DI) → Phase 2 (resolver) → Phase 3 (i
                                                                        ↓
                                                          Phase 5.6 (owner verification)
                                                                        ↓
-                                                                 Phase 6 (platform)
-                                                                       ↓
                                                    Phase 7 (image resolution follow-up)
+                                                                       ↓
+                                                                 Phase 6 (platform)
 ```
 
 **Phases 1 and 2 can partially overlap:** as each core module is decoupled (1.1, 1.2, 1.3), the corresponding resolver section (2.2) can be built to exercise it.

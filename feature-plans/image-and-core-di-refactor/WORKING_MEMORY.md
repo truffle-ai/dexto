@@ -19,13 +19,14 @@
 
 ## Current Task
 
-**Task:** **5.6 Owner verification (UV-1)**
-**Status:** _Blocked (owner input needed)_
+**Task:** **7.1 Start Phase 7 implementation (image resolution store)**
+**Status:** _In progress_
 **Branch:** `rebuild-di`
 
 ### Plan
-- Decide UV-1: keep/simplify/remove `ImageTarget` / `ImageConstraint` in `@dexto/agent-config` (`DextoImageModule.metadata`).
-- After UV-1 is resolved, close out Phase 5.6 and proceed to Phase 6 (platform) or defer remaining items to follow-ups.
+- Reorder Phase 7 before Phase 6 in `PLAN.md` and mark completed tasks (0.x–2.x) as done.
+- Implement the Phase 7 “image store” resolution path for the global CLI (no auto-install; explicit `dexto image install`).
+- Add tests and wire the CLI importer to resolve via the store.
 
 ### Notes
 _Log findings, issues, and progress here as you work._
@@ -41,6 +42,8 @@ _Log findings, issues, and progress here as you work._
 2026-02-11:
 - Drafted `IMAGE_RESOLUTION_PLAN.md` (Docker-like image store under `~/.dexto/images`, explicit installs; no auto-install).
 - Updated `PLAN.md` to add Phase 7 and link to the follow-up plan.
+2026-02-11:
+- Resolved UV-1: removed `ImageTarget` / `ImageConstraint` types (no runtime usage); kept `metadata.target`/`metadata.constraints` as plain `string`/`string[]` fields.
 
 ---
 
@@ -62,6 +65,7 @@ _Record important decisions made during implementation that aren't in the main p
 | 2026-02-11 | Tool provider packages export `ToolFactory` only | Removes dead registry-based `CustomToolProvider` surfaces after Phase 5.1; keeps tool packages image-compatible. |
 | 2026-02-11 | Image factories include optional `metadata` | Keeps discovery responses type-safe (no casts) while preserving passthrough metadata for UI/CLI. |
 | 2026-02-11 | CLI should resolve `image:` via a Dexto-managed image store (`~/.dexto/images`) | Avoids fragile “global npm/pnpm prefix” behavior; supports user-built images with deterministic resolution. (Installer/versioning details TBD in `IMAGE_RESOLUTION_PLAN.md`.) |
+| 2026-02-11 | Remove `ImageTarget` / `ImageConstraint` types | They were not used for runtime logic; retain `metadata.target`/`metadata.constraints` as free-form strings to avoid forcing a premature enum surface. |
 
 ---
 
@@ -69,7 +73,7 @@ _Record important decisions made during implementation that aren't in the main p
 
 _Things that need resolution before proceeding. Remove when resolved (move to Key Decisions)._
 
-- UV-1 reopened: decide whether to keep `ImageTarget` / `ImageConstraint` enums in `@dexto/agent-config` or simplify/remove (see `USER_VERIFICATION.md`).
+- Phase 7 open decisions: YAML version semantics (active vs pinned), installer strategy (shell vs library), and whether we want an “official image catalog” surface (see `IMAGE_RESOLUTION_PLAN.md`).
 
 ---
 
@@ -133,7 +137,7 @@ _Move tasks here after completion. Keep a brief log of what was done and any dev
 | 5.2 | Update all broken tests | 2026-02-11 | Updated tests that referenced deleted registry-era schemas/tools and updated filesystem tool tests for new signatures. `pnpm -w test` passes. |
 | 5.3 | Add new test coverage | 2026-02-11 | Added resolver tests (tool prefixing/conflicts, schema failures, plugin priority conflicts) and expanded `loadImage()` conformance tests. `bash scripts/quality-checks.sh` passes. |
 | 5.5 | Update OpenAPI / server docs if affected | 2026-02-11 | Ran `pnpm run sync-openapi-docs` and verified `sync-openapi-docs:check` passes. |
-| 5.6.1 | Review and resolve `USER_VERIFICATION.md` | 2026-02-11 | Completed an initial review, but UV-1 was re-opened pending explicit owner approval. |
+| 5.6.1 | Review and resolve `USER_VERIFICATION.md` | 2026-02-11 | UV-1 resolved by removing `ImageTarget` / `ImageConstraint` types; user verification list is now clear. |
 | 7.0 | Draft image resolution follow-up plan | 2026-02-11 | Added `IMAGE_RESOLUTION_PLAN.md` (Docker-like image store concept) and updated `PLAN.md` to add Phase 7. No implementation yet. |
 
 ---
@@ -152,7 +156,7 @@ _Move tasks here after completion. Keep a brief log of what was done and any dev
 | Phase 2 — Resolver | Completed | 2.5, 2.1, 2.2, 2.6, 2.3 complete (2.4 deferred) |
 | Phase 3 — Images | Completed | 3.3 deferred; 3.5 image-local + 3.6 bundler updated |
 | Phase 4 — CLI/Server | Completed | 4.1–4.5 complete |
-| Phase 5 — Cleanup | In progress | 5.0–5.3 + 5.5 complete; 5.4 deferred; 5.6 pending (UV-1 reopened) |
+| Phase 5 — Cleanup | Completed | 5.0–5.3 + 5.5 complete; 5.4 deferred by design; 5.6 resolved. |
 | Phase 7 — Image resolution | Planned | Follow-up plan drafted in `IMAGE_RESOLUTION_PLAN.md`. |
 
 ---
