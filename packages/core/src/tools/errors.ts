@@ -172,19 +172,6 @@ export class ToolError {
     }
 
     /**
-     * Internal tools provider not initialized
-     */
-    static internalToolsNotInitialized(toolName: string) {
-        return new DextoRuntimeError(
-            ToolErrorCode.EXECUTION_FAILED,
-            ErrorScope.TOOLS,
-            ErrorType.SYSTEM,
-            `Internal tools not initialized, cannot execute: ${toolName}`,
-            { toolName }
-        );
-    }
-
-    /**
      * Invalid tool configuration
      */
     static configInvalid(message: string) {

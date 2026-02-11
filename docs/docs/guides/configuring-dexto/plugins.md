@@ -15,12 +15,14 @@ For complete field documentation, plugin interfaces, and implementation details,
 Dexto's plugin system allows you to inject custom logic at four key lifecycle points: before LLM requests, before tool calls, after tool results, and before responses.
 
 **Hook points:**
+
 - **beforeLLMRequest** - Validate/modify input before LLM
 - **beforeToolCall** - Check tool arguments before execution
 - **afterToolResult** - Process tool results
 - **beforeResponse** - Sanitize/format final response
 
 **Common uses:**
+
 - Security & compliance (content filtering, PII redaction)
 - Observability (logging, metrics, analytics)
 - Data transformation (preprocessing, formatting, translation)
@@ -31,27 +33,29 @@ Dexto's plugin system allows you to inject custom logic at four key lifecycle po
 ### Built-in Plugins
 
 **contentPolicy** - Enforce content policies on input:
+
 ```yaml
 plugins:
-  contentPolicy:
-    priority: 10
-    blocking: true
-    enabled: true
-    maxInputChars: 50000
-    redactEmails: true
-    redactApiKeys: true
+    contentPolicy:
+        priority: 10
+        blocking: true
+        enabled: true
+        maxInputChars: 50000
+        redactEmails: true
+        redactApiKeys: true
 ```
 
 **responseSanitizer** - Clean responses before sending:
+
 ```yaml
 plugins:
-  responseSanitizer:
-    priority: 900
-    blocking: false
-    enabled: true
-    redactEmails: true
-    redactApiKeys: true
-    maxResponseLength: 100000
+    responseSanitizer:
+        priority: 900
+        blocking: false
+        enabled: true
+        redactEmails: true
+        redactApiKeys: true
+        maxResponseLength: 100000
 ```
 
 ### Custom Plugins
@@ -60,24 +64,26 @@ Implement your own logic:
 
 ```yaml
 plugins:
-  custom:
-    - name: request-logger
-      module: "${{dexto.agent_dir}}/plugins/request-logger.ts"
-      enabled: true
-      blocking: false
-      priority: 5
-      config:
-        logDir: ~/.dexto/logs
+    custom:
+        - name: request-logger
+          module: '${{dexto.agent_dir}}/plugins/request-logger.ts'
+          enabled: true
+          blocking: false
+          priority: 5
+          config:
+              logDir: ~/.dexto/logs
 ```
 
 ## Plugin Configuration Fields
 
 **Core fields (all plugins):**
+
 - **priority** - Execution order (1-99: pre-processing, 100-899: main, 900-999: post)
 - **blocking** - If true, errors halt execution
 - **enabled** - Whether plugin is active
 
 **Custom plugin fields:**
+
 - **name** - Unique identifier
 - **module** - Path to plugin file (supports `${{dexto.agent_dir}}`)
 - **config** - Plugin-specific configuration
@@ -88,26 +94,28 @@ Plugins execute in priority order (lowest first):
 
 ```yaml
 plugins:
-  custom:
-    - name: validator
-      priority: 10      # Runs first
-      blocking: true
-    - name: logger
-      priority: 50      # Runs second
-      blocking: false
-    - name: sanitizer
-      priority: 900     # Runs last
-      blocking: false
+    custom:
+        - name: validator
+          priority: 10 # Runs first
+          blocking: true
+        - name: logger
+          priority: 50 # Runs second
+          blocking: false
+        - name: sanitizer
+          priority: 900 # Runs last
+          blocking: false
 ```
 
 ## Blocking vs Non-blocking
 
 **Blocking (`blocking: true`):**
+
 - Errors halt execution
 - User sees error message
 - Use for: Security, validation, critical rules
 
 **Non-blocking (`blocking: false`):**
+
 - Errors logged but execution continues
 - Use for: Logging, metrics, optional features
 
@@ -117,48 +125,53 @@ plugins:
 
 ```yaml
 plugins:
-  contentPolicy:
-    priority: 10
-    blocking: true
-    enabled: true
-    maxInputChars: 50000
-    redactEmails: true
-    redactApiKeys: true
+    contentPolicy:
+        priority: 10
+        blocking: true
+        enabled: true
+        maxInputChars: 50000
+        redactEmails: true
+        redactApiKeys: true
 
-  responseSanitizer:
-    priority: 900
-    blocking: false
-    enabled: true
-    redactEmails: true
-    redactApiKeys: true
+    responseSanitizer:
+        priority: 900
+        blocking: false
+        enabled: true
+        redactEmails: true
+        redactApiKeys: true
 ```
 
 ### With Custom Logging
 
 ```yaml
 plugins:
-  custom:
-    - name: request-logger
-      module: "${{dexto.agent_dir}}/plugins/request-logger.ts"
-      blocking: false
-      priority: 5
-      config:
-        logDir: ~/.dexto/logs
-        logFileName: request-logger.log
+    custom:
+        - name: request-logger
+          module: '${{dexto.agent_dir}}/plugins/request-logger.ts'
+          blocking: false
+          priority: 5
+          config:
+              logDir: ~/.dexto/logs
+              logFileName: request-logger.log
 
-    - name: analytics
-      module: "${{dexto.agent_dir}}/plugins/analytics.ts"
-      blocking: false
-      priority: 100
-      config:
-        endpoint: https://analytics.example.com
-        apiKey: $ANALYTICS_API_KEY
+        - name: analytics
+          module: '${{dexto.agent_dir}}/plugins/analytics.ts'
+          blocking: false
+          priority: 100
+          config:
+              endpoint: https://analytics.example.com
+              apiKey: $ANALYTICS_API_KEY
 ```
 
 ## Custom Plugin Implementation
 
 ```typescript
-import type { DextoPlugin, BeforeLLMRequestPayload, PluginResult, PluginExecutionContext } from '@core/plugins/types.js';
+import type {
+    DextoPlugin,
+    BeforeLLMRequestPayload,
+    PluginResult,
+    PluginExecutionContext,
+} from '@dexto/core';
 
 export class MyPlugin implements DextoPlugin {
     private config: any;
@@ -167,7 +180,10 @@ export class MyPlugin implements DextoPlugin {
         this.config = config;
     }
 
-    async beforeLLMRequest(payload: BeforeLLMRequestPayload, context: PluginExecutionContext): Promise<PluginResult> {
+    async beforeLLMRequest(
+        payload: BeforeLLMRequestPayload,
+        context: PluginExecutionContext
+    ): Promise<PluginResult> {
         // Validate or modify input
         return { ok: true };
     }
@@ -190,14 +206,14 @@ return { ok: true };
 return {
     ok: true,
     modify: { text: 'modified input' },
-    notices: [{ kind: 'info', code: 'modified', message: 'Input modified' }]
+    notices: [{ kind: 'info', code: 'modified', message: 'Input modified' }],
 };
 
 // Failure (blocks if plugin is blocking)
 return {
     ok: false,
     cancel: true,
-    message: 'Validation failed'
+    message: 'Validation failed',
 };
 ```
 
