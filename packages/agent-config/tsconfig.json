@@ -4,6 +4,7 @@
     "baseUrl": ".",
     "rootDir": "src",
     "outDir": "dist",
+    "composite": true,
     "noEmit": false,
     "declaration": true,
     "declarationMap": true,
@@ -15,4 +16,3 @@
   "include": ["src/**/*"],
   "exclude": ["**/*.test.ts", "**/*.spec.ts", "**/*.integration.test.ts", "dist", "node_modules"]
 }
-

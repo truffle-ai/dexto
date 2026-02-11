@@ -3,16 +3,6 @@ import * as path from 'path';
 import { tmpdir } from 'os';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
-// Mock logger to prevent initialization issues
-vi.mock('@core/logger/index.js', () => ({
-    logger: {
-        debug: vi.fn(),
-        info: vi.fn(),
-        warn: vi.fn(),
-        error: vi.fn(),
-    },
-}));
-
 // Mock agent-management to control execution context and env path behavior in tests
 vi.mock('@dexto/agent-management', async () => {
     const actual =

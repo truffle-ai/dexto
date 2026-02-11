@@ -4,20 +4,12 @@
     "baseUrl": ".",
     "rootDir": "src",
     "outDir": "dist",
+    "composite": true,
     "noEmit": false,
     "declaration": true,
     "declarationMap": true,
     "emitDeclarationOnly": false,
-    "jsx": "react-jsx",
-    "paths": {
-      "@dexto/core": ["../core/dist/index.d.ts"],
-      "@dexto/core/*": ["../core/dist/*"],
-      "@core": ["../core/dist/index.d.ts"],
-      "@core/*": ["../core/dist/*"],
-      "@dexto/agent-management": ["../agent-management/dist/index.d.ts"],
-      "@dexto/analytics": ["../analytics/dist/index.d.ts"],
-      "@dexto/server": ["../server/dist/index.d.ts"]
-    }
+    "jsx": "react-jsx"
   },
   "include": ["src/**/*"],
   "exclude": ["**/*.test.ts", "**/*.spec.ts", "dist", "node_modules"]

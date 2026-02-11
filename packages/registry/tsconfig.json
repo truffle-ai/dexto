@@ -4,12 +4,13 @@
     "baseUrl": ".",
     "rootDir": "src",
     "outDir": "dist",
+    "composite": true,
     "noEmit": false,
     "declaration": true,
     "declarationMap": true,
     "emitDeclarationOnly": false,
     "resolveJsonModule": true
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "src/**/*.json"],
   "exclude": ["**/*.test.ts", "**/*.spec.ts", "**/*.integration.test.ts", "dist", "node_modules"]
 }

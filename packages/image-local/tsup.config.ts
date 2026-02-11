@@ -8,6 +8,7 @@ export default defineConfig([
         dts: {
             compilerOptions: {
                 skipLibCheck: true,
+                composite: false,
             },
         },
         platform: 'node',
