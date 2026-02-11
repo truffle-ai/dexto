@@ -2,13 +2,13 @@ import type { DextoAgentOptions, InitializeServicesOptions } from '@dexto/core';
 import type { ValidatedAgentConfig } from '../schemas/agent-config.js';
 import type { ResolvedServices } from './types.js';
 
-export interface ToDextoAgentOptionsOptions {
+export interface ToDextoAgentOptionsInput {
     config: ValidatedAgentConfig;
     services: ResolvedServices;
     overrides?: InitializeServicesOptions | undefined;
 }
 
-export function toDextoAgentOptions(options: ToDextoAgentOptionsOptions): DextoAgentOptions {
+export function toDextoAgentOptions(options: ToDextoAgentOptionsInput): DextoAgentOptions {
     const { config, services, overrides } = options;
 
     return {
