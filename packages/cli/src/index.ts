@@ -85,6 +85,12 @@ import {
     type InstallCommandOptions,
     handleUninstallCommand,
     type UninstallCommandOptions,
+    handleImageDoctorCommand,
+    handleImageInstallCommand,
+    handleImageListCommand,
+    handleImageRemoveCommand,
+    handleImageUseCommand,
+    type ImageInstallCommandOptionsInput,
     handleListAgentsCommand,
     type ListAgentsCommandOptionsInput,
     handleWhichCommand,
@@ -127,11 +133,12 @@ import { initializeMcpServer, createMcpTransport } from '@dexto/server';
 import { createAgentCard } from '@dexto/core';
 import { initializeMcpToolAggregationServer } from './api/mcp/tool-aggregation-handler.js';
 import { CLIConfigOverrides } from './config/cli-overrides.js';
+import { importImageModule } from './cli/utils/image-store.js';
 
 const program = new Command();
 
-// Ensure `loadImage('@dexto/image-*')` resolves relative to the host package (pnpm-safe).
-setImageImporter((specifier) => import(specifier));
+// Resolve images via the Dexto image store when installed; fall back to host imports (pnpm-safe).
+setImageImporter((specifier) => importImageModule(specifier));
 
 // Initialize analytics early (no-op if disabled)
 await initAnalytics({ appVersion: pkg.version });
@@ -224,6 +231,94 @@ program
                 if (err instanceof ExitSignal) throw err;
                 console.error(`❌ dexto create-image command failed: ${err}`);
                 safeExit('create-image', 1, 'error');
+            }
+        })
+    );
+
+// 3b) `image` SUB-COMMAND
+const imageCommand = program.command('image').description('Manage images');
+
+imageCommand
+    .command('install <image>')
+    .description('Install an image into the local Dexto image store')
+    .option('--force', 'Force reinstall if already installed')
+    .option('--no-activate', 'Do not set as the active version')
+    .action(
+        withAnalytics(
+            'image install',
+            async (image: string, options: Omit<ImageInstallCommandOptionsInput, 'image'>) => {
+                try {
+                    await handleImageInstallCommand({ ...options, image });
+                    safeExit('image install', 0);
+                } catch (err) {
+                    if (err instanceof ExitSignal) throw err;
+                    console.error(`❌ dexto image install command failed: ${err}`);
+                    safeExit('image install', 1, 'error');
+                }
+            }
+        )
+    );
+
+imageCommand
+    .command('list')
+    .description('List installed images')
+    .action(
+        withAnalytics('image list', async () => {
+            try {
+                await handleImageListCommand();
+                safeExit('image list', 0);
+            } catch (err) {
+                if (err instanceof ExitSignal) throw err;
+                console.error(`❌ dexto image list command failed: ${err}`);
+                safeExit('image list', 1, 'error');
+            }
+        })
+    );
+
+imageCommand
+    .command('use <image>')
+    .description('Set the active version for an installed image (image@version)')
+    .action(
+        withAnalytics('image use', async (image: string) => {
+            try {
+                await handleImageUseCommand({ image });
+                safeExit('image use', 0);
+            } catch (err) {
+                if (err instanceof ExitSignal) throw err;
+                console.error(`❌ dexto image use command failed: ${err}`);
+                safeExit('image use', 1, 'error');
+            }
+        })
+    );
+
+imageCommand
+    .command('remove <image>')
+    .description('Remove an image from the store (image or image@version)')
+    .action(
+        withAnalytics('image remove', async (image: string) => {
+            try {
+                await handleImageRemoveCommand({ image });
+                safeExit('image remove', 0);
+            } catch (err) {
+                if (err instanceof ExitSignal) throw err;
+                console.error(`❌ dexto image remove command failed: ${err}`);
+                safeExit('image remove', 1, 'error');
+            }
+        })
+    );
+
+imageCommand
+    .command('doctor')
+    .description('Print image store diagnostics')
+    .action(
+        withAnalytics('image doctor', async () => {
+            try {
+                await handleImageDoctorCommand();
+                safeExit('image doctor', 0);
+            } catch (err) {
+                if (err instanceof ExitSignal) throw err;
+                console.error(`❌ dexto image doctor command failed: ${err}`);
+                safeExit('image doctor', 1, 'error');
             }
         })
     );
@@ -621,13 +716,12 @@ async function bootstrapAgentFromGlobalOpts() {
     let image: DextoImageModule;
     try {
         image = await loadImage(imageName);
-    } catch (_err) {
+    } catch (err) {
         console.error(`❌ Failed to load image '${imageName}'`);
-        console.error(
-            `💡 Install it with: ${
-                existsSync('package.json') ? 'npm install' : 'npm install -g'
-            } ${imageName}`
-        );
+        if (err instanceof Error) {
+            console.error(err.message);
+        }
+        console.error(`💡 Install it with: dexto image install ${imageName}`);
         safeExit('bootstrap', 1, 'image-load-failed');
     }
 
@@ -1429,8 +1523,10 @@ program
                     } catch (err) {
                         console.error(`❌ Failed to load image '${imageName}'`);
                         if (err instanceof Error) {
+                            console.error(err.message);
                             logger.debug(`Image load error: ${err.message}`);
                         }
+                        console.error(`💡 Install it with: dexto image install ${imageName}`);
                         safeExit('main', 1, 'image-load-failed');
                     }
 
