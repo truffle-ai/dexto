@@ -35,6 +35,7 @@ _Log findings, issues, and progress here as you work._
 - Phase 5.7 completed: compaction is DI-only via a single expanded `ICompactionStrategy` (no controller abstraction); `/quality-checks` pass.
 - Aligned plugin + storage config shapes to image-driven types (plugins: `[{ type, enabled? }]`; cache/database config schemas are `{ type: string }` envelopes validated by image factories). `/quality-checks` pass.
 - Naming/docs cleanup: renamed `@dexto/storage` “providers” → “factories” (matches `ToolFactory` terminology), updated `@dexto/image-bundler` convention exports to `export const factory`, and refreshed package READMEs accordingly. `pnpm -w run build:packages` passes.
+- Tooling: enabled TypeScript project references (no new tsconfig files) so IDE “find references” works repo-wide; removed `dist/*.d.ts` path mapping. `bash scripts/quality-checks.sh all` passes.
 
 ---
 
@@ -132,13 +133,14 @@ _Move tasks here after completion. Keep a brief log of what was done and any dev
 | 5.2 | Update all broken tests | 2026-02-11 | Updated tests that referenced deleted registry-era schemas/tools and updated filesystem tool tests for new signatures. `pnpm -w test` passes. |
 | 5.3 | Add new test coverage | 2026-02-11 | Added resolver tests (tool prefixing/conflicts, schema failures, plugin priority conflicts) and expanded `loadImage()` conformance tests. `bash scripts/quality-checks.sh` passes. |
 | 5.5 | Update OpenAPI / server docs if affected | 2026-02-11 | Ran `pnpm run sync-openapi-docs` and verified `sync-openapi-docs:check` passes. |
-| 5.6.1 | Review and resolve `USER_VERIFICATION.md` | 2026-02-11 | UV-1 resolved by removing `ImageTarget` / `ImageConstraint` types; UV-2..UV-7 added as manual verification checklist (owner gate before Phase 6). |
+| 5.6.1a | Populate/refresh owner verification checklist | 2026-02-11 | UV-1 resolved by removing `ImageTarget` / `ImageConstraint` types; UV-2..UV-7 added as manual verification checklist (owner gate before Phase 6). |
 | 5.7 | Compaction — DI-only runtime interface | 2026-02-11 | Expanded `ICompactionStrategy` (single interface) to own budgeting + overflow decision + compaction execution (runtime context provides model/logger/sessionId). Moved compaction schema/defaults to agent-config, resolved via image factories, updated image-local + server discovery, and removed `runtimeConfig.compaction` from core. `bash scripts/quality-checks.sh` passes. |
 | 7.0 | Draft image resolution follow-up plan | 2026-02-11 | Added `IMAGE_RESOLUTION_PLAN.md` (Docker-like image store concept) and updated `PLAN.md` to add Phase 7. |
 | 7.1 | Implement CLI image store + commands | 2026-02-11 | Added `~/.dexto/images` store (`registry.json` + `packages/`), CLI store importer, and `dexto image install/list/use/remove/doctor` commands with unit coverage. |
 | 7.2 | Harden local image installs + validation | 2026-02-11 | `dexto image install` supports file-like specifiers (`.`, `..`, `./`, `../`, `file://`, absolute paths). Installer validates installed entry via `loadImage()` conformance checks and has focused unit coverage (mocked `npm install`). |
 | 7.3 | Move image store helpers to `@dexto/agent-management` | 2026-02-11 | Extracted store registry + resolution helpers into agent-management (aligned with other `~/.dexto/*` utilities). CLI keeps installer/importer + commands. Added agent-management unit coverage and updated vitest aliases to use workspace sources. |
 | 7.4 | Align plugins + storage schemas to image-driven types | 2026-02-11 | Plugins config is now a list of `{ type, enabled? }` entries (no built-in keyed object). Storage cache/database config schemas are `{ type: string }` envelopes validated by image factories; WebUI Storage editor updated to handle passthrough config safely. `/quality-checks` pass. |
+| Tooling | TypeScript project references for monorepo navigation | 2026-02-11 | Root `tsconfig.json` is now a solution config with `references`; every `packages/*/tsconfig.json` is `composite: true`; removed CLI/server `paths` mapping to other packages’ `dist/*.d.ts`; updated `tsup` DTS configs to set `composite: false` for builds that generate DTS. `bash scripts/quality-checks.sh all` passes. |
 
 ---
 

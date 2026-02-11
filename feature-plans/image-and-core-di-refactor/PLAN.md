@@ -2532,9 +2532,13 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
 ### Phase 5.6: Owner verification (pre‑platform gate)
 > **Goal:** Ensure all deferred owner decisions / manual verifications are resolved before starting Phase 6 (platform).
 
-- [x] **5.6.1 Review and resolve `USER_VERIFICATION.md`**
-  - Resolve items, or explicitly defer them (move to a follow‑up plan) before proceeding
-  - Exit: `USER_VERIFICATION.md` is empty or all items are marked resolved with dates/notes.
+- [ ] **5.6.1 Review and resolve `USER_VERIFICATION.md`**
+  - [x] **5.6.1a Populate/refresh owner verification checklist**
+    - Add any owner-only decisions/manual checks discovered during implementation
+    - Exit: checklist exists and blocks Phase 6 until reviewed
+  - [ ] **5.6.1b Owner runs verification + marks items resolved**
+    - Resolve items, or explicitly defer them (move to a follow‑up plan) before proceeding
+    - Exit: `USER_VERIFICATION.md` is empty or all items are marked resolved with dates/notes.
 
 ---
 
