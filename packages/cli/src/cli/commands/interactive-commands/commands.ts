@@ -107,10 +107,11 @@ export async function executeCommand(
     command: string,
     args: string[],
     agent: DextoAgent,
-    sessionId?: string
+    sessionId?: string,
+    configFilePath?: string | null
 ): Promise<CommandHandlerResult> {
     // Create command context with sessionId
-    const ctx = { sessionId: sessionId ?? null };
+    const ctx = { sessionId: sessionId ?? null, configFilePath: configFilePath ?? null };
 
     // Find the command (including aliases)
     const cmd = CLI_COMMANDS.find(

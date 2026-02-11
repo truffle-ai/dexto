@@ -1,56 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { z } from 'zod';
 import {
-    InternalToolsSchema,
     ToolConfirmationConfigSchema,
     ToolPoliciesSchema,
-    type InternalToolsConfig,
     type ToolConfirmationConfig,
     type ValidatedToolConfirmationConfig,
     type ToolPolicies,
 } from './schemas.js';
-
-// safeParse for invalid test cases to check exact error codes
-// parse for valid test cases for less boilerplate
-describe('InternalToolsSchema', () => {
-    describe('Array Validation', () => {
-        it('should accept empty array as default', () => {
-            const result = InternalToolsSchema.parse([]);
-            expect(result).toEqual([]);
-        });
-
-        it('should accept valid internal tool names', () => {
-            const result = InternalToolsSchema.parse(['search_history']);
-            expect(result).toEqual(['search_history']);
-        });
-
-        it('should reject invalid tool names', () => {
-            const result = InternalToolsSchema.safeParse(['invalid-tool']);
-            expect(result.success).toBe(false);
-            expect(result.error?.issues[0]?.code).toBe(z.ZodIssueCode.invalid_enum_value);
-            expect(result.error?.issues[0]?.path).toEqual([0]);
-        });
-        // TODO: update when more valid tools are added
-        it('should accept multiple valid tools', () => {
-            const result = InternalToolsSchema.parse(['search_history']);
-            expect(result).toHaveLength(1);
-        });
-    });
-
-    describe('Default Values', () => {
-        it('should apply default empty array when undefined', () => {
-            const result = InternalToolsSchema.parse(undefined);
-            expect(result).toEqual([]);
-        });
-    });
-
-    describe('Type Safety', () => {
-        it('should have correct type inference', () => {
-            const result: InternalToolsConfig = InternalToolsSchema.parse([]);
-            expect(Array.isArray(result)).toBe(true);
-        });
-    });
-});
 
 describe('ToolConfirmationConfigSchema', () => {
     describe('Field Validation', () => {

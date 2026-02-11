@@ -8,7 +8,7 @@ import * as path from 'node:path';
 import { z } from 'zod';
 import { InternalTool, ToolExecutionContext, ApprovalType } from '@dexto/core';
 import type { SearchDisplayData, ApprovalRequestDetails, ApprovalResponse } from '@dexto/core';
-import type { FileToolOptions } from './file-tool-types.js';
+import type { FileSystemServiceGetter, FileSystemServiceOrGetter } from './file-tool-types.js';
 
 const GrepContentInputSchema = z
     .object({
@@ -50,8 +50,9 @@ type GrepContentInput = z.input<typeof GrepContentInputSchema>;
 /**
  * Create the grep_content internal tool with directory approval support
  */
-export function createGrepContentTool(options: FileToolOptions): InternalTool {
-    const { fileSystemService, directoryApproval } = options;
+export function createGrepContentTool(fileSystemService: FileSystemServiceOrGetter): InternalTool {
+    const getFileSystemService: FileSystemServiceGetter =
+        typeof fileSystemService === 'function' ? fileSystemService : async () => fileSystemService;
 
     // Store search directory for use in onApprovalGranted callback
     let pendingApprovalSearchDir: string | undefined;
@@ -66,20 +67,26 @@ export function createGrepContentTool(options: FileToolOptions): InternalTool {
          * Check if this grep operation needs directory access approval.
          * Returns custom approval request if the search directory is outside allowed paths.
          */
-        getApprovalOverride: async (args: unknown): Promise<ApprovalRequestDetails | null> => {
+        getApprovalOverride: async (
+            args: unknown,
+            context?: ToolExecutionContext
+        ): Promise<ApprovalRequestDetails | null> => {
             const { path: searchPath } = args as GrepContentInput;
 
             // Resolve the search directory (use cwd if not specified)
             const searchDir = path.resolve(searchPath || process.cwd());
 
+            const resolvedFileSystemService = await getFileSystemService(context);
+
             // Check if path is within config-allowed paths
-            const isAllowed = await fileSystemService.isPathWithinConfigAllowed(searchDir);
+            const isAllowed = await resolvedFileSystemService.isPathWithinConfigAllowed(searchDir);
             if (isAllowed) {
                 return null; // Use normal tool confirmation
             }
 
-            // Check if directory is already session-approved
-            if (directoryApproval?.isSessionApproved(searchDir)) {
+            // Check if directory is already session-approved (prompting decision)
+            const approvalManager = context?.services?.approval;
+            if (approvalManager?.isDirectorySessionApproved(searchDir)) {
                 return null; // Already approved, use normal flow
             }
 
@@ -100,13 +107,15 @@ export function createGrepContentTool(options: FileToolOptions): InternalTool {
         /**
          * Handle approved directory access - remember the directory for session
          */
-        onApprovalGranted: (response: ApprovalResponse): void => {
-            if (!directoryApproval || !pendingApprovalSearchDir) return;
+        onApprovalGranted: (response: ApprovalResponse, context?: ToolExecutionContext): void => {
+            if (!pendingApprovalSearchDir) return;
 
             // Check if user wants to remember the directory
             const data = response.data as { rememberDirectory?: boolean } | undefined;
             const rememberDirectory = data?.rememberDirectory ?? false;
-            directoryApproval.addApproved(
+
+            const approvalManager = context?.services?.approval;
+            approvalManager?.addApprovedDirectory(
                 pendingApprovalSearchDir,
                 rememberDirectory ? 'session' : 'once'
             );
@@ -115,13 +124,15 @@ export function createGrepContentTool(options: FileToolOptions): InternalTool {
             pendingApprovalSearchDir = undefined;
         },
 
-        execute: async (input: unknown, _context?: ToolExecutionContext) => {
+        execute: async (input: unknown, context?: ToolExecutionContext) => {
+            const resolvedFileSystemService = await getFileSystemService(context);
+
             // Input is validated by provider before reaching here
             const { pattern, path, glob, context_lines, case_insensitive, max_results } =
                 input as GrepContentInput;
 
             // Search for content using FileSystemService
-            const result = await fileSystemService.searchContent(pattern, {
+            const result = await resolvedFileSystemService.searchContent(pattern, {
                 path,
                 glob,
                 contextLines: context_lines,

@@ -1,6 +1,6 @@
 import type { IDextoLogger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
-import type { AgentRuntimeConfig } from '@core/agent/runtime-config.js';
+import type { AgentRuntimeSettings } from '@core/agent/runtime-config.js';
 import type { ValidatedLLMConfig } from '@core/llm/schemas.js';
 import type { ValidatedMcpServerConfig } from '@core/mcp/schemas.js';
 import type { AgentEventBus } from '../events/index.js';
@@ -27,8 +27,8 @@ export interface SessionOverride {
  * 6. Maintain effective configuration for each session
  */
 export class AgentStateManager {
-    private runtimeConfig: AgentRuntimeConfig;
-    private readonly baselineConfig: AgentRuntimeConfig;
+    private runtimeConfig: AgentRuntimeSettings;
+    private readonly baselineConfig: AgentRuntimeSettings;
     private sessionOverrides: Map<string, SessionOverride> = new Map();
     private logger: IDextoLogger;
 
@@ -40,7 +40,7 @@ export class AgentStateManager {
      * @param logger Logger instance for this agent
      */
     constructor(
-        staticConfig: AgentRuntimeConfig,
+        staticConfig: AgentRuntimeSettings,
         private agentEventBus: AgentEventBus,
         logger: IDextoLogger
     ) {
@@ -59,7 +59,7 @@ export class AgentStateManager {
     /**
      * Get runtime configuration for a session (includes session overrides if sessionId provided)
      */
-    public getRuntimeConfig(sessionId?: string): Readonly<AgentRuntimeConfig> {
+    public getRuntimeConfig(sessionId?: string): Readonly<AgentRuntimeSettings> {
         if (!sessionId) {
             return structuredClone(this.runtimeConfig);
         }
@@ -220,8 +220,8 @@ export class AgentStateManager {
      * Export current runtime state as config.
      * This allows users to save their runtime modifications as a new agent config.
      */
-    public exportAsConfig(): AgentRuntimeConfig {
-        const exportedConfig: AgentRuntimeConfig = {
+    public exportAsConfig(): AgentRuntimeSettings {
+        const exportedConfig: AgentRuntimeSettings = {
             ...this.baselineConfig,
             llm: structuredClone(this.runtimeConfig.llm),
             systemPrompt: this.runtimeConfig.systemPrompt,

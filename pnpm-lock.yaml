@@ -145,9 +145,9 @@ importers:
       '@dexto/orchestration':
         specifier: workspace:*
         version: link:../orchestration
-      '@dexto/storage':
+      '@dexto/tools-builtins':
         specifier: workspace:*
-        version: link:../storage
+        version: link:../tools-builtins
       yaml:
         specifier: ^2.7.1
         version: 2.8.1

@@ -12968,7 +12968,7 @@
     "/api/discovery": {
       "get": {
         "summary": "Discover Available Providers and Tools",
-        "description": "Returns all registered providers (blob storage, database, compaction, custom tools) and available internal tools. Useful for building UIs that need to display configurable options.",
+        "description": "Returns all available providers (blob storage, database, compaction, tools) for the currently active image.",
         "tags": [
           "discovery"
         ],

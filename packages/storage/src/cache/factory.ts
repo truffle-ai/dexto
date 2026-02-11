@@ -24,11 +24,7 @@ import { inMemoryCacheProvider, redisCacheProvider } from './providers/index.js'
  * const cache = await createCache({ type: 'redis', host: 'localhost' }, logger);
  * ```
  */
-export async function createCache(
-    // TODO: temporary glue code to be removed/verified
-    config: unknown,
-    logger: IDextoLogger
-): Promise<Cache> {
+export async function createCache(config: unknown, logger: IDextoLogger): Promise<Cache> {
     const parsedConfig = CacheConfigSchema.safeParse(config);
     if (!parsedConfig.success) {
         throw StorageError.cacheInvalidConfig(parsedConfig.error.message);

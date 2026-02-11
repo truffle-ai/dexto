@@ -292,25 +292,4 @@ describe('resolveServicesFromConfig', () => {
         expect(services.plugins).toHaveLength(2);
         expect(initCalls).toEqual(['response-sanitizer', 'content-policy']);
     });
-
-    it('resolves compaction when enabled', async () => {
-        const image = createMockImage({
-            compaction: {
-                noop: {
-                    configSchema: z
-                        .object({ type: z.literal('noop'), enabled: z.boolean() })
-                        .passthrough(),
-                    create: () => ({ name: 'noop', compact: () => [] }),
-                },
-            },
-        });
-
-        const validated = AgentConfigSchema.parse({
-            ...baseConfig,
-            compaction: { type: 'noop', enabled: true },
-        } satisfies AgentConfig);
-
-        const services = await resolveServicesFromConfig(validated, image);
-        expect(services.compaction?.name).toBe('noop');
-    });
 });

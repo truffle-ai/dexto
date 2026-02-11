@@ -9,6 +9,7 @@ import {
 } from '@dexto/agent-config';
 import { DextoAgent, logger } from '@dexto/core';
 import { enrichAgentConfig, type EnrichAgentConfigOptions } from './config/index.js';
+import { BUILTIN_TOOL_NAMES } from '@dexto/tools-builtins';
 
 type CreateDextoAgentFromConfigOptions = {
     config: AgentConfig;
@@ -16,6 +17,7 @@ type CreateDextoAgentFromConfigOptions = {
     enrichOptions?: EnrichAgentConfigOptions | undefined;
     agentIdOverride?: string | undefined;
     imageNameOverride?: string | undefined;
+    agentContext?: 'subagent' | undefined;
 };
 
 async function loadImageForConfig(options: {
@@ -36,6 +38,44 @@ async function loadImageForConfig(options: {
     }
 }
 
+function applySubAgentToolConstraints(config: AgentConfig): AgentConfig {
+    const tools = config.tools;
+    if (!Array.isArray(tools)) {
+        return config;
+    }
+
+    const disabledBuiltinTools = new Set(['ask_user', 'invoke_skill']);
+
+    const constrainedTools = tools
+        // Prevent nested spawning.
+        .filter((entry) => entry.type !== 'agent-spawner')
+        .map((entry) => {
+            if (entry.type !== 'builtin-tools' || entry.enabled === false) {
+                return entry;
+            }
+
+            const maybeEnabledTools = (entry as { enabledTools?: unknown }).enabledTools;
+            const enabledTools = Array.isArray(maybeEnabledTools)
+                ? (maybeEnabledTools as string[])
+                : [...BUILTIN_TOOL_NAMES];
+
+            const filteredEnabledTools = enabledTools.filter((t) => !disabledBuiltinTools.has(t));
+
+            return { ...entry, enabledTools: filteredEnabledTools };
+        })
+        // Drop builtin-tools entirely if nothing remains.
+        .filter((entry) => {
+            if (entry.type !== 'builtin-tools') {
+                return true;
+            }
+
+            const maybeEnabledTools = (entry as { enabledTools?: unknown }).enabledTools;
+            return !Array.isArray(maybeEnabledTools) || maybeEnabledTools.length > 0;
+        });
+
+    return { ...config, tools: constrainedTools };
+}
+
 export async function createDextoAgentFromConfig(
     options: CreateDextoAgentFromConfigOptions
 ): Promise<DextoAgent> {
@@ -47,7 +87,10 @@ export async function createDextoAgentFromConfig(
         imageNameOverride: options.imageNameOverride,
     });
 
-    const configWithImageDefaults = applyImageDefaults(cleanedConfig, image.defaults);
+    let configWithImageDefaults = applyImageDefaults(cleanedConfig, image.defaults);
+    if (options.agentContext === 'subagent') {
+        configWithImageDefaults = applySubAgentToolConstraints(configWithImageDefaults);
+    }
 
     // Enrich config with per-agent paths BEFORE validation (logger/storage paths, prompt/plugin discovery, etc.)
     // Note: agentId override (when provided) is applied after enrichment to force pool/runtime IDs.
@@ -67,7 +110,6 @@ export async function createDextoAgentFromConfig(
         toDextoAgentOptions({
             config: validatedConfig,
             services,
-            configPath,
         })
     );
 }

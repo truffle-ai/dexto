@@ -5,8 +5,7 @@ import { ContextError } from '../errors.js';
 import { noopProvider } from './providers/noop-provider.js';
 import { reactiveOverflowProvider } from './providers/reactive-overflow-provider.js';
 
-// TODO: temporary glue code to be removed/verified
-// During the DI refactor, compaction strategy resolution moves out of core into `@dexto/agent-config`.
+// Compaction strategies remain core-owned for now (reactive-overflow requires a per-session LanguageModel).
 
 /**
  * Create a compaction strategy from configuration.

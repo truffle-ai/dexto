@@ -1,8 +1,8 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
-import { logger, McpServerConfigSchema, MCP_CONNECTION_STATUSES } from '@dexto/core';
+import { AgentError, logger, McpServerConfigSchema, MCP_CONNECTION_STATUSES } from '@dexto/core';
 import { updateAgentConfigFile } from '@dexto/agent-management';
 import { ResourceSchema } from '../schemas/responses.js';
-import type { GetAgentFn } from '../index.js';
+import type { GetAgentConfigPathFn, GetAgentFn } from '../index.js';
 
 const McpServerRequestSchema = z
     .object({
@@ -137,7 +137,7 @@ const ResourceContentResponseSchema = z
     .strict()
     .describe('Resource content response');
 
-export function createMcpRouter(getAgent: GetAgentFn) {
+export function createMcpRouter(getAgent: GetAgentFn, getAgentConfigPath: GetAgentConfigPathFn) {
     const app = new OpenAPIHono();
 
     const addServerRoute = createRoute({
@@ -305,6 +305,11 @@ export function createMcpRouter(getAgent: GetAgentFn) {
             // If persistToAgent is true, save to agent config file
             if (persistToAgent === true) {
                 try {
+                    const agentPath = await getAgentConfigPath(ctx);
+                    if (!agentPath) {
+                        throw AgentError.noConfigPath();
+                    }
+
                     // Get the current effective config to read existing mcpServers
                     const currentConfig = agent.getEffectiveConfig();
 
@@ -316,19 +321,10 @@ export function createMcpRouter(getAgent: GetAgentFn) {
                         },
                     };
 
-                    // Write to file (agent-management's job)
-                    const newConfig = await updateAgentConfigFile(
-                        agent.getAgentFilePath(),
-                        updates
-                    );
-
-                    // Reload into agent (core's job - handles restart automatically)
-                    const reloadResult = await agent.reload(newConfig);
-                    if (reloadResult.restarted) {
-                        logger.info(
-                            `Agent restarted to apply changes: ${reloadResult.changesApplied.join(', ')}`
-                        );
-                    }
+                    // Write to file (agent-management's job).
+                    // The server already applied the change dynamically via addMcpServer(),
+                    // so we don't restart the agent here.
+                    await updateAgentConfigFile(agentPath, updates);
                     logger.info(`Saved server '${name}' to agent configuration file`);
                 } catch (saveError) {
                     const errorMessage =

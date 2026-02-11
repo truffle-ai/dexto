@@ -11,17 +11,6 @@ export * from './types.js';
 // Display types for tool result rendering
 export * from './display-types.js';
 
-// Internal tools provider and types
-export * from './internal-tools/index.js';
-
-// Custom tool registry and provider interface
-export {
-    customToolRegistry,
-    type CustomToolProvider,
-    type CustomToolRegistry,
-    type ToolCreationContext,
-} from './custom-tool-registry.js';
-
 // Schemas/types
 export * from './schemas.js';
 

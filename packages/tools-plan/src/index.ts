@@ -36,8 +36,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
  */
 export const PLUGIN_PATH = path.resolve(__dirname, '..');
 
-// Tool provider (for direct registration if needed)
-export { planToolsProvider } from './tool-provider.js';
+// Tool factory (image-compatible)
 export { planToolsFactory } from './tool-factory.js';
 
 // Service (for advanced use cases)

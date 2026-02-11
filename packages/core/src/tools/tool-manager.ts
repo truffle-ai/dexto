@@ -1138,8 +1138,10 @@ export class ToolManager {
             return { handled: false };
         }
 
+        const context = this.buildToolExecutionContext({ sessionId });
+
         // Get the custom approval request from the tool (may be async)
-        const approvalRequest = await tool.getApprovalOverride(args);
+        const approvalRequest = await tool.getApprovalOverride(args, context);
         if (!approvalRequest) {
             // Tool decided no custom approval needed, continue normal flow
             return { handled: false };
@@ -1160,7 +1162,7 @@ export class ToolManager {
         if (response.status === ApprovalStatus.APPROVED) {
             // Let the tool handle the approved response (e.g., remember directory)
             if (tool.onApprovalGranted) {
-                tool.onApprovalGranted(response);
+                tool.onApprovalGranted(response, context);
             }
 
             this.logger.info(

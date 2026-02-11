@@ -5,23 +5,31 @@ import type { ResolvedServices } from './types.js';
 export interface ToDextoAgentOptionsOptions {
     config: ValidatedAgentConfig;
     services: ResolvedServices;
-    configPath?: string | undefined;
     overrides?: InitializeServicesOptions | undefined;
 }
 
 export function toDextoAgentOptions(options: ToDextoAgentOptionsOptions): DextoAgentOptions {
-    const { config, services, configPath, overrides } = options;
-
-    const runtimeConfig: DextoAgentOptions['config'] = config;
+    const { config, services, overrides } = options;
 
     return {
-        config: runtimeConfig,
-        configPath,
-        overrides,
+        agentId: config.agentId,
+        llm: config.llm,
+        systemPrompt: config.systemPrompt,
+        agentCard: config.agentCard,
+        greeting: config.greeting,
+        telemetry: config.telemetry,
+        memories: config.memories,
+        mcpServers: config.mcpServers,
+        sessions: config.sessions,
+        toolConfirmation: config.toolConfirmation,
+        elicitation: config.elicitation,
+        internalResources: config.internalResources,
+        prompts: config.prompts,
+        compaction: config.compaction,
         logger: services.logger,
         storage: services.storage,
         tools: services.tools,
         plugins: services.plugins,
-        compaction: services.compaction,
+        ...(overrides ? { overrides } : {}),
     };
 }

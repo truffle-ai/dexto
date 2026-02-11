@@ -62,7 +62,7 @@ describe('write_file tool', () => {
 
     describe('File Modification Detection - Existing Files', () => {
         it('should succeed when existing file is not modified between preview and execute', async () => {
-            const tool = createWriteFileTool({ fileSystemService });
+            const tool = createWriteFileTool(fileSystemService);
             const testFile = path.join(tempDir, 'test.txt');
             await fs.writeFile(testFile, 'original content');
 
@@ -92,7 +92,7 @@ describe('write_file tool', () => {
         });
 
         it('should fail when existing file is modified between preview and execute', async () => {
-            const tool = createWriteFileTool({ fileSystemService });
+            const tool = createWriteFileTool(fileSystemService);
             const testFile = path.join(tempDir, 'test.txt');
             await fs.writeFile(testFile, 'original content');
 
@@ -125,7 +125,7 @@ describe('write_file tool', () => {
         });
 
         it('should fail when existing file is deleted between preview and execute', async () => {
-            const tool = createWriteFileTool({ fileSystemService });
+            const tool = createWriteFileTool(fileSystemService);
             const testFile = path.join(tempDir, 'test.txt');
             await fs.writeFile(testFile, 'original content');
 
@@ -156,7 +156,7 @@ describe('write_file tool', () => {
 
     describe('File Modification Detection - New Files', () => {
         it('should succeed when creating new file that still does not exist', async () => {
-            const tool = createWriteFileTool({ fileSystemService });
+            const tool = createWriteFileTool(fileSystemService);
             const testFile = path.join(tempDir, 'new-file.txt');
 
             const toolCallId = 'test-call-new';
@@ -182,7 +182,7 @@ describe('write_file tool', () => {
         });
 
         it('should fail when file is created by someone else between preview and execute', async () => {
-            const tool = createWriteFileTool({ fileSystemService });
+            const tool = createWriteFileTool(fileSystemService);
             const testFile = path.join(tempDir, 'race-condition.txt');
 
             const toolCallId = 'test-call-race';
@@ -217,7 +217,7 @@ describe('write_file tool', () => {
 
     describe('Cache Cleanup', () => {
         it('should clean up hash cache after successful execution', async () => {
-            const tool = createWriteFileTool({ fileSystemService });
+            const tool = createWriteFileTool(fileSystemService);
             const testFile = path.join(tempDir, 'test.txt');
             await fs.writeFile(testFile, 'original');
 
@@ -245,7 +245,7 @@ describe('write_file tool', () => {
         });
 
         it('should clean up hash cache after failed execution', async () => {
-            const tool = createWriteFileTool({ fileSystemService });
+            const tool = createWriteFileTool(fileSystemService);
             const testFile = path.join(tempDir, 'test.txt');
             await fs.writeFile(testFile, 'original');
 

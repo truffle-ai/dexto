@@ -7,18 +7,6 @@
  */
 
 import { z } from 'zod';
-import type { CustomToolProvider, ToolCreationContext } from '@dexto/core';
-import type { InternalTool } from '@dexto/core';
-import { FileSystemService } from './filesystem-service.js';
-import { createReadFileTool } from './read-file-tool.js';
-import { createWriteFileTool } from './write-file-tool.js';
-import { createEditFileTool } from './edit-file-tool.js';
-import { createGlobFilesTool } from './glob-files-tool.js';
-import { createGrepContentTool } from './grep-content-tool.js';
-import type { FileToolOptions } from './file-tool-types.js';
-
-// Re-export for convenience
-export type { FileToolOptions } from './file-tool-types.js';
 
 /**
  * Default configuration constants for FileSystem tools.
@@ -41,7 +29,6 @@ const FILESYSTEM_TOOL_NAMES = [
     'glob_files',
     'grep_content',
 ] as const;
-type FileSystemToolName = (typeof FILESYSTEM_TOOL_NAMES)[number];
 
 /**
  * Configuration schema for FileSystem tools provider.
@@ -108,108 +95,3 @@ export const FileSystemToolsConfigSchema = z
     .strict();
 
 export type FileSystemToolsConfig = z.output<typeof FileSystemToolsConfigSchema>;
-
-/**
- * FileSystem tools provider.
- *
- * Wraps FileSystemService and provides file operation tools:
- * - read_file: Read file contents with pagination
- * - write_file: Write or overwrite file contents
- * - edit_file: Edit files using search/replace operations
- * - glob_files: Find files matching glob patterns
- * - grep_content: Search file contents using regex
- *
- * When registered via customToolRegistry, FileSystemService is automatically
- * initialized and file operation tools become available to the agent.
- */
-export const fileSystemToolsProvider: CustomToolProvider<
-    'filesystem-tools',
-    FileSystemToolsConfig
-> = {
-    type: 'filesystem-tools',
-    configSchema: FileSystemToolsConfigSchema,
-
-    create: (config: FileSystemToolsConfig, context: ToolCreationContext): InternalTool[] => {
-        const { logger, services } = context;
-
-        logger.debug('Creating FileSystemService for filesystem tools');
-
-        // Create FileSystemService with validated config
-        const fileSystemService = new FileSystemService(
-            {
-                allowedPaths: config.allowedPaths,
-                blockedPaths: config.blockedPaths,
-                blockedExtensions: config.blockedExtensions,
-                maxFileSize: config.maxFileSize,
-                workingDirectory: config.workingDirectory || process.cwd(),
-                enableBackups: config.enableBackups,
-                backupPath: config.backupPath,
-                backupRetentionDays: config.backupRetentionDays,
-            },
-            logger
-        );
-
-        // Start initialization in background - service methods use ensureInitialized() for lazy init
-        // This means tools will wait for initialization to complete before executing
-        fileSystemService.initialize().catch((error) => {
-            logger.error(`Failed to initialize FileSystemService: ${error.message}`);
-        });
-
-        logger.debug('FileSystemService created - initialization will complete on first tool use');
-
-        // Set up directory approval checker callback if approvalManager is available
-        // This allows FileSystemService to check approved directories during validation
-        const approvalManager = services?.approvalManager;
-        if (approvalManager) {
-            const approvalChecker = (filePath: string) => {
-                // Use isDirectoryApproved() for EXECUTION decisions (checks both 'session' and 'once' types)
-                // isDirectorySessionApproved() is only for PROMPTING decisions (checks 'session' type only)
-                return approvalManager.isDirectoryApproved(filePath);
-            };
-            fileSystemService.setDirectoryApprovalChecker(approvalChecker);
-            logger.debug('Directory approval checker configured for FileSystemService');
-        }
-
-        // Create directory approval callbacks for file tools
-        // These allow tools to check and request directory approval
-        const directoryApproval = approvalManager
-            ? {
-                  isSessionApproved: (filePath: string) =>
-                      approvalManager.isDirectorySessionApproved(filePath),
-                  addApproved: (directory: string, type: 'session' | 'once') =>
-                      approvalManager.addApprovedDirectory(directory, type),
-              }
-            : undefined;
-
-        // Create options for file tools with directory approval support
-        const fileToolOptions: FileToolOptions = {
-            fileSystemService,
-            directoryApproval,
-        };
-
-        // Build tool map for selective enabling
-        const toolCreators: Record<FileSystemToolName, () => InternalTool> = {
-            read_file: () => createReadFileTool(fileToolOptions),
-            write_file: () => createWriteFileTool(fileToolOptions),
-            edit_file: () => createEditFileTool(fileToolOptions),
-            glob_files: () => createGlobFilesTool(fileToolOptions),
-            grep_content: () => createGrepContentTool(fileToolOptions),
-        };
-
-        // Determine which tools to create
-        const toolsToCreate = config.enabledTools ?? FILESYSTEM_TOOL_NAMES;
-
-        if (config.enabledTools) {
-            logger.debug(`Creating subset of filesystem tools: ${toolsToCreate.join(', ')}`);
-        }
-
-        // Create and return only the enabled tools
-        return toolsToCreate.map((toolName) => toolCreators[toolName]());
-    },
-
-    metadata: {
-        displayName: 'FileSystem Tools',
-        description: 'File system operations (read, write, edit, glob, grep)',
-        category: 'filesystem',
-    },
-};

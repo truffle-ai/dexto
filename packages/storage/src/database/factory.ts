@@ -30,11 +30,7 @@ import {
  * const db = await createDatabase({ type: 'sqlite', path: '/tmp/data.db' }, logger);
  * ```
  */
-export async function createDatabase(
-    // TODO: temporary glue code to be removed/verified
-    config: unknown,
-    logger: IDextoLogger
-): Promise<Database> {
+export async function createDatabase(config: unknown, logger: IDextoLogger): Promise<Database> {
     const parsedConfig = DatabaseConfigSchema.safeParse(config);
     if (!parsedConfig.success) {
         throw StorageError.databaseInvalidConfig(parsedConfig.error.message);

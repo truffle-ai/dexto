@@ -8,7 +8,7 @@ import * as path from 'node:path';
 import { z } from 'zod';
 import { InternalTool, ToolExecutionContext, ApprovalType } from '@dexto/core';
 import type { FileDisplayData, ApprovalRequestDetails, ApprovalResponse } from '@dexto/core';
-import type { FileToolOptions } from './file-tool-types.js';
+import type { FileSystemServiceGetter, FileSystemServiceOrGetter } from './file-tool-types.js';
 
 const ReadFileInputSchema = z
     .object({
@@ -33,8 +33,9 @@ type ReadFileInput = z.input<typeof ReadFileInputSchema>;
 /**
  * Create the read_file internal tool with directory approval support
  */
-export function createReadFileTool(options: FileToolOptions): InternalTool {
-    const { fileSystemService, directoryApproval } = options;
+export function createReadFileTool(fileSystemService: FileSystemServiceOrGetter): InternalTool {
+    const getFileSystemService: FileSystemServiceGetter =
+        typeof fileSystemService === 'function' ? fileSystemService : async () => fileSystemService;
 
     // Store parent directory for use in onApprovalGranted callback
     let pendingApprovalParentDir: string | undefined;
@@ -49,18 +50,24 @@ export function createReadFileTool(options: FileToolOptions): InternalTool {
          * Check if this read operation needs directory access approval.
          * Returns custom approval request if the file is outside allowed paths.
          */
-        getApprovalOverride: async (args: unknown): Promise<ApprovalRequestDetails | null> => {
+        getApprovalOverride: async (
+            args: unknown,
+            context?: ToolExecutionContext
+        ): Promise<ApprovalRequestDetails | null> => {
             const { file_path } = args as ReadFileInput;
             if (!file_path) return null;
 
+            const resolvedFileSystemService = await getFileSystemService(context);
+
             // Check if path is within config-allowed paths (async for non-blocking symlink resolution)
-            const isAllowed = await fileSystemService.isPathWithinConfigAllowed(file_path);
+            const isAllowed = await resolvedFileSystemService.isPathWithinConfigAllowed(file_path);
             if (isAllowed) {
                 return null; // Use normal tool confirmation
             }
 
-            // Check if directory is already session-approved
-            if (directoryApproval?.isSessionApproved(file_path)) {
+            // Check if directory is already session-approved (prompting decision)
+            const approvalManager = context?.services?.approval;
+            if (approvalManager?.isDirectorySessionApproved(file_path)) {
                 return null; // Already approved, use normal flow
             }
 
@@ -83,14 +90,16 @@ export function createReadFileTool(options: FileToolOptions): InternalTool {
         /**
          * Handle approved directory access - remember the directory for session
          */
-        onApprovalGranted: (response: ApprovalResponse): void => {
-            if (!directoryApproval || !pendingApprovalParentDir) return;
+        onApprovalGranted: (response: ApprovalResponse, context?: ToolExecutionContext): void => {
+            if (!pendingApprovalParentDir) return;
 
             // Check if user wants to remember the directory
             // Use type assertion to access rememberDirectory since response.data is a union type
             const data = response.data as { rememberDirectory?: boolean } | undefined;
             const rememberDirectory = data?.rememberDirectory ?? false;
-            directoryApproval.addApproved(
+
+            const approvalManager = context?.services?.approval;
+            approvalManager?.addApprovedDirectory(
                 pendingApprovalParentDir,
                 rememberDirectory ? 'session' : 'once'
             );
@@ -99,12 +108,14 @@ export function createReadFileTool(options: FileToolOptions): InternalTool {
             pendingApprovalParentDir = undefined;
         },
 
-        execute: async (input: unknown, _context?: ToolExecutionContext) => {
+        execute: async (input: unknown, context?: ToolExecutionContext) => {
+            const resolvedFileSystemService = await getFileSystemService(context);
+
             // Input is validated by provider before reaching here
             const { file_path, limit, offset } = input as ReadFileInput;
 
             // Read file using FileSystemService
-            const result = await fileSystemService.readFile(file_path, {
+            const result = await resolvedFileSystemService.readFile(file_path, {
                 limit,
                 offset,
             });

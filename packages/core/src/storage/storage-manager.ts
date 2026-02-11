@@ -43,8 +43,6 @@ export class StorageManager {
      * Kept for call-site compatibility; backends are provided at construction time.
      */
     async initialize(): Promise<void> {
-        // TODO: temporary glue code to be removed/verified
-        // Backends are provided at construction time; keep initialize() for call-site compatibility.
         this.initialized = true;
     }
 

@@ -126,14 +126,14 @@ async function createAgentFromId(agentId: string): Promise<DextoAgent> {
         logger.info(`Creating agent: ${agentId} from ${agentPath}`);
         const validatedConfig = AgentConfigSchema.parse(enrichedConfig);
         const services = await resolveServicesFromConfig(validatedConfig, image);
-        return new DextoAgent(
+        const agent = new DextoAgent(
             toDextoAgentOptions({
                 config: validatedConfig,
                 services,
-                configPath: agentPath,
                 overrides: { sessionLoggerFactory },
             })
         );
+        return agent;
     } catch (error) {
         throw new Error(
             `Failed to create agent '${agentId}': ${error instanceof Error ? error.message : String(error)}`
@@ -172,12 +172,14 @@ export async function initializeHonoApi(
     agentCardOverride?: Partial<AgentCard>,
     listenPort?: number,
     agentId?: string,
+    configFilePath?: string,
     webRoot?: string,
     webUIConfig?: WebUIRuntimeConfig
 ): Promise<HonoInitializationResult> {
     // Declare before registering shutdown hook to avoid TDZ on signals
     let activeAgent: DextoAgent = agent;
     let activeAgentId: string | undefined = agentId || 'coding-agent';
+    let activeAgentConfigPath: string | undefined = configFilePath;
     let isSwitchingAgent = false;
     registerGracefulShutdown(() => activeAgent);
 
@@ -255,6 +257,7 @@ export async function initializeHonoApi(
     async function performAgentSwitch(
         newAgent: DextoAgent,
         agentId: string,
+        agentConfigPath: string | undefined,
         bridge: ReturnType<typeof createNodeServer>
     ) {
         logger.info('Preparing new agent for switch...');
@@ -268,6 +271,7 @@ export async function initializeHonoApi(
         const previousAgent = activeAgent;
         activeAgent = newAgent;
         activeAgentId = agentId;
+        activeAgentConfigPath = agentConfigPath;
 
         // Set approval handler if manual mode OR elicitation enabled (before start() for validation)
         const needsHandler =
@@ -320,6 +324,7 @@ export async function initializeHonoApi(
         isSwitchingAgent = true;
 
         let newAgent: DextoAgent | undefined;
+        let newAgentConfigPath: string | undefined;
         try {
             // 1. SHUTDOWN OLD TELEMETRY FIRST (before creating new agent)
             logger.info('Shutting down telemetry for agent switch...');
@@ -327,10 +332,12 @@ export async function initializeHonoApi(
             await Telemetry.shutdownGlobal();
 
             // 2. Create new agent from registry (will initialize fresh telemetry in createAgentServices)
+            const registry = getAgentRegistry();
+            newAgentConfigPath = await registry.resolveAgent(agentId, true);
             newAgent = await createAgentFromId(agentId);
 
             // 3. Use common switch logic (register subscribers, start agent, stop previous)
-            return await performAgentSwitch(newAgent, agentId, bridge);
+            return await performAgentSwitch(newAgent, agentId, newAgentConfigPath, bridge);
         } catch (error) {
             logger.error(
                 `Failed to switch to agent '${agentId}': ${
@@ -405,7 +412,6 @@ export async function initializeHonoApi(
                 toDextoAgentOptions({
                     config: validatedConfig,
                     services,
-                    configPath: filePath,
                     overrides: { sessionLoggerFactory },
                 })
             );
@@ -415,7 +421,7 @@ export async function initializeHonoApi(
             const agentId = validatedConfig.agentId;
 
             // 6. Use common switch logic (register subscribers, start agent, stop previous)
-            return await performAgentSwitch(newAgent, agentId, bridge);
+            return await performAgentSwitch(newAgent, agentId, filePath, bridge);
         } catch (error) {
             logger.error(
                 `Failed to switch to agent from path '${filePath}': ${
@@ -449,6 +455,7 @@ export async function initializeHonoApi(
         return activeAgent;
     };
     const getAgentCard = () => agentCardData;
+    const getAgentConfigPath = (_ctx: Context): string | undefined => activeAgentConfigPath;
 
     // Declare bridge variable that will be set later
     let bridgeRef: ReturnType<typeof createNodeServer> | null = null;
@@ -457,6 +464,7 @@ export async function initializeHonoApi(
     const app = createDextoApp({
         apiPrefix: '/api',
         getAgent,
+        getAgentConfigPath,
         getAgentCard,
         approvalCoordinator,
         webhookSubscriber,
@@ -560,6 +568,7 @@ export async function startHonoApiServer(
     port = 3000,
     agentCardOverride?: Partial<AgentCard>,
     agentId?: string,
+    configFilePath?: string,
     webRoot?: string,
     webUIConfig?: WebUIRuntimeConfig
 ): Promise<{
@@ -571,6 +580,7 @@ export async function startHonoApiServer(
         agentCardOverride,
         port,
         agentId,
+        configFilePath,
         webRoot,
         webUIConfig
     );

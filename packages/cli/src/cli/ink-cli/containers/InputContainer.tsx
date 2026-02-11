@@ -63,6 +63,8 @@ interface InputContainerProps {
     setTodos: React.Dispatch<React.SetStateAction<TodoItem[]>>;
     agent: DextoAgent;
     inputService: InputService;
+    /** Source agent config file path (if available) */
+    configFilePath: string | null;
     /** Optional keyboard scroll handler (for alternate buffer mode) */
     onKeyboardScroll?: (direction: 'up' | 'down') => void;
     /** Whether to stream chunks or wait for complete response (default: true) */
@@ -94,6 +96,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
             setTodos,
             agent,
             inputService,
+            configFilePath,
             onKeyboardScroll,
             useStreaming = true,
         },
@@ -464,7 +467,8 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                             parsed.command,
                             parsed.args || [],
                             agent,
-                            session.id || undefined
+                            session.id || undefined,
+                            configFilePath
                         );
 
                         if (result.type === 'output' && result.output) {

@@ -79,20 +79,17 @@ describe('Init Module', () => {
 
                 // Verify content contains expected elements
                 const content = await fs.readFile(examplePath, 'utf8');
+                expect(content).toContain('import { AgentConfigSchema, applyImageDefaults');
+                expect(content).toContain("import { DextoAgent } from '@dexto/core'");
                 expect(content).toContain(
-                    "import { AgentConfigSchema } from '@dexto/agent-config'"
-                );
-                expect(content).toContain("import { DextoAgent, createLogger } from '@dexto/core'");
-                expect(content).toContain(
-                    "import { loadAgentConfig } from '@dexto/agent-management'"
+                    "import { enrichAgentConfig, loadAgentConfig } from '@dexto/agent-management'"
                 );
                 expect(content).toContain("console.log('🚀 Starting Dexto Basic Example");
                 expect(content).toContain('./src/dexto/agents/coding-agent.yml'); // Correct relative path
                 expect(content).toContain(
-                    'const validatedConfig = AgentConfigSchema.parse(config)'
+                    'const validatedConfig = AgentConfigSchema.parse(enrichedConfig)'
                 );
-                expect(content).toContain('const agentLogger = createLogger({');
-                expect(content).toContain('const agent = new DextoAgent({ config: validatedConfig');
+                expect(content).toContain('const agent = new DextoAgent(toDextoAgentOptions({');
             } finally {
                 process.chdir(originalCwd);
             }

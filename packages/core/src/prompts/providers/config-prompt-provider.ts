@@ -1,6 +1,6 @@
 import type { PromptProvider, PromptInfo, PromptDefinition, PromptListResult } from '../types.js';
 import type { GetPromptResult } from '@modelcontextprotocol/sdk/types.js';
-import type { AgentRuntimeConfig } from '../../agent/runtime-config.js';
+import type { AgentRuntimeSettings } from '../../agent/runtime-config.js';
 import type { InlinePrompt, FilePrompt, PromptsConfig } from '../schemas.js';
 import { PromptsSchema } from '../schemas.js';
 import type { IDextoLogger } from '../../logger/v2/types.js';
@@ -63,7 +63,7 @@ export class ConfigPromptProvider implements PromptProvider {
     private cacheValid: boolean = false;
     private logger: IDextoLogger;
 
-    constructor(agentConfig: AgentRuntimeConfig, logger: IDextoLogger) {
+    constructor(agentConfig: AgentRuntimeSettings, logger: IDextoLogger) {
         this.logger = logger.createChild(DextoLogComponent.PROMPT);
         this.prompts = agentConfig.prompts;
         this.buildPromptsCache();

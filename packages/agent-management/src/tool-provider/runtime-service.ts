@@ -593,7 +593,7 @@ export class RuntimeService implements TaskForker {
         sessionId?: string
     ): Promise<AgentConfig> {
         const { agentId, inheritLlm, autoApprove } = options;
-        const parentConfig = this.parentAgent.config;
+        const parentSettings = this.parentAgent.config;
 
         // Get runtime LLM config (respects session-specific model switches)
         const currentParentLLM = this.parentAgent.getCurrentLLMConfig(sessionId);
@@ -638,36 +638,6 @@ export class RuntimeService implements TaskForker {
                 }
 
                 // Override certain settings for sub-agent behavior
-                // Filter out agent-spawner to prevent nested spawning (depth=1 limit)
-                // Also remove internal tools that don't work in subagent context (ask_user/invoke_skill).
-                const filteredTools = loadedConfig.tools
-                    ? loadedConfig.tools
-                          .filter((tool) => tool.enabled !== false)
-                          .filter((tool) => tool.type !== 'agent-spawner')
-                          .map((tool) => {
-                              if (tool.type !== 'builtin-tools') {
-                                  return tool;
-                              }
-
-                              const enabledTools = tool.enabledTools;
-                              if (!Array.isArray(enabledTools)) {
-                                  return tool;
-                              }
-
-                              const filteredEnabledTools = enabledTools.filter(
-                                  (t) => t !== 'ask_user' && t !== 'invoke_skill'
-                              );
-                              return { ...tool, enabledTools: filteredEnabledTools };
-                          })
-                          .filter((tool) => {
-                              if (tool.type !== 'builtin-tools') {
-                                  return true;
-                              }
-                              const enabledTools = tool.enabledTools;
-                              return !Array.isArray(enabledTools) || enabledTools.length > 0;
-                          })
-                    : undefined;
-
                 return {
                     ...loadedConfig,
                     llm: llmConfig,
@@ -675,7 +645,6 @@ export class RuntimeService implements TaskForker {
                         ...loadedConfig.toolConfirmation,
                         mode: toolConfirmationMode,
                     },
-                    tools: filteredTools,
                     // Suppress sub-agent console logs entirely using silent transport
                     logger: {
                         level: 'error' as const,
@@ -685,7 +654,7 @@ export class RuntimeService implements TaskForker {
             }
         }
 
-        // Fallback: minimal config inheriting parent's LLM and tools
+        // Fallback: minimal config inheriting parent's LLM + MCP servers
         const config: AgentConfig = {
             llm: { ...currentParentLLM },
 
@@ -698,38 +667,7 @@ export class RuntimeService implements TaskForker {
             },
 
             // Inherit MCP servers from parent so subagent has tool access
-            mcpServers: parentConfig.mcpServers ? { ...parentConfig.mcpServers } : {},
-
-            // Inherit tools from parent, excluding tools that don't work in subagent context:
-            // - agent-spawner: prevent nested spawning (depth=1 limit)
-            // - ask_user/invoke_skill: subagents can't ask the user; avoid nested skill invocations
-            tools: parentConfig.tools
-                ? parentConfig.tools
-                      .filter((tool) => tool.enabled !== false)
-                      .filter((tool) => tool.type !== 'agent-spawner')
-                      .map((tool) => {
-                          if (tool.type !== 'builtin-tools') {
-                              return tool;
-                          }
-
-                          const enabledTools = tool.enabledTools;
-                          if (!Array.isArray(enabledTools)) {
-                              return tool;
-                          }
-
-                          const filteredEnabledTools = enabledTools.filter(
-                              (t) => t !== 'ask_user' && t !== 'invoke_skill'
-                          );
-                          return { ...tool, enabledTools: filteredEnabledTools };
-                      })
-                      .filter((tool) => {
-                          if (tool.type !== 'builtin-tools') {
-                              return true;
-                          }
-                          const enabledTools = tool.enabledTools;
-                          return !Array.isArray(enabledTools) || enabledTools.length > 0;
-                      })
-                : [],
+            mcpServers: parentSettings.mcpServers ? { ...parentSettings.mcpServers } : {},
 
             // Suppress sub-agent console logs entirely using silent transport
             logger: {

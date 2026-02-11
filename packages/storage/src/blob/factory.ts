@@ -24,11 +24,7 @@ import { LocalBlobStore } from './local-blob-store.js';
  * @returns A BlobStore implementation
  * @throws Error if validation fails or the provider type is unknown
  */
-export function createBlobStore(
-    // TODO: temporary glue code to be removed/verified
-    config: unknown,
-    logger: IDextoLogger
-): BlobStore {
+export function createBlobStore(config: unknown, logger: IDextoLogger): BlobStore {
     const parsedConfig = BlobStoreConfigSchema.safeParse(config);
     if (!parsedConfig.success) {
         throw StorageError.blobInvalidConfig(parsedConfig.error.message);

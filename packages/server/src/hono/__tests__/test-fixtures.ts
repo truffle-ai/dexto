@@ -1,13 +1,18 @@
-import { AgentConfigSchema, type AgentConfig } from '@dexto/agent-config';
+import { AgentConfigSchema, toDextoAgentOptions, type AgentConfig } from '@dexto/agent-config';
 import { DextoAgent, createAgentCard, createLogger } from '@dexto/core';
 import type { AgentCard } from '@dexto/core';
 import { createStorageManager } from '@dexto/storage';
+import { randomUUID } from 'node:crypto';
+import { promises as fs } from 'node:fs';
 import type { Server as HttpServer } from 'node:http';
+import os from 'node:os';
+import path from 'node:path';
 import type { Context } from 'hono';
 import { createDextoApp } from '../index.js';
 import type { DextoApp } from '../types.js';
 import { createNodeServer, type NodeBridgeResult } from '../node/index.js';
 import type { CreateDextoAppOptions } from '../index.js';
+import { stringify as yamlStringify } from 'yaml';
 
 /**
  * Test configuration for integration tests
@@ -55,11 +60,22 @@ export async function createTestAgent(config?: AgentConfig): Promise<DextoAgent>
         agentId: validatedConfig.agentId,
     });
     const storageManager = await createStorageManager(validatedConfig.storage, logger);
-    const agent = new DextoAgent({
-        config: validatedConfig,
-        logger,
-        overrides: { storageManager },
-    });
+    const agent = new DextoAgent(
+        toDextoAgentOptions({
+            config: validatedConfig,
+            services: {
+                logger,
+                storage: {
+                    blob: storageManager.getBlobStore(),
+                    database: storageManager.getDatabase(),
+                    cache: storageManager.getCache(),
+                },
+                tools: [],
+                plugins: [],
+            },
+            overrides: { storageManager },
+        })
+    );
     await agent.start();
     return agent;
 }
@@ -106,6 +122,11 @@ export async function startTestServer(
     const getAgent = (_ctx: Context) => agent;
     const getAgentCard = () => agentCard;
 
+    // Provide a file path for config-based endpoints (export, save, etc).
+    // This keeps tests representative of real deployments where agents are file-backed.
+    const agentConfigPath = path.join(os.tmpdir(), `dexto-test-agent-${randomUUID()}.yml`);
+    await fs.writeFile(agentConfigPath, yamlStringify(createTestAgentConfig()), 'utf-8');
+
     // Create event subscribers and approval coordinator for test
     const { WebhookEventSubscriber } = await import('../../events/webhook-subscriber.js');
     const { A2ASseEventSubscriber } = await import('../../events/a2a-sse-subscriber.js');
@@ -122,6 +143,7 @@ export async function startTestServer(
     // Create Hono app
     const app = createDextoApp({
         getAgent,
+        getAgentConfigPath: (_ctx: Context) => agentConfigPath,
         getAgentCard,
         approvalCoordinator,
         webhookSubscriber,
@@ -172,6 +194,7 @@ export async function startTestServer(
                     else resolve();
                 });
             });
+            await fs.unlink(agentConfigPath).catch(() => undefined);
             if (agent.isStarted()) {
                 await agent.stop();
             }

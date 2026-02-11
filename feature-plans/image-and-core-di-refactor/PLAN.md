@@ -2468,7 +2468,7 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
 ### Phase 5: Cleanup + testing
 > **Goal:** Remove all dead code, fix all broken tests, add new tests.
 
-- [ ] **5.0 Flatten `DextoAgentOptions` + remove core config indirection**
+- [x] **5.0 Flatten `DextoAgentOptions` + remove core config indirection**
   - **Goal:** Match the “Proposed DextoAgent surface” in this plan: everything at the top level (no `options.config` wrapper), and core only tracks *config-like* runtime settings it truly owns.
   - Introduce a core type like `AgentRuntimeSettings` that includes only config-based surfaces core actually uses at runtime:
     - Keep: LLM, MCP servers, sessions, toolConfirmation/elicitation, systemPrompt/memories/prompts, telemetry, internalResources, greeting/agentCard, etc.
@@ -2483,7 +2483,7 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
   - **Glue strategy clarification:** Phase 4 should make transitional glue paths *unused* (product layers supply DI instances). Phase 5 deletes them and removes all `// TODO: temporary glue code...` markers.
   - Exit: `DextoAgentOptions` is flat; core has no file-path concerns; CLI/server still support edit/reload UX via host-managed config; build + tests pass.
 
-- [ ] **5.1 Delete dead registry code**
+- [x] **5.1 Delete dead registry code**
   - All `*Registry` classes, singleton instances, factory functions that used registries
   - `providers/discovery.ts` (unless we want a non‑registry version)
   - Registry test files
@@ -2491,7 +2491,7 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
   - Exit check: `rg "temporary glue code|remove-by:" packages` returns zero results
   - Exit: no dead code. `pnpm run build` clean.
 
-- [ ] **5.2 Update all broken tests**
+- [x] **5.2 Update all broken tests**
   - Tests that mock registries → mock image factory maps instead
   - Tests that test registry behavior → delete or convert to resolver tests
   - `DextoAgent.lifecycle.test.ts` → update for new constructor
@@ -2506,13 +2506,14 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
   - Exit: new tests cover resolver, defaults, and image module validation.
 
 - [ ] **5.4 Update documentation**
+  - Defer this task for later, do not do it. Mark this in working memory
   - `/docs` — image concept documentation
   - `README.md` for `@dexto/agent-config`, `@dexto/image-local`, `@dexto/image-bundler`
   - Update `AGENTS.md` / `CLAUDE.md` with new architecture
   - Update `.cursor/rules/service_initializer.mdc`
   - Exit: docs reflect new architecture. No references to old registries or `defineImage()`.
 
-- [ ] **5.5 Update OpenAPI / server docs if affected**
+- [x] **5.5 Update OpenAPI / server docs if affected**
   - Run `pnpm run sync-openapi-docs` if any API routes changed
   - Exit: OpenAPI spec up to date.
 

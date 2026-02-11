@@ -42,7 +42,7 @@ import {
 import type { ModelInfo } from '../llm/registry/index.js';
 import type { LLMProvider } from '../llm/types.js';
 import { createAgentServices } from '../utils/service-initializer.js';
-import type { AgentRuntimeConfig } from './runtime-config.js';
+import type { AgentRuntimeSettings } from './runtime-config.js';
 import {
     AgentEventBus,
     type AgentEventMap,
@@ -56,8 +56,6 @@ import type { SearchOptions, SearchResponse, SessionSearchResponse } from '../se
 import { safeStringify } from '@core/utils/safe-stringify.js';
 import { deriveHeuristicTitle, generateSessionTitle } from '../session/title-generator.js';
 import type { ApprovalHandler } from '../approval/types.js';
-import type { InternalToolsServices } from '../tools/internal-tools/registry.js';
-import { resolveLocalToolsFromConfig } from './resolve-local-tools.js';
 import type { DextoAgentOptions } from './agent-options.js';
 
 const requiredServices: (keyof AgentServices)[] = [
@@ -105,9 +103,14 @@ export interface AgentEventSubscriber {
  * @example
  * ```typescript
  * // Create and start agent
- * const validatedConfig = AgentConfigSchema.parse(config);
- * const agentLogger = createLogger({ config: validatedConfig.logger, agentId: validatedConfig.agentId });
- * const agent = new DextoAgent({ config: validatedConfig, logger: agentLogger });
+ * // (Host layers parse/validate config and resolve DI services before constructing the agent.)
+ * const agent = new DextoAgent({
+ *   ...runtimeSettings, // validated AgentRuntimeSettings
+ *   logger,
+ *   storage,
+ *   tools,
+ *   plugins,
+ * });
  * await agent.start();
  *
  * // Process user messages
@@ -171,7 +174,7 @@ export class DextoAgent {
     private _isStopped: boolean = false;
 
     // Store config for async initialization (accessible before start() for setup)
-    public config: AgentRuntimeConfig;
+    public config: AgentRuntimeSettings;
 
     // Event subscribers (e.g., SSE, Webhook handlers)
     private eventSubscribers: Set<AgentEventSubscriber> = new Set();
@@ -188,14 +191,10 @@ export class DextoAgent {
     private activeStreamControllers: Map<string, AbortController> = new Map();
 
     // Host overrides for service initialization (e.g. session logger factory)
-    private serviceOverrides?: InitializeServicesOptions;
+    private readonly serviceOverrides: InitializeServicesOptions;
 
-    // TODO: temporary glue code to be removed/verified (remove-by: 4.1)
-    // DI-provided local tools. When omitted, core falls back to legacy config-based resolution.
-    private injectedTools?: InternalTool[] | undefined;
-
-    // Optional config file path (used for save/reload UX in product layers)
-    private configPath: string | undefined;
+    // DI-provided local tools.
+    private readonly injectedTools: InternalTool[];
 
     // Logger instance for this agent (dependency injection)
     public readonly logger: IDextoLogger;
@@ -203,44 +202,46 @@ export class DextoAgent {
     /**
      * Creates a DextoAgent instance.
      *
-     * @param config - Agent configuration (validated and enriched)
-     * @param configPath - Optional path to config file (for relative path resolution)
-     * @param options - Validation options
-     * @param options.strict - When true (default), enforces API key and baseURL requirements.
-     *                         When false, allows missing credentials for interactive configuration.
+     * Constructor options are DI-first:
+     * - runtime settings (validated + defaulted config-derived values)
+     * - concrete services (logger/tools/plugins/storage backends)
+     * - optional internal service overrides (session logging, auth factories, etc.)
      */
     constructor(options: DextoAgentOptions) {
-        this.config = options.config;
-        this.configPath = options.configPath;
+        const {
+            logger,
+            storage,
+            tools,
+            plugins,
+            overrides: overridesInput,
+            ...runtimeSettings
+        } = options;
+
+        this.config = runtimeSettings;
 
         // Agent logger is always provided by the host (typically created from config).
-        this.logger = options.logger;
+        this.logger = logger;
 
-        this.injectedTools = options.tools;
+        this.injectedTools = tools;
 
-        const overrides: InitializeServicesOptions = { ...(options.overrides ?? {}) };
+        const overrides: InitializeServicesOptions = { ...(overridesInput ?? {}) };
 
-        if (overrides.storageManager === undefined && options.storage !== undefined) {
-            // TODO: temporary glue code to be removed/verified (remove-by: 4.1)
-            // Core services still require a StorageManager, but product layers now resolve concrete
-            // storage backends via images. Bridge by constructing a StorageManager here.
+        if (overrides.storageManager === undefined) {
             overrides.storageManager = new StorageManager(
                 {
-                    cache: options.storage.cache,
-                    database: options.storage.database,
-                    blobStore: options.storage.blob,
+                    cache: storage.cache,
+                    database: storage.database,
+                    blobStore: storage.blob,
                 },
                 this.logger
             );
         }
 
-        if (overrides.plugins === undefined && options.plugins !== undefined) {
-            overrides.plugins = options.plugins;
+        if (overrides.plugins === undefined) {
+            overrides.plugins = plugins;
         }
 
-        if (Object.values(overrides).some((value) => value !== undefined)) {
-            this.serviceOverrides = overrides;
-        }
+        this.serviceOverrides = overrides;
 
         if (overrides.mcpAuthProviderFactory !== undefined) {
             this.mcpAuthProviderFactory = overrides.mcpAuthProviderFactory;
@@ -364,29 +365,7 @@ export class DextoAgent {
                 services: toolExecutionServices,
             }));
 
-            const toolsLogger = this.logger.createChild(DextoLogComponent.TOOLS);
-
-            let localTools: InternalTool[];
-            if (this.injectedTools !== undefined) {
-                localTools = this.injectedTools;
-            } else {
-                // TODO: temporary glue code to be removed/verified (remove-by: 4.1)
-                // Resolve internal + custom tools from config and register them with ToolManager.
-                const toolServices: InternalToolsServices & Record<string, unknown> = {
-                    searchService: services.searchService,
-                    approvalManager: services.approvalManager,
-                    resourceManager: services.resourceManager,
-                    promptManager,
-                    storageManager: services.storageManager,
-                };
-
-                localTools = await resolveLocalToolsFromConfig({
-                    agent: this,
-                    toolsConfig: this.config.tools,
-                    services: toolServices,
-                    logger: toolsLogger,
-                });
-            }
+            const localTools = this.injectedTools;
 
             // Add skills contributor to system prompt if invoke_skill is enabled.
             // This lists available skills so the LLM knows what it can invoke.
@@ -2882,128 +2861,11 @@ export class DextoAgent {
      * @returns The effective configuration object (validated with defaults applied)
      * @remarks Requires agent to be started. Use `agent.config` for pre-start access.
      */
-    public getEffectiveConfig(sessionId?: string): Readonly<AgentRuntimeConfig> {
+    public getEffectiveConfig(sessionId?: string): Readonly<AgentRuntimeSettings> {
         this.ensureStarted();
         return sessionId
             ? this.stateManager.getRuntimeConfig(sessionId)
             : this.stateManager.getRuntimeConfig();
-    }
-
-    /**
-     * Gets the file path of the agent configuration currently in use.
-     * This returns the source agent file path, not session-specific overrides.
-     * @returns The path to the agent configuration file
-     * @throws AgentError if no config path is available
-     */
-    public getAgentFilePath(): string {
-        if (!this.configPath) {
-            throw AgentError.noConfigPath();
-        }
-        return this.configPath;
-    }
-
-    /**
-     * Reloads the agent configuration with a new config object.
-     * Validates the new config, detects what changed, and automatically
-     * restarts the agent if necessary to apply the changes.
-     *
-     * @param newConfig The new agent configuration to apply
-     * @returns Object containing whether agent was restarted and list of changes applied
-     * @throws Error if config is invalid or restart fails
-     *
-     * TODO: improve hot reload capabilites so that we don't always require a restart
-     */
-    public async reload(newConfig: AgentRuntimeConfig): Promise<{
-        restarted: boolean;
-        changesApplied: string[];
-    }> {
-        this.logger.info('Reloading agent configuration');
-
-        const oldConfig = this.config;
-        const validated = newConfig;
-
-        // Detect what changed
-        const changesApplied = this.detectConfigChanges(oldConfig, validated);
-
-        // Update the config reference
-        this.config = validated;
-
-        let restarted = false;
-        if (changesApplied.length > 0) {
-            this.logger.info(
-                `Configuration changed. Restarting agent to apply: ${changesApplied.join(', ')}`
-            );
-            await this.restart();
-            restarted = true;
-            this.logger.info('Agent restarted successfully with new configuration');
-        } else {
-            this.logger.info('Agent configuration reloaded successfully (no changes detected)');
-        }
-
-        return {
-            restarted,
-            changesApplied,
-        };
-    }
-
-    /**
-     * Detects configuration changes that require a full agent restart.
-     * Pure comparison logic - no file I/O.
-     * Returns an array of change descriptions.
-     *
-     * @param oldConfig Previous validated configuration
-     * @param newConfig New validated configuration
-     * @returns Array of restart-required change descriptions
-     */
-    public detectConfigChanges(
-        oldConfig: AgentRuntimeConfig,
-        newConfig: AgentRuntimeConfig
-    ): string[] {
-        const changes: string[] = [];
-
-        // Storage backend changes require restart
-        if (JSON.stringify(oldConfig.storage) !== JSON.stringify(newConfig.storage)) {
-            changes.push('Storage backend');
-        }
-
-        // Session config changes require restart (maxSessions, sessionTTL are readonly)
-        if (JSON.stringify(oldConfig.sessions) !== JSON.stringify(newConfig.sessions)) {
-            changes.push('Session configuration');
-        }
-
-        // System prompt changes require restart (PromptManager caches contributors)
-        if (JSON.stringify(oldConfig.systemPrompt) !== JSON.stringify(newConfig.systemPrompt)) {
-            changes.push('System prompt');
-        }
-
-        // Tool confirmation changes require restart (ConfirmationProvider caches config)
-        if (
-            JSON.stringify(oldConfig.toolConfirmation) !==
-            JSON.stringify(newConfig.toolConfirmation)
-        ) {
-            changes.push('Tool confirmation');
-        }
-
-        // Tools config changes require restart (tool set and policies are wired during start)
-        if (JSON.stringify(oldConfig.tools) !== JSON.stringify(newConfig.tools)) {
-            changes.push('Tools');
-        }
-
-        // MCP server changes require restart
-        if (JSON.stringify(oldConfig.mcpServers) !== JSON.stringify(newConfig.mcpServers)) {
-            changes.push('MCP servers');
-        }
-
-        // LLM configuration changes require restart
-        if (
-            oldConfig.llm.provider !== newConfig.llm.provider ||
-            oldConfig.llm.model !== newConfig.llm.model ||
-            oldConfig.llm.apiKey !== newConfig.llm.apiKey
-        ) {
-            changes.push('LLM configuration');
-        }
-
-        return changes;
     }
 
     // ============= APPROVAL HANDLER API =============

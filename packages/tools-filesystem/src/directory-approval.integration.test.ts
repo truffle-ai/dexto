@@ -11,7 +11,7 @@
  * 5. Path containment: approving /ext covers /ext/sub/file.txt
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as path from 'node:path';
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
@@ -19,25 +19,54 @@ import { createReadFileTool } from './read-file-tool.js';
 import { createWriteFileTool } from './write-file-tool.js';
 import { createEditFileTool } from './edit-file-tool.js';
 import { FileSystemService } from './filesystem-service.js';
-import type { DirectoryApprovalCallbacks, FileToolOptions } from './file-tool-types.js';
-import { ApprovalType, ApprovalStatus } from '@dexto/core';
+import {
+    ApprovalManager,
+    ApprovalStatus,
+    ApprovalType,
+    type IDextoLogger,
+    type ToolExecutionContext,
+} from '@dexto/core';
 
-// Create mock logger
-const createMockLogger = () => ({
-    debug: vi.fn(),
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    createChild: vi.fn().mockReturnThis(),
-});
+type ToolServices = NonNullable<ToolExecutionContext['services']>;
+
+const createMockLogger = (): IDextoLogger => {
+    const noopAsync = async () => undefined;
+
+    const logger: IDextoLogger = {
+        debug: vi.fn(),
+        silly: vi.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+        trackException: vi.fn(),
+        createChild: () => logger,
+        setLevel: vi.fn(),
+        getLevel: () => 'info',
+        getLogFilePath: () => null,
+        destroy: noopAsync,
+    };
+
+    return logger;
+};
+
+function createToolContext(approval: ApprovalManager): ToolExecutionContext {
+    return {
+        services: {
+            approval,
+            search: {} as unknown as ToolServices['search'],
+            resources: {} as unknown as ToolServices['resources'],
+            prompts: {} as unknown as ToolServices['prompts'],
+            mcp: {} as unknown as ToolServices['mcp'],
+        },
+    };
+}
 
 describe('Directory Approval Integration Tests', () => {
-    let mockLogger: ReturnType<typeof createMockLogger>;
+    let mockLogger: IDextoLogger;
     let tempDir: string;
     let fileSystemService: FileSystemService;
-    let directoryApproval: DirectoryApprovalCallbacks;
-    let isSessionApprovedMock: Mock;
-    let addApprovedMock: Mock;
+    let approvalManager: ApprovalManager;
+    let toolContext: ToolExecutionContext;
 
     beforeEach(async () => {
         mockLogger = createMockLogger();
@@ -58,17 +87,19 @@ describe('Directory Approval Integration Tests', () => {
                 enableBackups: false,
                 backupRetentionDays: 7,
             },
-            mockLogger as any
+            mockLogger
         );
         await fileSystemService.initialize();
 
-        // Create directory approval callbacks
-        isSessionApprovedMock = vi.fn().mockReturnValue(false);
-        addApprovedMock = vi.fn();
-        directoryApproval = {
-            isSessionApproved: isSessionApprovedMock,
-            addApproved: addApprovedMock,
-        };
+        approvalManager = new ApprovalManager(
+            {
+                toolConfirmation: { mode: 'manual' },
+                elicitation: { enabled: true },
+            },
+            mockLogger
+        );
+
+        toolContext = createToolContext(approvalManager);
 
         vi.clearAllMocks();
     });
@@ -89,29 +120,29 @@ describe('Directory Approval Integration Tests', () => {
     describe('Read File Tool', () => {
         describe('getApprovalOverride', () => {
             it('should return null for paths within working directory (no prompt needed)', async () => {
-                const tool = createReadFileTool({
-                    fileSystemService,
-                    directoryApproval,
-                });
+                const tool = createReadFileTool(fileSystemService);
 
                 // Create test file in working directory
                 const testFile = path.join(tempDir, 'test.txt');
                 await fs.writeFile(testFile, 'test content');
 
-                const override = await tool.getApprovalOverride?.({ file_path: testFile });
+                const override = await tool.getApprovalOverride?.(
+                    { file_path: testFile },
+                    toolContext
+                );
                 expect(override).toBeNull();
             });
 
             it('should return directory access approval for external paths', async () => {
-                const tool = createReadFileTool({
-                    fileSystemService,
-                    directoryApproval,
-                });
+                const tool = createReadFileTool(fileSystemService);
 
                 // External path (outside working directory)
                 const externalPath = '/external/project/file.ts';
 
-                const override = await tool.getApprovalOverride?.({ file_path: externalPath });
+                const override = await tool.getApprovalOverride?.(
+                    { file_path: externalPath },
+                    toolContext
+                );
 
                 expect(override).not.toBeNull();
                 expect(override?.type).toBe(ApprovalType.DIRECTORY_ACCESS);
@@ -123,123 +154,112 @@ describe('Directory Approval Integration Tests', () => {
             });
 
             it('should return null when external path is session-approved', async () => {
-                isSessionApprovedMock.mockReturnValue(true);
+                approvalManager.addApprovedDirectory('/external/project', 'session');
 
-                const tool = createReadFileTool({
-                    fileSystemService,
-                    directoryApproval,
-                });
-
+                const tool = createReadFileTool(fileSystemService);
                 const externalPath = '/external/project/file.ts';
 
-                const override = await tool.getApprovalOverride?.({ file_path: externalPath });
+                const override = await tool.getApprovalOverride?.(
+                    { file_path: externalPath },
+                    toolContext
+                );
                 expect(override).toBeNull();
-                expect(isSessionApprovedMock).toHaveBeenCalledWith(externalPath);
             });
 
             it('should return null when file_path is missing', async () => {
-                const tool = createReadFileTool({
-                    fileSystemService,
-                    directoryApproval,
-                });
-
-                const override = await tool.getApprovalOverride?.({});
+                const tool = createReadFileTool(fileSystemService);
+                const override = await tool.getApprovalOverride?.({}, toolContext);
                 expect(override).toBeNull();
             });
         });
 
         describe('onApprovalGranted', () => {
             it('should add directory as session-approved when rememberDirectory is true', async () => {
-                const tool = createReadFileTool({
-                    fileSystemService,
-                    directoryApproval,
-                });
+                const tool = createReadFileTool(fileSystemService);
 
                 // First trigger getApprovalOverride to set pendingApprovalParentDir
                 const externalPath = '/external/project/file.ts';
-                await tool.getApprovalOverride?.({ file_path: externalPath });
+                await tool.getApprovalOverride?.({ file_path: externalPath }, toolContext);
 
-                // Then call onApprovalGranted with rememberDirectory: true
-                tool.onApprovalGranted?.({
-                    approvalId: 'test-approval',
-                    status: ApprovalStatus.APPROVED,
-                    data: { rememberDirectory: true },
-                });
-
-                expect(addApprovedMock).toHaveBeenCalledWith(
-                    path.dirname(path.resolve(externalPath)),
-                    'session'
+                tool.onApprovalGranted?.(
+                    {
+                        approvalId: 'test-approval',
+                        status: ApprovalStatus.APPROVED,
+                        data: { rememberDirectory: true },
+                    },
+                    toolContext
                 );
+
+                expect(
+                    approvalManager
+                        .getApprovedDirectories()
+                        .get(path.dirname(path.resolve(externalPath)))
+                ).toBe('session');
             });
 
             it('should add directory as once-approved when rememberDirectory is false', async () => {
-                const tool = createReadFileTool({
-                    fileSystemService,
-                    directoryApproval,
-                });
+                const tool = createReadFileTool(fileSystemService);
 
                 const externalPath = '/external/project/file.ts';
-                await tool.getApprovalOverride?.({ file_path: externalPath });
+                await tool.getApprovalOverride?.({ file_path: externalPath }, toolContext);
 
-                tool.onApprovalGranted?.({
-                    approvalId: 'test-approval',
-                    status: ApprovalStatus.APPROVED,
-                    data: { rememberDirectory: false },
-                });
-
-                expect(addApprovedMock).toHaveBeenCalledWith(
-                    path.dirname(path.resolve(externalPath)),
-                    'once'
+                tool.onApprovalGranted?.(
+                    {
+                        approvalId: 'test-approval',
+                        status: ApprovalStatus.APPROVED,
+                        data: { rememberDirectory: false },
+                    },
+                    toolContext
                 );
+
+                expect(
+                    approvalManager
+                        .getApprovedDirectories()
+                        .get(path.dirname(path.resolve(externalPath)))
+                ).toBe('once');
             });
 
             it('should default to once-approved when rememberDirectory is not specified', async () => {
-                const tool = createReadFileTool({
-                    fileSystemService,
-                    directoryApproval,
-                });
+                const tool = createReadFileTool(fileSystemService);
 
                 const externalPath = '/external/project/file.ts';
-                await tool.getApprovalOverride?.({ file_path: externalPath });
+                await tool.getApprovalOverride?.({ file_path: externalPath }, toolContext);
 
-                tool.onApprovalGranted?.({
-                    approvalId: 'test-approval',
-                    status: ApprovalStatus.APPROVED,
-                    data: {},
-                });
-
-                expect(addApprovedMock).toHaveBeenCalledWith(
-                    path.dirname(path.resolve(externalPath)),
-                    'once'
+                tool.onApprovalGranted?.(
+                    {
+                        approvalId: 'test-approval',
+                        status: ApprovalStatus.APPROVED,
+                        data: {},
+                    },
+                    toolContext
                 );
+
+                expect(
+                    approvalManager
+                        .getApprovedDirectories()
+                        .get(path.dirname(path.resolve(externalPath)))
+                ).toBe('once');
             });
 
-            it('should not call addApproved when directoryApproval is not provided', async () => {
-                const tool = createReadFileTool({
-                    fileSystemService,
-                    directoryApproval: undefined,
-                });
+            it('should not throw if called without a tool context', async () => {
+                const tool = createReadFileTool(fileSystemService);
 
                 const externalPath = '/external/project/file.ts';
-                await tool.getApprovalOverride?.({ file_path: externalPath });
+                await tool.getApprovalOverride?.({ file_path: externalPath }, toolContext);
 
-                // Should not throw
                 tool.onApprovalGranted?.({
                     approvalId: 'test-approval',
                     status: ApprovalStatus.APPROVED,
                     data: { rememberDirectory: true },
                 });
 
-                expect(addApprovedMock).not.toHaveBeenCalled();
+                expect(approvalManager.getApprovedDirectoryPaths()).toEqual([]);
             });
         });
 
         describe('execute', () => {
             it('should read file contents within working directory', async () => {
-                const tool = createReadFileTool({
-                    fileSystemService,
-                    directoryApproval,
-                });
+                const tool = createReadFileTool(fileSystemService);
 
                 const testFile = path.join(tempDir, 'readable.txt');
                 await fs.writeFile(testFile, 'Hello, world!\nLine 2');
@@ -259,32 +279,25 @@ describe('Directory Approval Integration Tests', () => {
     describe('Write File Tool', () => {
         describe('getApprovalOverride', () => {
             it('should return null for paths within working directory', async () => {
-                const tool = createWriteFileTool({
-                    fileSystemService,
-                    directoryApproval,
-                });
+                const tool = createWriteFileTool(fileSystemService);
 
                 const testFile = path.join(tempDir, 'new-file.txt');
 
-                const override = await tool.getApprovalOverride?.({
-                    file_path: testFile,
-                    content: 'test',
-                });
+                const override = await tool.getApprovalOverride?.(
+                    { file_path: testFile, content: 'test' },
+                    toolContext
+                );
                 expect(override).toBeNull();
             });
 
             it('should return directory access approval for external paths', async () => {
-                const tool = createWriteFileTool({
-                    fileSystemService,
-                    directoryApproval,
-                });
-
+                const tool = createWriteFileTool(fileSystemService);
                 const externalPath = '/external/project/new.ts';
 
-                const override = await tool.getApprovalOverride?.({
-                    file_path: externalPath,
-                    content: 'test',
-                });
+                const override = await tool.getApprovalOverride?.(
+                    { file_path: externalPath, content: 'test' },
+                    toolContext
+                );
 
                 expect(override).not.toBeNull();
                 expect(override?.type).toBe(ApprovalType.DIRECTORY_ACCESS);
@@ -294,43 +307,43 @@ describe('Directory Approval Integration Tests', () => {
             });
 
             it('should return null when external path is session-approved', async () => {
-                isSessionApprovedMock.mockReturnValue(true);
-
-                const tool = createWriteFileTool({
-                    fileSystemService,
-                    directoryApproval,
-                });
+                approvalManager.addApprovedDirectory('/external/project', 'session');
+                const tool = createWriteFileTool(fileSystemService);
 
                 const externalPath = '/external/project/new.ts';
 
-                const override = await tool.getApprovalOverride?.({
-                    file_path: externalPath,
-                    content: 'test',
-                });
+                const override = await tool.getApprovalOverride?.(
+                    { file_path: externalPath, content: 'test' },
+                    toolContext
+                );
                 expect(override).toBeNull();
             });
         });
 
         describe('onApprovalGranted', () => {
             it('should add directory as session-approved when rememberDirectory is true', async () => {
-                const tool = createWriteFileTool({
-                    fileSystemService,
-                    directoryApproval,
-                });
+                const tool = createWriteFileTool(fileSystemService);
 
                 const externalPath = '/external/project/new.ts';
-                await tool.getApprovalOverride?.({ file_path: externalPath, content: 'test' });
-
-                tool.onApprovalGranted?.({
-                    approvalId: 'test-approval',
-                    status: ApprovalStatus.APPROVED,
-                    data: { rememberDirectory: true },
-                });
-
-                expect(addApprovedMock).toHaveBeenCalledWith(
-                    path.dirname(path.resolve(externalPath)),
-                    'session'
+                await tool.getApprovalOverride?.(
+                    { file_path: externalPath, content: 'test' },
+                    toolContext
                 );
+
+                tool.onApprovalGranted?.(
+                    {
+                        approvalId: 'test-approval',
+                        status: ApprovalStatus.APPROVED,
+                        data: { rememberDirectory: true },
+                    },
+                    toolContext
+                );
+
+                expect(
+                    approvalManager
+                        .getApprovedDirectories()
+                        .get(path.dirname(path.resolve(externalPath)))
+                ).toBe('session');
             });
         });
     });
@@ -342,34 +355,26 @@ describe('Directory Approval Integration Tests', () => {
     describe('Edit File Tool', () => {
         describe('getApprovalOverride', () => {
             it('should return null for paths within working directory', async () => {
-                const tool = createEditFileTool({
-                    fileSystemService,
-                    directoryApproval,
-                });
+                const tool = createEditFileTool(fileSystemService);
 
                 const testFile = path.join(tempDir, 'existing.txt');
 
-                const override = await tool.getApprovalOverride?.({
-                    file_path: testFile,
-                    old_string: 'old',
-                    new_string: 'new',
-                });
+                const override = await tool.getApprovalOverride?.(
+                    { file_path: testFile, old_string: 'old', new_string: 'new' },
+                    toolContext
+                );
                 expect(override).toBeNull();
             });
 
             it('should return directory access approval for external paths', async () => {
-                const tool = createEditFileTool({
-                    fileSystemService,
-                    directoryApproval,
-                });
+                const tool = createEditFileTool(fileSystemService);
 
                 const externalPath = '/external/project/existing.ts';
 
-                const override = await tool.getApprovalOverride?.({
-                    file_path: externalPath,
-                    old_string: 'old',
-                    new_string: 'new',
-                });
+                const override = await tool.getApprovalOverride?.(
+                    { file_path: externalPath, old_string: 'old', new_string: 'new' },
+                    toolContext
+                );
 
                 expect(override).not.toBeNull();
                 expect(override?.type).toBe(ApprovalType.DIRECTORY_ACCESS);
@@ -379,20 +384,15 @@ describe('Directory Approval Integration Tests', () => {
             });
 
             it('should return null when external path is session-approved', async () => {
-                isSessionApprovedMock.mockReturnValue(true);
-
-                const tool = createEditFileTool({
-                    fileSystemService,
-                    directoryApproval,
-                });
+                approvalManager.addApprovedDirectory('/external/project', 'session');
+                const tool = createEditFileTool(fileSystemService);
 
                 const externalPath = '/external/project/existing.ts';
 
-                const override = await tool.getApprovalOverride?.({
-                    file_path: externalPath,
-                    old_string: 'old',
-                    new_string: 'new',
-                });
+                const override = await tool.getApprovalOverride?.(
+                    { file_path: externalPath, old_string: 'old', new_string: 'new' },
+                    toolContext
+                );
                 expect(override).toBeNull();
             });
         });
@@ -404,70 +404,68 @@ describe('Directory Approval Integration Tests', () => {
 
     describe('Session vs Once Approval Scenarios', () => {
         it('should not prompt for subsequent requests after session approval', async () => {
-            const tool = createReadFileTool({
-                fileSystemService,
-                directoryApproval,
-            });
+            const tool = createReadFileTool(fileSystemService);
 
             const externalPath1 = '/external/project/file1.ts';
             const externalPath2 = '/external/project/file2.ts';
 
             // First request - needs approval
-            let override = await tool.getApprovalOverride?.({ file_path: externalPath1 });
+            let override = await tool.getApprovalOverride?.(
+                { file_path: externalPath1 },
+                toolContext
+            );
             expect(override).not.toBeNull();
 
-            // Simulate session approval
-            tool.onApprovalGranted?.({
-                approvalId: 'approval-1',
-                status: ApprovalStatus.APPROVED,
-                data: { rememberDirectory: true },
-            });
-
-            // Verify addApproved was called with 'session'
-            expect(addApprovedMock).toHaveBeenCalledWith(
-                path.dirname(path.resolve(externalPath1)),
-                'session'
+            tool.onApprovalGranted?.(
+                {
+                    approvalId: 'approval-1',
+                    status: ApprovalStatus.APPROVED,
+                    data: { rememberDirectory: true },
+                },
+                toolContext
             );
 
-            // Now simulate that isSessionApproved returns true for the approved directory
-            isSessionApprovedMock.mockReturnValue(true);
+            expect(
+                approvalManager
+                    .getApprovedDirectories()
+                    .get(path.dirname(path.resolve(externalPath1)))
+            ).toBe('session');
 
             // Second request - should not need approval (session approved)
-            override = await tool.getApprovalOverride?.({ file_path: externalPath2 });
+            override = await tool.getApprovalOverride?.({ file_path: externalPath2 }, toolContext);
             expect(override).toBeNull();
         });
 
         it('should prompt for subsequent requests after once approval', async () => {
-            const tool = createReadFileTool({
-                fileSystemService,
-                directoryApproval,
-            });
+            const tool = createReadFileTool(fileSystemService);
 
             const externalPath1 = '/external/project/file1.ts';
             const externalPath2 = '/external/project/file2.ts';
 
             // First request - needs approval
-            let override = await tool.getApprovalOverride?.({ file_path: externalPath1 });
+            let override = await tool.getApprovalOverride?.(
+                { file_path: externalPath1 },
+                toolContext
+            );
             expect(override).not.toBeNull();
 
-            // Simulate once approval
-            tool.onApprovalGranted?.({
-                approvalId: 'approval-1',
-                status: ApprovalStatus.APPROVED,
-                data: { rememberDirectory: false },
-            });
-
-            // Verify addApproved was called with 'once'
-            expect(addApprovedMock).toHaveBeenCalledWith(
-                path.dirname(path.resolve(externalPath1)),
-                'once'
+            tool.onApprovalGranted?.(
+                {
+                    approvalId: 'approval-1',
+                    status: ApprovalStatus.APPROVED,
+                    data: { rememberDirectory: false },
+                },
+                toolContext
             );
 
-            // isSessionApproved stays false for 'once' approvals
-            isSessionApprovedMock.mockReturnValue(false);
+            expect(
+                approvalManager
+                    .getApprovedDirectories()
+                    .get(path.dirname(path.resolve(externalPath1)))
+            ).toBe('once');
 
             // Second request - should still need approval (only 'once')
-            override = await tool.getApprovalOverride?.({ file_path: externalPath2 });
+            override = await tool.getApprovalOverride?.({ file_path: externalPath2 }, toolContext);
             expect(override).not.toBeNull();
         });
     });
@@ -478,57 +476,36 @@ describe('Directory Approval Integration Tests', () => {
 
     describe('Path Containment Scenarios', () => {
         it('should cover child paths when parent directory is session-approved', async () => {
-            const tool = createReadFileTool({
-                fileSystemService,
-                directoryApproval,
-            });
+            const tool = createReadFileTool(fileSystemService);
+            approvalManager.addApprovedDirectory('/external/project', 'session');
 
-            // isSessionApproved checks if file is within any session-approved directory
-            // If /external/project is session-approved, /external/project/deep/file.ts should also be covered
-            isSessionApprovedMock.mockImplementation((filePath: string) => {
-                const normalizedPath = path.resolve(filePath);
-                const approvedDir = '/external/project';
-                return (
-                    normalizedPath.startsWith(approvedDir + path.sep) ||
-                    normalizedPath === approvedDir
-                );
-            });
-
-            // Direct child path - should be approved
-            let override = await tool.getApprovalOverride?.({
-                file_path: '/external/project/file.ts',
-            });
+            let override = await tool.getApprovalOverride?.(
+                { file_path: '/external/project/file.ts' },
+                toolContext
+            );
             expect(override).toBeNull();
 
-            // Deep nested path - should also be approved
-            override = await tool.getApprovalOverride?.({
-                file_path: '/external/project/deep/nested/file.ts',
-            });
+            override = await tool.getApprovalOverride?.(
+                { file_path: '/external/project/deep/nested/file.ts' },
+                toolContext
+            );
             expect(override).toBeNull();
         });
 
         it('should NOT cover sibling directories', async () => {
-            const tool = createReadFileTool({
-                fileSystemService,
-                directoryApproval,
-            });
+            const tool = createReadFileTool(fileSystemService);
+            approvalManager.addApprovedDirectory('/external/sub', 'session');
 
-            // Only /external/sub is approved
-            isSessionApprovedMock.mockImplementation((filePath: string) => {
-                const normalizedPath = path.resolve(filePath);
-                const approvedDir = '/external/sub';
-                return (
-                    normalizedPath.startsWith(approvedDir + path.sep) ||
-                    normalizedPath === approvedDir
-                );
-            });
-
-            // /external/sub path - approved
-            let override = await tool.getApprovalOverride?.({ file_path: '/external/sub/file.ts' });
+            let override = await tool.getApprovalOverride?.(
+                { file_path: '/external/sub/file.ts' },
+                toolContext
+            );
             expect(override).toBeNull();
 
-            // /external/other path - NOT approved (sibling directory)
-            override = await tool.getApprovalOverride?.({ file_path: '/external/other/file.ts' });
+            override = await tool.getApprovalOverride?.(
+                { file_path: '/external/other/file.ts' },
+                toolContext
+            );
             expect(override).not.toBeNull();
         });
     });
@@ -539,21 +516,23 @@ describe('Directory Approval Integration Tests', () => {
 
     describe('Different External Directories Scenarios', () => {
         it('should require separate approval for different external directories', async () => {
-            const tool = createReadFileTool({
-                fileSystemService,
-                directoryApproval,
-            });
+            const tool = createReadFileTool(fileSystemService);
 
             const dir1Path = '/external/project1/file.ts';
             const dir2Path = '/external/project2/file.ts';
 
-            // Both directories need approval
-            const override1 = await tool.getApprovalOverride?.({ file_path: dir1Path });
+            const override1 = await tool.getApprovalOverride?.(
+                { file_path: dir1Path },
+                toolContext
+            );
             expect(override1).not.toBeNull();
             const metadata1 = override1?.metadata as any;
             expect(metadata1?.parentDir).toBe('/external/project1');
 
-            const override2 = await tool.getApprovalOverride?.({ file_path: dir2Path });
+            const override2 = await tool.getApprovalOverride?.(
+                { file_path: dir2Path },
+                toolContext
+            );
             expect(override2).not.toBeNull();
             const metadata2 = override2?.metadata as any;
             expect(metadata2?.parentDir).toBe('/external/project2');
@@ -566,76 +545,59 @@ describe('Directory Approval Integration Tests', () => {
 
     describe('Mixed Operations Scenarios', () => {
         it('should share directory approval across different file operations', async () => {
-            const readTool = createReadFileTool({ fileSystemService, directoryApproval });
-            const writeTool = createWriteFileTool({ fileSystemService, directoryApproval });
-            const editTool = createEditFileTool({ fileSystemService, directoryApproval });
+            const readTool = createReadFileTool(fileSystemService);
+            const writeTool = createWriteFileTool(fileSystemService);
+            const editTool = createEditFileTool(fileSystemService);
 
             const externalDir = '/external/project';
 
-            // All operations need approval initially
             expect(
-                await readTool.getApprovalOverride?.({ file_path: `${externalDir}/file1.ts` })
-            ).not.toBeNull();
-            expect(
-                await writeTool.getApprovalOverride?.({
-                    file_path: `${externalDir}/file2.ts`,
-                    content: 'test',
-                })
-            ).not.toBeNull();
-            expect(
-                await editTool.getApprovalOverride?.({
-                    file_path: `${externalDir}/file3.ts`,
-                    old_string: 'a',
-                    new_string: 'b',
-                })
+                await readTool.getApprovalOverride?.(
+                    { file_path: `${externalDir}/file1.ts` },
+                    toolContext
+                )
             ).not.toBeNull();
 
-            // Simulate session approval for the directory
-            isSessionApprovedMock.mockReturnValue(true);
+            readTool.onApprovalGranted?.(
+                {
+                    approvalId: 'approval-1',
+                    status: ApprovalStatus.APPROVED,
+                    data: { rememberDirectory: true },
+                },
+                toolContext
+            );
 
-            // Now all operations should not need approval
             expect(
-                await readTool.getApprovalOverride?.({ file_path: `${externalDir}/file1.ts` })
+                await writeTool.getApprovalOverride?.(
+                    { file_path: `${externalDir}/file2.ts`, content: 'test' },
+                    toolContext
+                )
             ).toBeNull();
             expect(
-                await writeTool.getApprovalOverride?.({
-                    file_path: `${externalDir}/file2.ts`,
-                    content: 'test',
-                })
-            ).toBeNull();
-            expect(
-                await editTool.getApprovalOverride?.({
-                    file_path: `${externalDir}/file3.ts`,
-                    old_string: 'a',
-                    new_string: 'b',
-                })
+                await editTool.getApprovalOverride?.(
+                    { file_path: `${externalDir}/file3.ts`, old_string: 'a', new_string: 'b' },
+                    toolContext
+                )
             ).toBeNull();
         });
     });
 
-    // =====================================================================
-    // NO DIRECTORY APPROVAL CALLBACKS SCENARIOS
-    // =====================================================================
+    describe('Without ApprovalManager in context', () => {
+        it('should return a directory access request but not remember approvals', async () => {
+            const tool = createReadFileTool(fileSystemService);
 
-    describe('Without Directory Approval Callbacks', () => {
-        it('should work without directory approval callbacks (all paths need normal tool confirmation)', async () => {
-            const tool = createReadFileTool({
-                fileSystemService,
-                directoryApproval: undefined,
-            });
-
-            // External path without approval callbacks - no override (normal tool flow)
             const override = await tool.getApprovalOverride?.({
                 file_path: '/external/project/file.ts',
             });
-
-            // Without directoryApproval, isSessionApproved is never checked, so we fall through to
-            // returning a directory access request. Let me re-check the implementation...
-            // Actually looking at the code, when directoryApproval is undefined, isSessionApproved check
-            // is skipped (directoryApproval?.isSessionApproved), so it would still return the override.
-            // This is correct behavior - without approval callbacks, the override is still returned
-            // but onApprovalGranted won't do anything.
             expect(override).not.toBeNull();
+
+            tool.onApprovalGranted?.({
+                approvalId: 'test-approval',
+                status: ApprovalStatus.APPROVED,
+                data: { rememberDirectory: true },
+            });
+
+            expect(approvalManager.getApprovedDirectoryPaths()).toEqual([]);
         });
     });
 });

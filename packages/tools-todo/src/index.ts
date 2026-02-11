@@ -5,8 +5,7 @@
  * Provides the todo_write tool for managing task lists.
  */
 
-// Main provider export
-export { todoToolsProvider } from './tool-provider.js';
+// Main factory export (image-compatible)
 export { todoToolsFactory } from './tool-factory.js';
 
 // Service and utilities (for advanced use cases)

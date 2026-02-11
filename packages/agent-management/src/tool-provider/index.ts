@@ -5,7 +5,6 @@
  */
 
 // Main provider export
-export { agentSpawnerToolsProvider } from './tool-provider.js';
 export { agentSpawnerToolsFactory } from './tool-factory.js';
 
 // Configuration types

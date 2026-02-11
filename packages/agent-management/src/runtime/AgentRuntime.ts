@@ -80,6 +80,7 @@ export class AgentRuntime {
                 config: config.agentConfig,
                 enrichOptions: { isInteractiveCli: false, skipPluginDiscovery: true },
                 agentIdOverride: agentId,
+                agentContext: 'subagent',
             });
 
             // Create the handle (status: starting)

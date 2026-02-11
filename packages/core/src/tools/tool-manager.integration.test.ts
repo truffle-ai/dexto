@@ -4,12 +4,12 @@ import { MCPManager } from '../mcp/manager.js';
 import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
 import { ToolErrorCode } from './error-codes.js';
 import { ErrorScope, ErrorType } from '../errors/types.js';
+import { z } from 'zod';
 import type { IMCPClient } from '../mcp/types.js';
 import { AgentEventBus } from '../events/index.js';
 import { ApprovalManager } from '../approval/manager.js';
 import type { IAllowedToolsProvider } from './confirmation/allowed-tools-provider/types.js';
 import { createMockLogger } from '../logger/v2/test-utils.js';
-import { createSearchHistoryTool } from './internal-tools/implementations/search-history-tool.js';
 
 // Mock logger
 vi.mock('../logger/index.js', () => ({
@@ -34,6 +34,70 @@ describe('ToolManager Integration Tests', () => {
     };
     let internalSearchHistoryTool: any;
     const mockLogger = createMockLogger();
+
+    const SearchHistoryInputSchema = z.object({
+        query: z.string().describe('The search query to find in conversation history'),
+        mode: z
+            .enum(['messages', 'sessions'])
+            .describe(
+                'Search mode: "messages" searches for individual messages, "sessions" finds sessions containing the query'
+            ),
+        sessionId: z
+            .string()
+            .optional()
+            .describe('Optional: limit search to a specific session (only for mode="messages")'),
+        role: z
+            .enum(['user', 'assistant', 'system', 'tool'])
+            .optional()
+            .describe('Optional: filter by message role (only for mode="messages")'),
+        limit: z
+            .number()
+            .optional()
+            .default(20)
+            .describe(
+                'Optional: maximum number of results to return (default: 20, only for mode="messages")'
+            ),
+        offset: z
+            .number()
+            .optional()
+            .default(0)
+            .describe('Optional: offset for pagination (default: 0, only for mode="messages")'),
+    });
+
+    type SearchServiceLike = {
+        searchMessages: (query: string, options: Record<string, unknown>) => Promise<unknown>;
+        searchSessions: (query: string) => Promise<unknown>;
+    };
+
+    function createSearchHistoryTool(searchService: SearchServiceLike) {
+        return {
+            id: 'internal--search_history',
+            description:
+                'Search through conversation history across sessions. Use mode="messages" to search for specific messages, or mode="sessions" to find sessions containing the query.',
+            inputSchema: SearchHistoryInputSchema,
+            execute: async (input: unknown) => {
+                const { query, mode, sessionId, role, limit, offset } = input as {
+                    query: string;
+                    mode: 'messages' | 'sessions';
+                    sessionId?: string;
+                    role?: 'user' | 'assistant' | 'system' | 'tool';
+                    limit?: number;
+                    offset?: number;
+                };
+
+                if (mode === 'messages') {
+                    const searchOptions: Record<string, unknown> = {};
+                    if (sessionId !== undefined) searchOptions.sessionId = sessionId;
+                    if (role !== undefined) searchOptions.role = role;
+                    if (limit !== undefined) searchOptions.limit = limit;
+                    if (offset !== undefined) searchOptions.offset = offset;
+                    return await searchService.searchMessages(query, searchOptions);
+                }
+
+                return await searchService.searchSessions(query);
+            },
+        };
+    }
 
     beforeEach(() => {
         // Create real MCPManager
@@ -77,10 +141,7 @@ describe('ToolManager Integration Tests', () => {
                 .mockResolvedValue([{ id: '1', content: 'test message', role: 'user' }]),
             searchSessions: vi.fn().mockResolvedValue([{ id: 'session1', title: 'Test Session' }]),
         };
-        internalSearchHistoryTool = {
-            ...createSearchHistoryTool(mockSearchService as any),
-            id: 'internal--search_history',
-        };
+        internalSearchHistoryTool = createSearchHistoryTool(mockSearchService);
     });
 
     describe('End-to-End Tool Execution', () => {
@@ -406,12 +467,7 @@ describe('ToolManager Integration Tests', () => {
                 'auto-approve',
                 mockAgentEventBus,
                 { alwaysAllow: [], alwaysDeny: [] },
-                [
-                    {
-                        ...createSearchHistoryTool(failingSearchService),
-                        id: 'internal--search_history',
-                    },
-                ],
+                [createSearchHistoryTool(failingSearchService)],
                 mockLogger
             );
 

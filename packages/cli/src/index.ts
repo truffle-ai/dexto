@@ -656,9 +656,7 @@ async function bootstrapAgentFromGlobalOpts() {
     // Use relaxed validation for session commands - they don't need LLM calls
     const validatedConfig = createAgentConfigSchema({ strict: false }).parse(enrichedConfig);
     const services = await resolveServicesFromConfig(validatedConfig, image);
-    const agent = new DextoAgent(
-        toDextoAgentOptions({ config: validatedConfig, services, configPath: resolvedPath })
-    );
+    const agent = new DextoAgent(toDextoAgentOptions({ config: validatedConfig, services }));
     await agent.start();
 
     // Register graceful shutdown
@@ -1584,7 +1582,6 @@ program
                         toDextoAgentOptions({
                             config: validatedConfig,
                             services,
-                            configPath: resolvedPath,
                             overrides: { sessionLoggerFactory, mcpAuthProviderFactory },
                         })
                     );
@@ -1849,6 +1846,7 @@ program
                                 );
                                 await startInkCliRefactored(agent, cliSessionId, {
                                     updateInfo: cliUpdateInfo ?? undefined,
+                                    configFilePath: resolvedPath,
                                 });
                             } catch (error) {
                                 inkError = error;
@@ -1909,6 +1907,7 @@ program
                             port,
                             agent.config.agentCard || {},
                             derivedAgentId,
+                            resolvedPath,
                             webRoot,
                             webUIConfig
                         );
@@ -1948,7 +1947,13 @@ program
                         const apiUrl = process.env.DEXTO_URL ?? `http://localhost:${apiPort}`;
 
                         console.log('🌐 Starting server (REST APIs + SSE)...');
-                        await startHonoApiServer(agent, apiPort, agentCard, derivedAgentId);
+                        await startHonoApiServer(
+                            agent,
+                            apiPort,
+                            agentCard,
+                            derivedAgentId,
+                            resolvedPath
+                        );
                         console.log(`✅ Server running at ${apiUrl}`);
                         console.log('Available endpoints:');
                         console.log('  POST /api/message - Send async message');

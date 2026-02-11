@@ -124,24 +124,29 @@ describe('toDextoAgentOptions', () => {
             },
             tools: [createMockTool('foo')],
             plugins: [],
-            compaction: undefined,
         };
 
         const options = toDextoAgentOptions({
             config: validated,
             services,
-            configPath: '/tmp/agent.yml',
             overrides: {},
         });
 
-        expect(options.config).toBe(validated);
-        expect(options.configPath).toBe('/tmp/agent.yml');
+        expect(options.agentId).toBe(validated.agentId);
+        expect(options.llm).toBe(validated.llm);
+        expect(options.systemPrompt).toBe(validated.systemPrompt);
+        expect(options.mcpServers).toBe(validated.mcpServers);
+        expect(options.sessions).toBe(validated.sessions);
+        expect(options.toolConfirmation).toBe(validated.toolConfirmation);
+        expect(options.elicitation).toBe(validated.elicitation);
+        expect(options.internalResources).toBe(validated.internalResources);
+        expect(options.prompts).toBe(validated.prompts);
+        expect(options.compaction).toBe(validated.compaction);
         expect(options.overrides).toEqual({});
 
         expect(options.logger).toBe(logger);
-        expect(options.storage?.blob.getStoreType()).toBe('in-memory');
-        expect(options.tools?.map((t) => t.id)).toEqual(['foo']);
+        expect(options.storage.blob.getStoreType()).toBe('in-memory');
+        expect(options.tools.map((t) => t.id)).toEqual(['foo']);
         expect(options.plugins).toEqual([]);
-        expect(options.compaction).toBeUndefined();
     });
 });

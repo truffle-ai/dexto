@@ -19,13 +19,12 @@ import { StorageManager } from '../storage/index.js';
 import { AgentError } from '../agent/errors.js';
 import { createAllowedToolsProvider } from '../tools/confirmation/allowed-tools-provider/factory.js';
 import type { IDextoLogger } from '../logger/v2/types.js';
-import type { AgentRuntimeConfig } from '@core/agent/runtime-config.js';
+import type { AgentRuntimeSettings } from '@core/agent/runtime-config.js';
 import { AgentEventBus } from '../events/index.js';
 import { ResourceManager } from '../resources/manager.js';
 import { ApprovalManager } from '../approval/manager.js';
 import { MemoryManager } from '../memory/index.js';
 import { PluginManager } from '../plugins/manager.js';
-import { resolveLocalPluginsFromConfig } from '../agent/resolve-local-plugins.js';
 import type { DextoPlugin } from '../plugins/types.js';
 
 /**
@@ -65,7 +64,6 @@ export type InitializeServicesOptions = {
     toolManager?: ToolManager;
     toolManagerFactory?: ToolManagerFactory;
     storageManager?: StorageManager;
-    // TODO: temporary glue code to be removed/verified (remove-by: 4.1)
     plugins?: DextoPlugin[] | undefined;
 };
 
@@ -79,7 +77,7 @@ export type InitializeServicesOptions = {
  * @returns All the initialized services required for a Dexto agent
  */
 export async function createAgentServices(
-    config: AgentRuntimeConfig,
+    config: AgentRuntimeSettings,
     logger: IDextoLogger,
     agentEventBus: AgentEventBus,
     overrides?: InitializeServicesOptions
@@ -153,7 +151,7 @@ export async function createAgentServices(
     logger.debug('Memory manager initialized');
 
     // 6.5 Initialize plugin manager
-    const plugins = overrides?.plugins ?? (await resolveLocalPluginsFromConfig({ config, logger }));
+    const plugins = overrides?.plugins ?? [];
     const pluginManager = new PluginManager(
         {
             agentEventBus,
@@ -218,15 +216,6 @@ export async function createAgentServices(
         logger.info('Agent initialized without MCP servers - only built-in capabilities available');
     } else {
         logger.debug(`MCPManager initialized with ${mcpServerCount} MCP server(s)`);
-    }
-
-    const enabledToolTypes = (config.tools ?? [])
-        .filter((t) => t.enabled !== false)
-        .map((t) => t.type);
-    if (enabledToolTypes.length === 0) {
-        logger.info('No tools enabled by configuration');
-    } else {
-        logger.info(`Tools enabled: ${enabledToolTypes.join(', ')}`);
     }
 
     // 9. Initialize prompt manager

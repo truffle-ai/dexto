@@ -18,6 +18,36 @@ import type { SearchService } from '../search/search-service.js';
 import type { IDextoLogger } from '../logger/v2/types.js';
 
 /**
+ * Interface for forking execution to an isolated sub-agent context.
+ *
+ * Implemented by RuntimeService in `@dexto/agent-management` and surfaced to tools
+ * via {@link ToolExecutionContext.services}.
+ */
+export interface TaskForker {
+    fork(options: {
+        task: string;
+        instructions: string;
+        agentId?: string;
+        autoApprove?: boolean;
+        toolCallId?: string;
+        sessionId?: string;
+    }): Promise<{
+        success: boolean;
+        response?: string;
+        error?: string;
+    }>;
+}
+
+export interface ToolServices {
+    approval: ApprovalManager;
+    search: SearchService;
+    resources: ResourceManager;
+    prompts: PromptManager;
+    mcp: MCPManager;
+    taskForker?: TaskForker | undefined;
+}
+
+/**
  * Context passed to tool execution
  */
 export interface ToolExecutionContext {
@@ -28,10 +58,8 @@ export interface ToolExecutionContext {
     /** Unique tool call ID for tracking parallel tool calls */
     toolCallId?: string | undefined;
 
-    // TODO: temporary glue code to be removed/verified
     /**
      * Runtime agent reference (DI refactor: provided by ToolManager on each execute()).
-     * Optional during migration; will become required once the DI-first surface is complete.
      */
     agent?: DextoAgent | undefined;
 
@@ -55,15 +83,7 @@ export interface ToolExecutionContext {
      * Runtime services available to tools.
      * These are injected at execution time (not factory time) to avoid init ordering cycles.
      */
-    services?:
-        | {
-              approval: ApprovalManager;
-              search: SearchService;
-              resources: ResourceManager;
-              prompts: PromptManager;
-              mcp: MCPManager;
-          }
-        | undefined;
+    services?: ToolServices | undefined;
 }
 
 /**
@@ -133,7 +153,8 @@ export interface InternalTool {
      * ```
      */
     getApprovalOverride?: (
-        args: unknown
+        args: unknown,
+        context?: ToolExecutionContext
     ) => Promise<ApprovalRequestDetails | null> | ApprovalRequestDetails | null;
 
     /**
@@ -152,7 +173,7 @@ export interface InternalTool {
      * }
      * ```
      */
-    onApprovalGranted?: (response: ApprovalResponse) => void;
+    onApprovalGranted?: (response: ApprovalResponse, context?: ToolExecutionContext) => void;
 }
 
 /**

@@ -1,6 +1,6 @@
 import { describe, test, expect, beforeEach, afterEach } from 'vitest';
 import { DextoAgent } from '../agent/DextoAgent.js';
-import type { AgentRuntimeConfig } from '@core/agent/runtime-config.js';
+import type { AgentRuntimeSettings } from '@core/agent/runtime-config.js';
 import { SystemPromptConfigSchema } from '@core/systemPrompt/schemas.js';
 import { LLMConfigSchema } from '@core/llm/schemas.js';
 import { LoggerConfigSchema } from '@core/logger/index.js';
@@ -8,7 +8,6 @@ import { SessionConfigSchema } from '@core/session/schemas.js';
 import { ToolConfirmationConfigSchema, ElicitationConfigSchema } from '@core/tools/schemas.js';
 import { InternalResourcesSchema } from '@core/resources/schemas.js';
 import { PromptsSchema } from '@core/prompts/schemas.js';
-import { PluginsConfigSchema } from '@core/plugins/schemas.js';
 import {
     CompactionConfigSchema,
     DEFAULT_COMPACTION_CONFIG,
@@ -16,7 +15,11 @@ import {
 import { createLogger } from '../logger/factory.js';
 import type { SessionData } from './session-manager.js';
 import { ServerConfigsSchema } from '@core/mcp/schemas.js';
-import { createInMemoryStorageManager } from '@core/test-utils/in-memory-storage.js';
+import {
+    createInMemoryBlobStore,
+    createInMemoryCache,
+    createInMemoryDatabase,
+} from '@core/test-utils/in-memory-storage.js';
 
 /**
  * Full end-to-end integration tests for chat history preservation.
@@ -25,22 +28,15 @@ import { createInMemoryStorageManager } from '@core/test-utils/in-memory-storage
 describe('Session Integration: Chat History Preservation', () => {
     let agent: DextoAgent;
 
-    const testConfig: AgentRuntimeConfig = {
+    const testSettings: AgentRuntimeSettings = {
         systemPrompt: SystemPromptConfigSchema.parse('You are a helpful assistant.'),
         llm: LLMConfigSchema.parse({
             provider: 'openai',
             model: 'gpt-5-mini',
             apiKey: 'test-key-123',
         }),
-        agentFile: { discoverInCwd: true },
         agentId: 'integration-test-agent',
         mcpServers: ServerConfigsSchema.parse({}),
-        tools: [],
-        logger: LoggerConfigSchema.parse({
-            level: 'warn',
-            transports: [{ type: 'console', colorize: false }],
-        }),
-        storage: {},
         sessions: SessionConfigSchema.parse({
             maxSessions: 10,
             sessionTTL: 100, // 100ms for fast testing
@@ -55,17 +51,27 @@ describe('Session Integration: Chat History Preservation', () => {
         }),
         internalResources: InternalResourcesSchema.parse([]),
         prompts: PromptsSchema.parse([]),
-        plugins: PluginsConfigSchema.parse({}),
         compaction: CompactionConfigSchema.parse(DEFAULT_COMPACTION_CONFIG),
     };
 
     beforeEach(async () => {
-        const logger = createLogger({
-            config: testConfig.logger,
-            agentId: testConfig.agentId,
+        const loggerConfig = LoggerConfigSchema.parse({
+            level: 'warn',
+            transports: [{ type: 'console', colorize: false }],
         });
-        const storageManager = await createInMemoryStorageManager(logger);
-        agent = new DextoAgent({ config: testConfig, logger, overrides: { storageManager } });
+        const logger = createLogger({ config: loggerConfig, agentId: testSettings.agentId });
+
+        agent = new DextoAgent({
+            ...testSettings,
+            logger,
+            storage: {
+                blob: createInMemoryBlobStore(),
+                database: createInMemoryDatabase(),
+                cache: createInMemoryCache(),
+            },
+            tools: [],
+            plugins: [],
+        });
         await agent.start();
     });
 

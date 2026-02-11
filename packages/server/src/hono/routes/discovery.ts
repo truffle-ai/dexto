@@ -1,18 +1,14 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
-import {
-    INTERNAL_TOOL_NAMES,
-    INTERNAL_TOOL_REGISTRY,
-    customToolRegistry,
-    noopProvider,
-    reactiveOverflowProvider,
-} from '@dexto/core';
-import {
-    inMemoryBlobStoreProvider,
-    localBlobStoreProvider,
-    inMemoryDatabaseProvider,
-    sqliteDatabaseProvider,
-    postgresDatabaseProvider,
-} from '@dexto/storage';
+import type { Context } from 'hono';
+import type { DextoImageModule } from '@dexto/agent-config';
+import { loadImage } from '@dexto/agent-config';
+import { loadAgentConfig } from '@dexto/agent-management';
+import imageLocal from '@dexto/image-local';
+import { noopProvider, reactiveOverflowProvider } from '@dexto/core';
+
+export type GetAgentConfigPathFn = (
+    ctx: Context
+) => string | undefined | Promise<string | undefined>;
 
 const DiscoveredProviderSchema = z
     .object({
@@ -55,13 +51,14 @@ const DiscoveryResponseSchema = z
 type DiscoveryMetadataValue = string | number | boolean | null;
 type DiscoveryMetadata = Record<string, DiscoveryMetadataValue>;
 
-function toMetadata(metadata: Record<string, unknown> | undefined): DiscoveryMetadata | undefined {
-    if (!metadata) {
+function toMetadata(metadata: unknown): DiscoveryMetadata | undefined {
+    if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
         return undefined;
     }
 
+    const record = metadata as Record<string, unknown>;
     const result: DiscoveryMetadata = {};
-    for (const [key, value] of Object.entries(metadata)) {
+    for (const [key, value] of Object.entries(record)) {
         if (value === undefined) {
             continue;
         }
@@ -79,19 +76,53 @@ function toMetadata(metadata: Record<string, unknown> | undefined): DiscoveryMet
     return Object.keys(result).length > 0 ? result : undefined;
 }
 
-function listDiscoveryProviders() {
-    const blob = [localBlobStoreProvider, inMemoryBlobStoreProvider].map((provider) => ({
-        type: provider.type,
+async function resolveImageModule(options: {
+    ctx: Context;
+    getAgentConfigPath: GetAgentConfigPathFn;
+}): Promise<DextoImageModule> {
+    const { ctx, getAgentConfigPath } = options;
+
+    const configPath = await getAgentConfigPath(ctx);
+    if (!configPath) {
+        return imageLocal;
+    }
+
+    const rawConfig = await loadAgentConfig(configPath);
+    const imageName =
+        (typeof rawConfig.image === 'string' && rawConfig.image.length > 0
+            ? rawConfig.image
+            : undefined) ??
+        process.env.DEXTO_IMAGE ??
+        '@dexto/image-local';
+
+    if (imageName === '@dexto/image-local') {
+        return imageLocal;
+    }
+
+    try {
+        return await loadImage(imageName);
+    } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        throw new Error(
+            `Failed to load image module '${imageName}'. Ensure it is installed and that the host called setImageImporter(). Original error: ${message}`
+        );
+    }
+}
+
+async function listDiscoveryProviders(options: {
+    ctx: Context;
+    getAgentConfigPath: GetAgentConfigPathFn;
+}) {
+    const image = await resolveImageModule(options);
+
+    const blob = Object.entries(image.storage.blob).map(([type, provider]) => ({
+        type,
         category: 'blob' as const,
         metadata: toMetadata(provider.metadata),
     }));
 
-    const database = [
-        inMemoryDatabaseProvider,
-        sqliteDatabaseProvider,
-        postgresDatabaseProvider,
-    ].map((provider) => ({
-        type: provider.type,
+    const database = Object.entries(image.storage.database).map(([type, provider]) => ({
+        type,
         category: 'database' as const,
         metadata: toMetadata(provider.metadata),
     }));
@@ -102,24 +133,30 @@ function listDiscoveryProviders() {
         metadata: toMetadata(provider.metadata),
     }));
 
-    const customTools = customToolRegistry.getTypes().map((type) => {
-        const provider = customToolRegistry.get(type);
-        return {
+    const toolFactories = Object.entries(image.tools);
+    const builtinFactory = toolFactories.find(([type]) => type === 'builtin-tools')?.[1];
+
+    const internalTools = builtinFactory
+        ? builtinFactory
+              .create(builtinFactory.configSchema.parse({ type: 'builtin-tools' }))
+              .map((tool) => ({
+                  name: tool.id,
+                  description: tool.description,
+              }))
+        : [];
+
+    const customTools = toolFactories
+        .filter(([type]) => type !== 'builtin-tools')
+        .map(([type, factory]) => ({
             type,
             category: 'customTools' as const,
-            metadata: provider?.metadata ? toMetadata(provider.metadata) : undefined,
-        };
-    });
-
-    const internalTools = INTERNAL_TOOL_NAMES.map((name) => ({
-        name,
-        description: INTERNAL_TOOL_REGISTRY[name].description,
-    }));
+            metadata: toMetadata(factory.metadata),
+        }));
 
     return { blob, database, compaction, customTools, internalTools };
 }
 
-export function createDiscoveryRouter() {
+export function createDiscoveryRouter(getAgentConfigPath: GetAgentConfigPathFn) {
     const app = new OpenAPIHono();
 
     const discoveryRoute = createRoute({
@@ -127,7 +164,7 @@ export function createDiscoveryRouter() {
         path: '/discovery',
         summary: 'Discover Available Providers and Tools',
         description:
-            'Returns all registered providers (blob storage, database, compaction, custom tools) and available internal tools. Useful for building UIs that need to display configurable options.',
+            'Returns all available providers (blob storage, database, compaction, tools) for the currently active image.',
         tags: ['discovery'],
         responses: {
             200: {
@@ -138,6 +175,6 @@ export function createDiscoveryRouter() {
     });
 
     return app.openapi(discoveryRoute, async (ctx) => {
-        return ctx.json(listDiscoveryProviders());
+        return ctx.json(await listDiscoveryProviders({ ctx, getAgentConfigPath }));
     });
 }

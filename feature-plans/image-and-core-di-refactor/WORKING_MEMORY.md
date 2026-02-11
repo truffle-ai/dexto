@@ -19,21 +19,20 @@
 
 ## Current Task
 
-**Task:** **5.0 Flatten DextoAgentOptions + remove core config indirection**
-**Status:** _Not started_
+**Task:** **5.3 Add new test coverage**
+**Status:** _Not started_ (Paused per owner request)
 **Branch:** `rebuild-di`
 
 ### Plan
-- Execute Phase 5.0 tasklist (see `PLAN.md`)
-- Exit: `pnpm -w run build:packages` + `pnpm -w test` pass
+- Add targeted unit coverage for resolver/defaults/image conformance (see `PLAN.md`)
+- Exit: `bash scripts/quality-checks.sh` passes
 
 ### Notes
 _Log findings, issues, and progress here as you work._
-2026-02-10: Phase 4.5 completed:
-- Fixed pnpm runtime image loading by adding `setImageImporter()` to `@dexto/agent-config` and configuring it in the CLI entrypoint.
-- Smoke (repo/dev): headless prompt works, server mode works (`/health`, `/api/tools`, `/api/message-sync`), agent switching works.
-- Note: existing `~/.dexto/agents/*` configs that still use `internalTools`/`customTools` need `dexto sync-agents` (or use `--dev` when testing in-repo).
-- Validation: `pnpm -w run build:packages`, `pnpm -w test`, `pnpm -w run lint`, `pnpm -w run typecheck` all pass.
+2026-02-11:
+- Completed Phase 5.0 + 5.1 cleanup (registry deletions + glue removal).
+- Fixed resulting test/OpenAPI drift to keep `/quality-checks` green.
+- Paused before starting 5.3/5.4 per owner request (avoid blocker).
 
 ---
 
@@ -51,6 +50,9 @@ _Record important decisions made during implementation that aren't in the main p
 | 2026-02-10 | `resolveServicesFromConfig()` prefixes tool IDs + wraps plugins | Ensures tools are fully-qualified (`internal--*`/`custom--*`) and plugin blocking semantics match legacy behavior before handing instances to core. |
 | 2026-02-10 | Reactive-overflow compaction remains core-owned (per session) | DI compaction creation at config-resolution time cannot supply a per-session `LanguageModel`. Resolver skips DI for `reactive-overflow`; core continues to create it during session init. |
 | 2026-02-10 | `loadImage()` supports host-configured importer (`setImageImporter`) | `@dexto/agent-config` cannot reliably `import('@dexto/image-*')` under pnpm unless the image is a direct dependency; hosts configure the importer to resolve relative to the host package. |
+| 2026-02-11 | Tool approval overrides receive `ToolExecutionContext` | Enables filesystem directory approval to use `ApprovalManager` without factory-time glue; removes noop logger / local approval maps. |
+| 2026-02-11 | Tool provider packages export `ToolFactory` only | Removes dead registry-based `CustomToolProvider` surfaces after Phase 5.1; keeps tool packages image-compatible. |
+| 2026-02-11 | Image factories include optional `metadata` | Keeps discovery responses type-safe (no casts) while preserving passthrough metadata for UI/CLI. |
 
 ---
 
@@ -117,6 +119,10 @@ _Move tasks here after completion. Keep a brief log of what was done and any dev
 | 4.3 | Update `@dexto/server` if needed | 2026-02-10 | No code changes required; server consumes a `DextoAgent` instance. Verified `pnpm -w run build:packages` + `pnpm -w test` pass. |
 | 4.4 | Update `@dexto/agent-management` config enrichment + agent creation surfaces | 2026-02-10 | `AgentManager.loadAgent`, `AgentFactory.createAgent`, and `AgentRuntime.spawnAgent` now create agents via image DI resolution (`loadImage()` + defaults + resolver) instead of core glue (`createLogger`/`createStorageManager`). Added shared `cleanNullValues()` export in agent-config. Removed unused `@dexto/storage` dependency from agent-management. `pnpm -w run build:packages` + `pnpm -w test` pass. |
 | 4.5 | End-to-end smoke test | 2026-02-10 | Fixed pnpm image import via `setImageImporter()` and wired it in the CLI entrypoint. Manual smoke: headless prompt, server mode APIs, and agent switching work. Also fixed typecheck breakages in core/webui/agent-management after `tools` schema + storage extraction. `pnpm -w run build:packages` + `pnpm -w test` + `pnpm -w run lint` + `pnpm -w run typecheck` pass. |
+| 5.0 | Flatten `DextoAgentOptions` + remove core config indirection | 2026-02-11 | Core options are now flat (`DextoAgentOptions extends AgentRuntimeSettings` + injected DI surfaces). Removed core file-path concerns and updated host layers. `pnpm -w run build:packages` passes. |
+| 5.1 | Delete dead registry code | 2026-02-11 | Deleted remaining core tool registries + internal-tools and removed all `temporary glue code` markers. Updated tool packages to remove legacy provider exports. Updated filesystem tools to use runtime approval via `ToolExecutionContext`. Exit check: `rg "temporary glue code|remove-by:" packages` returns 0. |
+| 5.2 | Update all broken tests | 2026-02-11 | Updated tests that referenced deleted registry-era schemas/tools and updated filesystem tool tests for new signatures. `pnpm -w test` passes. |
+| 5.5 | Update OpenAPI / server docs if affected | 2026-02-11 | Ran `pnpm run sync-openapi-docs` and verified `sync-openapi-docs:check` passes. |
 
 ---
 
@@ -134,7 +140,7 @@ _Move tasks here after completion. Keep a brief log of what was done and any dev
 | Phase 2 — Resolver | Completed | 2.5, 2.1, 2.2, 2.6, 2.3 complete (2.4 deferred) |
 | Phase 3 — Images | Completed | 3.3 deferred; 3.5 image-local + 3.6 bundler updated |
 | Phase 4 — CLI/Server | Completed | 4.1–4.5 complete |
-| Phase 5 — Cleanup | Not started | |
+| Phase 5 — Cleanup | In progress | 5.0–5.2 + 5.5 complete; 5.3/5.4 pending (paused) |
 
 ---
 
@@ -151,3 +157,4 @@ _Record checkpoint validation results after each phase boundary._
 | After Phase 2 | 2026-02-10 | ✅ `pnpm -w run build:packages` + `pnpm -w test` pass | — |
 | After Phase 3 (commit 3.6) | 2026-02-10 | ✅ `pnpm -w run build:packages` + `pnpm -w test` pass | Logger extraction deferred; compaction DI mismatch tracked (remove-by: 4.1) |
 | After Phase 4 (commit 4.5) | 2026-02-10 | ✅ `pnpm -w run build:packages` + `pnpm -w test` + `pnpm -w run lint` + `pnpm -w run typecheck` pass | Manual smoke pass; pnpm image import fixed via `setImageImporter()`. |
+| After Phase 5.1 (pre-commit) | 2026-02-11 | ✅ `/quality-checks` pass | OpenAPI docs regenerated via `pnpm run sync-openapi-docs`. |

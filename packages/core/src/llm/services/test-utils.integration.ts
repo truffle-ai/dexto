@@ -6,7 +6,7 @@ import {
     PROVIDER_API_KEY_MAP,
 } from '../../utils/api-key-resolver.js';
 import type { LLMProvider } from '../types.js';
-import type { AgentRuntimeConfig } from '../../agent/runtime-config.js';
+import type { AgentRuntimeSettings } from '../../agent/runtime-config.js';
 import { SystemPromptConfigSchema } from '../../systemPrompt/schemas.js';
 import { LLMConfigSchema } from '../schemas.js';
 import { LoggerConfigSchema } from '../../logger/v2/schemas.js';
@@ -15,13 +15,16 @@ import { ToolConfirmationConfigSchema, ElicitationConfigSchema } from '../../too
 import { ServerConfigsSchema } from '../../mcp/schemas.js';
 import { InternalResourcesSchema } from '../../resources/schemas.js';
 import { PromptsSchema } from '../../prompts/schemas.js';
-import { PluginsConfigSchema } from '../../plugins/schemas.js';
 import {
     CompactionConfigSchema,
     DEFAULT_COMPACTION_CONFIG,
 } from '../../context/compaction/schemas.js';
 import { createLogger } from '../../logger/factory.js';
-import { createInMemoryStorageManager } from '../../test-utils/in-memory-storage.js';
+import {
+    createInMemoryBlobStore,
+    createInMemoryCache,
+    createInMemoryDatabase,
+} from '../../test-utils/in-memory-storage.js';
 
 /**
  * Shared utilities for LLM service integration tests
@@ -38,15 +41,28 @@ export interface TestEnvironment {
  * Uses DextoAgent to handle complex initialization properly
  */
 export async function createTestEnvironment(
-    config: AgentRuntimeConfig,
+    settings: AgentRuntimeSettings,
     sessionId: string = 'test-session'
 ): Promise<TestEnvironment> {
-    const logger = createLogger({
-        config: config.logger,
-        agentId: config.agentId,
+    const loggerConfig = LoggerConfigSchema.parse({
+        level: 'info',
+        transports: [{ type: 'console' }],
     });
-    const storageManager = await createInMemoryStorageManager(logger);
-    const agent = new DextoAgent({ config, logger, overrides: { storageManager } });
+    const logger = createLogger({
+        config: loggerConfig,
+        agentId: settings.agentId,
+    });
+    const agent = new DextoAgent({
+        ...settings,
+        logger,
+        storage: {
+            blob: createInMemoryBlobStore(),
+            database: createInMemoryDatabase(),
+            cache: createInMemoryCache(),
+        },
+        tools: [],
+        plugins: [],
+    });
     await agent.start();
 
     return {
@@ -72,7 +88,7 @@ export const TestConfigs = {
     /**
      * Creates OpenAI test config
      */
-    createOpenAIConfig(): AgentRuntimeConfig {
+    createOpenAIConfig(): AgentRuntimeSettings {
         const provider: LLMProvider = 'openai';
         const apiKey = resolveApiKeyForProvider(provider);
         if (!apiKey) {
@@ -93,22 +109,11 @@ export const TestConfigs = {
                 temperature: 0, // Deterministic responses
                 maxIterations: 1, // Minimal tool iterations
             }),
-            agentFile: { discoverInCwd: false },
             agentId: 'test-agent',
             mcpServers: ServerConfigsSchema.parse({}),
-            tools: [],
-            storage: {
-                cache: { type: 'in-memory' },
-                database: { type: 'in-memory' },
-                blob: { type: 'local', storePath: '/tmp/test-blobs' },
-            },
             sessions: SessionConfigSchema.parse({
                 maxSessions: 10,
                 sessionTTL: 60000, // 60s for tests
-            }),
-            logger: LoggerConfigSchema.parse({
-                level: 'info',
-                transports: [{ type: 'console' }],
             }),
             toolConfirmation: ToolConfirmationConfigSchema.parse({
                 mode: 'auto-approve', // Tests don't have interactive approval
@@ -120,7 +125,6 @@ export const TestConfigs = {
             }),
             internalResources: InternalResourcesSchema.parse([]),
             prompts: PromptsSchema.parse([]),
-            plugins: PluginsConfigSchema.parse({}),
             compaction: CompactionConfigSchema.parse(DEFAULT_COMPACTION_CONFIG),
         };
     },
@@ -128,7 +132,7 @@ export const TestConfigs = {
     /**
      * Creates Anthropic test config
      */
-    createAnthropicConfig(): AgentRuntimeConfig {
+    createAnthropicConfig(): AgentRuntimeSettings {
         const provider: LLMProvider = 'anthropic';
         const apiKey = resolveApiKeyForProvider(provider);
         if (!apiKey) {
@@ -149,22 +153,11 @@ export const TestConfigs = {
                 temperature: 0,
                 maxIterations: 1,
             }),
-            agentFile: { discoverInCwd: false },
             agentId: 'test-agent',
             mcpServers: ServerConfigsSchema.parse({}),
-            tools: [],
-            storage: {
-                cache: { type: 'in-memory' },
-                database: { type: 'in-memory' },
-                blob: { type: 'local', storePath: '/tmp/test-blobs' },
-            },
             sessions: SessionConfigSchema.parse({
                 maxSessions: 10,
                 sessionTTL: 60000,
-            }),
-            logger: LoggerConfigSchema.parse({
-                level: 'info',
-                transports: [{ type: 'console' }],
             }),
             toolConfirmation: ToolConfirmationConfigSchema.parse({
                 mode: 'auto-approve', // Tests don't have interactive approval
@@ -176,7 +169,6 @@ export const TestConfigs = {
             }),
             internalResources: InternalResourcesSchema.parse([]),
             prompts: PromptsSchema.parse([]),
-            plugins: PluginsConfigSchema.parse({}),
             compaction: CompactionConfigSchema.parse(DEFAULT_COMPACTION_CONFIG),
         };
     },
@@ -184,7 +176,7 @@ export const TestConfigs = {
     /**
      * Creates Vercel test config - parametric for different providers/models
      */
-    createVercelConfig(provider: LLMProvider = 'openai', model?: string): AgentRuntimeConfig {
+    createVercelConfig(provider: LLMProvider = 'openai', model?: string): AgentRuntimeSettings {
         const apiKey = resolveApiKeyForProvider(provider);
         // Only enforce API key check for providers that require it (exclude local, ollama, vertex with empty key maps)
         if (!apiKey && providerRequiresApiKey(provider)) {
@@ -226,21 +218,11 @@ export const TestConfigs = {
                 temperature: 0,
                 maxIterations: 1,
             }),
-            agentFile: { discoverInCwd: false },
             agentId: 'test-agent',
             mcpServers: ServerConfigsSchema.parse({}),
-            storage: {
-                cache: { type: 'in-memory' },
-                database: { type: 'in-memory' },
-                blob: { type: 'local', storePath: '/tmp/test-blobs' },
-            },
             sessions: SessionConfigSchema.parse({
                 maxSessions: 10,
                 sessionTTL: 60000,
-            }),
-            logger: LoggerConfigSchema.parse({
-                level: 'info',
-                transports: [{ type: 'console' }],
             }),
             toolConfirmation: ToolConfirmationConfigSchema.parse({
                 mode: 'auto-approve', // Tests don't have interactive approval
@@ -250,10 +232,8 @@ export const TestConfigs = {
                 enabled: false, // Tests don't handle elicitation
                 timeout: 120000,
             }),
-            tools: [],
             internalResources: InternalResourcesSchema.parse([]),
             prompts: PromptsSchema.parse([]),
-            plugins: PluginsConfigSchema.parse({}),
             compaction: CompactionConfigSchema.parse(DEFAULT_COMPACTION_CONFIG),
         };
     },

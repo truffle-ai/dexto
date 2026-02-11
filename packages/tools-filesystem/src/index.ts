@@ -5,10 +5,9 @@
  * Provides file operation tools: read, write, edit, glob, grep.
  */
 
-// Main provider export
-export { fileSystemToolsProvider } from './tool-provider.js';
+// Main factory export (image-compatible)
 export { fileSystemToolsFactory } from './tool-factory.js';
-export type { FileToolOptions, DirectoryApprovalCallbacks } from './file-tool-types.js';
+export type { FileSystemServiceGetter, FileSystemServiceOrGetter } from './file-tool-types.js';
 
 // Service and utilities (for advanced use cases)
 export { FileSystemService } from './filesystem-service.js';

@@ -49,6 +49,7 @@ interface AlternateBufferCLIProps {
     agent: DextoAgent;
     initialSessionId: string | null;
     startupInfo: StartupInfo;
+    configFilePath: string | null;
     /** Callback when user attempts to select text (drag without Option key) */
     onSelectionAttempt?: () => void;
     /** Whether to stream chunks or wait for complete response */
@@ -59,6 +60,7 @@ export function AlternateBufferCLI({
     agent,
     initialSessionId,
     startupInfo,
+    configFilePath,
     onSelectionAttempt,
     useStreaming = true,
 }: AlternateBufferCLIProps) {
@@ -354,6 +356,7 @@ export function AlternateBufferCLI({
                     inputService={inputService}
                     onKeyboardScroll={handleKeyboardScroll}
                     useStreaming={useStreaming}
+                    configFilePath={configFilePath}
                 />
 
                 <OverlayContainer
@@ -372,6 +375,7 @@ export function AlternateBufferCLI({
                     inputService={inputService}
                     buffer={buffer}
                     onSubmitPromptCommand={handleSubmitPromptCommand}
+                    configFilePath={configFilePath}
                 />
 
                 {/* Exit warning (Ctrl+C pressed once) - shown above footer */}

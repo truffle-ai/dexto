@@ -1,6 +1,6 @@
 import { describe, test, expect, vi, beforeEach } from 'vitest';
 import { DextoAgent } from './DextoAgent.js';
-import type { AgentRuntimeConfig } from './runtime-config.js';
+import type { AgentRuntimeSettings } from './runtime-config.js';
 import { LLMConfigSchema } from '@core/llm/schemas.js';
 import { LoggerConfigSchema } from '@core/logger/index.js';
 import { SystemPromptConfigSchema } from '@core/systemPrompt/schemas.js';
@@ -8,7 +8,6 @@ import { SessionConfigSchema } from '@core/session/schemas.js';
 import { ToolConfirmationConfigSchema, ElicitationConfigSchema } from '@core/tools/schemas.js';
 import { InternalResourcesSchema } from '@core/resources/schemas.js';
 import { PromptsSchema } from '@core/prompts/schemas.js';
-import { PluginsConfigSchema } from '@core/plugins/schemas.js';
 import {
     CompactionConfigSchema,
     DEFAULT_COMPACTION_CONFIG,
@@ -19,6 +18,11 @@ import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
 import { ErrorScope, ErrorType } from '../errors/types.js';
 import { AgentErrorCode } from './error-codes.js';
 import { createLogger } from '../logger/factory.js';
+import {
+    createInMemoryBlobStore,
+    createInMemoryCache,
+    createInMemoryDatabase,
+} from '@core/test-utils/in-memory-storage.js';
 
 // Mock the createAgentServices function
 vi.mock('../utils/service-initializer.js', () => ({
@@ -29,12 +33,26 @@ import { createAgentServices } from '../utils/service-initializer.js';
 const mockCreateAgentServices = vi.mocked(createAgentServices);
 
 describe('DextoAgent Lifecycle Management', () => {
-    let mockValidatedConfig: AgentRuntimeConfig;
+    let mockValidatedConfig: AgentRuntimeSettings;
     let mockServices: AgentServices;
 
-    const createTestAgent = (config: AgentRuntimeConfig) => {
-        const agentLogger = createLogger({ config: config.logger, agentId: config.agentId });
-        return new DextoAgent({ config, logger: agentLogger });
+    const createTestAgent = (settings: AgentRuntimeSettings) => {
+        const loggerConfig = LoggerConfigSchema.parse({
+            level: 'error',
+            transports: [{ type: 'silent' }],
+        });
+        const agentLogger = createLogger({ config: loggerConfig, agentId: settings.agentId });
+        return new DextoAgent({
+            ...settings,
+            logger: agentLogger,
+            storage: {
+                blob: createInMemoryBlobStore(),
+                database: createInMemoryDatabase(),
+                cache: createInMemoryCache(),
+            },
+            tools: [],
+            plugins: [],
+        });
     };
 
     beforeEach(() => {
@@ -49,12 +67,8 @@ describe('DextoAgent Lifecycle Management', () => {
                 maxIterations: 50,
                 maxInputTokens: 128000,
             }),
-            agentFile: { discoverInCwd: true },
             agentId: 'test-agent',
             mcpServers: ServerConfigsSchema.parse({}),
-            tools: [],
-            logger: LoggerConfigSchema.parse({ level: 'error', transports: [{ type: 'silent' }] }),
-            storage: {},
             sessions: SessionConfigSchema.parse({
                 maxSessions: 10,
                 sessionTTL: 3600,
@@ -69,7 +83,6 @@ describe('DextoAgent Lifecycle Management', () => {
             }),
             internalResources: InternalResourcesSchema.parse([]),
             prompts: PromptsSchema.parse([]),
-            plugins: PluginsConfigSchema.parse({}),
             compaction: CompactionConfigSchema.parse(DEFAULT_COMPACTION_CONFIG),
         };
 
@@ -89,18 +102,7 @@ describe('DextoAgent Lifecycle Management', () => {
                 emit: vi.fn(),
             } as any,
             stateManager: {
-                getRuntimeConfig: vi.fn().mockReturnValue({
-                    llm: mockValidatedConfig.llm,
-                    mcpServers: {},
-                    storage: {
-                        cache: { type: 'in-memory' },
-                        database: { type: 'in-memory' },
-                    },
-                    sessions: {
-                        maxSessions: 10,
-                        sessionTTL: 3600,
-                    },
-                }),
+                getRuntimeConfig: vi.fn().mockReturnValue(mockValidatedConfig),
                 getLLMConfig: vi.fn().mockReturnValue(mockValidatedConfig.llm),
             } as any,
             sessionManager: {
@@ -158,12 +160,12 @@ describe('DextoAgent Lifecycle Management', () => {
                 mockValidatedConfig,
                 expect.anything(), // logger instance
                 expect.anything(), // eventBus instance
-                undefined
+                expect.any(Object)
             );
         });
 
         test('should start with per-server connection modes in config', async () => {
-            const validatedConfigWithServerModes: AgentRuntimeConfig = {
+            const validatedConfigWithServerModes: AgentRuntimeSettings = {
                 ...mockValidatedConfig,
                 mcpServers: ServerConfigsSchema.parse({
                     filesystem: {
@@ -184,7 +186,7 @@ describe('DextoAgent Lifecycle Management', () => {
                 validatedConfigWithServerModes,
                 expect.anything(), // logger instance
                 expect.anything(), // eventBus instance
-                undefined
+                expect.any(Object)
             );
         });
 

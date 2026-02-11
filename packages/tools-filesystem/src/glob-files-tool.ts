@@ -8,7 +8,7 @@ import * as path from 'node:path';
 import { z } from 'zod';
 import { InternalTool, ToolExecutionContext, ApprovalType } from '@dexto/core';
 import type { SearchDisplayData, ApprovalRequestDetails, ApprovalResponse } from '@dexto/core';
-import type { FileToolOptions } from './file-tool-types.js';
+import type { FileSystemServiceGetter, FileSystemServiceOrGetter } from './file-tool-types.js';
 
 const GlobFilesInputSchema = z
     .object({
@@ -34,8 +34,9 @@ type GlobFilesInput = z.input<typeof GlobFilesInputSchema>;
 /**
  * Create the glob_files internal tool with directory approval support
  */
-export function createGlobFilesTool(options: FileToolOptions): InternalTool {
-    const { fileSystemService, directoryApproval } = options;
+export function createGlobFilesTool(fileSystemService: FileSystemServiceOrGetter): InternalTool {
+    const getFileSystemService: FileSystemServiceGetter =
+        typeof fileSystemService === 'function' ? fileSystemService : async () => fileSystemService;
 
     // Store search directory for use in onApprovalGranted callback
     let pendingApprovalSearchDir: string | undefined;
@@ -50,22 +51,28 @@ export function createGlobFilesTool(options: FileToolOptions): InternalTool {
          * Check if this glob operation needs directory access approval.
          * Returns custom approval request if the search directory is outside allowed paths.
          */
-        getApprovalOverride: async (args: unknown): Promise<ApprovalRequestDetails | null> => {
+        getApprovalOverride: async (
+            args: unknown,
+            context?: ToolExecutionContext
+        ): Promise<ApprovalRequestDetails | null> => {
             const { path: searchPath } = args as GlobFilesInput;
+
+            const resolvedFileSystemService = await getFileSystemService(context);
 
             // Resolve the search directory using the same base the service uses
             // This ensures approval decisions align with actual execution context
-            const baseDir = fileSystemService.getWorkingDirectory();
+            const baseDir = resolvedFileSystemService.getWorkingDirectory();
             const searchDir = path.resolve(baseDir, searchPath || '.');
 
             // Check if path is within config-allowed paths
-            const isAllowed = await fileSystemService.isPathWithinConfigAllowed(searchDir);
+            const isAllowed = await resolvedFileSystemService.isPathWithinConfigAllowed(searchDir);
             if (isAllowed) {
                 return null; // Use normal tool confirmation
             }
 
-            // Check if directory is already session-approved
-            if (directoryApproval?.isSessionApproved(searchDir)) {
+            // Check if directory is already session-approved (prompting decision)
+            const approvalManager = context?.services?.approval;
+            if (approvalManager?.isDirectorySessionApproved(searchDir)) {
                 return null; // Already approved, use normal flow
             }
 
@@ -86,13 +93,15 @@ export function createGlobFilesTool(options: FileToolOptions): InternalTool {
         /**
          * Handle approved directory access - remember the directory for session
          */
-        onApprovalGranted: (response: ApprovalResponse): void => {
-            if (!directoryApproval || !pendingApprovalSearchDir) return;
+        onApprovalGranted: (response: ApprovalResponse, context?: ToolExecutionContext): void => {
+            if (!pendingApprovalSearchDir) return;
 
             // Check if user wants to remember the directory
             const data = response.data as { rememberDirectory?: boolean } | undefined;
             const rememberDirectory = data?.rememberDirectory ?? false;
-            directoryApproval.addApproved(
+
+            const approvalManager = context?.services?.approval;
+            approvalManager?.addApprovedDirectory(
                 pendingApprovalSearchDir,
                 rememberDirectory ? 'session' : 'once'
             );
@@ -101,12 +110,14 @@ export function createGlobFilesTool(options: FileToolOptions): InternalTool {
             pendingApprovalSearchDir = undefined;
         },
 
-        execute: async (input: unknown, _context?: ToolExecutionContext) => {
+        execute: async (input: unknown, context?: ToolExecutionContext) => {
+            const resolvedFileSystemService = await getFileSystemService(context);
+
             // Input is validated by provider before reaching here
             const { pattern, path, max_results } = input as GlobFilesInput;
 
             // Search for files using FileSystemService
-            const result = await fileSystemService.globFiles(pattern, {
+            const result = await resolvedFileSystemService.globFiles(pattern, {
                 cwd: path,
                 maxResults: max_results,
                 includeMetadata: true,

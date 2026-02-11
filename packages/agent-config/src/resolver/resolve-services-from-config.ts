@@ -284,25 +284,5 @@ export async function resolveServicesFromConfig(
         );
     }
 
-    // 5) Compaction
-    let compaction: ResolvedServices['compaction'] = undefined;
-    if (config.compaction.enabled !== false) {
-        if (config.compaction.type === 'reactive-overflow') {
-            // TODO: temporary glue code to be removed/verified (remove-by: 4.1)
-            // `reactive-overflow` compaction requires a per-session LanguageModel instance.
-            // Core still constructs it at session init time from config.
-        } else {
-            const factory = resolveByType({
-                kind: 'compaction',
-                type: config.compaction.type,
-                factories: image.compaction,
-                imageName,
-            });
-
-            const parsedConfig = factory.configSchema.parse(config.compaction);
-            compaction = factory.create(parsedConfig);
-        }
-    }
-
-    return { logger, storage, tools, plugins, compaction };
+    return { logger, storage, tools, plugins };
 }

@@ -18,17 +18,21 @@ describe('template-engine', () => {
                 imageName: '@dexto/image-local',
             });
 
-            expect(result).toContain("import { AgentConfigSchema } from '@dexto/agent-config'");
-            expect(result).toContain("import { DextoAgent, createLogger } from '@dexto/core'");
-            expect(result).toContain("import { loadAgentConfig } from '@dexto/agent-management'");
-            expect(result).toContain('Starting my-app');
-            expect(result).toContain(
-                "const config = await loadAgentConfig('./agents/default.yml')"
+            expect(result).toMatch(
+                /import\s*\{[\s\S]*AgentConfigSchema,[\s\S]*\}\s*from '@dexto\/agent-config';/
             );
-            expect(result).toContain('const validatedConfig = AgentConfigSchema.parse(config)');
-            expect(result).toContain('const agentLogger = createLogger({');
-            expect(result).toContain('const agent = new DextoAgent({');
-            expect(result).toContain('config: validatedConfig');
+            expect(result).toContain("import { DextoAgent } from '@dexto/core'");
+            expect(result).toContain(
+                "import { enrichAgentConfig, loadAgentConfig } from '@dexto/agent-management'"
+            );
+            expect(result).toContain('setImageImporter((specifier) => import(specifier));');
+            expect(result).toContain('Starting my-app');
+            expect(result).toContain("const configPath = './agents/default.yml';");
+            expect(result).toContain('const config = await loadAgentConfig(configPath);');
+            expect(result).toContain(
+                'const validatedConfig = AgentConfigSchema.parse(enrichedConfig)'
+            );
+            expect(result).toContain('const agent = new DextoAgent(toDextoAgentOptions({');
             expect(result).toContain('await agent.start()');
         });
 
@@ -40,10 +44,10 @@ describe('template-engine', () => {
                 imageName: '@dexto/image-local',
             });
 
+            expect(result).toContain('// Standalone Dexto app (image-based)');
             expect(result).toContain(
-                '// Create agent - providers already registered by image environment'
+                '// Loads an image module and resolves DI services from config.'
             );
-            expect(result).toContain('// This auto-registers providers as a side-effect');
         });
     });
 

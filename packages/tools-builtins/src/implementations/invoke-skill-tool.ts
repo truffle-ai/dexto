@@ -88,10 +88,7 @@ export function createInvokeSkillTool(): InternalTool {
             const content = flattened.text;
 
             if (promptDef?.context === 'fork') {
-                const maybeServices = context?.services
-                    ? (context.services as unknown as Record<string, unknown>)
-                    : undefined;
-                const maybeForker = maybeServices?.taskForker;
+                const maybeForker = context?.services?.taskForker;
                 if (!isTaskForker(maybeForker)) {
                     return {
                         error: `Skill '${skill}' requires fork execution (context: fork), but agent spawning is not available.`,

@@ -4,15 +4,12 @@ import type {
     Database,
     DextoPlugin,
     IDextoLogger,
-    // TODO: temporary glue code to be removed/verified
     ICompactionStrategy as CompactionStrategy,
-    // TODO: temporary glue code to be removed/verified
     InternalTool as Tool,
 } from '@dexto/core';
 import type { z } from 'zod';
 import type { AgentConfig } from '../schemas/agent-config.js';
 
-// TODO: temporary glue code to be removed/verified
 export type ImageTarget =
     | 'local-development'
     | 'cloud-production'
@@ -21,7 +18,6 @@ export type ImageTarget =
     | 'enterprise'
     | 'custom';
 
-// TODO: temporary glue code to be removed/verified
 export type ImageConstraint =
     | 'filesystem-required'
     | 'network-required'
@@ -32,7 +28,6 @@ export type ImageConstraint =
     | 'edge-compatible'
     | 'browser-compatible';
 
-// TODO: temporary glue code to be removed/verified
 export type ImageDefaults = Partial<AgentConfig>;
 
 export interface ToolFactoryMetadata {
@@ -50,31 +45,37 @@ export interface ToolFactory<TConfig = unknown> {
 export interface BlobStoreFactory<TConfig = unknown> {
     configSchema: z.ZodType<TConfig, z.ZodTypeDef, unknown>;
     create(config: TConfig, logger: IDextoLogger): BlobStore | Promise<BlobStore>;
+    metadata?: Record<string, unknown> | undefined;
 }
 
 export interface DatabaseFactory<TConfig = unknown> {
     configSchema: z.ZodType<TConfig, z.ZodTypeDef, unknown>;
     create(config: TConfig, logger: IDextoLogger): Database | Promise<Database>;
+    metadata?: Record<string, unknown> | undefined;
 }
 
 export interface CacheFactory<TConfig = unknown> {
     configSchema: z.ZodType<TConfig, z.ZodTypeDef, unknown>;
     create(config: TConfig, logger: IDextoLogger): Cache | Promise<Cache>;
+    metadata?: Record<string, unknown> | undefined;
 }
 
 export interface PluginFactory<TConfig = unknown> {
     configSchema: z.ZodType<TConfig, z.ZodTypeDef, unknown>;
     create(config: TConfig): DextoPlugin;
+    metadata?: Record<string, unknown> | undefined;
 }
 
 export interface CompactionFactory<TConfig = unknown> {
     configSchema: z.ZodType<TConfig, z.ZodTypeDef, unknown>;
     create(config: TConfig): CompactionStrategy;
+    metadata?: Record<string, unknown> | undefined;
 }
 
 export interface LoggerFactory<TConfig = unknown> {
     configSchema: z.ZodType<TConfig, z.ZodTypeDef, unknown>;
     create(config: TConfig): IDextoLogger;
+    metadata?: Record<string, unknown> | undefined;
 }
 
 export interface DextoImageModule {

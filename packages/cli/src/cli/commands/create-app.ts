@@ -492,31 +492,41 @@ export default defineConfig({
     const discoveryScript = generateDiscoveryScript();
     await fs.writeFile('scripts/discover-providers.ts', discoveryScript);
 
-    // Create app entry point - completely clean, no provider registration code
-    const appIndexContent = `// Standalone Dexto app
-// Development: Providers auto-discovered at runtime (pnpm dev)
-// Production: Providers bundled at build time (pnpm build + pnpm start)
+    // Create app entry point
+    const appIndexContent = `// Standalone Dexto app (image-based)
+// Loads an image module and resolves DI services from config.
 
-	import { AgentConfigSchema } from '@dexto/agent-config';
-	import { DextoAgent, createLogger } from '@dexto/core';
-	import { loadAgentConfig } from '@dexto/agent-management';
+import {
+    AgentConfigSchema,
+    applyImageDefaults,
+    cleanNullValues,
+    loadImage,
+    resolveServicesFromConfig,
+    setImageImporter,
+    toDextoAgentOptions,
+} from '@dexto/agent-config';
+import { DextoAgent } from '@dexto/core';
+import { enrichAgentConfig, loadAgentConfig } from '@dexto/agent-management';
+
+// Ensure loadImage('@dexto/image-*') resolves relative to the host package (pnpm-safe).
+setImageImporter((specifier) => import(specifier));
 
 async function main() {
     console.log('🚀 Starting ${projectName}\\n');
 
-    // Load agent configuration
-    // In dev mode: providers discovered at runtime from dexto.config.ts
-    // In production: providers pre-registered at build time
-    const config = await loadAgentConfig('./agents/default.yml');
-	    const validatedConfig = AgentConfigSchema.parse(config);
+    const configPath = './agents/default.yml';
+    const config = await loadAgentConfig(configPath);
+    const cleanedConfig = cleanNullValues(config);
 
-	    // Create agent
-	    const agentLogger = createLogger({ config: validatedConfig.logger, agentId: validatedConfig.agentId });
-	    const agent = new DextoAgent({
-	        config: validatedConfig,
-	        configPath: './agents/default.yml',
-	        logger: agentLogger,
-	    });
+    const imageName = cleanedConfig.image ?? process.env.DEXTO_IMAGE ?? '@dexto/image-local';
+    const image = await loadImage(imageName);
+    const configWithDefaults = applyImageDefaults(cleanedConfig, image.defaults);
+
+    const enrichedConfig = enrichAgentConfig(configWithDefaults, configPath);
+    const validatedConfig = AgentConfigSchema.parse(enrichedConfig);
+    const services = await resolveServicesFromConfig(validatedConfig, image);
+
+    const agent = new DextoAgent(toDextoAgentOptions({ config: validatedConfig, services }));
 
     await agent.start();
     console.log('✅ Agent started\\n');
