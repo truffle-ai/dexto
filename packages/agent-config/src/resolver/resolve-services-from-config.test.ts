@@ -257,6 +257,168 @@ describe('resolveServicesFromConfig', () => {
         );
     });
 
+    it('prefixes builtin tool ids as internal-- and preserves already-qualified ids', async () => {
+        const builtinFactoryCreate = vi.fn(() => [
+            createMockTool('ask_user'),
+            createMockTool('internal--already-qualified'),
+        ]);
+        const customFactoryCreate = vi.fn(() => [
+            createMockTool('custom--foo'),
+            createMockTool('bar'),
+        ]);
+
+        const image = createMockImage({
+            tools: {
+                'builtin-tools': {
+                    configSchema: z.object({ type: z.literal('builtin-tools') }).strict(),
+                    create: builtinFactoryCreate,
+                },
+                'foo-tools': {
+                    configSchema: z.object({ type: z.literal('foo-tools') }).strict(),
+                    create: customFactoryCreate,
+                },
+            },
+        });
+
+        const validated = AgentConfigSchema.parse({
+            ...baseConfig,
+            tools: [{ type: 'builtin-tools' }, { type: 'foo-tools' }],
+        } satisfies AgentConfig);
+
+        const services = await resolveServicesFromConfig(validated, image);
+
+        expect(services.tools.map((t) => t.id)).toEqual([
+            'internal--ask_user',
+            'internal--already-qualified',
+            'custom--foo',
+            'custom--bar',
+        ]);
+    });
+
+    it('warns and skips duplicate tool ids across factories', async () => {
+        const image = createMockImage({
+            tools: {
+                'foo-tools': {
+                    configSchema: z.object({ type: z.literal('foo-tools') }).strict(),
+                    create: () => [createMockTool('dup')],
+                },
+                'bar-tools': {
+                    configSchema: z.object({ type: z.literal('bar-tools') }).strict(),
+                    create: () => [createMockTool('dup')],
+                },
+            },
+        });
+
+        const validated = AgentConfigSchema.parse({
+            ...baseConfig,
+            tools: [{ type: 'foo-tools' }, { type: 'bar-tools' }],
+        } satisfies AgentConfig);
+
+        const services = await resolveServicesFromConfig(validated, image);
+
+        expect(services.tools.map((t) => t.id)).toEqual(['custom--dup']);
+        expect(services.logger.warn).toHaveBeenCalledWith(
+            "Tool id conflict for 'custom--dup'. Skipping duplicate tool."
+        );
+    });
+
+    it('treats config.tools as atomic (empty array overrides image.defaults.tools)', async () => {
+        const fooFactoryCreate = vi.fn(() => [createMockTool('foo')]);
+
+        const image = createMockImage({
+            defaults: {
+                tools: [{ type: 'foo-tools' }],
+            },
+            tools: {
+                'foo-tools': {
+                    configSchema: z.object({ type: z.literal('foo-tools') }).strict(),
+                    create: fooFactoryCreate,
+                },
+            },
+        });
+
+        const validated = AgentConfigSchema.parse({
+            ...baseConfig,
+            tools: [],
+        } satisfies AgentConfig);
+
+        const services = await resolveServicesFromConfig(validated, image);
+        expect(services.tools).toEqual([]);
+        expect(fooFactoryCreate).not.toHaveBeenCalled();
+    });
+
+    it('throws when tool factory configSchema validation fails', async () => {
+        const image = createMockImage({
+            tools: {
+                'foo-tools': {
+                    configSchema: z
+                        .object({ type: z.literal('foo-tools'), foo: z.number() })
+                        .strict(),
+                    create: () => [createMockTool('foo')],
+                },
+            },
+        });
+
+        const validated = AgentConfigSchema.parse({
+            ...baseConfig,
+            tools: [{ type: 'foo-tools', foo: 'not-a-number' }],
+        } satisfies AgentConfig);
+
+        await expect(resolveServicesFromConfig(validated, image)).rejects.toThrow(
+            /Expected number/
+        );
+    });
+
+    it('throws a clear error for unknown plugin types', async () => {
+        const image = createMockImage({
+            plugins: {
+                'content-policy': {
+                    configSchema: z.object({ priority: z.number().int() }).passthrough(),
+                    create: () => ({ beforeResponse: async () => ({ ok: true }) }),
+                },
+            },
+        });
+
+        const validated = AgentConfigSchema.parse({
+            ...baseConfig,
+            plugins: {
+                contentPolicy: { priority: 10, enabled: true },
+                responseSanitizer: { priority: 5, enabled: true },
+            },
+        } satisfies AgentConfig);
+
+        await expect(resolveServicesFromConfig(validated, image)).rejects.toThrow(
+            "Unknown plugin type 'response-sanitizer'."
+        );
+    });
+
+    it('throws when plugins have duplicate priority', async () => {
+        const image = createMockImage({
+            plugins: {
+                'content-policy': {
+                    configSchema: z.object({ priority: z.number().int() }).passthrough(),
+                    create: () => ({ beforeResponse: async () => ({ ok: true }) }),
+                },
+                'response-sanitizer': {
+                    configSchema: z.object({ priority: z.number().int() }).passthrough(),
+                    create: () => ({ beforeResponse: async () => ({ ok: true }) }),
+                },
+            },
+        });
+
+        const validated = AgentConfigSchema.parse({
+            ...baseConfig,
+            plugins: {
+                contentPolicy: { priority: 10, enabled: true },
+                responseSanitizer: { priority: 10, enabled: true },
+            },
+        } satisfies AgentConfig);
+
+        await expect(resolveServicesFromConfig(validated, image)).rejects.toThrow(
+            'Duplicate plugin priority: 10'
+        );
+    });
+
     it('resolves built-in plugins via image factories (sorted by priority) and runs initialize()', async () => {
         const initCalls: string[] = [];
 

@@ -2498,7 +2498,7 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
   - Integration tests → update agent creation
   - Exit: `pnpm test` passes with zero failures.
 
-- [ ] **5.3 Add new test coverage**
+- [x] **5.3 Add new test coverage**
   - `resolveServicesFromConfig()` unit tests (happy path, missing type, validation failure, tool grouping)
   - `applyImageDefaults()` unit tests (merge scenarios)
   - `DextoImageModule` conformance tests (type checking, factory contracts)

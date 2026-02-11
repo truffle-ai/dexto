@@ -19,20 +19,21 @@
 
 ## Current Task
 
-**Task:** **5.3 Add new test coverage**
-**Status:** _Not started_ (Paused per owner request)
+**Task:** **5.6.1 Review and resolve `USER_VERIFICATION.md`**
+**Status:** _Not started_ (Owner verification)
 **Branch:** `rebuild-di`
 
 ### Plan
-- Add targeted unit coverage for resolver/defaults/image conformance (see `PLAN.md`)
-- Exit: `bash scripts/quality-checks.sh` passes
+- Review `feature-plans/image-and-core-di-refactor/USER_VERIFICATION.md`
+- Resolve items, or explicitly defer them with dates/notes
+- Exit: list is empty or all items are marked resolved
 
 ### Notes
 _Log findings, issues, and progress here as you work._
 2026-02-11:
-- Completed Phase 5.0 + 5.1 cleanup (registry deletions + glue removal).
-- Fixed resulting test/OpenAPI drift to keep `/quality-checks` green.
-- Paused before starting 5.3/5.4 per owner request (avoid blocker).
+- Completed Phase 5.3 (additional resolver + image conformance unit coverage).
+- Confirmed `bash scripts/quality-checks.sh` passes.
+- Phase 5.4 docs task remains intentionally deferred per `PLAN.md`.
 
 ---
 
@@ -122,6 +123,7 @@ _Move tasks here after completion. Keep a brief log of what was done and any dev
 | 5.0 | Flatten `DextoAgentOptions` + remove core config indirection | 2026-02-11 | Core options are now flat (`DextoAgentOptions extends AgentRuntimeSettings` + injected DI surfaces). Removed core file-path concerns and updated host layers. `pnpm -w run build:packages` passes. |
 | 5.1 | Delete dead registry code | 2026-02-11 | Deleted remaining core tool registries + internal-tools and removed all `temporary glue code` markers. Updated tool packages to remove legacy provider exports. Updated filesystem tools to use runtime approval via `ToolExecutionContext`. Exit check: `rg "temporary glue code|remove-by:" packages` returns 0. |
 | 5.2 | Update all broken tests | 2026-02-11 | Updated tests that referenced deleted registry-era schemas/tools and updated filesystem tool tests for new signatures. `pnpm -w test` passes. |
+| 5.3 | Add new test coverage | 2026-02-11 | Added resolver tests (tool prefixing/conflicts, schema failures, plugin priority conflicts) and expanded `loadImage()` conformance tests. `bash scripts/quality-checks.sh` passes. |
 | 5.5 | Update OpenAPI / server docs if affected | 2026-02-11 | Ran `pnpm run sync-openapi-docs` and verified `sync-openapi-docs:check` passes. |
 
 ---
@@ -140,7 +142,7 @@ _Move tasks here after completion. Keep a brief log of what was done and any dev
 | Phase 2 — Resolver | Completed | 2.5, 2.1, 2.2, 2.6, 2.3 complete (2.4 deferred) |
 | Phase 3 — Images | Completed | 3.3 deferred; 3.5 image-local + 3.6 bundler updated |
 | Phase 4 — CLI/Server | Completed | 4.1–4.5 complete |
-| Phase 5 — Cleanup | In progress | 5.0–5.2 + 5.5 complete; 5.3/5.4 pending (paused) |
+| Phase 5 — Cleanup | In progress | 5.0–5.3 + 5.5 complete; 5.4 deferred; 5.6 pending (owner verification) |
 
 ---
 
