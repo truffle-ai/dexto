@@ -18,7 +18,7 @@
 
 | ID | Item | Why owner-only | Target phase | Status | Notes |
 |----|------|----------------|--------------|--------|-------|
-| — | — | — | — | — | — |
+| UV-1 | Decide whether to keep `ImageTarget` / `ImageConstraint` enums in `@dexto/agent-config` (`DextoImageModule.metadata`) or simplify/remove. | Product/API surface choice; affects docs and downstream platform expectations. | 5.6 | Open | Re-opened 2026-02-11: needs explicit owner approval. |
 
 ---
 
@@ -26,4 +26,4 @@
 
 | ID | Decision / Verification | Date | Notes |
 |----|--------------------------|------|-------|
-| UV-1 | Keep `ImageTarget` / `ImageConstraint` enums in `@dexto/agent-config` (`DextoImageModule.metadata`) for now | 2026-02-11 | Keep as-is through Phase 6 unless platform requirements force a change. |
+| — | — | — | — |

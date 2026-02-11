@@ -65,7 +65,7 @@ _Record important decisions made during implementation that aren't in the main p
 
 _Things that need resolution before proceeding. Remove when resolved (move to Key Decisions)._
 
-- None currently.
+- UV-1 reopened: decide whether to keep `ImageTarget` / `ImageConstraint` enums in `@dexto/agent-config` or simplify/remove (see `USER_VERIFICATION.md`).
 
 ---
 
@@ -129,7 +129,7 @@ _Move tasks here after completion. Keep a brief log of what was done and any dev
 | 5.2 | Update all broken tests | 2026-02-11 | Updated tests that referenced deleted registry-era schemas/tools and updated filesystem tool tests for new signatures. `pnpm -w test` passes. |
 | 5.3 | Add new test coverage | 2026-02-11 | Added resolver tests (tool prefixing/conflicts, schema failures, plugin priority conflicts) and expanded `loadImage()` conformance tests. `bash scripts/quality-checks.sh` passes. |
 | 5.5 | Update OpenAPI / server docs if affected | 2026-02-11 | Ran `pnpm run sync-openapi-docs` and verified `sync-openapi-docs:check` passes. |
-| 5.6.1 | Review and resolve `USER_VERIFICATION.md` | 2026-02-11 | Cleared the list by resolving UV-1 (keep `ImageTarget` / `ImageConstraint` enums for now). |
+| 5.6.1 | Review and resolve `USER_VERIFICATION.md` | 2026-02-11 | Completed an initial review, but UV-1 was re-opened pending explicit owner approval. |
 
 ---
 
@@ -147,7 +147,7 @@ _Move tasks here after completion. Keep a brief log of what was done and any dev
 | Phase 2 — Resolver | Completed | 2.5, 2.1, 2.2, 2.6, 2.3 complete (2.4 deferred) |
 | Phase 3 — Images | Completed | 3.3 deferred; 3.5 image-local + 3.6 bundler updated |
 | Phase 4 — CLI/Server | Completed | 4.1–4.5 complete |
-| Phase 5 — Cleanup | In progress | 5.0–5.3 + 5.5 complete; 5.4 deferred; 5.6 complete |
+| Phase 5 — Cleanup | In progress | 5.0–5.3 + 5.5 complete; 5.4 deferred; 5.6 pending (UV-1 reopened) |
 
 ---
 
