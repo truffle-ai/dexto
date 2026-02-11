@@ -4,71 +4,22 @@ import { pathToFileURL } from 'node:url';
 import { tmpdir } from 'node:os';
 import { describe, expect, it } from 'vitest';
 import { loadImage, setImageImporter } from '@dexto/agent-config';
-import {
-    importImageModule,
-    isFileLikeImageSpecifier,
-    loadImageRegistry,
-    parseImageSpecifier,
-    resolveImageEntryFileFromStore,
-    saveImageRegistry,
-} from './image-store.js';
+import { saveImageRegistry } from '@dexto/agent-management';
+import { importImageModule } from './image-store.js';
 
 async function makeTempDir(): Promise<string> {
     return fs.mkdtemp(path.join(tmpdir(), 'dexto-image-store-test-'));
 }
 
 describe('image-store', () => {
-    it('parses scoped image specifiers (with and without version)', () => {
-        expect(parseImageSpecifier('@dexto/image-local')).toEqual({ id: '@dexto/image-local' });
-        expect(parseImageSpecifier('@dexto/image-local@1.2.3')).toEqual({
-            id: '@dexto/image-local',
-            version: '1.2.3',
-        });
-    });
-
-    it('parses unscoped image specifiers (with and without version)', () => {
-        expect(parseImageSpecifier('image-local')).toEqual({ id: 'image-local' });
-        expect(parseImageSpecifier('image-local@1.2.3')).toEqual({
-            id: 'image-local',
-            version: '1.2.3',
-        });
-    });
-
-    it('treats file-like specifiers as direct imports', () => {
-        expect(isFileLikeImageSpecifier('.')).toBe(true);
-        expect(isFileLikeImageSpecifier('file:///tmp/image.js')).toBe(true);
-        expect(isFileLikeImageSpecifier('/abs/path/to/image.js')).toBe(true);
-        expect(isFileLikeImageSpecifier('./dist/index.js')).toBe(true);
-        expect(isFileLikeImageSpecifier('@dexto/image-local')).toBe(false);
-    });
-
-    it('resolves entry file from store (active version)', async () => {
+    it('imports file-like specifiers directly', async () => {
         const storeDir = await makeTempDir();
-        const entryFile = pathToFileURL(path.join(storeDir, 'dummy.js')).href;
+        const modulePath = path.join(storeDir, 'module-file.js');
+        await fs.writeFile(modulePath, `export default { ok: true };`, 'utf-8');
+        const entryFile = pathToFileURL(modulePath).href;
 
-        await saveImageRegistry(
-            {
-                version: 1,
-                images: {
-                    '@myorg/my-image': {
-                        active: '1.2.3',
-                        installed: {
-                            '1.2.3': {
-                                entryFile,
-                                installedAt: new Date('2026-02-11T00:00:00.000Z').toISOString(),
-                            },
-                        },
-                    },
-                },
-            },
-            storeDir
-        );
-
-        const resolved = await resolveImageEntryFileFromStore({ id: '@myorg/my-image' }, storeDir);
-        expect(resolved).toBe(entryFile);
-
-        const registry = loadImageRegistry(storeDir);
-        expect(registry.images['@myorg/my-image']?.active).toBe('1.2.3');
+        const mod = (await importImageModule(entryFile, storeDir)) as { default?: unknown };
+        expect(mod.default).toEqual({ ok: true });
     });
 
     it('imports modules from store when installed', async () => {

@@ -52,6 +52,25 @@ export {
 // Static API for agent management
 export { AgentFactory, type CreateAgentOptions } from './AgentFactory.js';
 
+// Image store (global CLI image resolution)
+export {
+    getDefaultImageStoreDir,
+    getImageRegistryPath,
+    getImagePackagesDir,
+    getImagePackageInstallDir,
+    loadImageRegistry,
+    saveImageRegistry,
+    parseImageSpecifier,
+    isFileLikeImageSpecifier,
+    resolveFileLikeImageSpecifierToPath,
+    resolveFileLikeImageSpecifierToFileUrl,
+    resolveImageEntryFileFromStore,
+    setActiveImageVersion,
+    removeImageFromStore,
+    type ImageRegistryFile,
+    type ImageSpecifierParts,
+} from './images/image-store.js';
+
 // Path utilities (duplicated from core for short-term compatibility)
 export {
     getDextoPath,

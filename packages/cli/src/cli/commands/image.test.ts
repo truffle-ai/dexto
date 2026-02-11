@@ -15,8 +15,8 @@ import {
     getImagePackageInstallDir,
     loadImageRegistry,
     saveImageRegistry,
-    installImageToStore,
-} from '../utils/image-store.js';
+} from '@dexto/agent-management';
+import { installImageToStore } from '../utils/image-store.js';
 import {
     handleImageDoctorCommand,
     handleImageInstallCommand,

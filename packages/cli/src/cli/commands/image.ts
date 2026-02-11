@@ -15,12 +15,12 @@ import {
     getDefaultImageStoreDir,
     getImagePackagesDir,
     getImageRegistryPath,
-    installImageToStore,
     loadImageRegistry,
     parseImageSpecifier,
     removeImageFromStore,
     setActiveImageVersion,
-} from '../utils/image-store.js';
+} from '@dexto/agent-management';
+import { installImageToStore } from '../utils/image-store.js';
 
 const ImageInstallCommandSchema = z
     .object({

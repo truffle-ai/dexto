@@ -2,6 +2,7 @@ import path from 'node:path';
 import { promises as fs } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { describe, expect, it, vi } from 'vitest';
+import { loadImageRegistry } from '@dexto/agent-management';
 
 vi.mock('./execute.js', () => ({
     executeWithTimeout: vi.fn(
@@ -61,7 +62,7 @@ describe('installImageToStore', () => {
         vi.resetModules();
         const storeDir = await makeTempDir('dexto-image-store-install-');
         try {
-            const { installImageToStore, loadImageRegistry } = await import('./image-store.js');
+            const { installImageToStore } = await import('./image-store.js');
 
             const result = await installImageToStore('./my-image', { storeDir });
 
