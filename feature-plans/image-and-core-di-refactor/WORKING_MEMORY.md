@@ -29,7 +29,7 @@
 ### Notes
 _Log findings, issues, and progress here as you work._
 2026-02-11:
-- Phase 7 image resolution is implemented and validated via unit tests (see Completed Tasks 7.1–7.2).
+- Phase 7 image resolution is implemented and validated via unit tests (see Completed Tasks 7.1–7.3).
 
 ---
 
@@ -127,6 +127,7 @@ _Move tasks here after completion. Keep a brief log of what was done and any dev
 | 7.0 | Draft image resolution follow-up plan | 2026-02-11 | Added `IMAGE_RESOLUTION_PLAN.md` (Docker-like image store concept) and updated `PLAN.md` to add Phase 7. |
 | 7.1 | Implement CLI image store + commands | 2026-02-11 | Added `~/.dexto/images` store (`registry.json` + `packages/`), CLI store importer, and `dexto image install/list/use/remove/doctor` commands with unit coverage. |
 | 7.2 | Harden local image installs + validation | 2026-02-11 | `dexto image install` supports file-like specifiers (`.`, `..`, `./`, `../`, `file://`, absolute paths). Installer validates installed entry via `loadImage()` conformance checks and has focused unit coverage (mocked `npm install`). |
+| 7.3 | Move image store helpers to `@dexto/agent-management` | 2026-02-11 | Extracted store registry + resolution helpers into agent-management (aligned with other `~/.dexto/*` utilities). CLI keeps installer/importer + commands. Added agent-management unit coverage and updated vitest aliases to use workspace sources. |
 
 ---
 

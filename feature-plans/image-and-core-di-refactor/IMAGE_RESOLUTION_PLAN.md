@@ -157,6 +157,8 @@ CLI should set an importer that:
 
 This preserves pnpm safety while making resolution deterministic.
 
+**Implementation note:** store registry + resolution helpers live in `@dexto/agent-management` (aligned with other `~/.dexto/*` utilities). The CLI owns the installer/importer and command UX.
+
 ### End-to-end runtime flows (concrete examples)
 
 #### Example A: Official image (global CLI)
