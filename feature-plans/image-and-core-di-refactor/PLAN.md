@@ -1652,9 +1652,13 @@ export const AgentConfigSchema = z.object({
     telemetry: TelemetrySchema.optional(),
 
     // Defined locally (DI surfaces — core never sees these shapes)
-    storage: StorageConfigSchema.default({}),
-    tools: ToolsConfigSchema.default([]),       // unified: replaces internalTools + customTools
-    plugins: PluginsConfigSchema.default([]),    // unified: replaces plugins.registry + plugins.custom
+    storage: StorageConfigSchema.default({
+        cache: { type: 'in-memory' },
+        database: { type: 'in-memory' },
+        blob: { type: 'in-memory' },
+    }),
+    tools: ToolsConfigSchema.optional(),       // unified: replaces internalTools + customTools (omit to use image defaults)
+    plugins: PluginsConfigSchema.optional(),    // unified: replaces plugins.registry + plugins.custom (omit to use image defaults)
     compaction: CompactionConfigSchema.default(DEFAULT_COMPACTION_CONFIG),
     logger: LoggerConfigSchema.default({}),
 }).strict();

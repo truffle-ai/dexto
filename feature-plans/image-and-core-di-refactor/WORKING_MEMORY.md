@@ -33,6 +33,7 @@ _Log findings, issues, and progress here as you work._
 - Phase 7 image resolution is implemented and validated via unit tests (see Completed Tasks 7.1–7.3).
 - Owner verification list expanded again (UV-2..UV-7); do not start Phase 6 until these are reviewed.
 - Phase 5.7 completed: compaction is DI-only via a single expanded `ICompactionStrategy` (no controller abstraction); `/quality-checks` pass.
+- Aligned plugin + storage config shapes to image-driven types (plugins: `[{ type, enabled? }]`; cache/database config schemas are `{ type: string }` envelopes validated by image factories). `/quality-checks` pass.
 
 ---
 
@@ -56,6 +57,8 @@ _Record important decisions made during implementation that aren't in the main p
 | 2026-02-11 | Image factories include optional `metadata` | Keeps discovery responses type-safe (no casts) while preserving passthrough metadata for UI/CLI. |
 | 2026-02-11 | CLI should resolve `image:` via a Dexto-managed image store (`~/.dexto/images`) | Avoids fragile “global npm/pnpm prefix” behavior; supports user-built images with deterministic resolution. (Installer/versioning details TBD in `IMAGE_RESOLUTION_PLAN.md`.) |
 | 2026-02-11 | Remove `ImageTarget` / `ImageConstraint` types | They were not used for runtime logic; retain `metadata.target`/`metadata.constraints` as free-form strings to avoid forcing a premature enum surface. |
+| 2026-02-11 | Remove plugin wrapping + unify plugin config to list entries | Resolver returns concrete plugins directly; cancellation/blocking semantics live in core `PluginManager`. Config is now `plugins: [{ type, enabled? }]` to support arbitrary image-provided plugins. |
+| 2026-02-11 | Make cache/database config schemas extensible envelopes | Allows custom storage types from images without editing schema unions; built-in provider schemas still validate their required fields. |
 
 ---
 
@@ -133,6 +136,7 @@ _Move tasks here after completion. Keep a brief log of what was done and any dev
 | 7.1 | Implement CLI image store + commands | 2026-02-11 | Added `~/.dexto/images` store (`registry.json` + `packages/`), CLI store importer, and `dexto image install/list/use/remove/doctor` commands with unit coverage. |
 | 7.2 | Harden local image installs + validation | 2026-02-11 | `dexto image install` supports file-like specifiers (`.`, `..`, `./`, `../`, `file://`, absolute paths). Installer validates installed entry via `loadImage()` conformance checks and has focused unit coverage (mocked `npm install`). |
 | 7.3 | Move image store helpers to `@dexto/agent-management` | 2026-02-11 | Extracted store registry + resolution helpers into agent-management (aligned with other `~/.dexto/*` utilities). CLI keeps installer/importer + commands. Added agent-management unit coverage and updated vitest aliases to use workspace sources. |
+| 7.4 | Align plugins + storage schemas to image-driven types | 2026-02-11 | Plugins config is now a list of `{ type, enabled? }` entries (no built-in keyed object). Storage cache/database config schemas are `{ type: string }` envelopes validated by image factories; WebUI Storage editor updated to handle passthrough config safely. `/quality-checks` pass. |
 
 ---
 
