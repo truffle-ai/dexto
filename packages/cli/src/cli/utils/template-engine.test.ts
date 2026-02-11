@@ -77,7 +77,7 @@ describe('template-engine', () => {
             });
 
             expect(result).toContain(
-                '// Providers are AUTO-DISCOVERED from convention-based folders'
+                '// Factories are AUTO-DISCOVERED from convention-based folders'
             );
             expect(result).toContain('//   tools/<type>/index.ts');
             expect(result).toContain('//   storage/blob/<type>/index.ts');
@@ -253,7 +253,7 @@ describe('template-engine', () => {
 
             expect(result).toContain('pnpm run build');
             expect(result).toContain('dexto-bundle build');
-            expect(result).toContain('Discovers providers from convention-based folders');
+            expect(result).toContain('Discovers factories from convention-based folders');
         });
 
         it('should document convention folders', () => {
@@ -277,14 +277,14 @@ describe('template-engine', () => {
             expect(result).toContain("import type { ToolFactory } from '@dexto/agent-config'");
             expect(result).toContain('InternalTool');
             expect(result).toContain("type: z.literal('example-tool')");
-            expect(result).toContain('export const provider: ToolFactory');
+            expect(result).toContain('export const factory: ToolFactory');
         });
 
         it('should generate tool with custom name', () => {
             const result = generateExampleTool('weather-api');
 
             expect(result).toContain("type: z.literal('weather-api')");
-            expect(result).toContain('export const provider: ToolFactory');
+            expect(result).toContain('export const factory: ToolFactory');
             expect(result).toContain("id: 'weather-api'");
         });
 

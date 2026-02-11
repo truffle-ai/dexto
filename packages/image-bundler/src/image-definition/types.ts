@@ -2,8 +2,8 @@
  * Image Definition Types (bundler-only)
  *
  * The bundler consumes a `dexto.image.ts` file that declares metadata and defaults.
- * Concrete tools/storage/plugins/compaction providers are discovered from convention folders
- * and must `export const provider = ...` from their `index.ts`.
+ * Concrete tools/storage/plugins/compaction factories are discovered from convention folders
+ * and must `export const factory = ...` from their `index.ts`.
  */
 
 export type ImageDefaults = import('@dexto/agent-config').ImageDefaults;

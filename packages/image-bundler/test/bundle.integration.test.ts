@@ -59,7 +59,7 @@ const inputSchema = {
     parse: (value: unknown) => value,
 };
 
-export const provider = {
+export const factory = {
     configSchema,
     create: (_config: unknown) => {
         const tool = {

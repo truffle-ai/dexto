@@ -35,11 +35,11 @@ export async function bundle(options: BundleOptions): Promise<BundleResult> {
     // 3. Get core version (from package.json)
     const coreVersion = getCoreVersion();
 
-    // 3.5. Discover providers from convention-based folders
-    console.log(`🔍 Discovering providers from folders...`);
+    // 3.5. Discover factories from convention-based folders
+    console.log(`🔍 Discovering factories from folders...`);
     const imageDir = dirname(options.imagePath);
     const discoveredProviders = discoverProviders(imageDir, warnings);
-    console.log(`✅ Discovered ${discoveredProviders.totalCount} provider(s)`);
+    console.log(`✅ Discovered ${discoveredProviders.totalCount} factory(ies)`);
 
     // 4. Generate code
     console.log(`🔨 Generating entry point...`);
@@ -51,8 +51,8 @@ export async function bundle(options: BundleOptions): Promise<BundleResult> {
         mkdirSync(outDir, { recursive: true });
     }
 
-    // 5.5. Compile provider folders
-    console.log(`🔨 Compiling provider source files...`);
+    // 5.5. Compile factory folders
+    console.log(`🔨 Compiling factory source files...`);
     let compiledCount = 0;
 
     // tools/
@@ -107,12 +107,12 @@ export async function bundle(options: BundleOptions): Promise<BundleResult> {
 
     if (compiledCount > 0) {
         console.log(
-            `✅ Compiled ${compiledCount} provider categor${compiledCount === 1 ? 'y' : 'ies'}`
+            `✅ Compiled ${compiledCount} factory categor${compiledCount === 1 ? 'y' : 'ies'}`
         );
     }
 
-    // 5.6. Validate discovered providers export the required contract
-    console.log(`🔍 Validating provider exports...`);
+    // 5.6. Validate discovered factories export the required contract
+    console.log(`🔍 Validating factory exports...`);
     await validateDiscoveredProviders(outDir, discoveredProviders);
 
     // 6. Write generated files
@@ -342,17 +342,17 @@ export interface DiscoveredProviders {
 }
 
 /**
- * Discover providers from convention-based folder structure
+ * Discover factories from convention-based folder structure
  *
  * Convention (folder-based with index.ts):
- *   tools/           - CustomToolProvider folders
- *     weather/       - Provider folder
- *       index.ts     - Provider implementation (auto-discovered)
+ *   tools/           - ToolFactory folders
+ *     weather/       - Factory folder
+ *       index.ts     - Factory implementation (auto-discovered)
  *       helpers.ts   - Optional helper files
  *       types.ts     - Optional type definitions
- *   blob-store/      - BlobStoreProvider folders
- *   compaction/      - CompactionProvider folders
- *   plugins/         - PluginProvider folders
+ *   blob-store/      - BlobStoreFactory folders
+ *   compaction/      - CompactionFactory folders
+ *   plugins/         - PluginFactory folders
  *
  * Naming Convention (Node.js standard):
  *   <folder>/index.ts    - Auto-discovered and registered
@@ -394,7 +394,7 @@ function discoverProviders(imageDir: string, warnings: string[]): DiscoveredProv
         });
 
         if (providerFolders.length > 0) {
-            console.log(`   Found ${providerFolders.length} provider(s) in ${label}`);
+            console.log(`   Found ${providerFolders.length} factory(ies) in ${label}`);
         }
 
         return providerFolders.map((type) => ({
@@ -479,14 +479,14 @@ function discoverProviders(imageDir: string, warnings: string[]): DiscoveredProv
 
     if (result.totalCount === 0) {
         warnings.push(
-            'No providers discovered from convention folders. This image will not be able to resolve tools/storage unless it extends a base image.'
+            'No factories discovered from convention folders. This image will not be able to resolve tools/storage unless it extends a base image.'
         );
     }
 
     return result;
 }
 
-async function validateProviderExport(options: {
+async function validateFactoryExport(options: {
     outDir: string;
     kind: string;
     entry: DiscoveredProvider;
@@ -502,36 +502,36 @@ async function validateProviderExport(options: {
     } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         throw new Error(
-            `Failed to import ${kind} provider '${entry.type}' (${entry.importPath}): ${message}`
+            `Failed to import ${kind} factory '${entry.type}' (${entry.importPath}): ${message}`
         );
     }
 
     if (!module || typeof module !== 'object') {
         throw new Error(
-            `Invalid ${kind} provider '${entry.type}' (${entry.importPath}): expected an object module export`
+            `Invalid ${kind} factory '${entry.type}' (${entry.importPath}): expected an object module export`
         );
     }
 
-    const provider = (module as Record<string, unknown>).provider;
-    if (!provider || typeof provider !== 'object') {
+    const factory = (module as Record<string, unknown>).factory;
+    if (!factory || typeof factory !== 'object') {
         throw new Error(
-            `Invalid ${kind} provider '${entry.type}' (${entry.importPath}): missing 'provider' export`
+            `Invalid ${kind} factory '${entry.type}' (${entry.importPath}): missing 'factory' export`
         );
     }
 
-    const configSchema = (provider as Record<string, unknown>).configSchema;
-    const create = (provider as Record<string, unknown>).create;
+    const configSchema = (factory as Record<string, unknown>).configSchema;
+    const create = (factory as Record<string, unknown>).create;
 
     const parse = (configSchema as { parse?: unknown } | null | undefined)?.parse;
     if (!configSchema || typeof configSchema !== 'object' || typeof parse !== 'function') {
         throw new Error(
-            `Invalid ${kind} provider '${entry.type}' (${entry.importPath}): provider.configSchema must be a Zod schema`
+            `Invalid ${kind} factory '${entry.type}' (${entry.importPath}): factory.configSchema must be a Zod schema`
         );
     }
 
     if (typeof create !== 'function') {
         throw new Error(
-            `Invalid ${kind} provider '${entry.type}' (${entry.importPath}): provider.create must be a function`
+            `Invalid ${kind} factory '${entry.type}' (${entry.importPath}): factory.create must be a function`
         );
     }
 }
@@ -543,22 +543,22 @@ async function validateDiscoveredProviders(
     const validations: Array<Promise<void>> = [];
 
     for (const entry of discovered.tools) {
-        validations.push(validateProviderExport({ outDir, kind: 'tool', entry }));
+        validations.push(validateFactoryExport({ outDir, kind: 'tool', entry }));
     }
     for (const entry of discovered.plugins) {
-        validations.push(validateProviderExport({ outDir, kind: 'plugin', entry }));
+        validations.push(validateFactoryExport({ outDir, kind: 'plugin', entry }));
     }
     for (const entry of discovered.compaction) {
-        validations.push(validateProviderExport({ outDir, kind: 'compaction', entry }));
+        validations.push(validateFactoryExport({ outDir, kind: 'compaction', entry }));
     }
     for (const entry of discovered.storage.blob) {
-        validations.push(validateProviderExport({ outDir, kind: 'storage.blob', entry }));
+        validations.push(validateFactoryExport({ outDir, kind: 'storage.blob', entry }));
     }
     for (const entry of discovered.storage.database) {
-        validations.push(validateProviderExport({ outDir, kind: 'storage.database', entry }));
+        validations.push(validateFactoryExport({ outDir, kind: 'storage.database', entry }));
     }
     for (const entry of discovered.storage.cache) {
-        validations.push(validateProviderExport({ outDir, kind: 'storage.cache', entry }));
+        validations.push(validateFactoryExport({ outDir, kind: 'storage.cache', entry }));
     }
 
     await Promise.all(validations);

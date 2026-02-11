@@ -48,7 +48,7 @@ function sanitizeIdentifier(value: string): string {
     return `_${sanitized}`;
 }
 
-function toProviderImportSymbol(prefix: string, type: string): string {
+function toFactoryImportSymbol(prefix: string, type: string): string {
     return sanitizeIdentifier(`${prefix}_${type}`);
 }
 
@@ -92,32 +92,32 @@ function generateImports(
         cacheProviders.length > 0
     ) {
         imports.push('');
-        imports.push('// Providers (convention folders; each must `export const provider = ...`)');
+        imports.push('// Factories (convention folders; each must `export const factory = ...`)');
     }
 
     for (const entry of toolProviders) {
-        const symbol = toProviderImportSymbol('tools', entry.type);
-        imports.push(`import { provider as ${symbol} } from '${entry.importPath}';`);
+        const symbol = toFactoryImportSymbol('tools', entry.type);
+        imports.push(`import { factory as ${symbol} } from '${entry.importPath}';`);
     }
     for (const entry of pluginProviders) {
-        const symbol = toProviderImportSymbol('plugins', entry.type);
-        imports.push(`import { provider as ${symbol} } from '${entry.importPath}';`);
+        const symbol = toFactoryImportSymbol('plugins', entry.type);
+        imports.push(`import { factory as ${symbol} } from '${entry.importPath}';`);
     }
     for (const entry of compactionProviders) {
-        const symbol = toProviderImportSymbol('compaction', entry.type);
-        imports.push(`import { provider as ${symbol} } from '${entry.importPath}';`);
+        const symbol = toFactoryImportSymbol('compaction', entry.type);
+        imports.push(`import { factory as ${symbol} } from '${entry.importPath}';`);
     }
     for (const entry of blobProviders) {
-        const symbol = toProviderImportSymbol('storage_blob', entry.type);
-        imports.push(`import { provider as ${symbol} } from '${entry.importPath}';`);
+        const symbol = toFactoryImportSymbol('storage_blob', entry.type);
+        imports.push(`import { factory as ${symbol} } from '${entry.importPath}';`);
     }
     for (const entry of databaseProviders) {
-        const symbol = toProviderImportSymbol('storage_database', entry.type);
-        imports.push(`import { provider as ${symbol} } from '${entry.importPath}';`);
+        const symbol = toFactoryImportSymbol('storage_database', entry.type);
+        imports.push(`import { factory as ${symbol} } from '${entry.importPath}';`);
     }
     for (const entry of cacheProviders) {
-        const symbol = toProviderImportSymbol('storage_cache', entry.type);
-        imports.push(`import { provider as ${symbol} } from '${entry.importPath}';`);
+        const symbol = toFactoryImportSymbol('storage_cache', entry.type);
+        imports.push(`import { factory as ${symbol} } from '${entry.importPath}';`);
     }
 
     return imports.join('\n');
@@ -199,7 +199,7 @@ function generateImageModule(
         .slice()
         .sort((a, b) => a.type.localeCompare(b.type))
         .map((entry) => {
-            const symbol = toProviderImportSymbol('tools', entry.type);
+            const symbol = toFactoryImportSymbol('tools', entry.type);
             return `        ${JSON.stringify(entry.type)}: ${symbol},`;
         });
 
@@ -207,7 +207,7 @@ function generateImageModule(
         .slice()
         .sort((a, b) => a.type.localeCompare(b.type))
         .map((entry) => {
-            const symbol = toProviderImportSymbol('plugins', entry.type);
+            const symbol = toFactoryImportSymbol('plugins', entry.type);
             return `        ${JSON.stringify(entry.type)}: ${symbol},`;
         });
 
@@ -215,7 +215,7 @@ function generateImageModule(
         .slice()
         .sort((a, b) => a.type.localeCompare(b.type))
         .map((entry) => {
-            const symbol = toProviderImportSymbol('compaction', entry.type);
+            const symbol = toFactoryImportSymbol('compaction', entry.type);
             return `        ${JSON.stringify(entry.type)}: ${symbol},`;
         });
 
@@ -223,7 +223,7 @@ function generateImageModule(
         .slice()
         .sort((a, b) => a.type.localeCompare(b.type))
         .map((entry) => {
-            const symbol = toProviderImportSymbol('storage_blob', entry.type);
+            const symbol = toFactoryImportSymbol('storage_blob', entry.type);
             return `            ${JSON.stringify(entry.type)}: ${symbol},`;
         });
 
@@ -231,7 +231,7 @@ function generateImageModule(
         .slice()
         .sort((a, b) => a.type.localeCompare(b.type))
         .map((entry) => {
-            const symbol = toProviderImportSymbol('storage_database', entry.type);
+            const symbol = toFactoryImportSymbol('storage_database', entry.type);
             return `            ${JSON.stringify(entry.type)}: ${symbol},`;
         });
 
@@ -239,7 +239,7 @@ function generateImageModule(
         .slice()
         .sort((a, b) => a.type.localeCompare(b.type))
         .map((entry) => {
-            const symbol = toProviderImportSymbol('storage_cache', entry.type);
+            const symbol = toFactoryImportSymbol('storage_cache', entry.type);
             return `            ${JSON.stringify(entry.type)}: ${symbol},`;
         });
 

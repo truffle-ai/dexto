@@ -638,7 +638,7 @@ const image = {
     description: '${context.description}',
     target: '${context.target || 'local-development'}',
 ${extendsField}
-    // Providers are AUTO-DISCOVERED from convention-based folders:
+    // Factories are AUTO-DISCOVERED from convention-based folders:
     //   tools/<type>/index.ts
     //   storage/blob/<type>/index.ts
     //   storage/database/<type>/index.ts
@@ -646,7 +646,7 @@ ${extendsField}
     //   plugins/<type>/index.ts
     //   compaction/<type>/index.ts
     //
-    // Each provider module must export a provider constant (export const provider = ...).
+    // Each factory module must export a factory constant (export const factory = ...).
 
     defaults: {
         storage: {
@@ -744,7 +744,7 @@ export async function cleanup() {
 export function generateImageReadme(context: TemplateContext): string {
     const imageName = context.imageName || context.projectName;
     const extendsNote = context.baseImage
-        ? `\n\nThis image extends \`${context.baseImage}\`, inheriting its providers and adding custom ones.\n`
+        ? `\n\nThis image extends \`${context.baseImage}\`, inheriting its factories and adding custom ones.\n`
         : '';
 
     return `# ${imageName}
@@ -759,7 +759,7 @@ describing tool/storage/plugin/compaction factories + optional default config.
 ## What's Included
 
 This package contains:
-- ✅ Provider factories (auto-discovered from convention-based folders)
+- ✅ Factories (auto-discovered from convention-based folders)
 - ✅ Optional defaults (\`image.defaults\`) that merge into agent config (config wins)
 
 ## Quick Start
@@ -776,9 +776,9 @@ pnpm add ${imageName}
 
 Set \`image: '${imageName}'\` in your agent config (or pass \`--image\` in the CLI), then run Dexto.
 
-## Adding Providers
+## Adding Factories
 
-Add your custom providers to convention-based folders:
+Add your custom factories to convention-based folders:
 - \`tools/<type>/\` - Tool factories
 - \`storage/blob/<type>/\` - Blob storage factories
 - \`storage/database/<type>/\` - Database factories
@@ -786,14 +786,14 @@ Add your custom providers to convention-based folders:
 - \`plugins/<type>/\` - Plugin factories
 - \`compaction/<type>/\` - Compaction factories
 
-**Convention:** Each provider lives in its own folder with an \`index.ts\` file.
-Each \`index.ts\` must export a \`provider\` constant (e.g. \`export const provider = myToolFactory;\`).
+**Convention:** Each factory lives in its own folder with an \`index.ts\` file.
+Each \`index.ts\` must export a \`factory\` constant (e.g. \`export const factory = myToolFactory;\`).
 
 Example:
 \`\`\`
 tools/
   my-tool/
-    index.ts       # Provider implementation (auto-discovered)
+    index.ts       # Factory implementation (auto-discovered)
     helpers.ts     # Optional helper functions
     types.ts       # Optional type definitions
 \`\`\`
@@ -805,8 +805,8 @@ pnpm run build
 \`\`\`
 
 This runs \`dexto-bundle build\`, which:
-1. Discovers providers from convention-based folders
-2. Compiles provider source files to \`dist/\`
+1. Discovers factories from convention-based folders
+2. Compiles factory source files to \`dist/\`
 3. Generates \`dist/index.js\` exporting a \`DextoImageModule\` (no side effects)
 
 ## Publishing
@@ -848,18 +848,18 @@ const ConfigSchema = z
 type ${providerName.charAt(0).toUpperCase() + providerName.slice(1)}Config = z.output<typeof ConfigSchema>;
 
 /**
- * Example tool factory provider
+ * Example tool factory
  *
  * This demonstrates how to create a tool factory that can be used by an image.
  * The bundler auto-discovers this module when placed in tools/<type>/index.ts.
  *
- * Contract: export a provider constant with { configSchema, create }.
+ * Contract: export a factory constant with { configSchema, create }.
  */
-export const provider: ToolFactory<${providerName.charAt(0).toUpperCase() + providerName.slice(1)}Config> = {
+export const factory: ToolFactory<${providerName.charAt(0).toUpperCase() + providerName.slice(1)}Config> = {
     configSchema: ConfigSchema,
     metadata: {
         displayName: 'Example Tool',
-        description: 'Example tool factory provider',
+        description: 'Example tool factory',
         category: 'utilities',
     },
     create: (_config) => {
