@@ -13,17 +13,12 @@
  * via typed image factories (`@dexto/agent-config`), not via core registries.
  *
  * ## Usage
- *
- * ### Using built-in providers
- * ```typescript
- * import { createCache } from '@dexto/core';
- *
- * const cache = await createCache({ type: 'redis', host: 'localhost' }, logger);
- * ```
+ * Cache backends are typically constructed by the product-layer resolver (`@dexto/agent-config`)
+ * via image-provided factory maps. For direct usage, call a provider's `create()` after validating
+ * config with its `configSchema`.
  */
 
 // Export public API
-export { createCache } from './factory.js';
 export type { CacheProvider } from './provider.js';
 
 // Export types and interfaces

@@ -13,19 +13,12 @@
  * via typed image factories (`@dexto/agent-config`), not via core registries.
  *
  * ## Usage
- *
- * ### Using built-in providers
- * ```typescript
- * import { createBlobStore } from '@dexto/core';
- *
- * const blob = createBlobStore({ type: 'local', storePath: '/tmp' }, logger);
- * ```
- *
- * Custom providers are configured via images and resolved before core construction.
+ * Blob stores are typically constructed by the product-layer resolver (`@dexto/agent-config`)
+ * via image-provided factory maps. For direct usage, call a provider's `create()` after validating
+ * config with its `configSchema`.
  */
 
 // Export public API
-export { createBlobStore } from './factory.js';
 export type { BlobStoreProvider } from './provider.js';
 
 // Export types and interfaces

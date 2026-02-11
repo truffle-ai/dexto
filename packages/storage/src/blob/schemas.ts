@@ -76,7 +76,7 @@ export type LocalBlobStoreConfig = z.output<typeof LocalBlobStoreSchema>;
  * It only validates that a `type` field exists as a string.
  *
  * Detailed validation happens in the product-layer resolver (`@dexto/agent-config`) via
- * each image factory's `configSchema`. Built-in providers are validated in `createBlobStore()`.
+ * each image factory's `configSchema`. Built-in providers are validated by their factory schemas.
  *
  * This approach allows:
  * - Custom providers to be provided by a custom image

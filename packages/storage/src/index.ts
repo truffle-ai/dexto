@@ -1,13 +1,11 @@
 /**
  * @dexto/storage
  *
- * Concrete storage backends + config schemas + factories.
+ * Concrete storage backends + config schemas + factory objects.
  *
  * Core keeps only the storage *interfaces* (`BlobStore`, `Database`, `Cache`) and `StorageManager`.
  * Product layers (CLI/server/platform) choose which factories to include via images.
  */
-
-export { createStorageManager } from './storage-manager.js';
 
 export type { StorageConfig, ValidatedStorageConfig } from './schemas.js';
 export {
@@ -37,13 +35,11 @@ export type {
     LocalBlobStoreConfig,
 } from './schemas.js';
 
-export { createCache } from './cache/index.js';
 export type { CacheProvider } from './cache/index.js';
 export { inMemoryCacheProvider, redisCacheProvider } from './cache/providers/index.js';
 export { MemoryCacheStore } from './cache/memory-cache-store.js';
 export { RedisStore } from './cache/redis-store.js';
 
-export { createDatabase } from './database/index.js';
 export type { DatabaseProvider } from './database/index.js';
 export {
     inMemoryDatabaseProvider,
@@ -54,7 +50,6 @@ export { MemoryDatabaseStore } from './database/memory-database-store.js';
 export { SQLiteStore } from './database/sqlite-store.js';
 export { PostgresStore } from './database/postgres-store.js';
 
-export { createBlobStore } from './blob/index.js';
 export type { BlobStoreProvider } from './blob/index.js';
 export { localBlobStoreProvider, inMemoryBlobStoreProvider } from './blob/providers/index.js';
 export { LocalBlobStore } from './blob/local-blob-store.js';

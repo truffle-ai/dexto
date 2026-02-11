@@ -14,17 +14,12 @@
  * via typed image factories (`@dexto/agent-config`), not via core registries.
  *
  * ## Usage
- *
- * ### Using built-in providers
- * ```typescript
- * import { createDatabase } from '@dexto/core';
- *
- * const db = await createDatabase({ type: 'sqlite', path: '/tmp/data.db' }, logger);
- * ```
+ * Database backends are typically constructed by the product-layer resolver (`@dexto/agent-config`)
+ * via image-provided factory maps. For direct usage, call a provider's `create()` after validating
+ * config with its `configSchema`.
  */
 
 // Export public API
-export { createDatabase } from './factory.js';
 export type { DatabaseProvider } from './provider.js';
 
 // Export types and interfaces

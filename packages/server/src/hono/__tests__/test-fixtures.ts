@@ -1,7 +1,12 @@
-import { AgentConfigSchema, toDextoAgentOptions, type AgentConfig } from '@dexto/agent-config';
-import { DextoAgent, createAgentCard, createLogger } from '@dexto/core';
+import {
+    AgentConfigSchema,
+    resolveServicesFromConfig,
+    toDextoAgentOptions,
+    type AgentConfig,
+} from '@dexto/agent-config';
+import imageLocal from '@dexto/image-local';
+import { DextoAgent, createAgentCard } from '@dexto/core';
 import type { AgentCard } from '@dexto/core';
-import { createStorageManager } from '@dexto/storage';
 import { randomUUID } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import type { Server as HttpServer } from 'node:http';
@@ -37,6 +42,9 @@ export function createTestAgentConfig(): AgentConfig {
             maxSessions: 50, // Increased to accommodate all integration tests
             sessionTTL: 3600,
         },
+        tools: [],
+        plugins: [],
+        compaction: { type: 'noop', enabled: false },
         toolConfirmation: {
             mode: 'auto-approve',
             timeout: 120000,
@@ -55,26 +63,11 @@ export function createTestAgentConfig(): AgentConfig {
 export async function createTestAgent(config?: AgentConfig): Promise<DextoAgent> {
     const agentConfig = config ?? createTestAgentConfig();
     const validatedConfig = AgentConfigSchema.parse(agentConfig);
-    const logger = createLogger({
-        config: validatedConfig.logger,
-        agentId: validatedConfig.agentId,
-    });
-    const storageManager = await createStorageManager(validatedConfig.storage, logger);
+    const services = await resolveServicesFromConfig(validatedConfig, imageLocal);
     const agent = new DextoAgent(
         toDextoAgentOptions({
             config: validatedConfig,
-            services: {
-                logger,
-                storage: {
-                    blob: storageManager.getBlobStore(),
-                    database: storageManager.getDatabase(),
-                    cache: storageManager.getCache(),
-                },
-                tools: [],
-                plugins: [],
-                compaction: null,
-            },
-            overrides: { storageManager },
+            services,
         })
     );
     await agent.start();
