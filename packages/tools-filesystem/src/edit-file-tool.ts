@@ -8,7 +8,7 @@ import * as path from 'node:path';
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { createPatch } from 'diff';
-import { InternalTool, ToolExecutionContext, ApprovalType } from '@dexto/core';
+import { Tool, ToolExecutionContext, ApprovalType } from '@dexto/core';
 import type { DiffDisplayData, ApprovalRequestDetails, ApprovalResponse } from '@dexto/core';
 import { ToolError } from '@dexto/core';
 import { ToolErrorCode } from '@dexto/core';
@@ -73,7 +73,7 @@ function generateDiffPreview(
 /**
  * Create the edit_file internal tool with directory approval support
  */
-export function createEditFileTool(fileSystemService: FileSystemServiceOrGetter): InternalTool {
+export function createEditFileTool(fileSystemService: FileSystemServiceOrGetter): Tool {
     const getFileSystemService: FileSystemServiceGetter =
         typeof fileSystemService === 'function' ? fileSystemService : async () => fileSystemService;
 

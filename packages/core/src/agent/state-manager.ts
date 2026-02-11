@@ -1,8 +1,8 @@
 import type { IDextoLogger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
-import type { AgentRuntimeSettings } from '@core/agent/runtime-config.js';
-import type { ValidatedLLMConfig } from '@core/llm/schemas.js';
-import type { ValidatedMcpServerConfig } from '@core/mcp/schemas.js';
+import type { AgentRuntimeSettings } from './runtime-config.js';
+import type { ValidatedLLMConfig } from '../llm/schemas.js';
+import type { ValidatedMcpServerConfig } from '../mcp/schemas.js';
 import type { AgentEventBus } from '../events/index.js';
 
 /**

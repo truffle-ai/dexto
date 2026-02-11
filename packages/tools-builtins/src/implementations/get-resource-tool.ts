@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { InternalTool, ToolExecutionContext } from '@dexto/core';
+import type { Tool, ToolExecutionContext } from '@dexto/core';
 
 const GetResourceInputSchema = z
     .object({
@@ -21,7 +21,7 @@ const GetResourceInputSchema = z
 
 type GetResourceInput = z.output<typeof GetResourceInputSchema>;
 
-export function createGetResourceTool(): InternalTool {
+export function createGetResourceTool(): Tool {
     return {
         id: 'get_resource',
         description:

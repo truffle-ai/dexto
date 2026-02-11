@@ -13,7 +13,7 @@
  */
 
 import { z } from 'zod';
-import type { InternalTool, ToolExecutionContext, FileDisplayData } from '@dexto/core';
+import type { Tool, ToolExecutionContext, FileDisplayData } from '@dexto/core';
 import type { PlanService } from '../plan-service.js';
 import type { PlanServiceGetter } from '../plan-service-getter.js';
 import { PlanError } from '../errors.js';
@@ -34,7 +34,7 @@ type PlanReviewInput = z.input<typeof PlanReviewInputSchema>;
  *
  * @param planService - Service for plan operations
  */
-export function createPlanReviewTool(planService: PlanService | PlanServiceGetter): InternalTool {
+export function createPlanReviewTool(planService: PlanService | PlanServiceGetter): Tool {
     const getPlanService: PlanServiceGetter =
         typeof planService === 'function' ? planService : async () => planService;
 

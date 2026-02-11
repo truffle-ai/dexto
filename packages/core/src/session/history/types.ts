@@ -1,4 +1,4 @@
-import type { InternalMessage } from '@core/context/types.js';
+import type { InternalMessage } from '../../context/types.js';
 
 /**
  * Session-scoped conversation history provider.

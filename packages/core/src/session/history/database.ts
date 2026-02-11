@@ -1,8 +1,8 @@
-import type { IDextoLogger } from '@core/logger/v2/types.js';
-import { DextoLogComponent } from '@core/logger/v2/types.js';
-import type { Database } from '@core/storage/types.js';
+import type { IDextoLogger } from '../../logger/v2/types.js';
+import { DextoLogComponent } from '../../logger/v2/types.js';
+import type { Database } from '../../storage/types.js';
 import { SessionError } from '../errors.js';
-import type { InternalMessage } from '@core/context/types.js';
+import type { InternalMessage } from '../../context/types.js';
 import type { IConversationHistoryProvider } from './types.js';
 
 /**

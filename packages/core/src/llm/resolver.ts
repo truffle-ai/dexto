@@ -1,5 +1,5 @@
 import { Result, hasErrors, splitIssues, ok, fail, zodToIssues } from '../utils/result.js';
-import { Issue, ErrorScope, ErrorType } from '@core/errors/types.js';
+import { Issue, ErrorScope, ErrorType } from '../errors/types.js';
 import { LLMErrorCode } from './error-codes.js';
 
 import { type ValidatedLLMConfig, type LLMUpdates, type LLMConfig } from './schemas.js';
@@ -19,8 +19,8 @@ import {
     refreshOpenRouterModelCache,
 } from './providers/openrouter-model-registry.js';
 import type { LLMUpdateContext } from './types.js';
-import { resolveApiKeyForProvider } from '@core/utils/api-key-resolver.js';
-import type { IDextoLogger } from '@core/logger/v2/types.js';
+import { resolveApiKeyForProvider } from '../utils/api-key-resolver.js';
+import type { IDextoLogger } from '../logger/v2/types.js';
 
 // TODO: Consider consolidating validation into async Zod schema (superRefine supports async).
 // Currently OpenRouter validation is here to avoid network calls during startup/serverless.

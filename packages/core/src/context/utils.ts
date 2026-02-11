@@ -9,10 +9,10 @@ import {
     isToolMessage,
 } from './types.js';
 import { isValidDisplayData, type ToolDisplayData } from '../tools/display-types.js';
-import type { IDextoLogger } from '@core/logger/v2/types.js';
-import { validateModelFileSupport } from '@core/llm/registry/index.js';
-import { LLMContext } from '@core/llm/types.js';
-import { safeStringify } from '@core/utils/safe-stringify.js';
+import type { IDextoLogger } from '../logger/v2/types.js';
+import { validateModelFileSupport } from '../llm/registry/index.js';
+import { LLMContext } from '../llm/types.js';
+import { safeStringify } from '../utils/safe-stringify.js';
 import { getFileMediaKind, getResourceKind } from './media-helpers.js';
 
 // Tunable heuristics and shared constants

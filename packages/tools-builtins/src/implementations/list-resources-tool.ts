@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { InternalTool, ToolExecutionContext } from '@dexto/core';
+import type { Tool, ToolExecutionContext } from '@dexto/core';
 
 const ListResourcesInputSchema = z
     .object({
@@ -35,7 +35,7 @@ interface ResourceInfo {
     createdAt: string;
 }
 
-export function createListResourcesTool(): InternalTool {
+export function createListResourcesTool(): Tool {
     return {
         id: 'list_resources',
         description:

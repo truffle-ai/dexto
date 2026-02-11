@@ -6,7 +6,7 @@
  */
 
 import { z } from 'zod';
-import type { InternalTool, ToolExecutionContext } from '@dexto/core';
+import type { Tool, ToolExecutionContext } from '@dexto/core';
 import type { PlanService } from '../plan-service.js';
 import type { PlanServiceGetter } from '../plan-service-getter.js';
 import { PlanError } from '../errors.js';
@@ -16,7 +16,7 @@ const PlanReadInputSchema = z.object({}).strict();
 /**
  * Creates the plan_read tool
  */
-export function createPlanReadTool(planService: PlanService | PlanServiceGetter): InternalTool {
+export function createPlanReadTool(planService: PlanService | PlanServiceGetter): Tool {
     const getPlanService: PlanServiceGetter =
         typeof planService === 'function' ? planService : async () => planService;
 

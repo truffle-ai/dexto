@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { ToolFactory } from '@dexto/agent-config';
-import type { InternalTool } from '@dexto/core';
+import type { Tool } from '@dexto/core';
 import { createAskUserTool } from './implementations/ask-user-tool.js';
 import { createDelegateToUrlTool } from './implementations/delegate-to-url-tool.js';
 import { createGetResourceTool } from './implementations/get-resource-tool.js';
@@ -30,7 +30,7 @@ export const BuiltinToolsConfigSchema = z
 
 export type BuiltinToolsConfig = z.output<typeof BuiltinToolsConfigSchema>;
 
-function createToolByName(name: BuiltinToolName): InternalTool {
+function createToolByName(name: BuiltinToolName): Tool {
     switch (name) {
         case 'ask_user':
             return createAskUserTool();

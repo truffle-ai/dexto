@@ -1,21 +1,21 @@
 import { describe, test, expect, beforeEach, afterEach } from 'vitest';
 import { DextoAgent } from '../agent/DextoAgent.js';
-import type { AgentRuntimeSettings } from '@core/agent/runtime-config.js';
-import { SystemPromptConfigSchema } from '@core/systemPrompt/schemas.js';
-import { LLMConfigSchema } from '@core/llm/schemas.js';
-import { LoggerConfigSchema } from '@core/logger/index.js';
-import { SessionConfigSchema } from '@core/session/schemas.js';
-import { ToolConfirmationConfigSchema, ElicitationConfigSchema } from '@core/tools/schemas.js';
-import { InternalResourcesSchema } from '@core/resources/schemas.js';
-import { PromptsSchema } from '@core/prompts/schemas.js';
+import type { AgentRuntimeSettings } from '../agent/runtime-config.js';
+import { SystemPromptConfigSchema } from '../systemPrompt/schemas.js';
+import { LLMConfigSchema } from '../llm/schemas.js';
+import { LoggerConfigSchema } from '../logger/index.js';
+import { SessionConfigSchema } from './schemas.js';
+import { ToolConfirmationConfigSchema, ElicitationConfigSchema } from '../tools/schemas.js';
+import { InternalResourcesSchema } from '../resources/schemas.js';
+import { PromptsSchema } from '../prompts/schemas.js';
 import { createLogger } from '../logger/factory.js';
 import type { SessionData } from './session-manager.js';
-import { ServerConfigsSchema } from '@core/mcp/schemas.js';
+import { ServerConfigsSchema } from '../mcp/schemas.js';
 import {
     createInMemoryBlobStore,
     createInMemoryCache,
     createInMemoryDatabase,
-} from '@core/test-utils/in-memory-storage.js';
+} from '../test-utils/in-memory-storage.js';
 
 /**
  * Full end-to-end integration tests for chat history preservation.

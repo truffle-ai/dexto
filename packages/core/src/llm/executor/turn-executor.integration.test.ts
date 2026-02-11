@@ -14,7 +14,7 @@ import { createLogger } from '../../logger/factory.js';
 import { StorageManager } from '../../storage/storage-manager.js';
 import { MemoryManager } from '../../memory/index.js';
 import { SystemPromptConfigSchema } from '../../systemPrompt/schemas.js';
-import { createInMemoryStorageManager } from '@core/test-utils/in-memory-storage.js';
+import { createInMemoryStorageManager } from '../../test-utils/in-memory-storage.js';
 import type { LanguageModel, ModelMessage } from 'ai';
 import type { LLMContext } from '../types.js';
 import type { ValidatedLLMConfig } from '../schemas.js';

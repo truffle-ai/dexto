@@ -6,7 +6,7 @@
  */
 
 import { z } from 'zod';
-import type { InternalTool, ToolExecutionContext, FileDisplayData } from '@dexto/core';
+import type { Tool, ToolExecutionContext, FileDisplayData } from '@dexto/core';
 import type { PlanService } from '../plan-service.js';
 import type { PlanServiceGetter } from '../plan-service-getter.js';
 import { PlanError } from '../errors.js';
@@ -27,7 +27,7 @@ type PlanCreateInput = z.input<typeof PlanCreateInputSchema>;
 /**
  * Creates the plan_create tool
  */
-export function createPlanCreateTool(planService: PlanService | PlanServiceGetter): InternalTool {
+export function createPlanCreateTool(planService: PlanService | PlanServiceGetter): Tool {
     const getPlanService: PlanServiceGetter =
         typeof planService === 'function' ? planService : async () => planService;
 

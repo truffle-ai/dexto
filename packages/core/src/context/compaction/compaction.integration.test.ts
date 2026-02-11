@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ContextManager } from '../manager.js';
 import { filterCompacted } from '../utils.js';
-import { ReactiveOverflowStrategy } from './strategies/reactive-overflow.js';
+import { ReactiveOverflowCompactionStrategy } from './strategies/reactive-overflow-compaction.js';
 import { VercelMessageFormatter } from '../../llm/formatters/vercel.js';
 import { SystemPromptManager } from '../../systemPrompt/manager.js';
 import { SystemPromptConfigSchema } from '../../systemPrompt/schemas.js';
@@ -10,7 +10,7 @@ import { ResourceManager } from '../../resources/index.js';
 import { MCPManager } from '../../mcp/manager.js';
 import { MemoryManager } from '../../memory/index.js';
 import { StorageManager } from '../../storage/storage-manager.js';
-import { createInMemoryStorageManager } from '@core/test-utils/in-memory-storage.js';
+import { createInMemoryStorageManager } from '../../test-utils/in-memory-storage.js';
 import { createLogger } from '../../logger/factory.js';
 import type { ModelMessage } from 'ai';
 import type { LanguageModel } from 'ai';
@@ -50,7 +50,7 @@ function createMockModel(): LanguageModel {
  */
 describe('Context Compaction Integration Tests', () => {
     let contextManager: ContextManager<ModelMessage>;
-    let compactionStrategy: ReactiveOverflowStrategy;
+    let compactionStrategy: ReactiveOverflowCompactionStrategy;
     let logger: IDextoLogger;
     let historyProvider: MemoryHistoryProvider;
     let storageManager: StorageManager;
@@ -121,7 +121,7 @@ describe('Context Compaction Integration Tests', () => {
         );
 
         // Create real compaction strategy
-        compactionStrategy = new ReactiveOverflowStrategy(createMockModel(), {}, logger);
+        compactionStrategy = new ReactiveOverflowCompactionStrategy({});
 
         // Default mock for generateText (compaction summary)
         mockGenerateText.mockResolvedValue({
@@ -149,7 +149,11 @@ describe('Context Compaction Integration Tests', () => {
      */
     async function runCompaction(): Promise<InternalMessage | null> {
         const history = await contextManager.getHistory();
-        const summaryMessages = await compactionStrategy.compact(history);
+        const summaryMessages = await compactionStrategy.compact(history, {
+            sessionId,
+            model: createMockModel(),
+            logger,
+        });
 
         if (summaryMessages.length === 0) {
             return null;

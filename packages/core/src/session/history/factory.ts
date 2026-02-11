@@ -1,6 +1,6 @@
 import type { IConversationHistoryProvider } from './types.js';
-import type { Database } from '@core/storage/types.js';
-import type { IDextoLogger } from '@core/logger/v2/types.js';
+import type { Database } from '../../storage/types.js';
+import type { IDextoLogger } from '../../logger/v2/types.js';
 import { DatabaseHistoryProvider } from './database.js';
 
 /**

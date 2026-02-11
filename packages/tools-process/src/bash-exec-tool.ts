@@ -7,7 +7,7 @@
 
 import * as path from 'node:path';
 import { z } from 'zod';
-import { InternalTool, ToolExecutionContext } from '@dexto/core';
+import { Tool, ToolExecutionContext } from '@dexto/core';
 import { ProcessService } from './process-service.js';
 import { ProcessError } from './errors.js';
 import type { ShellDisplayData } from '@dexto/core';
@@ -47,9 +47,7 @@ export type ProcessServiceGetter = (
     context?: ToolExecutionContext
 ) => ProcessService | Promise<ProcessService>;
 
-export function createBashExecTool(
-    processService: ProcessService | ProcessServiceGetter
-): InternalTool {
+export function createBashExecTool(processService: ProcessService | ProcessServiceGetter): Tool {
     const getProcessService: ProcessServiceGetter =
         typeof processService === 'function' ? processService : async () => processService;
 

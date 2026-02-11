@@ -1,12 +1,12 @@
 import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
 import { SessionManager } from './session-manager.js';
 import { ChatSession } from './chat-session.js';
-import { type ValidatedLLMConfig } from '@core/llm/schemas.js';
-import { LLMConfigSchema } from '@core/llm/schemas.js';
-import { ErrorScope, ErrorType } from '@core/errors/types.js';
+import { type ValidatedLLMConfig } from '../llm/schemas.js';
+import { LLMConfigSchema } from '../llm/schemas.js';
+import { ErrorScope, ErrorType } from '../errors/types.js';
 import { SessionErrorCode } from './error-codes.js';
-import { createMockLogger } from '@core/logger/v2/test-utils.js';
-import { createInMemoryStorageManager } from '@core/test-utils/in-memory-storage.js';
+import { createMockLogger } from '../logger/v2/test-utils.js';
+import { createInMemoryStorageManager } from '../test-utils/in-memory-storage.js';
 
 // Mock dependencies
 vi.mock('./chat-session.js');

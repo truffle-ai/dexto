@@ -4,7 +4,7 @@ import type { Database } from '../storage/database/types.js';
 import type { ICompactionStrategy } from '../context/compaction/types.js';
 import type { IDextoLogger } from '../logger/v2/types.js';
 import type { DextoPlugin } from '../plugins/types.js';
-import type { InternalTool as Tool } from '../tools/types.js';
+import type { Tool } from '../tools/types.js';
 import type { InitializeServicesOptions } from '../utils/service-initializer.js';
 import type { AgentRuntimeSettings } from './runtime-config.js';
 

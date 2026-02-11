@@ -1,4 +1,4 @@
-import type { InternalMessage } from '@core/context/types.js';
+import type { InternalMessage } from '../../context/types.js';
 import type { IConversationHistoryProvider } from './types.js';
 import type { IDextoLogger } from '../../logger/v2/types.js';
 

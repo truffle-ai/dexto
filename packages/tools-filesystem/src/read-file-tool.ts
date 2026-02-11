@@ -6,7 +6,7 @@
 
 import * as path from 'node:path';
 import { z } from 'zod';
-import { InternalTool, ToolExecutionContext, ApprovalType } from '@dexto/core';
+import { Tool, ToolExecutionContext, ApprovalType } from '@dexto/core';
 import type { FileDisplayData, ApprovalRequestDetails, ApprovalResponse } from '@dexto/core';
 import type { FileSystemServiceGetter, FileSystemServiceOrGetter } from './file-tool-types.js';
 
@@ -33,7 +33,7 @@ type ReadFileInput = z.input<typeof ReadFileInputSchema>;
 /**
  * Create the read_file internal tool with directory approval support
  */
-export function createReadFileTool(fileSystemService: FileSystemServiceOrGetter): InternalTool {
+export function createReadFileTool(fileSystemService: FileSystemServiceOrGetter): Tool {
     const getFileSystemService: FileSystemServiceGetter =
         typeof fileSystemService === 'function' ? fileSystemService : async () => fileSystemService;
 

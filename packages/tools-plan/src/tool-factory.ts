@@ -8,7 +8,7 @@ import { createPlanReadTool } from './tools/plan-read-tool.js';
 import { createPlanUpdateTool } from './tools/plan-update-tool.js';
 import { createPlanReviewTool } from './tools/plan-review-tool.js';
 import { PlanToolsConfigSchema, type PlanToolsConfig } from './tool-provider.js';
-import type { InternalTool } from '@dexto/core';
+import type { Tool } from '@dexto/core';
 
 const PLAN_TOOL_NAMES = ['plan_create', 'plan_read', 'plan_update', 'plan_review'] as const;
 type PlanToolName = (typeof PLAN_TOOL_NAMES)[number];
@@ -36,7 +36,7 @@ export const planToolsFactory: ToolFactory<PlanToolsConfig> = {
             return planService;
         };
 
-        const toolCreators: Record<PlanToolName, () => InternalTool> = {
+        const toolCreators: Record<PlanToolName, () => Tool> = {
             plan_create: () => createPlanCreateTool(getPlanService),
             plan_read: () => createPlanReadTool(getPlanService),
             plan_update: () => createPlanUpdateTool(getPlanService),

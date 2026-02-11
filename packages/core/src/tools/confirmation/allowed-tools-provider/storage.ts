@@ -1,6 +1,6 @@
-import type { StorageManager } from '@core/storage/index.js';
+import type { StorageManager } from '../../../storage/index.js';
 import type { IAllowedToolsProvider } from './types.js';
-import type { IDextoLogger } from '@core/logger/v2/types.js';
+import type { IDextoLogger } from '../../../logger/v2/types.js';
 
 /**
  * Storage-backed implementation that persists allowed tools in the Dexto

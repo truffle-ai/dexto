@@ -20,7 +20,7 @@ import { DextoLogComponent } from '../logger/v2/types.js';
 import { Telemetry } from '../telemetry/telemetry.js';
 import { InstrumentClass } from '../telemetry/decorators.js';
 import { trace, context, propagation, type BaggageEntry } from '@opentelemetry/api';
-import { ValidatedLLMConfig, LLMUpdates, LLMUpdatesSchema } from '@core/llm/schemas.js';
+import { ValidatedLLMConfig, LLMUpdates, LLMUpdatesSchema } from '../llm/schemas.js';
 import { resolveAndValidateLLMConfig } from '../llm/resolver.js';
 import { validateInputForLLM } from '../llm/validation.js';
 import { LLMError } from '../llm/errors.js';
@@ -29,10 +29,10 @@ import { MCPError } from '../mcp/errors.js';
 import { MCPErrorCode } from '../mcp/error-codes.js';
 import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
 import { DextoValidationError } from '../errors/DextoValidationError.js';
-import { ensureOk } from '@core/errors/result-bridge.js';
-import { fail, zodToIssues } from '@core/utils/result.js';
+import { ensureOk } from '../errors/result-bridge.js';
+import { fail, zodToIssues } from '../utils/result.js';
 import { resolveAndValidateMcpServerConfig } from '../mcp/resolver.js';
-import type { McpServerConfig, McpServerStatus, McpConnectionStatus } from '@core/mcp/schemas.js';
+import type { McpServerConfig, McpServerStatus, McpConnectionStatus } from '../mcp/schemas.js';
 import {
     getSupportedProviders,
     getDefaultModelForProvider,
@@ -50,11 +50,11 @@ import {
     type StreamingEventName,
 } from '../events/index.js';
 import type { IMCPClient } from '../mcp/types.js';
-import type { InternalTool, ToolSet } from '../tools/types.js';
+import type { Tool, ToolSet } from '../tools/types.js';
 import type { ICompactionStrategy } from '../context/compaction/types.js';
 import { SearchService } from '../search/index.js';
 import type { SearchOptions, SearchResponse, SessionSearchResponse } from '../search/index.js';
-import { safeStringify } from '@core/utils/safe-stringify.js';
+import { safeStringify } from '../utils/safe-stringify.js';
 import { deriveHeuristicTitle, generateSessionTitle } from '../session/title-generator.js';
 import type { ApprovalHandler } from '../approval/types.js';
 import type { DextoAgentOptions } from './agent-options.js';
@@ -195,7 +195,7 @@ export class DextoAgent {
     private readonly serviceOverrides: InitializeServicesOptions;
 
     // DI-provided local tools.
-    private readonly injectedTools: InternalTool[];
+    private readonly injectedTools: Tool[];
     private readonly injectedCompactionStrategy: ICompactionStrategy | null;
 
     // Logger instance for this agent (dependency injection)

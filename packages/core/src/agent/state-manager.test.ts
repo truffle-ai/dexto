@@ -1,14 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AgentStateManager } from './state-manager.js';
 import { AgentEventBus } from '../events/index.js';
-import { LLMConfigSchema } from '@core/llm/schemas.js';
-import { McpServerConfigSchema, ServerConfigsSchema } from '@core/mcp/schemas.js';
-import { SystemPromptConfigSchema } from '@core/systemPrompt/schemas.js';
-import { SessionConfigSchema } from '@core/session/schemas.js';
-import { ToolConfirmationConfigSchema, ElicitationConfigSchema } from '@core/tools/schemas.js';
-import { InternalResourcesSchema } from '@core/resources/schemas.js';
-import { PromptsSchema } from '@core/prompts/schemas.js';
-import type { AgentRuntimeSettings } from '@core/agent/runtime-config.js';
+import { LLMConfigSchema } from '../llm/schemas.js';
+import { McpServerConfigSchema, ServerConfigsSchema } from '../mcp/schemas.js';
+import { SystemPromptConfigSchema } from '../systemPrompt/schemas.js';
+import { SessionConfigSchema } from '../session/schemas.js';
+import { ToolConfirmationConfigSchema, ElicitationConfigSchema } from '../tools/schemas.js';
+import { InternalResourcesSchema } from '../resources/schemas.js';
+import { PromptsSchema } from '../prompts/schemas.js';
+import type { AgentRuntimeSettings } from './runtime-config.js';
 
 describe('AgentStateManager Events', () => {
     let stateManager: AgentStateManager;

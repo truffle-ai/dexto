@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 
 // Mock logger to prevent initialization issues
-vi.mock('@core/logger/index.js', () => ({
+vi.mock('../logger/index.js', () => ({
     logger: {
         debug: vi.fn(),
         info: vi.fn(),

@@ -1,11 +1,11 @@
 import { createDatabaseHistoryProvider } from './history/factory.js';
 import { createLLMService } from '../llm/services/factory.js';
-import type { ContextManager } from '@core/context/index.js';
+import type { ContextManager } from '../context/index.js';
 import type { IConversationHistoryProvider } from './history/types.js';
 import type { VercelLLMService } from '../llm/services/vercel.js';
 import type { SystemPromptManager } from '../systemPrompt/manager.js';
 import type { ToolManager } from '../tools/tool-manager.js';
-import type { ValidatedLLMConfig } from '@core/llm/schemas.js';
+import type { ValidatedLLMConfig } from '../llm/schemas.js';
 import type { AgentStateManager } from '../agent/state-manager.js';
 import type { StorageManager } from '../storage/index.js';
 import type { PluginManager } from '../plugins/manager.js';

@@ -5,7 +5,7 @@
  */
 
 import { z } from 'zod';
-import { InternalTool, ToolExecutionContext } from '@dexto/core';
+import { Tool, ToolExecutionContext } from '@dexto/core';
 import { ProcessService } from './process-service.js';
 import type { ProcessServiceGetter } from './bash-exec-tool.js';
 
@@ -20,9 +20,7 @@ type KillProcessInput = z.input<typeof KillProcessInputSchema>;
 /**
  * Create the kill_process internal tool
  */
-export function createKillProcessTool(
-    processService: ProcessService | ProcessServiceGetter
-): InternalTool {
+export function createKillProcessTool(processService: ProcessService | ProcessServiceGetter): Tool {
     const getProcessService: ProcessServiceGetter =
         typeof processService === 'function' ? processService : async () => processService;
 

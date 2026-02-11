@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { ReactiveOverflowStrategy } from './reactive-overflow.js';
+import { ReactiveOverflowCompactionStrategy } from './reactive-overflow-compaction.js';
 import type { InternalMessage } from '../../types.js';
 import type { LanguageModel } from 'ai';
 import { createMockLogger } from '../../../logger/v2/test-utils.js';
 import { filterCompacted } from '../../utils.js';
+import type { CompactionRuntimeContext } from '../types.js';
 
 // Mock the ai module
 vi.mock('ai', async (importOriginal) => {
@@ -67,14 +68,24 @@ function createSummaryMessage(
     };
 }
 
-describe('ReactiveOverflowStrategy', () => {
+describe('ReactiveOverflowCompactionStrategy', () => {
     const logger = createMockLogger();
-    let strategy: ReactiveOverflowStrategy;
+    let strategy: ReactiveOverflowCompactionStrategy;
+    let mockModel: LanguageModel;
 
     beforeEach(() => {
         vi.clearAllMocks();
-        strategy = new ReactiveOverflowStrategy(createMockModel(), {}, logger);
+        mockModel = createMockModel();
+        strategy = new ReactiveOverflowCompactionStrategy({});
     });
+
+    function createContext(): CompactionRuntimeContext {
+        return {
+            sessionId: 'test-session',
+            model: mockModel,
+            logger,
+        };
+    }
 
     describe('compact() - short history guard', () => {
         it('should return empty array when history has 2 or fewer messages', async () => {
@@ -83,14 +94,14 @@ describe('ReactiveOverflowStrategy', () => {
                 createAssistantMessage('Hi there!'),
             ];
 
-            const result = await strategy.compact(history);
+            const result = await strategy.compact(history, createContext());
 
             expect(result).toEqual([]);
             expect(mockGenerateText).not.toHaveBeenCalled();
         });
 
         it('should return empty array for empty history', async () => {
-            const result = await strategy.compact([]);
+            const result = await strategy.compact([], createContext());
 
             expect(result).toEqual([]);
             expect(mockGenerateText).not.toHaveBeenCalled();
@@ -99,7 +110,7 @@ describe('ReactiveOverflowStrategy', () => {
         it('should return empty array for single message', async () => {
             const history: InternalMessage[] = [createUserMessage('Hello')];
 
-            const result = await strategy.compact(history);
+            const result = await strategy.compact(history, createContext());
 
             expect(result).toEqual([]);
         });
@@ -111,8 +122,6 @@ describe('ReactiveOverflowStrategy', () => {
                 text: '<session_compaction>Test summary</session_compaction>',
             } as Awaited<ReturnType<typeof generateText>>);
 
-            // Create enough messages to trigger compaction
-            // preserveLastNTurns=2 by default, so we need more than 2 turns
             const history: InternalMessage[] = [
                 createUserMessage('First question', 1000),
                 createAssistantMessage('First answer', 1001),
@@ -122,7 +131,7 @@ describe('ReactiveOverflowStrategy', () => {
                 createAssistantMessage('Third answer', 1005),
             ];
 
-            const result = await strategy.compact(history);
+            const result = await strategy.compact(history, createContext());
 
             expect(result).toHaveLength(1);
             expect(result[0]?.metadata?.isSummary).toBe(true);
@@ -133,8 +142,6 @@ describe('ReactiveOverflowStrategy', () => {
                 text: '<session_compaction>Test summary</session_compaction>',
             } as Awaited<ReturnType<typeof generateText>>);
 
-            // 6 messages total, preserveLastNTurns=2 means last 4 messages are kept
-            // (2 turns = 2 user + 2 assistant messages in the last 2 turns)
             const history: InternalMessage[] = [
                 createUserMessage('Old question 1', 1000),
                 createAssistantMessage('Old answer 1', 1001),
@@ -144,10 +151,9 @@ describe('ReactiveOverflowStrategy', () => {
                 createAssistantMessage('Recent answer 2', 1005),
             ];
 
-            const result = await strategy.compact(history);
+            const result = await strategy.compact(history, createContext());
 
             expect(result).toHaveLength(1);
-            // First 2 messages (1 turn) should be summarized
             expect(result[0]?.metadata?.originalMessageCount).toBe(2);
         });
 
@@ -166,7 +172,7 @@ describe('ReactiveOverflowStrategy', () => {
             ];
 
             const beforeTime = Date.now();
-            const result = await strategy.compact(history);
+            const result = await strategy.compact(history, createContext());
             const afterTime = Date.now();
 
             expect(result[0]?.metadata?.summarizedAt).toBeGreaterThanOrEqual(beforeTime);
@@ -187,7 +193,7 @@ describe('ReactiveOverflowStrategy', () => {
                 createAssistantMessage('Recent answer 2', 6000),
             ];
 
-            const result = await strategy.compact(history);
+            const result = await strategy.compact(history, createContext());
 
             expect(result[0]?.metadata?.originalFirstTimestamp).toBe(1000);
             expect(result[0]?.metadata?.originalLastTimestamp).toBe(2000);
@@ -200,12 +206,10 @@ describe('ReactiveOverflowStrategy', () => {
                 text: '<session_compaction>New summary</session_compaction>',
             } as Awaited<ReturnType<typeof generateText>>);
 
-            // History with existing summary
             const history: InternalMessage[] = [
                 createUserMessage('Very old question', 1000),
                 createAssistantMessage('Very old answer', 1001),
                 createSummaryMessage('Previous summary', 2, 1002),
-                // Messages after the summary
                 createUserMessage('Question after summary 1', 2000),
                 createAssistantMessage('Answer after summary 1', 2001),
                 createUserMessage('Question after summary 2', 2002),
@@ -214,15 +218,13 @@ describe('ReactiveOverflowStrategy', () => {
                 createAssistantMessage('Answer after summary 3', 2005),
             ];
 
-            const result = await strategy.compact(history);
+            const result = await strategy.compact(history, createContext());
 
             expect(result).toHaveLength(1);
-            // Should mark as re-compaction
             expect(result[0]?.metadata?.isRecompaction).toBe(true);
         });
 
         it('should skip re-compaction if few messages after existing summary', async () => {
-            // History with summary and only 3 messages after (threshold is 4)
             const history: InternalMessage[] = [
                 createUserMessage('Old question', 1000),
                 createAssistantMessage('Old answer', 1001),
@@ -232,7 +234,7 @@ describe('ReactiveOverflowStrategy', () => {
                 createUserMessage('Another question', 2002),
             ];
 
-            const result = await strategy.compact(history);
+            const result = await strategy.compact(history, createContext());
 
             expect(result).toEqual([]);
             expect(mockGenerateText).not.toHaveBeenCalled();
@@ -243,14 +245,12 @@ describe('ReactiveOverflowStrategy', () => {
                 text: '<session_compaction>Newest summary</session_compaction>',
             } as Awaited<ReturnType<typeof generateText>>);
 
-            // History with two summaries - should use the most recent one
             const history: InternalMessage[] = [
                 createUserMessage('Ancient question', 100),
                 createSummaryMessage('First summary', 1, 200),
                 createUserMessage('Old question', 300),
                 createAssistantMessage('Old answer', 301),
                 createSummaryMessage('Second summary', 2, 400),
-                // Messages after second summary
                 createUserMessage('Q1', 500),
                 createAssistantMessage('A1', 501),
                 createUserMessage('Q2', 502),
@@ -259,9 +259,8 @@ describe('ReactiveOverflowStrategy', () => {
                 createAssistantMessage('A3', 505),
             ];
 
-            const result = await strategy.compact(history);
+            const result = await strategy.compact(history, createContext());
 
-            // Should have re-compaction metadata
             expect(result).toHaveLength(1);
             expect(result[0]?.metadata?.isRecompaction).toBe(true);
         });
@@ -271,15 +270,10 @@ describe('ReactiveOverflowStrategy', () => {
                 text: '<session_compaction>Re-compacted summary</session_compaction>',
             } as Awaited<ReturnType<typeof generateText>>);
 
-            // History with existing summary at index 2
-            // - Indices 0-1: old messages (summarized by old summary)
-            // - Index 2: old summary with originalMessageCount=2
-            // - Indices 3-8: 6 messages after old summary
             const history: InternalMessage[] = [
                 createUserMessage('Very old question', 1000),
                 createAssistantMessage('Very old answer', 1001),
                 createSummaryMessage('Previous summary', 2, 1002),
-                // 6 messages after the summary
                 createUserMessage('Q1', 2000),
                 createAssistantMessage('A1', 2001),
                 createUserMessage('Q2', 2002),
@@ -288,30 +282,18 @@ describe('ReactiveOverflowStrategy', () => {
                 createAssistantMessage('A3', 2005),
             ];
 
-            // Run re-compaction
-            const result = await strategy.compact(history);
+            const result = await strategy.compact(history, createContext());
             expect(result).toHaveLength(1);
 
             const newSummary = result[0]!;
             expect(newSummary.metadata?.isRecompaction).toBe(true);
-
-            // The existing summary is at index 2, and messagesAfterSummary has 6 messages
-            // With default preserveLastNTurns=2, we split: toSummarize=2, toKeep=4
-            // So originalMessageCount should be: (2 + 1) + 2 = 5 (absolute index)
-            // NOT 2 (relative count of summarized messages)
             expect(newSummary.metadata?.originalMessageCount).toBe(5);
 
-            // Simulate adding the new summary to history
             const historyAfterCompaction = [...history, newSummary];
-
-            // Verify filterCompacted works correctly with the new summary
             const filtered = filterCompacted(historyAfterCompaction);
 
-            // Should return: [newSummary, 4 preserved messages]
-            // NOT: [newSummary, everything from index 2 onwards]
-            expect(filtered).toHaveLength(5); // 1 summary + 4 preserved
+            expect(filtered).toHaveLength(5);
             expect(filtered[0]?.metadata?.isRecompaction).toBe(true);
-            // The preserved messages should be the last 4 (indices 5-8 in original)
             expect(filtered[1]?.role).toBe('user');
             expect(filtered[4]?.role).toBe('assistant');
         });
@@ -321,16 +303,12 @@ describe('ReactiveOverflowStrategy', () => {
                 text: '<session_compaction>New summary</session_compaction>',
             } as Awaited<ReturnType<typeof generateText>>);
 
-            // Large history to make the bug more obvious
             const history: InternalMessage[] = [];
-            // 50 old messages (indices 0-49)
             for (let i = 0; i < 50; i++) {
                 history.push(createUserMessage(`Old Q${i}`, 1000 + i * 2));
                 history.push(createAssistantMessage(`Old A${i}`, 1001 + i * 2));
             }
-            // Old summary at index 100 with originalMessageCount=90
             history.push(createSummaryMessage('Old summary', 90, 2000));
-            // 30 more messages after the old summary (indices 101-130)
             for (let i = 0; i < 15; i++) {
                 history.push(createUserMessage(`New Q${i}`, 3000 + i * 2));
                 history.push(createAssistantMessage(`New A${i}`, 3001 + i * 2));
@@ -338,28 +316,19 @@ describe('ReactiveOverflowStrategy', () => {
 
             expect(history).toHaveLength(131);
 
-            // Re-compaction should happen
-            const result = await strategy.compact(history);
+            const result = await strategy.compact(history, createContext());
             expect(result).toHaveLength(1);
 
             const newSummary = result[0]!;
             expect(newSummary.metadata?.isRecompaction).toBe(true);
 
-            // Add new summary to history
             const historyAfterCompaction = [...history, newSummary];
-
-            // filterCompacted should NOT return the old summary or pre-old-summary messages
             const filtered = filterCompacted(historyAfterCompaction);
 
-            // Check that the old summary is NOT in the filtered result
             const hasOldSummary = filtered.some(
                 (msg) => msg.metadata?.isSummary && !msg.metadata?.isRecompaction
             );
             expect(hasOldSummary).toBe(false);
-
-            // The filtered result should be much smaller than the original
-            // With 30 messages after old summary, keeping ~20%, we should have:
-            // ~6 preserved messages + 1 new summary = ~7 messages
             expect(filtered.length).toBeLessThan(20);
         });
 
@@ -368,97 +337,71 @@ describe('ReactiveOverflowStrategy', () => {
                 text: '<session_compaction>Summary content</session_compaction>',
             } as Awaited<ReturnType<typeof generateText>>);
 
-            // Helper to simulate adding messages and compacting
             let history: InternalMessage[] = [];
 
-            // === PHASE 1: First compaction ===
-            // Add 20 messages (10 turns)
             for (let i = 0; i < 10; i++) {
                 history.push(createUserMessage(`Q${i}`, 1000 + i * 2));
                 history.push(createAssistantMessage(`A${i}`, 1001 + i * 2));
             }
             expect(history).toHaveLength(20);
 
-            // First compaction - no existing summary
-            const result1 = await strategy.compact(history);
+            const result1 = await strategy.compact(history, createContext());
             expect(result1).toHaveLength(1);
             const summary1 = result1[0]!;
             expect(summary1.metadata?.isRecompaction).toBeUndefined();
 
-            // Add summary1 to history
             history.push(summary1);
             expect(history).toHaveLength(21);
 
-            // Verify filterCompacted after first compaction
             let filtered = filterCompacted(history);
-            expect(filtered.length).toBeLessThan(15); // Should be summary + few preserved
+            expect(filtered.length).toBeLessThan(15);
 
-            // === PHASE 2: Add more messages, then second compaction ===
-            // Add 20 more messages after summary1
             for (let i = 10; i < 20; i++) {
                 history.push(createUserMessage(`Q${i}`, 2000 + i * 2));
                 history.push(createAssistantMessage(`A${i}`, 2001 + i * 2));
             }
             expect(history).toHaveLength(41);
 
-            // Second compaction - should detect summary1
-            const result2 = await strategy.compact(history);
+            const result2 = await strategy.compact(history, createContext());
             expect(result2).toHaveLength(1);
             const summary2 = result2[0]!;
             expect(summary2.metadata?.isRecompaction).toBe(true);
 
-            // Add summary2 to history
             history.push(summary2);
             expect(history).toHaveLength(42);
 
-            // Verify filterCompacted after second compaction
             filtered = filterCompacted(history);
-            // Should return summary2 + preserved, NOT summary1
             expect(filtered[0]?.metadata?.isRecompaction).toBe(true);
             const hasSummary1 = filtered.some(
                 (m) => m.metadata?.isSummary && !m.metadata?.isRecompaction
             );
             expect(hasSummary1).toBe(false);
 
-            // === PHASE 3: Add more messages, then third compaction ===
-            // Add 20 more messages after summary2
             for (let i = 20; i < 30; i++) {
                 history.push(createUserMessage(`Q${i}`, 3000 + i * 2));
                 history.push(createAssistantMessage(`A${i}`, 3001 + i * 2));
             }
             expect(history).toHaveLength(62);
 
-            // Third compaction - should detect summary2 (most recent)
-            const result3 = await strategy.compact(history);
+            const result3 = await strategy.compact(history, createContext());
             expect(result3).toHaveLength(1);
             const summary3 = result3[0]!;
             expect(summary3.metadata?.isRecompaction).toBe(true);
 
-            // Add summary3 to history
             history.push(summary3);
             expect(history).toHaveLength(63);
 
-            // Verify filterCompacted after third compaction
             filtered = filterCompacted(history);
 
-            // Critical assertions:
-            // 1. Most recent summary (summary3) should be first
             expect(filtered[0]?.metadata?.isRecompaction).toBe(true);
             expect(filtered[0]).toBe(summary3);
 
-            // 2. Neither summary1 nor summary2 should be in the result
             const oldSummaries = filtered.filter((m) => m.metadata?.isSummary && m !== summary3);
             expect(oldSummaries).toHaveLength(0);
-
-            // 3. Result should be much smaller than total history
             expect(filtered.length).toBeLessThan(20);
 
-            // 4. All messages in filtered result should be either:
-            //    - summary3, or
-            //    - messages with timestamps from the most recent batch (3000+)
             for (const msg of filtered) {
                 if (msg === summary3) continue;
-                // Recent messages should have timestamps >= 3000
                 expect(msg.timestamp).toBeGreaterThanOrEqual(3000);
             }
         });
@@ -468,35 +411,29 @@ describe('ReactiveOverflowStrategy', () => {
                 text: '<session_compaction>Summary</session_compaction>',
             } as Awaited<ReturnType<typeof generateText>>);
 
-            // Simulate manual compaction first
             let history: InternalMessage[] = [];
             for (let i = 0; i < 10; i++) {
                 history.push(createUserMessage(`Q${i}`, 1000 + i));
                 history.push(createAssistantMessage(`A${i}`, 1000 + i));
             }
 
-            // Manual compaction (uses same compact() method)
-            const manualResult = await strategy.compact(history);
+            const manualResult = await strategy.compact(history, createContext());
             expect(manualResult).toHaveLength(1);
             history.push(manualResult[0]!);
 
-            // Add more messages
             for (let i = 10; i < 20; i++) {
                 history.push(createUserMessage(`Q${i}`, 2000 + i));
                 history.push(createAssistantMessage(`A${i}`, 2000 + i));
             }
 
-            // Automatic compaction (also uses same compact() method)
-            const autoResult = await strategy.compact(history);
+            const autoResult = await strategy.compact(history, createContext());
             expect(autoResult).toHaveLength(1);
             expect(autoResult[0]?.metadata?.isRecompaction).toBe(true);
             history.push(autoResult[0]!);
 
-            // Verify final state
             const filtered = filterCompacted(history);
             expect(filtered[0]?.metadata?.isRecompaction).toBe(true);
 
-            // Only the most recent summary should be visible
             const summaryCount = filtered.filter((m) => m.metadata?.isSummary).length;
             expect(summaryCount).toBe(1);
         });
@@ -508,14 +445,10 @@ describe('ReactiveOverflowStrategy', () => {
                 text: '<session_compaction>Summary</session_compaction>',
             } as Awaited<ReturnType<typeof generateText>>);
 
-            // Create strategy with custom preserveLastNTurns
-            const customStrategy = new ReactiveOverflowStrategy(
-                createMockModel(),
-                { preserveLastNTurns: 3 },
-                logger
-            );
+            const customStrategy = new ReactiveOverflowCompactionStrategy({
+                strategy: { preserveLastNTurns: 3 },
+            });
 
-            // 8 messages = 4 turns, with preserveLastNTurns=3, first turn should be summarized
             const history: InternalMessage[] = [
                 createUserMessage('Turn 1 Q', 1000),
                 createAssistantMessage('Turn 1 A', 1001),
@@ -527,25 +460,21 @@ describe('ReactiveOverflowStrategy', () => {
                 createAssistantMessage('Turn 4 A', 4001),
             ];
 
-            const result = await customStrategy.compact(history);
+            const result = await customStrategy.compact(history, createContext());
 
             expect(result).toHaveLength(1);
-            // Only first turn (2 messages) should be summarized
             expect(result[0]?.metadata?.originalMessageCount).toBe(2);
         });
 
         it('should return empty when message count is at or below minKeep threshold', async () => {
-            // The fallback logic uses minKeep=3, so with 3 or fewer messages
-            // nothing should be summarized
             const history: InternalMessage[] = [
                 createUserMessage('Q1', 1000),
                 createAssistantMessage('A1', 1001),
                 createUserMessage('Q2', 2000),
             ];
 
-            const result = await strategy.compact(history);
+            const result = await strategy.compact(history, createContext());
 
-            // 3 messages <= minKeep(3), so nothing to summarize
             expect(result).toEqual([]);
             expect(mockGenerateText).not.toHaveBeenCalled();
         });
@@ -564,11 +493,10 @@ describe('ReactiveOverflowStrategy', () => {
                 createAssistantMessage('Answer 3', 3001),
             ];
 
-            const result = await strategy.compact(history);
+            const result = await strategy.compact(history, createContext());
 
             expect(result).toHaveLength(1);
             expect(result[0]?.metadata?.isSummary).toBe(true);
-            // Fallback summary should still have XML structure
             const content = result[0]?.content;
             expect(content).toBeDefined();
             expect(content![0]).toMatchObject({
@@ -593,7 +521,7 @@ describe('ReactiveOverflowStrategy', () => {
                 createAssistantMessage('Working on it', 3001),
             ];
 
-            const result = await strategy.compact(history);
+            const result = await strategy.compact(history, createContext());
 
             expect(result).toHaveLength(1);
             const content = result[0]!.content;
@@ -619,7 +547,7 @@ describe('ReactiveOverflowStrategy', () => {
                 createAssistantMessage('A3', 3001),
             ];
 
-            const result = await strategy.compact(history);
+            const result = await strategy.compact(history, createContext());
 
             expect(result).toHaveLength(1);
             const content = result[0]!.content;
@@ -643,7 +571,7 @@ describe('ReactiveOverflowStrategy', () => {
                 createAssistantMessage('New answer', 3001),
             ];
 
-            await strategy.compact(history);
+            await strategy.compact(history, createContext());
 
             expect(mockGenerateText).toHaveBeenCalledWith(
                 expect.objectContaining({
@@ -691,13 +619,85 @@ describe('ReactiveOverflowStrategy', () => {
                 createAssistantMessage('A3', 3001),
             ];
 
-            await strategy.compact(history);
+            await strategy.compact(history, createContext());
 
             expect(mockGenerateText).toHaveBeenCalledWith(
                 expect.objectContaining({
                     prompt: expect.stringContaining('[Used tools: read_file]'),
                 })
             );
+        });
+    });
+
+    describe('getSettings()', () => {
+        it('should return compaction settings', () => {
+            const settings = strategy.getSettings();
+            expect(settings.enabled).toBe(true);
+            expect(settings.thresholdPercent).toBe(0.9);
+        });
+
+        it('should respect enabled option', () => {
+            const disabledStrategy = new ReactiveOverflowCompactionStrategy({ enabled: false });
+            const settings = disabledStrategy.getSettings();
+            expect(settings.enabled).toBe(false);
+        });
+
+        it('should respect maxContextTokens option', () => {
+            const limitedStrategy = new ReactiveOverflowCompactionStrategy({
+                maxContextTokens: 10000,
+            });
+            const settings = limitedStrategy.getSettings();
+            expect(settings.maxContextTokens).toBe(10000);
+        });
+    });
+
+    describe('getModelLimits()', () => {
+        it('should return context window when no maxContextTokens set', () => {
+            const limits = strategy.getModelLimits(100000);
+            expect(limits.contextWindow).toBe(100000);
+        });
+
+        it('should cap context window when maxContextTokens is set', () => {
+            const limitedStrategy = new ReactiveOverflowCompactionStrategy({
+                maxContextTokens: 50000,
+            });
+            const limits = limitedStrategy.getModelLimits(100000);
+            expect(limits.contextWindow).toBe(50000);
+        });
+
+        it('should not cap when model window is smaller than maxContextTokens', () => {
+            const limitedStrategy = new ReactiveOverflowCompactionStrategy({
+                maxContextTokens: 100000,
+            });
+            const limits = limitedStrategy.getModelLimits(50000);
+            expect(limits.contextWindow).toBe(50000);
+        });
+    });
+
+    describe('shouldCompact()', () => {
+        it('should return false when disabled', () => {
+            const disabledStrategy = new ReactiveOverflowCompactionStrategy({ enabled: false });
+            const limits = { contextWindow: 100000 };
+            expect(disabledStrategy.shouldCompact(90000, limits)).toBe(false);
+        });
+
+        it('should return false when under threshold', () => {
+            const limits = { contextWindow: 100000 };
+            expect(strategy.shouldCompact(80000, limits)).toBe(false);
+        });
+
+        it('should return true when over threshold', () => {
+            const limits = { contextWindow: 100000 };
+            expect(strategy.shouldCompact(95000, limits)).toBe(true);
+        });
+
+        it('should respect custom thresholdPercent', () => {
+            const customStrategy = new ReactiveOverflowCompactionStrategy({
+                thresholdPercent: 0.5,
+            });
+            const limits = { contextWindow: 100000 };
+            expect(customStrategy.shouldCompact(60000, limits)).toBe(true);
+            expect(customStrategy.shouldCompact(40000, limits)).toBe(false);
         });
     });
 });

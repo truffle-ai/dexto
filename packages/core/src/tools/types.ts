@@ -103,9 +103,9 @@ export interface ToolExecutionResult {
 // ============================================================================
 
 /**
- * Internal tool interface - for tools implemented within Dexto
+ * Tool interface - for tools implemented within Dexto
  */
-export interface InternalTool {
+export interface Tool {
     /** Unique identifier for the tool */
     id: string;
 

@@ -9,7 +9,7 @@ import type {
     Cache,
     Database,
     IDextoLogger,
-    InternalTool,
+    Tool,
 } from '@dexto/core';
 import { AgentConfigSchema } from '../schemas/agent-config.js';
 import type { ResolvedServices } from './types.js';
@@ -88,7 +88,7 @@ function createMockCache(storeType: string): Cache {
     };
 }
 
-function createMockTool(id: string): InternalTool {
+function createMockTool(id: string): Tool {
     return {
         id,
         description: `tool:${id}`,

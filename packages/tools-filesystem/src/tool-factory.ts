@@ -7,7 +7,7 @@ import { createEditFileTool } from './edit-file-tool.js';
 import { createGlobFilesTool } from './glob-files-tool.js';
 import { createGrepContentTool } from './grep-content-tool.js';
 import { FileSystemToolsConfigSchema, type FileSystemToolsConfig } from './tool-provider.js';
-import type { InternalTool } from '@dexto/core';
+import type { Tool } from '@dexto/core';
 
 const FILESYSTEM_TOOL_NAMES = [
     'read_file',
@@ -76,7 +76,7 @@ export const fileSystemToolsFactory: ToolFactory<FileSystemToolsConfig> = {
             return fileSystemService;
         };
 
-        const toolCreators: Record<FileSystemToolName, () => InternalTool> = {
+        const toolCreators: Record<FileSystemToolName, () => Tool> = {
             read_file: () => createReadFileTool(getFileSystemService),
             write_file: () => createWriteFileTool(getFileSystemService),
             edit_file: () => createEditFileTool(getFileSystemService),

@@ -1,6 +1,6 @@
 import { MCPErrorCode } from './error-codes.js';
-import { ErrorScope, ErrorType } from '@core/errors/types.js';
-import { EnvExpandedString, RequiredEnvURL } from '@core/utils/result.js';
+import { ErrorScope, ErrorType } from '../errors/types.js';
+import { EnvExpandedString, RequiredEnvURL } from '../utils/result.js';
 import { z } from 'zod';
 
 export const MCP_SERVER_TYPES = ['stdio', 'sse', 'http'] as const;

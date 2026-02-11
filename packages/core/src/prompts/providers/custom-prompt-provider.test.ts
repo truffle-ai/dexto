@@ -1,7 +1,7 @@
 import { describe, test, expect, beforeAll } from 'vitest';
 import { CustomPromptProvider } from './custom-prompt-provider.js';
-import { createInMemoryDatabase } from '@core/test-utils/in-memory-storage.js';
-import type { Database } from '@core/storage/database/types.js';
+import { createInMemoryDatabase } from '../../test-utils/in-memory-storage.js';
+import type { Database } from '../../storage/database/types.js';
 
 const mockLogger = {
     debug: () => {},

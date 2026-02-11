@@ -9,7 +9,7 @@ import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { createPatch } from 'diff';
 import {
-    InternalTool,
+    Tool,
     ToolExecutionContext,
     DextoRuntimeError,
     ApprovalType,
@@ -90,7 +90,7 @@ function generateDiffPreview(
 /**
  * Create the write_file internal tool with directory approval support
  */
-export function createWriteFileTool(fileSystemService: FileSystemServiceOrGetter): InternalTool {
+export function createWriteFileTool(fileSystemService: FileSystemServiceOrGetter): Tool {
     const getFileSystemService: FileSystemServiceGetter =
         typeof fileSystemService === 'function' ? fileSystemService : async () => fileSystemService;
 

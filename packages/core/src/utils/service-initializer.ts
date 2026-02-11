@@ -9,7 +9,7 @@
 import { MCPManager } from '../mcp/manager.js';
 import { ToolManager } from '../tools/tool-manager.js';
 import type { ToolPolicies } from '../tools/schemas.js';
-import type { InternalTool } from '../tools/types.js';
+import type { Tool } from '../tools/types.js';
 import type { IAllowedToolsProvider } from '../tools/confirmation/allowed-tools-provider/types.js';
 import { SystemPromptManager } from '../systemPrompt/manager.js';
 import { AgentStateManager } from '../agent/state-manager.js';
@@ -19,7 +19,7 @@ import { StorageManager } from '../storage/index.js';
 import { AgentError } from '../agent/errors.js';
 import { createAllowedToolsProvider } from '../tools/confirmation/allowed-tools-provider/factory.js';
 import type { IDextoLogger } from '../logger/v2/types.js';
-import type { AgentRuntimeSettings } from '@core/agent/runtime-config.js';
+import type { AgentRuntimeSettings } from '../agent/runtime-config.js';
 import { AgentEventBus } from '../events/index.js';
 import { ResourceManager } from '../resources/manager.js';
 import { ApprovalManager } from '../approval/manager.js';
@@ -53,7 +53,7 @@ export type ToolManagerFactoryOptions = {
     approvalMode: 'manual' | 'auto-approve' | 'auto-deny';
     agentEventBus: AgentEventBus;
     toolPolicies: ToolPolicies;
-    tools: InternalTool[];
+    tools: Tool[];
     logger: IDextoLogger;
 };
 

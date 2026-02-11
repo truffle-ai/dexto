@@ -3,7 +3,7 @@ import { MemoryManager } from './manager.js';
 import type { Database } from '../storage/database/types.js';
 import type { CreateMemoryInput } from './types.js';
 import { createMockLogger } from '../logger/v2/test-utils.js';
-import { createInMemoryDatabase } from '@core/test-utils/in-memory-storage.js';
+import { createInMemoryDatabase } from '../test-utils/in-memory-storage.js';
 
 describe('MemoryManager Integration Tests', () => {
     let memoryManager: MemoryManager;

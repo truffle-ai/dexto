@@ -5,7 +5,7 @@
  */
 
 import { z } from 'zod';
-import { InternalTool, ToolExecutionContext } from '@dexto/core';
+import { Tool, ToolExecutionContext } from '@dexto/core';
 import { ProcessService } from './process-service.js';
 import type { ProcessServiceGetter } from './bash-exec-tool.js';
 
@@ -20,9 +20,7 @@ type BashOutputInput = z.input<typeof BashOutputInputSchema>;
 /**
  * Create the bash_output internal tool
  */
-export function createBashOutputTool(
-    processService: ProcessService | ProcessServiceGetter
-): InternalTool {
+export function createBashOutputTool(processService: ProcessService | ProcessServiceGetter): Tool {
     const getProcessService: ProcessServiceGetter =
         typeof processService === 'function' ? processService : async () => processService;
 

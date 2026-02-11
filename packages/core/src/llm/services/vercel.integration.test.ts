@@ -5,10 +5,10 @@ import {
     providerRequiresApiKey,
     cleanupTestEnvironment,
 } from './test-utils.integration.js';
-import { ErrorScope, ErrorType } from '@core/errors/index.js';
+import { ErrorScope, ErrorType } from '../../errors/index.js';
 import { LLMErrorCode } from '../error-codes.js';
-import { resolveApiKeyForProvider } from '@core/utils/api-key-resolver.js';
-import type { LLMProvider } from '@core/llm/types.js';
+import { resolveApiKeyForProvider } from '../../utils/api-key-resolver.js';
+import type { LLMProvider } from '../types.js';
 
 /**
  * Vercel AI SDK LLM Service Integration Tests

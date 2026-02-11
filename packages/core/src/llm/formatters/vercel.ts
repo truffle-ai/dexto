@@ -1,9 +1,9 @@
 import type { ModelMessage, AssistantContent, ToolContent, ToolResultPart } from 'ai';
 import { LLMContext } from '../types.js';
-import type { InternalMessage, AssistantMessage, ToolMessage } from '@core/context/types.js';
-import { getImageData, getFileData, filterMessagesByLLMCapabilities } from '@core/context/utils.js';
-import type { IDextoLogger } from '@core/logger/v2/types.js';
-import { DextoLogComponent } from '@core/logger/v2/types.js';
+import type { InternalMessage, AssistantMessage, ToolMessage } from '../../context/types.js';
+import { getImageData, getFileData, filterMessagesByLLMCapabilities } from '../../context/utils.js';
+import type { IDextoLogger } from '../../logger/v2/types.js';
+import { DextoLogComponent } from '../../logger/v2/types.js';
 
 /**
  * Checks if a string is a URL (http:// or https://).

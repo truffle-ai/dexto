@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { InternalTool, ToolExecutionContext } from '@dexto/core';
+import type { Tool, ToolExecutionContext } from '@dexto/core';
 
 const AskUserInputSchema = z
     .object({
@@ -19,7 +19,7 @@ const AskUserInputSchema = z
 
 type AskUserInput = z.input<typeof AskUserInputSchema>;
 
-export function createAskUserTool(): InternalTool {
+export function createAskUserTool(): Tool {
     return {
         id: 'ask_user',
         description:

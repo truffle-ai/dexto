@@ -6,7 +6,7 @@ import type {
     AfterToolResultPayload,
     PluginResult,
     PluginExecutionContext,
-} from '@core/plugins/types.js';
+} from '@dexto/core';
 import { promises as fs } from 'fs';
 import { homedir } from 'os';
 import { join } from 'path';

@@ -223,7 +223,7 @@ describe('template-engine', () => {
 
             expect(result).toContain("import { z } from 'zod'");
             expect(result).toContain("import type { ToolFactory } from '@dexto/agent-config'");
-            expect(result).toContain('InternalTool');
+            expect(result).toContain('Tool');
             expect(result).toContain("type: z.literal('example-tool')");
             expect(result).toContain('export const factory: ToolFactory');
         });
@@ -258,7 +258,7 @@ describe('template-engine', () => {
             const result = generateExampleTool('test-tool');
 
             expect(result).toContain('create: (_config)');
-            expect(result).toContain('const tool: InternalTool = {');
+            expect(result).toContain('const tool: Tool = {');
             expect(result).toContain('inputSchema: z.object({');
             expect(result).toContain(
                 'execute: async (input: unknown, context: ToolExecutionContext)'

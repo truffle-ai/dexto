@@ -4,7 +4,7 @@ import type { Database } from '@dexto/core';
 import type { DextoPlugin } from '@dexto/core';
 import type { ICompactionStrategy } from '@dexto/core';
 import type { IDextoLogger } from '@dexto/core';
-import type { InternalTool as Tool } from '@dexto/core';
+import type { Tool } from '@dexto/core';
 
 export interface ResolvedServices {
     logger: IDextoLogger;

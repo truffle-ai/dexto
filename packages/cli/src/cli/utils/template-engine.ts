@@ -773,7 +773,7 @@ export function generateExampleTool(toolName: string = 'example-tool'): string {
     const providerName = toolName.replace(/-([a-z])/g, (_, char) => char.toUpperCase());
     return `import { z } from 'zod';
 import type { ToolFactory } from '@dexto/agent-config';
-import type { InternalTool, ToolExecutionContext } from '@dexto/core';
+import type { Tool, ToolExecutionContext } from '@dexto/core';
 
 const ConfigSchema = z
     .object({
@@ -800,7 +800,7 @@ export const factory: ToolFactory<${providerName.charAt(0).toUpperCase() + provi
         category: 'utilities',
     },
     create: (_config) => {
-        const tool: InternalTool = {
+        const tool: Tool = {
             id: '${toolName}',
             description: 'An example tool that demonstrates the tool factory pattern',
             inputSchema: z.object({

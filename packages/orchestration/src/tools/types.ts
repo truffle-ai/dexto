@@ -18,7 +18,7 @@ export interface OrchestrationToolContext {
 }
 
 /**
- * Base tool interface matching @dexto/core InternalTool
+ * Base tool interface matching @dexto/core Tool
  */
 export interface OrchestrationTool {
     id: string;

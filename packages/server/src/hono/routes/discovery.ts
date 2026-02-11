@@ -26,7 +26,7 @@ const DiscoveredProviderSchema = z
     })
     .describe('Information about a registered provider');
 
-const InternalToolSchema = z
+const ToolSchema = z
     .object({
         name: z
             .string()
@@ -41,9 +41,7 @@ const DiscoveryResponseSchema = z
         database: z.array(DiscoveredProviderSchema).describe('Database providers'),
         compaction: z.array(DiscoveredProviderSchema).describe('Compaction strategy providers'),
         customTools: z.array(DiscoveredProviderSchema).describe('Custom tool providers'),
-        internalTools: z
-            .array(InternalToolSchema)
-            .describe('Internal tools available for configuration'),
+        internalTools: z.array(ToolSchema).describe('Internal tools available for configuration'),
     })
     .describe('Discovery response with providers grouped by category');
 

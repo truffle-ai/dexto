@@ -1,8 +1,8 @@
 import { LLMErrorCode } from './error-codes.js';
-import { ErrorScope, ErrorType } from '@core/errors/types.js';
-import { DextoRuntimeError } from '@core/errors/index.js';
-import { NonEmptyTrimmed, EnvExpandedString, OptionalURL } from '@core/utils/result.js';
-import { getPrimaryApiKeyEnvVar } from '@core/utils/api-key-resolver.js';
+import { ErrorScope, ErrorType } from '../errors/types.js';
+import { DextoRuntimeError } from '../errors/index.js';
+import { NonEmptyTrimmed, EnvExpandedString, OptionalURL } from '../utils/result.js';
+import { getPrimaryApiKeyEnvVar } from '../utils/api-key-resolver.js';
 import { z } from 'zod';
 import {
     supportsBaseURL,

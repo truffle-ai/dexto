@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import type { InternalTool } from '@dexto/core';
+import type { Tool } from '@dexto/core';
 import { builtinToolsFactory } from './builtin-tools-factory.js';
 
 describe('builtinToolsFactory', () => {
     it('creates all builtins when enabledTools is omitted', () => {
-        const tools: InternalTool[] = builtinToolsFactory.create({ type: 'builtin-tools' });
+        const tools: Tool[] = builtinToolsFactory.create({ type: 'builtin-tools' });
         expect(tools.map((t) => t.id)).toEqual([
             'ask_user',
             'search_history',
@@ -16,7 +16,7 @@ describe('builtinToolsFactory', () => {
     });
 
     it('creates only the selected builtins when enabledTools is provided', () => {
-        const tools: InternalTool[] = builtinToolsFactory.create({
+        const tools: Tool[] = builtinToolsFactory.create({
             type: 'builtin-tools',
             enabledTools: ['ask_user', 'invoke_skill'],
         });

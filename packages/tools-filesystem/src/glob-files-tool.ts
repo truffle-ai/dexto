@@ -6,7 +6,7 @@
 
 import * as path from 'node:path';
 import { z } from 'zod';
-import { InternalTool, ToolExecutionContext, ApprovalType } from '@dexto/core';
+import { Tool, ToolExecutionContext, ApprovalType } from '@dexto/core';
 import type { SearchDisplayData, ApprovalRequestDetails, ApprovalResponse } from '@dexto/core';
 import type { FileSystemServiceGetter, FileSystemServiceOrGetter } from './file-tool-types.js';
 
@@ -34,7 +34,7 @@ type GlobFilesInput = z.input<typeof GlobFilesInputSchema>;
 /**
  * Create the glob_files internal tool with directory approval support
  */
-export function createGlobFilesTool(fileSystemService: FileSystemServiceOrGetter): InternalTool {
+export function createGlobFilesTool(fileSystemService: FileSystemServiceOrGetter): Tool {
     const getFileSystemService: FileSystemServiceGetter =
         typeof fileSystemService === 'function' ? fileSystemService : async () => fileSystemService;
 

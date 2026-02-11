@@ -1,5 +1,5 @@
 import type { ToolFactory } from '@dexto/agent-config';
-import type { InternalTool, ToolExecutionContext } from '@dexto/core';
+import type { Tool, ToolExecutionContext } from '@dexto/core';
 import type { ToolBackgroundEvent } from '@dexto/core';
 import {
     ConditionEngine,
@@ -22,8 +22,8 @@ import {
 import { RuntimeService } from './runtime-service.js';
 import { createSpawnAgentTool } from './spawn-agent-tool.js';
 
-type InternalToolWithOptionalExtensions = InternalTool & {
-    generatePreview?: InternalTool['generatePreview'];
+type ToolWithOptionalExtensions = Tool & {
+    generatePreview?: Tool['generatePreview'];
 };
 
 function requireAgentContext(context?: ToolExecutionContext): {
@@ -49,16 +49,13 @@ function requireAgentContext(context?: ToolExecutionContext): {
 }
 
 /**
- * Helper to bind OrchestrationTool to InternalTool by injecting context.
+ * Helper to bind OrchestrationTool to Tool by injecting context.
  */
-function bindOrchestrationTool(
-    tool: OrchestrationTool,
-    context: OrchestrationToolContext
-): InternalTool {
+function bindOrchestrationTool(tool: OrchestrationTool, context: OrchestrationToolContext): Tool {
     return {
         id: tool.id,
         description: tool.description,
-        inputSchema: tool.inputSchema as InternalTool['inputSchema'],
+        inputSchema: tool.inputSchema as Tool['inputSchema'],
         execute: (input: unknown) => tool.execute(input, context),
     };
 }
@@ -66,9 +63,9 @@ function bindOrchestrationTool(
 function createLazyProviderTool(options: {
     id: string;
     description: string;
-    inputSchema: InternalTool['inputSchema'];
-    getTool: (context?: ToolExecutionContext) => InternalToolWithOptionalExtensions;
-}): InternalTool {
+    inputSchema: Tool['inputSchema'];
+    getTool: (context?: ToolExecutionContext) => ToolWithOptionalExtensions;
+}): Tool {
     const { id, description, inputSchema, getTool } = options;
 
     return {
@@ -94,7 +91,7 @@ export const agentSpawnerToolsFactory: ToolFactory<AgentSpawnerConfig> = {
         category: 'agents',
     },
     create: (config) => {
-        let toolMap: Map<string, InternalToolWithOptionalExtensions> | undefined;
+        let toolMap: Map<string, ToolWithOptionalExtensions> | undefined;
 
         const ensureToolsInitialized = (context?: ToolExecutionContext) => {
             if (toolMap) {

@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import { VercelMessageFormatter } from '@core/llm/formatters/vercel.js';
+import { VercelMessageFormatter } from '../llm/formatters/vercel.js';
 import { LLMContext } from '../llm/types.js';
 import type { InternalMessage, AssistantMessage, ToolCall } from './types.js';
 import { isSystemMessage, isUserMessage, isAssistantMessage, isToolMessage } from './types.js';
@@ -16,7 +16,7 @@ import {
 import type { SanitizedToolResult } from './types.js';
 import { DynamicContributorContext } from '../systemPrompt/types.js';
 import { SystemPromptManager } from '../systemPrompt/manager.js';
-import { IConversationHistoryProvider } from '@core/session/history/types.js';
+import { IConversationHistoryProvider } from '../session/history/types.js';
 import { ContextError } from './errors.js';
 import { ValidatedLLMConfig } from '../llm/schemas.js';
 

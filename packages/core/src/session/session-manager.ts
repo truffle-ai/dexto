@@ -6,7 +6,7 @@ import { AgentEventBus } from '../events/index.js';
 import type { IDextoLogger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
 import type { AgentStateManager } from '../agent/state-manager.js';
-import type { ValidatedLLMConfig } from '@core/llm/schemas.js';
+import type { ValidatedLLMConfig } from '../llm/schemas.js';
 import type { StorageManager } from '../storage/index.js';
 import type { PluginManager } from '../plugins/manager.js';
 import { SessionError } from './errors.js';

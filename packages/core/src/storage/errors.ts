@@ -1,5 +1,5 @@
-import { DextoRuntimeError, DextoValidationError } from '@core/errors/index.js';
-import { ErrorScope, ErrorType } from '@core/errors/types.js';
+import { DextoRuntimeError, DextoValidationError } from '../errors/index.js';
+import { ErrorScope, ErrorType } from '../errors/types.js';
 import { StorageErrorCode } from './error-codes.js';
 
 /**

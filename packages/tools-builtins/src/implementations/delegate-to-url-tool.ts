@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { InternalTool, ToolExecutionContext } from '@dexto/core';
+import type { Tool, ToolExecutionContext } from '@dexto/core';
 import { DextoRuntimeError, ErrorScope, ErrorType } from '@dexto/core';
 
 const DelegateToUrlInputSchema = z
@@ -170,7 +170,7 @@ class SimpleA2AClient {
     }
 }
 
-export function createDelegateToUrlTool(): InternalTool {
+export function createDelegateToUrlTool(): Tool {
     return {
         id: 'delegate_to_url',
         description:

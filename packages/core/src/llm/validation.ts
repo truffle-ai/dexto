@@ -3,7 +3,7 @@ import type { LLMProvider } from './types.js';
 import type { IDextoLogger } from '../logger/v2/types.js';
 import type { ImageData, FileData } from '../context/types.js';
 import { Result, ok, fail } from '../utils/result.js';
-import { Issue, ErrorScope, ErrorType } from '@core/errors/types.js';
+import { Issue, ErrorScope, ErrorType } from '../errors/types.js';
 import { LLMErrorCode } from './error-codes.js';
 
 // TOOD: Refactor/simplify this file

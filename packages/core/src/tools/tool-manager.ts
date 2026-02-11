@@ -1,6 +1,6 @@
 import { MCPManager } from '../mcp/manager.js';
 import type { ToolPolicies } from './schemas.js';
-import { ToolSet, ToolExecutionContext, InternalTool } from './types.js';
+import { ToolSet, ToolExecutionContext, Tool } from './types.js';
 import type { ToolDisplayData } from './display-types.js';
 import { ToolError } from './errors.js';
 import { ToolErrorCode } from './error-codes.js';
@@ -66,7 +66,7 @@ export type ToolExecutionContextFactory = (
 })
 export class ToolManager {
     private mcpManager: MCPManager;
-    private localTools: Map<string, InternalTool> = new Map();
+    private agentTools: Map<string, Tool> = new Map();
     private approvalManager: ApprovalManager;
     private allowedToolsProvider: IAllowedToolsProvider;
     private approvalMode: 'manual' | 'auto-approve' | 'auto-deny';
@@ -105,7 +105,7 @@ export class ToolManager {
         approvalMode: 'manual' | 'auto-approve' | 'auto-deny',
         agentEventBus: AgentEventBus,
         toolPolicies: ToolPolicies,
-        tools: InternalTool[],
+        tools: Tool[],
         logger: IDextoLogger
     ) {
         this.mcpManager = mcpManager;
@@ -130,10 +130,10 @@ export class ToolManager {
         this.logger.debug('ToolManager initialization complete');
     }
 
-    setTools(tools: InternalTool[]): void {
-        this.localTools.clear();
+    setTools(tools: Tool[]): void {
+        this.agentTools.clear();
         for (const tool of tools) {
-            this.localTools.set(tool.id, tool);
+            this.agentTools.set(tool.id, tool);
         }
         this.invalidateCache();
     }
@@ -566,11 +566,11 @@ export class ToolManager {
         abortSignal?: AbortSignal,
         toolCallId?: string
     ): Promise<unknown> {
-        const tool = this.localTools.get(toolName);
+        const tool = this.agentTools.get(toolName);
         if (!tool) {
             this.logger.error(`❌ No local tool found: ${toolName}`);
             this.logger.debug(
-                `Available local tools: ${Array.from(this.localTools.keys()).join(', ')}`
+                `Available local tools: ${Array.from(this.agentTools.keys()).join(', ')}`
             );
             throw ToolError.notFound(toolName);
         }
@@ -629,7 +629,7 @@ export class ToolManager {
         }
 
         // Add local tools (already fully qualified)
-        for (const [qualifiedName, tool] of this.localTools) {
+        for (const [qualifiedName, tool] of this.agentTools) {
             const suffix = qualifiedName.startsWith(ToolManager.INTERNAL_TOOL_PREFIX)
                 ? ' (internal tool)'
                 : qualifiedName.startsWith(ToolManager.CUSTOM_TOOL_PREFIX)
@@ -657,11 +657,11 @@ export class ToolManager {
 
         const totalTools = Object.keys(allTools).length;
         const mcpCount = Object.keys(mcpTools).length;
-        const localTools = Array.from(this.localTools.keys());
-        const internalCount = localTools.filter((name) =>
+        const agentTools = Array.from(this.agentTools.keys());
+        const internalCount = agentTools.filter((name) =>
             name.startsWith(ToolManager.INTERNAL_TOOL_PREFIX)
         ).length;
-        const customCount = localTools.filter((name) =>
+        const customCount = agentTools.filter((name) =>
             name.startsWith(ToolManager.CUSTOM_TOOL_PREFIX)
         ).length;
 
@@ -990,7 +990,7 @@ export class ToolManager {
             toolName.startsWith(ToolManager.INTERNAL_TOOL_PREFIX) ||
             toolName.startsWith(ToolManager.CUSTOM_TOOL_PREFIX)
         ) {
-            return this.localTools.has(toolName);
+            return this.agentTools.has(toolName);
         }
 
         // Tool without proper prefix doesn't exist
@@ -1018,11 +1018,11 @@ export class ToolManager {
         }
 
         const mcpCount = Object.keys(mcpTools).length;
-        const localTools = Array.from(this.localTools.keys());
-        const internalCount = localTools.filter((name) =>
+        const agentTools = Array.from(this.agentTools.keys());
+        const internalCount = agentTools.filter((name) =>
             name.startsWith(ToolManager.INTERNAL_TOOL_PREFIX)
         ).length;
-        const customCount = localTools.filter((name) =>
+        const customCount = agentTools.filter((name) =>
             name.startsWith(ToolManager.CUSTOM_TOOL_PREFIX)
         ).length;
 
@@ -1153,7 +1153,7 @@ export class ToolManager {
         }
 
         // Get the tool and check if it has custom approval override
-        const tool = this.localTools.get(toolName);
+        const tool = this.agentTools.get(toolName);
         if (!tool?.getApprovalOverride) {
             return { handled: false };
         }
@@ -1388,7 +1388,7 @@ export class ToolManager {
         toolCallId: string,
         sessionId?: string
     ): Promise<ToolDisplayData | undefined> {
-        const tool = this.localTools.get(toolName);
+        const tool = this.agentTools.get(toolName);
         if (!tool?.generatePreview) {
             return undefined;
         }

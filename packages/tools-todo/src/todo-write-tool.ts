@@ -5,7 +5,7 @@
  */
 
 import { z } from 'zod';
-import type { InternalTool, ToolExecutionContext } from '@dexto/core';
+import type { Tool, ToolExecutionContext } from '@dexto/core';
 import type { TodoService } from './todo-service.js';
 import { TODO_STATUS_VALUES } from './types.js';
 
@@ -64,7 +64,7 @@ export type TodoServiceGetter = (
     context?: ToolExecutionContext
 ) => TodoService | Promise<TodoService>;
 
-export function createTodoWriteTool(todoService: TodoService | TodoServiceGetter): InternalTool {
+export function createTodoWriteTool(todoService: TodoService | TodoServiceGetter): Tool {
     const getTodoService: TodoServiceGetter =
         typeof todoService === 'function' ? todoService : async () => todoService;
 

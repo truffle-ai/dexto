@@ -5,7 +5,7 @@
  * The sub-agent will execute the task and return the result.
  */
 
-import type { InternalTool, ToolExecutionContext } from '@dexto/core';
+import type { Tool, ToolExecutionContext } from '@dexto/core';
 import { SpawnAgentInputSchema, type SpawnAgentInput } from './schemas.js';
 import type { RuntimeService } from './runtime-service.js';
 
@@ -51,7 +51,7 @@ ${agentsList}
 - If a sub-agent's LLM fails, it automatically falls back to your LLM`;
 }
 
-export function createSpawnAgentTool(service: RuntimeService): InternalTool {
+export function createSpawnAgentTool(service: RuntimeService): Tool {
     return {
         id: 'spawn_agent',
         description: buildDescription(service),

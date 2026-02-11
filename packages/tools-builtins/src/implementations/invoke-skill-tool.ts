@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { InternalTool, ToolExecutionContext } from '@dexto/core';
+import type { Tool, ToolExecutionContext } from '@dexto/core';
 import { flattenPromptResult } from '@dexto/core';
 
 const InvokeSkillInputSchema = z
@@ -42,7 +42,7 @@ function isTaskForker(value: unknown): value is TaskForker {
     );
 }
 
-export function createInvokeSkillTool(): InternalTool {
+export function createInvokeSkillTool(): Tool {
     return {
         id: 'invoke_skill',
         description: buildToolDescription(),

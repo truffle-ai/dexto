@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { InternalTool, ToolExecutionContext } from '@dexto/core';
+import type { Tool, ToolExecutionContext } from '@dexto/core';
 import type { SearchOptions } from '@dexto/core';
 
 const SearchHistoryInputSchema = z.object({
@@ -33,7 +33,7 @@ const SearchHistoryInputSchema = z.object({
 
 type SearchHistoryInput = z.input<typeof SearchHistoryInputSchema>;
 
-export function createSearchHistoryTool(): InternalTool {
+export function createSearchHistoryTool(): Tool {
     return {
         id: 'search_history',
         description:

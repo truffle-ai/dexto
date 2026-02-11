@@ -5,7 +5,7 @@ import type {
     DextoPlugin,
     IDextoLogger,
     ICompactionStrategy as CompactionStrategy,
-    InternalTool as Tool,
+    Tool,
 } from '@dexto/core';
 import type { z } from 'zod';
 import type { AgentConfig } from '../schemas/agent-config.js';
