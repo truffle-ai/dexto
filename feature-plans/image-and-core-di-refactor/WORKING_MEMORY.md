@@ -34,6 +34,7 @@ _Log findings, issues, and progress here as you work._
 - Owner verification list expanded again (UV-2..UV-7); do not start Phase 6 until these are reviewed.
 - Phase 5.7 completed: compaction is DI-only via a single expanded `ICompactionStrategy` (no controller abstraction); `/quality-checks` pass.
 - Aligned plugin + storage config shapes to image-driven types (plugins: `[{ type, enabled? }]`; cache/database config schemas are `{ type: string }` envelopes validated by image factories). `/quality-checks` pass.
+- Naming/docs cleanup: renamed `@dexto/storage` “providers” → “factories” (matches `ToolFactory` terminology), updated `@dexto/image-bundler` convention exports to `export const factory`, and refreshed package READMEs accordingly. `pnpm -w run build:packages` passes.
 
 ---
 

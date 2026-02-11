@@ -39,9 +39,10 @@ if (config.telemetry?.enabled) {
 For sequential agent switching, telemetry is shut down before creating the new agent:
 
 ```typescript
-// packages/cli/src/api/server.ts
+// packages/cli/src/api/server-hono.ts
 await Telemetry.shutdownGlobal(); // Old telemetry
-newAgent = await getDexto().createAgent(agentId); // Fresh telemetry
+// Construct a new agent (createAgentServices() will init fresh telemetry if enabled)
+newAgent = await createAgentFromId(agentId);
 ```
 
 ## Configuration

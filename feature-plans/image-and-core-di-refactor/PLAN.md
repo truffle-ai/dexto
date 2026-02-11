@@ -231,7 +231,7 @@ my-image/
 ├── dexto.image.ts          ← metadata + defaults only
 ├── tools/
 │   ├── jira/
-│   │   ├── index.ts        ← exports provider
+│   │   ├── index.ts        ← exports factory
 │   │   ├── api-client.ts
 │   │   └── types.ts
 │   └── salesforce/
@@ -246,17 +246,17 @@ my-image/
 ```
 
 Convention folders:
-- `tools/` — custom tool providers
+- `tools/` — custom tool factories
 - `storage/blob/` — blob store backends
 - `storage/database/` — database backends
 - `storage/cache/` — cache backends
 - `plugins/` — lifecycle plugins
-- `compaction/` — compaction strategy providers
+- `compaction/` — compaction strategy factories
 
-Each subfolder's `index.ts` exports a named `provider` export (explicit contract, no duck‑typing):
+Each subfolder's `index.ts` exports a named `factory` export (explicit contract, no duck‑typing):
 ```ts
 // tools/jira/index.ts
-export const provider: ToolFactory = {
+export const factory: ToolFactory = {
   configSchema: JiraConfigSchema,
   create: (config) => [jiraQueryTool, jiraCreateIssueTool, ...],
   metadata: { displayName: 'Jira Tools', description: '...', category: 'integrations' },
@@ -266,10 +266,10 @@ export const provider: ToolFactory = {
 The bundler discovers these folders, generates **explicit imports into a plain object** (no `.toString()`, no registries):
 ```ts
 // Generated dist/index.js
-import { provider as jira } from './tools/jira/index.js';
-import { provider as salesforce } from './tools/salesforce/index.js';
-import { provider as gcs } from './storage/blob/gcs/index.js';
-import { provider as auditlog } from './plugins/audit-log/index.js';
+import { factory as jira } from './tools/jira/index.js';
+import { factory as salesforce } from './tools/salesforce/index.js';
+import { factory as gcs } from './storage/blob/gcs/index.js';
+import { factory as auditlog } from './plugins/audit-log/index.js';
 import { defaultLoggerFactory } from '@dexto/core'; // Phase 3.3 deferred; logger stays in core for now
 import imageConfig from './dexto.image.js';
 
@@ -303,15 +303,15 @@ For images like `image-local` where providers come from existing `@dexto/*` pack
 
 ```ts
 // image-local/index.ts
-import { localBlobStoreFactory, inMemoryBlobStoreFactory, sqliteFactory, postgresFactory,
-         inMemoryDatabaseFactory, inMemoryCacheFactory, redisCacheFactory } from '@dexto/storage';
+import { localBlobStoreFactory, inMemoryBlobStoreFactory, sqliteDatabaseFactory, postgresDatabaseFactory,
+	         inMemoryDatabaseFactory, inMemoryCacheFactory, redisCacheFactory } from '@dexto/storage';
 import { defaultLoggerFactory } from '@dexto/core'; // Phase 3.3 deferred; logger stays in core for now
 import { builtinToolsFactory } from '@dexto/tools-builtins';
-import { fileSystemToolsProvider } from '@dexto/tools-filesystem';
-import { processToolsProvider } from '@dexto/tools-process';
-import { todoToolsProvider } from '@dexto/tools-todo';
-import { planToolsProvider } from '@dexto/tools-plan';
-import { agentSpawnerToolsProvider } from '@dexto/agent-management';
+import { fileSystemToolsFactory } from '@dexto/tools-filesystem';
+import { processToolsFactory } from '@dexto/tools-process';
+import { todoToolsFactory } from '@dexto/tools-todo';
+import { planToolsFactory } from '@dexto/tools-plan';
+import { agentSpawnerToolsFactory } from '@dexto/agent-management';
 import { contentPolicyFactory, responseSanitizerFactory } from './plugins/index.js';
 import { reactiveOverflowFactory, noopCompactionFactory } from './compaction/index.js';
 
@@ -325,10 +325,10 @@ const image: DextoImageModule = {
   },
   defaults: {
     storage: {
-      blob: { type: 'local', storePath: './data/blobs' },
-      database: { type: 'sqlite', path: './data/agent.db' },
-      cache: { type: 'in-memory-cache' },
-    },
+	      blob: { type: 'local', storePath: './data/blobs' },
+	      database: { type: 'sqlite', path: './data/agent.db' },
+	      cache: { type: 'in-memory' },
+	    },
     tools: [
       { type: 'builtin-tools' },
       { type: 'filesystem-tools', allowedPaths: ['.'], blockedPaths: ['.git', '.env'] },
@@ -340,15 +340,15 @@ const image: DextoImageModule = {
   // Plain objects — the image IS the lookup table
   tools: {
     'builtin-tools': builtinToolsFactory,          // former "internal tools" (ask_user, search_history, etc.)
-    'filesystem-tools': fileSystemToolsProvider,    // already has configSchema + create()
-    'process-tools': processToolsProvider,
-    'todo-tools': todoToolsProvider,
-    'plan-tools': planToolsProvider,
-    'agent-spawner': agentSpawnerToolsProvider,
+    'filesystem-tools': fileSystemToolsFactory,    // already has configSchema + create()
+    'process-tools': processToolsFactory,
+    'todo-tools': todoToolsFactory,
+    'plan-tools': planToolsFactory,
+    'agent-spawner': agentSpawnerToolsFactory,
   },
   storage: {
     blob: { 'local': localBlobStoreFactory, 'in-memory': inMemoryBlobStoreFactory },
-    database: { 'sqlite': sqliteFactory, 'postgres': postgresFactory, 'in-memory': inMemoryDatabaseFactory },
+    database: { 'sqlite': sqliteDatabaseFactory, 'postgres': postgresDatabaseFactory, 'in-memory': inMemoryDatabaseFactory },
     cache: { 'in-memory': inMemoryCacheFactory, 'redis': redisCacheFactory },
   },
   plugins: {
@@ -367,7 +367,7 @@ export default image;
 
 No bundler needed. No registries. Standard TypeScript. Full type safety. Debuggable.
 
-**Key insight:** The existing `fileSystemToolsProvider` object (with `type`, `configSchema`, `create()`) is already almost exactly a `ToolFactory`. The only change is where it lives — as a property on the image object instead of being registered into a global singleton.
+**Key insight:** The existing `fileSystemToolsFactory` object (with `configSchema`, `create()`) is already almost exactly a `ToolFactory`. The only change is where it lives — as a property on the image object instead of being registered into a global singleton.
 
 #### `include` shorthand (future enhancement)
 
@@ -786,7 +786,7 @@ External project:
 ```ts
 import { s3BlobStoreFactory } from './storage/s3.js';
 import { myInternalToolsFactory } from './tools/internal-api.js';
-import { sqliteFactory, inMemoryCacheFactory } from '@dexto/storage';
+	import { sqliteDatabaseFactory, inMemoryCacheFactory } from '@dexto/storage';
 import { defaultLoggerFactory } from '@dexto/core'; // Phase 3.3 deferred; logger stays in core for now
 
 const image: DextoImageModule = {
@@ -799,7 +799,7 @@ const image: DextoImageModule = {
   },
   storage: {
     blob: { 's3': s3BlobStoreFactory },
-    database: { 'sqlite': sqliteFactory },        // re-export from @dexto/storage
+	    database: { 'sqlite': sqliteDatabaseFactory },        // re-export from @dexto/storage
     cache: { 'in-memory': inMemoryCacheFactory },
   },
   plugins: {},
@@ -970,7 +970,7 @@ interface ToolExecutionContext {
 
 ```ts
 // tools/jira/index.ts — in a custom image
-export const provider: ToolFactory = {
+export const factory: ToolFactory = {
     configSchema: z.object({
         type: z.literal('jira-tools'),
         apiKey: z.string(),
@@ -979,28 +979,28 @@ export const provider: ToolFactory = {
     }).strict(),
 
     // Config captured in closure — services accessed at runtime via context
-    create(config): Tool[] {
-        const jiraClient = new JiraClient(config.apiKey, config.baseUrl);
+	    create(config): Tool[] {
+	        const jiraClient = new JiraClient(config.apiKey, config.baseUrl);
 
-        return [
-            {
-                name: 'jira_search',
-                description: 'Search Jira issues',
-                parameters: z.object({ query: z.string() }),
-                async execute(input, context: ToolExecutionContext) {
-                    context.logger.info(`Searching Jira: ${input.query}`);
-                    return jiraClient.search(input.query, config.projectId);
-                },
-            },
-            {
-                name: 'jira_create_issue',
-                description: 'Create a Jira issue',
-                parameters: z.object({
-                    title: z.string(),
-                    description: z.string(),
-                    issueType: z.enum(['bug', 'story', 'task']),
-                }),
-                async execute(input, context: ToolExecutionContext) {
+	        return [
+	            {
+	                id: 'jira_search',
+	                description: 'Search Jira issues',
+	                inputSchema: z.object({ query: z.string() }),
+	                async execute(input, context: ToolExecutionContext) {
+	                    context.logger.info(`Searching Jira: ${input.query}`);
+	                    return jiraClient.search(input.query, config.projectId);
+	                },
+	            },
+	            {
+	                id: 'jira_create_issue',
+	                description: 'Create a Jira issue',
+	                inputSchema: z.object({
+	                    title: z.string(),
+	                    description: z.string(),
+	                    issueType: z.enum(['bug', 'story', 'task']),
+	                }),
+	                async execute(input, context: ToolExecutionContext) {
                     // Can use runtime services — e.g., request approval before creating
                     await context.services.approval.requestApproval({
                         tool: 'jira_create_issue', args: input,
@@ -1130,7 +1130,7 @@ interface PluginExecutionContext {
 
 ```ts
 // plugins/compliance-check/index.ts — in a custom image
-export const provider: PluginFactory = {
+export const factory: PluginFactory = {
     configSchema: z.object({
         type: z.literal('compliance-check'),
         blockedPatterns: z.array(z.string()),
@@ -1250,7 +1250,7 @@ new DextoAgent({
 
 ```ts
 // compaction/smart-summary/index.ts — in a custom image
-export const provider: CompactionFactory = {
+export const factory: CompactionFactory = {
     configSchema: z.object({
         type: z.literal('smart-summary'),
         model: z.string().default('claude-haiku'),
@@ -1367,7 +1367,7 @@ Image provides typed storage factories (split per category):
 // image-local storage map — typed per category prevents mismatches
 storage: {
     blob: { 'local': localBlobStoreFactory, 'in-memory': inMemoryBlobStoreFactory },
-    database: { 'sqlite': sqliteFactory, 'postgres': postgresFactory, 'in-memory': inMemoryDatabaseFactory },
+    database: { 'sqlite': sqliteDatabaseFactory, 'postgres': postgresDatabaseFactory, 'in-memory': inMemoryDatabaseFactory },
     cache: { 'in-memory': inMemoryCacheFactory, 'redis': redisCacheFactory },
 },
 ```
@@ -1497,12 +1497,12 @@ export const supabaseBlobFactory: BlobStoreFactory = {
        ↑
 @dexto/storage
   ├── Implementations: SqliteStore, PostgresStore, LocalBlobStore, MemoryBlobStore, etc.
-  ├── StorageFactory objects: sqliteFactory, postgresFactory, localBlobFactory, etc.
+  ├── StorageFactory objects: sqliteDatabaseFactory, postgresDatabaseFactory, localBlobStoreFactory, etc.
   ├── Config schemas: SqliteDatabaseSchema, PostgresDatabaseSchema, etc.
   └── Provider-specific deps: better-sqlite3, pg, ioredis
        ↑
 @dexto/image-local
-  └── storage: { blob: { 'local': localBlobFactory, ... }, database: { 'sqlite': sqliteFactory, ... }, cache: { ... } }
+  └── storage: { blob: { 'local': localBlobStoreFactory, ... }, database: { 'sqlite': sqliteDatabaseFactory, ... }, cache: { ... } }
 ```
 
 ---
@@ -2344,9 +2344,8 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
   - Tests to validate error messages are clear for different shape problems
   - Exit: can load `@dexto/image-local` (once rewritten) and return typed module
 
-- [ ] **2.4 Remove storage factory functions from core**
-  - **Defer** until Phase 5.1 cleanup (or after Phase 4 integration) to avoid churn while CLI/server still use transitional wiring.
-  - `createBlobStore()`, `createDatabase()`, `createCache()` — delete once the resolver path is end‑to‑end
+- [x] **2.4 Remove storage factory functions from core**
+  - Completed after Phase 4 integration: core no longer exposes config-driven `createBlobStore()` / `createDatabase()` / `createCache()` helpers.
   - Exit: no standalone `createBlobStore`/`createDatabase`/`createCache` anywhere.
 
 ---
@@ -2366,11 +2365,11 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
 - [x] **3.2 Create `@dexto/storage` package (extract from core)**
   - New package: `packages/storage/`
   - Move ALL storage implementations from `packages/core/src/storage/`:
-    - Blob: `local-blob-store.ts` (586 lines), `memory-blob-store.ts` (418 lines), `providers/local.ts`, `providers/memory.ts`
-    - Database: `sqlite-store.ts` (319 lines), `postgres-store.ts` (407 lines), `memory-database-store.ts` (121 lines), `providers/sqlite.ts`, `providers/postgres.ts`, `providers/memory.ts`
-    - Cache: `memory-cache-store.ts` (99 lines), `redis-store.ts` (182 lines), `providers/memory.ts`, `providers/redis.ts`
+    - Blob: `local-blob-store.ts`, `memory-blob-store.ts`, `factories/local.ts`, `factories/memory.ts`
+    - Database: `sqlite-store.ts`, `postgres-store.ts`, `memory-database-store.ts`, `factories/sqlite.ts`, `factories/postgres.ts`, `factories/memory.ts`
+    - Cache: `memory-cache-store.ts`, `redis-store.ts`, `factories/memory.ts`, `factories/redis.ts`
   - Move storage config schemas: `blob/schemas.ts`, `database/schemas.ts`, `cache/schemas.ts`, `schemas.ts`
-  - Move provider interfaces: `blob/provider.ts`, `database/provider.ts`, `cache/provider.ts`. Vet if these are still necessary as well.
+  - Move factory interfaces: `blob/factory.ts`, `database/factory.ts`, `cache/factory.ts`.
   - Create `StorageFactory`‑compatible objects for each implementation (remove auto‑registration)
   - Do **not** keep config‑driven helpers like `createCache/createDatabase/createBlobStore` or `createStorageManager()` — storage is resolved via image factory maps in `@dexto/agent-config`, and core constructs a `StorageManager` from injected backends.
   - Provider-specific dependencies (`better-sqlite3`, `pg`, `ioredis`) move to this package
@@ -2404,7 +2403,7 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
   - Compaction map: `reactive-overflow`, `noop` (built‑in strategies from core)
   - Storage map (split per category):
     - `blob: { 'local': localBlobStoreFactory, 'in-memory': inMemoryBlobStoreFactory }`
-    - `database: { 'sqlite': sqliteFactory, 'postgres': postgresFactory, 'in-memory': inMemoryDatabaseFactory }`
+    - `database: { 'sqlite': sqliteDatabaseFactory, 'postgres': postgresDatabaseFactory, 'in-memory': inMemoryDatabaseFactory }`
     - `cache: { 'in-memory': inMemoryCacheFactory, 'redis': redisCacheFactory }`
   - Logger: default logger factory wrapper around `@dexto/core`’s `createLogger()` + `LoggerConfigSchema` (until 3.3 is revisited)
   - Exit: `import imageLocal from '@dexto/image-local'` returns typed `DextoImageModule`. No side effects on import. Build passes.
@@ -2418,7 +2417,7 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
     - `storage/cache/<type>/` → `image.storage.cache['<type>']`
   - Generated module includes `logger: defaultLoggerFactory` (wrapper around core `createLogger()` + `LoggerConfigSchema`, until 3.3 is revisited)
   - Remove `.toString()` serialization logic entirely
-  - Remove duck‑typing discovery — require explicit `export const provider` contract
+  - Remove duck‑typing discovery — require explicit `export const factory` contract
   - Exit: bundler generates valid `DextoImageModule`. Can bundle a test image with convention folders. Proper documentation inside the repo for how to use this as well.
 
 - [x] **3.7 Remove old image infrastructure from core**
@@ -2510,12 +2509,18 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
   - Image‑local unit test (exports valid `DextoImageModule`)
   - Exit: new tests cover resolver, defaults, and image module validation.
 
-- [ ] **5.4 Update documentation**
-  - Defer this task for later, do not do it. Mark this in working memory
-  - `/docs` — image concept documentation
-  - `README.md` for `@dexto/agent-config`, `@dexto/image-local`, `@dexto/image-bundler`
-  - Update `AGENTS.md` / `CLAUDE.md` with new architecture
-  - Update `.cursor/rules/service_initializer.mdc`
+- [ ] **5.4 Update documentation (split)**
+  - [x] **5.4a Refresh package READMEs**
+    - `README.md` (root) + `packages/cli/README.md`
+    - `packages/agent-config/README.md`
+    - `packages/image-local/README.md`
+    - `packages/image-bundler/README.md`
+    - `packages/storage/README.md`
+    - Remove stale registry-era READMEs under moved core/storage folders
+  - [ ] **5.4b Update docs site (`/docs`)**
+    - Image concept documentation + examples
+  - [ ] **5.4c Update editor/rules docs**
+    - `.cursor/rules/*` and any other developer docs that reference old image/registry patterns
   - Exit: docs reflect new architecture. No references to old registries or `defineImage()`.
 
 - [x] **5.5 Update OpenAPI / server docs if affected**
