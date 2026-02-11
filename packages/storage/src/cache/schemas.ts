@@ -18,7 +18,7 @@ const BaseCacheSchema = z.object({
         .positive()
         .optional()
         .describe('Connection timeout in milliseconds'),
-    options: z.record(z.any()).optional().describe('Backend-specific options'),
+    options: z.record(z.unknown()).optional().describe('Backend-specific options'),
 });
 
 // Memory cache - minimal configuration
@@ -59,7 +59,7 @@ export type RedisCacheConfig = z.output<typeof RedisCacheSchema>;
 // Cache configuration envelope (validated by image factory configSchema in the resolver)
 export const CacheConfigSchema = z
     .object({
-        type: z.string().describe('Cache provider type identifier'),
+        type: z.string().describe('Cache backend type identifier'),
     })
     .passthrough()
     .describe('Cache configuration (validated by image factory)');

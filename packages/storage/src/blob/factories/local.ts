@@ -1,12 +1,12 @@
-import type { BlobStoreProvider } from '../provider.js';
 import type { LocalBlobStoreConfig } from '../schemas.js';
 import { LocalBlobStoreSchema } from '../schemas.js';
 import { LocalBlobStore } from '../local-blob-store.js';
+import type { BlobStoreFactory } from '../factory.js';
 
 /**
- * Provider for local filesystem blob storage.
+ * Factory for local filesystem blob storage.
  *
- * This provider stores blobs on the local filesystem with content-based
+ * This factory stores blobs on the local filesystem with content-based
  * deduplication and metadata tracking. It's ideal for development and
  * single-machine deployments.
  *
@@ -16,8 +16,7 @@ import { LocalBlobStore } from '../local-blob-store.js';
  * - Automatic cleanup of old blobs
  * - No network required
  */
-export const localBlobStoreProvider: BlobStoreProvider<'local', LocalBlobStoreConfig> = {
-    type: 'local',
+export const localBlobStoreFactory: BlobStoreFactory<LocalBlobStoreConfig> = {
     configSchema: LocalBlobStoreSchema,
     create: (config, logger) => new LocalBlobStore(config, logger),
     metadata: {

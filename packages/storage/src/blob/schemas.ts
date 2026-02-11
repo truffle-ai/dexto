@@ -1,8 +1,8 @@
 import { z } from 'zod';
 
 /**
- * Built-in blob store types (core providers only).
- * Custom providers shipped via images are not included in this list.
+ * Built-in blob store types shipped by `@dexto/storage`.
+ * Custom backends shipped via images are not included in this list.
  */
 export const BLOB_STORE_TYPES = ['in-memory', 'local'] as const;
 export type BlobStoreType = (typeof BLOB_STORE_TYPES)[number];
@@ -72,24 +72,24 @@ export type LocalBlobStoreConfig = z.output<typeof LocalBlobStoreSchema>;
 /**
  * Blob store configuration schema.
  *
- * This schema uses `.passthrough()` to accept any provider-specific configuration.
+ * This schema uses `.passthrough()` to accept any backend-specific configuration.
  * It only validates that a `type` field exists as a string.
  *
  * Detailed validation happens in the product-layer resolver (`@dexto/agent-config`) via
- * each image factory's `configSchema`. Built-in providers are validated by their factory schemas.
+ * each image factory's `configSchema`. Built-in backends are validated by their factory schemas.
  *
  * This approach allows:
- * - Custom providers to be provided by a custom image
- * - Each provider to define its own configuration structure and strict schema
+ * - Custom backends to be provided by a custom image
+ * - Each backend to define its own configuration structure and strict schema
  *
  * Example flow:
  * 1. Config passes this schema (basic structure check)
- * 2. Product layer resolves provider via image + validates against provider schema
+ * 2. Product layer resolves backend via image + validates against factory schema
  * 3. Core receives a concrete `BlobStore` instance (DI)
  */
 export const BlobStoreConfigSchema = z
     .object({
-        type: z.string().describe('Blob store provider type'),
+        type: z.string().describe('Blob store backend type'),
     })
     .passthrough()
     .describe('Blob store configuration (validated by image factory)');
@@ -97,13 +97,13 @@ export const BlobStoreConfigSchema = z
 /**
  * Blob store configuration type.
  *
- * Union type including built-in providers (local, in-memory) and a catch-all
- * for custom providers registered at runtime.
+ * Union type including built-in backends (local, in-memory) and a catch-all
+ * for custom backends provided via images at runtime.
  */
 export type BlobStoreConfig =
     | InMemoryBlobStoreConfig
     | LocalBlobStoreConfig
-    | { type: string; [key: string]: unknown }; // Custom provider configs
+    | { type: string; [key: string]: unknown }; // Custom backend configs
 
-// Export individual schemas for use in providers
+// Export individual schemas for use in factories
 export { InMemoryBlobStoreSchema, LocalBlobStoreSchema };

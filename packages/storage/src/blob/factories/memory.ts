@@ -1,12 +1,12 @@
-import type { BlobStoreProvider } from '../provider.js';
 import type { InMemoryBlobStoreConfig } from '../schemas.js';
 import { InMemoryBlobStoreSchema } from '../schemas.js';
 import { InMemoryBlobStore } from '../memory-blob-store.js';
+import type { BlobStoreFactory } from '../factory.js';
 
 /**
- * Provider for in-memory blob storage.
+ * Factory for in-memory blob storage.
  *
- * This provider stores blobs in RAM, making it ideal for testing and
+ * This factory stores blobs in RAM, making it ideal for testing and
  * development. All data is lost when the process exits.
  *
  * Features:
@@ -16,8 +16,7 @@ import { InMemoryBlobStore } from '../memory-blob-store.js';
  * - No network required
  * - Perfect for unit tests
  */
-export const inMemoryBlobStoreProvider: BlobStoreProvider<'in-memory', InMemoryBlobStoreConfig> = {
-    type: 'in-memory',
+export const inMemoryBlobStoreFactory: BlobStoreFactory<InMemoryBlobStoreConfig> = {
     configSchema: InMemoryBlobStoreSchema,
     create: (config, logger) => new InMemoryBlobStore(config, logger),
     metadata: {

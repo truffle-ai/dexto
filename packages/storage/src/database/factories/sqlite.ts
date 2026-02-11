@@ -1,12 +1,12 @@
-import type { DatabaseProvider } from '../provider.js';
 import type { SqliteDatabaseConfig } from '../schemas.js';
 import { SqliteDatabaseSchema } from '../schemas.js';
 import { StorageError } from '@dexto/core';
+import type { DatabaseFactory } from '../factory.js';
 
 /**
- * Provider for SQLite database storage.
+ * Factory for SQLite database storage.
  *
- * This provider stores data in a local SQLite database file using better-sqlite3.
+ * This factory stores data in a local SQLite database file using better-sqlite3.
  * It's ideal for single-machine deployments and development scenarios where
  * persistence is required without the overhead of a database server.
  *
@@ -19,8 +19,7 @@ import { StorageError } from '@dexto/core';
  * Note: better-sqlite3 is an optional dependency. Install it with:
  * npm install better-sqlite3
  */
-export const sqliteDatabaseProvider: DatabaseProvider<'sqlite', SqliteDatabaseConfig> = {
-    type: 'sqlite',
+export const sqliteDatabaseFactory: DatabaseFactory<SqliteDatabaseConfig> = {
     configSchema: SqliteDatabaseSchema,
     create: async (config, logger) => {
         try {

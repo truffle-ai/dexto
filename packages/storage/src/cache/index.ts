@@ -2,30 +2,30 @@
  * Cache Module
  *
  * This module provides a flexible caching system with support for
- * multiple backends through a provider pattern.
+ * multiple backends through a factory pattern.
  *
- * ## Built-in Providers
+ * ## Built-in Factories
  * - `in-memory`: Store data in RAM (for testing/development)
  * - `redis`: Store data in Redis server
  *
- * ## Custom Providers
- * During the DI refactor, custom providers are resolved by product layers (CLI/server/platform)
- * via typed image factories (`@dexto/agent-config`), not via core registries.
+ * ## Custom Factories
+ * Product layers (CLI/server/platform) decide which factories are available by including them
+ * in images (`DextoImageModule.storage.cache`).
  *
  * ## Usage
  * Cache backends are typically constructed by the product-layer resolver (`@dexto/agent-config`)
- * via image-provided factory maps. For direct usage, call a provider's `create()` after validating
+ * via image-provided factory maps. For direct usage, call a factory's `create()` after validating
  * config with its `configSchema`.
  */
 
 // Export public API
-export type { CacheProvider } from './provider.js';
+export type { CacheFactory } from './factory.js';
 
 // Export types and interfaces
 export type { Cache } from './types.js';
 
-// Export built-in providers (plain exports; no auto-registration)
-export { inMemoryCacheProvider, redisCacheProvider } from './providers/index.js';
+// Export built-in factories (plain exports; no registries)
+export { inMemoryCacheFactory, redisCacheFactory } from './factories/index.js';
 
 // Export schemas and config types
 export {

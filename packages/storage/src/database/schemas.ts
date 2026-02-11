@@ -18,7 +18,7 @@ const BaseDatabaseSchema = z.object({
         .positive()
         .optional()
         .describe('Connection timeout in milliseconds'),
-    options: z.record(z.any()).optional().describe('Backend-specific options'),
+    options: z.record(z.unknown()).optional().describe('Backend-specific options'),
 });
 
 // Memory database - minimal configuration
@@ -79,7 +79,7 @@ export type PostgresDatabaseConfig = z.output<typeof PostgresDatabaseSchema>;
 // Database configuration envelope (validated by image factory configSchema in the resolver)
 export const DatabaseConfigSchema = z
     .object({
-        type: z.string().describe('Database provider type identifier'),
+        type: z.string().describe('Database backend type identifier'),
     })
     .passthrough()
     .describe('Database configuration (validated by image factory)');

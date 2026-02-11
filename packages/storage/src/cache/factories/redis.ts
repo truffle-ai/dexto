@@ -1,12 +1,12 @@
-import type { CacheProvider } from '../provider.js';
 import type { RedisCacheConfig } from '../schemas.js';
 import { RedisCacheSchema } from '../schemas.js';
 import { StorageError } from '@dexto/core';
+import type { CacheFactory } from '../factory.js';
 
 /**
- * Provider for Redis cache storage.
+ * Factory for Redis cache storage.
  *
- * This provider stores data in a Redis server using the ioredis package.
+ * This factory stores data in a Redis server using the ioredis package.
  * It's ideal for production deployments requiring scalability, persistence,
  * and multi-machine access.
  *
@@ -19,8 +19,7 @@ import { StorageError } from '@dexto/core';
  * Note: ioredis is an optional dependency. Install it with:
  * npm install ioredis
  */
-export const redisCacheProvider: CacheProvider<'redis', RedisCacheConfig> = {
-    type: 'redis',
+export const redisCacheFactory: CacheFactory<RedisCacheConfig> = {
     configSchema: RedisCacheSchema,
     create: async (config, logger) => {
         try {

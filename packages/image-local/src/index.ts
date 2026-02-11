@@ -18,8 +18,8 @@ import {
 import {
     localBlobStoreFactory,
     inMemoryBlobStoreFactory,
-    sqliteFactory,
-    postgresFactory,
+    sqliteDatabaseFactory,
+    postgresDatabaseFactory,
     inMemoryDatabaseFactory,
     inMemoryCacheFactory,
     redisCacheFactory,
@@ -121,8 +121,8 @@ const imageLocal: DextoImageModule = {
             'in-memory': inMemoryBlobStoreFactory,
         },
         database: {
-            sqlite: sqliteFactory,
-            postgres: postgresFactory,
+            sqlite: sqliteDatabaseFactory,
+            postgres: postgresDatabaseFactory,
             'in-memory': inMemoryDatabaseFactory,
         },
         cache: {

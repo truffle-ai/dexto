@@ -1,12 +1,12 @@
-import type { DatabaseProvider } from '../provider.js';
 import type { PostgresDatabaseConfig } from '../schemas.js';
 import { PostgresDatabaseSchema } from '../schemas.js';
 import { StorageError } from '@dexto/core';
+import type { DatabaseFactory } from '../factory.js';
 
 /**
- * Provider for PostgreSQL database storage.
+ * Factory for PostgreSQL database storage.
  *
- * This provider stores data in a PostgreSQL database server using the pg package.
+ * This factory stores data in a PostgreSQL database server using the pg package.
  * It's ideal for production deployments requiring scalability and multi-machine access.
  *
  * Features:
@@ -18,8 +18,7 @@ import { StorageError } from '@dexto/core';
  * Note: pg is an optional dependency. Install it with:
  * npm install pg
  */
-export const postgresDatabaseProvider: DatabaseProvider<'postgres', PostgresDatabaseConfig> = {
-    type: 'postgres',
+export const postgresDatabaseFactory: DatabaseFactory<PostgresDatabaseConfig> = {
     configSchema: PostgresDatabaseSchema,
     create: async (config, logger) => {
         try {

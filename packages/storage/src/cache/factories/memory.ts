@@ -1,12 +1,12 @@
-import type { CacheProvider } from '../provider.js';
 import type { InMemoryCacheConfig } from '../schemas.js';
 import { InMemoryCacheSchema } from '../schemas.js';
 import { MemoryCacheStore } from '../memory-cache-store.js';
+import type { CacheFactory } from '../factory.js';
 
 /**
- * Provider for in-memory cache storage.
+ * Factory for in-memory cache storage.
  *
- * This provider stores data in RAM and is ideal for development,
+ * This factory stores data in RAM and is ideal for development,
  * testing, and ephemeral use cases where persistence is not required.
  *
  * Features:
@@ -16,8 +16,7 @@ import { MemoryCacheStore } from '../memory-cache-store.js';
  * - No network required
  * - Data is lost on restart
  */
-export const inMemoryCacheProvider: CacheProvider<'in-memory', InMemoryCacheConfig> = {
-    type: 'in-memory',
+export const inMemoryCacheFactory: CacheFactory<InMemoryCacheConfig> = {
     configSchema: InMemoryCacheSchema,
     create: (_config, _logger) => new MemoryCacheStore(),
     metadata: {
