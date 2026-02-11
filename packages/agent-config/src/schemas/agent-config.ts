@@ -9,7 +9,6 @@ import {
     MemoriesConfigSchema,
     ServerConfigsSchema as McpServersConfigSchema,
     OtelConfigurationSchema,
-    PluginsConfigSchema,
     PromptsSchema,
     SessionConfigSchema,
     SystemPromptConfigSchema,
@@ -18,6 +17,7 @@ import {
 } from '@dexto/core';
 import { StorageSchema } from '@dexto/storage/schemas';
 import { z } from 'zod';
+import { PluginsConfigSchema } from './plugins.js';
 
 // ========================================
 // DI SURFACE CONFIG (validated in resolver)
@@ -167,9 +167,9 @@ export function createAgentConfigSchema(options: LLMValidationOptions = {}) {
                 'Plugin system configuration for built-in and custom plugins'
             ).default({}),
 
-            compaction: CompactionConfigSchema.describe(
-                'Context compaction configuration (custom strategies are provided via images during the DI refactor)'
-            ).default(DEFAULT_COMPACTION_CONFIG),
+            compaction: CompactionConfigSchema.describe('Context compaction configuration').default(
+                DEFAULT_COMPACTION_CONFIG
+            ),
         })
         .strict()
         .describe('Main configuration for an agent, including its LLM and server connections')

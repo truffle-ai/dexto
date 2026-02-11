@@ -23,6 +23,10 @@ export type {
     ToolFactoryEntry,
 } from './schemas/agent-config.js';
 
+export { BuiltInPluginConfigSchema, PluginsConfigSchema } from './schemas/plugins.js';
+
+export type { PluginsConfig, ValidatedPluginsConfig } from './schemas/plugins.js';
+
 export { applyImageDefaults } from './resolver/apply-image-defaults.js';
 export { loadImage, setImageImporter } from './resolver/load-image.js';
 export type { ImageImporter } from './resolver/load-image.js';

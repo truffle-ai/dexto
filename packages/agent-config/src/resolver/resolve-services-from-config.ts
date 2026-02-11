@@ -205,12 +205,6 @@ export async function resolveServicesFromConfig(
     }
 
     // 4) Plugins (built-ins only for now)
-    if (config.plugins.custom.length > 0 || config.plugins.registry.length > 0) {
-        throw new Error(
-            'Custom/registry plugins are not supported by the image resolver. Use image-provided plugins instead.'
-        );
-    }
-
     const pluginEntries: Array<{
         type: string;
         config: unknown;

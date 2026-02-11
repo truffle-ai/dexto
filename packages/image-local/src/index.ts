@@ -1,6 +1,10 @@
-import type { DextoImageModule, PluginFactory, CompactionFactory } from '@dexto/agent-config';
 import {
     BuiltInPluginConfigSchema,
+    type DextoImageModule,
+    type PluginFactory,
+    type CompactionFactory,
+} from '@dexto/agent-config';
+import {
     ContentPolicyPlugin,
     ResponseSanitizerPlugin,
     defaultLoggerFactory,

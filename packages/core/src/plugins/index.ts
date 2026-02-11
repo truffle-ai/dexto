@@ -23,15 +23,6 @@ export type {
 export { PluginManager } from './manager.js';
 export type { PluginManagerOptions, ExecutionContextOptions } from './manager.js';
 
-// Plugin configuration schemas
-export {
-    CustomPluginConfigSchema,
-    BuiltInPluginConfigSchema,
-    PluginsConfigSchema,
-    RegistryPluginConfigSchema,
-} from './schemas.js';
-export type { PluginsConfig, ValidatedPluginsConfig, RegistryPluginConfig } from './schemas.js';
-
 // Error codes
 export { PluginErrorCode } from './error-codes.js';
 
