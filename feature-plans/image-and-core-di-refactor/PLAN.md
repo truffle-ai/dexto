@@ -2351,7 +2351,7 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
 > **Goal:** Images export `DextoImageModule` objects. No side effects, no `.toString()`, no registries.
 > **Ordering rationale:** Extraction packages (3.1–3.2) must be created before image‑local (3.5) can import from them. Tool adapter work (3.4) is independent. (Logger extraction 3.3 is split/deferred.)
 
-- [ ] **3.1 Create `@dexto/tools-builtins` package (former internal tools)**
+- [x] **3.1 Create `@dexto/tools-builtins` package (former internal tools)**
   - New package: `packages/tools-builtins/`
   - Move internal tool implementations from `packages/core/src/tools/internal-tools/implementations/` to this package
   - Export a single `builtinToolsFactory: ToolFactory` that creates ask_user, search_history, delegate_to_url, list_resources, get_resource, invoke_skill
@@ -2359,7 +2359,7 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
   - Config schema: `{ type: 'builtin-tools', enabledTools?: string[] }` — omit `enabledTools` for all
   - Exit: package builds, exports `ToolFactory`. Former internal tools work via factory. Build passes.
 
-- [ ] **3.2 Create `@dexto/storage` package (extract from core)**
+- [x] **3.2 Create `@dexto/storage` package (extract from core)**
   - New package: `packages/storage/`
   - Move ALL storage implementations from `packages/core/src/storage/`:
     - Blob: `local-blob-store.ts` (586 lines), `memory-blob-store.ts` (418 lines), `providers/local.ts`, `providers/memory.ts`
@@ -2383,13 +2383,13 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
     - [ ] **3.3a Create `@dexto/logger-types`** (interfaces/enums only; no Node deps)
     - [ ] **3.3b Create `@dexto/logger`** (impl + schemas + factories) depending on `@dexto/logger-types` (not core)
 
-- [ ] **3.4 Adapt existing tool provider packages**
+- [x] **3.4 Adapt existing tool provider packages**
   - `@dexto/tools-filesystem`, `@dexto/tools-process`, `@dexto/tools-todo`, `@dexto/tools-plan`
   - Each currently exports a `CustomToolProvider<Type, Config>` — verify it matches `ToolFactory` or create adapter
   - Remove `customToolRegistry.register()` calls if any exist
   - Exit: each tool package exports a `ToolFactory`‑compatible object. No registry imports.
 
-- [ ] **3.5 Rewrite `@dexto/image-local` as hand‑written `DextoImageModule`**
+- [x] **3.5 Rewrite `@dexto/image-local` as hand‑written `DextoImageModule`**
   - **Depends on:** 3.1 (tools-builtins), 3.2 (storage), 3.4 (tool adapters). (Logger stays in core for now.)
   - Delete `dexto.image.ts` + bundler‑generated output
   - Write `index.ts` exporting `DextoImageModule` with factory maps
@@ -2404,7 +2404,7 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
   - Logger: default logger factory wrapper around `@dexto/core`’s `createLogger()` + `LoggerConfigSchema` (until 3.3 is revisited)
   - Exit: `import imageLocal from '@dexto/image-local'` returns typed `DextoImageModule`. No side effects on import. Build passes.
 
-- [ ] **3.6 Update `@dexto/image-bundler`**
+- [x] **3.6 Update `@dexto/image-bundler`**
   - Generate `DextoImageModule` object literal with explicit imports (not `register()` calls)
   - Folder name → type string mapping (`tools/jira/` → key `'jira'`)
   - Storage conventions:
@@ -2416,7 +2416,7 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
   - Remove duck‑typing discovery — require explicit `export const provider` contract
   - Exit: bundler generates valid `DextoImageModule`. Can bundle a test image with convention folders. Proper documentation inside the repo for how to use this as well.
 
-- [ ] **3.7 Remove old image infrastructure from core**
+- [x] **3.7 Remove old image infrastructure from core**
   - Delete `packages/core/src/image/define-image.ts`
   - Delete `packages/core/src/image/types.ts` (old `ImageDefinition`, `ImageProvider`, etc.)
   - Remove image exports from `packages/core/src/index.ts`

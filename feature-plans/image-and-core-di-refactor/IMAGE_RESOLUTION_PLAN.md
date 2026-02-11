@@ -248,30 +248,30 @@ This plan does not implement sandboxing; it defines the contract for how the pla
 ## 10. Work Plan (Tasks)
 
 ### Phase 0 — Spec + decisions
-- [ ] Define image specifier grammar (store id vs file/url).
-- [ ] Decide whether YAML may omit version (active version) vs must pin.
-- [ ] Decide installer strategy:
+- [x] Define image specifier grammar (store id vs file/url).
+- [x] Decide whether YAML may omit version (active version) vs must pin.
+- [x] Decide installer strategy:
   - shell out to `npm` (always present), or
   - use `pacote`/tarball extraction (no external tools), or
   - ship `pnpm` as a dependency (unlikely).
 
 ### Phase 1 — Store implementation (library)
-- [ ] Implement store paths + registry manifest read/write.
-- [ ] Implement “resolve image id → entry file URL”.
-- [ ] Implement “is this specifier a file/URL?” helpers.
+- [x] Implement store paths + registry manifest read/write.
+- [x] Implement “resolve image id → entry file URL”.
+- [x] Implement “is this specifier a file/URL?” helpers.
 
 ### Phase 2 — CLI commands
-- [ ] Add `dexto image install/list/remove/use/doctor` commands.
-- [ ] Add clear error messages for missing images.
-- [ ] Validate installed images by importing the entry and running `loadImage()` conformance checks.
+- [x] Add `dexto image install/list/remove/use/doctor` commands.
+- [x] Add clear error messages for missing images.
+- [x] Validate installed images by importing the entry and running `loadImage()` conformance checks.
 
 ### Phase 3 — CLI runtime wiring
-- [ ] Update CLI startup to set an image importer that resolves via the store.
-- [ ] Ensure agent switching/server mode uses the same importer.
+- [x] Update CLI startup to set an image importer that resolves via the store.
+- [x] Ensure agent switching/server mode uses the same importer.
 
 ### Phase 4 — Tests
-- [ ] Unit tests for registry read/write + resolution.
-- [ ] Integration tests:
+- [x] Unit tests for registry read/write + resolution.
+- [x] Integration tests:
   - install from a local bundled image directory
   - run `loadImage('@myorg/image')` via store importer
   - error path when not installed
