@@ -203,7 +203,7 @@ export const TestConfigs = {
             bedrock: 'anthropic.claude-3-5-haiku-20241022-v1:0', // Bedrock uses AWS credentials, not API keys
             local: 'llama-3.2-3b-q4', // Native node-llama-cpp GGUF models
             ollama: 'llama3.2', // Ollama server models
-            dexto: 'anthropic/claude-4.5-sonnet', // Dexto gateway (OpenRouter model format)
+            'dexto-nova': 'anthropic/claude-4.5-sonnet', // Dexto gateway (OpenRouter model format)
         };
 
         return {

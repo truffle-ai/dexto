@@ -17,7 +17,7 @@ const LLM_PROVIDER_DISPLAY_NAMES: Record<LLMProvider, string> = {
     bedrock: 'Bedrock',
     local: 'Local',
     ollama: 'Ollama',
-    dexto: 'Dexto',
+    'dexto-nova': 'Dexto Nova',
 };
 
 export function getLLMProviderDisplayName(provider: LLMProvider): string {

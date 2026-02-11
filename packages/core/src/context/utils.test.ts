@@ -699,7 +699,7 @@ describe('filterMessagesByLLMCapabilities', () => {
         mockValidateModelFileSupport.mockReturnValue({
             isSupported: false,
             fileType: 'image',
-            error: 'Model glm-4.7 (dexto) does not support image files',
+            error: 'Model glm-4.7 (dexto-nova) does not support image files',
         });
 
         const messages: InternalMessage[] = [
@@ -713,7 +713,7 @@ describe('filterMessagesByLLMCapabilities', () => {
             },
         ];
 
-        const config: LLMContext = { provider: 'dexto', model: 'z-ai/glm-4.7' };
+        const config: LLMContext = { provider: 'dexto-nova', model: 'z-ai/glm-4.7' };
 
         const result = filterMessagesByLLMCapabilities(messages, config, mockLogger);
 
@@ -732,12 +732,12 @@ describe('filterMessagesByLLMCapabilities', () => {
         // Verify validation was called for each image
         expect(mockValidateModelFileSupport).toHaveBeenCalledTimes(2);
         expect(mockValidateModelFileSupport).toHaveBeenCalledWith(
-            'dexto',
+            'dexto-nova',
             'z-ai/glm-4.7',
             'image/png'
         );
         expect(mockValidateModelFileSupport).toHaveBeenCalledWith(
-            'dexto',
+            'dexto-nova',
             'z-ai/glm-4.7',
             'image/jpeg'
         );
@@ -752,7 +752,7 @@ describe('filterMessagesByLLMCapabilities', () => {
         mockValidateModelFileSupport.mockReturnValue({
             isSupported: false,
             fileType: 'image',
-            error: 'Model minimax-m2.1 (dexto) does not support image files',
+            error: 'Model minimax-m2.1 (dexto-nova) does not support image files',
         });
 
         const messages: InternalMessage[] = [
@@ -765,7 +765,7 @@ describe('filterMessagesByLLMCapabilities', () => {
             },
         ];
 
-        const config: LLMContext = { provider: 'dexto', model: 'minimax/minimax-m2.1' };
+        const config: LLMContext = { provider: 'dexto-nova', model: 'minimax/minimax-m2.1' };
 
         const result = filterMessagesByLLMCapabilities(messages, config, mockLogger);
 
@@ -777,7 +777,7 @@ describe('filterMessagesByLLMCapabilities', () => {
             },
         ]);
         expect(mockValidateModelFileSupport).toHaveBeenCalledWith(
-            'dexto',
+            'dexto-nova',
             'minimax/minimax-m2.1',
             'image/png'
         );
@@ -840,10 +840,10 @@ describe('filterMessagesByLLMCapabilities', () => {
         // Mock validation to reject both images and files for glm-4.7
         mockValidateModelFileSupport.mockReturnValue({
             isSupported: false,
-            error: "Model 'z-ai/glm-4.7' (dexto) does not support image files",
+            error: "Model 'z-ai/glm-4.7' (dexto-nova) does not support image files",
         });
 
-        const config: LLMContext = { provider: 'dexto', model: 'z-ai/glm-4.7' };
+        const config: LLMContext = { provider: 'dexto-nova', model: 'z-ai/glm-4.7' };
 
         const result = filterMessagesByLLMCapabilities(messages, config, mockLogger);
 
@@ -873,7 +873,7 @@ describe('filterMessagesByLLMCapabilities', () => {
         // Some image parts may not have mimeType set
         mockValidateModelFileSupport.mockReturnValue({
             isSupported: false,
-            error: "Model 'minimax/minimax-m2.1' (dexto) does not support image files",
+            error: "Model 'minimax/minimax-m2.1' (dexto-nova) does not support image files",
         });
 
         const messages: InternalMessage[] = [
@@ -887,7 +887,7 @@ describe('filterMessagesByLLMCapabilities', () => {
             },
         ];
 
-        const config: LLMContext = { provider: 'dexto', model: 'minimax/minimax-m2.1' };
+        const config: LLMContext = { provider: 'dexto-nova', model: 'minimax/minimax-m2.1' };
 
         const result = filterMessagesByLLMCapabilities(messages, config, mockLogger);
 
@@ -900,7 +900,7 @@ describe('filterMessagesByLLMCapabilities', () => {
             },
         ]);
         expect(mockValidateModelFileSupport).toHaveBeenCalledWith(
-            'dexto',
+            'dexto-nova',
             'minimax/minimax-m2.1',
             'image/jpeg'
         );

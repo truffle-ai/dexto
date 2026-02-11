@@ -461,9 +461,9 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
             ) => {
                 // Session-only switch (default is set via explicit action)
 
-                // Pre-check: Dexto provider requires OAuth login AND API key
+                // Pre-check: Dexto Nova provider requires OAuth login AND API key
                 // Check BEFORE closing the overlay so user can pick a different model
-                if (provider === 'dexto') {
+                if (provider === 'dexto-nova') {
                     try {
                         const { canUseDextoProvider } = await import('../../utils/dexto-setup.js');
                         const canUse = await canUseDextoProvider();
@@ -474,7 +474,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                                     id: generateMessageId('system'),
                                     role: 'system',
                                     content:
-                                        'Cannot switch to Dexto model - authentication required. Run /login to authenticate.',
+                                        'Cannot switch to Dexto Nova model - authentication required. Run /login to authenticate.',
                                     timestamp: new Date(),
                                 },
                             ]);
@@ -487,7 +487,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             {
                                 id: generateMessageId('error'),
                                 role: 'system',
-                                content: `Failed to verify Dexto auth: ${error instanceof Error ? error.message : String(error)}`,
+                                content: `Failed to verify Dexto Nova auth: ${error instanceof Error ? error.message : String(error)}`,
                                 timestamp: new Date(),
                             },
                         ]);

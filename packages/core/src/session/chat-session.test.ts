@@ -447,4 +447,239 @@ describe('ChatSession', () => {
             );
         });
     });
+
+    describe('Multi-Model Token Tracking', () => {
+        beforeEach(async () => {
+            // Mock accumulateTokenUsage to track calls
+            mockServices.sessionManager.accumulateTokenUsage = vi.fn().mockResolvedValue(undefined);
+            await chatSession.init();
+        });
+
+        test('should use payload provider/model for token accumulation', async () => {
+            const payloadProvider = 'anthropic';
+            const payloadModel = 'claude-4-opus-20250514';
+
+            // Emit llm:response with provider/model in payload
+            chatSession.eventBus.emit('llm:response', {
+                content: 'Test response',
+                provider: payloadProvider,
+                model: payloadModel,
+                tokenUsage: {
+                    inputTokens: 100,
+                    outputTokens: 50,
+                    totalTokens: 150,
+                },
+            });
+
+            // Wait for async handler
+            await new Promise((resolve) => setTimeout(resolve, 0));
+
+            // Should call accumulateTokenUsage with payload provider/model
+            expect(mockServices.sessionManager.accumulateTokenUsage).toHaveBeenCalledWith(
+                sessionId,
+                expect.objectContaining({
+                    inputTokens: 100,
+                    outputTokens: 50,
+                    totalTokens: 150,
+                }),
+                expect.any(Number), // cost
+                expect.objectContaining({
+                    provider: payloadProvider,
+                    model: payloadModel,
+                })
+            );
+        });
+
+        test('should fall back to llmConfig when payload lacks provider/model', async () => {
+            // Emit llm:response WITHOUT provider/model in payload
+            chatSession.eventBus.emit('llm:response', {
+                content: 'Test response',
+                tokenUsage: {
+                    inputTokens: 100,
+                    outputTokens: 50,
+                    totalTokens: 150,
+                },
+            });
+
+            // Wait for async handler
+            await new Promise((resolve) => setTimeout(resolve, 0));
+
+            // Should call accumulateTokenUsage with llmConfig provider/model
+            expect(mockServices.sessionManager.accumulateTokenUsage).toHaveBeenCalledWith(
+                sessionId,
+                expect.objectContaining({
+                    inputTokens: 100,
+                    outputTokens: 50,
+                    totalTokens: 150,
+                }),
+                expect.any(Number), // cost
+                expect.objectContaining({
+                    provider: mockLLMConfig.provider,
+                    model: mockLLMConfig.model,
+                })
+            );
+        });
+
+        test('should calculate cost using payload model for accurate multi-model tracking', async () => {
+            const payloadProvider = 'anthropic';
+            const payloadModel = 'claude-4-opus-20250514';
+
+            // Emit llm:response with different model than llmConfig
+            chatSession.eventBus.emit('llm:response', {
+                content: 'Test response',
+                provider: payloadProvider,
+                model: payloadModel,
+                tokenUsage: {
+                    inputTokens: 1000,
+                    outputTokens: 500,
+                    totalTokens: 1500,
+                },
+            });
+
+            // Wait for async handler
+            await new Promise((resolve) => setTimeout(resolve, 0));
+
+            // Should use payload model for pricing (not llmConfig)
+            // This ensures correct cost attribution when switching models
+            expect(mockServices.sessionManager.accumulateTokenUsage).toHaveBeenCalledWith(
+                sessionId,
+                expect.any(Object),
+                expect.any(Number), // Cost calculated for payload model
+                expect.objectContaining({
+                    provider: payloadProvider,
+                    model: payloadModel,
+                })
+            );
+        });
+
+        test('should handle token accumulation errors gracefully', async () => {
+            // Mock accumulateTokenUsage to throw error
+            mockServices.sessionManager.accumulateTokenUsage = vi
+                .fn()
+                .mockRejectedValue(new Error('Storage error'));
+
+            // Emit llm:response
+            chatSession.eventBus.emit('llm:response', {
+                content: 'Test response',
+                tokenUsage: {
+                    inputTokens: 100,
+                    outputTokens: 50,
+                    totalTokens: 150,
+                },
+            });
+
+            // Wait for async handler
+            await new Promise((resolve) => setTimeout(resolve, 0));
+
+            // Should log warning but not throw (fire-and-forget pattern)
+            expect(mockLogger.warn).toHaveBeenCalledWith(
+                expect.stringContaining('Failed to accumulate token usage')
+            );
+        });
+
+        test('should not accumulate tokens when tokenUsage is missing', async () => {
+            // Emit llm:response without tokenUsage
+            chatSession.eventBus.emit('llm:response', {
+                content: 'Test response',
+            });
+
+            // Wait for async handler
+            await new Promise((resolve) => setTimeout(resolve, 0));
+
+            // Should NOT call accumulateTokenUsage
+            expect(mockServices.sessionManager.accumulateTokenUsage).not.toHaveBeenCalled();
+        });
+
+        test('should handle multiple models in same session', async () => {
+            // First model: OpenAI GPT-4
+            chatSession.eventBus.emit('llm:response', {
+                content: 'Response from GPT-4',
+                provider: 'openai',
+                model: 'gpt-4',
+                tokenUsage: {
+                    inputTokens: 100,
+                    outputTokens: 50,
+                    totalTokens: 150,
+                },
+            });
+
+            await new Promise((resolve) => setTimeout(resolve, 0));
+
+            // Second model: Anthropic Claude
+            chatSession.eventBus.emit('llm:response', {
+                content: 'Response from Claude',
+                provider: 'anthropic',
+                model: 'claude-4-opus-20250514',
+                tokenUsage: {
+                    inputTokens: 200,
+                    outputTokens: 100,
+                    totalTokens: 300,
+                },
+            });
+
+            await new Promise((resolve) => setTimeout(resolve, 0));
+
+            // Third model: Back to OpenAI
+            chatSession.eventBus.emit('llm:response', {
+                content: 'Another response from GPT-4',
+                provider: 'openai',
+                model: 'gpt-4',
+                tokenUsage: {
+                    inputTokens: 50,
+                    outputTokens: 25,
+                    totalTokens: 75,
+                },
+            });
+
+            await new Promise((resolve) => setTimeout(resolve, 0));
+
+            // Should have been called 3 times with correct models
+            expect(mockServices.sessionManager.accumulateTokenUsage).toHaveBeenCalledTimes(3);
+
+            // First call: OpenAI
+            expect(mockServices.sessionManager.accumulateTokenUsage).toHaveBeenNthCalledWith(
+                1,
+                sessionId,
+                expect.objectContaining({
+                    inputTokens: 100,
+                    outputTokens: 50,
+                }),
+                expect.any(Number),
+                expect.objectContaining({
+                    provider: 'openai',
+                    model: 'gpt-4',
+                })
+            );
+
+            // Second call: Anthropic
+            expect(mockServices.sessionManager.accumulateTokenUsage).toHaveBeenNthCalledWith(
+                2,
+                sessionId,
+                expect.objectContaining({
+                    inputTokens: 200,
+                    outputTokens: 100,
+                }),
+                expect.any(Number),
+                expect.objectContaining({
+                    provider: 'anthropic',
+                    model: 'claude-4-opus-20250514',
+                })
+            );
+
+            // Third call: OpenAI again
+            expect(mockServices.sessionManager.accumulateTokenUsage).toHaveBeenNthCalledWith(
+                3,
+                sessionId,
+                expect.objectContaining({
+                    inputTokens: 50,
+                    outputTokens: 25,
+                }),
+                expect.any(Number),
+                expect.objectContaining({
+                    provider: 'openai',
+                    model: 'gpt-4',
+                })
+            );
+        });
+    });
 });

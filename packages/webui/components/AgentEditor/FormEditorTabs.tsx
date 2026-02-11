@@ -178,8 +178,10 @@ function ModelTab({ config, onChange, errors }: TabProps) {
                                 <SelectContent>
                                     {LLM_PROVIDERS.map((p) => (
                                         <SelectItem key={p} value={p}>
-                                            {p.charAt(0).toUpperCase() +
-                                                p.slice(1).replace(/-/g, ' ')}
+                                            {p === 'dexto-nova'
+                                                ? 'Dexto Nova'
+                                                : p.charAt(0).toUpperCase() +
+                                                  p.slice(1).replace(/-/g, ' ')}
                                         </SelectItem>
                                     ))}
                                 </SelectContent>

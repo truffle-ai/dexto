@@ -1,6 +1,6 @@
 {
   "name": "@dexto/tools-process",
-  "version": "1.5.7",
+  "version": "1.5.8",
   "description": "Process tools provider for Dexto agents",
   "type": "module",
   "main": "./dist/index.js",

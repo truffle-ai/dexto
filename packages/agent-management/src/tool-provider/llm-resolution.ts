@@ -5,7 +5,7 @@
  * this module determines which LLM configuration the sub-agent should use.
  *
  * Resolution priority:
- * 1. If parent's provider can serve sub-agent's model (dexto/openrouter/same provider)
+ * 1. If parent's provider can serve sub-agent's model (dexto-nova/openrouter/same provider)
  *    → Use parent's provider + sub-agent's model (transformed if needed)
  * 2. If incompatible providers
  *    → Fall back to parent's full LLM config (with warning)
@@ -48,12 +48,12 @@ export interface ResolveSubAgentLLMOptions {
  * when possible, while leveraging the parent's provider/credentials.
  *
  * @example
- * // Parent uses dexto, sub-agent wants anthropic/haiku
+ * // Parent uses dexto-nova, sub-agent wants anthropic/haiku
  * resolveSubAgentLLM({
  *   subAgentLLM: { provider: 'anthropic', model: 'claude-haiku-4-5-20251001', apiKey: '$ANTHROPIC_API_KEY' },
- *   parentLLM: { provider: 'dexto', model: 'anthropic/claude-sonnet-4', apiKey: '$DEXTO_API_KEY' }
+ *   parentLLM: { provider: 'dexto-nova', model: 'anthropic/claude-sonnet-4', apiKey: '$DEXTO_API_KEY' }
  * })
- * // Returns: { provider: 'dexto', model: 'anthropic/claude-haiku-4.5', apiKey: '$DEXTO_API_KEY' }
+ * // Returns: { provider: 'dexto-nova', model: 'anthropic/claude-haiku-4.5', apiKey: '$DEXTO_API_KEY' }
  */
 export function resolveSubAgentLLM(options: ResolveSubAgentLLMOptions): SubAgentLLMResolution {
     const { subAgentLLM, parentLLM, subAgentId } = options;
@@ -63,7 +63,7 @@ export function resolveSubAgentLLM(options: ResolveSubAgentLLMOptions): SubAgent
     const subAgentModel = subAgentLLM.model;
     const parentProvider = parentLLM.provider;
 
-    // Case 1: Parent's provider is a gateway that can serve all models (dexto, openrouter)
+    // Case 1: Parent's provider is a gateway that can serve all models (dexto-nova, openrouter)
     // Transform sub-agent's model to gateway format and use parent's credentials
     if (hasAllRegistryModelsSupport(parentProvider)) {
         try {
@@ -120,6 +120,6 @@ export function resolveSubAgentLLM(options: ResolveSubAgentLLMOptions): SubAgent
         reason:
             `${agentLabel} cannot use ${subAgentProvider}/${subAgentModel} with parent's ` +
             `${parentProvider} provider. Falling back to parent's LLM config. ` +
-            `Tip: Use 'dexto login' for Dexto Credits which supports all models.`,
+            `Tip: Use 'dexto login' for Dexto Nova Credits which supports all models.`,
     };
 }

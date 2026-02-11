@@ -928,10 +928,11 @@ program
 program
     .command('billing')
     .description('Show billing status and credit balance')
+    .option('--buy', 'Open Dexto Nova credits purchase page')
     .action(
-        withAnalytics('billing', async () => {
+        withAnalytics('billing', async (options: { buy?: boolean }) => {
             try {
-                await handleBillingStatusCommand();
+                await handleBillingStatusCommand(options);
                 safeExit('billing', 0);
             } catch (err) {
                 if (err instanceof ExitSignal) throw err;
@@ -1165,7 +1166,7 @@ program
                             `❌ Model '${opts.model}' looks like an OpenRouter-format ID (provider/model).`
                         );
                         console.error(
-                            `   This is ambiguous for --model inference. Please also pass --provider (e.g. --provider dexto or --provider openrouter).`
+                            `   This is ambiguous for --model inference. Please also pass --provider (e.g. --provider dexto-nova or --provider openrouter).`
                         );
                         safeExit('main', 1, 'ambiguous-model');
                     }

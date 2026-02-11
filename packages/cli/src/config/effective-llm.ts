@@ -27,8 +27,8 @@
  * import { getEffectiveLLMConfig } from './config/effective-llm.js';
  *
  * const llm = await getEffectiveLLMConfig();
- * if (llm?.provider === 'dexto') {
- *   // User is configured to use Dexto credits
+ * if (llm?.provider === 'dexto-nova') {
+ *   // User is configured to use Dexto Nova credits
  * }
  *
  * console.log(`Using ${llm.model} via ${llm.provider} (from ${llm.source})`);
@@ -63,7 +63,7 @@ export type LLMConfigSource =
  * The resolved effective LLM configuration with source tracking
  */
 export interface EffectiveLLMConfig {
-    /** LLM provider (e.g., 'dexto', 'anthropic', 'openai') */
+    /** LLM provider (e.g., 'dexto-nova', 'anthropic', 'openai') */
     provider: LLMProvider;
     /** Model identifier (format depends on provider) */
     model: string;
@@ -215,7 +215,7 @@ export async function getEffectiveLLMConfig(
  * the Dexto provider (which requires authentication).
  *
  * @param options - Same options as getEffectiveLLMConfig
- * @returns true if using provider: dexto, false otherwise
+ * @returns true if using provider: dexto-nova, false otherwise
  *
  * @example
  * ```typescript
@@ -228,5 +228,5 @@ export async function isUsingDextoCredits(
     options: GetEffectiveLLMConfigOptions = {}
 ): Promise<boolean> {
     const config = await getEffectiveLLMConfig(options);
-    return config?.provider === 'dexto';
+    return config?.provider === 'dexto-nova';
 }
