@@ -19,21 +19,21 @@
 
 ## Current Task
 
-**Task:** **5.6.1 Review and resolve `USER_VERIFICATION.md`**
-**Status:** _Not started_ (Owner verification)
+**Task:** **5.4 Update documentation**
+**Status:** _Deferred_ (Do not do in this plan)
 **Branch:** `rebuild-di`
 
 ### Plan
-- Review `feature-plans/image-and-core-di-refactor/USER_VERIFICATION.md`
-- Resolve items, or explicitly defer them with dates/notes
-- Exit: list is empty or all items are marked resolved
+- No-op: explicitly deferred per `PLAN.md`
+- Only revisit if the owner asks for docs updates in a follow-up
 
 ### Notes
 _Log findings, issues, and progress here as you work._
 2026-02-11:
 - Completed Phase 5.3 (additional resolver + image conformance unit coverage).
 - Confirmed `bash scripts/quality-checks.sh` passes.
-- Phase 5.4 docs task remains intentionally deferred per `PLAN.md`.
+- Reviewed/cleared `USER_VERIFICATION.md` (UV-1 resolved: keep `ImageTarget` / `ImageConstraint` for now).
+- Phase 5.4 docs task remains intentionally deferred per `PLAN.md` (do not do).
 
 ---
 
@@ -125,6 +125,7 @@ _Move tasks here after completion. Keep a brief log of what was done and any dev
 | 5.2 | Update all broken tests | 2026-02-11 | Updated tests that referenced deleted registry-era schemas/tools and updated filesystem tool tests for new signatures. `pnpm -w test` passes. |
 | 5.3 | Add new test coverage | 2026-02-11 | Added resolver tests (tool prefixing/conflicts, schema failures, plugin priority conflicts) and expanded `loadImage()` conformance tests. `bash scripts/quality-checks.sh` passes. |
 | 5.5 | Update OpenAPI / server docs if affected | 2026-02-11 | Ran `pnpm run sync-openapi-docs` and verified `sync-openapi-docs:check` passes. |
+| 5.6.1 | Review and resolve `USER_VERIFICATION.md` | 2026-02-11 | Cleared the list by resolving UV-1 (keep `ImageTarget` / `ImageConstraint` enums for now). |
 
 ---
 
@@ -142,7 +143,7 @@ _Move tasks here after completion. Keep a brief log of what was done and any dev
 | Phase 2 — Resolver | Completed | 2.5, 2.1, 2.2, 2.6, 2.3 complete (2.4 deferred) |
 | Phase 3 — Images | Completed | 3.3 deferred; 3.5 image-local + 3.6 bundler updated |
 | Phase 4 — CLI/Server | Completed | 4.1–4.5 complete |
-| Phase 5 — Cleanup | In progress | 5.0–5.3 + 5.5 complete; 5.4 deferred; 5.6 pending (owner verification) |
+| Phase 5 — Cleanup | In progress | 5.0–5.3 + 5.5 complete; 5.4 deferred; 5.6 complete |
 
 ---
 
