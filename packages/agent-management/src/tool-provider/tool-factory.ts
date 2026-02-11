@@ -287,22 +287,7 @@ export const agentSpawnerToolsFactory: ToolFactory<AgentSpawnerConfig> = {
                 backgroundAbortController.abort();
             });
 
-            const spawnAgentTool = createSpawnAgentTool(
-                service,
-                taskRegistry,
-                (taskId, promise, sessionId) => {
-                    if (sessionId) {
-                        taskSessions.set(taskId, sessionId);
-                    }
-
-                    emitTasksUpdate(sessionId);
-                    promise.finally(() => {
-                        taskSessions.delete(taskId);
-                        emitTasksUpdate(sessionId);
-                        triggerBackgroundCompletion(taskId, sessionId);
-                    });
-                }
-            );
+            const spawnAgentTool = createSpawnAgentTool(service);
 
             const tools = [
                 spawnAgentTool,

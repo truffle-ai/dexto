@@ -257,46 +257,67 @@ describe('Session Integration: Chat History Preservation', () => {
 });
 
 describe('Session Integration: Multi-Model Token Tracking', () => {
-    let agent: DextoAgent;
+    let agent: DextoAgent | undefined;
 
-    const testConfig: AgentConfig = {
-        systemPrompt: 'You are a helpful assistant.',
-        llm: {
+    const testSettings: AgentRuntimeSettings = {
+        systemPrompt: SystemPromptConfigSchema.parse('You are a helpful assistant.'),
+        llm: LLMConfigSchema.parse({
             provider: 'openai',
             model: 'gpt-5-mini',
             apiKey: 'test-key-123',
-        },
-        mcpServers: {},
-        logger: {
-            level: 'warn',
-            transports: [{ type: 'console', colorize: false }],
-        },
-        toolConfirmation: {
+        }),
+        agentId: 'token-tracking-test-agent',
+        mcpServers: ServerConfigsSchema.parse({}),
+        sessions: SessionConfigSchema.parse({}),
+        toolConfirmation: ToolConfirmationConfigSchema.parse({
             mode: 'auto-approve',
             timeout: 120000,
-        },
-        elicitation: {
+        }),
+        elicitation: ElicitationConfigSchema.parse({
             enabled: false,
             timeout: 120000,
-        },
+        }),
+        internalResources: InternalResourcesSchema.parse([]),
+        prompts: PromptsSchema.parse([]),
+        compaction: CompactionConfigSchema.parse(DEFAULT_COMPACTION_CONFIG),
     };
 
     beforeEach(async () => {
-        agent = new DextoAgent(testConfig);
+        const loggerConfig = LoggerConfigSchema.parse({
+            level: 'warn',
+            transports: [{ type: 'console', colorize: false }],
+        });
+        const logger = createLogger({ config: loggerConfig, agentId: testSettings.agentId });
+
+        agent = new DextoAgent({
+            ...testSettings,
+            logger,
+            storage: {
+                blob: createInMemoryBlobStore(),
+                database: createInMemoryDatabase(),
+                cache: createInMemoryCache(),
+            },
+            tools: [],
+            plugins: [],
+        });
         await agent.start();
     });
 
     afterEach(async () => {
-        if (agent.isStarted()) {
+        if (agent && agent.isStarted()) {
             await agent.stop();
         }
     });
 
     test('should accumulate token usage for a single model', async () => {
+        const a = agent;
+        if (!a) {
+            throw new Error('Test agent not initialized');
+        }
         const sessionId = 'single-model-session';
-        await agent.createSession(sessionId);
+        await a.createSession(sessionId);
 
-        const sessionManager = agent.sessionManager;
+        const sessionManager = a.sessionManager;
         const tokenUsage = {
             inputTokens: 100,
             outputTokens: 50,
@@ -326,10 +347,14 @@ describe('Session Integration: Multi-Model Token Tracking', () => {
     });
 
     test('should track multiple models and verify totals match sum of all models', async () => {
+        const a = agent;
+        if (!a) {
+            throw new Error('Test agent not initialized');
+        }
         const sessionId = 'multi-model-session';
-        await agent.createSession(sessionId);
+        await a.createSession(sessionId);
 
-        const sessionManager = agent.sessionManager;
+        const sessionManager = a.sessionManager;
 
         // Define multiple model usages with complete token breakdown
         const usages = [
@@ -506,10 +531,14 @@ describe('Session Integration: Multi-Model Token Tracking', () => {
     });
 
     test('should handle optional token fields correctly', async () => {
+        const a = agent;
+        if (!a) {
+            throw new Error('Test agent not initialized');
+        }
         const sessionId = 'optional-tokens-session';
-        await agent.createSession(sessionId);
+        await a.createSession(sessionId);
 
-        const sessionManager = agent.sessionManager;
+        const sessionManager = a.sessionManager;
 
         // Usage with only required fields
         await sessionManager.accumulateTokenUsage(
@@ -535,10 +564,14 @@ describe('Session Integration: Multi-Model Token Tracking', () => {
     });
 
     test('should handle reasoning and cache tokens', async () => {
+        const a = agent;
+        if (!a) {
+            throw new Error('Test agent not initialized');
+        }
         const sessionId = 'advanced-tokens-session';
-        await agent.createSession(sessionId);
+        await a.createSession(sessionId);
 
-        const sessionManager = agent.sessionManager;
+        const sessionManager = a.sessionManager;
 
         await sessionManager.accumulateTokenUsage(
             sessionId,
@@ -567,10 +600,14 @@ describe('Session Integration: Multi-Model Token Tracking', () => {
     });
 
     test('should update model timestamps correctly', async () => {
+        const a = agent;
+        if (!a) {
+            throw new Error('Test agent not initialized');
+        }
         const sessionId = 'timestamp-session';
-        await agent.createSession(sessionId);
+        await a.createSession(sessionId);
 
-        const sessionManager = agent.sessionManager;
+        const sessionManager = a.sessionManager;
 
         const firstCallTime = Date.now();
         await sessionManager.accumulateTokenUsage(
@@ -600,10 +637,14 @@ describe('Session Integration: Multi-Model Token Tracking', () => {
     });
 
     test('should handle accumulation without cost', async () => {
+        const a = agent;
+        if (!a) {
+            throw new Error('Test agent not initialized');
+        }
         const sessionId = 'no-cost-session';
-        await agent.createSession(sessionId);
+        await a.createSession(sessionId);
 
-        const sessionManager = agent.sessionManager;
+        const sessionManager = a.sessionManager;
 
         await sessionManager.accumulateTokenUsage(
             sessionId,
@@ -619,10 +660,14 @@ describe('Session Integration: Multi-Model Token Tracking', () => {
     });
 
     test('should handle concurrent token accumulation with mutex', async () => {
+        const a = agent;
+        if (!a) {
+            throw new Error('Test agent not initialized');
+        }
         const sessionId = 'concurrent-session';
-        await agent.createSession(sessionId);
+        await a.createSession(sessionId);
 
-        const sessionManager = agent.sessionManager;
+        const sessionManager = a.sessionManager;
 
         // Fire multiple concurrent accumulations
         const promises = Array.from({ length: 10 }, () =>
