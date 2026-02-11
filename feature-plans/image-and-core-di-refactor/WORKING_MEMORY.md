@@ -19,25 +19,28 @@
 
 ## Current Task
 
-**Task:** **5.4 Update documentation**
-**Status:** _Deferred_ (Do not do in this plan)
+**Task:** **5.6 Owner verification (UV-1)**
+**Status:** _Blocked (owner input needed)_
 **Branch:** `rebuild-di`
 
 ### Plan
-- No-op: explicitly deferred per `PLAN.md`
-- Only revisit if the owner asks for docs updates in a follow-up
+- Decide UV-1: keep/simplify/remove `ImageTarget` / `ImageConstraint` in `@dexto/agent-config` (`DextoImageModule.metadata`).
+- After UV-1 is resolved, close out Phase 5.6 and proceed to Phase 6 (platform) or defer remaining items to follow-ups.
 
 ### Notes
 _Log findings, issues, and progress here as you work._
 2026-02-11:
 - Completed Phase 5.3 (additional resolver + image conformance unit coverage).
 - Confirmed `bash scripts/quality-checks.sh` passes.
-- Reviewed/cleared `USER_VERIFICATION.md` (UV-1 resolved: keep `ImageTarget` / `ImageConstraint` for now).
+- Reviewed `USER_VERIFICATION.md` (UV-1 re-opened pending explicit owner approval).
 - Phase 5.4 docs task remains intentionally deferred per `PLAN.md` (do not do).
 2026-02-11:
 - Merged `main` into `rebuild-di` (conflicts in `ToolManager` + agent-spawner legacy provider deletion).
 - Post-merge fixes: align `agentSpawnerToolsFactory` with `createSpawnAgentTool(service)` signature; sync OpenAPI docs; update session token-tracking integration tests to new DI agent construction.
 - Confirmed `bash scripts/quality-checks.sh` passes.
+2026-02-11:
+- Drafted `IMAGE_RESOLUTION_PLAN.md` (Docker-like image store under `~/.dexto/images`, explicit installs; no auto-install).
+- Updated `PLAN.md` to add Phase 7 and link to the follow-up plan.
 
 ---
 
@@ -58,6 +61,7 @@ _Record important decisions made during implementation that aren't in the main p
 | 2026-02-11 | Tool approval overrides receive `ToolExecutionContext` | Enables filesystem directory approval to use `ApprovalManager` without factory-time glue; removes noop logger / local approval maps. |
 | 2026-02-11 | Tool provider packages export `ToolFactory` only | Removes dead registry-based `CustomToolProvider` surfaces after Phase 5.1; keeps tool packages image-compatible. |
 | 2026-02-11 | Image factories include optional `metadata` | Keeps discovery responses type-safe (no casts) while preserving passthrough metadata for UI/CLI. |
+| 2026-02-11 | CLI should resolve `image:` via a Dexto-managed image store (`~/.dexto/images`) | Avoids fragile “global npm/pnpm prefix” behavior; supports user-built images with deterministic resolution. (Installer/versioning details TBD in `IMAGE_RESOLUTION_PLAN.md`.) |
 
 ---
 
@@ -130,6 +134,7 @@ _Move tasks here after completion. Keep a brief log of what was done and any dev
 | 5.3 | Add new test coverage | 2026-02-11 | Added resolver tests (tool prefixing/conflicts, schema failures, plugin priority conflicts) and expanded `loadImage()` conformance tests. `bash scripts/quality-checks.sh` passes. |
 | 5.5 | Update OpenAPI / server docs if affected | 2026-02-11 | Ran `pnpm run sync-openapi-docs` and verified `sync-openapi-docs:check` passes. |
 | 5.6.1 | Review and resolve `USER_VERIFICATION.md` | 2026-02-11 | Completed an initial review, but UV-1 was re-opened pending explicit owner approval. |
+| 7.0 | Draft image resolution follow-up plan | 2026-02-11 | Added `IMAGE_RESOLUTION_PLAN.md` (Docker-like image store concept) and updated `PLAN.md` to add Phase 7. No implementation yet. |
 
 ---
 
@@ -148,6 +153,7 @@ _Move tasks here after completion. Keep a brief log of what was done and any dev
 | Phase 3 — Images | Completed | 3.3 deferred; 3.5 image-local + 3.6 bundler updated |
 | Phase 4 — CLI/Server | Completed | 4.1–4.5 complete |
 | Phase 5 — Cleanup | In progress | 5.0–5.3 + 5.5 complete; 5.4 deferred; 5.6 pending (UV-1 reopened) |
+| Phase 7 — Image resolution | Planned | Follow-up plan drafted in `IMAGE_RESOLUTION_PLAN.md`. |
 
 ---
 

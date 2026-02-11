@@ -2549,6 +2549,15 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
 
 ---
 
+### Phase 7: Image resolution (CLI + Platform) — follow‑up plan
+> **Goal:** Make `image:` resolution deterministic for the globally-installed CLI (and define a compatible platform policy).
+
+**Why:** Even with the DI refactor, `loadImage()` ultimately relies on host module resolution. A global CLI cannot reliably import images that are only installed in a project’s `node_modules`. This needs an explicit “image store / image registry” strategy.
+
+**Plan:** See [`IMAGE_RESOLUTION_PLAN.md`](./IMAGE_RESOLUTION_PLAN.md).
+
+---
+
 ### Dependency order
 ```
 Phase 0 (foundation) → Phase 1 (core DI) → Phase 2 (resolver) → Phase 3 (images)
@@ -2560,6 +2569,8 @@ Phase 0 (foundation) → Phase 1 (core DI) → Phase 2 (resolver) → Phase 3 (i
                                                          Phase 5.6 (owner verification)
                                                                        ↓
                                                                  Phase 6 (platform)
+                                                                       ↓
+                                                   Phase 7 (image resolution follow-up)
 ```
 
 **Phases 1 and 2 can partially overlap:** as each core module is decoupled (1.1, 1.2, 1.3), the corresponding resolver section (2.2) can be built to exercise it.
