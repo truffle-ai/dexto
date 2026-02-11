@@ -6,7 +6,9 @@ export {
     CacheConfigSchema,
     type CacheType,
     type CacheConfig,
+    InMemoryCacheSchema,
     type InMemoryCacheConfig,
+    RedisCacheSchema,
     type RedisCacheConfig,
 } from './cache/schemas.js';
 
@@ -16,8 +18,11 @@ export {
     DatabaseConfigSchema,
     type DatabaseType,
     type DatabaseConfig,
+    InMemoryDatabaseSchema,
     type InMemoryDatabaseConfig,
+    SqliteDatabaseSchema,
     type SqliteDatabaseConfig,
+    PostgresDatabaseSchema,
     type PostgresDatabaseConfig,
 } from './database/schemas.js';
 
@@ -42,8 +47,9 @@ import { BlobStoreConfigSchema } from './blob/schemas.js';
  * Top-level storage configuration schema
  * Composes cache, database, and blob store configurations
  *
- * Note: Blob config uses runtime validation via the provider registry,
- * allowing custom providers to be registered at the CLI/server layer.
+ * Note: detailed backend validation happens in the resolver (`@dexto/agent-config`)
+ * via each image factory's `configSchema`. This schema validates only the structural
+ * shape required for config parsing and defaults.
  */
 export const StorageSchema = z
     .object({

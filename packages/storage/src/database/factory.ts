@@ -39,15 +39,21 @@ export async function createDatabase(config: unknown, logger: IDextoLogger): Pro
     const type = parsedConfig.data.type;
 
     switch (type) {
-        case 'in-memory':
+        case 'in-memory': {
             logger.info('Using In-Memory database');
-            return await inMemoryDatabaseProvider.create(parsedConfig.data, logger);
-        case 'sqlite':
+            const validatedConfig = inMemoryDatabaseProvider.configSchema.parse(config);
+            return await inMemoryDatabaseProvider.create(validatedConfig, logger);
+        }
+        case 'sqlite': {
             logger.info('Using SQLite database');
-            return await sqliteDatabaseProvider.create(parsedConfig.data, logger);
-        case 'postgres':
+            const validatedConfig = sqliteDatabaseProvider.configSchema.parse(config);
+            return await sqliteDatabaseProvider.create(validatedConfig, logger);
+        }
+        case 'postgres': {
             logger.info('Using PostgreSQL database');
-            return await postgresDatabaseProvider.create(parsedConfig.data, logger);
+            const validatedConfig = postgresDatabaseProvider.configSchema.parse(config);
+            return await postgresDatabaseProvider.create(validatedConfig, logger);
+        }
         default:
             throw StorageError.unknownDatabaseProvider(type, [...DATABASE_TYPES]);
     }

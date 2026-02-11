@@ -33,12 +33,16 @@ export async function createCache(config: unknown, logger: IDextoLogger): Promis
     const type = parsedConfig.data.type;
 
     switch (type) {
-        case 'in-memory':
+        case 'in-memory': {
             logger.info('Using In-Memory cache');
-            return await inMemoryCacheProvider.create(parsedConfig.data, logger);
-        case 'redis':
+            const validatedConfig = inMemoryCacheProvider.configSchema.parse(config);
+            return await inMemoryCacheProvider.create(validatedConfig, logger);
+        }
+        case 'redis': {
             logger.info('Using Redis cache');
-            return await redisCacheProvider.create(parsedConfig.data, logger);
+            const validatedConfig = redisCacheProvider.configSchema.parse(config);
+            return await redisCacheProvider.create(validatedConfig, logger);
+        }
         default:
             throw StorageError.unknownCacheProvider(type, [...CACHE_TYPES]);
     }

@@ -56,44 +56,32 @@ export const PostgresDatabaseSchema = BaseDatabaseSchema.extend({
         .string()
         .optional()
         .describe('Optional key prefix for namespacing (e.g., "dev:myagent:")'),
-}).strict();
+})
+    .strict()
+    .superRefine((data, ctx) => {
+        if (!data.url && !data.connectionString && !data.host) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message:
+                    "PostgreSQL database requires one of 'url', 'connectionString', or 'host' to be specified",
+                path: ['url'],
+                params: {
+                    code: StorageErrorCode.CONNECTION_CONFIG_MISSING,
+                    scope: ErrorScope.STORAGE,
+                    type: ErrorType.USER,
+                },
+            });
+        }
+    });
 
 export type PostgresDatabaseConfig = z.output<typeof PostgresDatabaseSchema>;
 
-// Database configuration using discriminated union
+// Database configuration envelope (validated by image factory configSchema in the resolver)
 export const DatabaseConfigSchema = z
-    .discriminatedUnion(
-        'type',
-        [InMemoryDatabaseSchema, SqliteDatabaseSchema, PostgresDatabaseSchema],
-        {
-            errorMap: (issue, ctx) => {
-                if (issue.code === z.ZodIssueCode.invalid_union_discriminator) {
-                    return {
-                        message: `Invalid database type. Expected 'in-memory', 'sqlite', or 'postgres'.`,
-                    };
-                }
-                return { message: ctx.defaultError };
-            },
-        }
-    )
-    .describe('Database configuration')
-    .superRefine((data, ctx) => {
-        // Validate PostgreSQL requirements
-        if (data.type === 'postgres') {
-            if (!data.url && !data.connectionString && !data.host) {
-                ctx.addIssue({
-                    code: z.ZodIssueCode.custom,
-                    message:
-                        "PostgreSQL database requires one of 'url', 'connectionString', or 'host' to be specified",
-                    path: ['url'],
-                    params: {
-                        code: StorageErrorCode.CONNECTION_CONFIG_MISSING,
-                        scope: ErrorScope.STORAGE,
-                        type: ErrorType.USER,
-                    },
-                });
-            }
-        }
-    });
+    .object({
+        type: z.string().describe('Database provider type identifier'),
+    })
+    .passthrough()
+    .describe('Database configuration (validated by image factory)');
 
 export type DatabaseConfig = z.output<typeof DatabaseConfigSchema>;

@@ -37,39 +37,31 @@ export const RedisCacheSchema = BaseCacheSchema.extend({
     port: z.number().int().positive().optional().describe('Redis port'),
     password: z.string().optional().describe('Redis password'),
     database: z.number().int().nonnegative().optional().describe('Redis database number'),
-}).strict();
+})
+    .strict()
+    .superRefine((data, ctx) => {
+        if (!data.url && !data.host) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "Redis cache requires either 'url' or 'host' to be specified",
+                path: ['url'],
+                params: {
+                    code: StorageErrorCode.CONNECTION_CONFIG_MISSING,
+                    scope: ErrorScope.STORAGE,
+                    type: ErrorType.USER,
+                },
+            });
+        }
+    });
 
 export type RedisCacheConfig = z.output<typeof RedisCacheSchema>;
 
-// Cache configuration using discriminated union
+// Cache configuration envelope (validated by image factory configSchema in the resolver)
 export const CacheConfigSchema = z
-    .discriminatedUnion('type', [InMemoryCacheSchema, RedisCacheSchema], {
-        errorMap: (issue, ctx) => {
-            if (issue.code === z.ZodIssueCode.invalid_union_discriminator) {
-                return {
-                    message: `Invalid cache type. Expected 'in-memory' or 'redis'.`,
-                };
-            }
-            return { message: ctx.defaultError };
-        },
+    .object({
+        type: z.string().describe('Cache provider type identifier'),
     })
-    .describe('Cache configuration')
-    .superRefine((data, ctx) => {
-        // Validate Redis requirements
-        if (data.type === 'redis') {
-            if (!data.url && !data.host) {
-                ctx.addIssue({
-                    code: z.ZodIssueCode.custom,
-                    message: "Redis cache requires either 'url' or 'host' to be specified",
-                    path: ['url'],
-                    params: {
-                        code: StorageErrorCode.CONNECTION_CONFIG_MISSING,
-                        scope: ErrorScope.STORAGE,
-                        type: ErrorType.USER,
-                    },
-                });
-            }
-        }
-    });
+    .passthrough()
+    .describe('Cache configuration (validated by image factory)');
 
 export type CacheConfig = z.output<typeof CacheConfigSchema>;

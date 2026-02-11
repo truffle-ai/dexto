@@ -1,5 +1,4 @@
 import {
-    BuiltInPluginConfigSchema,
     type DextoImageModule,
     type PluginFactory,
     type CompactionFactory,
@@ -8,6 +7,7 @@ import {
     ReactiveOverflowCompactionConfigSchema,
     type ReactiveOverflowCompactionConfig,
 } from '@dexto/agent-config';
+import { z } from 'zod';
 import {
     ContentPolicyPlugin,
     ResponseSanitizerPlugin,
@@ -31,13 +31,31 @@ import { todoToolsFactory } from '@dexto/tools-todo';
 import { planToolsFactory } from '@dexto/tools-plan';
 import { agentSpawnerToolsFactory } from '@dexto/agent-management';
 
-const contentPolicyFactory: PluginFactory = {
-    configSchema: BuiltInPluginConfigSchema,
+const contentPolicyConfigSchema = z
+    .object({
+        type: z.literal('content-policy'),
+        maxInputChars: z.number().int().positive().optional(),
+        redactEmails: z.boolean().optional(),
+        redactApiKeys: z.boolean().optional(),
+    })
+    .strict();
+
+const responseSanitizerConfigSchema = z
+    .object({
+        type: z.literal('response-sanitizer'),
+        redactEmails: z.boolean().optional(),
+        redactApiKeys: z.boolean().optional(),
+        maxResponseLength: z.number().int().positive().optional(),
+    })
+    .strict();
+
+const contentPolicyFactory: PluginFactory<z.output<typeof contentPolicyConfigSchema>> = {
+    configSchema: contentPolicyConfigSchema,
     create: (_config) => new ContentPolicyPlugin(),
 };
 
-const responseSanitizerFactory: PluginFactory = {
-    configSchema: BuiltInPluginConfigSchema,
+const responseSanitizerFactory: PluginFactory<z.output<typeof responseSanitizerConfigSchema>> = {
+    configSchema: responseSanitizerConfigSchema,
     create: (_config) => new ResponseSanitizerPlugin(),
 };
 

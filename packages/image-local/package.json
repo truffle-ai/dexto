@@ -35,7 +35,8 @@
     "@dexto/tools-filesystem": "workspace:*",
     "@dexto/tools-plan": "workspace:*",
     "@dexto/tools-process": "workspace:*",
-    "@dexto/tools-todo": "workspace:*"
+    "@dexto/tools-todo": "workspace:*",
+    "zod": "^3.25.0"
   },
   "devDependencies": {
     "tsup": "^8.0.0",

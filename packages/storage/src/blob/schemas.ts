@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 /**
  * Built-in blob store types (core providers only).
- * Custom providers registered at runtime are not included in this list.
+ * Custom providers shipped via images are not included in this list.
  */
 export const BLOB_STORE_TYPES = ['in-memory', 'local'] as const;
 export type BlobStoreType = (typeof BLOB_STORE_TYPES)[number];
@@ -75,17 +75,16 @@ export type LocalBlobStoreConfig = z.output<typeof LocalBlobStoreSchema>;
  * This schema uses `.passthrough()` to accept any provider-specific configuration.
  * It only validates that a `type` field exists as a string.
  *
- * Detailed validation for non-built-in providers happens in the product layer during the DI refactor
- * (via `@dexto/agent-config` image factories). Core built-ins are validated in `createBlobStore()`.
+ * Detailed validation happens in the product-layer resolver (`@dexto/agent-config`) via
+ * each image factory's `configSchema`. Built-in providers are validated in `createBlobStore()`.
  *
  * This approach allows:
- * - Custom providers to be registered at the CLI/server layer
- * - Each provider to define its own configuration structure
- * - Type safety through the provider registry pattern
+ * - Custom providers to be provided by a custom image
+ * - Each provider to define its own configuration structure and strict schema
  *
  * Example flow:
  * 1. Config passes this schema (basic structure check)
- * 2. Product layer resolves provider + validates against provider schema
+ * 2. Product layer resolves provider via image + validates against provider schema
  * 3. Core receives a concrete `BlobStore` instance (DI)
  */
 export const BlobStoreConfigSchema = z
@@ -93,7 +92,7 @@ export const BlobStoreConfigSchema = z
         type: z.string().describe('Blob store provider type'),
     })
     .passthrough()
-    .describe('Blob store configuration (validated at runtime by provider registry)');
+    .describe('Blob store configuration (validated by image factory)');
 
 /**
  * Blob store configuration type.
@@ -104,7 +103,7 @@ export const BlobStoreConfigSchema = z
 export type BlobStoreConfig =
     | InMemoryBlobStoreConfig
     | LocalBlobStoreConfig
-    | { type: string; [key: string]: any }; // Custom provider configs
+    | { type: string; [key: string]: unknown }; // Custom provider configs
 
 // Export individual schemas for use in providers
 export { InMemoryBlobStoreSchema, LocalBlobStoreSchema };

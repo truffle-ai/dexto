@@ -163,8 +163,8 @@ export function createAgentConfigSchema(options: LLMValidationOptions = {}) {
             ).default([]),
 
             plugins: PluginsConfigSchema.describe(
-                'Plugin system configuration for built-in and custom plugins'
-            ).default({}),
+                'Plugin configuration. Omit to use image defaults; provide to fully override.'
+            ).optional(),
 
             compaction: CompactionConfigSchema.describe('Context compaction configuration').default(
                 DEFAULT_COMPACTION_CONFIG

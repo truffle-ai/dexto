@@ -23,9 +23,13 @@ export type {
     ToolFactoryEntry,
 } from './schemas/agent-config.js';
 
-export { BuiltInPluginConfigSchema, PluginsConfigSchema } from './schemas/plugins.js';
+export { PluginFactoryEntrySchema, PluginsConfigSchema } from './schemas/plugins.js';
 
-export type { PluginsConfig, ValidatedPluginsConfig } from './schemas/plugins.js';
+export type {
+    PluginsConfig,
+    ValidatedPluginsConfig,
+    PluginFactoryEntry,
+} from './schemas/plugins.js';
 
 export {
     CompactionConfigSchema,

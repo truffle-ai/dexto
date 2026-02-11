@@ -373,7 +373,7 @@ describe('resolveServicesFromConfig', () => {
         const image = createMockImage({
             plugins: {
                 'content-policy': {
-                    configSchema: z.object({ priority: z.number().int() }).passthrough(),
+                    configSchema: z.object({ type: z.literal('content-policy') }).strict(),
                     create: () => ({ beforeResponse: async () => ({ ok: true }) }),
                 },
             },
@@ -381,26 +381,21 @@ describe('resolveServicesFromConfig', () => {
 
         const validated = AgentConfigSchema.parse({
             ...baseConfig,
-            plugins: {
-                contentPolicy: { priority: 10, enabled: true },
-                responseSanitizer: { priority: 5, enabled: true },
-            },
+            plugins: [{ type: 'content-policy' }, { type: 'response-sanitizer' }],
         } satisfies AgentConfig);
 
         await expect(resolveServicesFromConfig(validated, image)).rejects.toThrow(
-            "Unknown plugin type 'response-sanitizer'."
+            /Unknown plugin type 'response-sanitizer'/
         );
     });
 
-    it('throws when plugins have duplicate priority', async () => {
+    it('throws when plugin factory configSchema validation fails', async () => {
         const image = createMockImage({
             plugins: {
                 'content-policy': {
-                    configSchema: z.object({ priority: z.number().int() }).passthrough(),
-                    create: () => ({ beforeResponse: async () => ({ ok: true }) }),
-                },
-                'response-sanitizer': {
-                    configSchema: z.object({ priority: z.number().int() }).passthrough(),
+                    configSchema: z
+                        .object({ type: z.literal('content-policy'), foo: z.number() })
+                        .strict(),
                     create: () => ({ beforeResponse: async () => ({ ok: true }) }),
                 },
             },
@@ -408,18 +403,15 @@ describe('resolveServicesFromConfig', () => {
 
         const validated = AgentConfigSchema.parse({
             ...baseConfig,
-            plugins: {
-                contentPolicy: { priority: 10, enabled: true },
-                responseSanitizer: { priority: 10, enabled: true },
-            },
+            plugins: [{ type: 'content-policy', foo: 'not-a-number' }],
         } satisfies AgentConfig);
 
         await expect(resolveServicesFromConfig(validated, image)).rejects.toThrow(
-            'Duplicate plugin priority: 10'
+            /Expected number/
         );
     });
 
-    it('resolves built-in plugins via image factories (sorted by priority) and runs initialize()', async () => {
+    it('resolves plugins via image factories (list order) and runs initialize()', async () => {
         const initCalls: string[] = [];
 
         const createPlugin = (name: string): DextoPlugin => ({
@@ -432,11 +424,11 @@ describe('resolveServicesFromConfig', () => {
         const image = createMockImage({
             plugins: {
                 'content-policy': {
-                    configSchema: z.object({ priority: z.number().int() }).passthrough(),
+                    configSchema: z.object({ type: z.literal('content-policy') }).strict(),
                     create: () => createPlugin('content-policy'),
                 },
                 'response-sanitizer': {
-                    configSchema: z.object({ priority: z.number().int() }).passthrough(),
+                    configSchema: z.object({ type: z.literal('response-sanitizer') }).strict(),
                     create: () => createPlugin('response-sanitizer'),
                 },
             },
@@ -444,14 +436,11 @@ describe('resolveServicesFromConfig', () => {
 
         const validated = AgentConfigSchema.parse({
             ...baseConfig,
-            plugins: {
-                contentPolicy: { priority: 10, enabled: true },
-                responseSanitizer: { priority: 5, enabled: true },
-            },
+            plugins: [{ type: 'content-policy' }, { type: 'response-sanitizer' }],
         } satisfies AgentConfig);
 
         const services = await resolveServicesFromConfig(validated, image);
         expect(services.plugins).toHaveLength(2);
-        expect(initCalls).toEqual(['response-sanitizer', 'content-policy']);
+        expect(initCalls).toEqual(['content-policy', 'response-sanitizer']);
     });
 });

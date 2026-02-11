@@ -97,31 +97,15 @@ internalResources:
 
 # Plugin system configuration
 plugins:
-  # Built-in plugins
-  contentPolicy:
-    priority: 10
-    blocking: true
+  - type: content-policy
     maxInputChars: 50000
     redactEmails: true
     redactApiKeys: true
-    enabled: true
 
-  responseSanitizer:
-    priority: 900
-    blocking: false
+  - type: response-sanitizer
     redactEmails: true
     redactApiKeys: true
     maxResponseLength: 100000
-    enabled: true
-
-  # Custom Request Logger Plugin
-  custom:
-    - name: request-logger
-      module: "${{dexto.agent_dir}}/plugins/request-logger.ts"
-      enabled: true
-      blocking: false  # Non-blocking - we just want to observe, not interfere
-      priority: 5      # Run early to capture original data before other plugins modify it
-      config: {}       # Empty config uses defaults: ~/.dexto/logs/request-logger.log
 
 # Prompts - shown as clickable buttons in WebUI
 prompts:

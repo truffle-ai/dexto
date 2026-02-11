@@ -1,36 +1,31 @@
 import { z } from 'zod';
 
 /**
- * Schema for built-in plugin configuration
- * Built-in plugins don't need module paths - they're referenced by name
+ * Unified plugin factory entry configuration.
+ *
+ * Plugins are resolved via image factories, same pattern as tools:
+ * - omit `plugins` entirely → use `image.defaults.plugins`
+ * - specify `plugins` → full replace (arrays are atomic)
+ * - each entry can set `enabled: false` to skip that entry entirely
+ *
+ * Additional fields are type-specific and validated by the resolver against the
+ * image factory's `configSchema`.
  */
-export const BuiltInPluginConfigSchema = z
+export const PluginFactoryEntrySchema = z
     .object({
-        priority: z.number().int().describe('Execution priority (lower runs first)'),
-        blocking: z.boolean().optional().describe('If true, plugin errors will halt execution'),
-        enabled: z.boolean().default(true).describe('Whether this plugin is enabled'),
-        // Plugin-specific config fields are defined per-plugin
+        type: z.string().describe('Plugin factory type identifier'),
+        enabled: z.boolean().optional().describe('If false, skip this plugin entry entirely'),
     })
-    .passthrough() // Allow additional fields for plugin-specific config
-    .describe('Configuration for a built-in plugin');
+    .passthrough()
+    .describe(
+        'Plugin factory configuration. Additional fields are type-specific and validated by the resolver.'
+    );
 
-/**
- * Main plugins configuration schema
- * Supports built-in plugins (by name) only.
- */
 export const PluginsConfigSchema = z
-    .object({
-        // Built-in plugins - referenced by name
-        contentPolicy: BuiltInPluginConfigSchema.optional().describe(
-            'Content policy plugin for input validation and sanitization'
-        ),
-        responseSanitizer: BuiltInPluginConfigSchema.optional().describe(
-            'Response sanitizer plugin for output sanitization'
-        ),
-    })
-    .strict()
-    .default({})
-    .describe('Plugin system configuration');
+    .array(PluginFactoryEntrySchema)
+    .describe('Plugin configuration. Omit to use image defaults; provide to fully override.');
 
 export type PluginsConfig = z.input<typeof PluginsConfigSchema>;
 export type ValidatedPluginsConfig = z.output<typeof PluginsConfigSchema>;
+
+export type PluginFactoryEntry = z.output<typeof PluginFactoryEntrySchema>;

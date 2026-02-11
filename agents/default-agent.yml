@@ -134,35 +134,17 @@ internalResources:
     # Blob resource - enables large file upload/storage (settings in storage.blob section above)
     - type: blob
 
-# Plugin system - built-in plugins for content policy and response sanitization
+# Plugin system - plugins are resolved via the selected image
 # plugins:
-#   # ContentPolicy - validates and sanitizes input before sending to LLM
-#   contentPolicy:
-#     priority: 10              # Lower priority = runs first
-#     blocking: true            # Blocks execution if validation fails
+#   - type: content-policy
 #     maxInputChars: 50000      # Maximum input length (characters)
 #     redactEmails: true        # Redact email addresses from input
 #     redactApiKeys: true       # Redact potential API keys from input
-#     enabled: true             # Enable this plugin
-
-#   # ResponseSanitizer - sanitizes LLM responses before returning to user
-#   responseSanitizer:
-#     priority: 900             # Higher priority = runs near the end
-#     blocking: false           # Non-blocking (logs warnings but doesn't stop)
+#
+#   - type: response-sanitizer
 #     redactEmails: true        # Redact email addresses from responses
 #     redactApiKeys: true       # Redact potential API keys from responses
 #     maxResponseLength: 100000 # Maximum response length (characters)
-#     enabled: true             # Enable this plugin
-
-#   # Custom plugins can be added here (see documentation)
-#   # custom:
-#   #   - name: tenant-auth
-#   #     module: "${{dexto.agent_dir}}/plugins/tenant-auth.ts"
-#   #     enabled: true
-#   #     blocking: true
-#   #     priority: 100
-#   #     config:
-#   #       enforceQuota: true
 
 # Prompts - inline prompts shown as clickable buttons in WebUI (showInStarters: true)
 prompts:

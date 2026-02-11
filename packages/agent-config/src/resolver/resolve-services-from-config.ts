@@ -1,5 +1,5 @@
-import type { DextoPlugin, IDextoLogger, PluginExecutionContext, PluginResult } from '@dexto/core';
-import type { ValidatedAgentConfig, ToolFactoryEntry } from '../schemas/agent-config.js';
+import type { DextoPlugin } from '@dexto/core';
+import type { ValidatedAgentConfig } from '../schemas/agent-config.js';
 import type { DextoImageModule } from '../image/types.js';
 import type { ResolvedServices } from './types.js';
 import type { PlainObject } from './utils.js';
@@ -15,78 +15,9 @@ function qualifyToolId(prefix: string, id: string): string {
     return `${prefix}${id}`;
 }
 
-function wrapPluginWithBlockingBehavior(options: {
-    name: string;
-    plugin: DextoPlugin;
-    blocking: boolean;
-    logger: IDextoLogger;
-}): DextoPlugin & { name: string } {
-    const { name, plugin, blocking, logger } = options;
-
-    const coerceResult = (result: PluginResult): PluginResult => {
-        if (blocking) {
-            return result;
-        }
-        return {
-            ...result,
-            cancel: false,
-        };
-    };
-
-    const wrap = <TPayload extends object>(
-        fn: (payload: TPayload, context: PluginExecutionContext) => Promise<PluginResult>
-    ) => {
-        return async (
-            payload: TPayload,
-            context: PluginExecutionContext
-        ): Promise<PluginResult> => {
-            try {
-                const result = await fn(payload, context);
-                return coerceResult(result);
-            } catch (error) {
-                if (blocking) {
-                    throw error;
-                }
-
-                logger.warn(`Non-blocking plugin '${name}' threw error`, {
-                    error: error instanceof Error ? error.message : String(error),
-                });
-
-                return {
-                    ok: false,
-                    cancel: false,
-                    message: error instanceof Error ? error.message : String(error),
-                };
-            }
-        };
-    };
-
-    const wrapped: DextoPlugin & { name: string } = {
-        name,
-    };
-
-    if (plugin.beforeLLMRequest) {
-        wrapped.beforeLLMRequest = wrap(plugin.beforeLLMRequest.bind(plugin));
-    }
-    if (plugin.beforeToolCall) {
-        wrapped.beforeToolCall = wrap(plugin.beforeToolCall.bind(plugin));
-    }
-    if (plugin.afterToolResult) {
-        wrapped.afterToolResult = wrap(plugin.afterToolResult.bind(plugin));
-    }
-    if (plugin.beforeResponse) {
-        wrapped.beforeResponse = wrap(plugin.beforeResponse.bind(plugin));
-    }
-    if (plugin.cleanup) {
-        wrapped.cleanup = plugin.cleanup.bind(plugin);
-    }
-
-    return wrapped;
-}
-
 // Tool factory entries share `enabled?: boolean` (see A+B+C semantics in the plan).
 // Since many factory schemas are `.strict()`, strip `enabled` before validating the entry.
-function stripEnabled(entry: ToolFactoryEntry): PlainObject {
+function stripEnabled(entry: PlainObject): PlainObject {
     const obj = entry as PlainObject;
     if (!Object.prototype.hasOwnProperty.call(obj, 'enabled')) {
         return obj;
@@ -111,23 +42,6 @@ function resolveByType<TFactory>(options: {
         );
     }
     return factory;
-}
-
-type BuiltInPluginConfig = {
-    priority: number;
-    enabled?: boolean;
-    blocking?: boolean;
-} & Record<string, unknown>;
-
-function coerceBuiltInPluginConfig(config: unknown, pluginName: string): BuiltInPluginConfig {
-    if (!isPlainObject(config)) {
-        throw new Error(`Invalid plugin config for '${pluginName}': expected an object`);
-    }
-    const priority = config.priority;
-    if (typeof priority !== 'number' || !Number.isInteger(priority)) {
-        throw new Error(`Invalid plugin config for '${pluginName}': priority must be an integer`);
-    }
-    return config as BuiltInPluginConfig;
 }
 
 export async function resolveServicesFromConfig(
@@ -204,49 +118,13 @@ export async function resolveServicesFromConfig(
         }
     }
 
-    // 4) Plugins (built-ins only for now)
-    const pluginEntries: Array<{
-        type: string;
-        config: unknown;
-        priority: number;
-        blocking: boolean;
-    }> = [];
-
-    const contentPolicyConfig = config.plugins.contentPolicy;
-    if (contentPolicyConfig && (contentPolicyConfig as { enabled?: boolean }).enabled !== false) {
-        const cfg = coerceBuiltInPluginConfig(contentPolicyConfig, 'content-policy');
-        pluginEntries.push({
-            type: 'content-policy',
-            config: contentPolicyConfig,
-            priority: cfg.priority,
-            blocking: cfg.blocking ?? true,
-        });
-    }
-
-    const responseSanitizerConfig = config.plugins.responseSanitizer;
-    if (
-        responseSanitizerConfig &&
-        (responseSanitizerConfig as { enabled?: boolean }).enabled !== false
-    ) {
-        const cfg = coerceBuiltInPluginConfig(responseSanitizerConfig, 'response-sanitizer');
-        pluginEntries.push({
-            type: 'response-sanitizer',
-            config: responseSanitizerConfig,
-            priority: cfg.priority,
-            blocking: cfg.blocking ?? false,
-        });
-    }
-
+    // 4) Plugins
+    const pluginEntries = config.plugins ?? image.defaults?.plugins ?? [];
     const plugins: DextoPlugin[] = [];
-    const priorities = new Set<number>();
-    pluginEntries.sort((a, b) => a.priority - b.priority);
     for (const entry of pluginEntries) {
-        if (priorities.has(entry.priority)) {
-            throw new Error(
-                `Duplicate plugin priority: ${entry.priority}. Each plugin must have a unique priority.`
-            );
+        if ((entry as { enabled?: boolean }).enabled === false) {
+            continue;
         }
-        priorities.add(entry.priority);
 
         const factory = resolveByType({
             kind: 'plugin',
@@ -255,7 +133,7 @@ export async function resolveServicesFromConfig(
             imageName,
         });
 
-        const parsedConfig = factory.configSchema.parse(entry.config);
+        const parsedConfig = factory.configSchema.parse(stripEnabled(entry as PlainObject));
         const plugin = factory.create(parsedConfig);
         if (plugin.initialize) {
             if (!isPlainObject(parsedConfig)) {
@@ -264,14 +142,7 @@ export async function resolveServicesFromConfig(
             await plugin.initialize(parsedConfig);
         }
 
-        plugins.push(
-            wrapPluginWithBlockingBehavior({
-                name: entry.type,
-                plugin,
-                blocking: entry.blocking,
-                logger,
-            })
-        );
+        plugins.push(plugin);
     }
 
     // 5) Compaction
