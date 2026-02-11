@@ -6,6 +6,7 @@ import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 import { getDextoGlobalPath } from '@dexto/agent-management';
+import { loadImage } from '@dexto/agent-config';
 import { executeWithTimeout } from './execute.js';
 
 const ImageRegistryFileSchema = z
@@ -269,6 +270,23 @@ async function upsertRegistryInstall(
     await saveImageRegistry(registry, options.storeDir);
 }
 
+async function validateInstalledImageModule(
+    imageId: string,
+    version: string,
+    entryFile: string
+): Promise<void> {
+    try {
+        await loadImage(entryFile);
+    } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        throw new Error(
+            `Installed image '${imageId}@${version}' did not export a valid DextoImageModule.\n` +
+                `Entry file: ${entryFile}\n` +
+                message
+        );
+    }
+}
+
 export async function installImageToStore(
     specifier: string,
     options: InstallImageOptions = {}
@@ -332,6 +350,7 @@ export async function installImageToStore(
         if (existsSync(installDir)) {
             if (!force) {
                 const entryFile = getInstalledImageEntryFile(installDir, imageId);
+                await validateInstalledImageModule(imageId, version, entryFile);
                 await upsertRegistryInstall(imageId, version, entryFile, { storeDir, activate });
                 await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
                 return { id: imageId, version, entryFile, installDir };
@@ -345,6 +364,7 @@ export async function installImageToStore(
         moved = true;
 
         const entryFile = getInstalledImageEntryFile(installDir, imageId);
+        await validateInstalledImageModule(imageId, version, entryFile);
         await upsertRegistryInstall(imageId, version, entryFile, { storeDir, activate });
 
         return { id: imageId, version, entryFile, installDir };
