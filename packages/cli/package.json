@@ -12,6 +12,7 @@
     "@dexto/analytics": "workspace:*",
     "@dexto/core": "workspace:*",
     "@dexto/image-local": "workspace:*",
+    "@dexto/image-logger-agent": "workspace:*",
     "@dexto/registry": "workspace:*",
     "@dexto/server": "workspace:*",
     "@dexto/storage": "workspace:*",

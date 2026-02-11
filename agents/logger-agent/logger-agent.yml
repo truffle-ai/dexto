@@ -1,6 +1,7 @@
 # Request Logger Agent Configuration
-# Demonstrates custom plugin integration with complete lifecycle testing
 # Logs all user requests, tool calls, and assistant responses to ~/.dexto/logs/request-logger.log
+#
+# Uses `@dexto/image-logger-agent`, which provides the `request-logger` plugin via image factories.
 
 # MCP Servers - basic filesystem and browser tools
 mcpServers:
@@ -47,6 +48,9 @@ memories:
 
 # Optional greeting shown at chat start
 greeting: "Hi! I'm the Logger Agent — all interactions are being logged for analysis. How can I help?"
+
+# Image provides custom plugin(s) and DI providers
+image: "@dexto/image-logger-agent"
 
 # LLM configuration
 llm:
@@ -97,6 +101,9 @@ internalResources:
 
 # Plugin system configuration
 plugins:
+  - type: request-logger
+    logFileName: request-logger.log
+
   - type: content-policy
     maxInputChars: 50000
     redactEmails: true

@@ -7,52 +7,38 @@ import type {
     PluginResult,
     PluginExecutionContext,
 } from '@dexto/core';
-import { promises as fs } from 'fs';
-import { homedir } from 'os';
-import { join } from 'path';
+import { promises as fs } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
+
+export type RequestLoggerPluginConfig = {
+    logDir?: string | undefined;
+    logFileName?: string | undefined;
+};
 
 /**
- * Request Logger Plugin
- *
- * Logs all user requests and assistant responses to a file for debugging and analysis.
- * Demonstrates the complete plugin lifecycle including resource management.
- *
- * Features:
- * - Logs user input (text, images, files)
- * - Logs tool calls and results
- * - Logs assistant responses with token usage
- * - Proper resource cleanup on shutdown
+ * Logs user requests, tool calls/results, and assistant responses to a file.
  */
 export class RequestLoggerPlugin implements DextoPlugin {
     private logFilePath: string = '';
     private logFileHandle: fs.FileHandle | null = null;
     private requestCount: number = 0;
 
-    /**
-     * Initialize plugin - create log directory and open log file
-     */
-    async initialize(config: Record<string, any>): Promise<void> {
-        // Default log path: ~/.dexto/logs/request-logger.log
-        const logDir = config.logDir || join(homedir(), '.dexto', 'logs');
-        const logFileName = config.logFileName || 'request-logger.log';
+    async initialize(config: Record<string, unknown>): Promise<void> {
+        const typed = config as RequestLoggerPluginConfig;
+        const logDir = typed.logDir || join(homedir(), '.dexto', 'logs');
+        const logFileName = typed.logFileName || 'request-logger.log';
         this.logFilePath = join(logDir, logFileName);
 
-        // Ensure log directory exists
         await fs.mkdir(logDir, { recursive: true });
-
-        // Open log file in append mode
         this.logFileHandle = await fs.open(this.logFilePath, 'a');
 
-        // Write initialization header
         await this.writeLog('='.repeat(80));
         await this.writeLog(`Request Logger initialized at ${new Date().toISOString()}`);
         await this.writeLog(`Log file: ${this.logFilePath}`);
         await this.writeLog('='.repeat(80));
     }
 
-    /**
-     * Log user input before it's sent to the LLM
-     */
     async beforeLLMRequest(
         payload: BeforeLLMRequestPayload,
         context: PluginExecutionContext
@@ -84,12 +70,9 @@ export class RequestLoggerPlugin implements DextoPlugin {
         return { ok: true };
     }
 
-    /**
-     * Log tool calls before execution
-     */
     async beforeToolCall(
         payload: BeforeToolCallPayload,
-        context: PluginExecutionContext
+        _context: PluginExecutionContext
     ): Promise<PluginResult> {
         await this.writeLog('');
         await this.writeLog(`[${this.requestCount}] TOOL CALL at ${new Date().toISOString()}`);
@@ -100,12 +83,9 @@ export class RequestLoggerPlugin implements DextoPlugin {
         return { ok: true };
     }
 
-    /**
-     * Log tool results after execution
-     */
     async afterToolResult(
         payload: AfterToolResultPayload,
-        context: PluginExecutionContext
+        _context: PluginExecutionContext
     ): Promise<PluginResult> {
         await this.writeLog('');
         await this.writeLog(`[${this.requestCount}] TOOL RESULT at ${new Date().toISOString()}`);
@@ -123,12 +103,9 @@ export class RequestLoggerPlugin implements DextoPlugin {
         return { ok: true };
     }
 
-    /**
-     * Log assistant response before it's sent to the user
-     */
     async beforeResponse(
         payload: BeforeResponsePayload,
-        context: PluginExecutionContext
+        _context: PluginExecutionContext
     ): Promise<PluginResult> {
         await this.writeLog('');
         await this.writeLog(
@@ -156,9 +133,6 @@ export class RequestLoggerPlugin implements DextoPlugin {
         return { ok: true };
     }
 
-    /**
-     * Cleanup - close log file handle
-     */
     async cleanup(): Promise<void> {
         await this.writeLog('');
         await this.writeLog('='.repeat(80));
@@ -172,9 +146,6 @@ export class RequestLoggerPlugin implements DextoPlugin {
         }
     }
 
-    /**
-     * Helper method to write to log file
-     */
     private async writeLog(message: string): Promise<void> {
         if (this.logFileHandle) {
             await this.logFileHandle.write(message + '\n');
@@ -182,5 +153,4 @@ export class RequestLoggerPlugin implements DextoPlugin {
     }
 }
 
-// Export the plugin class directly for the plugin manager to instantiate
 export default RequestLoggerPlugin;

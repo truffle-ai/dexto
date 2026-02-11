@@ -15,6 +15,7 @@
     "@dexto/webui",
     "@dexto/image-bundler",
     "@dexto/image-local",
+    "@dexto/image-logger-agent",
     "@dexto/tools-filesystem",
     "@dexto/tools-builtins",
     "@dexto/tools-process",
