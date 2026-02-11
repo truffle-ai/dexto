@@ -34,6 +34,10 @@ _Log findings, issues, and progress here as you work._
 - Confirmed `bash scripts/quality-checks.sh` passes.
 - Reviewed/cleared `USER_VERIFICATION.md` (UV-1 resolved: keep `ImageTarget` / `ImageConstraint` for now).
 - Phase 5.4 docs task remains intentionally deferred per `PLAN.md` (do not do).
+2026-02-11:
+- Merged `main` into `rebuild-di` (conflicts in `ToolManager` + agent-spawner legacy provider deletion).
+- Post-merge fixes: align `agentSpawnerToolsFactory` with `createSpawnAgentTool(service)` signature; sync OpenAPI docs; update session token-tracking integration tests to new DI agent construction.
+- Confirmed `bash scripts/quality-checks.sh` passes.
 
 ---
 
