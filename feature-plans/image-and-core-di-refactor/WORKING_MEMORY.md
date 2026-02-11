@@ -19,18 +19,20 @@
 
 ## Current Task
 
-**Task:** **6.0 Platform migration (deferred)**
-**Status:** _Blocked (awaiting owner request)_
+**Task:** **Owner verification — UV-2..UV-7 (pre‑platform gate)**
+**Status:** _Waiting on owner_
 **Branch:** `rebuild-di`
 
 ### Plan
-- Do not start Phase 6 until explicitly requested.
+- Review `feature-plans/image-and-core-di-refactor/USER_VERIFICATION.md` and mark items resolved with notes.
+- Do not start Phase 6 until items are resolved or explicitly deferred to a follow-up plan.
 
 ### Notes
 _Log findings, issues, and progress here as you work._
 2026-02-11:
 - Phase 7 image resolution is implemented and validated via unit tests (see Completed Tasks 7.1–7.3).
 - Owner verification list expanded again (UV-2..UV-7); do not start Phase 6 until these are reviewed.
+- Phase 5.7 completed: compaction is DI-only via a single expanded `ICompactionStrategy` (no controller abstraction); `/quality-checks` pass.
 
 ---
 
@@ -46,7 +48,8 @@ _Record important decisions made during implementation that aren't in the main p
 | 2026-02-10 | Core no longer resolves storage from config | Core remains interface-only; host layers supply a `StorageManager` (temporary glue via `@dexto/storage/createStorageManager`) until the image resolver is fully integrated. |
 | 2026-02-10 | Defer `@dexto/logger` extraction (keep logger in core for now) | Avoids core codepaths needing `console.*` fallbacks/inline loggers and reduces churn; revisit later with a cleaner types-vs-impl split if extraction is still desired. |
 | 2026-02-10 | `resolveServicesFromConfig()` prefixes tool IDs + wraps plugins | Ensures tools are fully-qualified (`internal--*`/`custom--*`) and plugin blocking semantics match legacy behavior before handing instances to core. |
-| 2026-02-10 | Reactive-overflow compaction remains core-owned (per session) | DI compaction creation at config-resolution time cannot supply a per-session `LanguageModel`. Resolver skips DI for `reactive-overflow`; core continues to create it during session init. |
+| 2026-02-10 | Temporarily keep reactive-overflow compaction core-owned (superseded by Phase 5.7) | DI compaction creation at config-resolution time could not supply a per-session `LanguageModel`; later removed by passing runtime context into `ICompactionStrategy`. |
+| 2026-02-11 | Make compaction DI-only via expanded `ICompactionStrategy` (single interface) | Removes `runtimeConfig.compaction` from core while still supporting reactive-overflow (session model passed at runtime, similar to tool/plugin execution context). |
 | 2026-02-10 | `loadImage()` supports host-configured importer (`setImageImporter`) | `@dexto/agent-config` cannot reliably `import('@dexto/image-*')` under pnpm unless the image is a direct dependency; hosts configure the importer to resolve relative to the host package. |
 | 2026-02-11 | Tool approval overrides receive `ToolExecutionContext` | Enables filesystem directory approval to use `ApprovalManager` without factory-time glue; removes noop logger / local approval maps. |
 | 2026-02-11 | Tool provider packages export `ToolFactory` only | Removes dead registry-based `CustomToolProvider` surfaces after Phase 5.1; keeps tool packages image-compatible. |
@@ -83,7 +86,7 @@ _Move tasks here after completion. Keep a brief log of what was done and any dev
 | 1.6 | `tools/internal-tools/` — decouple built‑in tool creation | 2026-02-10 | `InternalToolsProvider` now handles built-in tools only (no `customToolRegistry` imports). Custom tool registration/execution moved into `ToolManager` as **temporary glue** (tagged). Updated `provider.test.ts` and added `ToolManager` coverage for custom tools. `pnpm -C packages/core build` + `pnpm test` pass. (Follow-up: rename `InternalTool` → `Tool` once tool surfaces are consolidated.) |
 | 1.7 | `tools/tool-manager.ts` — accept unified `Tool[]` + provide `ToolExecutionContext` at runtime | 2026-02-10 | `ToolManager` now accepts a unified local `Tool[]` (still `InternalTool` for now) and injects runtime `ToolExecutionContext` via a factory. Tool resolution moved out of `ToolManager` into `agent/resolve-local-tools.ts` + `DextoAgent.start()` as **temporary glue** (tagged). Updated tool-manager unit/integration tests + lifecycle mocks. `pnpm run build` + `pnpm test` pass. |
 | 1.8 | `plugins/manager.ts` — accept concrete `DextoPlugin[]` | 2026-02-10 | `PluginManager` now accepts pre-resolved plugins and no longer loads from file paths or registries. Deleted plugin registry + loader + builtins registration; added `agent/resolve-local-plugins.ts` as **temporary glue** for built-ins and updated bundler/templates to remove `pluginRegistry`. Added `plugins/manager.test.ts`. `pnpm run build` + `pnpm test` pass. |
-| 1.9 | `context/compaction/` — decouple from registry, accept `CompactionStrategy` | 2026-02-10 | Deleted compaction registry + tests; `createCompactionStrategy()` now resolves built-ins via a `switch` (temporary glue, tagged). Updated provider discovery + templates/bundler + integration tests. Added `context/compaction/factory.test.ts`. `pnpm run build` + `pnpm test` pass. |
+| 1.9 | `context/compaction/` — decouple from registry, accept `CompactionStrategy` | 2026-02-10 | Deleted compaction registry + tests; initial built-in resolution used a `switch` factory as temporary glue. Later removed when compaction became DI-only via image factories (Phase 5.7). `pnpm run build` + `pnpm test` pass. |
 | 1.10 | `agent/DextoAgent.ts` — constructor accepts `DextoAgentOptions` | 2026-02-10 | `DextoAgent` now takes `{ config, configPath?, overrides?, logger? }` and does no config parsing in the constructor; callers validate config first. Updated agent-management, CLI/server, bundler output, and templates. `pnpm run build` + `pnpm test` pass. |
 | 1.11 | `utils/service-initializer.ts` — rewrite | 2026-02-10 | Removed `configDir`/`configPath` from core service wiring; `SystemPromptManager` no longer takes `configDir`. Updated unit/integration tests. `pnpm run build` + `pnpm test` pass. |
 | 1.12 | `llm/` — vet | 2026-02-10 | No changes needed. Verified no provider registries/config-resolution coupling. (LLM “registry” is model metadata + capability helpers and is legitimate.) |
@@ -112,7 +115,7 @@ _Move tasks here after completion. Keep a brief log of what was done and any dev
 | 3.1 | Create `@dexto/tools-builtins` package | 2026-02-10 | Added `packages/tools-builtins/` and exported `builtinToolsFactory` (`builtin-tools` + optional `enabledTools`). Tool implementations use `ToolExecutionContext` services at runtime. `pnpm -w build:packages` + `pnpm -w test` pass. |
 | 3.2 | Create `@dexto/storage` package | 2026-02-10 | Added `packages/storage/` (schemas + providers + factories) and removed concrete storage implementations/schemas from core (core is interfaces + `StorageManager` only). Updated host layers (CLI/server/agent-management) to inject `overrides.storageManager`. Updated webui to import storage types/constants from `@dexto/storage/schemas`. `pnpm -w build:packages` passes. |
 | 3.4 | Adapt existing tool provider packages | 2026-02-10 | Added `ToolFactory` exports for `@dexto/tools-filesystem`, `@dexto/tools-process`, `@dexto/tools-todo`, `@dexto/tools-plan` for image-local consumption (registry-free). `pnpm -w build:packages` + `pnpm -w test` pass. |
-| 3.5 | Rewrite `@dexto/image-local` as hand-written `DextoImageModule` | 2026-02-10 | Deleted bundler entrypoint and replaced with hand-written `DextoImageModule` export. Added `defaultLoggerFactory` in core and a lazy `agentSpawnerToolsFactory` adapter in agent-management. Included a temporary placeholder for `reactive-overflow` compaction (remove-by: 4.1). `pnpm -w build:packages` + `pnpm -C packages/image-local test` pass. |
+| 3.5 | Rewrite `@dexto/image-local` as hand-written `DextoImageModule` | 2026-02-10 | Deleted bundler entrypoint and replaced with hand-written `DextoImageModule` export. Added `defaultLoggerFactory` in core and a lazy `agentSpawnerToolsFactory` adapter in agent-management. Included a temporary placeholder for `reactive-overflow` compaction (later removed in Phase 5.7). `pnpm -w build:packages` + `pnpm -C packages/image-local test` pass. |
 | 3.6 | Update `@dexto/image-bundler` | 2026-02-10 | Bundler now generates a `DextoImageModule` (explicit imports, no `.toString()`, no duck-typing). Providers are discovered from convention folders and must export `provider`. Updated `dexto create-image` scaffolding/templates to match new folder structure + provider contract. Added a bundler integration test. `pnpm -w build:packages` + `pnpm -w test` pass. |
 | 4.1 | Update CLI entry point (`packages/cli/src/index.ts`) | 2026-02-10 | CLI now loads typed images (`loadImage()`), applies defaults, resolves services, and constructs `DextoAgent` via `toDextoAgentOptions()` (no `imageMetadata`). Core consumes DI-provided `storage/tools/plugins` and bridges storage backends into a `StorageManager`. Removed image-bundler `imageMetadata` export and deprecated `bundledPlugins` in image definitions. `pnpm -w run build:packages` + `pnpm -w test` pass. |
 | 4.2 | Update CLI server mode (`packages/cli/src/api/server-hono.ts`) | 2026-02-10 | Server mode agent switching now uses the same image DI flow as the CLI entrypoint (`loadImage()` → `applyImageDefaults()` → `resolveServicesFromConfig()` → `toDextoAgentOptions()`). Removed `imageMetadata`/`bundledPlugins` plumbing and ensured switched agents reuse the session file-logger override. Added small CLI utils for `cleanNullValues()` + `createFileSessionLoggerFactory()` to avoid duplication. `pnpm -w run build:packages` + `pnpm -w test` pass. |
@@ -125,6 +128,7 @@ _Move tasks here after completion. Keep a brief log of what was done and any dev
 | 5.3 | Add new test coverage | 2026-02-11 | Added resolver tests (tool prefixing/conflicts, schema failures, plugin priority conflicts) and expanded `loadImage()` conformance tests. `bash scripts/quality-checks.sh` passes. |
 | 5.5 | Update OpenAPI / server docs if affected | 2026-02-11 | Ran `pnpm run sync-openapi-docs` and verified `sync-openapi-docs:check` passes. |
 | 5.6.1 | Review and resolve `USER_VERIFICATION.md` | 2026-02-11 | UV-1 resolved by removing `ImageTarget` / `ImageConstraint` types; UV-2..UV-7 added as manual verification checklist (owner gate before Phase 6). |
+| 5.7 | Compaction — DI-only runtime interface | 2026-02-11 | Expanded `ICompactionStrategy` (single interface) to own budgeting + overflow decision + compaction execution (runtime context provides model/logger/sessionId). Moved compaction schema/defaults to agent-config, resolved via image factories, updated image-local + server discovery, and removed `runtimeConfig.compaction` from core. `bash scripts/quality-checks.sh` passes. |
 | 7.0 | Draft image resolution follow-up plan | 2026-02-11 | Added `IMAGE_RESOLUTION_PLAN.md` (Docker-like image store concept) and updated `PLAN.md` to add Phase 7. |
 | 7.1 | Implement CLI image store + commands | 2026-02-11 | Added `~/.dexto/images` store (`registry.json` + `packages/`), CLI store importer, and `dexto image install/list/use/remove/doctor` commands with unit coverage. |
 | 7.2 | Harden local image installs + validation | 2026-02-11 | `dexto image install` supports file-like specifiers (`.`, `..`, `./`, `../`, `file://`, absolute paths). Installer validates installed entry via `loadImage()` conformance checks and has focused unit coverage (mocked `npm install`). |
@@ -146,7 +150,7 @@ _Move tasks here after completion. Keep a brief log of what was done and any dev
 | Phase 2 — Resolver | Completed | 2.5, 2.1, 2.2, 2.6, 2.3 complete (2.4 deferred) |
 | Phase 3 — Images | Completed | 3.3 deferred; 3.5 image-local + 3.6 bundler updated |
 | Phase 4 — CLI/Server | Completed | 4.1–4.5 complete |
-| Phase 5 — Cleanup | Completed | 5.0–5.3 + 5.5 complete; 5.4 deferred by design; Phase 5.6 owner checklist has open items (UV-2..UV-7). |
+| Phase 5 — Cleanup | Completed | 5.0–5.3 + 5.5 + 5.7 complete; 5.4 deferred by design; Phase 5.6 owner checklist has open items (UV-2..UV-7). |
 | Phase 7 — Image resolution | Completed | Store-backed CLI resolution + commands + tests (see `IMAGE_RESOLUTION_PLAN.md`). |
 
 ---
@@ -162,6 +166,7 @@ _Record checkpoint validation results after each phase boundary._
 | After Phase 1D (commit 1.9) | 2026-02-10 | ✅ `pnpm run build` + `pnpm test` pass | — |
 | After Phase 1F (commit 1.29) | 2026-02-10 | ✅ `pnpm run build` + `pnpm test` + `pnpm run lint` + `pnpm run typecheck` pass | — |
 | After Phase 2 | 2026-02-10 | ✅ `pnpm -w run build:packages` + `pnpm -w test` pass | — |
-| After Phase 3 (commit 3.6) | 2026-02-10 | ✅ `pnpm -w run build:packages` + `pnpm -w test` pass | Logger extraction deferred; compaction DI mismatch tracked (remove-by: 4.1) |
+| After Phase 3 (commit 3.6) | 2026-02-10 | ✅ `pnpm -w run build:packages` + `pnpm -w test` pass | Logger extraction deferred; compaction DI mismatch tracked (resolved in Phase 5.7). |
 | After Phase 4 (commit 4.5) | 2026-02-10 | ✅ `pnpm -w run build:packages` + `pnpm -w test` + `pnpm -w run lint` + `pnpm -w run typecheck` pass | Manual smoke pass; pnpm image import fixed via `setImageImporter()`. |
 | After Phase 5.1 (pre-commit) | 2026-02-11 | ✅ `/quality-checks` pass | OpenAPI docs regenerated via `pnpm run sync-openapi-docs`. |
+| After Phase 5.7 (pre-commit) | 2026-02-11 | ✅ `/quality-checks` pass | Compaction is DI-only via a single expanded `ICompactionStrategy` (no core compaction config). |

@@ -2528,6 +2528,45 @@ Each of these sub‑modules must be checked for registry imports or tight coupli
 
 ---
 
+### Phase 5.7: Compaction — DI-only runtime interface (follow-up)
+> **Goal:** Remove `runtimeConfig.compaction` from core. Compaction becomes DI-first via a single injected interface that receives per-session runtime context (including the active `LanguageModel`) at execution time.
+
+**Why this is needed:** Reactive-overflow compaction requires a per-session `LanguageModel`. Earlier in this refactor we kept `compaction` as config inside core as a pragmatic exception. This phase removes that exception and makes compaction fully DI-first like tools/plugins.
+
+- [x] **5.7.1 Define a single compaction DI surface in core**
+  - Expand `ICompactionStrategy` to own:
+    - token budgeting knobs (threshold percent / max context override)
+    - overflow decision logic (`shouldCompact(...)`)
+    - compaction execution (`compact(...)`) given runtime context (model, logger, sessionId)
+  - Core should not switch on `compaction.type` or parse Zod for compaction.
+
+- [x] **5.7.2 Move compaction YAML schema + defaults to `@dexto/agent-config`**
+  - `CompactionConfigSchema` + `DEFAULT_COMPACTION_CONFIG` become agent-config concerns (like tools/plugins/storage).
+  - Core keeps only runtime types/interfaces + strategy implementations, not YAML-level schema composition.
+
+- [x] **5.7.3 Resolve compaction via images in `resolveServicesFromConfig()`**
+  - Add `services.compaction` (DI instance) to `ResolvedServices`.
+  - Resolve the compaction strategy from `image.compaction[config.compaction.type]`.
+  - Remove any special-case “core-owned” compaction resolution paths.
+
+- [x] **5.7.4 Wire compaction through core runtime**
+  - `DextoAgentOptions` takes `compaction` as a DI surface (not part of `AgentRuntimeSettings`).
+  - Update `ChatSession`/`VercelLLMService`/`TurnExecutor` to use the injected strategy.
+  - Update `DextoAgent.getContextStats()` and manual `compactContext()` to use the strategy (no `runtimeConfig.compaction`).
+
+- [x] **5.7.5 Update `@dexto/image-local`**
+  - Provide compaction strategy factories for at least:
+    - `reactive-overflow`
+    - `noop`
+  - Ensure the agent-config default compaction type is available in the default image.
+
+- [x] **5.7.6 Add/adjust tests**
+  - Resolver tests: compaction type resolution + validation failure
+  - Core tests: compaction overflow decision uses strategy budget, manual compaction uses strategy
+  - Exit: `pnpm -w test` passes.
+
+---
+
 ### Phase 7: Image resolution (CLI + Platform) — follow‑up plan
 > **Goal:** Make `image:` resolution deterministic for the globally-installed CLI (and define a compatible platform policy).
 
@@ -2567,6 +2606,8 @@ Phase 0 (foundation) → Phase 1 (core DI) → Phase 2 (resolver) → Phase 3 (i
                                                                  Phase 5 (cleanup)
                                                                        ↓
                                                          Phase 5.6 (owner verification)
+                                                                       ↓
+                                                          Phase 5.7 (compaction DI)
                                                                        ↓
                                                    Phase 7 (image resolution follow-up)
                                                                        ↓
