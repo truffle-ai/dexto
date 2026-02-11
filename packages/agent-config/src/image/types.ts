@@ -10,24 +10,6 @@ import type {
 import type { z } from 'zod';
 import type { AgentConfig } from '../schemas/agent-config.js';
 
-export type ImageTarget =
-    | 'local-development'
-    | 'cloud-production'
-    | 'edge-serverless'
-    | 'embedded-iot'
-    | 'enterprise'
-    | 'custom';
-
-export type ImageConstraint =
-    | 'filesystem-required'
-    | 'network-required'
-    | 'offline-capable'
-    | 'serverless-compatible'
-    | 'cold-start-optimized'
-    | 'low-memory'
-    | 'edge-compatible'
-    | 'browser-compatible';
-
 export type ImageDefaults = Partial<AgentConfig>;
 
 export interface ToolFactoryMetadata {
@@ -83,8 +65,8 @@ export interface DextoImageModule {
         name: string;
         version: string;
         description: string;
-        target?: ImageTarget;
-        constraints?: ImageConstraint[];
+        target?: string;
+        constraints?: string[];
     };
     defaults?: ImageDefaults;
     tools: Record<string, ToolFactory>;

@@ -29,31 +29,11 @@ export function validateImageDefinition(definition: ImageDefinition): void {
     }
 
     // Validate target if provided
-    const validTargets = [
-        'local-development',
-        'cloud-production',
-        'edge-serverless',
-        'embedded-iot',
-        'enterprise',
-        'custom',
-    ];
-    if (definition.target && !validTargets.includes(definition.target)) {
-        throw new Error(
-            `Invalid target '${definition.target}'. Valid targets: ${validTargets.join(', ')}`
-        );
+    if (definition.target !== undefined) {
+        if (typeof definition.target !== 'string' || definition.target.trim().length === 0) {
+            throw new Error(`Image target must be a non-empty string when provided`);
+        }
     }
-
-    // Validate constraints if provided
-    const validConstraints = [
-        'filesystem-required',
-        'network-required',
-        'offline-capable',
-        'serverless-compatible',
-        'cold-start-optimized',
-        'low-memory',
-        'edge-compatible',
-        'browser-compatible',
-    ];
 
     if (definition.constraints) {
         if (!Array.isArray(definition.constraints)) {
@@ -61,10 +41,8 @@ export function validateImageDefinition(definition: ImageDefinition): void {
         }
 
         for (const constraint of definition.constraints) {
-            if (!validConstraints.includes(constraint)) {
-                throw new Error(
-                    `Invalid constraint '${constraint}'. Valid constraints: ${validConstraints.join(', ')}`
-                );
+            if (typeof constraint !== 'string' || constraint.trim().length === 0) {
+                throw new Error(`Image constraint must be a non-empty string`);
             }
         }
     }

@@ -6,9 +6,7 @@
  * and must `export const provider = ...` from their `index.ts`.
  */
 
-import type { ImageConstraint, ImageDefaults, ImageTarget } from '@dexto/agent-config';
-
-export type { ImageConstraint, ImageDefaults, ImageTarget };
+export type ImageDefaults = import('@dexto/agent-config').ImageDefaults;
 
 /**
  * Image definition structure consumed by `@dexto/image-bundler`.
@@ -24,10 +22,10 @@ export interface ImageDefinition {
     description: string;
 
     /** Target deployment environment (for documentation and validation) */
-    target?: ImageTarget;
+    target?: string;
 
     /** Runtime constraints this image requires (for validation and error messages) */
-    constraints?: ImageConstraint[];
+    constraints?: string[];
 
     /** Parent image package name to extend (optional) */
     extends?: string;
@@ -70,9 +68,9 @@ export interface ImageMetadata {
     /** Description */
     description: string;
     /** Target environment */
-    target?: ImageTarget;
+    target?: string;
     /** Runtime constraints */
-    constraints: ImageConstraint[];
+    constraints: string[];
     /** Build timestamp */
     builtAt: string;
     /** Core version this image was built for */
