@@ -18,7 +18,7 @@ describe('Image Local - Import Integration', () => {
 
         const image = await loadImage(imageSpecifier);
 
-        expect(image.metadata.name).toBe('image-local');
+        expect(image.metadata.name).toBe('@dexto/image-local');
 
         expect(image.tools['builtin-tools']).toBeDefined();
         expect(image.tools['filesystem-tools']).toBeDefined();

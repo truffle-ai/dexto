@@ -36,6 +36,7 @@ _Log findings, issues, and progress here as you work._
 - Aligned plugin + storage config shapes to image-driven types (plugins: `[{ type, enabled? }]`; cache/database config schemas are `{ type: string }` envelopes validated by image factories). `/quality-checks` pass.
 - Naming/docs cleanup: renamed `@dexto/storage` “providers” → “factories” (matches `ToolFactory` terminology), updated `@dexto/image-bundler` convention exports to `export const factory`, and refreshed package READMEs accordingly. `pnpm -w run build:packages` passes.
 - Tooling: enabled TypeScript project references (no new tsconfig files) so IDE “find references” works repo-wide; removed `dist/*.d.ts` path mapping. `bash scripts/quality-checks.sh all` passes.
+- Drift + version cleanup: removed stale registry-era `create-app --from-core` scaffolding, pinned scaffolded `@dexto/*` deps to the CLI’s current version range, aligned `@dexto/image-local` metadata to package.json, and synced all fixed-version packages to `1.5.8`. `bash scripts/quality-checks.sh all` passes.
 
 ---
 

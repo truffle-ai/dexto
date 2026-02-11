@@ -7,6 +7,7 @@ import {
     ReactiveOverflowCompactionConfigSchema,
     type ReactiveOverflowCompactionConfig,
 } from '@dexto/agent-config';
+import { createRequire } from 'module';
 import { z } from 'zod';
 import {
     ContentPolicyPlugin,
@@ -30,6 +31,9 @@ import { processToolsFactory } from '@dexto/tools-process';
 import { todoToolsFactory } from '@dexto/tools-todo';
 import { planToolsFactory } from '@dexto/tools-plan';
 import { agentSpawnerToolsFactory } from '@dexto/agent-management';
+
+const require = createRequire(import.meta.url);
+const packageJson = require('../package.json') as { name?: string; version?: string };
 
 const contentPolicyConfigSchema = z
     .object({
@@ -86,8 +90,8 @@ const reactiveOverflowCompactionFactory: CompactionFactory<ReactiveOverflowCompa
 
 const imageLocal: DextoImageModule = {
     metadata: {
-        name: 'image-local',
-        version: '1.0.0',
+        name: packageJson.name ?? '@dexto/image-local',
+        version: packageJson.version ?? '0.0.0',
         description: 'Local development image with filesystem and process tools',
         target: 'local-development',
         constraints: ['filesystem-required', 'offline-capable'],

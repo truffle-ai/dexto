@@ -1,6 +1,6 @@
 {
   "name": "@dexto/agent-config",
-  "version": "1.5.7",
+  "version": "1.5.8",
   "private": false,
   "type": "module",
   "main": "./dist/index.js",
