@@ -34,6 +34,7 @@ describe('image-store', () => {
     });
 
     it('treats file-like specifiers as direct imports', () => {
+        expect(isFileLikeImageSpecifier('.')).toBe(true);
         expect(isFileLikeImageSpecifier('file:///tmp/image.js')).toBe(true);
         expect(isFileLikeImageSpecifier('/abs/path/to/image.js')).toBe(true);
         expect(isFileLikeImageSpecifier('./dist/index.js')).toBe(true);

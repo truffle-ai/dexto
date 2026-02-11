@@ -63,6 +63,7 @@ export function getImagePackagesDir(storeDir: string = getDefaultImageStoreDir()
 }
 
 export function isFileLikeImageSpecifier(specifier: string): boolean {
+    if (specifier === '.' || specifier === '..') return true;
     if (specifier.startsWith('file://')) return true;
     if (specifier.startsWith('~/')) return true;
     if (specifier.startsWith('./') || specifier.startsWith('../')) return true;
