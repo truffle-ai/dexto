@@ -2,9 +2,55 @@ import fs from 'fs-extra';
 import path from 'path';
 import chalk from 'chalk';
 import * as p from '@clack/prompts';
+import { createRequire } from 'module';
 import { executeWithTimeout } from './execute.js';
 import { textOrExit } from './prompt-helpers.js';
 import { getPackageManager, getPackageManagerInstallCommand } from './package-mgmt.js';
+
+const require = createRequire(import.meta.url);
+const cliPackageJson = require('../../../package.json') as { version?: string };
+
+export function getDextoCliVersion(): string {
+    const version = process.env.DEXTO_CLI_VERSION ?? cliPackageJson.version;
+    if (!version) {
+        throw new Error('Could not determine dexto CLI version');
+    }
+    return version;
+}
+
+export function getDextoVersionRange(): string {
+    return `^${getDextoCliVersion()}`;
+}
+
+export function isLocalDependencySpecifier(specifier: string): boolean {
+    return (
+        specifier.startsWith('.') ||
+        specifier.startsWith('/') ||
+        specifier.startsWith('file:') ||
+        /^[A-Za-z]:[\\/]/.test(specifier)
+    );
+}
+
+export function hasVersionInPackageSpecifier(specifier: string): boolean {
+    if (isLocalDependencySpecifier(specifier)) return true;
+
+    const atIndex = specifier.lastIndexOf('@');
+    if (atIndex <= 0) return false;
+
+    if (specifier.startsWith('@')) {
+        const slashIndex = specifier.indexOf('/');
+        return slashIndex !== -1 && atIndex > slashIndex;
+    }
+
+    return true;
+}
+
+export function pinDextoPackageIfUnversioned(specifier: string, versionRange: string): string {
+    if (isLocalDependencySpecifier(specifier)) return specifier;
+    if (!specifier.startsWith('@dexto/')) return specifier;
+    if (hasVersionInPackageSpecifier(specifier)) return specifier;
+    return `${specifier}@${versionRange}`;
+}
 
 /**
  * Validates a project name against the standard regex

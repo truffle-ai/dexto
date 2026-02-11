@@ -9,7 +9,9 @@ import {
     createGitignore,
     initPackageJson,
     createTsconfigForImage,
+    getDextoVersionRange,
     installDependencies,
+    pinDextoPackageIfUnversioned,
     ensureDirectory,
 } from '../utils/scaffolding-utils.js';
 import {
@@ -66,8 +68,6 @@ export async function createImage(name?: string): Promise<string> {
                         value: '@dexto/image-local',
                         label: '@dexto/image-local (local development)',
                     },
-                    { value: '@dexto/image-cloud', label: '@dexto/image-cloud (cloud production)' },
-                    { value: '@dexto/image-edge', label: '@dexto/image-edge (edge/serverless)' },
                     { value: 'custom', label: 'Custom npm package...' },
                 ],
             },
@@ -210,19 +210,19 @@ export async function createImage(name?: string): Promise<string> {
         const executionContext = getExecutionContext();
         const isDextoSource = executionContext === 'dexto-source';
 
-        const coreVersion = isDextoSource ? 'workspace:*' : '^1.3.0';
-        const bundlerVersion = isDextoSource ? 'workspace:*' : '^1.3.0';
+        const versionRange = getDextoVersionRange();
+        const dextoDependencyVersion = isDextoSource ? 'workspace:*' : versionRange;
 
         // Determine dependencies based on whether extending
         const dependencies: string[] = [
-            `@dexto/core@${coreVersion}`,
-            `@dexto/agent-config@${coreVersion}`,
+            `@dexto/core@${dextoDependencyVersion}`,
+            `@dexto/agent-config@${dextoDependencyVersion}`,
             'zod',
         ];
         const devDependencies = [
             'typescript@^5.0.0',
             '@types/node@^20.0.0',
-            `@dexto/image-bundler@${bundlerVersion}`,
+            `@dexto/image-bundler@${dextoDependencyVersion}`,
         ];
 
         if (baseImage) {
@@ -237,7 +237,10 @@ export async function createImage(name?: string): Promise<string> {
                     resolvedBaseImage = imagePkgPath;
                 }
             }
-            dependencies.push(resolvedBaseImage);
+            const baseImageDependency = isDextoSource
+                ? resolvedBaseImage
+                : pinDextoPackageIfUnversioned(resolvedBaseImage, versionRange);
+            dependencies.push(baseImageDependency);
         }
 
         // Install dependencies (use pnpm in dexto source for workspace protocol support)

@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest';
 import {
     generateIndexForImage,
     generateDextoImageFile,
-    generateDextoConfigFile,
     generateImageReadme,
     generateExampleTool,
     generateAppReadme,
@@ -139,57 +138,6 @@ describe('template-engine', () => {
             expect(result).toContain("type: 'local'");
             expect(result).toContain("type: 'sqlite'");
             expect(result).toContain('logger: {');
-        });
-    });
-
-    describe('generateDextoConfigFile', () => {
-        it('should generate dexto.config.ts', () => {
-            const result = generateDextoConfigFile({
-                projectName: 'my-project',
-                packageName: 'my-project',
-                description: 'Test project',
-            });
-
-            expect(result).toContain('import {');
-            expect(result).toContain('blobStoreRegistry');
-            expect(result).toContain('customToolRegistry');
-            expect(result).toContain("} from '@dexto/core'");
-        });
-
-        it('should include project metadata', () => {
-            const result = generateDextoConfigFile({
-                projectName: 'my-project',
-                packageName: 'my-project',
-                description: 'Test project',
-            });
-
-            expect(result).toContain('export const projectConfig = {');
-            expect(result).toContain("name: 'my-project'");
-            expect(result).toContain("version: '1.0.0'");
-            expect(result).toContain("description: 'Test project'");
-        });
-
-        it('should include registerProviders function', () => {
-            const result = generateDextoConfigFile({
-                projectName: 'my-project',
-                packageName: 'my-project',
-                description: 'Test project',
-            });
-
-            expect(result).toContain('export function registerProviders() {');
-            expect(result).toContain('// Example: Register blob storage provider');
-            expect(result).toContain('// blobStoreRegistry.register(myBlobProvider)');
-        });
-
-        it('should include initialize and cleanup functions', () => {
-            const result = generateDextoConfigFile({
-                projectName: 'my-project',
-                packageName: 'my-project',
-                description: 'Test project',
-            });
-
-            expect(result).toContain('export async function initialize() {');
-            expect(result).toContain('export async function cleanup() {');
         });
     });
 

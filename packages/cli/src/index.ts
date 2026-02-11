@@ -192,8 +192,6 @@ program
     .command('create-app [name]')
     .description('Create a Dexto application (CLI, web, bot, etc.)')
     .option('--from-image <package>', 'Use existing image (e.g., @dexto/image-local)')
-    .option('--extend-image <package>', 'Extend image with custom providers')
-    .option('--from-core', 'Build from @dexto/core (advanced)')
     .option('--type <type>', 'App type: script, webapp (default: script)')
     .action(
         withAnalytics('create-app', async (name?: string, options?: CreateAppOptions) => {
