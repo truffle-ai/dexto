@@ -11,6 +11,7 @@ import type { StorageManager } from '../storage/index.js';
 import type { PluginManager } from '../plugins/manager.js';
 import { SessionError } from './errors.js';
 import type { TokenUsage } from '../llm/types.js';
+import type { ICompactionStrategy } from '../context/compaction/types.js';
 export type SessionLoggerFactory = (options: {
     baseLogger: IDextoLogger;
     agentId: string;
@@ -120,6 +121,7 @@ export class SessionManager {
             resourceManager: import('../resources/index.js').ResourceManager;
             pluginManager: PluginManager;
             mcpManager: import('../mcp/manager.js').MCPManager;
+            compactionStrategy: ICompactionStrategy | null;
         },
         config: SessionManagerConfig = {},
         logger: IDextoLogger

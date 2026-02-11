@@ -124,6 +124,7 @@ describe('toDextoAgentOptions', () => {
             },
             tools: [createMockTool('foo')],
             plugins: [],
+            compaction: null,
         };
 
         const options = toDextoAgentOptions({
@@ -141,12 +142,12 @@ describe('toDextoAgentOptions', () => {
         expect(options.elicitation).toBe(validated.elicitation);
         expect(options.internalResources).toBe(validated.internalResources);
         expect(options.prompts).toBe(validated.prompts);
-        expect(options.compaction).toBe(validated.compaction);
         expect(options.overrides).toEqual({});
 
         expect(options.logger).toBe(logger);
         expect(options.storage.blob.getStoreType()).toBe('in-memory');
         expect(options.tools.map((t) => t.id)).toEqual(['foo']);
         expect(options.plugins).toEqual([]);
+        expect(options.compaction).toBeNull();
     });
 });

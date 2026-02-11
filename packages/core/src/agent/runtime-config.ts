@@ -9,7 +9,6 @@ import type {
     ValidatedElicitationConfig,
 } from '../tools/schemas.js';
 import type { ValidatedPromptsConfig } from '../prompts/schemas.js';
-import type { CompactionConfigInput } from '../context/compaction/schemas.js';
 import type { OtelConfiguration } from '../telemetry/schemas.js';
 import type { ValidatedAgentCard } from './schemas.js';
 
@@ -37,6 +36,4 @@ export interface AgentRuntimeSettings {
 
     internalResources: ValidatedInternalResourcesConfig;
     prompts: ValidatedPromptsConfig;
-
-    compaction: CompactionConfigInput;
 }

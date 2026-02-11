@@ -19,7 +19,6 @@ import type { SystemPromptManager } from '../../systemPrompt/manager.js';
 import type { IDextoLogger } from '../../logger/v2/types.js';
 import { requiresApiKey } from '../registry/index.js';
 import { getPrimaryApiKeyEnvVar, resolveApiKeyForProvider } from '../../utils/api-key-resolver.js';
-import type { CompactionConfigInput } from '../../context/compaction/schemas.js';
 
 // Dexto Gateway headers for usage tracking
 const DEXTO_GATEWAY_HEADERS = {
@@ -258,8 +257,7 @@ export function createLLMService(
     sessionId: string,
     resourceManager: import('../../resources/index.js').ResourceManager,
     logger: IDextoLogger,
-    compactionStrategy?: import('../../context/compaction/types.js').ICompactionStrategy | null,
-    compactionConfig?: CompactionConfigInput
+    compactionStrategy?: import('../../context/compaction/types.js').ICompactionStrategy | null
 ): VercelLLMService {
     const model = createVercelModel(config, { sessionId });
 
@@ -273,7 +271,6 @@ export function createLLMService(
         sessionId,
         resourceManager,
         logger,
-        compactionStrategy,
-        compactionConfig
+        compactionStrategy
     );
 }

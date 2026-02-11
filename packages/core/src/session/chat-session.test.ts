@@ -9,10 +9,6 @@ vi.mock('./history/factory.js', () => ({
 }));
 vi.mock('../llm/services/factory.js', () => ({
     createLLMService: vi.fn(),
-    createVercelModel: vi.fn(),
-}));
-vi.mock('../context/compaction/index.js', () => ({
-    createCompactionStrategy: vi.fn(),
 }));
 vi.mock('../llm/registry/index.js', async (importOriginal) => {
     const actual = (await importOriginal()) as typeof import('../llm/registry/index.js');
@@ -32,15 +28,12 @@ vi.mock('../logger/index.js', () => ({
 }));
 
 import { createDatabaseHistoryProvider } from './history/factory.js';
-import { createLLMService, createVercelModel } from '../llm/services/factory.js';
-import { createCompactionStrategy } from '../context/compaction/index.js';
+import { createLLMService } from '../llm/services/factory.js';
 import { getEffectiveMaxInputTokens } from '../llm/registry/index.js';
 import { createMockLogger } from '../logger/v2/test-utils.js';
 
 const mockCreateDatabaseHistoryProvider = vi.mocked(createDatabaseHistoryProvider);
 const mockCreateLLMService = vi.mocked(createLLMService);
-const mockCreateVercelModel = vi.mocked(createVercelModel);
-const mockCreateCompactionStrategy = vi.mocked(createCompactionStrategy);
 const mockGetEffectiveMaxInputTokens = vi.mocked(getEffectiveMaxInputTokens);
 
 describe('ChatSession', () => {
@@ -160,6 +153,7 @@ describe('ChatSession', () => {
                 on: vi.fn(),
                 off: vi.fn(),
             },
+            compactionStrategy: null,
             storageManager: mockStorageManager,
             resourceManager: {
                 getBlobStore: vi.fn(),
@@ -181,8 +175,6 @@ describe('ChatSession', () => {
         // Set up factory mocks
         mockCreateDatabaseHistoryProvider.mockReturnValue(mockHistoryProvider);
         mockCreateLLMService.mockReturnValue(mockLLMService);
-        mockCreateVercelModel.mockReturnValue('mock-model' as any);
-        mockCreateCompactionStrategy.mockResolvedValue(null); // No compaction for tests
         mockGetEffectiveMaxInputTokens.mockReturnValue(128000);
 
         // Create ChatSession instance
@@ -290,8 +282,7 @@ describe('ChatSession', () => {
                 sessionId,
                 mockServices.resourceManager,
                 mockLogger,
-                null, // compaction strategy
-                undefined // compaction config
+                null // compaction strategy
             );
         });
 
@@ -317,8 +308,7 @@ describe('ChatSession', () => {
                 sessionId,
                 mockServices.resourceManager,
                 mockLogger,
-                null, // compaction strategy
-                undefined // compaction config
+                null // compaction strategy
             );
         });
 
@@ -435,8 +425,7 @@ describe('ChatSession', () => {
                 sessionId,
                 mockServices.resourceManager, // ResourceManager parameter
                 mockLogger, // Logger parameter
-                null, // compaction strategy
-                undefined // compaction config
+                null // compaction strategy
             );
 
             // Verify session-specific history provider creation

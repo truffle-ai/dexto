@@ -15,10 +15,6 @@ import { ToolConfirmationConfigSchema, ElicitationConfigSchema } from '../../too
 import { ServerConfigsSchema } from '../../mcp/schemas.js';
 import { InternalResourcesSchema } from '../../resources/schemas.js';
 import { PromptsSchema } from '../../prompts/schemas.js';
-import {
-    CompactionConfigSchema,
-    DEFAULT_COMPACTION_CONFIG,
-} from '../../context/compaction/schemas.js';
 import { createLogger } from '../../logger/factory.js';
 import {
     createInMemoryBlobStore,
@@ -125,7 +121,6 @@ export const TestConfigs = {
             }),
             internalResources: InternalResourcesSchema.parse([]),
             prompts: PromptsSchema.parse([]),
-            compaction: CompactionConfigSchema.parse(DEFAULT_COMPACTION_CONFIG),
         };
     },
 
@@ -169,7 +164,6 @@ export const TestConfigs = {
             }),
             internalResources: InternalResourcesSchema.parse([]),
             prompts: PromptsSchema.parse([]),
-            compaction: CompactionConfigSchema.parse(DEFAULT_COMPACTION_CONFIG),
         };
     },
 
@@ -234,7 +228,6 @@ export const TestConfigs = {
             }),
             internalResources: InternalResourcesSchema.parse([]),
             prompts: PromptsSchema.parse([]),
-            compaction: CompactionConfigSchema.parse(DEFAULT_COMPACTION_CONFIG),
         };
     },
 } as const;

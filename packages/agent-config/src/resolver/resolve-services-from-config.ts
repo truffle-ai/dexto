@@ -274,5 +274,19 @@ export async function resolveServicesFromConfig(
         );
     }
 
-    return { logger, storage, tools, plugins };
+    // 5) Compaction
+    const compactionConfig = config.compaction;
+    let compaction: ResolvedServices['compaction'] = null;
+    if (compactionConfig.enabled !== false) {
+        const factory = resolveByType({
+            kind: 'compaction',
+            type: compactionConfig.type,
+            factories: image.compaction,
+            imageName,
+        });
+        const parsedConfig = factory.configSchema.parse(compactionConfig);
+        compaction = await factory.create(parsedConfig);
+    }
+
+    return { logger, storage, tools, plugins, compaction };
 }

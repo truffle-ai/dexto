@@ -25,11 +25,11 @@ export function toDextoAgentOptions(options: ToDextoAgentOptionsOptions): DextoA
         elicitation: config.elicitation,
         internalResources: config.internalResources,
         prompts: config.prompts,
-        compaction: config.compaction,
         logger: services.logger,
         storage: services.storage,
         tools: services.tools,
         plugins: services.plugins,
+        compaction: services.compaction,
         ...(overrides ? { overrides } : {}),
     };
 }

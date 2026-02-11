@@ -1,6 +1,5 @@
 import { createDatabaseHistoryProvider } from './history/factory.js';
-import { createLLMService, createVercelModel } from '../llm/services/factory.js';
-import { createCompactionStrategy } from '../context/compaction/index.js';
+import { createLLMService } from '../llm/services/factory.js';
 import type { ContextManager } from '@core/context/index.js';
 import type { IConversationHistoryProvider } from './history/types.js';
 import type { VercelLLMService } from '../llm/services/vercel.js';
@@ -27,6 +26,7 @@ import type { InternalMessage, ContentPart } from '../context/types.js';
 import type { UserMessageInput } from './message-queue.js';
 import type { ContentInput } from '../agent/types.js';
 import { getModelPricing, calculateCost } from '../llm/registry/index.js';
+import type { ICompactionStrategy } from '../context/compaction/types.js';
 
 /**
  * Represents an isolated conversation session within a Dexto agent.
@@ -143,6 +143,7 @@ export class ChatSession {
             pluginManager: PluginManager;
             mcpManager: MCPManager;
             sessionManager: import('./session-manager.js').SessionManager;
+            compactionStrategy: ICompactionStrategy | null;
         },
         public readonly id: string,
         logger: IDextoLogger
@@ -254,12 +255,7 @@ export class ChatSession {
             this.logger
         );
 
-        // Create model and compaction strategy from config
-        const model = createVercelModel(llmConfig);
-        const compactionStrategy = await createCompactionStrategy(runtimeConfig.compaction, {
-            logger: this.logger,
-            model,
-        });
+        const compactionStrategy = this.services.compactionStrategy;
 
         // Create session-specific LLM service
         // The service will create its own properly-typed ContextManager internally
@@ -272,8 +268,7 @@ export class ChatSession {
             this.id,
             this.services.resourceManager, // Pass ResourceManager for blob storage
             this.logger, // Pass logger for dependency injection
-            compactionStrategy, // Pass compaction strategy
-            runtimeConfig.compaction // Pass compaction config for threshold settings
+            compactionStrategy // Pass compaction strategy
         );
 
         this.logger.debug(`ChatSession ${this.id}: Services initialized with storage`);
@@ -639,15 +634,8 @@ export class ChatSession {
      */
     public async switchLLM(newLLMConfig: ValidatedLLMConfig): Promise<void> {
         try {
-            // Get compression config for this session
-            const runtimeConfig = this.services.stateManager.getRuntimeConfig(this.id);
-
-            // Create model and compaction strategy from config
-            const model = createVercelModel(newLLMConfig);
-            const compactionStrategy = await createCompactionStrategy(runtimeConfig.compaction, {
-                logger: this.logger,
-                model,
-            });
+            // Reuse the agent-provided compaction strategy (if any)
+            const compactionStrategy = this.services.compactionStrategy;
 
             // Create new LLM service with new config but SAME history provider
             // The service will create its own new ContextManager internally
@@ -660,8 +648,7 @@ export class ChatSession {
                 this.id,
                 this.services.resourceManager,
                 this.logger,
-                compactionStrategy, // Pass compaction strategy
-                runtimeConfig.compaction // Pass compaction config for threshold settings
+                compactionStrategy // Pass compaction strategy
             );
 
             // Replace the LLM service

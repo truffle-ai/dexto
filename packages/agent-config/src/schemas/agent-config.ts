@@ -1,7 +1,5 @@
 import {
     AgentCardSchema,
-    CompactionConfigSchema,
-    DEFAULT_COMPACTION_CONFIG,
     ElicitationConfigSchema,
     type LLMValidationOptions,
     LoggerConfigSchema,
@@ -18,6 +16,7 @@ import {
 import { StorageSchema } from '@dexto/storage/schemas';
 import { z } from 'zod';
 import { PluginsConfigSchema } from './plugins.js';
+import { CompactionConfigSchema, DEFAULT_COMPACTION_CONFIG } from './compaction.js';
 
 // ========================================
 // DI SURFACE CONFIG (validated in resolver)

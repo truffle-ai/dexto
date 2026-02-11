@@ -72,6 +72,7 @@ export async function createTestAgent(config?: AgentConfig): Promise<DextoAgent>
                 },
                 tools: [],
                 plugins: [],
+                compaction: null,
             },
             overrides: { storageManager },
         })

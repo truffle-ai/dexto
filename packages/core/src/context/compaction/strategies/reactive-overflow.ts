@@ -1,5 +1,4 @@
 import { generateText, type LanguageModel } from 'ai';
-import type { ICompactionStrategy } from '../types.js';
 import type { InternalMessage, ToolCall } from '../../types.js';
 import { isAssistantMessage, isToolMessage } from '../../types.js';
 import type { IDextoLogger } from '../../../logger/v2/types.js';
@@ -83,9 +82,7 @@ Conversation to summarize:
  * and filterCompacted() handles excluding old messages at read-time.
  * This preserves full history for audit/recovery purposes.
  */
-export class ReactiveOverflowStrategy implements ICompactionStrategy {
-    readonly name = 'reactive-overflow';
-
+export class ReactiveOverflowStrategy {
     private readonly model: LanguageModel;
     private readonly options: Required<ReactiveOverflowOptions>;
     private readonly logger: IDextoLogger;

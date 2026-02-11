@@ -1,15 +1,51 @@
-import { InternalMessage } from '../types.js';
+import type { LanguageModel } from 'ai';
+import type { IDextoLogger } from '../../logger/v2/types.js';
+import type { InternalMessage } from '../types.js';
+import type { ModelLimits } from './overflow.js';
+
+export interface CompactionSettings {
+    enabled: boolean;
+    /**
+     * Optional cap on the model context window used for compaction decisions.
+     * When set, compaction will behave as if the model's context window is:
+     * `min(modelContextWindow, maxContextTokens)`.
+     */
+    maxContextTokens?: number | undefined;
+    /**
+     * Percentage (0.1–1.0) of the effective context window at which compaction triggers.
+     * Example: 0.9 triggers at 90% of context usage.
+     */
+    thresholdPercent: number;
+}
+
+export interface CompactionRuntimeContext {
+    sessionId: string;
+    model: LanguageModel;
+    logger: IDextoLogger;
+}
 
 /**
  * Compaction strategy interface.
  *
- * Strategies are responsible for reducing conversation history size
- * when context limits are exceeded. The strategy is called by TurnExecutor
- * after detecting overflow via actual token usage from the API.
+ * This is the DI surface used by core runtime (TurnExecutor/VercelLLMService) to:
+ * - decide when to compact (budget + overflow logic)
+ * - execute compaction given per-session runtime context (model, logger, sessionId)
+ *
+ * Strategies are created by host layers (CLI/server/apps) via image factories.
+ * Core does not parse YAML, validate Zod schemas, or switch on `type` strings.
  */
 export interface ICompactionStrategy {
     /** Human-readable name for logging/UI */
     readonly name: string;
+
+    /** Effective budgeting settings for this strategy */
+    getSettings(): CompactionSettings;
+
+    /** Effective model limits after applying any strategy caps */
+    getModelLimits(modelContextWindow: number): ModelLimits;
+
+    /** Whether compaction should run given current input token usage */
+    shouldCompact(inputTokens: number, modelLimits: ModelLimits): boolean;
 
     /**
      * Compacts the provided message history.
@@ -27,7 +63,11 @@ export interface ICompactionStrategy {
      * - `isSessionSummary: true` - Alternative to isSummary for session-level summaries
      *
      * @param history The current conversation history.
+     * @param context Per-session runtime context (model/logger/sessionId)
      * @returns Summary messages to add to history. Empty array if nothing to compact.
      */
-    compact(history: readonly InternalMessage[]): Promise<InternalMessage[]> | InternalMessage[];
+    compact(
+        history: readonly InternalMessage[],
+        context: CompactionRuntimeContext
+    ): Promise<InternalMessage[]>;
 }

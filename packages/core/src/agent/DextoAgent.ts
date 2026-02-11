@@ -51,6 +51,7 @@ import {
 } from '../events/index.js';
 import type { IMCPClient } from '../mcp/types.js';
 import type { InternalTool, ToolSet } from '../tools/types.js';
+import type { ICompactionStrategy } from '../context/compaction/types.js';
 import { SearchService } from '../search/index.js';
 import type { SearchOptions, SearchResponse, SessionSearchResponse } from '../search/index.js';
 import { safeStringify } from '@core/utils/safe-stringify.js';
@@ -195,6 +196,7 @@ export class DextoAgent {
 
     // DI-provided local tools.
     private readonly injectedTools: InternalTool[];
+    private readonly injectedCompactionStrategy: ICompactionStrategy | null;
 
     // Logger instance for this agent (dependency injection)
     public readonly logger: IDextoLogger;
@@ -213,6 +215,7 @@ export class DextoAgent {
             storage,
             tools,
             plugins,
+            compaction,
             overrides: overridesInput,
             ...runtimeSettings
         } = options;
@@ -223,6 +226,7 @@ export class DextoAgent {
         this.logger = logger;
 
         this.injectedTools = tools;
+        this.injectedCompactionStrategy = compaction ?? null;
 
         const overrides: InitializeServicesOptions = { ...(overridesInput ?? {}) };
 
@@ -275,7 +279,8 @@ export class DextoAgent {
                 this.config,
                 this.logger,
                 this.agentEventBus,
-                this.serviceOverrides
+                this.serviceOverrides,
+                this.injectedCompactionStrategy
             );
 
             if (this.mcpAuthProviderFactory) {
@@ -1738,7 +1743,11 @@ export class DextoAgent {
         });
 
         // Generate summary message(s)
-        const summaryMessages = await compactionStrategy.compact(history);
+        const summaryMessages = await compactionStrategy.compact(history, {
+            sessionId,
+            model: llmService.getLanguageModel(),
+            logger: session.logger,
+        });
 
         if (summaryMessages.length === 0) {
             this.logger.debug(`Compaction skipped for session ${sessionId} - nothing to compact`);
@@ -1870,22 +1879,22 @@ export class DextoAgent {
 
         // Get raw history for hasSummary check
         const history = await contextManager.getHistory();
-        // Get the effective max context tokens (compaction threshold takes priority)
+        // Get the effective max context tokens from the injected compaction strategy (if any)
         const runtimeConfig = this.stateManager.getRuntimeConfig(sessionId);
-        const compactionConfig = runtimeConfig.compaction;
         const modelContextWindow = contextManager.getMaxInputTokens();
-        let maxContextTokens = modelContextWindow;
-
-        // Apply compaction config overrides (same logic as vercel.ts)
-        // 1. maxContextTokens caps the context window (e.g., use 50K even if model supports 200K)
-        if (compactionConfig?.maxContextTokens !== undefined) {
-            maxContextTokens = Math.min(maxContextTokens, compactionConfig.maxContextTokens);
-        }
-        // 2. thresholdPercent triggers compaction early (default 90% to avoid context rot)
-        const thresholdPercent = compactionConfig?.thresholdPercent ?? 0.9;
-        if (thresholdPercent < 1.0) {
-            maxContextTokens = Math.floor(maxContextTokens * thresholdPercent);
-        }
+        const compactionStrategy = this.injectedCompactionStrategy;
+        const compactionSettings = compactionStrategy?.getSettings();
+        const thresholdPercent =
+            compactionSettings && compactionSettings.enabled
+                ? compactionSettings.thresholdPercent
+                : 1.0;
+        const modelLimits = compactionStrategy
+            ? compactionStrategy.getModelLimits(modelContextWindow)
+            : { contextWindow: modelContextWindow };
+        const maxContextTokens =
+            thresholdPercent < 1.0
+                ? Math.floor(modelLimits.contextWindow * thresholdPercent)
+                : modelLimits.contextWindow;
 
         // Check if there's a summary in history (old isSummary or new isSessionSummary marker)
         const hasSummary = history.some(

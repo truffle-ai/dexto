@@ -4,7 +4,6 @@ import type { DextoImageModule } from '@dexto/agent-config';
 import { loadImage } from '@dexto/agent-config';
 import { loadAgentConfig } from '@dexto/agent-management';
 import imageLocal from '@dexto/image-local';
-import { noopProvider, reactiveOverflowProvider } from '@dexto/core';
 
 export type GetAgentConfigPathFn = (
     ctx: Context
@@ -127,10 +126,10 @@ async function listDiscoveryProviders(options: {
         metadata: toMetadata(provider.metadata),
     }));
 
-    const compaction = [reactiveOverflowProvider, noopProvider].map((provider) => ({
-        type: provider.type,
+    const compaction = Object.entries(image.compaction).map(([type, factory]) => ({
+        type,
         category: 'compaction' as const,
-        metadata: toMetadata(provider.metadata),
+        metadata: toMetadata(factory.metadata),
     }));
 
     const toolFactories = Object.entries(image.tools);

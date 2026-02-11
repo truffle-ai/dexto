@@ -8,10 +8,6 @@ import { SessionConfigSchema } from '@core/session/schemas.js';
 import { ToolConfirmationConfigSchema, ElicitationConfigSchema } from '@core/tools/schemas.js';
 import { InternalResourcesSchema } from '@core/resources/schemas.js';
 import { PromptsSchema } from '@core/prompts/schemas.js';
-import {
-    CompactionConfigSchema,
-    DEFAULT_COMPACTION_CONFIG,
-} from '@core/context/compaction/schemas.js';
 import { ServerConfigsSchema } from '@core/mcp/schemas.js';
 import type { AgentServices } from '../utils/service-initializer.js';
 import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
@@ -83,7 +79,6 @@ describe('DextoAgent Lifecycle Management', () => {
             }),
             internalResources: InternalResourcesSchema.parse([]),
             prompts: PromptsSchema.parse([]),
-            compaction: CompactionConfigSchema.parse(DEFAULT_COMPACTION_CONFIG),
         };
 
         mockServices = {
@@ -160,7 +155,8 @@ describe('DextoAgent Lifecycle Management', () => {
                 mockValidatedConfig,
                 expect.anything(), // logger instance
                 expect.anything(), // eventBus instance
-                expect.any(Object)
+                expect.any(Object),
+                null
             );
         });
 
@@ -186,7 +182,8 @@ describe('DextoAgent Lifecycle Management', () => {
                 validatedConfigWithServerModes,
                 expect.anything(), // logger instance
                 expect.anything(), // eventBus instance
-                expect.any(Object)
+                expect.any(Object),
+                null
             );
         });
 

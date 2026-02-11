@@ -1,6 +1,7 @@
 import type { BlobStore } from '../storage/blob/types.js';
 import type { Cache } from '../storage/cache/types.js';
 import type { Database } from '../storage/database/types.js';
+import type { ICompactionStrategy } from '../context/compaction/types.js';
 import type { IDextoLogger } from '../logger/v2/types.js';
 import type { DextoPlugin } from '../plugins/types.js';
 import type { InternalTool as Tool } from '../tools/types.js';
@@ -54,6 +55,13 @@ export interface DextoAgentOptions {
 
     /** Concrete plugins installed for the agent (DI-first). */
     plugins: DextoPlugin[];
+
+    /**
+     * Context compaction controller (DI-first).
+     *
+     * If omitted/null, automatic compaction is disabled.
+     */
+    compaction?: ICompactionStrategy | null | undefined;
 }
 
 export interface DextoAgentOptions extends AgentRuntimeSettings {}

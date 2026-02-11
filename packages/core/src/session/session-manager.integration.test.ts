@@ -8,10 +8,6 @@ import { SessionConfigSchema } from '@core/session/schemas.js';
 import { ToolConfirmationConfigSchema, ElicitationConfigSchema } from '@core/tools/schemas.js';
 import { InternalResourcesSchema } from '@core/resources/schemas.js';
 import { PromptsSchema } from '@core/prompts/schemas.js';
-import {
-    CompactionConfigSchema,
-    DEFAULT_COMPACTION_CONFIG,
-} from '@core/context/compaction/schemas.js';
 import { createLogger } from '../logger/factory.js';
 import type { SessionData } from './session-manager.js';
 import { ServerConfigsSchema } from '@core/mcp/schemas.js';
@@ -51,7 +47,6 @@ describe('Session Integration: Chat History Preservation', () => {
         }),
         internalResources: InternalResourcesSchema.parse([]),
         prompts: PromptsSchema.parse([]),
-        compaction: CompactionConfigSchema.parse(DEFAULT_COMPACTION_CONFIG),
     };
 
     beforeEach(async () => {
@@ -279,7 +274,6 @@ describe('Session Integration: Multi-Model Token Tracking', () => {
         }),
         internalResources: InternalResourcesSchema.parse([]),
         prompts: PromptsSchema.parse([]),
-        compaction: CompactionConfigSchema.parse(DEFAULT_COMPACTION_CONFIG),
     };
 
     beforeEach(async () => {

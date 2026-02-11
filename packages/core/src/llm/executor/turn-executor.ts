@@ -31,9 +31,8 @@ import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
 import { ErrorScope, ErrorType } from '../../errors/types.js';
 import { LLMErrorCode } from '../error-codes.js';
 import { toError } from '../../utils/error-conversion.js';
-import { isOverflow, type ModelLimits } from '../../context/compaction/overflow.js';
-import { ReactiveOverflowStrategy } from '../../context/compaction/strategies/reactive-overflow.js';
 import type { ICompactionStrategy } from '../../context/compaction/types.js';
+import type { ModelLimits } from '../../context/compaction/overflow.js';
 
 /**
  * Static cache for tool support validation.
@@ -96,8 +95,7 @@ export class TurnExecutor {
         private messageQueue: MessageQueueService,
         private modelLimits?: ModelLimits,
         private externalSignal?: AbortSignal,
-        compactionStrategy?: ICompactionStrategy | null,
-        private compactionThresholdPercent: number = 1.0
+        compactionStrategy: ICompactionStrategy | null = null
     ) {
         this.logger = logger.createChild(DextoLogComponent.EXECUTOR);
         // Initial controller - will be replaced per-step in execute()
@@ -108,14 +106,7 @@ export class TurnExecutor {
         // - Soft cancel: aborts current step, but queue can continue with fresh controller
         // - Hard cancel (external aborted + clearQueue): checked explicitly in loop
 
-        // Use provided compaction strategy, or fallback to default behavior
-        if (compactionStrategy !== undefined) {
-            // Explicitly provided (could be null to disable, or a strategy instance)
-            this.compactionStrategy = compactionStrategy;
-        } else if (modelLimits) {
-            // Backward compatibility: create default strategy if model limits are provided
-            this.compactionStrategy = new ReactiveOverflowStrategy(model, {}, this.logger);
-        }
+        this.compactionStrategy = compactionStrategy;
     }
 
     /**
@@ -955,12 +946,7 @@ export class TurnExecutor {
         if (!this.modelLimits || !this.compactionStrategy) {
             return false;
         }
-        // Use the overflow logic with threshold to trigger compaction earlier
-        return isOverflow(
-            { inputTokens: estimatedTokens },
-            this.modelLimits,
-            this.compactionThresholdPercent
-        );
+        return this.compactionStrategy.shouldCompact(estimatedTokens, this.modelLimits);
     }
 
     /**
@@ -974,12 +960,7 @@ export class TurnExecutor {
         if (!this.modelLimits || !this.compactionStrategy) {
             return false;
         }
-        // Use the same overflow logic but with actual tokens from API
-        return isOverflow(
-            { inputTokens: actualTokens },
-            this.modelLimits,
-            this.compactionThresholdPercent
-        );
+        return this.compactionStrategy.shouldCompact(actualTokens, this.modelLimits);
     }
 
     /**
@@ -1024,7 +1005,11 @@ export class TurnExecutor {
         });
 
         // Generate summary message(s) - this makes an LLM call
-        const summaryMessages = await this.compactionStrategy.compact(history);
+        const summaryMessages = await this.compactionStrategy.compact(history, {
+            sessionId: this.sessionId,
+            model: this.model,
+            logger: this.logger,
+        });
 
         if (summaryMessages.length === 0) {
             // Compaction returned empty - nothing to summarize (e.g., already compacted)

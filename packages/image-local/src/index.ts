@@ -3,13 +3,17 @@ import {
     type DextoImageModule,
     type PluginFactory,
     type CompactionFactory,
+    NoOpCompactionConfigSchema,
+    type NoOpCompactionConfig,
+    ReactiveOverflowCompactionConfigSchema,
+    type ReactiveOverflowCompactionConfig,
 } from '@dexto/agent-config';
 import {
     ContentPolicyPlugin,
     ResponseSanitizerPlugin,
     defaultLoggerFactory,
     NoOpCompactionStrategy,
-    NoOpConfigSchema,
+    ReactiveOverflowCompactionStrategy,
 } from '@dexto/core';
 import {
     localBlobStoreFactory,
@@ -37,9 +41,29 @@ const responseSanitizerFactory: PluginFactory = {
     create: (_config) => new ResponseSanitizerPlugin(),
 };
 
-const noopCompactionFactory: CompactionFactory = {
-    configSchema: NoOpConfigSchema,
-    create: (_config) => new NoOpCompactionStrategy(),
+const noopCompactionFactory: CompactionFactory<NoOpCompactionConfig> = {
+    configSchema: NoOpCompactionConfigSchema,
+    create: (config) =>
+        new NoOpCompactionStrategy({
+            enabled: config.enabled,
+            maxContextTokens: config.maxContextTokens,
+            thresholdPercent: config.thresholdPercent,
+        }),
+};
+
+const reactiveOverflowCompactionFactory: CompactionFactory<ReactiveOverflowCompactionConfig> = {
+    configSchema: ReactiveOverflowCompactionConfigSchema,
+    create: (config) =>
+        new ReactiveOverflowCompactionStrategy({
+            enabled: config.enabled,
+            maxContextTokens: config.maxContextTokens,
+            thresholdPercent: config.thresholdPercent,
+            strategy: {
+                preserveLastNTurns: config.preserveLastNTurns,
+                maxSummaryTokens: config.maxSummaryTokens,
+                ...(config.summaryPrompt !== undefined && { summaryPrompt: config.summaryPrompt }),
+            },
+        }),
 };
 
 const imageLocal: DextoImageModule = {
@@ -93,6 +117,7 @@ const imageLocal: DextoImageModule = {
         'response-sanitizer': responseSanitizerFactory,
     },
     compaction: {
+        'reactive-overflow': reactiveOverflowCompactionFactory,
         noop: noopCompactionFactory,
     },
     logger: defaultLoggerFactory,

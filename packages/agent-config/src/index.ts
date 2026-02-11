@@ -27,6 +27,20 @@ export { BuiltInPluginConfigSchema, PluginsConfigSchema } from './schemas/plugin
 
 export type { PluginsConfig, ValidatedPluginsConfig } from './schemas/plugins.js';
 
+export {
+    CompactionConfigSchema,
+    DEFAULT_COMPACTION_CONFIG,
+    ReactiveOverflowCompactionConfigSchema,
+    NoOpCompactionConfigSchema,
+} from './schemas/compaction.js';
+
+export type {
+    CompactionConfig,
+    ValidatedCompactionConfig,
+    ReactiveOverflowCompactionConfig,
+    NoOpCompactionConfig,
+} from './schemas/compaction.js';
+
 export { applyImageDefaults } from './resolver/apply-image-defaults.js';
 export { loadImage, setImageImporter } from './resolver/load-image.js';
 export type { ImageImporter } from './resolver/load-image.js';

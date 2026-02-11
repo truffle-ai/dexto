@@ -50,7 +50,7 @@ export interface PluginFactory<TConfig = unknown> {
 
 export interface CompactionFactory<TConfig = unknown> {
     configSchema: z.ZodType<TConfig, z.ZodTypeDef, unknown>;
-    create(config: TConfig): CompactionStrategy;
+    create(config: TConfig): CompactionStrategy | Promise<CompactionStrategy>;
     metadata?: Record<string, unknown> | undefined;
 }
 

@@ -26,6 +26,7 @@ import { ApprovalManager } from '../approval/manager.js';
 import { MemoryManager } from '../memory/index.js';
 import { PluginManager } from '../plugins/manager.js';
 import type { DextoPlugin } from '../plugins/types.js';
+import type { ICompactionStrategy } from '../context/compaction/types.js';
 
 /**
  * Type for the core agent services returned by createAgentServices
@@ -80,7 +81,8 @@ export async function createAgentServices(
     config: AgentRuntimeSettings,
     logger: IDextoLogger,
     agentEventBus: AgentEventBus,
-    overrides?: InitializeServicesOptions
+    overrides?: InitializeServicesOptions,
+    compactionStrategy?: ICompactionStrategy | null | undefined
 ): Promise<AgentServices> {
     // 0. Initialize telemetry FIRST (before any decorated classes are instantiated)
     // This must happen before creating any services that use @InstrumentClass decorator
@@ -241,6 +243,7 @@ export async function createAgentServices(
             resourceManager, // Add resource manager for blob storage
             pluginManager, // Add plugin manager for plugin execution
             mcpManager, // Add MCP manager for ChatSession
+            compactionStrategy: compactionStrategy ?? null,
         },
         {
             maxSessions: config.sessions?.maxSessions,
