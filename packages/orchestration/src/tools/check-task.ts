@@ -5,7 +5,8 @@
  */
 
 import { z } from 'zod';
-import type { OrchestrationTool, OrchestrationToolContext } from './types.js';
+import type { Tool } from '@dexto/core';
+import type { TaskRegistry } from '../task-registry.js';
 
 /**
  * Input schema for check_task tool
@@ -48,7 +49,7 @@ export interface CheckTaskOutput {
 /**
  * Create the check_task tool
  */
-export function createCheckTaskTool(): OrchestrationTool {
+export function createCheckTaskTool(taskRegistry: TaskRegistry): Tool {
     return {
         id: 'check_task',
         description:
@@ -56,12 +57,9 @@ export function createCheckTaskTool(): OrchestrationTool {
             'Returns immediately without waiting. ' +
             'Use this to poll task status or check if a task is done.',
         inputSchema: CheckTaskInputSchema,
-        execute: async (
-            rawInput: unknown,
-            context: OrchestrationToolContext
-        ): Promise<CheckTaskOutput> => {
+        execute: async (rawInput: unknown): Promise<CheckTaskOutput> => {
             const input = CheckTaskInputSchema.parse(rawInput);
-            const info = context.taskRegistry.getInfo(input.taskId);
+            const info = taskRegistry.getInfo(input.taskId);
 
             if (!info) {
                 return {

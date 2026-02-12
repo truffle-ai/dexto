@@ -548,6 +548,9 @@ importers:
 
   packages/orchestration:
     dependencies:
+      '@dexto/core':
+        specifier: workspace:*
+        version: link:../core
       zod:
         specifier: ^3.25.0
         version: 3.25.76

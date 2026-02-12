@@ -9,7 +9,7 @@ import { z } from 'zod';
 import { randomUUID } from 'crypto';
 import { ConditionEngine } from '../condition-engine.js';
 import type { WaitCondition, Signal } from '../types.js';
-import type { OrchestrationTool, OrchestrationToolContext } from './types.js';
+import type { Tool } from '@dexto/core';
 
 /**
  * Input schema for wait_for tool
@@ -39,7 +39,7 @@ export const WaitForInputSchema = z
         { message: 'Either taskId or taskIds must be provided' }
     );
 
-export type WaitForInput = z.infer<typeof WaitForInputSchema>;
+export type WaitForInput = z.output<typeof WaitForInputSchema>;
 
 /**
  * Output from wait_for tool
@@ -147,7 +147,7 @@ function formatOutput(signal: Signal, allSignals?: Signal[]): WaitForOutput {
 /**
  * Create the wait_for tool
  */
-export function createWaitForTool(): OrchestrationTool {
+export function createWaitForTool(conditionEngine: ConditionEngine): Tool {
     return {
         id: 'wait_for',
         description:
@@ -155,15 +155,12 @@ export function createWaitForTool(): OrchestrationTool {
             'Blocks execution until the condition is met. ' +
             'Use taskId for a single task, or taskIds with mode for multiple tasks.',
         inputSchema: WaitForInputSchema,
-        execute: async (
-            rawInput: unknown,
-            context: OrchestrationToolContext
-        ): Promise<WaitForOutput> => {
+        execute: async (rawInput: unknown): Promise<WaitForOutput> => {
             const input = WaitForInputSchema.parse(rawInput);
             const condition = buildCondition(input);
 
             // This blocks until condition is met (the key design!)
-            const { signal, allSignals } = await context.conditionEngine.wait(condition);
+            const { signal, allSignals } = await conditionEngine.wait(condition);
 
             return formatOutput(signal, allSignals);
         },

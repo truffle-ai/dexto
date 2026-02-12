@@ -8,8 +8,6 @@ import {
     createCheckTaskTool,
     createListTasksTool,
     createWaitForTool,
-    type OrchestrationTool,
-    type OrchestrationToolContext,
     WaitForInputSchema,
     CheckTaskInputSchema,
     ListTasksInputSchema,
@@ -42,18 +40,6 @@ function requireAgentContext(context?: ToolExecutionContext): {
     }
 
     return { agent, logger, services: context.services };
-}
-
-/**
- * Helper to bind OrchestrationTool to Tool by injecting context.
- */
-function bindOrchestrationTool(tool: OrchestrationTool, context: OrchestrationToolContext): Tool {
-    return {
-        id: tool.id,
-        description: tool.description,
-        inputSchema: tool.inputSchema,
-        execute: (input: unknown) => tool.execute(input, context),
-    };
 }
 
 function createLazyTool(options: {
@@ -148,12 +134,6 @@ export const agentSpawnerToolsFactory: ToolFactory<AgentSpawnerConfig> = {
             const signalBus = new SignalBus();
             const taskRegistry = new TaskRegistry(signalBus);
             const conditionEngine = new ConditionEngine(taskRegistry, signalBus, logger);
-
-            const toolContext: OrchestrationToolContext = {
-                taskRegistry,
-                conditionEngine,
-                signalBus,
-            };
 
             // Create the runtime bridge that spawns/executes sub-agents.
             const service = new AgentSpawnerRuntime(agent, config, logger);
@@ -330,9 +310,9 @@ export const agentSpawnerToolsFactory: ToolFactory<AgentSpawnerConfig> = {
 
             const tools = [
                 spawnAgentTool,
-                bindOrchestrationTool(createWaitForTool(), toolContext),
-                bindOrchestrationTool(createCheckTaskTool(), toolContext),
-                bindOrchestrationTool(createListTasksTool(), toolContext),
+                createWaitForTool(conditionEngine),
+                createCheckTaskTool(taskRegistry),
+                createListTasksTool(taskRegistry),
             ];
 
             toolMap = new Map(tools.map((t) => [t.id, t]));
