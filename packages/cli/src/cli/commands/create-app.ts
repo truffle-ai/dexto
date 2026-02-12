@@ -2,7 +2,7 @@ import fs from 'fs-extra';
 import path from 'path';
 import chalk from 'chalk';
 import * as p from '@clack/prompts';
-import { selectOrExit, textOrExit } from '../utils/prompt-helpers.js';
+import { selectOrExit } from '../utils/prompt-helpers.js';
 import {
     promptForProjectName,
     createProjectDirectory,
@@ -14,11 +14,10 @@ import {
     createEnvExample,
     ensureDirectory,
     getDextoVersionRange,
-    pinDextoPackageIfUnversioned,
 } from '../utils/scaffolding-utils.js';
 import {
-    generateIndexForImage,
-    generateWebServerIndex,
+    generateIndexForCodeFirstDI,
+    generateWebServerIndexForCodeFirstDI,
     generateWebAppHTML,
     generateWebAppJS,
     generateWebAppCSS,
@@ -29,14 +28,11 @@ import { getExecutionContext } from '@dexto/agent-management';
 type AppType = 'script' | 'webapp';
 
 export interface CreateAppOptions {
-    fromImage?: string;
     type?: AppType;
 }
 
 /**
- * Creates a Dexto application that runs an agent using an image.
- *
- * To create a new image with custom factories, use `dexto create-image`.
+ * Creates a Dexto application that runs an agent using code-first DI.
  */
 export async function createDextoProject(
     name?: string,
@@ -69,43 +65,6 @@ export async function createDextoProject(
         );
     }
 
-    // Step 3: Choose an image
-    let imageName = options?.fromImage;
-    if (!imageName) {
-        const imageChoice = await selectOrExit<string>(
-            {
-                message: 'Which image?',
-                options: [
-                    {
-                        value: '@dexto/image-local',
-                        label: '@dexto/image-local (recommended)',
-                        hint: 'Local dev - SQLite, filesystem',
-                    },
-                    { value: 'custom', label: 'Custom npm package...' },
-                ],
-            },
-            'App creation cancelled'
-        );
-
-        if (imageChoice === 'custom') {
-            imageName = await textOrExit(
-                {
-                    message: 'Enter the npm package name:',
-                    placeholder: '@myorg/image-custom',
-                    validate: (value) => {
-                        if (!value || value.trim() === '') {
-                            return 'Package name is required';
-                        }
-                        return undefined;
-                    },
-                },
-                'App creation cancelled'
-            );
-        } else {
-            imageName = imageChoice;
-        }
-    }
-
     const spinner = p.spinner();
     const originalCwd = process.cwd();
     let projectPath: string | undefined;
@@ -114,7 +73,7 @@ export async function createDextoProject(
         projectPath = await createProjectDirectory(projectName, spinner);
         process.chdir(projectPath);
 
-        await scaffoldFromImage(projectPath, projectName, imageName, appType, originalCwd, spinner);
+        await scaffoldCodeFirstDI(projectPath, projectName, appType, spinner);
 
         spinner.stop(chalk.green(`✓ Successfully created app: ${projectName}`));
 
@@ -142,69 +101,25 @@ export async function createDextoProject(
 }
 
 /**
- * Scaffold an app using an existing image.
+ * Scaffold an app using code-first DI.
  */
-async function scaffoldFromImage(
+async function scaffoldCodeFirstDI(
     projectPath: string,
     projectName: string,
-    imageName: string,
     appType: AppType,
-    originalCwd: string,
     spinner: ReturnType<typeof p.spinner>
 ): Promise<void> {
     spinner.start('Setting up app structure...');
 
-    // Config `image:` should be an import specifier (package name), never a file path.
-    let imageSpecifierForConfig = imageName;
-
-    // Advanced: user can pass a local path and we install it from filesystem,
-    // but config should still reference the package name.
-    if (imageName.startsWith('.')) {
-        const fullPath = path.resolve(originalCwd, imageName);
-        let packageDir = fullPath;
-
-        // If path ends with /dist/index.js, resolve to package root (parent of dist)
-        if (fullPath.endsWith('/dist/index.js') || fullPath.endsWith('\\dist\\index.js')) {
-            packageDir = path.dirname(path.dirname(fullPath));
-        } else if (fullPath.endsWith('.js')) {
-            packageDir = path.dirname(fullPath);
-        }
-
-        const pkgJsonPath = path.join(packageDir, 'package.json');
-        let pkgJson: unknown;
-        try {
-            pkgJson = JSON.parse(await fs.readFile(pkgJsonPath, 'utf8'));
-        } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
-            throw new Error(
-                `Could not read package.json from ${packageDir} (required to determine image package name): ${message}`
-            );
-        }
-
-        if (
-            !pkgJson ||
-            typeof pkgJson !== 'object' ||
-            !('name' in pkgJson) ||
-            typeof pkgJson.name !== 'string' ||
-            pkgJson.name.length === 0
-        ) {
-            throw new Error(`Invalid image package.json at ${pkgJsonPath}: missing "name" field`);
-        }
-
-        imageSpecifierForConfig = pkgJson.name;
-    }
-
     await ensureDirectory('src');
-    await ensureDirectory('agents');
 
     // Create src/index.ts based on app type
     let indexContent: string;
     if (appType === 'webapp') {
-        indexContent = generateWebServerIndex({
+        indexContent = generateWebServerIndexForCodeFirstDI({
             projectName,
             packageName: projectName,
             description: 'Dexto web server application',
-            imageName: imageSpecifierForConfig,
         });
 
         await ensureDirectory('app');
@@ -213,69 +128,14 @@ async function scaffoldFromImage(
         await fs.writeFile('app/assets/main.js', generateWebAppJS());
         await fs.writeFile('app/assets/style.css', generateWebAppCSS());
     } else {
-        indexContent = generateIndexForImage({
+        indexContent = generateIndexForCodeFirstDI({
             projectName,
             packageName: projectName,
             description: 'Dexto application',
-            imageName: imageSpecifierForConfig,
         });
     }
 
     await fs.writeFile('src/index.ts', indexContent);
-
-    // Create default agent config
-    const agentConfig = `# Default Agent Configuration
-
-# Image: factory bundle used to resolve config → concrete services
-image: '${imageSpecifierForConfig}'
-
-# System prompt
-systemPrompt:
-  contributors:
-    - id: primary
-      type: static
-      priority: 0
-      content: |
-        You are a helpful AI assistant.
-
-# LLM configuration
-llm:
-  provider: openai
-  model: gpt-4o
-  apiKey: $OPENAI_API_KEY
-
-# Storage
-storage:
-  cache:
-    type: in-memory
-  database:
-    type: sqlite
-    path: ./data/agent.db
-  blob:
-    type: local
-    storePath: ./data/blobs
-
-# Tools
-# Omit \`tools\` to use image defaults.
-# tools:
-#   - type: builtin-tools
-#   - type: filesystem-tools
-#     allowedPaths: ['.']
-#     blockedPaths: ['.git', 'node_modules']
-#   - type: process-tools
-#     securityLevel: moderate
-
-# MCP servers - add external tools here
-# mcpServers:
-#   filesystem:
-#     type: stdio
-#     command: npx
-#     args:
-#       - -y
-#       - "@modelcontextprotocol/server-filesystem"
-#       - .
-`;
-    await fs.writeFile('agents/default.yml', agentConfig);
 
     spinner.message('Creating configuration files...');
 
@@ -296,8 +156,7 @@ storage:
     const readmeContent = generateAppReadme({
         projectName,
         packageName: projectName,
-        description: 'Dexto application using an image',
-        imageName: imageSpecifierForConfig,
+        description: 'Dexto application (code-first DI)',
     });
     await fs.writeFile('README.md', readmeContent);
 
@@ -319,34 +178,13 @@ storage:
     const versionRange = getDextoVersionRange();
     const dextoDependencyVersion = isDextoSource ? 'workspace:*' : versionRange;
 
-    // Resolve relative paths to absolute for local images (npm/pnpm need absolute paths)
-    let resolvedImageInstallSpecifier = imageName;
-    if (imageName.startsWith('.')) {
-        const fullPath = path.resolve(originalCwd, imageName);
-        if (fullPath.endsWith('/dist/index.js') || fullPath.endsWith('\\dist\\index.js')) {
-            resolvedImageInstallSpecifier = path.dirname(path.dirname(fullPath));
-        } else if (fullPath.endsWith('.js')) {
-            resolvedImageInstallSpecifier = path.dirname(fullPath);
-        } else {
-            resolvedImageInstallSpecifier = fullPath;
-        }
-    } else if (isDextoSource && imageName.startsWith('@dexto/image-')) {
-        const imagePkgName = imageName.replace('@dexto/', '');
-        const imagePkgPath = path.resolve(originalCwd, 'packages', imagePkgName);
-        if (await fs.pathExists(imagePkgPath)) {
-            resolvedImageInstallSpecifier = imagePkgPath;
-        }
-    }
-
-    const imageDependency = isDextoSource
-        ? resolvedImageInstallSpecifier
-        : pinDextoPackageIfUnversioned(resolvedImageInstallSpecifier, versionRange);
-
     const dependencies = [
-        imageDependency,
         `@dexto/core@${dextoDependencyVersion}`,
-        `@dexto/agent-config@${dextoDependencyVersion}`,
-        `@dexto/agent-management@${dextoDependencyVersion}`,
+        `@dexto/storage@${dextoDependencyVersion}`,
+        `@dexto/tools-builtins@${dextoDependencyVersion}`,
+        `@dexto/tools-filesystem@${dextoDependencyVersion}`,
+        `@dexto/tools-process@${dextoDependencyVersion}`,
+        'dotenv',
         'tsx',
     ];
 

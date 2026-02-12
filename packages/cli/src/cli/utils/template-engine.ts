@@ -2,9 +2,9 @@
  * Template Engine for Dexto Project Scaffolding
  *
  * Provides code generation functions for various project types.
- * Uses the image/harness terminology strategy:
- * - "Image" for distributable artifacts, packages, composition
- * - "Harness" for runtime behavior, what it provides
+ *
+ * Note: create-app/init-app scaffolds are code-first DI (no YAML/images).
+ * Image scaffolds are generated via `dexto create-image`.
  */
 
 interface TemplateContext {
@@ -20,122 +20,259 @@ interface TemplateContext {
 }
 
 /**
- * Generates src/index.ts for an app using an image
+ * Generates src/index.ts for an app using code-first DI.
  */
-export function generateIndexForImage(context: TemplateContext): string {
-    const imageName = context.imageName ?? '@dexto/image-local';
-    return `// Standalone Dexto app (image-based)
-// Loads an image module and resolves DI services from config.
+export function generateIndexForCodeFirstDI(context: TemplateContext): string {
+    const defaultProvider = context.llmProvider ?? 'openai';
+    const defaultModel = context.llmModel ?? 'gpt-4o';
+    return `// Standalone Dexto app (code-first DI)
+// Builds a DextoAgent directly and injects storage/tools in code (no images/YAML).
+import 'dotenv/config';
+import type { Tool, LLMProvider } from '@dexto/core';
 import {
-    AgentConfigSchema,
-    applyImageDefaults,
-    cleanNullValues,
-    loadImage,
-    resolveServicesFromConfig,
-    setImageImporter,
-    toDextoAgentOptions,
-} from '@dexto/agent-config';
-import { DextoAgent } from '@dexto/core';
-import { enrichAgentConfig, loadAgentConfig } from '@dexto/agent-management';
+    DextoAgent,
+    createLogger,
+    LoggerConfigSchema,
+    LLMConfigSchemaRelaxed,
+    SystemPromptConfigSchema,
+    ServerConfigsSchema,
+    SessionConfigSchema,
+    ToolConfirmationConfigSchema,
+    ElicitationConfigSchema,
+    InternalResourcesSchema,
+    PromptsSchema,
+    resolveApiKeyForProvider,
+} from '@dexto/core';
+import { MemoryCacheStore, MemoryDatabaseStore, InMemoryBlobStore, InMemoryBlobStoreSchema } from '@dexto/storage';
+import { builtinToolsFactory } from '@dexto/tools-builtins';
+import { fileSystemToolsFactory } from '@dexto/tools-filesystem';
+import { processToolsFactory } from '@dexto/tools-process';
 
-// Ensure loadImage('@dexto/image-*') resolves relative to the host package (pnpm-safe).
-setImageImporter((specifier) => import(specifier));
+const INTERNAL_TOOL_PREFIX = 'internal--';
+const CUSTOM_TOOL_PREFIX = 'custom--';
+
+function qualifyToolIds(prefix: string, tools: Tool[]): Tool[] {
+    return tools.map((tool) => {
+        if (
+            tool.id.startsWith(INTERNAL_TOOL_PREFIX) ||
+            tool.id.startsWith(CUSTOM_TOOL_PREFIX)
+        ) {
+            return tool;
+        }
+
+        return { ...tool, id: \`\${prefix}\${tool.id}\` };
+    });
+}
 
 async function main() {
     console.log('🚀 Starting ${context.projectName}\\n');
 
-    const configPath = './agents/default.yml';
+    const agentId = process.env.DEXTO_AGENT_ID ?? '${context.projectName}';
+    const llmProvider = (process.env.DEXTO_LLM_PROVIDER ?? '${defaultProvider}') as LLMProvider;
+    const llmModel = process.env.DEXTO_LLM_MODEL ?? '${defaultModel}';
 
-    // Load agent configuration (raw YAML + template vars)
-    const config = await loadAgentConfig(configPath);
-    const cleanedConfig = cleanNullValues(config);
+    const logger = createLogger({
+        agentId,
+        config: LoggerConfigSchema.parse({
+            level: 'info',
+            transports: [{ type: 'console' }],
+        }),
+    });
 
-    // Load image + apply defaults
-    const imageName = process.env.DEXTO_IMAGE ?? '${imageName}';
-    const image = await loadImage(imageName);
-    const configWithDefaults = applyImageDefaults(cleanedConfig, image.defaults);
+    const storage = {
+        cache: new MemoryCacheStore(),
+        database: new MemoryDatabaseStore(),
+        blob: new InMemoryBlobStore(InMemoryBlobStoreSchema.parse({ type: 'in-memory' }), logger),
+    };
 
-    // Host enrichment (paths, prompt discovery, etc.) + validation
-    const enrichedConfig = enrichAgentConfig(configWithDefaults, configPath);
-    const validatedConfig = AgentConfigSchema.parse(enrichedConfig);
+    const tools = [
+        ...qualifyToolIds(
+            INTERNAL_TOOL_PREFIX,
+            builtinToolsFactory.create(
+                builtinToolsFactory.configSchema.parse({ type: 'builtin-tools' })
+            )
+        ),
+        ...qualifyToolIds(
+            CUSTOM_TOOL_PREFIX,
+            fileSystemToolsFactory.create(
+                fileSystemToolsFactory.configSchema.parse({ type: 'filesystem-tools' })
+            )
+        ),
+        ...qualifyToolIds(
+            CUSTOM_TOOL_PREFIX,
+            processToolsFactory.create(
+                processToolsFactory.configSchema.parse({ type: 'process-tools' })
+            )
+        ),
+    ];
 
-    // Resolve DI services from image factories
-    const services = await resolveServicesFromConfig(validatedConfig, image);
-
-    const agent = new DextoAgent(toDextoAgentOptions({ config: validatedConfig, services }));
+    const agent = new DextoAgent({
+        agentId,
+        llm: LLMConfigSchemaRelaxed.parse({
+            provider: llmProvider,
+            model: llmModel,
+            apiKey: process.env.DEXTO_LLM_API_KEY ?? resolveApiKeyForProvider(llmProvider),
+            maxIterations: 10,
+        }),
+        systemPrompt: SystemPromptConfigSchema.parse(
+            'You are a helpful AI assistant with access to tools.'
+        ),
+        mcpServers: ServerConfigsSchema.parse({}),
+        sessions: SessionConfigSchema.parse({}),
+        toolConfirmation: ToolConfirmationConfigSchema.parse({
+            mode: 'auto-approve',
+            allowedToolsStorage: 'memory',
+        }),
+        elicitation: ElicitationConfigSchema.parse({}),
+        internalResources: InternalResourcesSchema.parse([]),
+        prompts: PromptsSchema.parse([]),
+        logger,
+        storage,
+        tools,
+        plugins: [],
+        compaction: null,
+    });
 
     await agent.start();
     console.log('✅ Agent started\\n');
 
-    // Create a session
     const session = await agent.createSession();
-
-    // Example interaction
     const response = await agent.run(
-        'Hello! What can you help me with?',
+        'Hello! What tools do you have available?',
         undefined, // imageDataInput
         undefined, // fileDataInput
         session.id // sessionId
     );
 
-    console.log('Agent response:', response);
+    console.log('\\nAgent response:\\n');
+    console.log(response);
 
-    // Cleanup
     await agent.stop();
 }
 
 main().catch((error) => {
-    console.error('Error:', error);
+    console.error('❌ Error:', error);
     process.exit(1);
 });
 `;
 }
 
 /**
- * Generates src/index.ts for a web server application using an image
+ * Generates src/index.ts for a web server application using code-first DI.
  */
-export function generateWebServerIndex(context: TemplateContext): string {
-    const imageName = context.imageName ?? '@dexto/image-local';
-    return `// Dexto Web Server (image-based)
-// Loads an image module and resolves DI services from config.
+export function generateWebServerIndexForCodeFirstDI(context: TemplateContext): string {
+    const defaultProvider = context.llmProvider ?? 'openai';
+    const defaultModel = context.llmModel ?? 'gpt-4o';
+    return `// Dexto Web Server (code-first DI)
+// Builds a DextoAgent directly and starts the server (no images/YAML).
+import 'dotenv/config';
+import type { Tool, LLMProvider } from '@dexto/core';
 import {
-    AgentConfigSchema,
-    applyImageDefaults,
-    cleanNullValues,
-    loadImage,
-    resolveServicesFromConfig,
-    setImageImporter,
-    toDextoAgentOptions,
-} from '@dexto/agent-config';
-import { DextoAgent } from '@dexto/core';
-import { enrichAgentConfig, loadAgentConfig } from '@dexto/agent-management';
+    DextoAgent,
+    createLogger,
+    LoggerConfigSchema,
+    LLMConfigSchemaRelaxed,
+    SystemPromptConfigSchema,
+    ServerConfigsSchema,
+    SessionConfigSchema,
+    ToolConfirmationConfigSchema,
+    ElicitationConfigSchema,
+    InternalResourcesSchema,
+    PromptsSchema,
+    resolveApiKeyForProvider,
+} from '@dexto/core';
+import { MemoryCacheStore, MemoryDatabaseStore, InMemoryBlobStore, InMemoryBlobStoreSchema } from '@dexto/storage';
+import { builtinToolsFactory } from '@dexto/tools-builtins';
+import { fileSystemToolsFactory } from '@dexto/tools-filesystem';
+import { processToolsFactory } from '@dexto/tools-process';
 import { startDextoServer } from '@dexto/server';
 import { resolve } from 'node:path';
 import { existsSync } from 'node:fs';
 
-// Ensure loadImage('@dexto/image-*') resolves relative to the host package (pnpm-safe).
-setImageImporter((specifier) => import(specifier));
+const INTERNAL_TOOL_PREFIX = 'internal--';
+const CUSTOM_TOOL_PREFIX = 'custom--';
+
+function qualifyToolIds(prefix: string, tools: Tool[]): Tool[] {
+    return tools.map((tool) => {
+        if (
+            tool.id.startsWith(INTERNAL_TOOL_PREFIX) ||
+            tool.id.startsWith(CUSTOM_TOOL_PREFIX)
+        ) {
+            return tool;
+        }
+
+        return { ...tool, id: \`\${prefix}\${tool.id}\` };
+    });
+}
 
 async function main() {
     console.log('🚀 Starting ${context.projectName}\\n');
 
-    // Load agent configuration
-    console.log('📝 Loading configuration...');
-    const configPath = './agents/default.yml';
-    const config = await loadAgentConfig(configPath);
-    console.log('✅ Config loaded\\n');
+    const agentId = process.env.DEXTO_AGENT_ID ?? '${context.projectName}';
+    const llmProvider = (process.env.DEXTO_LLM_PROVIDER ?? '${defaultProvider}') as LLMProvider;
+    const llmModel = process.env.DEXTO_LLM_MODEL ?? '${defaultModel}';
 
-    // Create agent
-    console.log('🤖 Creating agent...');
-    const cleanedConfig = cleanNullValues(config);
-    const imageName = process.env.DEXTO_IMAGE ?? '${imageName}';
-    const image = await loadImage(imageName);
-    const configWithDefaults = applyImageDefaults(cleanedConfig, image.defaults);
-    const enrichedConfig = enrichAgentConfig(configWithDefaults, configPath);
-    const validatedConfig = AgentConfigSchema.parse(enrichedConfig);
-    const services = await resolveServicesFromConfig(validatedConfig, image);
-    const agent = new DextoAgent(toDextoAgentOptions({ config: validatedConfig, services }));
-    console.log('✅ Agent created\\n');
+    const logger = createLogger({
+        agentId,
+        config: LoggerConfigSchema.parse({
+            level: 'info',
+            transports: [{ type: 'console' }],
+        }),
+    });
+
+    const storage = {
+        cache: new MemoryCacheStore(),
+        database: new MemoryDatabaseStore(),
+        blob: new InMemoryBlobStore(InMemoryBlobStoreSchema.parse({ type: 'in-memory' }), logger),
+    };
+
+    const tools = [
+        ...qualifyToolIds(
+            INTERNAL_TOOL_PREFIX,
+            builtinToolsFactory.create(
+                builtinToolsFactory.configSchema.parse({ type: 'builtin-tools' })
+            )
+        ),
+        ...qualifyToolIds(
+            CUSTOM_TOOL_PREFIX,
+            fileSystemToolsFactory.create(
+                fileSystemToolsFactory.configSchema.parse({ type: 'filesystem-tools' })
+            )
+        ),
+        ...qualifyToolIds(
+            CUSTOM_TOOL_PREFIX,
+            processToolsFactory.create(
+                processToolsFactory.configSchema.parse({ type: 'process-tools' })
+            )
+        ),
+    ];
+
+    const agent = new DextoAgent({
+        agentId,
+        llm: LLMConfigSchemaRelaxed.parse({
+            provider: llmProvider,
+            model: llmModel,
+            apiKey: process.env.DEXTO_LLM_API_KEY ?? resolveApiKeyForProvider(llmProvider),
+            maxIterations: 10,
+        }),
+        systemPrompt: SystemPromptConfigSchema.parse(
+            'You are a helpful AI assistant with access to tools.'
+        ),
+        mcpServers: ServerConfigsSchema.parse({}),
+        sessions: SessionConfigSchema.parse({}),
+        toolConfirmation: ToolConfirmationConfigSchema.parse({
+            mode: 'auto-approve',
+            allowedToolsStorage: 'memory',
+        }),
+        elicitation: ElicitationConfigSchema.parse({}),
+        internalResources: InternalResourcesSchema.parse([]),
+        prompts: PromptsSchema.parse([]),
+        logger,
+        storage,
+        tools,
+        plugins: [],
+        compaction: null,
+    });
 
     // Start the server
     console.log('🌐 Starting Dexto server...');
@@ -826,21 +963,9 @@ export const factory: ToolFactory<${typeNameBase.charAt(0).toUpperCase() + typeN
  * Generates README for an app project
  */
 export function generateAppReadme(context: TemplateContext): string {
-    const usingImage = context.imageName;
-    const imageSection = usingImage
-        ? `\n## Image
-
-This app uses the \`${context.imageName}\` image, which provides a complete agent harness with:
-- Pre-configured factories
-- Runtime orchestration
-- Context management
-
-At runtime, the app loads the image via \`loadImage()\` and resolves concrete services via \`resolveServicesFromConfig()\`.\n`
-        : '';
-
     return `# ${context.projectName}
 
-${context.description}${imageSection}
+${context.description}
 
 ## Quick Start
 
@@ -862,8 +987,6 @@ pnpm start
 ${context.projectName}/
 ├── src/
 │   └── index.ts         # Entry point
-├── agents/
-│   └── default.yml      # Agent configuration
 ├── .env                 # Environment variables (gitignored)
 ├── package.json
 └── tsconfig.json
@@ -871,18 +994,19 @@ ${context.projectName}/
 
 ## Configuration
 
-Edit \`agents/default.yml\` to configure:
-- System prompts
+Edit \`src/index.ts\` to configure:
+- System prompt
 - LLM provider/model/API keys
-- Image selection (\`image:\`) and defaults
-- Storage backends (\`storage:\`)
-- Tools (\`tools:\`) — omit to use image defaults
-- External tools via MCP (\`mcpServers:\`)
+- Storage backends
+- Tools
+- External tools via MCP (\`mcpServers\`)
+
+By default this scaffold uses in-memory storage. To add persistence, swap in a file-backed
+database and blob store (e.g. SQLite + local blobs).
 
 ## Learn More
 
 - [Dexto Documentation](https://docs.dexto.ai)
 - [Agent Configuration Guide](https://docs.dexto.ai/docs/guides/configuration)
-- [Using Images](https://docs.dexto.ai/docs/guides/images)
 `;
 }

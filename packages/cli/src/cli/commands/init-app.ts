@@ -5,17 +5,20 @@ import fsExtra from 'fs-extra';
 import path from 'node:path';
 import { getPackageManager, getPackageManagerInstallCommand } from '../utils/package-mgmt.js';
 import { executeWithTimeout } from '../utils/execute.js';
-import { createRequire } from 'module';
-import { type LLMProvider, logger } from '@dexto/core';
-import { updateDextoConfigFile } from '../utils/project-utils.js';
+import { type LLMProvider, getDefaultModelForProvider } from '@dexto/core';
 import { saveProviderApiKey } from '@dexto/agent-management';
 import {
     getProviderDisplayName,
     isValidApiKeyFormat,
     PROVIDER_OPTIONS,
 } from '../utils/provider-setup.js';
+import { generateIndexForCodeFirstDI } from '../utils/template-engine.js';
 
-const require = createRequire(import.meta.url);
+function debug(message: string): void {
+    if (process.env.DEXTO_DEBUG_INIT === 'true' || process.env.DEXTO_DEBUG_ALL === 'true') {
+        console.error(`[dexto:init] ${message}`);
+    }
+}
 
 /**
  * Get user preferences needed to initialize a Dexto app
@@ -124,13 +127,24 @@ export async function initDexto(
         const installCommand = getPackageManagerInstallCommand(packageManager);
         spinner.start('Installing Dexto...');
         const label = 'latest';
-        logger.debug(
+        debug(
             `Installing Dexto using ${packageManager} with install command: ${installCommand} and label: ${label}`
         );
         try {
-            await executeWithTimeout(packageManager, [installCommand, `@dexto/core@${label}`], {
-                cwd: process.cwd(),
-            });
+            await executeWithTimeout(
+                packageManager,
+                [
+                    installCommand,
+                    `@dexto/core@${label}`,
+                    `@dexto/storage@${label}`,
+                    `@dexto/tools-builtins@${label}`,
+                    `@dexto/tools-filesystem@${label}`,
+                    `@dexto/tools-process@${label}`,
+                    'dotenv',
+                    'tsx',
+                ],
+                { cwd: process.cwd() }
+            );
         } catch (installError) {
             // Handle pnpm workspace root add error specifically
             console.error(
@@ -156,7 +170,7 @@ export async function initDexto(
         spinner.stop('Dexto installed successfully!');
 
         spinner.start('Creating Dexto files...');
-        // create dexto directories (dexto, dexto/agents)
+        // create dexto directories (dexto)
         const result = await createDextoDirectories(directory);
 
         if (!result.ok) {
@@ -177,47 +191,25 @@ export async function initDexto(
         }
 
         // create dexto config file
-        logger.debug('Creating dexto config file...');
         const dextoDir = path.join(directory, 'dexto');
-        const agentsDir = path.join(dextoDir, 'agents');
 
-        let configPath: string;
-        try {
-            configPath = await createDextoConfigFile(agentsDir);
-            logger.debug(`Dexto config file created at ${configPath}`);
-        } catch (configError) {
-            spinner.stop(chalk.red('Failed to create agent config file'));
-            logger.error(`Config creation error: ${configError}`);
-            throw new Error(
-                `Failed to create coding-agent.yml: ${configError instanceof Error ? configError.message : String(configError)}`
-            );
-        }
-
-        // update dexto config file based on llmProvider
-        if (llmProvider) {
-            logger.debug(`Updating dexto config file based on llmProvider: ${llmProvider}`);
-            await updateDextoConfigFile(configPath, llmProvider);
-            logger.debug(`Dexto config file updated with llmProvider: ${llmProvider}`);
-        }
         // create dexto example file if requested
         if (createExampleFile) {
-            logger.debug('Creating dexto example file...');
-            await createDextoExampleFile(dextoDir);
-            logger.debug('Dexto example file created successfully!');
+            debug('Creating dexto example file...');
+            await createDextoExampleFile(dextoDir, { llmProvider });
+            debug('Dexto example file created successfully!');
         }
 
         // add/update .env file (only if user provided a key)
         spinner.start('Saving API key to .env file...');
-        logger.debug(
-            `Saving API key: provider=${llmProvider ?? 'none'}, hasApiKey=${Boolean(llmApiKey)}`
-        );
+        debug(`Saving API key: provider=${llmProvider ?? 'none'}, hasApiKey=${Boolean(llmApiKey)}`);
         if (llmProvider && llmApiKey) {
             await saveProviderApiKey(llmProvider, llmApiKey, process.cwd());
         }
         spinner.stop('Saved .env updates');
     } catch (err) {
         spinner.stop(chalk.inverse(`An error occurred initializing Dexto project - ${err}`));
-        logger.debug(`Error: ${err}`);
+        debug(`Error: ${String(err)}`);
         process.exit(1);
     }
 }
@@ -225,16 +217,15 @@ export async function initDexto(
 /** Adds notes for users to get started with their new initialized Dexto project */
 export async function postInitDexto(directory: string) {
     const nextSteps = [
-        `1. Run the example: ${chalk.cyan(`node --loader ts-node/esm ${path.join(directory, 'dexto', 'dexto-example.ts')}`)}`,
+        `1. Run the example: ${chalk.cyan(`npx tsx ${path.join(directory, 'dexto', 'dexto-example.ts')}`)}`,
         `2. Add/update your API key(s) in ${chalk.cyan('.env')}`,
-        `3. Check out the agent configuration file ${chalk.cyan(path.join(directory, 'dexto', 'agents', 'coding-agent.yml'))}`,
-        `4. Try out different LLMs and MCP servers in the coding-agent.yml file`,
-        `5. Read more about Dexto: ${chalk.cyan('https://github.com/truffle-ai/dexto')}`,
+        `3. Customize the agent in ${chalk.cyan(path.join(directory, 'dexto', 'dexto-example.ts'))}`,
+        `4. Read more about Dexto: ${chalk.cyan('https://github.com/truffle-ai/dexto')}`,
     ].join('\n');
     p.note(nextSteps, chalk.rgb(255, 165, 0)('Next steps:'));
 }
 /**
- * Creates the dexto directories (dexto, dexto/agents) in the given directory.
+ * Creates the dexto directory in the given directory.
  * @param directory - The directory to create the dexto directories in
  * @returns The path to the created dexto directory
  */
@@ -242,7 +233,6 @@ export async function createDextoDirectories(
     directory: string
 ): Promise<{ ok: true; dirPath: string } | { ok: false }> {
     const dirPath = path.join(directory, 'dexto');
-    const agentsPath = path.join(directory, 'dexto', 'agents');
 
     try {
         await fs.access(dirPath);
@@ -250,50 +240,7 @@ export async function createDextoDirectories(
     } catch {
         // fsExtra.ensureDir creates directories recursively if they don't exist
         await fsExtra.ensureDir(dirPath);
-        await fsExtra.ensureDir(agentsPath);
         return { ok: true, dirPath };
-    }
-}
-
-/**
- * Creates a dexto config file in the given directory. Pulls the config file from the installed Dexto package.
- * @param directory - The directory to create the config file in
- * @returns The path to the created config file
- */
-export async function createDextoConfigFile(directory: string): Promise<string> {
-    // Ensure the directory exists
-    await fsExtra.ensureDir(directory);
-
-    try {
-        // Locate the Dexto package installation directory
-        const pkgJsonPath = require.resolve('dexto/package.json');
-        const pkgDir = path.dirname(pkgJsonPath);
-        logger.debug(`Package directory: ${pkgDir}`);
-
-        // Build path to the configuration template for create-app (with auto-approve toolConfirmation)
-        const templateConfigSrc = path.join(pkgDir, 'dist', 'agents', 'agent-template.yml');
-        logger.debug(`Looking for template at: ${templateConfigSrc}`);
-
-        // Check if template exists - fail if not found
-        const templateExists = await fsExtra.pathExists(templateConfigSrc);
-        if (!templateExists) {
-            throw new Error(
-                `Template file not found at: ${templateConfigSrc}. This indicates a build issue - the template should be included in the package.`
-            );
-        }
-
-        // Path to the destination config file
-        const destConfigPath = path.join(directory, 'coding-agent.yml');
-        logger.debug(`Copying template to: ${destConfigPath}`);
-
-        // Copy the config file from the Dexto package
-        await fsExtra.copy(templateConfigSrc, destConfigPath);
-        logger.debug(`Successfully created config file at: ${destConfigPath}`);
-
-        return destConfigPath;
-    } catch (error) {
-        logger.error(`Failed to create Dexto config file: ${error}`);
-        throw error;
     }
 }
 
@@ -302,118 +249,21 @@ export async function createDextoConfigFile(directory: string): Promise<string> 
  * @param directory - The directory to create the example index file in
  * @returns The path to the created example index file
  */
-export async function createDextoExampleFile(directory: string): Promise<string> {
-    // Extract the base directory from the given path (e.g., "src" from "src/dexto")
-    const baseDir = path.dirname(directory);
+export async function createDextoExampleFile(
+    directory: string,
+    options?: { llmProvider?: LLMProvider | undefined } | undefined
+): Promise<string> {
+    const provider = options?.llmProvider ?? 'openai';
+    const model = getDefaultModelForProvider(provider) ?? 'gpt-4o';
 
-    const configPath = `./${path.posix.join(baseDir, 'dexto/agents/coding-agent.yml')}`;
-
-    const indexTsLines = [
-        "import 'dotenv/config';",
-        "import { AgentConfigSchema, applyImageDefaults, cleanNullValues, loadImage, resolveServicesFromConfig, setImageImporter, toDextoAgentOptions } from '@dexto/agent-config';",
-        "import { DextoAgent } from '@dexto/core';",
-        "import { enrichAgentConfig, loadAgentConfig } from '@dexto/agent-management';",
-        '',
-        "// Ensure loadImage('@dexto/image-*') resolves relative to this package (pnpm-safe)",
-        'setImageImporter((specifier) => import(specifier));',
-        '',
-        "console.log('🚀 Starting Dexto Basic Example\\n');",
-        '',
-        'try {',
-        '  // Load the agent configuration',
-        `  const config = await loadAgentConfig('${configPath}');`,
-        '',
-        '  // Clean null values (YAML-friendly)',
-        '  const cleanedConfig = cleanNullValues(config);',
-        '',
-        '  // Load image and apply defaults',
-        "  const imageName = cleanedConfig.image ?? process.env.DEXTO_IMAGE ?? '@dexto/image-local';",
-        '  const image = await loadImage(imageName);',
-        '  const configWithDefaults = applyImageDefaults(cleanedConfig, image.defaults);',
-        '',
-        '  // Enrich config with host defaults (paths, prompt discovery, etc.)',
-        `  const enrichedConfig = enrichAgentConfig(configWithDefaults, '${configPath}');`,
-        '',
-        '  // Validate and resolve DI services',
-        '  const validatedConfig = AgentConfigSchema.parse(enrichedConfig);',
-        '  const services = await resolveServicesFromConfig(validatedConfig, image);',
-        '',
-        '  // Create a new DextoAgent instance',
-        '  const agent = new DextoAgent(toDextoAgentOptions({ config: validatedConfig, services }));',
-        '',
-        '  // Start the agent (connects to MCP servers)',
-        "  console.log('🔗 Connecting to MCP servers...');",
-        '  await agent.start();',
-        "  console.log('✅ Agent started successfully!\\n');",
-        '',
-        '  // Create a session for this conversation',
-        '  const session = await agent.createSession();',
-        "  console.log('📝 Session created:', session.id, '\\n');",
-        '',
-        '  // Example 1: Simple task',
-        "  console.log('📋 Example 1: Simple information request');",
-        "  const request1 = 'What tools do you have available?';",
-        "  console.log('Request:', request1);",
-        '  const response1 = await agent.run(request1, undefined, undefined, session.id);',
-        "  console.log('Response:', response1);",
-        "  console.log('\\n——————\\n');",
-        '',
-        '  // Example 2: File operation',
-        "  console.log('📄 Example 2: File creation');",
-        '  const request2 = \'Create a file called test-output.txt with the content "Hello from Dexto!"\';',
-        "  console.log('Request:', request2);",
-        '  const response2 = await agent.run(request2, undefined, undefined, session.id);',
-        "  console.log('Response:', response2);",
-        "  console.log('\\n——————\\n');",
-        '',
-        '  // Example 3: Multi-step conversation',
-        "  console.log('🗣️ Example 3: Multi-step conversation');",
-        '  const request3a = \'Create a simple HTML file called demo.html with a heading that says "Dexto Demo"\';',
-        "  console.log('Request 3a:', request3a);",
-        '  const response3a = await agent.run(request3a, undefined, undefined, session.id);',
-        "  console.log('Response:', response3a);",
-        "  console.log('\\n\\n');",
-        "  const request3b = 'Now add a paragraph to that HTML file explaining what Dexto is';",
-        "  console.log('Request 3b:', request3b);",
-        '  const response3b = await agent.run(request3b, undefined, undefined, session.id);',
-        "  console.log('Response:', response3b);",
-        "  console.log('\\n——————\\n');",
-        '',
-        '  // Reset conversation (clear context)',
-        "  console.log('🔄 Resetting conversation context...');",
-        '  await agent.resetConversation(session.id);',
-        "  console.log('🔄 Conversation context reset');",
-        "  console.log('\\n——————\\n');",
-        '',
-        '  // Example 4: Complex task',
-        "  console.log('🏗️ Example 4: Complex multi-tool task');",
-        '  const request4 = ',
-        "    'Create a simple webpage about AI agents with HTML, CSS, and JavaScript. ' +",
-        "    'The page should have a title, some content about what AI agents are, ' +",
-        "    'and a button that shows an alert when clicked.';",
-        "  console.log('Request:', request4);",
-        '  const response4 = await agent.run(request4, undefined, undefined, session.id);',
-        "  console.log('Response:', response4);",
-        "  console.log('\\n——————\\n');",
-        '',
-        '  // Stop the agent (disconnect from MCP servers)',
-        "  console.log('\\n🛑 Stopping agent...');",
-        '  await agent.stop();',
-        "  console.log('✅ Agent stopped successfully!');",
-        '',
-        '} catch (error) {',
-        "  console.error('❌ Error:', error);",
-        '}',
-        '',
-        "console.log('\\n📖 Read Dexto documentation to understand more about using Dexto: https://docs.dexto.ai');",
-    ];
-    const indexTsContent = indexTsLines.join('\n');
+    const indexTsContent = generateIndexForCodeFirstDI({
+        projectName: 'dexto-example',
+        packageName: 'dexto-example',
+        description: 'Dexto example',
+        llmProvider: provider,
+        llmModel: model,
+    });
     const outputPath = path.join(directory, 'dexto-example.ts');
-
-    // Log the generated file content and paths for debugging
-    logger.debug(`Creating example file with config path: ${configPath}`);
-    logger.debug(`Base directory: ${baseDir}, Output path: ${outputPath}`);
-    logger.debug(`Generated file content:\n${indexTsContent}`);
 
     // Ensure the directory exists before writing the file
     await fs.writeFile(outputPath, indexTsContent);

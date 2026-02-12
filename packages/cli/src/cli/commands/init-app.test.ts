@@ -18,7 +18,7 @@ describe('Init Module', () => {
     });
 
     describe('createDextoDirectories', () => {
-        it('creates dexto and agents directories when they do not exist', async () => {
+        it('creates dexto directory when it does not exist', async () => {
             const result = await createDextoDirectories(tempDir);
 
             expect(result.ok).toBe(true);
@@ -28,17 +28,10 @@ describe('Init Module', () => {
 
             // Verify directories exist
             const dextoDir = path.join(tempDir, 'dexto');
-            const agentsDir = path.join(tempDir, 'dexto', 'agents');
 
             expect(
                 await fs
                     .access(dextoDir)
-                    .then(() => true)
-                    .catch(() => false)
-            ).toBe(true);
-            expect(
-                await fs
-                    .access(agentsDir)
                     .then(() => true)
                     .catch(() => false)
             ).toBe(true);
@@ -79,34 +72,11 @@ describe('Init Module', () => {
 
                 // Verify content contains expected elements
                 const content = await fs.readFile(examplePath, 'utf8');
-                expect(content).toContain('import { AgentConfigSchema, applyImageDefaults');
-                expect(content).toContain("import { DextoAgent } from '@dexto/core'");
-                expect(content).toContain(
-                    "import { enrichAgentConfig, loadAgentConfig } from '@dexto/agent-management'"
-                );
-                expect(content).toContain("console.log('🚀 Starting Dexto Basic Example");
-                expect(content).toContain('./src/dexto/agents/coding-agent.yml'); // Correct relative path
-                expect(content).toContain(
-                    'const validatedConfig = AgentConfigSchema.parse(enrichedConfig)'
-                );
-                expect(content).toContain('const agent = new DextoAgent(toDextoAgentOptions({');
-            } finally {
-                process.chdir(originalCwd);
-            }
-        });
-
-        it('generates correct config path for different directory structures', async () => {
-            const originalCwd = process.cwd();
-            process.chdir(tempDir);
-
-            try {
-                const dextoDir = path.join('custom', 'dexto'); // Relative path
-                await fs.mkdir(dextoDir, { recursive: true });
-
-                const examplePath = await createDextoExampleFile(dextoDir);
-                const content = await fs.readFile(examplePath, 'utf8');
-
-                expect(content).toContain('./custom/dexto/agents/coding-agent.yml');
+                expect(content).toContain('// Standalone Dexto app (code-first DI)');
+                expect(content).toContain("import 'dotenv/config';");
+                expect(content).toContain("from '@dexto/storage';");
+                expect(content).toContain("from '@dexto/tools-builtins';");
+                expect(content).toContain('const agent = new DextoAgent({');
             } finally {
                 process.chdir(originalCwd);
             }

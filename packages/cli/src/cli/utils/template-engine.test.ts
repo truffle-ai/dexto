@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-    generateIndexForImage,
+    generateIndexForCodeFirstDI,
     generateDextoImageFile,
     generateImageReadme,
     generateExampleTool,
@@ -8,44 +8,36 @@ import {
 } from './template-engine.js';
 
 describe('template-engine', () => {
-    describe('generateIndexForImage', () => {
-        it('should generate index.ts for image-based app', () => {
-            const result = generateIndexForImage({
+    describe('generateIndexForCodeFirstDI', () => {
+        it('should generate index.ts for code-first DI app', () => {
+            const result = generateIndexForCodeFirstDI({
                 projectName: 'my-app',
                 packageName: 'my-app',
                 description: 'Test app',
-                imageName: '@dexto/image-local',
             });
 
-            expect(result).toMatch(
-                /import\s*\{[\s\S]*AgentConfigSchema,[\s\S]*\}\s*from '@dexto\/agent-config';/
-            );
-            expect(result).toContain("import { DextoAgent } from '@dexto/core'");
-            expect(result).toContain(
-                "import { enrichAgentConfig, loadAgentConfig } from '@dexto/agent-management'"
-            );
-            expect(result).toContain('setImageImporter((specifier) => import(specifier));');
+            expect(result).toContain("import 'dotenv/config';");
+            expect(result).toContain('DextoAgent');
+            expect(result).toContain("from '@dexto/core';");
+            expect(result).toContain("from '@dexto/storage';");
+            expect(result).toContain("from '@dexto/tools-builtins';");
+            expect(result).toContain("from '@dexto/tools-filesystem';");
+            expect(result).toContain("from '@dexto/tools-process';");
             expect(result).toContain('Starting my-app');
-            expect(result).toContain("const configPath = './agents/default.yml';");
-            expect(result).toContain('const config = await loadAgentConfig(configPath);');
-            expect(result).toContain(
-                'const validatedConfig = AgentConfigSchema.parse(enrichedConfig)'
-            );
-            expect(result).toContain('const agent = new DextoAgent(toDextoAgentOptions({');
+            expect(result).toContain('const agent = new DextoAgent({');
             expect(result).toContain('await agent.start()');
         });
 
-        it('should use image harness terminology in comments', () => {
-            const result = generateIndexForImage({
+        it('should mention code-first DI in comments', () => {
+            const result = generateIndexForCodeFirstDI({
                 projectName: 'my-app',
                 packageName: 'my-app',
                 description: 'Test app',
-                imageName: '@dexto/image-local',
             });
 
-            expect(result).toContain('// Standalone Dexto app (image-based)');
+            expect(result).toContain('// Standalone Dexto app (code-first DI)');
             expect(result).toContain(
-                '// Loads an image module and resolves DI services from config.'
+                '// Builds a DextoAgent directly and injects storage/tools in code'
             );
         });
     });
@@ -290,30 +282,6 @@ describe('template-engine', () => {
             expect(result).toContain('pnpm start');
         });
 
-        it('should include image section when using image', () => {
-            const result = generateAppReadme({
-                projectName: 'my-app',
-                packageName: 'my-app',
-                description: 'Test app',
-                imageName: '@dexto/image-local',
-            });
-
-            expect(result).toContain('## Image');
-            expect(result).toContain('This app uses the `@dexto/image-local` image');
-            expect(result).toContain('Pre-configured factories');
-            expect(result).toContain('Runtime orchestration');
-        });
-
-        it('should not include image section when not using image', () => {
-            const result = generateAppReadme({
-                projectName: 'my-app',
-                packageName: 'my-app',
-                description: 'Test app',
-            });
-
-            expect(result).not.toContain('## Image');
-        });
-
         it('should include project structure', () => {
             const result = generateAppReadme({
                 projectName: 'my-app',
@@ -323,7 +291,6 @@ describe('template-engine', () => {
 
             expect(result).toContain('## Project Structure');
             expect(result).toContain('src/');
-            expect(result).toContain('agents/');
         });
 
         it('should include configuration section', () => {
@@ -334,10 +301,8 @@ describe('template-engine', () => {
             });
 
             expect(result).toContain('## Configuration');
-            expect(result).toContain('agents/default.yml');
-            expect(result).toContain('`image:`');
-            expect(result).toContain('`tools:`');
-            expect(result).toContain('`mcpServers:`');
+            expect(result).toContain('src/index.ts');
+            expect(result).toContain('MCP');
         });
 
         it('should include learn more section', () => {
