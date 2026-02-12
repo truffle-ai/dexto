@@ -54,6 +54,8 @@ _Log findings, issues, and progress here as you work._
 - Review/polish: `@dexto/image-bundler` now compiles `dexto.image.ts` via esbuild before importing (avoids Node “type stripping” reliance), improves core version detection via `createRequire()`, and removes CLI warning suppression. Added a second bundler integration test that exercises tools/storage/plugins/compaction convention folders with real workspace deps. Commit: `23c82488`.
 - Review/polish: `@dexto/storage` tightened runtime typing by removing `any` from in-memory stores + local blob metadata parsing, aligning `getStoreType()` for in-memory stores, and switching Redis connection error logging to the injected logger. Also removed `any` from Postgres connection error classification. Commit: `a6271246`.
 - Review/polish: tool packs — reduced config duplication by sharing enabled-tool name lists between schema + factory (`filesystem`, `plan`), removed unused `process-tools.timeout`, removed a stale filesystem-service TODO, and made filesystem backup tests hermetic by forcing `backupPath` into the temp directory. Commits: `adb532b8`, `3cd0953c`.
+- Test stability: MCP integration tests now use a local stdio fixture (`examples/memory-demo-server/server.js`) instead of `npx @modelcontextprotocol/server-memory`, and the bundler “full factories” integration test timeout was extended after fixture speedups. Commits: `ea0afddb`, `162bf4a2`.
+- Naming polish: clarified `AgentSpawnerRuntime` wiring by renaming the local `service` variable to `spawnerRuntime` and `wireTaskForker` to `attachTaskForker` (reduces `service` vs `services` confusion). Commit: `4c0cd2e2`.
 
 ---
 
