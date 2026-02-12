@@ -43,6 +43,7 @@ _Log findings, issues, and progress here as you work._
 - Review/polish: reviewed `@dexto/agent-config` + `@dexto/agent-management`; fixed plugin install scope schema mismatch (`managed` removed), tightened minor typings, cleared `AgentRuntime` timeout timers, and added targeted tests for `createDextoAgentFromConfig` and agent-spawner factory context errors. Commit: `b7fcc206`. `./scripts/quality-checks.sh all` passes.
 - Review (no code changes): reviewed `@dexto/analytics` (tsconfig project references only) and found no correctness/style/test issues.
 - Review (no code changes): reviewed `@dexto/client-sdk` (tsconfig project references only) and found no correctness/style/test issues.
+- CLI review: audited `dexto` CLI changes (image store + image commands + plan-mode injection + configFilePath propagation + scaffolding updates). Follow-up polish: updated create-app README template config wording to match the new `image:`/`tools:`/`mcpServers:` surfaces. Commit: `27fd6040`.
 
 ---
 
