@@ -38,12 +38,12 @@ export async function bundle(options: BundleOptions): Promise<BundleResult> {
     // 3.5. Discover factories from convention-based folders
     console.log(`🔍 Discovering factories from folders...`);
     const imageDir = dirname(options.imagePath);
-    const discoveredProviders = discoverProviders(imageDir, warnings);
-    console.log(`✅ Discovered ${discoveredProviders.totalCount} factory(ies)`);
+    const discoveredFactories = discoverFactories(imageDir, warnings);
+    console.log(`✅ Discovered ${discoveredFactories.totalCount} factory(ies)`);
 
     // 4. Generate code
     console.log(`🔨 Generating entry point...`);
-    const generated = generateEntryPoint(definition, discoveredProviders);
+    const generated = generateEntryPoint(definition, discoveredFactories);
 
     // 5. Ensure output directory exists
     const outDir = resolve(options.outDir);
@@ -113,7 +113,7 @@ export async function bundle(options: BundleOptions): Promise<BundleResult> {
 
     // 5.6. Validate discovered factories export the required contract
     console.log(`🔍 Validating factory exports...`);
-    await validateDiscoveredProviders(outDir, discoveredProviders);
+    await validateDiscoveredFactories(outDir, discoveredFactories);
 
     // 6. Write generated files
     const entryFile = join(outDir, 'index.js');
@@ -322,22 +322,22 @@ function findTypeScriptFiles(dir: string): string[] {
 }
 
 /**
- * Provider discovery result for a single category
+ * Factory discovery result for a single category
  */
-export interface DiscoveredProvider {
+export interface DiscoveredFactory {
     type: string;
     importPath: string;
 }
 
-export interface DiscoveredProviders {
-    tools: DiscoveredProvider[];
+export interface DiscoveredFactories {
+    tools: DiscoveredFactory[];
     storage: {
-        blob: DiscoveredProvider[];
-        database: DiscoveredProvider[];
-        cache: DiscoveredProvider[];
+        blob: DiscoveredFactory[];
+        database: DiscoveredFactory[];
+        cache: DiscoveredFactory[];
     };
-    plugins: DiscoveredProvider[];
-    compaction: DiscoveredProvider[];
+    plugins: DiscoveredFactory[];
+    compaction: DiscoveredFactory[];
     totalCount: number;
 }
 
@@ -358,8 +358,8 @@ export interface DiscoveredProviders {
  *   <folder>/index.ts    - Auto-discovered and registered
  *   <folder>/other.ts    - Ignored unless imported by index.ts
  */
-function discoverProviders(imageDir: string, warnings: string[]): DiscoveredProviders {
-    const result: DiscoveredProviders = {
+function discoverFactories(imageDir: string, warnings: string[]): DiscoveredFactories {
+    const result: DiscoveredFactories = {
         tools: [],
         storage: {
             blob: [],
@@ -375,14 +375,14 @@ function discoverProviders(imageDir: string, warnings: string[]): DiscoveredProv
         srcDir: string;
         importBase: string;
         label: string;
-    }): DiscoveredProvider[] => {
+    }): DiscoveredFactory[] => {
         const { srcDir, importBase, label } = options;
 
         if (!existsSync(srcDir)) {
             return [];
         }
 
-        const providerFolders = readdirSync(srcDir).filter((entry) => {
+        const factoryFolders = readdirSync(srcDir).filter((entry) => {
             const entryPath = join(srcDir, entry);
             const stat = statSync(entryPath);
             if (!stat.isDirectory()) {
@@ -393,11 +393,11 @@ function discoverProviders(imageDir: string, warnings: string[]): DiscoveredProv
             return existsSync(indexPath);
         });
 
-        if (providerFolders.length > 0) {
-            console.log(`   Found ${providerFolders.length} factory(ies) in ${label}`);
+        if (factoryFolders.length > 0) {
+            console.log(`   Found ${factoryFolders.length} factory(ies) in ${label}`);
         }
 
-        return providerFolders.map((type) => ({
+        return factoryFolders.map((type) => ({
             type,
             importPath: `./${importBase}/${type}/index.js`,
         }));
@@ -489,7 +489,7 @@ function discoverProviders(imageDir: string, warnings: string[]): DiscoveredProv
 async function validateFactoryExport(options: {
     outDir: string;
     kind: string;
-    entry: DiscoveredProvider;
+    entry: DiscoveredFactory;
 }): Promise<void> {
     const { outDir, kind, entry } = options;
 
@@ -536,9 +536,9 @@ async function validateFactoryExport(options: {
     }
 }
 
-async function validateDiscoveredProviders(
+async function validateDiscoveredFactories(
     outDir: string,
-    discovered: DiscoveredProviders
+    discovered: DiscoveredFactories
 ): Promise<void> {
     const validations: Array<Promise<void>> = [];
 

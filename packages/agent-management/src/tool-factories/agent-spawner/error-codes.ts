@@ -1,5 +1,5 @@
 /**
- * Agent Spawner Tool Error Codes
+ * Agent Spawner Tools Factory Error Codes
  */
 export enum AgentSpawnerErrorCode {
     // Spawning errors

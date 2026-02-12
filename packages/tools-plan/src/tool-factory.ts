@@ -7,7 +7,7 @@ import { createPlanCreateTool } from './tools/plan-create-tool.js';
 import { createPlanReadTool } from './tools/plan-read-tool.js';
 import { createPlanUpdateTool } from './tools/plan-update-tool.js';
 import { createPlanReviewTool } from './tools/plan-review-tool.js';
-import { PlanToolsConfigSchema, type PlanToolsConfig } from './tool-provider.js';
+import { PlanToolsConfigSchema, type PlanToolsConfig } from './tool-factory-config.js';
 import type { Tool } from '@dexto/core';
 
 const PLAN_TOOL_NAMES = ['plan_create', 'plan_read', 'plan_update', 'plan_review'] as const;

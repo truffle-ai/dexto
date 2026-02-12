@@ -2,7 +2,7 @@ import type { ToolFactory } from '@dexto/agent-config';
 import type { ToolExecutionContext } from '@dexto/core';
 import { TodoService } from './todo-service.js';
 import { createTodoWriteTool, type TodoServiceGetter } from './todo-write-tool.js';
-import { TodoToolsConfigSchema, type TodoToolsConfig } from './tool-provider.js';
+import { TodoToolsConfigSchema, type TodoToolsConfig } from './tool-factory-config.js';
 
 export const todoToolsFactory: ToolFactory<TodoToolsConfig> = {
     configSchema: TodoToolsConfigSchema,

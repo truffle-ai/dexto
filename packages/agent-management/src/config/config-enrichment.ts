@@ -257,20 +257,20 @@ export function enrichAgentConfig(
                 };
             }
 
-            // Auto-add custom tool providers declared by Dexto-native plugins
+            // Auto-add custom tool factories declared by Dexto-native plugins
             // These are added to tools[] config if not already explicitly configured
-            if (loaded.customToolProviders.length > 0) {
-                for (const providerType of loaded.customToolProviders) {
+            if (loaded.customToolFactories.length > 0) {
+                for (const factoryType of loaded.customToolFactories) {
                     // Check if already configured in tools[]
                     const alreadyConfigured = enriched.tools?.some(
                         (tool) =>
-                            typeof tool === 'object' && tool !== null && tool.type === providerType
+                            typeof tool === 'object' && tool !== null && tool.type === factoryType
                     );
 
                     if (!alreadyConfigured) {
                         enriched.tools = enriched.tools ?? [];
                         // Add with default config (just the type)
-                        enriched.tools.push({ type: providerType });
+                        enriched.tools.push({ type: factoryType });
                     }
                 }
             }

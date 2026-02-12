@@ -44,10 +44,10 @@ export const DextoPluginManifestSchema = z
         version: z.string().optional().describe('Semantic version (e.g., 1.0.0)'),
         author: AuthorSchema.optional().describe('Plugin author - string or {name, email} object'),
         // Dexto-specific extensions
-        customToolProviders: z
+        customToolFactories: z
             .array(z.string())
             .optional()
-            .describe('Custom tool provider types bundled with this plugin (e.g., ["plan-tools"])'),
+            .describe('Custom tool factory types bundled with this plugin (e.g., ["plan-tools"])'),
     })
     .passthrough()
     .describe('Dexto-native plugin manifest from .dexto-plugin/plugin.json');

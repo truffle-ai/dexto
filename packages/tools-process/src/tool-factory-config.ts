@@ -1,8 +1,8 @@
 /**
- * Process Tools Provider
+ * Process Tools Factory
  *
  * Provides process execution and management tools by wrapping ProcessService.
- * When registered, the provider initializes ProcessService and creates tools
+ * When registered, the factory initializes ProcessService and creates tools
  * for command execution and process management.
  */
 
@@ -21,7 +21,7 @@ const DEFAULT_BLOCKED_COMMANDS: string[] = [];
 const DEFAULT_ENVIRONMENT: Record<string, string> = {};
 
 /**
- * Configuration schema for Process tools provider.
+ * Configuration schema for Process tools factory.
  *
  * This is the SINGLE SOURCE OF TRUTH for all configuration:
  * - Validation rules

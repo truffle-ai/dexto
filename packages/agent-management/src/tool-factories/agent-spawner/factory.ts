@@ -19,7 +19,7 @@ import {
     SpawnAgentInputSchema,
     type AgentSpawnerConfig,
 } from './schemas.js';
-import { RuntimeService } from './runtime-service.js';
+import { AgentSpawnerRuntime } from './runtime.js';
 import { createSpawnAgentTool } from './spawn-agent-tool.js';
 
 type ToolWithOptionalExtensions = Tool & {
@@ -60,7 +60,7 @@ function bindOrchestrationTool(tool: OrchestrationTool, context: OrchestrationTo
     };
 }
 
-function createLazyProviderTool(options: {
+function createLazyTool(options: {
     id: string;
     description: string;
     inputSchema: Tool['inputSchema'];
@@ -92,14 +92,14 @@ export const agentSpawnerToolsFactory: ToolFactory<AgentSpawnerConfig> = {
     },
     create: (config) => {
         let toolMap: Map<string, ToolWithOptionalExtensions> | undefined;
-        let runtimeService: RuntimeService | undefined;
+        let runtimeService: AgentSpawnerRuntime | undefined;
         let backgroundAbortController: AbortController | undefined;
         let initializedForAgent: ToolExecutionContext['agent'] | undefined;
         let warnedMissingServices = false;
 
         const wireTaskForker = (options: {
             services: ToolExecutionContext['services'] | undefined;
-            service: RuntimeService;
+            service: AgentSpawnerRuntime;
             logger: NonNullable<ToolExecutionContext['logger']>;
         }) => {
             const { services, service, logger } = options;
@@ -109,7 +109,7 @@ export const agentSpawnerToolsFactory: ToolFactory<AgentSpawnerConfig> = {
                 if (services.taskForker !== service) {
                     services.taskForker = service;
                     logger.debug(
-                        'RuntimeService wired as taskForker for context:fork skill support'
+                        'AgentSpawnerRuntime wired as taskForker for context:fork skill support'
                     );
                 }
                 return;
@@ -161,8 +161,8 @@ export const agentSpawnerToolsFactory: ToolFactory<AgentSpawnerConfig> = {
                 signalBus,
             };
 
-            // Create the runtime service that bridges tools to AgentRuntime
-            const service = new RuntimeService(agent, config, logger);
+            // Create the runtime bridge that spawns/executes sub-agents.
+            const service = new AgentSpawnerRuntime(agent, config, logger);
 
             runtimeService = service;
             wireTaskForker({ services, service, logger });
@@ -349,31 +349,31 @@ export const agentSpawnerToolsFactory: ToolFactory<AgentSpawnerConfig> = {
             const map = ensureToolsInitialized(context);
             const tool = map.get(id);
             if (!tool) {
-                throw new Error(`agent-spawner: expected provider tool '${id}' to exist`);
+                throw new Error(`agent-spawner: expected factory tool '${id}' to exist`);
             }
             return tool;
         };
 
         return [
-            createLazyProviderTool({
+            createLazyTool({
                 id: 'spawn_agent',
                 description: 'Spawn a sub-agent to handle a task and return its result.',
                 inputSchema: SpawnAgentInputSchema,
                 getTool: (context) => getToolById('spawn_agent', context),
             }),
-            createLazyProviderTool({
+            createLazyTool({
                 id: 'wait_for',
                 description: 'Wait for background task(s) to complete.',
                 inputSchema: WaitForInputSchema,
                 getTool: (context) => getToolById('wait_for', context),
             }),
-            createLazyProviderTool({
+            createLazyTool({
                 id: 'check_task',
                 description: 'Check the status of a background task.',
                 inputSchema: CheckTaskInputSchema,
                 getTool: (context) => getToolById('check_task', context),
             }),
-            createLazyProviderTool({
+            createLazyTool({
                 id: 'list_tasks',
                 description: 'List background tasks and their statuses.',
                 inputSchema: ListTasksInputSchema,

@@ -1,7 +1,7 @@
 /**
  * @dexto/tools-process
  *
- * Process tools provider for Dexto agents.
+ * Process tools factory for Dexto agents.
  * Provides process operation tools: bash exec, output, kill.
  */
 

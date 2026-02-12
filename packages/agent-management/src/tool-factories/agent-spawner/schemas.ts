@@ -1,21 +1,21 @@
 /**
- * Agent Spawner Tool Provider Schemas
+ * Agent Spawner Tools Factory Schemas
  *
- * Zod schemas for the agent spawner tool provider configuration and inputs.
+ * Zod schemas for the agent spawner tools factory configuration and inputs.
  */
 
 import { z } from 'zod';
 
 // ============================================================================
-// Provider Configuration Schema
+// Factory Configuration Schema
 // ============================================================================
 
 /**
- * Configuration schema for the agent spawner tool provider
+ * Configuration schema for the agent spawner tools factory.
  */
 export const AgentSpawnerConfigSchema = z
     .object({
-        /** Type discriminator for the provider */
+        /** Type discriminator for the factory */
         type: z.literal('agent-spawner'),
 
         /** Maximum concurrent sub-agents this parent can spawn (default: 5) */
@@ -71,7 +71,7 @@ export const AgentSpawnerConfigSchema = z
             .describe('Agent IDs that should have tools auto-approved (read-only agents)'),
     })
     .strict()
-    .describe('Configuration for the agent spawner tool provider');
+    .describe('Configuration for the agent spawner tools factory');
 
 export type AgentSpawnerConfig = z.output<typeof AgentSpawnerConfigSchema>;
 

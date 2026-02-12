@@ -1,8 +1,8 @@
 /**
- * FileSystem Tools Provider
+ * FileSystem Tools Factory
  *
  * Provides file operation tools by wrapping FileSystemService.
- * When registered, the provider initializes FileSystemService and creates tools
+ * When registered, the factory initializes FileSystemService and creates tools
  * for file operations (read, write, edit, glob, grep).
  */
 
@@ -31,7 +31,7 @@ const FILESYSTEM_TOOL_NAMES = [
 ] as const;
 
 /**
- * Configuration schema for FileSystem tools provider.
+ * Configuration schema for FileSystem tools factory.
  *
  * This is the SINGLE SOURCE OF TRUTH for all configuration:
  * - Validation rules

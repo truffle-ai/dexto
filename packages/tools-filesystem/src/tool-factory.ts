@@ -6,7 +6,7 @@ import { createWriteFileTool } from './write-file-tool.js';
 import { createEditFileTool } from './edit-file-tool.js';
 import { createGlobFilesTool } from './glob-files-tool.js';
 import { createGrepContentTool } from './grep-content-tool.js';
-import { FileSystemToolsConfigSchema, type FileSystemToolsConfig } from './tool-provider.js';
+import { FileSystemToolsConfigSchema, type FileSystemToolsConfig } from './tool-factory-config.js';
 import type { Tool } from '@dexto/core';
 
 const FILESYSTEM_TOOL_NAMES = [

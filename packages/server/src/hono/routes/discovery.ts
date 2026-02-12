@@ -9,22 +9,22 @@ export type GetAgentConfigPathFn = (
     ctx: Context
 ) => string | undefined | Promise<string | undefined>;
 
-const DiscoveredProviderSchema = z
+const DiscoveredFactorySchema = z
     .object({
-        type: z.string().describe('Provider type identifier'),
+        type: z.string().describe('Factory type identifier'),
         category: z
             .enum(['blob', 'database', 'compaction', 'customTools'])
-            .describe('Provider category'),
+            .describe('Factory category'),
         metadata: z
             .object({
                 displayName: z.string().optional().describe('Human-readable display name'),
-                description: z.string().optional().describe('Provider description'),
+                description: z.string().optional().describe('Factory description'),
             })
             .passthrough()
             .optional()
-            .describe('Optional metadata about the provider'),
+            .describe('Optional metadata about the factory'),
     })
-    .describe('Information about a registered provider');
+    .describe('Information about a registered factory');
 
 const ToolSchema = z
     .object({
@@ -37,13 +37,13 @@ const ToolSchema = z
 
 const DiscoveryResponseSchema = z
     .object({
-        blob: z.array(DiscoveredProviderSchema).describe('Blob storage providers'),
-        database: z.array(DiscoveredProviderSchema).describe('Database providers'),
-        compaction: z.array(DiscoveredProviderSchema).describe('Compaction strategy providers'),
-        customTools: z.array(DiscoveredProviderSchema).describe('Custom tool providers'),
+        blob: z.array(DiscoveredFactorySchema).describe('Blob storage factories'),
+        database: z.array(DiscoveredFactorySchema).describe('Database factories'),
+        compaction: z.array(DiscoveredFactorySchema).describe('Compaction strategy factories'),
+        customTools: z.array(DiscoveredFactorySchema).describe('Custom tool factories'),
         internalTools: z.array(ToolSchema).describe('Internal tools available for configuration'),
     })
-    .describe('Discovery response with providers grouped by category');
+    .describe('Discovery response with factories grouped by category');
 
 type DiscoveryMetadataValue = string | number | boolean | null;
 type DiscoveryMetadata = Record<string, DiscoveryMetadataValue>;
@@ -106,22 +106,22 @@ async function resolveImageModule(options: {
     }
 }
 
-async function listDiscoveryProviders(options: {
+async function listDiscoveryFactories(options: {
     ctx: Context;
     getAgentConfigPath: GetAgentConfigPathFn;
 }) {
     const image = await resolveImageModule(options);
 
-    const blob = Object.entries(image.storage.blob).map(([type, provider]) => ({
+    const blob = Object.entries(image.storage.blob).map(([type, factory]) => ({
         type,
         category: 'blob' as const,
-        metadata: toMetadata(provider.metadata),
+        metadata: toMetadata(factory.metadata),
     }));
 
-    const database = Object.entries(image.storage.database).map(([type, provider]) => ({
+    const database = Object.entries(image.storage.database).map(([type, factory]) => ({
         type,
         category: 'database' as const,
-        metadata: toMetadata(provider.metadata),
+        metadata: toMetadata(factory.metadata),
     }));
 
     const compaction = Object.entries(image.compaction).map(([type, factory]) => ({
@@ -159,19 +159,19 @@ export function createDiscoveryRouter(getAgentConfigPath: GetAgentConfigPathFn) 
     const discoveryRoute = createRoute({
         method: 'get',
         path: '/discovery',
-        summary: 'Discover Available Providers and Tools',
+        summary: 'Discover Available Factories and Tools',
         description:
-            'Returns all available providers (blob storage, database, compaction, tools) for the currently active image.',
+            'Returns all available factories (storage, compaction, tools) for the currently active image.',
         tags: ['discovery'],
         responses: {
             200: {
-                description: 'Available providers grouped by category',
+                description: 'Available factories grouped by category',
                 content: { 'application/json': { schema: DiscoveryResponseSchema } },
             },
         },
     });
 
     return app.openapi(discoveryRoute, async (ctx) => {
-        return ctx.json(await listDiscoveryProviders({ ctx, getAgentConfigPath }));
+        return ctx.json(await listDiscoveryFactories({ ctx, getAgentConfigPath }));
     });
 }

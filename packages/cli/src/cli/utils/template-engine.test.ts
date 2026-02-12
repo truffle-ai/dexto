@@ -300,7 +300,7 @@ describe('template-engine', () => {
 
             expect(result).toContain('## Image');
             expect(result).toContain('This app uses the `@dexto/image-local` image');
-            expect(result).toContain('Pre-configured providers');
+            expect(result).toContain('Pre-configured factories');
             expect(result).toContain('Runtime orchestration');
         });
 

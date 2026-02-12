@@ -27,7 +27,7 @@ export enum ToolErrorCode {
     CONFIG_INVALID = 'tools_config_invalid',
     FEATURE_DISABLED = 'tools_feature_disabled',
 
-    // Custom tool provider registry
-    CUSTOM_TOOL_PROVIDER_UNKNOWN = 'tools_custom_provider_unknown',
-    CUSTOM_TOOL_PROVIDER_ALREADY_REGISTERED = 'tools_custom_provider_already_registered',
+    // Custom tool factory registry
+    CUSTOM_TOOL_FACTORY_UNKNOWN = 'tools_custom_factory_unknown',
+    CUSTOM_TOOL_FACTORY_ALREADY_REGISTERED = 'tools_custom_factory_already_registered',
 }

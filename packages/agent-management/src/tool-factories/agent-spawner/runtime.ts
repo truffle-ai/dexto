@@ -1,5 +1,5 @@
 /**
- * RuntimeService - Bridge between tools and AgentRuntime
+ * AgentSpawnerRuntime - Bridge between tools and AgentRuntime
  *
  * Manages the relationship between a parent agent and its sub-agents,
  * providing methods that tools can call to spawn and execute tasks.
@@ -14,19 +14,19 @@
 import type { AgentConfig } from '@dexto/agent-config';
 import type { DextoAgent, IDextoLogger, TaskForker } from '@dexto/core';
 import { DextoRuntimeError, ErrorType } from '@dexto/core';
-import { AgentRuntime } from '../runtime/AgentRuntime.js';
-import { createDelegatingApprovalHandler } from '../runtime/approval-delegation.js';
-import { loadAgentConfig } from '../config/loader.js';
-import { getAgentRegistry } from '../registry/registry.js';
-import type { AgentRegistryEntry } from '../registry/types.js';
-import { deriveDisplayName } from '../registry/types.js';
-import { resolveBundledScript } from '../utils/path.js';
+import { AgentRuntime } from '../../runtime/AgentRuntime.js';
+import { createDelegatingApprovalHandler } from '../../runtime/approval-delegation.js';
+import { loadAgentConfig } from '../../config/loader.js';
+import { getAgentRegistry } from '../../registry/registry.js';
+import type { AgentRegistryEntry } from '../../registry/types.js';
+import { deriveDisplayName } from '../../registry/types.js';
+import { resolveBundledScript } from '../../utils/path.js';
 import * as path from 'path';
 import type { AgentSpawnerConfig } from './schemas.js';
 import type { SpawnAgentOutput } from './types.js';
 import { resolveSubAgentLLM } from './llm-resolution.js';
 
-export class RuntimeService implements TaskForker {
+export class AgentSpawnerRuntime implements TaskForker {
     private runtime: AgentRuntime;
     private parentId: string;
     private parentAgent: DextoAgent;
@@ -89,7 +89,7 @@ export class RuntimeService implements TaskForker {
         });
 
         this.logger.debug(
-            `RuntimeService initialized for parent '${this.parentId}' (maxAgents: ${config.maxConcurrentAgents})`
+            `AgentSpawnerRuntime initialized for parent '${this.parentId}' (maxAgents: ${config.maxConcurrentAgents})`
         );
     }
 
@@ -488,7 +488,7 @@ export class RuntimeService implements TaskForker {
             );
 
             // Execute with the full instructions
-            let result: import('../runtime/types.js').TaskResult;
+            let result: import('../../runtime/types.js').TaskResult;
             try {
                 result = await this.runtime.executeTask(
                     spawnedAgentId,
@@ -638,7 +638,7 @@ export class RuntimeService implements TaskForker {
         // Get runtime LLM config (respects session-specific model switches)
         const currentParentLLM = this.parentAgent.getCurrentLLMConfig(sessionId);
         this.logger.debug(
-            `[RuntimeService] Building sub-agent config with LLM: ${currentParentLLM.provider}/${currentParentLLM.model}` +
+            `[AgentSpawnerRuntime] Building sub-agent config with LLM: ${currentParentLLM.provider}/${currentParentLLM.model}` +
                 (sessionId ? ` (sessionId: ${sessionId})` : ' (no sessionId)')
         );
 
@@ -776,7 +776,7 @@ export class RuntimeService implements TaskForker {
      * Clean up all sub-agents (called when parent stops)
      */
     async cleanup(): Promise<void> {
-        this.logger.debug(`Cleaning up RuntimeService for parent '${this.parentId}'`);
+        this.logger.debug(`Cleaning up AgentSpawnerRuntime for parent '${this.parentId}'`);
         await this.runtime.stopAll({ group: this.parentId });
     }
 }

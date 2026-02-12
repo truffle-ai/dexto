@@ -18,7 +18,7 @@
     - Improve resource discoverability by implementing directory exclusions (`node_modules`, `.git`, `.turbo`, etc.) in `FileSystemResourceHandler`.
     - Refine exclusion logic to ensure project files with names similar to ignored directories are not incorrectly skipped.
 - 20a2b91: Rename gateway provider from dexto to dexto-nova and other relevant updates. Updated setup flow to include credit buying options along with `dexto billing --buy` flag option.
-- 9990e4f: Add toolServices injection support to DextoAgent constructor, enabling dependency injection for custom tool providers. Fixes type compatibility issue with InternalToolsServices interface.
+- 9990e4f: Add toolServices injection support to DextoAgent constructor, enabling dependency injection for custom tool factories. Fixes type compatibility issue with InternalToolsServices interface.
 - c49bc44: Introduced multi-task orchestration with background task tools, signals, and CLI panels; improved background task summaries/logging and cancellation handling; tightened LLM override persistence/restore safeguards; and migrated LLM execution to the Responses API.
 
 ## 1.5.7

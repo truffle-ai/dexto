@@ -766,11 +766,11 @@ pnpm add ${imageName}
 }
 
 /**
- * Generates an example custom tool provider
+ * Generates an example custom tool factory
  */
 export function generateExampleTool(toolName: string = 'example-tool'): string {
-    // Convert kebab-case to camelCase for provider name
-    const providerName = toolName.replace(/-([a-z])/g, (_, char) => char.toUpperCase());
+    // Convert kebab-case to camelCase for a readable type name base
+    const typeNameBase = toolName.replace(/-([a-z])/g, (_, char) => char.toUpperCase());
     return `import { z } from 'zod';
 import type { ToolFactory } from '@dexto/agent-config';
 import type { Tool, ToolExecutionContext } from '@dexto/core';
@@ -782,7 +782,7 @@ const ConfigSchema = z
     })
     .strict();
 
-type ${providerName.charAt(0).toUpperCase() + providerName.slice(1)}Config = z.output<typeof ConfigSchema>;
+type ${typeNameBase.charAt(0).toUpperCase() + typeNameBase.slice(1)}Config = z.output<typeof ConfigSchema>;
 
 /**
  * Example tool factory
@@ -792,7 +792,7 @@ type ${providerName.charAt(0).toUpperCase() + providerName.slice(1)}Config = z.o
  *
  * Contract: export a factory constant with { configSchema, create }.
  */
-export const factory: ToolFactory<${providerName.charAt(0).toUpperCase() + providerName.slice(1)}Config> = {
+export const factory: ToolFactory<${typeNameBase.charAt(0).toUpperCase() + typeNameBase.slice(1)}Config> = {
     configSchema: ConfigSchema,
     metadata: {
         displayName: 'Example Tool',
@@ -831,7 +831,7 @@ export function generateAppReadme(context: TemplateContext): string {
         ? `\n## Image
 
 This app uses the \`${context.imageName}\` image, which provides a complete agent harness with:
-- Pre-configured providers
+- Pre-configured factories
 - Runtime orchestration
 - Context management
 

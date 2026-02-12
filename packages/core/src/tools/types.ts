@@ -20,7 +20,7 @@ import type { IDextoLogger } from '../logger/v2/types.js';
 /**
  * Interface for forking execution to an isolated sub-agent context.
  *
- * Implemented by RuntimeService in `@dexto/agent-management` and surfaced to tools
+ * Implemented by AgentSpawnerRuntime in `@dexto/agent-management` and surfaced to tools
  * via {@link ToolExecutionContext.services}.
  */
 export interface TaskForker {

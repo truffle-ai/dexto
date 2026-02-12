@@ -1,8 +1,8 @@
 /**
- * Todo Tools Provider
+ * Todo Tools Factory
  *
  * Provides task tracking tools by wrapping TodoService.
- * When registered, the provider initializes TodoService and creates the
+ * When registered, the factory initializes TodoService and creates the
  * todo_write tool for managing task lists.
  */
 
@@ -15,7 +15,7 @@ const DEFAULT_MAX_TODOS_PER_SESSION = 100;
 const DEFAULT_ENABLE_EVENTS = true;
 
 /**
- * Configuration schema for Todo tools provider.
+ * Configuration schema for Todo tools factory.
  */
 export const TodoToolsConfigSchema = z
     .object({

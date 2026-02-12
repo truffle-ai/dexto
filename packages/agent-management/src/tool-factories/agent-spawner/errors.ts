@@ -2,7 +2,7 @@ import { DextoRuntimeError, ErrorScope, ErrorType } from '@dexto/core';
 import { AgentSpawnerErrorCode } from './error-codes.js';
 
 /**
- * Agent Spawner error factory methods
+ * Agent Spawner tools factory error methods
  */
 export class AgentSpawnerError {
     static spawningDisabled() {

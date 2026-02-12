@@ -51,7 +51,7 @@ export async function createImage(name?: string): Promise<string> {
             message: 'Starting point:',
             options: [
                 { value: 'base', label: 'New base image (build from scratch)' },
-                { value: 'extend', label: 'Extend existing image (add providers to base)' },
+                { value: 'extend', label: 'Extend existing image (add factories to base)' },
             ],
         },
         'Image creation cancelled'
@@ -109,10 +109,10 @@ export async function createImage(name?: string): Promise<string> {
         'Image creation cancelled'
     );
 
-    // Step 6: Include example providers?
+    // Step 6: Include example factories?
     const includeExamples = await confirmOrExit(
         {
-            message: 'Include example tool provider?',
+            message: 'Include example tool factory?',
             initialValue: true,
         },
         'Image creation cancelled'

@@ -4,7 +4,7 @@ import { ProcessService } from './process-service.js';
 import { createBashExecTool } from './bash-exec-tool.js';
 import { createBashOutputTool } from './bash-output-tool.js';
 import { createKillProcessTool } from './kill-process-tool.js';
-import { ProcessToolsConfigSchema, type ProcessToolsConfig } from './tool-provider.js';
+import { ProcessToolsConfigSchema, type ProcessToolsConfig } from './tool-factory-config.js';
 import type { ProcessConfig } from './types.js';
 
 export const processToolsFactory: ToolFactory<ProcessToolsConfig> = {

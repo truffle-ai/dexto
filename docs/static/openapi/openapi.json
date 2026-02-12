@@ -13692,14 +13692,14 @@
     },
     "/api/discovery": {
       "get": {
-        "summary": "Discover Available Providers and Tools",
-        "description": "Returns all available providers (blob storage, database, compaction, tools) for the currently active image.",
+        "summary": "Discover Available Factories and Tools",
+        "description": "Returns all available factories (storage, compaction, tools) for the currently active image.",
         "tags": [
           "discovery"
         ],
         "responses": {
           "200": {
-            "description": "Available providers grouped by category",
+            "description": "Available factories grouped by category",
             "content": {
               "application/json": {
                 "schema": {
@@ -13712,7 +13712,7 @@
                         "properties": {
                           "type": {
                             "type": "string",
-                            "description": "Provider type identifier"
+                            "description": "Factory type identifier"
                           },
                           "category": {
                             "type": "string",
@@ -13722,7 +13722,7 @@
                               "compaction",
                               "customTools"
                             ],
-                            "description": "Provider category"
+                            "description": "Factory category"
                           },
                           "metadata": {
                             "type": "object",
@@ -13733,19 +13733,19 @@
                               },
                               "description": {
                                 "type": "string",
-                                "description": "Provider description"
+                                "description": "Factory description"
                               }
                             },
-                            "description": "Optional metadata about the provider"
+                            "description": "Optional metadata about the factory"
                           }
                         },
                         "required": [
                           "type",
                           "category"
                         ],
-                        "description": "Information about a registered provider"
+                        "description": "Information about a registered factory"
                       },
-                      "description": "Blob storage providers"
+                      "description": "Blob storage factories"
                     },
                     "database": {
                       "type": "array",
@@ -13754,7 +13754,7 @@
                         "properties": {
                           "type": {
                             "type": "string",
-                            "description": "Provider type identifier"
+                            "description": "Factory type identifier"
                           },
                           "category": {
                             "type": "string",
@@ -13764,7 +13764,7 @@
                               "compaction",
                               "customTools"
                             ],
-                            "description": "Provider category"
+                            "description": "Factory category"
                           },
                           "metadata": {
                             "type": "object",
@@ -13775,19 +13775,19 @@
                               },
                               "description": {
                                 "type": "string",
-                                "description": "Provider description"
+                                "description": "Factory description"
                               }
                             },
-                            "description": "Optional metadata about the provider"
+                            "description": "Optional metadata about the factory"
                           }
                         },
                         "required": [
                           "type",
                           "category"
                         ],
-                        "description": "Information about a registered provider"
+                        "description": "Information about a registered factory"
                       },
-                      "description": "Database providers"
+                      "description": "Database factories"
                     },
                     "compaction": {
                       "type": "array",
@@ -13796,7 +13796,7 @@
                         "properties": {
                           "type": {
                             "type": "string",
-                            "description": "Provider type identifier"
+                            "description": "Factory type identifier"
                           },
                           "category": {
                             "type": "string",
@@ -13806,7 +13806,7 @@
                               "compaction",
                               "customTools"
                             ],
-                            "description": "Provider category"
+                            "description": "Factory category"
                           },
                           "metadata": {
                             "type": "object",
@@ -13817,19 +13817,19 @@
                               },
                               "description": {
                                 "type": "string",
-                                "description": "Provider description"
+                                "description": "Factory description"
                               }
                             },
-                            "description": "Optional metadata about the provider"
+                            "description": "Optional metadata about the factory"
                           }
                         },
                         "required": [
                           "type",
                           "category"
                         ],
-                        "description": "Information about a registered provider"
+                        "description": "Information about a registered factory"
                       },
-                      "description": "Compaction strategy providers"
+                      "description": "Compaction strategy factories"
                     },
                     "customTools": {
                       "type": "array",
@@ -13838,7 +13838,7 @@
                         "properties": {
                           "type": {
                             "type": "string",
-                            "description": "Provider type identifier"
+                            "description": "Factory type identifier"
                           },
                           "category": {
                             "type": "string",
@@ -13848,7 +13848,7 @@
                               "compaction",
                               "customTools"
                             ],
-                            "description": "Provider category"
+                            "description": "Factory category"
                           },
                           "metadata": {
                             "type": "object",
@@ -13859,19 +13859,19 @@
                               },
                               "description": {
                                 "type": "string",
-                                "description": "Provider description"
+                                "description": "Factory description"
                               }
                             },
-                            "description": "Optional metadata about the provider"
+                            "description": "Optional metadata about the factory"
                           }
                         },
                         "required": [
                           "type",
                           "category"
                         ],
-                        "description": "Information about a registered provider"
+                        "description": "Information about a registered factory"
                       },
-                      "description": "Custom tool providers"
+                      "description": "Custom tool factories"
                     },
                     "internalTools": {
                       "type": "array",
@@ -13903,7 +13903,7 @@
                     "customTools",
                     "internalTools"
                   ],
-                  "description": "Discovery response with providers grouped by category"
+                  "description": "Discovery response with factories grouped by category"
                 }
               }
             }

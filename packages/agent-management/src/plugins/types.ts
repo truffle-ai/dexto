@@ -37,8 +37,8 @@ export interface PluginManifest {
  * Extends PluginManifest with Dexto-specific features
  */
 export interface DextoPluginManifest extends PluginManifest {
-    /** Custom tool provider types bundled with this plugin (e.g., ["plan-tools"]) */
-    customToolProviders?: string[] | undefined;
+    /** Custom tool factory types bundled with this plugin (e.g., ["plan-tools"]) */
+    customToolFactories?: string[] | undefined;
 }
 
 /**
@@ -92,8 +92,8 @@ export interface LoadedPlugin {
     commands: PluginCommand[];
     /** MCP servers to merge into agent config */
     mcpConfig?: PluginMCPConfig | undefined;
-    /** Custom tool provider types to register (Dexto-native plugins only) */
-    customToolProviders: string[];
+    /** Custom tool factory types to register (Dexto-native plugins only) */
+    customToolFactories: string[];
     /** Warnings for unsupported features found */
     warnings: string[];
 }

@@ -5,7 +5,7 @@
  * Provides tools for creating, reading, updating, and tracking plans.
  *
  * This package is a Dexto plugin that automatically registers:
- * - Custom tool provider: plan-tools
+ * - Custom tool factory: plan-tools
  * - Skill: plan (planning mode instructions)
  *
  * Usage:

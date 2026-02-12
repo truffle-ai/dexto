@@ -1,18 +1,18 @@
 /**
- * Agent Spawner Tool Provider
+ * Agent Spawner Tools Factory
  *
  * Enables agents to spawn sub-agents for task delegation.
  */
 
-// Main provider export
-export { agentSpawnerToolsFactory } from './tool-factory.js';
+// Main factory export
+export { agentSpawnerToolsFactory } from './factory.js';
 
 // Configuration types
 export { AgentSpawnerConfigSchema } from './schemas.js';
 export type { AgentSpawnerConfig } from './schemas.js';
 
 // Service for advanced usage
-export { RuntimeService } from './runtime-service.js';
+export { AgentSpawnerRuntime } from './runtime.js';
 
 // Tool creator for custom integration
 export { createSpawnAgentTool } from './spawn-agent-tool.js';

@@ -1,5 +1,5 @@
 /**
- * Plan Tools Provider
+ * Plan Tools Factory
  *
  * Provides implementation planning tools:
  * - plan_create: Create a new plan for the session
@@ -16,7 +16,7 @@ import { z } from 'zod';
 const PLAN_TOOL_NAMES = ['plan_create', 'plan_read', 'plan_update', 'plan_review'] as const;
 
 /**
- * Configuration schema for Plan tools provider
+ * Configuration schema for Plan tools factory
  */
 export const PlanToolsConfigSchema = z
     .object({

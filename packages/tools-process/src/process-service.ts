@@ -41,8 +41,8 @@ interface BackgroundProcess {
 /**
  * ProcessService - Handles command execution and process management
  *
- * This service receives fully-validated configuration from the Process Tools Provider.
- * All defaults have been applied by the provider's schema, so the service trusts the config
+ * This service receives fully-validated configuration from the Process Tools Factory.
+ * All defaults have been applied by the factory's schema, so the service trusts the config
  * and uses it as-is without any fallback logic.
  *
  * TODO: Add tests for this class
@@ -58,7 +58,7 @@ export class ProcessService {
     /**
      * Create a new ProcessService with validated configuration.
      *
-     * @param config - Fully-validated configuration from provider schema.
+     * @param config - Fully-validated configuration from the factory schema.
      *                 All required fields have values, defaults already applied.
      * @param logger - Logger instance for this service
      */

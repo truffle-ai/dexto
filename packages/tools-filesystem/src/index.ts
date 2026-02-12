@@ -1,7 +1,7 @@
 /**
  * @dexto/tools-filesystem
  *
- * FileSystem tools provider for Dexto agents.
+ * FileSystem tools factory for Dexto agents.
  * Provides file operation tools: read, write, edit, glob, grep.
  */
 

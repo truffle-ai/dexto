@@ -7,12 +7,12 @@
 
 import type { Tool, ToolExecutionContext } from '@dexto/core';
 import { SpawnAgentInputSchema, type SpawnAgentInput } from './schemas.js';
-import type { RuntimeService } from './runtime-service.js';
+import type { AgentSpawnerRuntime } from './runtime.js';
 
 /**
  * Build dynamic tool description based on available agents from registry
  */
-function buildDescription(service: RuntimeService): string {
+function buildDescription(service: AgentSpawnerRuntime): string {
     const availableAgents = service.getAvailableAgents();
 
     if (availableAgents.length === 0) {
@@ -51,7 +51,7 @@ ${agentsList}
 - If a sub-agent's LLM fails, it automatically falls back to your LLM`;
 }
 
-export function createSpawnAgentTool(service: RuntimeService): Tool {
+export function createSpawnAgentTool(service: AgentSpawnerRuntime): Tool {
     return {
         id: 'spawn_agent',
         description: buildDescription(service),

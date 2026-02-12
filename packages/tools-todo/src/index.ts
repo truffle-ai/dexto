@@ -1,7 +1,7 @@
 /**
  * @dexto/tools-todo
  *
- * Todo/task tracking tools provider for Dexto agents.
+ * Todo/task tracking tools factory for Dexto agents.
  * Provides the todo_write tool for managing task lists.
  */
 

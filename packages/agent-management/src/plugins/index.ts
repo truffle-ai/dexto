@@ -4,7 +4,7 @@
  * Discovers and loads bundled plugins from community sources.
  * Supports two formats:
  * - .claude-plugin: Claude Code compatible format
- * - .dexto-plugin: Dexto-native format with extended features (customToolProviders)
+ * - .dexto-plugin: Dexto-native format with extended features (customToolFactories)
  */
 
 // Types
