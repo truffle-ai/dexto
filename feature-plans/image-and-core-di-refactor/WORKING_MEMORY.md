@@ -48,6 +48,7 @@ _Log findings, issues, and progress here as you work._
 - Review/polish: reviewed `@dexto/tools-builtins`; fixed `delegate_to_url` error wiring (correct `DextoRuntimeError` argument ordering), removed `any` usage in the A2A client, ensured per-endpoint timeout timers are always cleared, and added a focused unit test for the failure/timeout cases. Commit: `94ca9373`.
 - Review/polish: cleaned up WebUI `CustomizePanel` to remove debug `console.*` noise and eliminate `any` typing in YAML AST update/cleanup helpers (keeps behavior, improves readability/typing). Commit: `687f79f5`.
 - Review/polish: tightened server YAML parse error handling (no `any`) and refreshed `startDextoServer()` docs to match the DI-first agent construction + image-based service resolution flow. Commit: `381ad0ba`.
+- Review: scanned remaining package deltas (`@dexto/image-bundler`, `@dexto/image-local`, `@dexto/image-logger-agent`, `@dexto/orchestration`, `@dexto/registry`, `@dexto/storage`, and tool packs `filesystem/process/plan/todo`) and found no correctness blockers; follow-ups to consider: bundler currently relies on directly importing `dexto.image.ts` (Node TS strip behavior), discovery route does not surface cache/plugin factories, and several `@dexto/tools-*` packages still lack READMEs.
 
 ---
 
