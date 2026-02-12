@@ -22,10 +22,6 @@ import {
 import { AgentSpawnerRuntime } from './runtime.js';
 import { createSpawnAgentTool } from './spawn-agent-tool.js';
 
-type ToolWithOptionalExtensions = Tool & {
-    generatePreview?: Tool['generatePreview'];
-};
-
 function requireAgentContext(context?: ToolExecutionContext): {
     agent: NonNullable<ToolExecutionContext['agent']>;
     logger: NonNullable<ToolExecutionContext['logger']>;
@@ -55,7 +51,7 @@ function bindOrchestrationTool(tool: OrchestrationTool, context: OrchestrationTo
     return {
         id: tool.id,
         description: tool.description,
-        inputSchema: tool.inputSchema as Tool['inputSchema'],
+        inputSchema: tool.inputSchema,
         execute: (input: unknown) => tool.execute(input, context),
     };
 }
@@ -64,7 +60,7 @@ function createLazyTool(options: {
     id: string;
     description: string;
     inputSchema: Tool['inputSchema'];
-    getTool: (context?: ToolExecutionContext) => ToolWithOptionalExtensions;
+    getTool: (context?: ToolExecutionContext) => Tool;
 }): Tool {
     const { id, description, inputSchema, getTool } = options;
 
@@ -91,7 +87,7 @@ export const agentSpawnerToolsFactory: ToolFactory<AgentSpawnerConfig> = {
         category: 'agents',
     },
     create: (config) => {
-        let toolMap: Map<string, ToolWithOptionalExtensions> | undefined;
+        let toolMap: Map<string, Tool> | undefined;
         let runtimeService: AgentSpawnerRuntime | undefined;
         let backgroundAbortController: AbortController | undefined;
         let initializedForAgent: ToolExecutionContext['agent'] | undefined;
@@ -123,9 +119,7 @@ export const agentSpawnerToolsFactory: ToolFactory<AgentSpawnerConfig> = {
             }
         };
 
-        const ensureToolsInitialized = (
-            context?: ToolExecutionContext
-        ): Map<string, ToolWithOptionalExtensions> => {
+        const ensureToolsInitialized = (context?: ToolExecutionContext): Map<string, Tool> => {
             const { agent, logger, services } = requireAgentContext(context);
 
             if (

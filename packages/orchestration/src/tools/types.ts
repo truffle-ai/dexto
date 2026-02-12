@@ -7,6 +7,7 @@
 import type { TaskRegistry } from '../task-registry.js';
 import type { ConditionEngine } from '../condition-engine.js';
 import type { SignalBus } from '../signal-bus.js';
+import type { ZodSchema } from 'zod';
 
 /**
  * Context provided to orchestration tools
@@ -23,6 +24,6 @@ export interface OrchestrationToolContext {
 export interface OrchestrationTool {
     id: string;
     description: string;
-    inputSchema: unknown;
+    inputSchema: ZodSchema;
     execute: (input: unknown, context: OrchestrationToolContext) => Promise<unknown>;
 }

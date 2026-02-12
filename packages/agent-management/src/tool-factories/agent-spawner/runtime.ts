@@ -195,32 +195,7 @@ export class AgentSpawnerRuntime implements TaskForker {
         toolCallId?: string;
         sessionId?: string;
     }): Promise<{ success: boolean; response?: string; error?: string }> {
-        // Delegate to spawnAndExecute, passing options
-        // Only include optional properties when they have values (exactOptionalPropertyTypes)
-        const spawnOptions: {
-            task: string;
-            instructions: string;
-            agentId?: string;
-            autoApprove?: boolean;
-            toolCallId?: string;
-            sessionId?: string;
-        } = {
-            task: options.task,
-            instructions: options.instructions,
-        };
-        if (options.agentId) {
-            spawnOptions.agentId = options.agentId;
-        }
-        if (options.autoApprove !== undefined) {
-            spawnOptions.autoApprove = options.autoApprove;
-        }
-        if (options.toolCallId) {
-            spawnOptions.toolCallId = options.toolCallId;
-        }
-        if (options.sessionId) {
-            spawnOptions.sessionId = options.sessionId;
-        }
-        return this.spawnAndExecute(spawnOptions);
+        return this.spawnAndExecute(options);
     }
 
     /**
