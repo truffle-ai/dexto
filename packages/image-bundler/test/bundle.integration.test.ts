@@ -16,7 +16,7 @@ describe('@dexto/image-bundler - bundle (integration)', () => {
         const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 
         const tempDir = await mkdtemp(
-            path.join(process.cwd(), 'packages/image-bundler', '.tmp-bundle-test-')
+            path.join(process.cwd(), 'packages/image-local', '.tmp-bundle-test-')
         );
 
         try {
@@ -89,6 +89,138 @@ export const factory = {
             const image = await loadImage(pathToFileURL(result.entryFile).href);
             expect(image.metadata.name).toBe('test-image');
             expect(image.tools['example-tool']).toBeDefined();
+        } finally {
+            await rm(tempDir, { recursive: true, force: true });
+            logSpy.mockRestore();
+            warnSpy.mockRestore();
+        }
+    });
+
+    it('bundles an image with tools/storage/plugins/compaction factories', async () => {
+        const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+        const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+        const tempDir = await mkdtemp(
+            path.join(process.cwd(), 'packages/image-local', '.tmp-bundle-test-')
+        );
+
+        try {
+            await writeFileEnsuringDir(
+                path.join(tempDir, 'package.json'),
+                JSON.stringify(
+                    {
+                        name: '@dexto/test-image-full',
+                        version: '1.0.0',
+                        type: 'module',
+                    },
+                    null,
+                    2
+                )
+            );
+
+            await writeFileEnsuringDir(
+                path.join(tempDir, 'dexto.image.ts'),
+                `import type { ImageDefinition } from '@dexto/image-bundler';
+
+const image = {
+    name: 'test-image-full',
+    version: '1.0.0',
+    description: 'Test image with tools/storage/plugins/compaction factories',
+    target: 'local-development',
+} satisfies ImageDefinition;
+
+export default image;
+`
+            );
+
+            await writeFileEnsuringDir(
+                path.join(tempDir, 'tools', 'sample-tools', 'index.ts'),
+                `import { z } from 'zod';
+
+const configSchema = z.object({ type: z.literal('sample-tools') }).passthrough();
+const inputSchema = z.object({}).passthrough();
+
+export const factory = {
+    configSchema,
+    create: (_config: unknown) => {
+        return [
+            {
+                id: 'sample-echo',
+                description: 'Echo tool (bundler integration test)',
+                inputSchema,
+                execute: async (input: unknown) => input,
+            },
+        ];
+    },
+};
+`
+            );
+
+            await writeFileEnsuringDir(
+                path.join(tempDir, 'plugins', 'sample-plugin', 'index.ts'),
+                `import { z } from 'zod';
+
+const configSchema = z.object({ type: z.literal('sample-plugin') }).passthrough();
+
+export const factory = {
+    configSchema,
+    create: (_config: unknown) => {
+        return {
+            beforeResponse: async () => ({ ok: true }),
+        };
+    },
+};
+`
+            );
+
+            await writeFileEnsuringDir(
+                path.join(tempDir, 'compaction', 'noop', 'index.ts'),
+                `import { z } from 'zod';
+import { NoOpCompactionStrategy } from '@dexto/core';
+
+const configSchema = z.object({ type: z.literal('noop') }).passthrough();
+
+export const factory = {
+    configSchema,
+    create: (_config: unknown) => new NoOpCompactionStrategy(),
+};
+`
+            );
+
+            await writeFileEnsuringDir(
+                path.join(tempDir, 'storage', 'blob', 'in-memory', 'index.ts'),
+                `export { inMemoryBlobStoreFactory as factory } from '@dexto/storage';
+`
+            );
+
+            await writeFileEnsuringDir(
+                path.join(tempDir, 'storage', 'database', 'in-memory', 'index.ts'),
+                `export { inMemoryDatabaseFactory as factory } from '@dexto/storage';
+`
+            );
+
+            await writeFileEnsuringDir(
+                path.join(tempDir, 'storage', 'cache', 'in-memory', 'index.ts'),
+                `export { inMemoryCacheFactory as factory } from '@dexto/storage';
+`
+            );
+
+            const distDir = path.join(tempDir, 'dist');
+            const result = await bundle({
+                imagePath: path.join(tempDir, 'dexto.image.ts'),
+                outDir: distDir,
+            });
+
+            const image = await loadImage(pathToFileURL(result.entryFile).href);
+            expect(image.metadata.name).toBe('test-image-full');
+
+            expect(image.tools['sample-tools']).toBeDefined();
+            expect(image.plugins['sample-plugin']).toBeDefined();
+            expect(image.compaction['noop']).toBeDefined();
+
+            expect(image.storage.blob['in-memory']).toBeDefined();
+            expect(image.storage.database['in-memory']).toBeDefined();
+            expect(image.storage.cache['in-memory']).toBeDefined();
         } finally {
             await rm(tempDir, { recursive: true, force: true });
             logSpy.mockRestore();

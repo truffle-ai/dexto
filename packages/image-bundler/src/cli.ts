@@ -3,14 +3,6 @@
  * CLI for bundling Dexto base images
  */
 
-// Suppress experimental warnings (e.g., Type Stripping)
-process.removeAllListeners('warning');
-process.on('warning', (warning) => {
-    if (warning.name !== 'ExperimentalWarning') {
-        console.warn(warning);
-    }
-});
-
 import { Command } from 'commander';
 import { bundle } from './bundler.js';
 import { readFileSync } from 'node:fs';

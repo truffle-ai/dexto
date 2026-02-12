@@ -3,12 +3,15 @@
  */
 
 import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, statSync } from 'node:fs';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import { dirname, join, resolve, relative, extname, basename } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { validateImageDefinition } from './image-definition/validate-image-definition.js';
 import type { ImageDefinition } from './image-definition/types.js';
 import type { BundleOptions, BundleResult } from './types.js';
 import { generateEntryPoint } from './generator.js';
+import { build } from 'esbuild';
 import ts from 'typescript';
 
 /**
@@ -161,20 +164,35 @@ async function loadImageDefinition(imagePath: string): Promise<ImageDefinition> 
     }
 
     try {
-        // Convert to file:// URL for ESM import
-        const fileUrl = pathToFileURL(absolutePath).href;
+        const imageDir = dirname(absolutePath);
+        const tempDir = await mkdtemp(join(imageDir, '.dexto-image-definition-'));
+        const compiledPath = join(tempDir, 'dexto.image.mjs');
 
-        // Dynamic import
-        const module = await import(fileUrl);
+        try {
+            await build({
+                entryPoints: [absolutePath],
+                outfile: compiledPath,
+                bundle: true,
+                platform: 'node',
+                format: 'esm',
+                target: 'node20',
+                packages: 'external',
+                logLevel: 'silent',
+            });
 
-        // Get default export
-        const definition = module.default as ImageDefinition;
+            const module = await import(pathToFileURL(compiledPath).href);
 
-        if (!definition) {
-            throw new Error('Image file must have a default export');
+            // Get default export
+            const definition = module.default as ImageDefinition;
+
+            if (!definition) {
+                throw new Error('Image file must have a default export');
+            }
+
+            return definition;
+        } finally {
+            await rm(tempDir, { recursive: true, force: true });
         }
-
-        return definition;
     } catch (error) {
         if (error instanceof Error) {
             throw new Error(`Failed to load image definition: ${error.message}`);
@@ -188,15 +206,9 @@ async function loadImageDefinition(imagePath: string): Promise<ImageDefinition> 
  */
 function getCoreVersion(): string {
     try {
-        // Try to read from node_modules
-        const corePackageJson = join(process.cwd(), 'node_modules/@dexto/core/package.json');
-        if (existsSync(corePackageJson)) {
-            const pkg = JSON.parse(readFileSync(corePackageJson, 'utf-8'));
-            return pkg.version;
-        }
-
-        // Fallback to workspace version
-        return '1.0.0';
+        const require = createRequire(import.meta.url);
+        const pkg = require('@dexto/core/package.json') as { version?: unknown };
+        return typeof pkg.version === 'string' ? pkg.version : '1.0.0';
     } catch {
         return '1.0.0';
     }
