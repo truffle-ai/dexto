@@ -160,3 +160,52 @@ describe('PromptManager getPromptDefinition', () => {
         expect(def?.context).toBeUndefined();
     });
 });
+
+describe('PromptManager resolvePrompt', () => {
+    test('resolves config prompts by fully-qualified key', async () => {
+        const fakeMCP = {
+            getAllPromptMetadata() {
+                return [];
+            },
+            getPromptMetadata() {
+                return undefined;
+            },
+            async getPrompt() {
+                return { messages: [] };
+            },
+        } as any;
+        const resourceManagerStub = { getBlobStore: () => undefined } as any;
+        const agentConfig: any = {
+            prompts: [
+                {
+                    type: 'inline',
+                    id: 'dexto-plan-mode',
+                    description: 'Internal plan-mode prompt',
+                    prompt: 'You are in PLAN MODE.\nUse `custom--plan_create`.',
+                    'user-invocable': false,
+                    'disable-model-invocation': true,
+                },
+            ],
+        };
+        const eventBus: any = { on: () => {}, emit: () => {} };
+        const dbStub: any = {
+            connect: async () => {},
+            list: async () => [],
+            get: async () => undefined,
+        };
+
+        const pm = new PromptManager(
+            fakeMCP,
+            resourceManagerStub,
+            agentConfig,
+            eventBus,
+            dbStub,
+            mockLogger
+        );
+        await pm.initialize();
+
+        const result = await pm.resolvePrompt('config:dexto-plan-mode');
+        expect(result.text).toContain('PLAN MODE');
+        expect(result.text).toContain('custom--plan_create');
+    });
+});

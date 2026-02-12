@@ -20,6 +20,18 @@ describe('Image Local - Import Integration', () => {
 
         expect(image.metadata.name).toBe('@dexto/image-local');
 
+        const prompts = image.defaults?.prompts ?? [];
+        const planPrompt = prompts.find(
+            (p) => p.type === 'inline' && 'id' in p && p.id === 'dexto-plan-mode'
+        );
+        expect(planPrompt).toBeDefined();
+        expect(planPrompt).toMatchObject({
+            type: 'inline',
+            id: 'dexto-plan-mode',
+            'user-invocable': false,
+            'disable-model-invocation': true,
+        });
+
         expect(image.tools['builtin-tools']).toBeDefined();
         expect(image.tools['filesystem-tools']).toBeDefined();
         expect(image.tools['process-tools']).toBeDefined();

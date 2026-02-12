@@ -633,7 +633,10 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                         let messageText = trimmed;
                         if (ui.planModeActive && !ui.planModeInitialized) {
                             try {
-                                const planSkill = await agent.resolvePrompt('plan', {});
+                                const planSkill = await agent.resolvePrompt(
+                                    'config:dexto-plan-mode',
+                                    {}
+                                );
                                 if (planSkill.text) {
                                     messageText = `<plan-mode>\n${planSkill.text}\n</plan-mode>\n\n${trimmed}`;
                                     // Mark plan mode as initialized after injection
@@ -641,7 +644,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                                 }
                             } catch {
                                 // Plan skill not found - continue without injection
-                                // This can happen if the agent config doesn't include a `plan` prompt/skill
+                                // This can happen if the agent config/image doesn't include `config:dexto-plan-mode`.
                             }
                         }
 

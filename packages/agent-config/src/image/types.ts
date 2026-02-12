@@ -17,7 +17,8 @@ import type { AgentConfig } from '../schemas/agent-config.js';
  * Merge semantics are implemented by `applyImageDefaults()`:
  * - shallow merge at the top-level (config wins)
  * - object fields merge 1-level deep
- * - arrays are atomic (fully replaced; no concatenation)
+ * - arrays are atomic (fully replaced; no concatenation) except `prompts`, which are merged to
+ *   avoid accidentally dropping image-provided prompts when an agent config defines its own prompts
  */
 export type ImageDefaults = Partial<AgentConfig>;
 

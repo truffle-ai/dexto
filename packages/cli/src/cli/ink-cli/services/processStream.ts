@@ -718,7 +718,12 @@ export async function processStream(
                     }
 
                     // Handle plan_review tool results - update UI state when plan is approved
-                    if (event.toolName === 'plan_review' && event.success !== false) {
+                    // Note: tool ids may be qualified (custom--/internal--) depending on image resolution.
+                    const isPlanReviewTool =
+                        event.toolName === 'plan_review' ||
+                        event.toolName === 'custom--plan_review' ||
+                        event.toolName === 'internal--plan_review';
+                    if (isPlanReviewTool && event.success !== false) {
                         try {
                             const planReviewResult = event.rawResult as {
                                 approved?: boolean;

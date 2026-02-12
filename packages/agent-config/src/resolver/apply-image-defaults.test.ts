@@ -99,4 +99,35 @@ describe('applyImageDefaults', () => {
         };
         expect(applyImageDefaults(config, defaults).tools).toEqual([]);
     });
+
+    it('retains image prompts when config provides prompts (unless explicitly cleared)', () => {
+        const defaults: ImageDefaults = {
+            prompts: [
+                { type: 'inline', id: 'default-skill', prompt: 'default prompt' },
+                { type: 'inline', id: 'shared', prompt: 'default shared prompt' },
+            ],
+        };
+
+        expect(applyImageDefaults(baseConfig, defaults).prompts).toEqual(defaults.prompts);
+
+        const configWithPrompts: AgentConfig = {
+            ...baseConfig,
+            prompts: [
+                { type: 'inline', id: 'custom-skill', prompt: 'custom prompt' },
+                { type: 'inline', id: 'shared', prompt: 'config shared prompt (override)' },
+            ],
+        };
+
+        expect(applyImageDefaults(configWithPrompts, defaults).prompts).toEqual([
+            { type: 'inline', id: 'default-skill', prompt: 'default prompt' },
+            { type: 'inline', id: 'shared', prompt: 'config shared prompt (override)' },
+            { type: 'inline', id: 'custom-skill', prompt: 'custom prompt' },
+        ]);
+
+        const configClearsPrompts: AgentConfig = {
+            ...baseConfig,
+            prompts: [],
+        };
+        expect(applyImageDefaults(configClearsPrompts, defaults).prompts).toEqual([]);
+    });
 });
