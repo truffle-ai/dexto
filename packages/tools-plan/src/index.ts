@@ -3,38 +3,7 @@
  *
  * Implementation planning tools with session-linked plans.
  * Provides tools for creating, reading, updating, and tracking plans.
- *
- * This package is a Dexto plugin that automatically registers:
- * - Custom tool factory: plan-tools
- * - Skill: plan (planning mode instructions)
- *
- * Usage:
- * 1. Install the package
- * 2. The plugin discovery will find .dexto-plugin/plugin.json
- * 3. Tools and skill are automatically registered
  */
-
-import * as path from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
-/**
- * Path to the plugin directory containing .dexto-plugin manifest.
- * Host layers can pass this to `enrichAgentConfig(..., { bundledPlugins: [...] })`
- * to include the plugin in discovery.
- *
- * @example
- * ```typescript
- * import { PLUGIN_PATH } from '@dexto/tools-plan';
- * import { enrichAgentConfig } from '@dexto/agent-management';
- *
- * const enriched = enrichAgentConfig(config, configPath, {
- *   bundledPlugins: [PLUGIN_PATH],
- * });
- * ```
- */
-export const PLUGIN_PATH = path.resolve(__dirname, '..');
 
 // Tool factory (image-compatible)
 export { planToolsFactory } from './tool-factory.js';

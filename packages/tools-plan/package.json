@@ -12,9 +12,7 @@
     }
   },
   "files": [
-    "dist",
-    ".dexto-plugin",
-    "skills"
+    "dist"
   ],
   "scripts": {
     "build": "tsc",
