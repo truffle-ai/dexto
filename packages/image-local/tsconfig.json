@@ -11,5 +11,16 @@
     "skipLibCheck": true
   },
   "include": ["src/**/*"],
-  "exclude": ["dist", "node_modules"]
+  "exclude": ["dist", "node_modules"],
+  "references": [
+    { "path": "../agent-config" },
+    { "path": "../agent-management" },
+    { "path": "../core" },
+    { "path": "../storage" },
+    { "path": "../tools-builtins" },
+    { "path": "../tools-filesystem" },
+    { "path": "../tools-plan" },
+    { "path": "../tools-process" },
+    { "path": "../tools-todo" }
+  ]
 }

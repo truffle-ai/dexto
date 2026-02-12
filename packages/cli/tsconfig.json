@@ -12,5 +12,16 @@
     "jsx": "react-jsx"
   },
   "include": ["src/**/*"],
-  "exclude": ["**/*.test.ts", "**/*.spec.ts", "dist", "node_modules"]
+  "exclude": ["**/*.test.ts", "**/*.spec.ts", "dist", "node_modules"],
+  "references": [
+    { "path": "../agent-config" },
+    { "path": "../agent-management" },
+    { "path": "../analytics" },
+    { "path": "../core" },
+    { "path": "../image-local" },
+    { "path": "../image-logger-agent" },
+    { "path": "../registry" },
+    { "path": "../server" },
+    { "path": "../storage" }
+  ]
 }

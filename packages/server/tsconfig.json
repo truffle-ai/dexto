@@ -19,5 +19,12 @@
     "**/*.integration.test.ts",
     "dist",
     "node_modules"
+  ],
+  "references": [
+    { "path": "../agent-config" },
+    { "path": "../agent-management" },
+    { "path": "../core" },
+    { "path": "../image-local" },
+    { "path": "../storage" }
   ]
 }

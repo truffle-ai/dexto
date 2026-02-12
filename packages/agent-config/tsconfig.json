@@ -21,5 +21,6 @@
     "**/__fixtures__/**",
     "dist",
     "node_modules"
-  ]
+  ],
+  "references": [{ "path": "../core" }, { "path": "../storage" }]
 }

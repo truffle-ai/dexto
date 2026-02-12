@@ -19,5 +19,6 @@
     "**/*.integration.test.ts",
     "dist",
     "node_modules"
-  ]
+  ],
+  "references": [{ "path": "../core" }, { "path": "../server" }]
 }

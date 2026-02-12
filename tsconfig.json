@@ -30,6 +30,7 @@
     { "path": "./packages/core" },
     { "path": "./packages/image-bundler" },
     { "path": "./packages/image-local" },
+    { "path": "./packages/image-logger-agent" },
     { "path": "./packages/orchestration" },
     { "path": "./packages/registry" },
     { "path": "./packages/server" },
