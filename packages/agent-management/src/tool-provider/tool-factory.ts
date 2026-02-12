@@ -92,13 +92,64 @@ export const agentSpawnerToolsFactory: ToolFactory<AgentSpawnerConfig> = {
     },
     create: (config) => {
         let toolMap: Map<string, ToolWithOptionalExtensions> | undefined;
+        let runtimeService: RuntimeService | undefined;
+        let backgroundAbortController: AbortController | undefined;
+        let initializedForAgent: ToolExecutionContext['agent'] | undefined;
+        let warnedMissingServices = false;
 
-        const ensureToolsInitialized = (context?: ToolExecutionContext) => {
-            if (toolMap) {
+        const wireTaskForker = (options: {
+            services: ToolExecutionContext['services'] | undefined;
+            service: RuntimeService;
+            logger: NonNullable<ToolExecutionContext['logger']>;
+        }) => {
+            const { services, service, logger } = options;
+
+            if (services) {
+                warnedMissingServices = false;
+                if (services.taskForker !== service) {
+                    services.taskForker = service;
+                    logger.debug(
+                        'RuntimeService wired as taskForker for context:fork skill support'
+                    );
+                }
+                return;
+            }
+
+            if (!warnedMissingServices) {
+                warnedMissingServices = true;
+                logger.warn(
+                    'Tool execution services not available; forked skills (context: fork) will be disabled'
+                );
+            }
+        };
+
+        const ensureToolsInitialized = (
+            context?: ToolExecutionContext
+        ): Map<string, ToolWithOptionalExtensions> => {
+            const { agent, logger, services } = requireAgentContext(context);
+
+            if (
+                toolMap &&
+                runtimeService &&
+                backgroundAbortController &&
+                !backgroundAbortController.signal.aborted &&
+                initializedForAgent === agent
+            ) {
+                wireTaskForker({ services, service: runtimeService, logger });
                 return toolMap;
             }
 
-            const { agent, logger, services } = requireAgentContext(context);
+            warnedMissingServices = false;
+
+            if (backgroundAbortController && !backgroundAbortController.signal.aborted) {
+                backgroundAbortController.abort();
+            }
+
+            if (runtimeService) {
+                runtimeService.cleanup().catch(() => undefined);
+            }
+
+            initializedForAgent = agent;
 
             const signalBus = new SignalBus();
             const taskRegistry = new TaskRegistry(signalBus);
@@ -113,16 +164,8 @@ export const agentSpawnerToolsFactory: ToolFactory<AgentSpawnerConfig> = {
             // Create the runtime service that bridges tools to AgentRuntime
             const service = new RuntimeService(agent, config, logger);
 
-            // Wire up RuntimeService as taskForker for invoke_skill (context: fork support)
-            // This enables skills with `context: fork` to execute in isolated subagents
-            if (services) {
-                services.taskForker = service;
-                logger.debug('RuntimeService wired as taskForker for context:fork skill support');
-            } else {
-                logger.warn(
-                    'Tool execution services not available; forked skills (context: fork) will be disabled'
-                );
-            }
+            runtimeService = service;
+            wireTaskForker({ services, service, logger });
 
             const taskSessions = new Map<string, string>();
 
@@ -276,13 +319,18 @@ export const agentSpawnerToolsFactory: ToolFactory<AgentSpawnerConfig> = {
                 });
             };
 
-            const backgroundAbortController = new AbortController();
+            backgroundAbortController = new AbortController();
             agent.on('tool:background', handleBackground, {
                 signal: backgroundAbortController.signal,
             });
-            agent.on('agent:stopped', () => {
-                backgroundAbortController.abort();
-            });
+            agent.on(
+                'agent:stopped',
+                () => {
+                    service.cleanup().catch(() => undefined);
+                    backgroundAbortController?.abort();
+                },
+                { signal: backgroundAbortController.signal }
+            );
 
             const spawnAgentTool = createSpawnAgentTool(service);
 
