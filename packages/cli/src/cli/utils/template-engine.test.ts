@@ -335,6 +335,9 @@ describe('template-engine', () => {
 
             expect(result).toContain('## Configuration');
             expect(result).toContain('agents/default.yml');
+            expect(result).toContain('`image:`');
+            expect(result).toContain('`tools:`');
+            expect(result).toContain('`mcpServers:`');
         });
 
         it('should include learn more section', () => {

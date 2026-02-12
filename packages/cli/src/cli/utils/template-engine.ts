@@ -873,10 +873,11 @@ ${context.projectName}/
 
 Edit \`agents/default.yml\` to configure:
 - System prompts
-- LLM provider and model
-- MCP servers
-- Internal tools
-- Custom tools
+- LLM provider/model/API keys
+- Image selection (\`image:\`) and defaults
+- Storage backends (\`storage:\`)
+- Tools (\`tools:\`) — omit to use image defaults
+- External tools via MCP (\`mcpServers:\`)
 
 ## Learn More
 
