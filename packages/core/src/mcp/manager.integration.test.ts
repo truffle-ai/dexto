@@ -15,6 +15,7 @@ const RESOURCES_DEMO_PATH = resolve(
     __dirname,
     '../../../../examples/resources-demo-server/server.js'
 );
+const MEMORY_DEMO_PATH = resolve(__dirname, '../../../../examples/memory-demo-server/server.js');
 
 /**
  * Integration tests for MCPManager with real MCP servers
@@ -235,8 +236,8 @@ describe('MCPManager Integration Tests', () => {
     describe('Memory MCP Server', () => {
         it('should connect to memory server and cache tools', async () => {
             const config = McpServerConfigSchema.parse({
-                command: 'npx',
-                args: ['-y', '@modelcontextprotocol/server-memory'],
+                command: 'node',
+                args: [MEMORY_DEMO_PATH],
                 type: 'stdio',
                 env: {},
             });
@@ -275,8 +276,8 @@ describe('MCPManager Integration Tests', () => {
 
             // Connect memory server
             const memoryConfig = McpServerConfigSchema.parse({
-                command: 'npx',
-                args: ['-y', '@modelcontextprotocol/server-memory'],
+                command: 'node',
+                args: [MEMORY_DEMO_PATH],
                 type: 'stdio',
                 env: {},
             });
@@ -316,8 +317,8 @@ describe('MCPManager Integration Tests', () => {
             await resourcesClient.connect(resourcesConfig, 'resources-demo');
 
             const memoryConfig = McpServerConfigSchema.parse({
-                command: 'npx',
-                args: ['-y', '@modelcontextprotocol/server-memory'],
+                command: 'node',
+                args: [MEMORY_DEMO_PATH],
                 type: 'stdio',
                 env: {},
             });
@@ -351,8 +352,8 @@ describe('MCPManager Integration Tests', () => {
     describe('Cache Performance', () => {
         it('should demonstrate caching eliminates network calls', async () => {
             const config = McpServerConfigSchema.parse({
-                command: 'npx',
-                args: ['-y', '@modelcontextprotocol/server-memory'],
+                command: 'node',
+                args: [MEMORY_DEMO_PATH],
                 type: 'stdio',
                 env: {},
             });
@@ -381,6 +382,6 @@ describe('MCPManager Integration Tests', () => {
                 `First call (with cache): ${time1}ms, Second call (from cache): ${time2}ms`
             );
             expect(time2).toBeLessThan(time1);
-        }, 15000);
+        }, 20000);
     });
 });
