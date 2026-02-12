@@ -165,18 +165,25 @@ plugins:
 
 ## Custom Plugin Implementation
 
+### Type-Only Imports (Recommended)
+
+Custom plugins should use **type-only imports** from `@dexto/core`. This ensures types exist for IDE autocomplete and type-checking, but the runtime import disappears in compiled output. This avoids "two copies of core" issues and version skew:
+
 ```typescript
 import type {
     DextoPlugin,
     BeforeLLMRequestPayload,
+    BeforeResponsePayload,
+    BeforeToolCallPayload,
+    AfterToolResultPayload,
     PluginResult,
     PluginExecutionContext,
 } from '@dexto/core';
 
 export class MyPlugin implements DextoPlugin {
-    private config: any;
+    private config: Record<string, unknown>;
 
-    async initialize(config: Record<string, any>): Promise<void> {
+    async initialize(config: Record<string, unknown>): Promise<void> {
         this.config = config;
     }
 
@@ -184,7 +191,34 @@ export class MyPlugin implements DextoPlugin {
         payload: BeforeLLMRequestPayload,
         context: PluginExecutionContext
     ): Promise<PluginResult> {
+        // Access context for logging and agent services
+        context.logger.info(`Processing request: ${payload.text}`);
+
         // Validate or modify input
+        return { ok: true };
+    }
+
+    async beforeToolCall(
+        payload: BeforeToolCallPayload,
+        context: PluginExecutionContext
+    ): Promise<PluginResult> {
+        // Check tool arguments before execution
+        return { ok: true };
+    }
+
+    async afterToolResult(
+        payload: AfterToolResultPayload,
+        context: PluginExecutionContext
+    ): Promise<PluginResult> {
+        // Process tool results
+        return { ok: true };
+    }
+
+    async beforeResponse(
+        payload: BeforeResponsePayload,
+        context: PluginExecutionContext
+    ): Promise<PluginResult> {
+        // Sanitize/format final response
         return { ok: true };
     }
 
@@ -195,6 +229,33 @@ export class MyPlugin implements DextoPlugin {
 
 export default MyPlugin;
 ```
+
+### Arrow Function Properties (Type Inference)
+
+For shorter syntax with automatic type inference, use arrow function property assignments:
+
+```typescript
+import type { DextoPlugin, PluginResult } from '@dexto/core';
+
+export class MyPlugin implements DextoPlugin {
+    // Types are inferred from the DextoPlugin interface
+    beforeToolCall = async (payload, context): Promise<PluginResult> => {
+        // payload is BeforeToolCallPayload, context is PluginExecutionContext
+        return { ok: true };
+    };
+}
+```
+
+### Runtime Imports (Advanced)
+
+If your plugin needs **runtime imports** from `@dexto/core` (not just types), ensure your agent directory has `@dexto/core` installed and pinned to match your CLI version exactly. Otherwise, you risk runtime version mismatches:
+
+```bash
+# In your agent directory, pin to match CLI version
+npm install --save-exact @dexto/core@<cli-version>
+```
+
+Most plugins only need type-only imports and the execution context provided at runtime.
 
 ## Plugin Results
 
@@ -236,7 +297,7 @@ return {
 
 ### Custom Plugin Examples
 
-- **[Request Logger Plugin](https://github.com/truffle-ai/dexto/blob/main/agents/logger-agent/plugins/request-logger.ts)** - Complete custom plugin implementation with logging
+- **[Request Logger Plugin](https://github.com/truffle-ai/dexto/blob/main/packages/image-logger-agent/src/plugins/request-logger.ts)** - Complete custom plugin implementation with logging
 
 ## See Also
 
