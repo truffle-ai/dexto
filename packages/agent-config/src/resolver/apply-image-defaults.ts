@@ -6,7 +6,7 @@ import { isPlainObject } from './utils.js';
 /**
  * Apply image defaults to an *unvalidated* agent config.
  *
- * Merge strategy (see plan Section 12):
+ * Merge strategy:
  * - shallow top-level merge, config wins
  * - object fields merge 1-level deep
  * - arrays are atomic and fully replaced (no concatenation)

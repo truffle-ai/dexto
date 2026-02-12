@@ -15,7 +15,7 @@ function qualifyToolId(prefix: string, id: string): string {
     return `${prefix}${id}`;
 }
 
-// Tool factory entries share `enabled?: boolean` (see A+B+C semantics in the plan).
+// Tool/plugin factory entries share `enabled?: boolean`.
 // Since many factory schemas are `.strict()`, strip `enabled` before validating the entry.
 function stripEnabled(entry: PlainObject): PlainObject {
     const obj = entry as PlainObject;

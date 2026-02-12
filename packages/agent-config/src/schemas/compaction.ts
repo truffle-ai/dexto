@@ -1,5 +1,28 @@
 import { z } from 'zod';
 
+const EnabledSchema = z.boolean().default(true).describe('Enable or disable compaction');
+
+const MaxContextTokensSchema = z
+    .number()
+    .positive()
+    .optional()
+    .describe(
+        "Maximum context tokens before compaction triggers. Caps the model's context window when set."
+    );
+
+const ThresholdPercentSchema = z
+    .number()
+    .min(0.1)
+    .max(1.0)
+    .default(0.9)
+    .describe('Percentage of context window that triggers compaction (0.1 to 1.0, default 0.9)');
+
+const CommonCompactionFields = {
+    enabled: EnabledSchema,
+    maxContextTokens: MaxContextTokensSchema,
+    thresholdPercent: ThresholdPercentSchema,
+} as const;
+
 /**
  * Base compaction configuration schema.
  *
@@ -13,32 +36,7 @@ import { z } from 'zod';
 export const CompactionConfigSchema = z
     .object({
         type: z.string().describe('Compaction strategy type'),
-        enabled: z.boolean().default(true).describe('Enable or disable compaction'),
-        /**
-         * Maximum context tokens before compaction triggers.
-         * When set, caps the model's context window used for compaction decisions.
-         * Example: Set to 50000 to trigger compaction at 50K tokens even if
-         * the model supports 200K tokens.
-         */
-        maxContextTokens: z
-            .number()
-            .positive()
-            .optional()
-            .describe(
-                "Maximum context tokens before compaction triggers. Caps the model's context window when set."
-            ),
-        /**
-         * Percentage of context window that triggers compaction (0.1 to 1.0).
-         * Default is 0.9 (90%), leaving a 10% buffer to avoid context degradation.
-         */
-        thresholdPercent: z
-            .number()
-            .min(0.1)
-            .max(1.0)
-            .default(0.9)
-            .describe(
-                'Percentage of context window that triggers compaction (0.1 to 1.0, default 0.9)'
-            ),
+        ...CommonCompactionFields,
     })
     .passthrough()
     .describe('Context compaction configuration');
@@ -58,22 +56,7 @@ export const DEFAULT_COMPACTION_CONFIG: ValidatedCompactionConfig = {
 export const ReactiveOverflowCompactionConfigSchema = z
     .object({
         type: z.literal('reactive-overflow'),
-        enabled: z.boolean().default(true).describe('Enable or disable compaction'),
-        maxContextTokens: z
-            .number()
-            .positive()
-            .optional()
-            .describe(
-                "Maximum context tokens before compaction triggers. Caps the model's context window when set."
-            ),
-        thresholdPercent: z
-            .number()
-            .min(0.1)
-            .max(1.0)
-            .default(0.9)
-            .describe(
-                'Percentage of context window that triggers compaction (0.1 to 1.0, default 0.9)'
-            ),
+        ...CommonCompactionFields,
         preserveLastNTurns: z
             .number()
             .int()
@@ -101,22 +84,7 @@ export type ReactiveOverflowCompactionConfig = z.output<
 export const NoOpCompactionConfigSchema = z
     .object({
         type: z.literal('noop'),
-        enabled: z.boolean().default(true).describe('Enable or disable compaction'),
-        maxContextTokens: z
-            .number()
-            .positive()
-            .optional()
-            .describe(
-                "Maximum context tokens before compaction triggers. Caps the model's context window when set."
-            ),
-        thresholdPercent: z
-            .number()
-            .min(0.1)
-            .max(1.0)
-            .default(0.9)
-            .describe(
-                'Percentage of context window that triggers compaction (0.1 to 1.0, default 0.9)'
-            ),
+        ...CommonCompactionFields,
     })
     .strict()
     .describe('No-op compaction configuration');

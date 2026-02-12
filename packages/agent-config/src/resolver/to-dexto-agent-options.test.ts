@@ -1,101 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
-import { z } from 'zod';
-import type {
-    BlobStore,
-    BlobReference,
-    StoredBlobMetadata,
-    BlobData,
-    BlobStats,
-    Cache,
-    Database,
-    IDextoLogger,
-    Tool,
-} from '@dexto/core';
 import { AgentConfigSchema } from '../schemas/agent-config.js';
 import type { ResolvedServices } from './types.js';
 import { toDextoAgentOptions } from './to-dexto-agent-options.js';
-
-function createMockLogger(agentId: string): IDextoLogger {
-    const logger: IDextoLogger = {
-        debug: vi.fn(),
-        silly: vi.fn(),
-        info: vi.fn(),
-        warn: vi.fn(),
-        error: vi.fn(),
-        trackException: vi.fn(),
-        createChild: () => logger,
-        setLevel: vi.fn(),
-        getLevel: () => 'info',
-        getLogFilePath: () => null,
-        destroy: vi.fn(async () => {}),
-    };
-    logger.info(`mock logger created`, { agentId });
-    return logger;
-}
-
-function createMockBlobStore(storeType: string): BlobStore {
-    const metadata: StoredBlobMetadata = {
-        id: 'blob-1',
-        mimeType: 'text/plain',
-        createdAt: new Date(0),
-        size: 0,
-        hash: 'hash',
-    };
-    const ref: BlobReference = { id: metadata.id, uri: `blob:${metadata.id}`, metadata };
-    const data: BlobData = { format: 'base64', data: '', metadata };
-    const stats: BlobStats = { count: 0, totalSize: 0, backendType: storeType, storePath: '' };
-
-    return {
-        store: vi.fn(async () => ref),
-        retrieve: vi.fn(async () => data),
-        exists: vi.fn(async () => false),
-        delete: vi.fn(async () => {}),
-        cleanup: vi.fn(async () => 0),
-        getStats: vi.fn(async () => stats),
-        listBlobs: vi.fn(async () => []),
-        getStoragePath: () => undefined,
-        connect: vi.fn(async () => {}),
-        disconnect: vi.fn(async () => {}),
-        isConnected: () => true,
-        getStoreType: () => storeType,
-    };
-}
-
-function createMockDatabase(storeType: string): Database {
-    return {
-        get: vi.fn(async () => undefined),
-        set: vi.fn(async () => {}),
-        delete: vi.fn(async () => {}),
-        list: vi.fn(async () => []),
-        append: vi.fn(async () => {}),
-        getRange: vi.fn(async () => []),
-        connect: vi.fn(async () => {}),
-        disconnect: vi.fn(async () => {}),
-        isConnected: () => true,
-        getStoreType: () => storeType,
-    };
-}
-
-function createMockCache(storeType: string): Cache {
-    return {
-        get: vi.fn(async () => undefined),
-        set: vi.fn(async () => {}),
-        delete: vi.fn(async () => {}),
-        connect: vi.fn(async () => {}),
-        disconnect: vi.fn(async () => {}),
-        isConnected: () => true,
-        getStoreType: () => storeType,
-    };
-}
-
-function createMockTool(id: string): Tool {
-    return {
-        id,
-        description: `tool:${id}`,
-        inputSchema: z.object({}).strict(),
-        execute: vi.fn(async () => ({ ok: true })),
-    };
-}
+import {
+    createMockBlobStore,
+    createMockCache,
+    createMockDatabase,
+    createMockLogger,
+    createMockTool,
+} from './__fixtures__/test-mocks.js';
 
 describe('toDextoAgentOptions', () => {
     it('combines validated config + resolved services into DextoAgentOptions', () => {
@@ -114,7 +27,7 @@ describe('toDextoAgentOptions', () => {
             compaction: { type: 'noop', enabled: false },
         });
 
-        const logger = createMockLogger(validated.agentId);
+        const logger = createMockLogger();
         const services: ResolvedServices = {
             logger,
             storage: {

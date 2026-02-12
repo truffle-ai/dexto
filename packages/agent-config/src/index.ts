@@ -12,7 +12,6 @@ export type {
 
 export {
     AgentConfigSchema,
-    AgentConfigSchemaRelaxed,
     createAgentConfigSchema,
     ToolFactoryEntrySchema,
 } from './schemas/agent-config.js';

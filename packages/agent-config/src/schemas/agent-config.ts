@@ -25,13 +25,13 @@ import { CompactionConfigSchema, DEFAULT_COMPACTION_CONFIG } from './compaction.
 /**
  * Unified tool factory entry configuration.
  *
- * A + B + C semantics (see plan):
- * - (A) omit `tools` entirely → use `image.defaults.tools`
- * - (B) specify `tools` → full replace (arrays are atomic)
- * - (C) each entry can set `enabled: false` to skip that entry entirely
+ * Resolution semantics:
+ * - omit `tools` entirely → use `image.defaults.tools` (or `[]` if no defaults)
+ * - specify `tools` → full replace (arrays are atomic)
+ * - each entry can set `enabled: false` to skip that entry entirely
  *
- * If we later need more shared fields, migrate to Option D:
- * `{ type, enabled?, config }` with a dedicated `config` sub-object.
+ * Provider-specific fields are validated by the resolver against the selected tool factory's
+ * `configSchema`.
  */
 export const ToolFactoryEntrySchema = z
     .object({
@@ -176,16 +176,12 @@ export function createAgentConfigSchema(options: LLMValidationOptions = {}) {
 }
 
 /**
- * Default agent config schema with strict validation (backwards compatible).
- * Use createAgentConfigSchema({ strict: false }) for relaxed validation.
+ * Strict agent config schema.
+ *
+ * Enforces LLM credential requirements (API keys/baseURLs).
+ * Use `createAgentConfigSchema({ strict: false })` in interactive flows where users can configure later.
  */
 export const AgentConfigSchema = createAgentConfigSchema({ strict: true });
-
-/**
- * Relaxed agent config schema that allows missing API keys and baseURLs.
- * Use this for interactive modes (CLI, WebUI) where users can configure later.
- */
-export const AgentConfigSchemaRelaxed = createAgentConfigSchema({ strict: false });
 
 // Input type for user-facing API (pre-parsing) - makes fields with defaults optional
 export type AgentConfig = z.input<typeof AgentConfigSchema>;
