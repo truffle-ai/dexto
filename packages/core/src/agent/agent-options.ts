@@ -28,9 +28,6 @@ export interface DextoAgentOptions {
     // NOTE: This interface is intentionally "flat" for ergonomics and to keep core DI-friendly.
     // (No `options.config` indirection.)
     //
-    // eslint-disable-next-line @typescript-eslint/consistent-type-definitions
-    // (kept as an interface for public API surface stability)
-    //
     // All runtime settings fields are spread into this interface via extension below.
 
     /**

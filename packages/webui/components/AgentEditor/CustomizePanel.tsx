@@ -114,7 +114,7 @@ export default function CustomizePanel({
                     setErrors(data.errors || []);
                     setWarnings(data.warnings || []);
                 }
-            } catch (err: unknown) {
+            } catch (_err: unknown) {
                 if (latestValidationRequestRef.current === requestId) {
                     setIsValid(false);
                     setErrors([

@@ -20,7 +20,7 @@ import { existsSync, readdirSync, readFileSync } from 'fs';
 import { getDextoGlobalPath } from '../utils/path.js';
 import { InstalledPluginsFileSchema } from './schemas.js';
 import { tryLoadManifest } from './validate-plugin.js';
-import type { DiscoveredPlugin, PluginManifest } from './types.js';
+import type { DiscoveredPlugin } from './types.js';
 
 /**
  * Discovers plugins from Dexto locations.
