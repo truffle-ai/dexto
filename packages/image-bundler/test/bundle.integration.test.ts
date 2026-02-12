@@ -16,7 +16,7 @@ describe('@dexto/image-bundler - bundle (integration)', () => {
         const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 
         const tempDir = await mkdtemp(
-            path.join(process.cwd(), 'packages/image-local', '.tmp-bundle-test-')
+            path.join(process.cwd(), 'packages/image-bundler', '.tmp-bundle-test-')
         );
 
         try {
@@ -101,7 +101,7 @@ export const factory = {
         const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 
         const tempDir = await mkdtemp(
-            path.join(process.cwd(), 'packages/image-local', '.tmp-bundle-test-')
+            path.join(process.cwd(), 'packages/image-bundler', '.tmp-bundle-test-')
         );
 
         try {
@@ -135,10 +135,13 @@ export default image;
 
             await writeFileEnsuringDir(
                 path.join(tempDir, 'tools', 'sample-tools', 'index.ts'),
-                `import { z } from 'zod';
+                `const configSchema = {
+    parse: (value: unknown) => value,
+};
 
-const configSchema = z.object({ type: z.literal('sample-tools') }).passthrough();
-const inputSchema = z.object({}).passthrough();
+const inputSchema = {
+    parse: (value: unknown) => value,
+};
 
 export const factory = {
     configSchema,
@@ -158,9 +161,9 @@ export const factory = {
 
             await writeFileEnsuringDir(
                 path.join(tempDir, 'plugins', 'sample-plugin', 'index.ts'),
-                `import { z } from 'zod';
-
-const configSchema = z.object({ type: z.literal('sample-plugin') }).passthrough();
+                `const configSchema = {
+    parse: (value: unknown) => value,
+};
 
 export const factory = {
     configSchema,
@@ -175,33 +178,53 @@ export const factory = {
 
             await writeFileEnsuringDir(
                 path.join(tempDir, 'compaction', 'noop', 'index.ts'),
-                `import { z } from 'zod';
-import { NoOpCompactionStrategy } from '@dexto/core';
-
-const configSchema = z.object({ type: z.literal('noop') }).passthrough();
+                `const configSchema = {
+    parse: (value: unknown) => value,
+};
 
 export const factory = {
     configSchema,
-    create: (_config: unknown) => new NoOpCompactionStrategy(),
+    create: (_config: unknown) => ({}),
 };
 `
             );
 
             await writeFileEnsuringDir(
                 path.join(tempDir, 'storage', 'blob', 'in-memory', 'index.ts'),
-                `export { inMemoryBlobStoreFactory as factory } from '@dexto/storage';
+                `const configSchema = {
+    parse: (value: unknown) => value,
+};
+
+export const factory = {
+    configSchema,
+    create: (_config: unknown, _logger: unknown) => ({}),
+};
 `
             );
 
             await writeFileEnsuringDir(
                 path.join(tempDir, 'storage', 'database', 'in-memory', 'index.ts'),
-                `export { inMemoryDatabaseFactory as factory } from '@dexto/storage';
+                `const configSchema = {
+    parse: (value: unknown) => value,
+};
+
+export const factory = {
+    configSchema,
+    create: (_config: unknown, _logger: unknown) => ({}),
+};
 `
             );
 
             await writeFileEnsuringDir(
                 path.join(tempDir, 'storage', 'cache', 'in-memory', 'index.ts'),
-                `export { inMemoryCacheFactory as factory } from '@dexto/storage';
+                `const configSchema = {
+    parse: (value: unknown) => value,
+};
+
+export const factory = {
+    configSchema,
+    create: (_config: unknown, _logger: unknown) => ({}),
+};
 `
             );
 
