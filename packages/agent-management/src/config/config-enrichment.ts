@@ -256,24 +256,6 @@ export function enrichAgentConfig(
                     ...(loaded.mcpConfig.mcpServers as typeof enriched.mcpServers),
                 };
             }
-
-            // Auto-add custom tool factories declared by Dexto-native plugins
-            // These are added to tools[] config if not already explicitly configured
-            if (loaded.customToolFactories.length > 0) {
-                for (const factoryType of loaded.customToolFactories) {
-                    // Check if already configured in tools[]
-                    const alreadyConfigured = enriched.tools?.some(
-                        (tool) =>
-                            typeof tool === 'object' && tool !== null && tool.type === factoryType
-                    );
-
-                    if (!alreadyConfigured) {
-                        enriched.tools = enriched.tools ?? [];
-                        // Add with default config (just the type)
-                        enriched.tools.push({ type: factoryType });
-                    }
-                }
-            }
         }
 
         // Discover standalone skills from ~/.agents/skills/, ~/.dexto/skills/,

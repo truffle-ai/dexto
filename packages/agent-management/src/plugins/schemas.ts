@@ -1,9 +1,8 @@
 /**
  * Zod schemas for plugin validation
  *
- * Supports two plugin formats:
- * - .claude-plugin/plugin.json: Claude Code compatible format
- * - .dexto-plugin/plugin.json: Dexto-native format with extended features
+ * Supports Claude Code compatible plugins:
+ * - .claude-plugin/plugin.json
  */
 
 import { z } from 'zod';
@@ -34,25 +33,6 @@ export const PluginManifestSchema = z
     .describe('Claude Code plugin manifest from .claude-plugin/plugin.json');
 
 /**
- * Schema for Dexto-native plugin.json manifest
- * Extends Claude Code format with Dexto-specific features
- */
-export const DextoPluginManifestSchema = z
-    .object({
-        name: z.string().min(1).describe('Unique plugin name (used for namespacing commands)'),
-        description: z.string().optional().describe('Human-readable plugin description'),
-        version: z.string().optional().describe('Semantic version (e.g., 1.0.0)'),
-        author: AuthorSchema.optional().describe('Plugin author - string or {name, email} object'),
-        // Dexto-specific extensions
-        customToolFactories: z
-            .array(z.string())
-            .optional()
-            .describe('Custom tool factory types bundled with this plugin (e.g., ["plan-tools"])'),
-    })
-    .passthrough()
-    .describe('Dexto-native plugin manifest from .dexto-plugin/plugin.json');
-
-/**
  * Schema for .mcp.json configuration
  * Uses passthrough to allow unknown MCP server configurations
  */
@@ -67,11 +47,6 @@ export const PluginMCPConfigSchema = z
  * Type for validated Claude Code plugin manifest
  */
 export type ValidatedPluginManifest = z.output<typeof PluginManifestSchema>;
-
-/**
- * Type for validated Dexto-native plugin manifest
- */
-export type ValidatedDextoPluginManifest = z.output<typeof DextoPluginManifestSchema>;
 
 /**
  * Type for validated MCP config

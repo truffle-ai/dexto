@@ -33,31 +33,15 @@ export interface PluginManifest {
 }
 
 /**
- * Dexto-native plugin manifest from .dexto-plugin/plugin.json
- * Extends PluginManifest with Dexto-specific features
- */
-export interface DextoPluginManifest extends PluginManifest {
-    /** Custom tool factory types bundled with this plugin (e.g., ["plan-tools"]) */
-    customToolFactories?: string[] | undefined;
-}
-
-/**
- * Plugin format type
- */
-export type PluginFormat = 'claude-code' | 'dexto';
-
-/**
  * A discovered plugin directory with its manifest
  */
 export interface DiscoveredPlugin {
     /** Absolute path to plugin directory */
     path: string;
     /** Parsed and validated plugin manifest */
-    manifest: PluginManifest | DextoPluginManifest;
+    manifest: PluginManifest;
     /** Source location type */
     source: 'project' | 'user';
-    /** Plugin format (claude-code or dexto) */
-    format: PluginFormat;
 }
 
 /**
@@ -85,15 +69,11 @@ export interface PluginMCPConfig {
  */
 export interface LoadedPlugin {
     /** Plugin manifest metadata */
-    manifest: PluginManifest | DextoPluginManifest;
-    /** Plugin format (claude-code or dexto) */
-    format: PluginFormat;
+    manifest: PluginManifest;
     /** Discovered commands and skills */
     commands: PluginCommand[];
     /** MCP servers to merge into agent config */
     mcpConfig?: PluginMCPConfig | undefined;
-    /** Custom tool factory types to register (Dexto-native plugins only) */
-    customToolFactories: string[];
     /** Warnings for unsupported features found */
     warnings: string[];
 }

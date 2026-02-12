@@ -20,12 +20,7 @@ import { existsSync, readdirSync, readFileSync } from 'fs';
 import { getDextoGlobalPath } from '../utils/path.js';
 import { InstalledPluginsFileSchema } from './schemas.js';
 import { tryLoadManifest } from './validate-plugin.js';
-import type {
-    DiscoveredPlugin,
-    PluginManifest,
-    DextoPluginManifest,
-    PluginFormat,
-} from './types.js';
+import type { DiscoveredPlugin, PluginManifest } from './types.js';
 
 /**
  * Discovers plugins from Dexto locations.
@@ -78,23 +73,12 @@ export function discoverClaudeCodePlugins(
                 if (entry.name === 'cache' || entry.name === 'marketplaces') continue;
 
                 const pluginPath = path.join(dir, entry.name);
-                let loadResult: {
-                    manifest: PluginManifest | DextoPluginManifest;
-                    format: PluginFormat;
-                } | null;
-                try {
-                    loadResult = tryLoadManifest(pluginPath, true);
-                } catch {
-                    // Skip invalid plugin without aborting the directory scan
-                    continue;
-                }
-
-                if (loadResult) {
+                const manifest = tryLoadManifest(pluginPath);
+                if (manifest) {
                     addPlugin({
                         path: pluginPath,
-                        manifest: loadResult.manifest,
+                        manifest,
                         source,
-                        format: loadResult.format,
                     });
                 }
             }
@@ -119,23 +103,12 @@ export function discoverClaudeCodePlugins(
                 continue;
             }
 
-            let loadResult: {
-                manifest: PluginManifest | DextoPluginManifest;
-                format: PluginFormat;
-            } | null;
-            try {
-                loadResult = tryLoadManifest(pluginPath, true);
-            } catch {
-                // Skip invalid bundled plugin
-                continue;
-            }
-
-            if (loadResult) {
+            const manifest = tryLoadManifest(pluginPath);
+            if (manifest) {
                 addPlugin({
                     path: pluginPath,
-                    manifest: loadResult.manifest,
+                    manifest,
                     source: 'user', // Treat as user-level since they come from image
-                    format: loadResult.format,
                 });
             }
         }
@@ -200,27 +173,16 @@ function readInstalledPluginsFile(
 
                 // Try to load the manifest from the installPath
                 // Wrap in try/catch so one invalid plugin doesn't abort the entire scan
-                let loadResult: {
-                    manifest: PluginManifest | DextoPluginManifest;
-                    format: PluginFormat;
-                } | null;
-                try {
-                    loadResult = tryLoadManifest(installPath, true);
-                } catch {
-                    // Skip invalid plugin without aborting the scan
-                    continue;
-                }
-
-                if (loadResult) {
+                const manifest = tryLoadManifest(installPath);
+                if (manifest) {
                     // Map scope to source type
                     const source: 'project' | 'user' =
                         scope === 'project' || scope === 'local' ? 'project' : 'user';
 
                     plugins.push({
                         path: installPath,
-                        manifest: loadResult.manifest,
+                        manifest,
                         source,
-                        format: loadResult.format,
                     });
                 }
             }

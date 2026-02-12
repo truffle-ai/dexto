@@ -2,36 +2,16 @@
  * Plugin Loader
  *
  * Loads plugin contents including commands, skills, MCP configuration,
- * and custom tool factories (Dexto-native plugins).
  * Detects and warns about unsupported features (hooks, LSP).
  *
- * Supports two plugin formats:
- * - .claude-plugin: Claude Code compatible format
- * - .dexto-plugin: Dexto-native format with extended features (customToolFactories)
+ * Supports Claude Code compatible plugins:
+ * - .claude-plugin
  */
 
 import * as path from 'path';
 import { existsSync, readdirSync, readFileSync } from 'fs';
 import { PluginMCPConfigSchema } from './schemas.js';
-import type {
-    DiscoveredPlugin,
-    LoadedPlugin,
-    PluginCommand,
-    PluginMCPConfig,
-    DextoPluginManifest,
-} from './types.js';
-
-/**
- * Type guard to check if manifest is a Dexto-native manifest
- */
-function isDextoManifest(manifest: unknown): manifest is DextoPluginManifest {
-    return (
-        typeof manifest === 'object' &&
-        manifest !== null &&
-        'customToolFactories' in manifest &&
-        Array.isArray((manifest as DextoPluginManifest).customToolFactories)
-    );
-}
+import type { DiscoveredPlugin, LoadedPlugin, PluginCommand, PluginMCPConfig } from './types.js';
 
 /**
  * Loads a discovered plugin's contents.
@@ -44,7 +24,6 @@ export function loadClaudeCodePlugin(plugin: DiscoveredPlugin): LoadedPlugin {
     const commands: PluginCommand[] = [];
     const pluginName = plugin.manifest.name;
     const pluginPath = plugin.path;
-    const format = plugin.format;
 
     // 1. Scan commands/*.md
     const commandsDir = path.join(pluginPath, 'commands');
@@ -103,21 +82,10 @@ export function loadClaudeCodePlugin(plugin: DiscoveredPlugin): LoadedPlugin {
     // 4. Check for unsupported features
     checkUnsupportedFeatures(pluginPath, pluginName, warnings);
 
-    // Extract custom tool factories from Dexto-native plugins
-    const customToolFactories: string[] = [];
-    if (format === 'dexto' && isDextoManifest(plugin.manifest)) {
-        const factories = plugin.manifest.customToolFactories;
-        if (factories && factories.length > 0) {
-            customToolFactories.push(...factories);
-        }
-    }
-
     return {
         manifest: plugin.manifest,
-        format,
         commands,
         mcpConfig,
-        customToolFactories,
         warnings,
     };
 }

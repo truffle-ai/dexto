@@ -641,7 +641,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                                 }
                             } catch {
                                 // Plan skill not found - continue without injection
-                                // This can happen if the plan-tools plugin is not enabled
+                                // This can happen if the agent config doesn't include a `plan` prompt/skill
                             }
                         }
 
