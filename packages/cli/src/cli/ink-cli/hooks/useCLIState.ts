@@ -131,6 +131,8 @@ export function useCLIState({
         backgroundTasks: [],
         planModeActive: false,
         planModeInitialized: false,
+        memoryAddWizard: null,
+        memoryRemoveWizard: null,
     });
 
     // Input state
