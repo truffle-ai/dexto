@@ -114,10 +114,7 @@ export default function CustomizePanel({
                     setErrors(data.errors || []);
                     setWarnings(data.warnings || []);
                 }
-            } catch (err: any) {
-                console.warn(
-                    `Validation error: ${err instanceof Error ? err.message : String(err)}`
-                );
+            } catch (err: unknown) {
                 if (latestValidationRequestRef.current === requestId) {
                     setIsValid(false);
                     setErrors([
@@ -155,23 +152,18 @@ export default function CustomizePanel({
     const parseYamlToConfig = (
         yamlString: string
     ): { config: AgentConfig | null; document: yaml.Document | null; error: string | null } => {
-        console.log('[parseYamlToConfig] Starting parse');
         try {
             const document = yaml.parseDocument(yamlString);
-            console.log('[parseYamlToConfig] Document created:', document);
 
             // Check for parse errors
             if (document.errors && document.errors.length > 0) {
-                console.debug('[parseYamlToConfig] Parse errors:', document.errors);
                 const message = document.errors.map((e) => e.message).join('; ');
                 return { config: null, document: null, error: message };
             }
 
             const config = document.toJS() as AgentConfig;
-            console.log('[parseYamlToConfig] Config parsed successfully:', config);
             return { config, document, error: null };
         } catch (err: unknown) {
-            console.debug('[parseYamlToConfig] Exception:', err);
             const message = err instanceof Error ? err.message : 'Failed to parse YAML';
             return { config: null, document: null, error: message };
         }
@@ -182,11 +174,7 @@ export default function CustomizePanel({
         document: yaml.Document,
         config: AgentConfig
     ): yaml.Document => {
-        console.log('[updateYamlDocumentFromConfig] Starting update');
-        console.log('[updateYamlDocumentFromConfig] Document:', document);
-        console.log('[updateYamlDocumentFromConfig] Config:', config);
-
-        const updateNode = (node: any, value: any): any => {
+        const updateNode = (node: yaml.Node | null | undefined, value: unknown): yaml.Node => {
             // Handle null/undefined
             if (value === null || value === undefined) {
                 return document.createNode(value);
@@ -199,7 +187,7 @@ export default function CustomizePanel({
 
             // Handle objects - update map recursively
             if (typeof value === 'object' && !Array.isArray(value)) {
-                if (!node || !node.items) {
+                if (!node || !yaml.isMap(node)) {
                     // Create new map if node doesn't exist
                     return document.createNode(value);
                 }
@@ -209,12 +197,19 @@ export default function CustomizePanel({
 
                 // Update existing keys and track them
                 for (const pair of node.items) {
+                    if (!yaml.isScalar(pair.key) || typeof pair.key.value !== 'string') {
+                        continue;
+                    }
+
                     const key = pair.key.value;
                     existingKeys.add(key);
 
-                    if (key in value) {
+                    if (key in (value as Record<string, unknown>)) {
                         // Update the value while preserving the pair (and its comments)
-                        pair.value = updateNode(pair.value, value[key]);
+                        pair.value = updateNode(
+                            yaml.isNode(pair.value) ? pair.value : null,
+                            (value as Record<string, unknown>)[key]
+                        );
                     }
                 }
 
@@ -226,9 +221,11 @@ export default function CustomizePanel({
                 }
 
                 // Remove keys not in new config
-                node.items = node.items.filter((pair: any) => {
-                    const key = pair.key.value;
-                    return key in value;
+                node.items = node.items.filter((pair) => {
+                    if (!yaml.isScalar(pair.key) || typeof pair.key.value !== 'string') {
+                        return false;
+                    }
+                    return pair.key.value in (value as Record<string, unknown>);
                 });
 
                 return node;
@@ -238,15 +235,8 @@ export default function CustomizePanel({
             return document.createNode(value);
         };
 
-        try {
-            // Update the root contents
-            document.contents = updateNode(document.contents, config);
-            console.log('[updateYamlDocumentFromConfig] Update successful');
-            return document;
-        } catch (err) {
-            console.error('[updateYamlDocumentFromConfig] Update failed:', err);
-            throw err;
-        }
+        document.contents = updateNode(document.contents, config);
+        return document;
     };
 
     // Generic deep cleanup to remove null/undefined/empty values
@@ -271,14 +261,14 @@ export default function CustomizePanel({
             return false;
         };
 
-        const deepCleanup = (obj: any): any => {
+        const deepCleanup = (obj: unknown): unknown => {
             if (Array.isArray(obj)) {
                 // For arrays, recursively clean each element and filter out empty ones
                 return obj.map(deepCleanup).filter((item) => !isEmptyValue(item));
             }
 
             if (typeof obj === 'object' && obj !== null) {
-                const cleaned: any = {};
+                const cleaned: Record<string, unknown> = {};
                 for (const [key, value] of Object.entries(obj)) {
                     // Skip empty values
                     if (isEmptyValue(value)) {
@@ -309,18 +299,12 @@ export default function CustomizePanel({
 
     // Serialize config back to YAML while preserving comments
     const serializeConfigToYaml = (config: AgentConfig, document: yaml.Document): string => {
-        console.log('[serializeConfigToYaml] Starting serialization');
-        console.log('[serializeConfigToYaml] Document:', document);
-        console.log('[serializeConfigToYaml] Config:', config);
-
         // Clean up config to remove null/undefined optional fields
         const cleanedConfig = cleanupConfig(config);
-        console.log('[serializeConfigToYaml] Cleaned config:', cleanedConfig);
 
         // Update document with new config and serialize with comments preserved
         const updatedDoc = updateYamlDocumentFromConfig(document, cleanedConfig);
         const result = updatedDoc.toString();
-        console.log('[serializeConfigToYaml] Serialized result length:', result.length);
         return result;
     };
 
@@ -348,11 +332,7 @@ export default function CustomizePanel({
 
     // Handle form editor changes
     const handleFormChange = (newConfig: AgentConfig) => {
-        console.log('[handleFormChange] Called with new config');
-        console.log('[handleFormChange] yamlDocument exists?', !!yamlDocument);
-
         if (!yamlDocument) {
-            console.error('[handleFormChange] No document available - this should not happen!');
             return;
         }
 
@@ -368,35 +348,23 @@ export default function CustomizePanel({
 
     // Handle mode switch
     const handleModeSwitch = (newMode: EditorMode) => {
-        console.log(
-            '[handleModeSwitch] Called with newMode:',
-            newMode,
-            'current mode:',
-            editorMode
-        );
         if (newMode === editorMode) {
-            console.log('[handleModeSwitch] Same mode, returning');
             return;
         }
 
         if (newMode === 'form') {
-            console.log('[handleModeSwitch] Switching to form mode, parsing YAML...');
             // Switching to form mode - ensure config is parsed
             const { config, document, error } = parseYamlToConfig(yamlContent);
-            console.log('[handleModeSwitch] Parse result:', { config, document, error });
             if (error) {
-                console.error('[handleModeSwitch] Parse error, not switching:', error);
                 setParseError(error);
                 // Don't switch modes if parsing fails
                 return;
             }
-            console.log('[handleModeSwitch] Parse successful, setting state');
             setParsedConfig(config);
             setYamlDocument(document);
             setParseError(null);
         }
 
-        console.log('[handleModeSwitch] Setting editor mode to:', newMode);
         setEditorMode(newMode);
     };
 
