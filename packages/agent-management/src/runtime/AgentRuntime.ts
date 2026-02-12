@@ -154,8 +154,9 @@ export class AgentRuntime {
 
         try {
             // Create timeout promise
+            let timeoutId: ReturnType<typeof setTimeout> | undefined;
             const timeoutPromise = new Promise<never>((_, reject) => {
-                setTimeout(() => {
+                timeoutId = setTimeout(() => {
                     reject(RuntimeError.taskTimeout(agentId, taskTimeout));
                 }, taskTimeout);
             });
@@ -163,10 +164,17 @@ export class AgentRuntime {
             // Execute the task with timeout
             const generatePromise = handle.agent.generate(task, handle.sessionId);
 
-            const response = (await Promise.race([
-                generatePromise,
-                timeoutPromise,
-            ])) as GenerateResponse;
+            let response: GenerateResponse;
+            try {
+                response = (await Promise.race([
+                    generatePromise,
+                    timeoutPromise,
+                ])) as GenerateResponse;
+            } finally {
+                if (timeoutId) {
+                    clearTimeout(timeoutId);
+                }
+            }
 
             // Update status back to idle
             this.pool.updateStatus(agentId, 'idle');

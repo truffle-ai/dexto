@@ -58,7 +58,7 @@ export type ValidatedPluginMCPConfig = z.output<typeof PluginMCPConfigSchema>;
  */
 export const InstalledPluginEntrySchema = z
     .object({
-        scope: z.enum(['project', 'user', 'local', 'managed']).describe('Installation scope'),
+        scope: z.enum(['project', 'user', 'local']).describe('Installation scope'),
         installPath: z.string().describe('Absolute path to the installed plugin'),
         version: z.string().optional().describe('Plugin version'),
         installedAt: z.string().optional().describe('ISO timestamp of installation'),

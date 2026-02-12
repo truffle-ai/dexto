@@ -94,7 +94,7 @@ export const AgentFactory = {
         const installedSet = new Set(installed);
         const availableAgents = Object.entries(bundledAgents)
             .filter(([id]) => !installedSet.has(id))
-            .map(([id, entry]: [string, any]) => ({
+            .map(([id, entry]) => ({
                 id,
                 name: entry.name,
                 description: entry.description || descriptionFallback,
