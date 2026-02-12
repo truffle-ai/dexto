@@ -7,8 +7,8 @@ import { StorageError } from '@dexto/core';
  * Data is lost when the process restarts.
  */
 export class MemoryDatabaseStore implements Database {
-    private data = new Map<string, any>();
-    private lists = new Map<string, any[]>();
+    private data = new Map<string, unknown>();
+    private lists = new Map<string, unknown[]>();
     private connected = false;
 
     constructor() {}
@@ -28,13 +28,13 @@ export class MemoryDatabaseStore implements Database {
     }
 
     getStoreType(): string {
-        return 'memory';
+        return 'in-memory';
     }
 
     async get<T>(key: string): Promise<T | undefined> {
         this.checkConnection();
         try {
-            return this.data.get(key);
+            return this.data.get(key) as T | undefined;
         } catch (error) {
             throw StorageError.readFailed(
                 'get',
@@ -96,7 +96,7 @@ export class MemoryDatabaseStore implements Database {
     async getRange<T>(key: string, start: number, count: number): Promise<T[]> {
         this.checkConnection();
         const list = this.lists.get(key) || [];
-        return list.slice(start, start + count);
+        return list.slice(start, start + count) as T[];
     }
 
     // Helper methods
@@ -112,7 +112,7 @@ export class MemoryDatabaseStore implements Database {
         this.lists.clear();
     }
 
-    async dump(): Promise<{ data: Record<string, any>; lists: Record<string, any[]> }> {
+    async dump(): Promise<{ data: Record<string, unknown>; lists: Record<string, unknown[]> }> {
         return {
             data: Object.fromEntries(this.data.entries()),
             lists: Object.fromEntries(this.lists.entries()),

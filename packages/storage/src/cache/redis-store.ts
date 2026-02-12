@@ -43,7 +43,11 @@ export class RedisStore implements Cache {
 
         // Set up error handling
         this.redis.on('error', (error) => {
-            console.error('Redis connection error:', error);
+            if (error instanceof Error) {
+                this.logger.trackException(error, { operation: 'redis.connection_error' });
+                return;
+            }
+            this.logger.error('Redis connection error', { error: String(error) });
         });
 
         this.redis.on('connect', () => {

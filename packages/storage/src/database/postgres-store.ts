@@ -293,15 +293,16 @@ export class PostgresStore implements Database {
      */
     private isConnectionError(error: unknown): boolean {
         if (!(error instanceof Error)) return false;
-        const code = (error as any).code;
+        const code = (error as Error & { code?: unknown }).code;
+        const codeString = typeof code === 'string' ? code : undefined;
         return (
-            code === 'ETIMEDOUT' ||
-            code === 'ECONNRESET' ||
-            code === 'ECONNREFUSED' ||
-            code === 'EPIPE' ||
-            code === '57P01' || // admin_shutdown
-            code === '57P02' || // crash_shutdown
-            code === '57P03' || // cannot_connect_now
+            codeString === 'ETIMEDOUT' ||
+            codeString === 'ECONNRESET' ||
+            codeString === 'ECONNREFUSED' ||
+            codeString === 'EPIPE' ||
+            codeString === '57P01' || // admin_shutdown
+            codeString === '57P02' || // crash_shutdown
+            codeString === '57P03' || // cannot_connect_now
             error.message.includes('Connection terminated') ||
             error.message.includes('connection lost')
         );

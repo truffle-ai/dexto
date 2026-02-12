@@ -7,7 +7,7 @@ import { StorageError } from '@dexto/core';
  * Data is lost when the process restarts.
  */
 export class MemoryCacheStore implements Cache {
-    private data = new Map<string, any>();
+    private data = new Map<string, unknown>();
     private ttls = new Map<string, number>();
     private connected = false;
 
@@ -28,14 +28,14 @@ export class MemoryCacheStore implements Cache {
     }
 
     getStoreType(): string {
-        return 'memory';
+        return 'in-memory';
     }
 
     async get<T>(key: string): Promise<T | undefined> {
         this.checkConnection();
         try {
             this.checkTTL(key);
-            return this.data.get(key);
+            return this.data.get(key) as T | undefined;
         } catch (error) {
             throw StorageError.readFailed(
                 'get',
@@ -91,7 +91,7 @@ export class MemoryCacheStore implements Cache {
         this.ttls.clear();
     }
 
-    async dump(): Promise<{ data: Record<string, any> }> {
+    async dump(): Promise<{ data: Record<string, unknown> }> {
         return {
             data: Object.fromEntries(this.data.entries()),
         };

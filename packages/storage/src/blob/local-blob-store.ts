@@ -15,6 +15,70 @@ import type {
 } from './types.js';
 import type { LocalBlobStoreConfig } from './schemas.js';
 
+type PlainObject = Record<string, unknown>;
+
+function isPlainObject(value: unknown): value is PlainObject {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function parseStoredBlobMetadata(value: unknown): StoredBlobMetadata {
+    if (!isPlainObject(value)) {
+        throw new Error('Invalid blob metadata: expected object');
+    }
+
+    const id = value['id'];
+    if (typeof id !== 'string') {
+        throw new Error('Invalid blob metadata: id');
+    }
+
+    const mimeType = value['mimeType'];
+    if (typeof mimeType !== 'string') {
+        throw new Error('Invalid blob metadata: mimeType');
+    }
+
+    const originalName = value['originalName'];
+    if (originalName !== undefined && typeof originalName !== 'string') {
+        throw new Error('Invalid blob metadata: originalName');
+    }
+
+    const createdAtRaw = value['createdAt'];
+    const createdAt =
+        createdAtRaw instanceof Date
+            ? createdAtRaw
+            : typeof createdAtRaw === 'string' || typeof createdAtRaw === 'number'
+              ? new Date(createdAtRaw)
+              : null;
+
+    if (!createdAt || Number.isNaN(createdAt.getTime())) {
+        throw new Error('Invalid blob metadata: createdAt');
+    }
+
+    const size = value['size'];
+    if (typeof size !== 'number') {
+        throw new Error('Invalid blob metadata: size');
+    }
+
+    const hash = value['hash'];
+    if (typeof hash !== 'string') {
+        throw new Error('Invalid blob metadata: hash');
+    }
+
+    const source = value['source'];
+    if (source !== undefined && source !== 'tool' && source !== 'user' && source !== 'system') {
+        throw new Error('Invalid blob metadata: source');
+    }
+
+    return {
+        id,
+        mimeType,
+        ...(originalName !== undefined && { originalName }),
+        createdAt,
+        size,
+        hash,
+        ...(source !== undefined && { source }),
+    };
+}
+
 /**
  * Local filesystem blob store implementation.
  *
@@ -65,17 +129,6 @@ export class LocalBlobStore implements BlobStore {
         this.logger.debug('LocalBlobStore disconnected');
     }
 
-    /**
-     * Normalize metadata after JSON parsing to ensure createdAt is a Date object
-     */
-    private normalizeMetadata(parsed: any): StoredBlobMetadata {
-        return {
-            ...parsed,
-            createdAt:
-                parsed.createdAt instanceof Date ? parsed.createdAt : new Date(parsed.createdAt),
-        };
-    }
-
     isConnected(): boolean {
         return this.connected;
     }
@@ -107,8 +160,8 @@ export class LocalBlobStore implements BlobStore {
         // Check if blob already exists (deduplication)
         try {
             const existingMeta = await fs.readFile(metaPath, 'utf-8');
-            const parsed = JSON.parse(existingMeta) as any;
-            const existingMetadata: StoredBlobMetadata = this.normalizeMetadata(parsed);
+            const parsed = JSON.parse(existingMeta) as unknown;
+            const existingMetadata = parseStoredBlobMetadata(parsed);
             this.logger.debug(
                 `Blob ${id} already exists, returning existing reference (deduplication)`
             );
@@ -188,8 +241,8 @@ export class LocalBlobStore implements BlobStore {
         try {
             // Load metadata
             const metaContent = await fs.readFile(metaPath, 'utf-8');
-            const parsed = JSON.parse(metaContent) as any;
-            const metadata: StoredBlobMetadata = this.normalizeMetadata(parsed);
+            const parsed = JSON.parse(metaContent) as unknown;
+            const metadata = parseStoredBlobMetadata(parsed);
 
             // Return data in requested format
             switch (format) {
@@ -258,8 +311,8 @@ export class LocalBlobStore implements BlobStore {
 
         try {
             const metaContent = await fs.readFile(metaPath, 'utf-8');
-            const parsed = JSON.parse(metaContent) as any;
-            const metadata: StoredBlobMetadata = this.normalizeMetadata(parsed);
+            const parsed = JSON.parse(metaContent) as unknown;
+            const metadata = parseStoredBlobMetadata(parsed);
             await Promise.all([fs.unlink(blobPath), fs.unlink(metaPath)]);
             this.logger.debug(`Deleted blob: ${id}`);
             this.updateStatsCacheAfterDelete(metadata.size);
@@ -291,8 +344,8 @@ export class LocalBlobStore implements BlobStore {
 
                 try {
                     const metaContent = await fs.readFile(metaPath, 'utf-8');
-                    const parsed = JSON.parse(metaContent) as any;
-                    const metadata: StoredBlobMetadata = this.normalizeMetadata(parsed);
+                    const parsed = JSON.parse(metaContent) as unknown;
+                    const metadata = parseStoredBlobMetadata(parsed);
 
                     if (metadata.createdAt < cutoffDate) {
                         await Promise.all([
@@ -353,8 +406,8 @@ export class LocalBlobStore implements BlobStore {
                 try {
                     const metaPath = path.join(this.storePath, metaFile);
                     const metaContent = await fs.readFile(metaPath, 'utf-8');
-                    const parsed = JSON.parse(metaContent) as any;
-                    const metadata: StoredBlobMetadata = this.normalizeMetadata(parsed);
+                    const parsed = JSON.parse(metaContent) as unknown;
+                    const metadata = parseStoredBlobMetadata(parsed);
                     const blobId = metaFile.replace('.meta.json', '');
 
                     blobs.push({
