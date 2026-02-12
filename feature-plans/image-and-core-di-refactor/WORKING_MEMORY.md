@@ -44,6 +44,7 @@ _Log findings, issues, and progress here as you work._
 - Review (no code changes): reviewed `@dexto/analytics` (tsconfig project references only) and found no correctness/style/test issues.
 - Review (no code changes): reviewed `@dexto/client-sdk` (tsconfig project references only) and found no correctness/style/test issues.
 - CLI review: audited `dexto` CLI changes (image store + image commands + plan-mode injection + configFilePath propagation + scaffolding updates). Follow-up polish: updated create-app README template config wording to match the new `image:`/`tools:`/`mcpServers:` surfaces. Commit: `27fd6040`.
+- Core review (no code changes): reviewed `@dexto/core` DI refactor changes (DI-first `DextoAgentOptions`, storage/compaction/tool/plugin registry removals, tool execution context wiring, plugin manager DI orchestration). No correctness blockers found; tests added/updated for plugin manager + config prompt resolution.
 
 ---
 
