@@ -38,6 +38,9 @@ _Log findings, issues, and progress here as you work._
 - Tooling: enabled TypeScript project references (no new tsconfig files) so IDE “find references” works repo-wide; removed `dist/*.d.ts` path mapping. `bash scripts/quality-checks.sh all` passes.
 - Drift + version cleanup: removed stale registry-era `create-app --from-core` scaffolding, pinned scaffolded `@dexto/*` deps to the CLI’s current version range, aligned `@dexto/image-local` metadata to package.json, and synced all fixed-version packages to `1.5.8`. `bash scripts/quality-checks.sh all` passes.
 
+2026-02-12:
+- Restored CLI Plan Mode behavior without the legacy tools-plan “skill” plugin: `@dexto/image-local` now ships an internal prompt (`config:dexto-plan-mode`) and the CLI injects it on the first message when plan mode is enabled. Also adjusted `applyImageDefaults()` to merge `prompts` so config-defined prompts don’t accidentally drop image defaults (unless `prompts: []`). Commit: `9583bec3`. `./scripts/quality-checks.sh all` passes.
+
 ---
 
 ## Key Decisions
