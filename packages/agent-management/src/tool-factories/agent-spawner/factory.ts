@@ -42,28 +42,19 @@ function requireAgentContext(context?: ToolExecutionContext): {
     return { agent, logger, services: context.services };
 }
 
-function createLazyTool(options: {
-    id: string;
-    description: string;
-    inputSchema: Tool['inputSchema'];
-    getTool: (context?: ToolExecutionContext) => Tool;
-}): Tool {
-    const { id, description, inputSchema, getTool } = options;
+type InitializedAgentSpawnerTools = {
+    spawnAgent: Tool;
+    waitFor: Tool;
+    checkTask: Tool;
+    listTasks: Tool;
+};
 
-    return {
-        id,
-        description,
-        inputSchema,
-        execute: (input, context) => getTool(context).execute(input, context),
-        generatePreview: async (input, context) => {
-            const tool = getTool(context);
-            if (!tool.generatePreview) {
-                return null;
-            }
-            return await tool.generatePreview(input, context);
-        },
-    };
-}
+type AgentSpawnerToolState = {
+    agent: NonNullable<ToolExecutionContext['agent']>;
+    abortController: AbortController;
+    runtime: AgentSpawnerRuntime;
+    tools: InitializedAgentSpawnerTools;
+};
 
 export const agentSpawnerToolsFactory: ToolFactory<AgentSpawnerConfig> = {
     configSchema: AgentSpawnerConfigSchema,
@@ -73,10 +64,7 @@ export const agentSpawnerToolsFactory: ToolFactory<AgentSpawnerConfig> = {
         category: 'agents',
     },
     create: (config) => {
-        let toolMap: Map<string, Tool> | undefined;
-        let runtimeService: AgentSpawnerRuntime | undefined;
-        let backgroundAbortController: AbortController | undefined;
-        let initializedForAgent: ToolExecutionContext['agent'] | undefined;
+        let state: AgentSpawnerToolState | undefined;
         let warnedMissingServices = false;
 
         const wireTaskForker = (options: {
@@ -105,31 +93,27 @@ export const agentSpawnerToolsFactory: ToolFactory<AgentSpawnerConfig> = {
             }
         };
 
-        const ensureToolsInitialized = (context?: ToolExecutionContext): Map<string, Tool> => {
+        const ensureToolsInitialized = (
+            context?: ToolExecutionContext
+        ): InitializedAgentSpawnerTools => {
             const { agent, logger, services } = requireAgentContext(context);
 
-            if (
-                toolMap &&
-                runtimeService &&
-                backgroundAbortController &&
-                !backgroundAbortController.signal.aborted &&
-                initializedForAgent === agent
-            ) {
-                wireTaskForker({ services, service: runtimeService, logger });
-                return toolMap;
+            if (state && state.agent === agent && !state.abortController.signal.aborted) {
+                wireTaskForker({ services, service: state.runtime, logger });
+                return state.tools;
             }
 
             warnedMissingServices = false;
 
-            if (backgroundAbortController && !backgroundAbortController.signal.aborted) {
-                backgroundAbortController.abort();
+            if (state && !state.abortController.signal.aborted) {
+                state.abortController.abort();
             }
 
-            if (runtimeService) {
-                runtimeService.cleanup().catch(() => undefined);
+            if (state) {
+                state.runtime.cleanup().catch(() => undefined);
             }
 
-            initializedForAgent = agent;
+            state = undefined;
 
             const signalBus = new SignalBus();
             const taskRegistry = new TaskRegistry(signalBus);
@@ -137,8 +121,6 @@ export const agentSpawnerToolsFactory: ToolFactory<AgentSpawnerConfig> = {
 
             // Create the runtime bridge that spawns/executes sub-agents.
             const service = new AgentSpawnerRuntime(agent, config, logger);
-
-            runtimeService = service;
             wireTaskForker({ services, service, logger });
 
             const taskSessions = new Map<string, string>();
@@ -293,66 +275,98 @@ export const agentSpawnerToolsFactory: ToolFactory<AgentSpawnerConfig> = {
                 });
             };
 
-            backgroundAbortController = new AbortController();
+            const abortController = new AbortController();
             agent.on('tool:background', handleBackground, {
-                signal: backgroundAbortController.signal,
+                signal: abortController.signal,
             });
             agent.on(
                 'agent:stopped',
                 () => {
                     service.cleanup().catch(() => undefined);
-                    backgroundAbortController?.abort();
+                    abortController.abort();
                 },
-                { signal: backgroundAbortController.signal }
+                { signal: abortController.signal }
             );
 
             const spawnAgentTool = createSpawnAgentTool(service);
+            const waitForTool = createWaitForTool(conditionEngine);
+            const checkTaskTool = createCheckTaskTool(taskRegistry);
+            const listTasksTool = createListTasksTool(taskRegistry);
 
-            const tools = [
-                spawnAgentTool,
-                createWaitForTool(conditionEngine),
-                createCheckTaskTool(taskRegistry),
-                createListTasksTool(taskRegistry),
-            ];
+            const tools: InitializedAgentSpawnerTools = {
+                spawnAgent: spawnAgentTool,
+                waitFor: waitForTool,
+                checkTask: checkTaskTool,
+                listTasks: listTasksTool,
+            };
 
-            toolMap = new Map(tools.map((t) => [t.id, t]));
-            return toolMap;
-        };
+            state = {
+                agent,
+                abortController,
+                runtime: service,
+                tools,
+            };
 
-        const getToolById = (id: string, context?: ToolExecutionContext) => {
-            const map = ensureToolsInitialized(context);
-            const tool = map.get(id);
-            if (!tool) {
-                throw new Error(`agent-spawner: expected factory tool '${id}' to exist`);
-            }
-            return tool;
+            return tools;
         };
 
         return [
-            createLazyTool({
+            {
                 id: 'spawn_agent',
                 description: 'Spawn a sub-agent to handle a task and return its result.',
                 inputSchema: SpawnAgentInputSchema,
-                getTool: (context) => getToolById('spawn_agent', context),
-            }),
-            createLazyTool({
+                execute: (input, context) =>
+                    ensureToolsInitialized(context).spawnAgent.execute(input, context),
+                generatePreview: async (input, context) => {
+                    const tool = ensureToolsInitialized(context).spawnAgent;
+                    if (!tool.generatePreview) {
+                        return null;
+                    }
+                    return await tool.generatePreview(input, context);
+                },
+            },
+            {
                 id: 'wait_for',
                 description: 'Wait for background task(s) to complete.',
                 inputSchema: WaitForInputSchema,
-                getTool: (context) => getToolById('wait_for', context),
-            }),
-            createLazyTool({
+                execute: (input, context) =>
+                    ensureToolsInitialized(context).waitFor.execute(input, context),
+                generatePreview: async (input, context) => {
+                    const tool = ensureToolsInitialized(context).waitFor;
+                    if (!tool.generatePreview) {
+                        return null;
+                    }
+                    return await tool.generatePreview(input, context);
+                },
+            },
+            {
                 id: 'check_task',
                 description: 'Check the status of a background task.',
                 inputSchema: CheckTaskInputSchema,
-                getTool: (context) => getToolById('check_task', context),
-            }),
-            createLazyTool({
+                execute: (input, context) =>
+                    ensureToolsInitialized(context).checkTask.execute(input, context),
+                generatePreview: async (input, context) => {
+                    const tool = ensureToolsInitialized(context).checkTask;
+                    if (!tool.generatePreview) {
+                        return null;
+                    }
+                    return await tool.generatePreview(input, context);
+                },
+            },
+            {
                 id: 'list_tasks',
                 description: 'List background tasks and their statuses.',
                 inputSchema: ListTasksInputSchema,
-                getTool: (context) => getToolById('list_tasks', context),
-            }),
+                execute: (input, context) =>
+                    ensureToolsInitialized(context).listTasks.execute(input, context),
+                generatePreview: async (input, context) => {
+                    const tool = ensureToolsInitialized(context).listTasks;
+                    if (!tool.generatePreview) {
+                        return null;
+                    }
+                    return await tool.generatePreview(input, context);
+                },
+            },
         ];
     },
 };
