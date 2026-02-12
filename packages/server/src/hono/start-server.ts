@@ -49,15 +49,24 @@ export type StartDextoServerResult = {
  *
  * @example
  * ```typescript
- * // Register providers (filesystem-tools, process-tools, etc.)
- * import '@dexto/image-local';
- *
+ * import imageLocal from '@dexto/image-local';
  * import { DextoAgent } from '@dexto/core';
- * import { loadAgentConfig } from '@dexto/agent-management';
+ * import { loadAgentConfig, enrichAgentConfig } from '@dexto/agent-management';
+ * import {
+ *   AgentConfigSchema,
+ *   applyImageDefaults,
+ *   resolveServicesFromConfig,
+ *   toDextoAgentOptions,
+ * } from '@dexto/agent-config';
  * import { startDextoServer } from '@dexto/server';
  *
- * const config = await loadAgentConfig('./agents/default.yml');
- * const agent = new DextoAgent(config, './agents/default.yml');
+ * const configPath = './agents/default.yml';
+ * const raw = await loadAgentConfig(configPath);
+ * const withDefaults = applyImageDefaults(raw, imageLocal.defaults);
+ * const enriched = enrichAgentConfig(withDefaults, configPath);
+ * const config = AgentConfigSchema.parse(enriched);
+ * const services = await resolveServicesFromConfig(config, imageLocal);
+ * const agent = new DextoAgent(toDextoAgentOptions({ config, services }));
  *
  * const { server, stop } = await startDextoServer(agent, {
  *   port: 3000,

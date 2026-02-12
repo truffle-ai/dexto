@@ -746,14 +746,22 @@ export function createAgentsRouter(
             let parsed;
             try {
                 parsed = yamlParse(yaml);
-            } catch (parseError: any) {
+            } catch (parseError: unknown) {
+                const message =
+                    parseError instanceof Error ? parseError.message : String(parseError);
+                const linePos =
+                    typeof parseError === 'object' && parseError !== null && 'linePos' in parseError
+                        ? (parseError as { linePos?: Array<{ line?: number; col?: number }> })
+                              .linePos
+                        : undefined;
+
                 return ctx.json({
                     valid: false,
                     errors: [
                         {
-                            line: parseError.linePos?.[0]?.line || 1,
-                            column: parseError.linePos?.[0]?.col || 1,
-                            message: parseError.message,
+                            line: linePos?.[0]?.line ?? 1,
+                            column: linePos?.[0]?.col ?? 1,
+                            message,
                             code: 'YAML_PARSE_ERROR',
                         },
                     ],
@@ -824,11 +832,13 @@ export function createAgentsRouter(
             let parsed;
             try {
                 parsed = yamlParse(yaml);
-            } catch (parseError: any) {
+            } catch (parseError: unknown) {
+                const message =
+                    parseError instanceof Error ? parseError.message : String(parseError);
                 throw new DextoValidationError([
                     {
                         code: AgentErrorCode.INVALID_CONFIG,
-                        message: `Invalid YAML syntax: ${parseError.message}`,
+                        message: `Invalid YAML syntax: ${message}`,
                         scope: ErrorScope.AGENT,
                         type: ErrorType.USER,
                         severity: 'error',
