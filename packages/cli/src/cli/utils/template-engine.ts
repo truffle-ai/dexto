@@ -3,7 +3,7 @@
  *
  * Provides code generation functions for various project types.
  *
- * Note: create-app/init-app scaffolds are code-first DI (no YAML/images).
+ * Note: create-app/init-app scaffolds are programmatic (no YAML/images).
  * Image scaffolds are generated via `dexto create-image`.
  */
 
@@ -20,256 +20,123 @@ interface TemplateContext {
 }
 
 /**
- * Generates src/index.ts for an app using code-first DI.
+ * Generates src/index.ts for an app using programmatic configuration.
  */
 export function generateIndexForCodeFirstDI(context: TemplateContext): string {
     const defaultProvider = context.llmProvider ?? 'openai';
     const defaultModel = context.llmModel ?? 'gpt-4o';
-    return `// Standalone Dexto app (code-first DI)
-// Builds a DextoAgent directly and injects storage/tools in code (no images/YAML).
+    return `// Standalone Dexto app (programmatic)
 import 'dotenv/config';
-import type { Tool, LLMProvider } from '@dexto/core';
-import {
-    DextoAgent,
-    createLogger,
-    LoggerConfigSchema,
-    LLMConfigSchemaRelaxed,
-    SystemPromptConfigSchema,
-    ServerConfigsSchema,
-    SessionConfigSchema,
-    ToolConfirmationConfigSchema,
-    ElicitationConfigSchema,
-    InternalResourcesSchema,
-    PromptsSchema,
-    resolveApiKeyForProvider,
-} from '@dexto/core';
-import { MemoryCacheStore, MemoryDatabaseStore, InMemoryBlobStore, InMemoryBlobStoreSchema } from '@dexto/storage';
-import { builtinToolsFactory } from '@dexto/tools-builtins';
-import { fileSystemToolsFactory } from '@dexto/tools-filesystem';
-import { processToolsFactory } from '@dexto/tools-process';
-
-const INTERNAL_TOOL_PREFIX = 'internal--';
-const CUSTOM_TOOL_PREFIX = 'custom--';
-
-function qualifyToolIds(prefix: string, tools: Tool[]): Tool[] {
-    return tools.map((tool) => {
-        if (
-            tool.id.startsWith(INTERNAL_TOOL_PREFIX) ||
-            tool.id.startsWith(CUSTOM_TOOL_PREFIX)
-        ) {
-            return tool;
-        }
-
-        return { ...tool, id: \`\${prefix}\${tool.id}\` };
-    });
-}
+import type { LLMProvider } from '@dexto/core';
+import { DextoAgent, createLogger, createRuntimeSettings, resolveApiKeyForProvider } from '@dexto/core';
+import { MemoryCacheStore, MemoryDatabaseStore, InMemoryBlobStore } from '@dexto/storage';
 
 async function main() {
-    console.log('🚀 Starting ${context.projectName}\\n');
-
     const agentId = process.env.DEXTO_AGENT_ID ?? '${context.projectName}';
     const llmProvider = (process.env.DEXTO_LLM_PROVIDER ?? '${defaultProvider}') as LLMProvider;
     const llmModel = process.env.DEXTO_LLM_MODEL ?? '${defaultModel}';
 
     const logger = createLogger({
         agentId,
-        config: LoggerConfigSchema.parse({
-            level: 'info',
-            transports: [{ type: 'console' }],
-        }),
+        config: { level: 'info', transports: [{ type: 'console', colorize: true }] },
     });
 
     const storage = {
         cache: new MemoryCacheStore(),
         database: new MemoryDatabaseStore(),
-        blob: new InMemoryBlobStore(InMemoryBlobStoreSchema.parse({ type: 'in-memory' }), logger),
+        blob: new InMemoryBlobStore(
+            { type: 'in-memory', maxBlobSize: 10 * 1024 * 1024, maxTotalSize: 100 * 1024 * 1024 },
+            logger
+        ),
     };
 
-    const tools = [
-        ...qualifyToolIds(
-            INTERNAL_TOOL_PREFIX,
-            builtinToolsFactory.create(
-                builtinToolsFactory.configSchema.parse({ type: 'builtin-tools' })
-            )
-        ),
-        ...qualifyToolIds(
-            CUSTOM_TOOL_PREFIX,
-            fileSystemToolsFactory.create(
-                fileSystemToolsFactory.configSchema.parse({ type: 'filesystem-tools' })
-            )
-        ),
-        ...qualifyToolIds(
-            CUSTOM_TOOL_PREFIX,
-            processToolsFactory.create(
-                processToolsFactory.configSchema.parse({ type: 'process-tools' })
-            )
-        ),
-    ];
-
     const agent = new DextoAgent({
-        agentId,
-        llm: LLMConfigSchemaRelaxed.parse({
-            provider: llmProvider,
-            model: llmModel,
-            apiKey: process.env.DEXTO_LLM_API_KEY ?? resolveApiKeyForProvider(llmProvider),
-            maxIterations: 10,
+        ...createRuntimeSettings({
+            agentId,
+            llm: {
+                provider: llmProvider,
+                model: llmModel,
+                apiKey: process.env.DEXTO_LLM_API_KEY ?? resolveApiKeyForProvider(llmProvider),
+                maxIterations: 10,
+            },
+            systemPrompt: 'You are a helpful AI assistant.',
         }),
-        systemPrompt: SystemPromptConfigSchema.parse(
-            'You are a helpful AI assistant with access to tools.'
-        ),
-        mcpServers: ServerConfigsSchema.parse({}),
-        sessions: SessionConfigSchema.parse({}),
-        toolConfirmation: ToolConfirmationConfigSchema.parse({
-            mode: 'auto-approve',
-            allowedToolsStorage: 'memory',
-        }),
-        elicitation: ElicitationConfigSchema.parse({}),
-        internalResources: InternalResourcesSchema.parse([]),
-        prompts: PromptsSchema.parse([]),
         logger,
         storage,
-        tools,
+        tools: [],
         plugins: [],
         compaction: null,
     });
 
     await agent.start();
-    console.log('✅ Agent started\\n');
-
     const session = await agent.createSession();
-    const response = await agent.run(
-        'Hello! What tools do you have available?',
-        undefined, // imageDataInput
-        undefined, // fileDataInput
-        session.id // sessionId
-    );
 
-    console.log('\\nAgent response:\\n');
-    console.log(response);
+    const response = await agent.generate('Hello! What can you do?', session.id);
+    console.log(response.content);
+
+    // Streaming example:
+    // for await (const event of await agent.stream('Say hello in one sentence.', session.id)) {
+    //     if (event.name === 'llm:chunk') process.stdout.write(event.content);
+    // }
 
     await agent.stop();
 }
 
 main().catch((error) => {
-    console.error('❌ Error:', error);
+    console.error(error);
     process.exit(1);
 });
 `;
 }
 
 /**
- * Generates src/index.ts for a web server application using code-first DI.
+ * Generates src/index.ts for a web server application using programmatic configuration.
  */
 export function generateWebServerIndexForCodeFirstDI(context: TemplateContext): string {
     const defaultProvider = context.llmProvider ?? 'openai';
     const defaultModel = context.llmModel ?? 'gpt-4o';
-    return `// Dexto Web Server (code-first DI)
-// Builds a DextoAgent directly and starts the server (no images/YAML).
+    return `// Dexto Web Server (programmatic)
 import 'dotenv/config';
-import type { Tool, LLMProvider } from '@dexto/core';
-import {
-    DextoAgent,
-    createLogger,
-    LoggerConfigSchema,
-    LLMConfigSchemaRelaxed,
-    SystemPromptConfigSchema,
-    ServerConfigsSchema,
-    SessionConfigSchema,
-    ToolConfirmationConfigSchema,
-    ElicitationConfigSchema,
-    InternalResourcesSchema,
-    PromptsSchema,
-    resolveApiKeyForProvider,
-} from '@dexto/core';
-import { MemoryCacheStore, MemoryDatabaseStore, InMemoryBlobStore, InMemoryBlobStoreSchema } from '@dexto/storage';
-import { builtinToolsFactory } from '@dexto/tools-builtins';
-import { fileSystemToolsFactory } from '@dexto/tools-filesystem';
-import { processToolsFactory } from '@dexto/tools-process';
+import type { LLMProvider } from '@dexto/core';
+import { DextoAgent, createLogger, createRuntimeSettings, resolveApiKeyForProvider } from '@dexto/core';
+import { MemoryCacheStore, MemoryDatabaseStore, InMemoryBlobStore } from '@dexto/storage';
 import { startDextoServer } from '@dexto/server';
 import { resolve } from 'node:path';
 import { existsSync } from 'node:fs';
 
-const INTERNAL_TOOL_PREFIX = 'internal--';
-const CUSTOM_TOOL_PREFIX = 'custom--';
-
-function qualifyToolIds(prefix: string, tools: Tool[]): Tool[] {
-    return tools.map((tool) => {
-        if (
-            tool.id.startsWith(INTERNAL_TOOL_PREFIX) ||
-            tool.id.startsWith(CUSTOM_TOOL_PREFIX)
-        ) {
-            return tool;
-        }
-
-        return { ...tool, id: \`\${prefix}\${tool.id}\` };
-    });
-}
-
 async function main() {
-    console.log('🚀 Starting ${context.projectName}\\n');
-
     const agentId = process.env.DEXTO_AGENT_ID ?? '${context.projectName}';
     const llmProvider = (process.env.DEXTO_LLM_PROVIDER ?? '${defaultProvider}') as LLMProvider;
     const llmModel = process.env.DEXTO_LLM_MODEL ?? '${defaultModel}';
 
     const logger = createLogger({
         agentId,
-        config: LoggerConfigSchema.parse({
-            level: 'info',
-            transports: [{ type: 'console' }],
-        }),
+        config: { level: 'info', transports: [{ type: 'console', colorize: true }] },
     });
 
     const storage = {
         cache: new MemoryCacheStore(),
         database: new MemoryDatabaseStore(),
-        blob: new InMemoryBlobStore(InMemoryBlobStoreSchema.parse({ type: 'in-memory' }), logger),
+        blob: new InMemoryBlobStore(
+            { type: 'in-memory', maxBlobSize: 10 * 1024 * 1024, maxTotalSize: 100 * 1024 * 1024 },
+            logger
+        ),
     };
 
-    const tools = [
-        ...qualifyToolIds(
-            INTERNAL_TOOL_PREFIX,
-            builtinToolsFactory.create(
-                builtinToolsFactory.configSchema.parse({ type: 'builtin-tools' })
-            )
-        ),
-        ...qualifyToolIds(
-            CUSTOM_TOOL_PREFIX,
-            fileSystemToolsFactory.create(
-                fileSystemToolsFactory.configSchema.parse({ type: 'filesystem-tools' })
-            )
-        ),
-        ...qualifyToolIds(
-            CUSTOM_TOOL_PREFIX,
-            processToolsFactory.create(
-                processToolsFactory.configSchema.parse({ type: 'process-tools' })
-            )
-        ),
-    ];
-
     const agent = new DextoAgent({
-        agentId,
-        llm: LLMConfigSchemaRelaxed.parse({
-            provider: llmProvider,
-            model: llmModel,
-            apiKey: process.env.DEXTO_LLM_API_KEY ?? resolveApiKeyForProvider(llmProvider),
-            maxIterations: 10,
+        ...createRuntimeSettings({
+            agentId,
+            llm: {
+                provider: llmProvider,
+                model: llmModel,
+                apiKey: process.env.DEXTO_LLM_API_KEY ?? resolveApiKeyForProvider(llmProvider),
+                maxIterations: 10,
+            },
+            systemPrompt: 'You are a helpful AI assistant.',
         }),
-        systemPrompt: SystemPromptConfigSchema.parse(
-            'You are a helpful AI assistant with access to tools.'
-        ),
-        mcpServers: ServerConfigsSchema.parse({}),
-        sessions: SessionConfigSchema.parse({}),
-        toolConfirmation: ToolConfirmationConfigSchema.parse({
-            mode: 'auto-approve',
-            allowedToolsStorage: 'memory',
-        }),
-        elicitation: ElicitationConfigSchema.parse({}),
-        internalResources: InternalResourcesSchema.parse([]),
-        prompts: PromptsSchema.parse([]),
         logger,
         storage,
-        tools,
+        tools: [],
         plugins: [],
         compaction: null,
     });
@@ -321,7 +188,7 @@ async function main() {
 }
 
 main().catch((error) => {
-    console.error('Error:', error);
+    console.error(error);
     process.exit(1);
 });
 `;

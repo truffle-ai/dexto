@@ -32,7 +32,7 @@ export interface CreateAppOptions {
 }
 
 /**
- * Creates a Dexto application that runs an agent using code-first DI.
+ * Creates a Dexto application that runs an agent using programmatic configuration.
  */
 export async function createDextoProject(
     name?: string,
@@ -101,7 +101,7 @@ export async function createDextoProject(
 }
 
 /**
- * Scaffold an app using code-first DI.
+ * Scaffold an app using programmatic configuration.
  */
 async function scaffoldCodeFirstDI(
     projectPath: string,
@@ -156,7 +156,7 @@ async function scaffoldCodeFirstDI(
     const readmeContent = generateAppReadme({
         projectName,
         packageName: projectName,
-        description: 'Dexto application (code-first DI)',
+        description: 'Dexto application',
     });
     await fs.writeFile('README.md', readmeContent);
 
@@ -181,9 +181,8 @@ async function scaffoldCodeFirstDI(
     const dependencies = [
         `@dexto/core@${dextoDependencyVersion}`,
         `@dexto/storage@${dextoDependencyVersion}`,
-        `@dexto/tools-builtins@${dextoDependencyVersion}`,
-        `@dexto/tools-filesystem@${dextoDependencyVersion}`,
-        `@dexto/tools-process@${dextoDependencyVersion}`,
+        // Intentionally omit tool packs in the scaffold to keep the onboarding example minimal.
+        // TODO: Revisit adding a default tool pack once tool IDs no longer require manual qualification.
         'dotenv',
         'tsx',
     ];

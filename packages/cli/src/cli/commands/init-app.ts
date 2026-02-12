@@ -137,9 +137,8 @@ export async function initDexto(
                     installCommand,
                     `@dexto/core@${label}`,
                     `@dexto/storage@${label}`,
-                    `@dexto/tools-builtins@${label}`,
-                    `@dexto/tools-filesystem@${label}`,
-                    `@dexto/tools-process@${label}`,
+                    // Intentionally omit tool packs to keep the example minimal.
+                    // TODO: Revisit adding a default tool pack once tool IDs no longer require manual qualification.
                     'dotenv',
                     'tsx',
                 ],

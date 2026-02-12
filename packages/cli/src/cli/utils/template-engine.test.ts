@@ -9,7 +9,7 @@ import {
 
 describe('template-engine', () => {
     describe('generateIndexForCodeFirstDI', () => {
-        it('should generate index.ts for code-first DI app', () => {
+        it('should generate index.ts for programmatic app', () => {
             const result = generateIndexForCodeFirstDI({
                 projectName: 'my-app',
                 packageName: 'my-app',
@@ -20,25 +20,20 @@ describe('template-engine', () => {
             expect(result).toContain('DextoAgent');
             expect(result).toContain("from '@dexto/core';");
             expect(result).toContain("from '@dexto/storage';");
-            expect(result).toContain("from '@dexto/tools-builtins';");
-            expect(result).toContain("from '@dexto/tools-filesystem';");
-            expect(result).toContain("from '@dexto/tools-process';");
-            expect(result).toContain('Starting my-app');
+            expect(result).toContain('createRuntimeSettings');
             expect(result).toContain('const agent = new DextoAgent({');
             expect(result).toContain('await agent.start()');
+            expect(result).toContain('await agent.generate(');
         });
 
-        it('should mention code-first DI in comments', () => {
+        it('should mention programmatic config in comments', () => {
             const result = generateIndexForCodeFirstDI({
                 projectName: 'my-app',
                 packageName: 'my-app',
                 description: 'Test app',
             });
 
-            expect(result).toContain('// Standalone Dexto app (code-first DI)');
-            expect(result).toContain(
-                '// Builds a DextoAgent directly and injects storage/tools in code'
-            );
+            expect(result).toContain('// Standalone Dexto app (programmatic)');
         });
     });
 

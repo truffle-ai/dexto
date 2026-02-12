@@ -72,11 +72,11 @@ describe('Init Module', () => {
 
                 // Verify content contains expected elements
                 const content = await fs.readFile(examplePath, 'utf8');
-                expect(content).toContain('// Standalone Dexto app (code-first DI)');
+                expect(content).toContain('// Standalone Dexto app (programmatic)');
                 expect(content).toContain("import 'dotenv/config';");
                 expect(content).toContain("from '@dexto/storage';");
-                expect(content).toContain("from '@dexto/tools-builtins';");
                 expect(content).toContain('const agent = new DextoAgent({');
+                expect(content).toContain('createRuntimeSettings');
             } finally {
                 process.chdir(originalCwd);
             }
