@@ -286,7 +286,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 'mcp--file_read',
                 {
                     path: '/test',
-                    __dexto: {
+                    __meta: {
                         callDescription: 'Read test file',
                     },
                 },
@@ -326,7 +326,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     'mcp--file_read',
                     {
                         path: '/test',
-                        __dexto: {
+                        __meta: {
                             runInBackground: true,
                         },
                     },
@@ -381,7 +381,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     'mcp--file_read',
                     {
                         path: '/test',
-                        __dexto: {
+                        __meta: {
                             runInBackground: true,
                         },
                     },

@@ -266,7 +266,7 @@ describe('ToolManager Integration Tests', () => {
             const mcpParams = allTools['mcp--file_read']?.parameters as {
                 properties?: Record<string, unknown>;
             };
-            expect(mcpParams.properties?.__dexto).toBeDefined();
+            expect(mcpParams.properties?.__meta).toBeDefined();
 
             // Execute both types
             const mcpResult = await toolManager.executeTool(

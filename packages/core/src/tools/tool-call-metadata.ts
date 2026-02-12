@@ -8,7 +8,7 @@ export type ToolCallMetadata = {
 };
 
 export type ToolCallMetaWrapper = {
-    __dexto: ToolCallMetadata;
+    __meta: ToolCallMetadata;
 };
 
 const META_SCHEMA: JSONSchema7 = {
@@ -34,7 +34,7 @@ const META_SCHEMA: JSONSchema7 = {
     additionalProperties: false,
 };
 
-const META_KEY = '__dexto';
+const META_KEY = '__meta';
 
 export function wrapToolParametersSchema(parameters: JSONSchema7): JSONSchema7 {
     if (parameters.type !== 'object' || !parameters.properties) {
@@ -58,8 +58,8 @@ export function extractToolCallMeta(args: Record<string, unknown>): {
     toolArgs: Record<string, unknown>;
     meta: ToolCallMetadata;
 } {
-    const { __dexto, ...toolArgs } = args as ToolCallMetaWrapper & Record<string, unknown>;
-    const meta = __dexto ?? {};
+    const { __meta, ...toolArgs } = args as ToolCallMetaWrapper & Record<string, unknown>;
+    const meta = __meta ?? {};
 
     return {
         toolArgs,
