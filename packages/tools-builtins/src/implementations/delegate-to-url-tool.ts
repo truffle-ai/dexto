@@ -37,12 +37,16 @@ interface A2AMessage {
     parts: Array<{
         kind: 'text';
         text: string;
-        metadata?: Record<string, any>;
+        metadata?: Record<string, unknown>;
     }>;
     messageId: string;
     taskId?: string;
     contextId?: string;
     kind: 'message';
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 class SimpleA2AClient {
@@ -54,7 +58,7 @@ class SimpleA2AClient {
         this.timeout = timeout;
     }
 
-    async sendMessage(message: string, sessionId?: string): Promise<any> {
+    async sendMessage(message: string, sessionId?: string): Promise<unknown> {
         const messageId = this.generateId();
         const taskId = sessionId || this.generateId();
 
@@ -89,10 +93,9 @@ class SimpleA2AClient {
         let lastError: Error | null = null;
 
         for (const endpoint of endpoints) {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), this.timeout);
             try {
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), this.timeout);
-
                 const response = await fetch(endpoint, {
                     method: 'POST',
                     headers: {
@@ -103,8 +106,6 @@ class SimpleA2AClient {
                     signal: controller.signal,
                 });
 
-                clearTimeout(timeoutId);
-
                 if (!response.ok) {
                     lastError = new Error(
                         `HTTP ${response.status}: ${response.statusText} (tried ${endpoint})`
@@ -112,15 +113,17 @@ class SimpleA2AClient {
                     continue;
                 }
 
-                const data = await response.json();
+                const data: unknown = await response.json();
 
-                if ('error' in data && data.error) {
-                    throw new Error(
-                        `Agent returned error: ${data.error.message || 'Unknown error'}`
-                    );
+                if (isPlainObject(data) && 'error' in data && data.error) {
+                    const errorMessage =
+                        isPlainObject(data.error) && typeof data.error.message === 'string'
+                            ? data.error.message
+                            : 'Unknown error';
+                    throw new Error(`Agent returned error: ${errorMessage}`);
                 }
 
-                if ('result' in data) {
+                if (isPlainObject(data) && 'result' in data) {
                     return this.extractTaskResponse(data.result);
                 }
 
@@ -128,36 +131,43 @@ class SimpleA2AClient {
             } catch (error) {
                 if (error instanceof Error && error.name === 'AbortError') {
                     throw new DextoRuntimeError(
-                        `Delegation timeout after ${this.timeout}ms`,
+                        'DELEGATION_TIMEOUT',
                         ErrorScope.TOOLS,
                         ErrorType.TIMEOUT,
-                        'DELEGATION_TIMEOUT'
+                        `Delegation timeout after ${this.timeout}ms`
                     );
                 }
                 lastError = error instanceof Error ? error : new Error(String(error));
+            } finally {
+                clearTimeout(timeoutId);
             }
         }
 
         throw new DextoRuntimeError(
-            `Failed to connect to agent at ${this.url}. Tried endpoints: ${endpoints.join(', ')}. Last error: ${lastError?.message || 'Unknown error'}`,
+            'DELEGATION_FAILED',
             ErrorScope.TOOLS,
             ErrorType.THIRD_PARTY,
-            'DELEGATION_FAILED'
+            `Failed to connect to agent at ${this.url}. Tried endpoints: ${endpoints.join(', ')}. Last error: ${lastError?.message || 'Unknown error'}`
         );
     }
 
-    private extractTaskResponse(task: any): string {
-        if (task.history && Array.isArray(task.history)) {
-            const agentMessages = task.history.filter((m: any) => m.role === 'agent');
+    private extractTaskResponse(task: unknown): string {
+        if (isPlainObject(task) && Array.isArray(task.history)) {
+            const agentMessages = task.history.filter(
+                (message): message is Record<string, unknown> =>
+                    isPlainObject(message) && message.role === 'agent'
+            );
             if (agentMessages.length > 0) {
                 const lastMessage = agentMessages[agentMessages.length - 1];
-                if (lastMessage.parts && Array.isArray(lastMessage.parts)) {
+                if (lastMessage && Array.isArray(lastMessage.parts)) {
                     const textParts = lastMessage.parts
-                        .filter((p: any) => p.kind === 'text')
-                        .map((p: any) => p.text);
-                    if (textParts.length > 0) {
-                        return textParts.join('\n');
-                    }
+                        .filter(
+                            (part): part is Record<string, unknown> =>
+                                isPlainObject(part) && part.kind === 'text'
+                        )
+                        .map((part) => part.text)
+                        .filter((text): text is string => typeof text === 'string');
+                    return textParts.join('\n');
                 }
             }
         }
@@ -202,10 +212,10 @@ export function createDelegateToUrlTool(): Tool {
                 }
 
                 throw new DextoRuntimeError(
-                    `Delegation failed: ${error instanceof Error ? error.message : String(error)}`,
+                    'DELEGATION_ERROR',
                     ErrorScope.TOOLS,
                     ErrorType.SYSTEM,
-                    'DELEGATION_ERROR'
+                    `Delegation failed: ${error instanceof Error ? error.message : String(error)}`
                 );
             }
         },
