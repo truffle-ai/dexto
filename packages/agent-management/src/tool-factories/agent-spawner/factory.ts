@@ -23,7 +23,7 @@ import { createSpawnAgentTool } from './spawn-agent-tool.js';
 function requireAgentContext(context?: ToolExecutionContext): {
     agent: NonNullable<ToolExecutionContext['agent']>;
     logger: NonNullable<ToolExecutionContext['logger']>;
-    services: ToolExecutionContext['services'] | undefined;
+    toolServices: ToolExecutionContext['services'] | undefined;
 } {
     const agent = context?.agent;
     if (!agent) {
@@ -39,7 +39,7 @@ function requireAgentContext(context?: ToolExecutionContext): {
         );
     }
 
-    return { agent, logger, services: context.services };
+    return { agent, logger, toolServices: context.services };
 }
 
 type InitializedAgentSpawnerTools = {
@@ -67,19 +67,19 @@ export const agentSpawnerToolsFactory: ToolFactory<AgentSpawnerConfig> = {
         let state: AgentSpawnerToolState | undefined;
         let warnedMissingServices = false;
 
-        const wireTaskForker = (options: {
-            services: ToolExecutionContext['services'] | undefined;
-            service: AgentSpawnerRuntime;
+        const attachTaskForker = (options: {
+            toolServices: ToolExecutionContext['services'] | undefined;
+            taskForker: AgentSpawnerRuntime;
             logger: NonNullable<ToolExecutionContext['logger']>;
         }) => {
-            const { services, service, logger } = options;
+            const { toolServices, taskForker, logger } = options;
 
-            if (services) {
+            if (toolServices) {
                 warnedMissingServices = false;
-                if (services.taskForker !== service) {
-                    services.taskForker = service;
+                if (toolServices.taskForker !== taskForker) {
+                    toolServices.taskForker = taskForker;
                     logger.debug(
-                        'AgentSpawnerRuntime wired as taskForker for context:fork skill support'
+                        'AgentSpawnerRuntime attached as taskForker for context:fork skill support'
                     );
                 }
                 return;
@@ -96,10 +96,10 @@ export const agentSpawnerToolsFactory: ToolFactory<AgentSpawnerConfig> = {
         const ensureToolsInitialized = (
             context?: ToolExecutionContext
         ): InitializedAgentSpawnerTools => {
-            const { agent, logger, services } = requireAgentContext(context);
+            const { agent, logger, toolServices } = requireAgentContext(context);
 
             if (state && state.agent === agent && !state.abortController.signal.aborted) {
-                wireTaskForker({ services, service: state.runtime, logger });
+                attachTaskForker({ toolServices, taskForker: state.runtime, logger });
                 return state.tools;
             }
 
@@ -120,8 +120,8 @@ export const agentSpawnerToolsFactory: ToolFactory<AgentSpawnerConfig> = {
             const conditionEngine = new ConditionEngine(taskRegistry, signalBus, logger);
 
             // Create the runtime bridge that spawns/executes sub-agents.
-            const service = new AgentSpawnerRuntime(agent, config, logger);
-            wireTaskForker({ services, service, logger });
+            const spawnerRuntime = new AgentSpawnerRuntime(agent, config, logger);
+            attachTaskForker({ toolServices, taskForker: spawnerRuntime, logger });
 
             const taskSessions = new Map<string, string>();
 
@@ -282,13 +282,13 @@ export const agentSpawnerToolsFactory: ToolFactory<AgentSpawnerConfig> = {
             agent.on(
                 'agent:stopped',
                 () => {
-                    service.cleanup().catch(() => undefined);
+                    spawnerRuntime.cleanup().catch(() => undefined);
                     abortController.abort();
                 },
                 { signal: abortController.signal }
             );
 
-            const spawnAgentTool = createSpawnAgentTool(service);
+            const spawnAgentTool = createSpawnAgentTool(spawnerRuntime);
             const waitForTool = createWaitForTool(conditionEngine);
             const checkTaskTool = createCheckTaskTool(taskRegistry);
             const listTasksTool = createListTasksTool(taskRegistry);
@@ -303,7 +303,7 @@ export const agentSpawnerToolsFactory: ToolFactory<AgentSpawnerConfig> = {
             state = {
                 agent,
                 abortController,
-                runtime: service,
+                runtime: spawnerRuntime,
                 tools,
             };
 
