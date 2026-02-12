@@ -6,16 +6,13 @@ import { createWriteFileTool } from './write-file-tool.js';
 import { createEditFileTool } from './edit-file-tool.js';
 import { createGlobFilesTool } from './glob-files-tool.js';
 import { createGrepContentTool } from './grep-content-tool.js';
-import { FileSystemToolsConfigSchema, type FileSystemToolsConfig } from './tool-factory-config.js';
+import {
+    FILESYSTEM_TOOL_NAMES,
+    FileSystemToolsConfigSchema,
+    type FileSystemToolsConfig,
+} from './tool-factory-config.js';
 import type { Tool } from '@dexto/core';
 
-const FILESYSTEM_TOOL_NAMES = [
-    'read_file',
-    'write_file',
-    'edit_file',
-    'glob_files',
-    'grep_content',
-] as const;
 type FileSystemToolName = (typeof FILESYSTEM_TOOL_NAMES)[number];
 
 export const fileSystemToolsFactory: ToolFactory<FileSystemToolsConfig> = {

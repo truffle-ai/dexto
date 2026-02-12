@@ -82,15 +82,6 @@ export const ProcessToolsConfigSchema = z
             .record(z.string())
             .default(DEFAULT_ENVIRONMENT)
             .describe('Custom environment variables to set for command execution'),
-        timeout: z
-            .number()
-            .int()
-            .positive()
-            .max(DEFAULT_MAX_TIMEOUT)
-            .optional()
-            .describe(
-                `Default timeout in milliseconds (max: ${DEFAULT_MAX_TIMEOUT / 1000 / 60} minutes)`
-            ),
     })
     .strict();
 

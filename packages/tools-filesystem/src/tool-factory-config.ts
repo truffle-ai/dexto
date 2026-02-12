@@ -22,7 +22,7 @@ const DEFAULT_BACKUP_RETENTION_DAYS = 7;
 /**
  * Available filesystem tool names for enabledTools configuration.
  */
-const FILESYSTEM_TOOL_NAMES = [
+export const FILESYSTEM_TOOL_NAMES = [
     'read_file',
     'write_file',
     'edit_file',

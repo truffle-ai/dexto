@@ -13,7 +13,7 @@ import { z } from 'zod';
 /**
  * Available plan tool names for enabledTools configuration
  */
-const PLAN_TOOL_NAMES = ['plan_create', 'plan_read', 'plan_update', 'plan_review'] as const;
+export const PLAN_TOOL_NAMES = ['plan_create', 'plan_read', 'plan_update', 'plan_review'] as const;
 
 /**
  * Configuration schema for Plan tools factory

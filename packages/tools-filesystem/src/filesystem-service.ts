@@ -40,7 +40,6 @@ const DEFAULT_MAX_SEARCH_RESULTS = 100;
  * All defaults have been applied by the factory's schema, so the service trusts the config
  * and uses it as-is without any fallback logic.
  *
- * TODO: Add tests for this class
  * TODO: instantiate only when internal file tools are enabled to avoid file dependencies which won't work in serverless
  */
 export class FileSystemService {
