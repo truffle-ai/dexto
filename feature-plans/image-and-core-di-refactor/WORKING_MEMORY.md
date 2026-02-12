@@ -46,6 +46,7 @@ _Log findings, issues, and progress here as you work._
 - CLI review: audited `dexto` CLI changes (image store + image commands + plan-mode injection + configFilePath propagation + scaffolding updates). Follow-up polish: updated create-app README template config wording to match the new `image:`/`tools:`/`mcpServers:` surfaces. Commit: `27fd6040`.
 - Core review (no code changes): reviewed `@dexto/core` DI refactor changes (DI-first `DextoAgentOptions`, storage/compaction/tool/plugin registry removals, tool execution context wiring, plugin manager DI orchestration). No correctness blockers found; tests added/updated for plugin manager + config prompt resolution.
 - Review/polish: reviewed `@dexto/tools-builtins`; fixed `delegate_to_url` error wiring (correct `DextoRuntimeError` argument ordering), removed `any` usage in the A2A client, ensured per-endpoint timeout timers are always cleared, and added a focused unit test for the failure/timeout cases. Commit: `94ca9373`.
+- Review/polish: cleaned up WebUI `CustomizePanel` to remove debug `console.*` noise and eliminate `any` typing in YAML AST update/cleanup helpers (keeps behavior, improves readability/typing). Commit: `687f79f5`.
 
 ---
 
