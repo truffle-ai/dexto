@@ -50,6 +50,11 @@ _Log findings, issues, and progress here as you work._
 - Review/polish: tightened server YAML parse error handling (no `any`) and refreshed `startDextoServer()` docs to match the DI-first agent construction + image-based service resolution flow. Commit: `381ad0ba`.
 - Review: scanned remaining package deltas (`@dexto/image-bundler`, `@dexto/image-local`, `@dexto/image-logger-agent`, `@dexto/orchestration`, `@dexto/registry`, `@dexto/storage`, and tool packs `filesystem/process/plan/todo`) and found no correctness blockers; follow-ups to consider: bundler currently relies on directly importing `dexto.image.ts` (Node TS strip behavior), discovery route does not surface cache/plugin factories, and several `@dexto/tools-*` packages still lack READMEs.
 
+2026-02-13:
+- Review/polish: `@dexto/image-bundler` now compiles `dexto.image.ts` via esbuild before importing (avoids Node “type stripping” reliance), improves core version detection via `createRequire()`, and removes CLI warning suppression. Added a second bundler integration test that exercises tools/storage/plugins/compaction convention folders with real workspace deps. Commit: `23c82488`.
+- Review/polish: `@dexto/storage` tightened runtime typing by removing `any` from in-memory stores + local blob metadata parsing, aligning `getStoreType()` for in-memory stores, and switching Redis connection error logging to the injected logger. Also removed `any` from Postgres connection error classification. Commit: `a6271246`.
+- Review/polish: tool packs — reduced config duplication by sharing enabled-tool name lists between schema + factory (`filesystem`, `plan`), removed unused `process-tools.timeout`, removed a stale filesystem-service TODO, and made filesystem backup tests hermetic by forcing `backupPath` into the temp directory. Commits: `adb532b8`, `3cd0953c`.
+
 ---
 
 ## Key Decisions
