@@ -59,7 +59,7 @@ describe('toDextoAgentOptions', () => {
 
         expect(options.logger).toBe(logger);
         expect(options.storage.blob.getStoreType()).toBe('in-memory');
-        expect(options.tools.map((t) => t.id)).toEqual(['foo']);
+        expect((options.tools ?? []).map((t) => t.id)).toEqual(['foo']);
         expect(options.plugins).toEqual([]);
         expect(options.compaction).toBeNull();
     });
