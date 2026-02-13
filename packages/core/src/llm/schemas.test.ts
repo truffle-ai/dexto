@@ -12,7 +12,6 @@ vi.mock('../logger/index.js', () => ({
 import { z } from 'zod';
 import { LLMErrorCode } from './error-codes.js';
 import {
-    DEFAULT_MAX_ITERATIONS,
     LLMConfigSchema,
     LLMUpdatesSchema,
     type LLMConfig,
@@ -72,7 +71,7 @@ describe('LLMConfigSchema', () => {
             const config = LLMTestHelpers.getValidConfigForProvider('openai');
             const result = LLMConfigSchema.parse(config);
 
-            expect(result.maxIterations).toBe(DEFAULT_MAX_ITERATIONS);
+            expect(result.maxIterations).toBeUndefined();
         });
 
         it('should preserve explicit optional values', () => {
@@ -428,8 +427,8 @@ describe('LLMConfigSchema', () => {
             const input: LLMConfig = LLMTestHelpers.getValidConfigForProvider('openai');
             const result: ValidatedLLMConfig = LLMConfigSchema.parse(input);
 
-            // Should have applied defaults
-            expect(result.maxIterations).toBe(DEFAULT_MAX_ITERATIONS);
+            // maxIterations is optional (unlimited when omitted)
+            expect(result.maxIterations).toBeUndefined();
 
             // Should preserve input values
             expect(result.provider).toBe(input.provider);
@@ -444,8 +443,8 @@ describe('LLMConfigSchema', () => {
             // TypeScript should infer correct types
             expect(typeof result.provider).toBe('string');
             expect(typeof result.model).toBe('string');
-            expect(typeof result.maxIterations).toBe('number');
-            expect(result.maxIterations).toBe(DEFAULT_MAX_ITERATIONS);
+            expect(typeof result.maxIterations).toBe('undefined');
+            expect(result.maxIterations).toBeUndefined();
         });
     });
 

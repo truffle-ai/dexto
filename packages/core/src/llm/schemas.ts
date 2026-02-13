@@ -15,13 +15,6 @@ import {
 import { LLM_PROVIDERS } from './types.js';
 
 /**
- * Default maximum number of outer-loop iterations (tool-call steps) per agent turn.
- *
- * This is a safety guard against runaway tool loops.
- */
-export const DEFAULT_MAX_ITERATIONS = 50;
-
-/**
  * Default-free field definitions for LLM configuration.
  * Used to build both the full config schema (with defaults) and the updates schema (no defaults).
  */
@@ -102,11 +95,8 @@ export const LLMConfigBaseSchema = z
         model: LLMConfigFields.model,
         // apiKey is optional at schema level - validated based on provider in superRefine
         apiKey: LLMConfigFields.apiKey,
-        maxIterations: z.coerce
-            .number()
-            .int()
-            .positive()
-            .default(DEFAULT_MAX_ITERATIONS)
+        maxIterations: LLMConfigFields.maxIterations
+            .optional()
             .describe('Max outer-loop tool-call iterations per agent turn'),
         baseURL: LLMConfigFields.baseURL,
         maxInputTokens: LLMConfigFields.maxInputTokens,

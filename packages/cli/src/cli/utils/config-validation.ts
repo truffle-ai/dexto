@@ -484,19 +484,9 @@ export async function validateAgentConfigOrExit(
     if (result.skipped) {
         logger.warn('Starting with validation warnings - some features may not work');
 
-        // Apply defaults manually without strict validation
-        // This allows launching web UI for interactive configuration
         // Use unknown cast to bypass branded type checking since we're intentionally
-        // returning a partially valid config that the user acknowledged
-        const configWithDefaults = {
-            ...config,
-            llm: {
-                ...config.llm,
-                maxIterations: config.llm?.maxIterations ?? 50,
-            },
-        } as unknown as ValidatedAgentConfig;
-
-        return configWithDefaults;
+        // returning a partially valid config that the user acknowledged.
+        return config as unknown as ValidatedAgentConfig;
     }
 
     // Last resort: exit with helpful message
