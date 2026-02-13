@@ -18,6 +18,8 @@ Prefixes are **added** in one place (`ToolManager.buildAllTools()`, 3 lines) and
 
 **With unified `tools: Tool[]` from the DI refactor, the internal/custom distinction disappears.** There are no "internal" or "custom" tools — just tools. The prefix system should be removed entirely. MCP tools may still need a prefix (they come from external servers), but that's the only case.
 
+This also leaks into onboarding: scaffolds and examples either need to ship boilerplate tool-id qualification logic or avoid tools entirely. Tool prefixes are an internal routing detail and shouldn’t show up in user code.
+
 ### 2. Hardcoded tool name checks (25+ tool names across 30+ files)
 
 **Core (policy coupling):**
