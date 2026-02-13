@@ -6,7 +6,7 @@ import type { IDextoLogger } from '../logger/v2/types.js';
 import type { DextoPlugin } from '../plugins/types.js';
 import type { Tool } from '../tools/types.js';
 import type { InitializeServicesOptions } from '../utils/service-initializer.js';
-import type { AgentRuntimeSettings } from './runtime-config.js';
+import type { AgentRuntimeSettingsInput } from './runtime-config.js';
 
 /**
  * Constructor options for {@link DextoAgent}.
@@ -17,13 +17,13 @@ import type { AgentRuntimeSettings } from './runtime-config.js';
  * - applying image defaults
  * - resolving tool/storage/plugin/compaction/logger instances via image factories
  *
- * Core receives only validated config sections (LLM/MCP/sessions/etc.) + concrete instances.
+ * Core normalizes + validates runtime settings (LLM/MCP/sessions/etc.) and receives concrete instances.
  */
 export interface DextoAgentOptions {
-    // Runtime settings (config-derived, validated + defaulted) — flat, no `config` wrapper.
+    // Runtime settings (input, may omit defaulted sections) — flat, no `config` wrapper.
     // Core only consumes the fields it needs at runtime.
     // Host layers own YAML parsing, image selection, defaults merging, and DI resolution.
-    // See `AgentRuntimeSettings` for the list of supported fields.
+    // See `AgentRuntimeSettingsInput` for the list of supported fields.
     //
     // NOTE: This interface is intentionally "flat" for ergonomics and to keep core DI-friendly.
     // (No `options.config` indirection.)
@@ -48,10 +48,10 @@ export interface DextoAgentOptions {
     storage: { blob: BlobStore; database: Database; cache: Cache };
 
     /** Concrete tool implementations (DI-first). */
-    tools: Tool[];
+    tools?: Tool[] | undefined;
 
     /** Concrete plugins installed for the agent (DI-first). */
-    plugins: DextoPlugin[];
+    plugins?: DextoPlugin[] | undefined;
 
     /**
      * Context compaction controller (DI-first).
@@ -61,4 +61,4 @@ export interface DextoAgentOptions {
     compaction?: ICompactionStrategy | null | undefined;
 }
 
-export interface DextoAgentOptions extends AgentRuntimeSettings {}
+export interface DextoAgentOptions extends AgentRuntimeSettingsInput {}

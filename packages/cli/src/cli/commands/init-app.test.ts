@@ -76,7 +76,6 @@ describe('Init Module', () => {
                 expect(content).toContain("import 'dotenv/config';");
                 expect(content).toContain("from '@dexto/storage';");
                 expect(content).toContain('const agent = new DextoAgent({');
-                expect(content).toContain('createRuntimeSettings');
             } finally {
                 process.chdir(originalCwd);
             }

@@ -42,6 +42,7 @@ import type { ModelInfo } from '../llm/registry/index.js';
 import type { LLMProvider } from '../llm/types.js';
 import { createAgentServices } from '../utils/service-initializer.js';
 import type { AgentRuntimeSettings } from './runtime-config.js';
+import { createRuntimeSettings } from './runtime-settings-builder.js';
 import {
     AgentEventBus,
     type AgentEventMap,
@@ -204,7 +205,7 @@ export class DextoAgent {
      * Creates a DextoAgent instance.
      *
      * Constructor options are DI-first:
-     * - runtime settings (validated + defaulted config-derived values)
+     * - runtime settings (validated + defaulted by core)
      * - concrete services (logger/tools/plugins/storage backends)
      * - optional internal service overrides (session logging, auth factories, etc.)
      */
@@ -212,14 +213,17 @@ export class DextoAgent {
         const {
             logger,
             storage,
-            tools,
-            plugins,
+            tools: toolsInput,
+            plugins: pluginsInput,
             compaction,
             overrides: overridesInput,
             ...runtimeSettings
         } = options;
 
-        this.config = runtimeSettings;
+        const tools = toolsInput ?? [];
+        const plugins = pluginsInput ?? [];
+
+        this.config = createRuntimeSettings(runtimeSettings);
 
         // Agent logger is always provided by the host (typically created from config).
         this.logger = logger;

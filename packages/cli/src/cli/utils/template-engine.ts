@@ -28,7 +28,7 @@ export function generateIndexForCodeFirstDI(context: TemplateContext): string {
     return `// Standalone Dexto app (programmatic)
 import 'dotenv/config';
 import type { LLMProvider } from '@dexto/core';
-import { DextoAgent, createLogger, createRuntimeSettings, resolveApiKeyForProvider } from '@dexto/core';
+import { DextoAgent, createLogger, resolveApiKeyForProvider } from '@dexto/core';
 import { MemoryCacheStore, MemoryDatabaseStore, InMemoryBlobStore } from '@dexto/storage';
 
 async function main() {
@@ -51,16 +51,14 @@ async function main() {
     };
 
     const agent = new DextoAgent({
-        ...createRuntimeSettings({
-            agentId,
-            llm: {
-                provider: llmProvider,
-                model: llmModel,
-                apiKey: process.env.DEXTO_LLM_API_KEY ?? resolveApiKeyForProvider(llmProvider),
-                maxIterations: 10,
-            },
-            systemPrompt: 'You are a helpful AI assistant.',
-        }),
+        agentId,
+        llm: {
+            provider: llmProvider,
+            model: llmModel,
+            apiKey: process.env.DEXTO_LLM_API_KEY ?? resolveApiKeyForProvider(llmProvider),
+            maxIterations: 10,
+        },
+        systemPrompt: 'You are a helpful AI assistant.',
         logger,
         storage,
         tools: [],
@@ -98,7 +96,7 @@ export function generateWebServerIndexForCodeFirstDI(context: TemplateContext): 
     return `// Dexto Web Server (programmatic)
 import 'dotenv/config';
 import type { LLMProvider } from '@dexto/core';
-import { DextoAgent, createLogger, createRuntimeSettings, resolveApiKeyForProvider } from '@dexto/core';
+import { DextoAgent, createLogger, resolveApiKeyForProvider } from '@dexto/core';
 import { MemoryCacheStore, MemoryDatabaseStore, InMemoryBlobStore } from '@dexto/storage';
 import { startDextoServer } from '@dexto/server';
 import { resolve } from 'node:path';
@@ -124,16 +122,14 @@ async function main() {
     };
 
     const agent = new DextoAgent({
-        ...createRuntimeSettings({
-            agentId,
-            llm: {
-                provider: llmProvider,
-                model: llmModel,
-                apiKey: process.env.DEXTO_LLM_API_KEY ?? resolveApiKeyForProvider(llmProvider),
-                maxIterations: 10,
-            },
-            systemPrompt: 'You are a helpful AI assistant.',
-        }),
+        agentId,
+        llm: {
+            provider: llmProvider,
+            model: llmModel,
+            apiKey: process.env.DEXTO_LLM_API_KEY ?? resolveApiKeyForProvider(llmProvider),
+            maxIterations: 10,
+        },
+        systemPrompt: 'You are a helpful AI assistant.',
         logger,
         storage,
         tools: [],

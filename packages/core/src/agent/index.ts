@@ -9,10 +9,8 @@ export { createAgentCard } from './agentCard.js';
 export * from './errors.js';
 export * from './error-codes.js';
 export type { DextoAgentOptions } from './agent-options.js';
-export {
-    createRuntimeSettings,
-    type CreateRuntimeSettingsOptions,
-} from './runtime-settings-builder.js';
+export { createRuntimeSettings } from './runtime-settings-builder.js';
+export type { AgentRuntimeSettings, AgentRuntimeSettingsInput } from './runtime-config.js';
 
 // New generate/stream API types
 export type {

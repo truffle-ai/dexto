@@ -1,22 +1,27 @@
-import type { ValidatedLLMConfig } from '../llm/schemas.js';
-import type { ValidatedServerConfigs } from '../mcp/schemas.js';
-import type { ValidatedMemoriesConfig } from '../memory/schemas.js';
-import type { ValidatedInternalResourcesConfig } from '../resources/schemas.js';
-import type { ValidatedSessionConfig } from '../session/schemas.js';
-import type { ValidatedSystemPromptConfig } from '../systemPrompt/schemas.js';
+import type { LLMConfig, ValidatedLLMConfig } from '../llm/schemas.js';
+import type { ServerConfigs, ValidatedServerConfigs } from '../mcp/schemas.js';
+import type { MemoriesConfig, ValidatedMemoriesConfig } from '../memory/schemas.js';
 import type {
+    InternalResourcesConfig,
+    ValidatedInternalResourcesConfig,
+} from '../resources/schemas.js';
+import type { SessionConfig, ValidatedSessionConfig } from '../session/schemas.js';
+import type { SystemPromptConfig, ValidatedSystemPromptConfig } from '../systemPrompt/schemas.js';
+import type {
+    ElicitationConfig,
+    ToolConfirmationConfig,
     ValidatedToolConfirmationConfig,
     ValidatedElicitationConfig,
 } from '../tools/schemas.js';
-import type { ValidatedPromptsConfig } from '../prompts/schemas.js';
+import type { PromptsConfig, ValidatedPromptsConfig } from '../prompts/schemas.js';
 import type { OtelConfiguration } from '../telemetry/schemas.js';
-import type { ValidatedAgentCard } from './schemas.js';
+import type { AgentCard, ValidatedAgentCard } from './schemas.js';
 
 /**
- * Core runtime settings shape.
+ * Core runtime settings shape (validated + defaulted).
  *
- * This contains only config-based surfaces that core uses at runtime.
- * Validation lives in `@dexto/agent-config` (core assumes it receives validated + defaulted values).
+ * DextoAgent is the validation boundary: host layers may validate earlier (e.g. YAML parsing),
+ * but core always normalizes runtime settings before use.
  */
 export interface AgentRuntimeSettings {
     systemPrompt: ValidatedSystemPromptConfig;
@@ -36,4 +41,30 @@ export interface AgentRuntimeSettings {
 
     internalResources: ValidatedInternalResourcesConfig;
     prompts: ValidatedPromptsConfig;
+}
+
+/**
+ * Runtime settings input shape (unvalidated / may omit defaulted sections).
+ *
+ * This is the ergonomic surface for programmatic construction.
+ * DextoAgent will validate + default these values internally.
+ */
+export interface AgentRuntimeSettingsInput {
+    systemPrompt: SystemPromptConfig;
+    llm: LLMConfig;
+
+    agentCard?: AgentCard | undefined;
+    greeting?: string | undefined;
+    telemetry?: OtelConfiguration | undefined;
+    memories?: MemoriesConfig | undefined;
+
+    agentId: string;
+    mcpServers?: ServerConfigs | undefined;
+    sessions?: SessionConfig | undefined;
+
+    toolConfirmation?: ToolConfirmationConfig | undefined;
+    elicitation?: ElicitationConfig | undefined;
+
+    internalResources?: InternalResourcesConfig | undefined;
+    prompts?: PromptsConfig | undefined;
 }

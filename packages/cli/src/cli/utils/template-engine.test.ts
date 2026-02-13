@@ -20,7 +20,6 @@ describe('template-engine', () => {
             expect(result).toContain('DextoAgent');
             expect(result).toContain("from '@dexto/core';");
             expect(result).toContain("from '@dexto/storage';");
-            expect(result).toContain('createRuntimeSettings');
             expect(result).toContain('const agent = new DextoAgent({');
             expect(result).toContain('await agent.start()');
             expect(result).toContain('await agent.generate(');
