@@ -304,14 +304,10 @@ describe('Session Integration: Multi-Model Token Tracking', () => {
     });
 
     test('should accumulate token usage for a single model', async () => {
-        const a = agent;
-        if (!a) {
-            throw new Error('Test agent not initialized');
-        }
         const sessionId = 'single-model-session';
-        await a.createSession(sessionId);
+        await agent.createSession(sessionId);
 
-        const sessionManager = a.sessionManager;
+        const sessionManager = agent.sessionManager;
         const tokenUsage = {
             inputTokens: 100,
             outputTokens: 50,
@@ -341,14 +337,10 @@ describe('Session Integration: Multi-Model Token Tracking', () => {
     });
 
     test('should track multiple models and verify totals match sum of all models', async () => {
-        const a = agent;
-        if (!a) {
-            throw new Error('Test agent not initialized');
-        }
         const sessionId = 'multi-model-session';
-        await a.createSession(sessionId);
+        await agent.createSession(sessionId);
 
-        const sessionManager = a.sessionManager;
+        const sessionManager = agent.sessionManager;
 
         // Define multiple model usages with complete token breakdown
         const usages = [
@@ -525,14 +517,10 @@ describe('Session Integration: Multi-Model Token Tracking', () => {
     });
 
     test('should handle optional token fields correctly', async () => {
-        const a = agent;
-        if (!a) {
-            throw new Error('Test agent not initialized');
-        }
         const sessionId = 'optional-tokens-session';
-        await a.createSession(sessionId);
+        await agent.createSession(sessionId);
 
-        const sessionManager = a.sessionManager;
+        const sessionManager = agent.sessionManager;
 
         // Usage with only required fields
         await sessionManager.accumulateTokenUsage(
@@ -558,14 +546,10 @@ describe('Session Integration: Multi-Model Token Tracking', () => {
     });
 
     test('should handle reasoning and cache tokens', async () => {
-        const a = agent;
-        if (!a) {
-            throw new Error('Test agent not initialized');
-        }
         const sessionId = 'advanced-tokens-session';
-        await a.createSession(sessionId);
+        await agent.createSession(sessionId);
 
-        const sessionManager = a.sessionManager;
+        const sessionManager = agent.sessionManager;
 
         await sessionManager.accumulateTokenUsage(
             sessionId,
@@ -594,14 +578,10 @@ describe('Session Integration: Multi-Model Token Tracking', () => {
     });
 
     test('should update model timestamps correctly', async () => {
-        const a = agent;
-        if (!a) {
-            throw new Error('Test agent not initialized');
-        }
         const sessionId = 'timestamp-session';
-        await a.createSession(sessionId);
+        await agent.createSession(sessionId);
 
-        const sessionManager = a.sessionManager;
+        const sessionManager = agent.sessionManager;
 
         const firstCallTime = Date.now();
         await sessionManager.accumulateTokenUsage(
@@ -631,14 +611,10 @@ describe('Session Integration: Multi-Model Token Tracking', () => {
     });
 
     test('should handle accumulation without cost', async () => {
-        const a = agent;
-        if (!a) {
-            throw new Error('Test agent not initialized');
-        }
         const sessionId = 'no-cost-session';
-        await a.createSession(sessionId);
+        await agent.createSession(sessionId);
 
-        const sessionManager = a.sessionManager;
+        const sessionManager = agent.sessionManager;
 
         await sessionManager.accumulateTokenUsage(
             sessionId,
@@ -654,14 +630,10 @@ describe('Session Integration: Multi-Model Token Tracking', () => {
     });
 
     test('should handle concurrent token accumulation with mutex', async () => {
-        const a = agent;
-        if (!a) {
-            throw new Error('Test agent not initialized');
-        }
         const sessionId = 'concurrent-session';
-        await a.createSession(sessionId);
+        await agent.createSession(sessionId);
 
-        const sessionManager = a.sessionManager;
+        const sessionManager = agent.sessionManager;
 
         // Fire multiple concurrent accumulations
         const promises = Array.from({ length: 10 }, () =>
