@@ -1,5 +1,5 @@
 import type { StorageManager } from '../../../storage/index.js';
-import type { IAllowedToolsProvider } from './types.js';
+import type { AllowedToolsProvider } from './types.js';
 import type { Logger } from '../../../logger/v2/types.js';
 
 /**
@@ -10,7 +10,7 @@ import type { Logger } from '../../../logger/v2/types.js';
  *
  * Using the database backend for persistence.
  */
-export class StorageAllowedToolsProvider implements IAllowedToolsProvider {
+export class StorageAllowedToolsProvider implements AllowedToolsProvider {
     private logger: Logger;
 
     constructor(

@@ -12,7 +12,7 @@ import type { AgentEventBus } from '../events/index.js';
 import type { ApprovalManager } from '../approval/manager.js';
 import { ApprovalStatus, ApprovalType, DenialReason } from '../approval/types.js';
 import type { ApprovalRequest, ToolConfirmationMetadata } from '../approval/types.js';
-import type { IAllowedToolsProvider } from './confirmation/allowed-tools-provider/types.js';
+import type { AllowedToolsProvider } from './confirmation/allowed-tools-provider/types.js';
 import type { PluginManager } from '../plugins/manager.js';
 import type { SessionManager } from '../session/index.js';
 import type { AgentStateManager } from '../agent/state-manager.js';
@@ -68,7 +68,7 @@ export class ToolManager {
     private mcpManager: MCPManager;
     private agentTools: Map<string, Tool> = new Map();
     private approvalManager: ApprovalManager;
-    private allowedToolsProvider: IAllowedToolsProvider;
+    private allowedToolsProvider: AllowedToolsProvider;
     private approvalMode: 'manual' | 'auto-approve' | 'auto-deny';
     private agentEventBus: AgentEventBus;
     private toolPolicies: ToolPolicies | undefined;
@@ -101,7 +101,7 @@ export class ToolManager {
     constructor(
         mcpManager: MCPManager,
         approvalManager: ApprovalManager,
-        allowedToolsProvider: IAllowedToolsProvider,
+        allowedToolsProvider: AllowedToolsProvider,
         approvalMode: 'manual' | 'auto-approve' | 'auto-deny',
         agentEventBus: AgentEventBus,
         toolPolicies: ToolPolicies,

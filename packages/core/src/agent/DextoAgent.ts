@@ -58,7 +58,7 @@ import {
     type StreamingEvent,
     type StreamingEventName,
 } from '../events/index.js';
-import type { IMCPClient } from '../mcp/types.js';
+import type { McpClient } from '../mcp/types.js';
 import type { Tool, ToolSet } from '../tools/types.js';
 import type { CompactionStrategy } from '../context/compaction/types.js';
 import { SearchService } from '../search/index.js';
@@ -2602,7 +2602,7 @@ export class DextoAgent {
      * Used by the API layer to inspect client status.
      * @returns Map of client names to client instances
      */
-    public getMcpClients(): Map<string, IMCPClient> {
+    public getMcpClients(): Map<string, McpClient> {
         this.ensureStarted();
         return this.mcpManager.getClients();
     }

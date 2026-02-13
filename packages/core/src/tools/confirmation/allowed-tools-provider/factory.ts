@@ -1,6 +1,6 @@
 import { InMemoryAllowedToolsProvider } from './in-memory.js';
 import { StorageAllowedToolsProvider } from './storage.js';
-import type { IAllowedToolsProvider } from './types.js';
+import type { AllowedToolsProvider } from './types.js';
 import type { StorageManager } from '../../../storage/index.js';
 import { ToolError } from '../../errors.js';
 import type { Logger } from '../../../logger/v2/types.js';
@@ -28,7 +28,7 @@ export type AllowedToolsConfig =
 export function createAllowedToolsProvider(
     config: AllowedToolsConfig,
     logger: Logger
-): IAllowedToolsProvider {
+): AllowedToolsProvider {
     switch (config.type) {
         case 'memory':
             return new InMemoryAllowedToolsProvider();

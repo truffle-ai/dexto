@@ -10,7 +10,7 @@ import { MCPManager } from '../mcp/manager.js';
 import { ToolManager } from '../tools/tool-manager.js';
 import type { ToolPolicies } from '../tools/schemas.js';
 import type { Tool } from '../tools/types.js';
-import type { IAllowedToolsProvider } from '../tools/confirmation/allowed-tools-provider/types.js';
+import type { AllowedToolsProvider } from '../tools/confirmation/allowed-tools-provider/types.js';
 import { SystemPromptManager } from '../systemPrompt/manager.js';
 import { AgentStateManager } from '../agent/state-manager.js';
 import { SessionManager } from '../session/index.js';
@@ -49,7 +49,7 @@ export type AgentServices = {
 export type ToolManagerFactoryOptions = {
     mcpManager: MCPManager;
     approvalManager: ApprovalManager;
-    allowedToolsProvider: IAllowedToolsProvider;
+    allowedToolsProvider: AllowedToolsProvider;
     approvalMode: 'manual' | 'auto-approve' | 'auto-deny';
     agentEventBus: AgentEventBus;
     toolPolicies: ToolPolicies;

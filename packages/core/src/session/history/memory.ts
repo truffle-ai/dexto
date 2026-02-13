@@ -1,5 +1,5 @@
 import type { InternalMessage } from '../../context/types.js';
-import type { IConversationHistoryProvider } from './types.js';
+import type { ConversationHistoryProvider } from './types.js';
 import type { Logger } from '../../logger/v2/types.js';
 
 /**
@@ -7,7 +7,7 @@ import type { Logger } from '../../logger/v2/types.js';
  * Used to run background tasks (e.g., title generation) without touching
  * the real session history or emitting history-related side effects.
  */
-export class MemoryHistoryProvider implements IConversationHistoryProvider {
+export class MemoryHistoryProvider implements ConversationHistoryProvider {
     private messages: InternalMessage[] = [];
 
     constructor(private logger: Logger) {}

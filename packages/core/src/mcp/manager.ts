@@ -1,15 +1,19 @@
-import { MCPClient } from './mcp-client.js';
-import { ValidatedServersConfig, ValidatedMcpServerConfig } from './schemas.js';
+import { DextoMcpClient } from './mcp-client.js';
+import type { ValidatedServersConfig, ValidatedMcpServerConfig } from './schemas.js';
 import type { Logger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
-import { GetPromptResult, ReadResourceResult, Prompt } from '@modelcontextprotocol/sdk/types.js';
-import {
-    IMCPClient,
+import type {
+    GetPromptResult,
+    ReadResourceResult,
+    Prompt,
+} from '@modelcontextprotocol/sdk/types.js';
+import type {
+    McpClient,
     MCPResolvedResource,
     MCPResourceSummary,
     McpAuthProviderFactory,
 } from './types.js';
-import { ToolSet } from '../tools/types.js';
+import type { ToolSet } from '../tools/types.js';
 import { MCPError } from './errors.js';
 import { eventBus } from '../events/index.js';
 import type { PromptDefinition } from '../prompts/types.js';
@@ -49,19 +53,19 @@ import type { ApprovalManager } from '../approval/manager.js';
  */
 type ResourceCacheEntry = {
     serverName: string;
-    client: IMCPClient;
+    client: McpClient;
     summary: MCPResourceSummary;
 };
 
 type PromptCacheEntry = {
     serverName: string;
-    client: IMCPClient;
+    client: McpClient;
     definition: PromptDefinition;
 };
 
 type ToolCacheEntry = {
     serverName: string;
-    client: IMCPClient;
+    client: McpClient;
     definition: {
         name?: string;
         description?: string;
@@ -70,7 +74,7 @@ type ToolCacheEntry = {
 };
 
 export class MCPManager {
-    private clients: Map<string, IMCPClient> = new Map();
+    private clients: Map<string, McpClient> = new Map();
     private connectionErrors: { [key: string]: { message: string; code?: string } } = {};
     private configCache: Map<string, ValidatedMcpServerConfig> = new Map(); // Store original configs for restart
     private toolCache: Map<string, ToolCacheEntry> = new Map();
@@ -93,7 +97,7 @@ export class MCPManager {
     setAuthProviderFactory(factory: McpAuthProviderFactory | null): void {
         this.authProviderFactory = factory;
         for (const [_name, client] of this.clients.entries()) {
-            if (client instanceof MCPClient) {
+            if (client instanceof DextoMcpClient) {
                 client.setAuthProviderFactory(factory);
             }
         }
@@ -111,7 +115,7 @@ export class MCPManager {
         this.approvalManager = approvalManager;
         // Update all existing clients with the approval manager
         for (const [_name, client] of this.clients.entries()) {
-            if (client instanceof MCPClient) {
+            if (client instanceof DextoMcpClient) {
                 client.setApprovalManager(approvalManager);
             }
         }
@@ -157,9 +161,9 @@ export class MCPManager {
     /**
      * Register a client that provides tools (and potentially more)
      * @param name Unique name for the client
-     * @param client The client instance, expected to be IMCPClient
+     * @param client The client instance, expected to be McpClient
      */
-    registerClient(name: string, client: IMCPClient): void {
+    registerClient(name: string, client: McpClient): void {
         if (this.clients.has(name)) {
             this.logger.warn(`Client '${name}' already registered. Overwriting.`);
         }
@@ -310,7 +314,7 @@ export class MCPManager {
      *
      * @private
      */
-    private async updateClientCache(clientName: string, client: IMCPClient): Promise<void> {
+    private async updateClientCache(clientName: string, client: McpClient): Promise<void> {
         // Cache tools with full definitions
         try {
             const tools = await client.getTools();
@@ -508,7 +512,7 @@ export class MCPManager {
      * @param toolName Name of the tool (may include server prefix)
      * @returns The client that provides the tool, or undefined if not found
      */
-    getToolClient(toolName: string): IMCPClient | undefined {
+    getToolClient(toolName: string): McpClient | undefined {
         // Try to get directly from cache (handles both simple and qualified names)
         return this.toolCache.get(toolName)?.client;
     }
@@ -564,7 +568,7 @@ export class MCPManager {
      * @param promptName Name of the prompt.
      * @returns The client instance or undefined.
      */
-    getPromptClient(promptName: string): IMCPClient | undefined {
+    getPromptClient(promptName: string): McpClient | undefined {
         return this.promptCache.get(promptName)?.client;
     }
 
@@ -739,7 +743,7 @@ export class MCPManager {
             return;
         }
 
-        const client = new MCPClient(this.logger);
+        const client = new DextoMcpClient(this.logger);
         client.setAuthProviderFactory(this.authProviderFactory);
         try {
             this.logger.info(`Attempting to connect to new server '${name}'...`);
@@ -777,7 +781,7 @@ export class MCPManager {
      * Get all registered clients
      * @returns Map of client names to client instances
      */
-    getClients(): Map<string, IMCPClient> {
+    getClients(): Map<string, McpClient> {
         return this.clients;
     }
 
@@ -799,7 +803,7 @@ export class MCPManager {
 
     getAuthProvider(name: string) {
         const client = this.clients.get(name);
-        if (client instanceof MCPClient) {
+        if (client instanceof DextoMcpClient) {
             return client.getCurrentAuthProvider();
         }
         return null;
@@ -897,7 +901,7 @@ export class MCPManager {
 
         // Reconnect with original config
         try {
-            const newClient = new MCPClient(this.logger);
+            const newClient = new DextoMcpClient(this.logger);
             newClient.setAuthProviderFactory(this.authProviderFactory);
             await newClient.connect(config, name);
 
@@ -961,7 +965,7 @@ export class MCPManager {
     /**
      * Set up notification listeners for a specific client
      */
-    private setupClientNotifications(clientName: string, client: IMCPClient): void {
+    private setupClientNotifications(clientName: string, client: McpClient): void {
         try {
             // Listen for resource updates
             client.on('resourceUpdated', async (params: { uri: string }) => {
@@ -1034,7 +1038,7 @@ export class MCPManager {
     /**
      * Handle prompts list changed notification
      */
-    private async handlePromptsListChanged(serverName: string, client: IMCPClient): Promise<void> {
+    private async handlePromptsListChanged(serverName: string, client: McpClient): Promise<void> {
         try {
             // Refresh the prompts for this client
             const existingPrompts = Array.from(this.promptCache.entries())
@@ -1087,7 +1091,7 @@ export class MCPManager {
     /**
      * Handle tools list changed notification
      */
-    private async handleToolsListChanged(serverName: string, client: IMCPClient): Promise<void> {
+    private async handleToolsListChanged(serverName: string, client: McpClient): Promise<void> {
         try {
             // Remove old tools for this client
             const removedToolBaseNames = new Set<string>();

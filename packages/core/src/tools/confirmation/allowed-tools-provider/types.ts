@@ -15,7 +15,7 @@
  * - We can enforce this by having a separate env variable/feature-flag for multi-user and having
  *   strict check for the user id if the feature flag is set.
  */
-export interface IAllowedToolsProvider {
+export type AllowedToolsProvider = {
     /**
      * Persist an approval for a tool. If `sessionId` is provided the approval is
      * scoped to that session. When omitted the approval is treated as global.
@@ -33,4 +33,4 @@ export interface IAllowedToolsProvider {
 
     /** Optional helper to introspect all approvals for debugging. */
     getAllowedTools?(sessionId?: string): Promise<Set<string>>;
-}
+};

@@ -1,4 +1,4 @@
-import type { IConversationHistoryProvider } from './types.js';
+import type { ConversationHistoryProvider } from './types.js';
 import type { Database } from '../../storage/types.js';
 import type { Logger } from '../../logger/v2/types.js';
 import { DatabaseHistoryProvider } from './database.js';
@@ -13,6 +13,6 @@ export function createDatabaseHistoryProvider(
     database: Database,
     sessionId: string,
     logger: Logger
-): IConversationHistoryProvider {
+): ConversationHistoryProvider {
     return new DatabaseHistoryProvider(sessionId, database, logger);
 }

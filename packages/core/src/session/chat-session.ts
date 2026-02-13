@@ -1,7 +1,7 @@
 import { createDatabaseHistoryProvider } from './history/factory.js';
 import { createLLMService } from '../llm/services/factory.js';
 import type { ContextManager } from '../context/index.js';
-import type { IConversationHistoryProvider } from './history/types.js';
+import type { ConversationHistoryProvider } from './history/types.js';
 import type { VercelLLMService } from '../llm/services/vercel.js';
 import type { SystemPromptManager } from '../systemPrompt/manager.js';
 import type { ToolManager } from '../tools/tool-manager.js';
@@ -90,7 +90,7 @@ export class ChatSession {
      * History provider that persists conversation messages.
      * Shared across LLM switches to maintain conversation continuity.
      */
-    private historyProvider!: IConversationHistoryProvider;
+    private historyProvider!: ConversationHistoryProvider;
 
     /**
      * Handles AI model interactions, tool execution, and response generation for this session.

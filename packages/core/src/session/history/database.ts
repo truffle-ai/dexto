@@ -3,7 +3,7 @@ import { DextoLogComponent } from '../../logger/v2/types.js';
 import type { Database } from '../../storage/types.js';
 import { SessionError } from '../errors.js';
 import type { InternalMessage } from '../../context/types.js';
-import type { IConversationHistoryProvider } from './types.js';
+import type { ConversationHistoryProvider } from './types.js';
 
 /**
  * History provider that works directly with DatabaseBackend.
@@ -21,7 +21,7 @@ import type { IConversationHistoryProvider } from './types.js';
  * - Updates (updateMessage) are durable within flush interval or on explicit flush()
  * - Worst case on crash: lose updates from last flush interval (typically <100ms)
  */
-export class DatabaseHistoryProvider implements IConversationHistoryProvider {
+export class DatabaseHistoryProvider implements ConversationHistoryProvider {
     private logger: Logger;
 
     // Cache state

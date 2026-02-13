@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { MCPManager } from './manager.js';
-import { MCPClient } from './mcp-client.js';
+import { DextoMcpClient } from './mcp-client.js';
 import { McpServerConfigSchema } from './schemas.js';
 import type { MCPResolvedResource } from './types.js';
 import { fileURLToPath } from 'node:url';
@@ -48,7 +48,7 @@ describe('MCPManager Integration Tests', () => {
                 env: {},
             });
 
-            const client = new MCPClient(mockLogger);
+            const client = new DextoMcpClient(mockLogger);
             await client.connect(config, 'resources-demo');
 
             manager.registerClient('resources-demo', client);
@@ -81,7 +81,7 @@ describe('MCPManager Integration Tests', () => {
                 env: {},
             });
 
-            const client = new MCPClient(mockLogger);
+            const client = new DextoMcpClient(mockLogger);
             await client.connect(config, 'resources-demo');
 
             manager.registerClient('resources-demo', client);
@@ -110,7 +110,7 @@ describe('MCPManager Integration Tests', () => {
                 env: {},
             });
 
-            const client = new MCPClient(mockLogger);
+            const client = new DextoMcpClient(mockLogger);
             await client.connect(config, 'resources-demo');
 
             manager.registerClient('resources-demo', client);
@@ -140,7 +140,7 @@ describe('MCPManager Integration Tests', () => {
                 env: {},
             });
 
-            const client = new MCPClient(mockLogger);
+            const client = new DextoMcpClient(mockLogger);
             await client.connect(config, 'resources-demo');
 
             manager.registerClient('resources-demo', client);
@@ -171,7 +171,7 @@ describe('MCPManager Integration Tests', () => {
                 env: {},
             });
 
-            const client = new MCPClient(mockLogger);
+            const client = new DextoMcpClient(mockLogger);
             await client.connect(config, 'resources-demo');
 
             manager.registerClient('resources-demo', client);
@@ -207,7 +207,7 @@ describe('MCPManager Integration Tests', () => {
                 env: {},
             });
 
-            const client = new MCPClient(mockLogger);
+            const client = new DextoMcpClient(mockLogger);
             await client.connect(config, 'resources-demo');
 
             manager.registerClient('resources-demo', client);
@@ -242,7 +242,7 @@ describe('MCPManager Integration Tests', () => {
                 env: {},
             });
 
-            const client = new MCPClient(mockLogger);
+            const client = new DextoMcpClient(mockLogger);
             await client.connect(config, 'memory');
 
             manager.registerClient('memory', client);
@@ -271,7 +271,7 @@ describe('MCPManager Integration Tests', () => {
                 env: {},
             });
 
-            const resourcesClient = new MCPClient(mockLogger);
+            const resourcesClient = new DextoMcpClient(mockLogger);
             await resourcesClient.connect(resourcesConfig, 'resources-demo');
 
             // Connect memory server
@@ -282,7 +282,7 @@ describe('MCPManager Integration Tests', () => {
                 env: {},
             });
 
-            const memoryClient = new MCPClient(mockLogger);
+            const memoryClient = new DextoMcpClient(mockLogger);
             await memoryClient.connect(memoryConfig, 'memory');
 
             // Register both
@@ -313,7 +313,7 @@ describe('MCPManager Integration Tests', () => {
                 env: {},
             });
 
-            const resourcesClient = new MCPClient(mockLogger);
+            const resourcesClient = new DextoMcpClient(mockLogger);
             await resourcesClient.connect(resourcesConfig, 'resources-demo');
 
             const memoryConfig = McpServerConfigSchema.parse({
@@ -323,7 +323,7 @@ describe('MCPManager Integration Tests', () => {
                 env: {},
             });
 
-            const memoryClient = new MCPClient(mockLogger);
+            const memoryClient = new DextoMcpClient(mockLogger);
             await memoryClient.connect(memoryConfig, 'memory');
 
             manager.registerClient('resources-demo', resourcesClient);
@@ -358,7 +358,7 @@ describe('MCPManager Integration Tests', () => {
                 env: {},
             });
 
-            const client = new MCPClient(mockLogger);
+            const client = new DextoMcpClient(mockLogger);
             await client.connect(config, 'memory');
 
             manager.registerClient('memory', client);

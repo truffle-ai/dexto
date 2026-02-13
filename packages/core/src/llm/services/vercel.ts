@@ -9,7 +9,7 @@ import { getEffectiveMaxInputTokens, getMaxInputTokensForModel } from '../regist
 import type { ModelLimits } from '../../context/compaction/overflow.js';
 import { ContentPart } from '../../context/types.js';
 import type { SessionEventBus } from '../../events/index.js';
-import type { IConversationHistoryProvider } from '../../session/history/types.js';
+import type { ConversationHistoryProvider } from '../../session/history/types.js';
 import type { SystemPromptManager } from '../../systemPrompt/manager.js';
 import { VercelMessageFormatter } from '../formatters/vercel.js';
 import type { ValidatedLLMConfig } from '../schemas.js';
@@ -66,7 +66,7 @@ export class VercelLLMService {
         toolManager: ToolManager,
         model: LanguageModel,
         systemPromptManager: SystemPromptManager,
-        historyProvider: IConversationHistoryProvider,
+        historyProvider: ConversationHistoryProvider,
         sessionEventBus: SessionEventBus,
         config: ValidatedLLMConfig,
         sessionId: string,

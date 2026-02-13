@@ -14,7 +14,7 @@ import { LanguageModel } from 'ai';
 import { SessionEventBus } from '../../events/index.js';
 import { createCohere } from '@ai-sdk/cohere';
 import { createLocalLanguageModel } from '../providers/local/ai-sdk-adapter.js';
-import type { IConversationHistoryProvider } from '../../session/history/types.js';
+import type { ConversationHistoryProvider } from '../../session/history/types.js';
 import type { SystemPromptManager } from '../../systemPrompt/manager.js';
 import type { Logger } from '../../logger/v2/types.js';
 import { requiresApiKey } from '../registry/index.js';
@@ -252,7 +252,7 @@ export function createLLMService(
     config: ValidatedLLMConfig,
     toolManager: ToolManager,
     systemPromptManager: SystemPromptManager,
-    historyProvider: IConversationHistoryProvider,
+    historyProvider: ConversationHistoryProvider,
     sessionEventBus: SessionEventBus,
     sessionId: string,
     resourceManager: import('../../resources/index.js').ResourceManager,

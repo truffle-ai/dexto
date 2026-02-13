@@ -16,8 +16,8 @@ import type {
     ValidatedSseServerConfig,
     ValidatedHttpServerConfig,
 } from './schemas.js';
-import { ToolSet } from '../tools/types.js';
-import { IMCPClient, MCPResourceSummary, McpAuthProviderFactory } from './types.js';
+import type { ToolSet } from '../tools/types.js';
+import type { McpClient, MCPResourceSummary, McpAuthProviderFactory } from './types.js';
 import { MCPError } from './errors.js';
 import type {
     GetPromptResult,
@@ -39,7 +39,7 @@ import { safeStringify } from '../utils/safe-stringify.js';
 /**
  * Wrapper on top of Client class provided in model context protocol SDK, to add additional metadata about the server
  */
-export class MCPClient extends EventEmitter implements IMCPClient {
+export class DextoMcpClient extends EventEmitter implements McpClient {
     private client: Client | null = null;
     private transport: any = null;
     private isConnected = false;

@@ -7,7 +7,7 @@ import { ToolErrorCode } from './error-codes.js';
 import { ErrorScope, ErrorType } from '../errors/types.js';
 import { AgentEventBus } from '../events/index.js';
 import type { ApprovalManager } from '../approval/manager.js';
-import type { IAllowedToolsProvider } from './confirmation/allowed-tools-provider/types.js';
+import type { AllowedToolsProvider } from './confirmation/allowed-tools-provider/types.js';
 import { ApprovalStatus } from '../approval/types.js';
 import { createMockLogger } from '../logger/v2/test-utils.js';
 
@@ -24,7 +24,7 @@ vi.mock('../logger/index.js', () => ({
 describe('ToolManager - Unit Tests (Pure Logic)', () => {
     let mockMcpManager: MCPManager;
     let mockApprovalManager: ApprovalManager;
-    let mockAllowedToolsProvider: IAllowedToolsProvider;
+    let mockAllowedToolsProvider: AllowedToolsProvider;
     let mockAgentEventBus: AgentEventBus;
     const mockLogger = createMockLogger();
 

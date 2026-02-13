@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { EventEmitter } from 'events';
 import { MCPManager } from './manager.js';
-import { IMCPClient, MCPResourceSummary } from './types.js';
+import type { McpClient, MCPResourceSummary } from './types.js';
 import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
 import { MCPErrorCode } from './error-codes.js';
 import { ErrorScope, ErrorType } from '../errors/types.js';
@@ -10,7 +10,7 @@ import type { JSONSchema7 } from 'json-schema';
 import type { Prompt } from '@modelcontextprotocol/sdk/types.js';
 
 // Mock client for testing
-class MockMCPClient extends EventEmitter implements IMCPClient {
+class MockMCPClient extends EventEmitter implements McpClient {
     private tools: Record<
         string,
         { name?: string; description?: string; parameters: JSONSchema7 }

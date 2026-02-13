@@ -16,7 +16,7 @@ import {
 import type { SanitizedToolResult } from './types.js';
 import { DynamicContributorContext } from '../systemPrompt/types.js';
 import { SystemPromptManager } from '../systemPrompt/manager.js';
-import { IConversationHistoryProvider } from '../session/history/types.js';
+import type { ConversationHistoryProvider } from '../session/history/types.js';
 import { ContextError } from './errors.js';
 import { ValidatedLLMConfig } from '../llm/schemas.js';
 
@@ -75,7 +75,7 @@ export class ContextManager<TMessage = unknown> {
      */
     private lastCallMessageCount: number | null = null;
 
-    private historyProvider: IConversationHistoryProvider;
+    private historyProvider: ConversationHistoryProvider;
     private readonly sessionId: string;
 
     /**
@@ -103,7 +103,7 @@ export class ContextManager<TMessage = unknown> {
         formatter: VercelMessageFormatter,
         systemPromptManager: SystemPromptManager,
         maxInputTokens: number,
-        historyProvider: IConversationHistoryProvider,
+        historyProvider: ConversationHistoryProvider,
         sessionId: string,
         resourceManager: import('../resources/index.js').ResourceManager,
         logger: Logger

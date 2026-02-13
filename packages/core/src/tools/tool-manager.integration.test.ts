@@ -5,10 +5,10 @@ import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
 import { ToolErrorCode } from './error-codes.js';
 import { ErrorScope, ErrorType } from '../errors/types.js';
 import { z } from 'zod';
-import type { IMCPClient } from '../mcp/types.js';
+import type { McpClient } from '../mcp/types.js';
 import { AgentEventBus } from '../events/index.js';
 import { ApprovalManager } from '../approval/manager.js';
-import type { IAllowedToolsProvider } from './confirmation/allowed-tools-provider/types.js';
+import type { AllowedToolsProvider } from './confirmation/allowed-tools-provider/types.js';
 import { createMockLogger } from '../logger/v2/test-utils.js';
 
 // Mock logger
@@ -26,7 +26,7 @@ vi.mock('../logger/index.js', () => ({
 describe('ToolManager Integration Tests', () => {
     let mcpManager: MCPManager;
     let approvalManager: ApprovalManager;
-    let allowedToolsProvider: IAllowedToolsProvider;
+    let allowedToolsProvider: AllowedToolsProvider;
     let mockAgentEventBus: AgentEventBus;
     let mockSearchService: {
         searchMessages: ReturnType<typeof vi.fn>;
@@ -147,7 +147,7 @@ describe('ToolManager Integration Tests', () => {
     describe('End-to-End Tool Execution', () => {
         it('should execute MCP tools through the complete pipeline', async () => {
             // Create mock MCP client
-            const mockClient: IMCPClient = {
+            const mockClient: McpClient = {
                 getTools: vi.fn().mockResolvedValue({
                     test_tool: {
                         name: 'test_tool',
@@ -225,7 +225,7 @@ describe('ToolManager Integration Tests', () => {
 
         it('should work with both MCP and internal tools together', async () => {
             // Set up MCP tool
-            const mockClient: IMCPClient = {
+            const mockClient: McpClient = {
                 getTools: vi.fn().mockResolvedValue({
                     file_read: {
                         name: 'file_read',
@@ -302,7 +302,7 @@ describe('ToolManager Integration Tests', () => {
                 },
                 mockLogger
             );
-            const mockClient: IMCPClient = {
+            const mockClient: McpClient = {
                 getTools: vi.fn().mockResolvedValue({
                     test_tool: {
                         name: 'test_tool',
@@ -348,7 +348,7 @@ describe('ToolManager Integration Tests', () => {
                 },
                 mockLogger
             );
-            const mockClient: IMCPClient = {
+            const mockClient: McpClient = {
                 getTools: vi.fn().mockResolvedValue({
                     test_tool: {
                         name: 'test_tool',
@@ -390,7 +390,7 @@ describe('ToolManager Integration Tests', () => {
 
     describe('Error Scenarios and Recovery', () => {
         it('should handle MCP client failures gracefully', async () => {
-            const failingClient: IMCPClient = {
+            const failingClient: McpClient = {
                 getTools: vi.fn().mockRejectedValue(new Error('MCP connection failed')),
                 callTool: vi.fn(),
                 listPrompts: vi.fn().mockResolvedValue([]),
@@ -421,7 +421,7 @@ describe('ToolManager Integration Tests', () => {
         });
 
         it('should handle tool execution failures properly', async () => {
-            const failingClient: IMCPClient = {
+            const failingClient: McpClient = {
                 getTools: vi.fn().mockResolvedValue({
                     failing_tool: {
                         name: 'failing_tool',
@@ -485,7 +485,7 @@ describe('ToolManager Integration Tests', () => {
 
     describe('Performance and Caching', () => {
         it('should cache tool discovery results efficiently', async () => {
-            const mockClient: IMCPClient = {
+            const mockClient: McpClient = {
                 getTools: vi.fn().mockResolvedValue({
                     test_tool: {
                         name: 'test_tool',
@@ -529,7 +529,7 @@ describe('ToolManager Integration Tests', () => {
         });
 
         it('should refresh cache when requested', async () => {
-            const mockClient: IMCPClient = {
+            const mockClient: McpClient = {
                 getTools: vi.fn().mockResolvedValue({
                     test_tool: {
                         name: 'test_tool',
@@ -577,7 +577,7 @@ describe('ToolManager Integration Tests', () => {
 
     describe('Session ID Handling', () => {
         it('should pass sessionId through the complete execution pipeline', async () => {
-            const mockClient: IMCPClient = {
+            const mockClient: McpClient = {
                 getTools: vi.fn().mockResolvedValue({
                     test_tool: {
                         name: 'test_tool',
