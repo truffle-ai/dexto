@@ -2,7 +2,7 @@ import type { ModelMessage, AssistantContent, ToolContent, ToolResultPart } from
 import { LLMContext } from '../types.js';
 import type { InternalMessage, AssistantMessage, ToolMessage } from '../../context/types.js';
 import { getImageData, getFileData, filterMessagesByLLMCapabilities } from '../../context/utils.js';
-import type { IDextoLogger } from '../../logger/v2/types.js';
+import type { Logger } from '../../logger/v2/types.js';
 import { DextoLogComponent } from '../../logger/v2/types.js';
 
 /**
@@ -33,9 +33,9 @@ function toUrlIfString<T>(value: T): T | URL {
  * particularly in its handling of function calls and responses.
  */
 export class VercelMessageFormatter {
-    private logger: IDextoLogger;
+    private logger: Logger;
 
-    constructor(logger: IDextoLogger) {
+    constructor(logger: Logger) {
         this.logger = logger.createChild(DextoLogComponent.LLM);
     }
     /**

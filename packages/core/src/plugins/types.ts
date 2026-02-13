@@ -1,5 +1,5 @@
 import type { ValidatedLLMConfig } from '../llm/schemas.js';
-import type { IDextoLogger } from '../logger/v2/types.js';
+import type { Logger } from '../logger/v2/types.js';
 import type { SessionManager } from '../session/index.js';
 import type { MCPManager } from '../mcp/manager.js';
 import type { ToolManager } from '../tools/tool-manager.js';
@@ -65,7 +65,7 @@ export interface PluginExecutionContext {
     llmConfig: ValidatedLLMConfig;
 
     /** Logger scoped to this plugin execution */
-    logger: IDextoLogger;
+    logger: Logger;
 
     /** Abort signal for cancellation */
     abortSignal?: AbortSignal | undefined;
@@ -125,10 +125,10 @@ export interface BeforeResponsePayload {
 }
 
 /**
- * Main plugin interface - implement any subset of these methods
+ * Main plugin type - implement any subset of these methods
  * All methods are optional - plugin must implement at least one extension point
  */
-export interface DextoPlugin {
+export type Plugin = {
     /** Called once at plugin initialization (before agent starts) */
     initialize?(config: Record<string, unknown>): Promise<void>;
 
@@ -158,7 +158,7 @@ export interface DextoPlugin {
 
     /** Called when agent shuts down (cleanup) */
     cleanup?(): Promise<void>;
-}
+};
 
 /**
  * Plugin configuration from YAML (custom plugins)
@@ -177,6 +177,6 @@ export interface PluginConfig {
  * Internal type used by PluginManager
  */
 export interface LoadedPlugin {
-    plugin: DextoPlugin;
+    plugin: Plugin;
     config: PluginConfig;
 }

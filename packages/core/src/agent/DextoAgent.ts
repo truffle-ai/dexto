@@ -15,7 +15,7 @@ import { AgentStateManager } from './state-manager.js';
 import { SessionManager, ChatSession, SessionError } from '../session/index.js';
 import type { SessionMetadata } from '../session/index.js';
 import { AgentServices, type InitializeServicesOptions } from '../utils/service-initializer.js';
-import type { IDextoLogger } from '../logger/v2/types.js';
+import type { Logger } from '../logger/v2/types.js';
 import { Telemetry } from '../telemetry/telemetry.js';
 import { InstrumentClass } from '../telemetry/decorators.js';
 import { trace, context, propagation, type BaggageEntry } from '@opentelemetry/api';
@@ -60,7 +60,7 @@ import {
 } from '../events/index.js';
 import type { IMCPClient } from '../mcp/types.js';
 import type { Tool, ToolSet } from '../tools/types.js';
-import type { ICompactionStrategy } from '../context/compaction/types.js';
+import type { CompactionStrategy } from '../context/compaction/types.js';
 import { SearchService } from '../search/index.js';
 import type { SearchOptions, SearchResponse, SessionSearchResponse } from '../search/index.js';
 import { safeStringify } from '../utils/safe-stringify.js';
@@ -205,10 +205,10 @@ export class DextoAgent {
 
     // DI-provided local tools.
     private readonly injectedTools: Tool[];
-    private readonly injectedCompactionStrategy: ICompactionStrategy | null;
+    private readonly injectedCompactionStrategy: CompactionStrategy | null;
 
     // Logger instance for this agent (dependency injection)
-    public readonly logger: IDextoLogger;
+    public readonly logger: Logger;
 
     /**
      * Validate + normalize runtime settings.

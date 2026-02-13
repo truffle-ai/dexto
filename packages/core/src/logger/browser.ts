@@ -1,17 +1,17 @@
 // Browser-safe console-backed logger implementation.
 // Matches the public surface used by the app/CLI but avoids fs/path/winston.
 
-export interface LoggerOptions {
+export interface GlobalLoggerOptions {
     level?: string;
     silent?: boolean;
     logToConsole?: boolean;
 }
 
-export class Logger {
+export class GlobalLogger {
     private level: string;
     private isSilent: boolean;
 
-    constructor(options: LoggerOptions = {}) {
+    constructor(options: GlobalLoggerOptions = {}) {
         this.level = (options.level || 'info').toLowerCase();
         this.isSilent = options.silent ?? false;
     }
@@ -69,4 +69,4 @@ export class Logger {
     }
 }
 
-export const logger = new Logger();
+export const logger = new GlobalLogger();

@@ -1,7 +1,7 @@
 import { Pool, PoolClient } from 'pg';
 import type { Database } from './types.js';
 import type { PostgresDatabaseConfig } from './schemas.js';
-import type { IDextoLogger } from '@dexto/core';
+import type { Logger } from '@dexto/core';
 import { DextoLogComponent, StorageError } from '@dexto/core';
 
 /**
@@ -12,11 +12,11 @@ import { DextoLogComponent, StorageError } from '@dexto/core';
 export class PostgresStore implements Database {
     private pool: Pool | null = null;
     private connected = false;
-    private logger: IDextoLogger;
+    private logger: Logger;
 
     constructor(
         private config: PostgresDatabaseConfig,
-        logger: IDextoLogger
+        logger: Logger
     ) {
         this.logger = logger.createChild(DextoLogComponent.STORAGE);
     }

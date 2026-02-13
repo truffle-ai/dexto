@@ -1,4 +1,4 @@
-import type { IDextoLogger } from '../logger/v2/types.js';
+import type { Logger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
 import type { Database } from '../storage/types.js';
 import type { InternalMessage } from '../context/types.js';
@@ -15,11 +15,11 @@ import type {
  * TODO: remove duplicate stuff related to session manager instead of directly using DB
  */
 export class SearchService {
-    private logger: IDextoLogger;
+    private logger: Logger;
 
     constructor(
         private database: Database,
-        logger: IDextoLogger
+        logger: Logger
     ) {
         this.logger = logger.createChild(DextoLogComponent.SESSION);
     }

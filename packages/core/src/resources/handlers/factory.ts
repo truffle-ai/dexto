@@ -3,7 +3,7 @@ import { FileSystemResourceHandler } from './filesystem-handler.js';
 import { BlobResourceHandler } from './blob-handler.js';
 import type { InternalResourceServices, InternalResourceHandler } from './types.js';
 import type { ValidatedInternalResourceConfig } from '../schemas.js';
-import type { IDextoLogger } from '../../logger/v2/types.js';
+import type { Logger } from '../../logger/v2/types.js';
 
 /**
  * Factory function for creating internal resource handlers
@@ -11,7 +11,7 @@ import type { IDextoLogger } from '../../logger/v2/types.js';
 export function createInternalResourceHandler(
     config: ValidatedInternalResourceConfig,
     services: InternalResourceServices,
-    logger: IDextoLogger
+    logger: Logger
 ): InternalResourceHandler {
     const type = config.type;
     if (type === 'filesystem') {

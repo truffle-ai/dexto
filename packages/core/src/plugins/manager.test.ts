@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { PluginManager } from './manager.js';
-import type { DextoPlugin, PluginExecutionContext, PluginResult } from './types.js';
+import type { Plugin, PluginExecutionContext, PluginResult } from './types.js';
 import type { ExecutionContextOptions } from './manager.js';
 import { createMockLogger } from '../logger/v2/test-utils.js';
 import { LLMConfigSchema } from '../llm/schemas.js';
@@ -35,7 +35,7 @@ describe('PluginManager', () => {
                 agentEventBus: {} as unknown as import('../events/index.js').AgentEventBus,
                 storageManager: {} as unknown as import('../storage/index.js').StorageManager,
             },
-            [{} satisfies DextoPlugin],
+            [{} satisfies Plugin],
             logger
         );
 
@@ -47,13 +47,13 @@ describe('PluginManager', () => {
     it('applies modifications in order', async () => {
         const logger = createMockLogger();
 
-        const pluginA: DextoPlugin = {
+        const pluginA: Plugin = {
             async beforeResponse(payload, _context): Promise<PluginResult> {
                 return { ok: true, modify: { ...payload, content: 'A' } };
             },
         };
 
-        const pluginB: DextoPlugin = {
+        const pluginB: Plugin = {
             async beforeResponse(payload, _context): Promise<PluginResult> {
                 return { ok: true, modify: { ...payload, model: 'B' } };
             },
@@ -86,7 +86,7 @@ describe('PluginManager', () => {
     it('throws on cancellation', async () => {
         const logger = createMockLogger();
 
-        const plugin: DextoPlugin = {
+        const plugin: Plugin = {
             async beforeResponse(
                 _payload,
                 _context: PluginExecutionContext
@@ -120,7 +120,7 @@ describe('PluginManager', () => {
     it('wraps thrown errors as PLUGIN_EXECUTION_FAILED', async () => {
         const logger = createMockLogger();
 
-        const plugin: DextoPlugin = {
+        const plugin: Plugin = {
             async beforeResponse(): Promise<PluginResult> {
                 throw new Error('boom');
             },

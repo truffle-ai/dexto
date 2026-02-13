@@ -1,6 +1,6 @@
 import { createHash } from 'crypto';
 import { Readable } from 'stream';
-import type { IDextoLogger } from '@dexto/core';
+import type { Logger } from '@dexto/core';
 import { DextoLogComponent, StorageError } from '@dexto/core';
 import type {
     BlobStore,
@@ -39,12 +39,12 @@ export class MemoryBlobStore implements BlobStore {
     private config: InMemoryBlobStoreConfig;
     private blobs: Map<string, { data: Buffer; metadata: StoredBlobMetadata }> = new Map();
     private connected = false;
-    private logger: IDextoLogger;
+    private logger: Logger;
 
-    constructor(logger: IDextoLogger);
-    constructor(options: MemoryBlobStoreOptions, logger: IDextoLogger);
-    constructor(optionsOrLogger: MemoryBlobStoreOptions | IDextoLogger, logger?: IDextoLogger) {
-        const resolvedLogger = logger ?? (optionsOrLogger as IDextoLogger);
+    constructor(logger: Logger);
+    constructor(options: MemoryBlobStoreOptions, logger: Logger);
+    constructor(optionsOrLogger: MemoryBlobStoreOptions | Logger, logger?: Logger) {
+        const resolvedLogger = logger ?? (optionsOrLogger as Logger);
         const options = logger ? (optionsOrLogger as MemoryBlobStoreOptions) : {};
 
         this.config = InMemoryBlobStoreSchema.parse({ type: 'in-memory', ...options });

@@ -10,7 +10,7 @@ import type {
     StoredBlobMetadata,
 } from '../storage/blob/types.js';
 import { StorageManager } from '../storage/storage-manager.js';
-import type { IDextoLogger } from '../logger/v2/types.js';
+import type { Logger } from '../logger/v2/types.js';
 import { createHash, randomUUID } from 'crypto';
 import { promises as fs } from 'fs';
 import os from 'os';
@@ -313,7 +313,7 @@ export function createInMemoryBlobStore(): BlobStore {
     return new InMemoryBlobStore();
 }
 
-export async function createInMemoryStorageManager(logger: IDextoLogger): Promise<StorageManager> {
+export async function createInMemoryStorageManager(logger: Logger): Promise<StorageManager> {
     const manager = new StorageManager(
         {
             cache: createInMemoryCache(),

@@ -1,10 +1,6 @@
 import type { InternalMessage } from '../../types.js';
 import type { ModelLimits } from '../overflow.js';
-import type {
-    CompactionRuntimeContext,
-    CompactionSettings,
-    ICompactionStrategy,
-} from '../types.js';
+import type { CompactionRuntimeContext, CompactionSettings, CompactionStrategy } from '../types.js';
 
 /**
  * No-op compaction strategy that doesn't perform any compaction.
@@ -14,7 +10,7 @@ import type {
  * - Disabling compaction temporarily
  * - Contexts where full history is required
  */
-export class NoOpCompactionStrategy implements ICompactionStrategy {
+export class NoOpCompactionStrategy implements CompactionStrategy {
     readonly name = 'noop';
 
     private readonly settings: CompactionSettings;

@@ -1,5 +1,5 @@
 import type { Database } from './types.js';
-import type { IDextoLogger } from '@dexto/core';
+import type { Logger } from '@dexto/core';
 import type { z } from 'zod';
 
 /**
@@ -25,7 +25,7 @@ export interface DatabaseFactory<TConfig = unknown> {
      * @param logger - Logger instance for the database
      * @returns A Database implementation (or Promise for async backends)
      */
-    create(config: TConfig, logger: IDextoLogger): Database | Promise<Database>;
+    create(config: TConfig, logger: Logger): Database | Promise<Database>;
 
     /**
      * Optional metadata for documentation, UIs, and discovery.

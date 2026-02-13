@@ -12,7 +12,7 @@
  */
 
 import type { AgentConfig } from '@dexto/agent-config';
-import type { DextoAgent, IDextoLogger, TaskForker } from '@dexto/core';
+import type { DextoAgent, Logger, TaskForker } from '@dexto/core';
 import { DextoRuntimeError, ErrorType } from '@dexto/core';
 import { AgentRuntime } from '../../runtime/AgentRuntime.js';
 import { createDelegatingApprovalHandler } from '../../runtime/approval-delegation.js';
@@ -31,7 +31,7 @@ export class AgentSpawnerRuntime implements TaskForker {
     private parentId: string;
     private parentAgent: DextoAgent;
     private config: AgentSpawnerConfig;
-    private logger: IDextoLogger;
+    private logger: Logger;
 
     private resolveBundledAgentConfig(agentId: string): string | null {
         const baseDir = 'agents';
@@ -70,7 +70,7 @@ export class AgentSpawnerRuntime implements TaskForker {
         };
     }
 
-    constructor(parentAgent: DextoAgent, config: AgentSpawnerConfig, logger: IDextoLogger) {
+    constructor(parentAgent: DextoAgent, config: AgentSpawnerConfig, logger: Logger) {
         this.parentAgent = parentAgent;
         this.config = config;
         this.logger = logger;

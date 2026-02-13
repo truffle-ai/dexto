@@ -1,6 +1,6 @@
 import { MCPClient } from './mcp-client.js';
 import { ValidatedServersConfig, ValidatedMcpServerConfig } from './schemas.js';
-import type { IDextoLogger } from '../logger/v2/types.js';
+import type { Logger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
 import { GetPromptResult, ReadResourceResult, Prompt } from '@modelcontextprotocol/sdk/types.js';
 import {
@@ -80,13 +80,13 @@ export class MCPManager {
     private sanitizedNameToServerMap: Map<string, string> = new Map();
     private approvalManager: ApprovalManager | null = null; // Will be set by service initializer
     private authProviderFactory: McpAuthProviderFactory | null = null;
-    private logger: IDextoLogger;
+    private logger: Logger;
 
     // Use a distinctive delimiter that won't appear in normal server/tool names
     // Using double hyphen as it's allowed in LLM tool name patterns (^[a-zA-Z0-9_-]+$)
     private static readonly SERVER_DELIMITER = '--';
 
-    constructor(logger: IDextoLogger) {
+    constructor(logger: Logger) {
         this.logger = logger.createChild(DextoLogComponent.MCP);
     }
 

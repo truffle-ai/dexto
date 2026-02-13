@@ -6,7 +6,7 @@ import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js';
 import { EventEmitter } from 'events';
 import { z } from 'zod';
 
-import type { IDextoLogger } from '../logger/v2/types.js';
+import type { Logger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
 import type { ApprovalManager } from '../approval/manager.js';
 import { ApprovalStatus } from '../approval/types.js';
@@ -52,11 +52,11 @@ export class MCPClient extends EventEmitter implements IMCPClient {
     private serverAlias: string | null = null;
     private timeout: number = 60000; // Default timeout value
     private approvalManager: ApprovalManager | null = null; // Will be set by MCPManager
-    private logger: IDextoLogger;
+    private logger: Logger;
     private authProviderFactory: McpAuthProviderFactory | null = null;
     private currentAuthProvider: ReturnType<McpAuthProviderFactory> | null = null;
 
-    constructor(logger: IDextoLogger) {
+    constructor(logger: Logger) {
         super();
         this.logger = logger.createChild(DextoLogComponent.MCP);
     }

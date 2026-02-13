@@ -1,13 +1,9 @@
 import { generateText, type LanguageModel } from 'ai';
 import type { InternalMessage, ToolCall } from '../../types.js';
 import { isAssistantMessage, isToolMessage } from '../../types.js';
-import type { IDextoLogger } from '../../../logger/v2/types.js';
+import type { Logger } from '../../../logger/v2/types.js';
 import { isOverflow, type ModelLimits } from '../overflow.js';
-import type {
-    CompactionRuntimeContext,
-    CompactionSettings,
-    ICompactionStrategy,
-} from '../types.js';
+import type { CompactionRuntimeContext, CompactionSettings, CompactionStrategy } from '../types.js';
 
 /**
  * Configuration options for ReactiveOverflowCompactionStrategy.
@@ -95,7 +91,7 @@ Conversation to summarize:
  * and filterCompacted() handles excluding old messages at read-time.
  * This preserves full history for audit/recovery purposes.
  */
-export class ReactiveOverflowCompactionStrategy implements ICompactionStrategy {
+export class ReactiveOverflowCompactionStrategy implements CompactionStrategy {
     readonly name = 'reactive-overflow';
 
     private readonly settings: CompactionSettings;
@@ -241,7 +237,7 @@ export class ReactiveOverflowCompactionStrategy implements ICompactionStrategy {
         fullHistory: readonly InternalMessage[],
         existingSummaryIndex: number,
         model: LanguageModel,
-        logger: IDextoLogger
+        logger: Logger
     ): Promise<InternalMessage[]> {
         // Split the subset into messages to summarize and keep
         const { toSummarize, toKeep } = this.splitHistory(messagesAfterSummary);
@@ -363,7 +359,7 @@ export class ReactiveOverflowCompactionStrategy implements ICompactionStrategy {
         messages: readonly InternalMessage[],
         currentTask: string | null,
         model: LanguageModel,
-        logger: IDextoLogger
+        logger: Logger
     ): Promise<string> {
         const formattedConversation = this.formatMessagesForSummary(messages);
 

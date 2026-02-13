@@ -18,7 +18,7 @@ import {
     SessionEventName,
     SessionEventMap,
 } from '../events/index.js';
-import type { IDextoLogger } from '../logger/v2/types.js';
+import type { Logger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
 import { DextoRuntimeError, ErrorScope, ErrorType } from '../errors/index.js';
 import { PluginErrorCode } from '../plugins/error-codes.js';
@@ -26,7 +26,7 @@ import type { InternalMessage, ContentPart } from '../context/types.js';
 import type { UserMessageInput } from './message-queue.js';
 import type { ContentInput } from '../agent/types.js';
 import { getModelPricing, calculateCost } from '../llm/registry/index.js';
-import type { ICompactionStrategy } from '../context/compaction/types.js';
+import type { CompactionStrategy } from '../context/compaction/types.js';
 
 /**
  * Represents an isolated conversation session within a Dexto agent.
@@ -118,7 +118,7 @@ export class ChatSession {
      */
     private currentRunController: AbortController | null = null;
 
-    public readonly logger: IDextoLogger;
+    public readonly logger: Logger;
 
     /**
      * Creates a new ChatSession instance.
@@ -143,10 +143,10 @@ export class ChatSession {
             pluginManager: PluginManager;
             mcpManager: MCPManager;
             sessionManager: import('./session-manager.js').SessionManager;
-            compactionStrategy: ICompactionStrategy | null;
+            compactionStrategy: CompactionStrategy | null;
         },
         public readonly id: string,
-        logger: IDextoLogger
+        logger: Logger
     ) {
         this.logger = logger.createChild(DextoLogComponent.SESSION);
         // Create session-specific event bus

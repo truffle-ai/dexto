@@ -1,5 +1,5 @@
 import { zodToJsonSchema } from 'zod-to-json-schema';
-import type { IDextoLogger } from '../logger/v2/types.js';
+import type { Logger } from '../logger/v2/types.js';
 
 /**
  * Convert Zod schema to JSON Schema format for tool parameters
@@ -10,7 +10,7 @@ import type { IDextoLogger } from '../logger/v2/types.js';
  * Zod v4 has native toJsonSchema() support - migrate when upgrading to Zod v4.
  * See: https://github.com/StefanTerdell/zod-to-json-schema
  */
-export function convertZodSchemaToJsonSchema(zodSchema: any, logger: IDextoLogger): any {
+export function convertZodSchemaToJsonSchema(zodSchema: any, logger: Logger): any {
     try {
         // Use proper library for Zod to JSON Schema conversion
         return zodToJsonSchema(zodSchema);

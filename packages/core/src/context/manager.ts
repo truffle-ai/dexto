@@ -3,7 +3,7 @@ import { VercelMessageFormatter } from '../llm/formatters/vercel.js';
 import { LLMContext } from '../llm/types.js';
 import type { InternalMessage, AssistantMessage, ToolCall } from './types.js';
 import { isSystemMessage, isUserMessage, isAssistantMessage, isToolMessage } from './types.js';
-import type { IDextoLogger } from '../logger/v2/types.js';
+import type { Logger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
 import { eventBus } from '../events/index.js';
 import {
@@ -85,7 +85,7 @@ export class ContextManager<TMessage = unknown> {
      */
     private resourceManager: import('../resources/index.js').ResourceManager;
 
-    private logger: IDextoLogger;
+    private logger: Logger;
 
     /**
      * Creates a new ContextManager instance
@@ -106,7 +106,7 @@ export class ContextManager<TMessage = unknown> {
         historyProvider: IConversationHistoryProvider,
         sessionId: string,
         resourceManager: import('../resources/index.js').ResourceManager,
-        logger: IDextoLogger
+        logger: Logger
     ) {
         this.llmConfig = llmConfig;
         this.formatter = formatter;

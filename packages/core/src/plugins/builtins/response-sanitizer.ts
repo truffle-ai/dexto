@@ -1,5 +1,5 @@
 import type {
-    DextoPlugin,
+    Plugin,
     BeforeResponsePayload,
     PluginExecutionContext,
     PluginResult,
@@ -29,7 +29,7 @@ const DEFAULTS: Required<ResponseSanitizerConfig> = {
  * This demonstrates how plugins can modify response content before it's sent to users,
  * using the beforeResponse extension point.
  */
-export class ResponseSanitizerPlugin implements DextoPlugin {
+export class ResponseSanitizerPlugin implements Plugin {
     private redactEmails: boolean = DEFAULTS.redactEmails;
     private redactApiKeys: boolean = DEFAULTS.redactApiKeys;
     private maxResponseLength: number = DEFAULTS.maxResponseLength;

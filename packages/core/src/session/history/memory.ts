@@ -1,6 +1,6 @@
 import type { InternalMessage } from '../../context/types.js';
 import type { IConversationHistoryProvider } from './types.js';
-import type { IDextoLogger } from '../../logger/v2/types.js';
+import type { Logger } from '../../logger/v2/types.js';
 
 /**
  * Lightweight in-memory history provider for ephemeral, isolated LLM calls.
@@ -10,7 +10,7 @@ import type { IDextoLogger } from '../../logger/v2/types.js';
 export class MemoryHistoryProvider implements IConversationHistoryProvider {
     private messages: InternalMessage[] = [];
 
-    constructor(private logger: IDextoLogger) {}
+    constructor(private logger: Logger) {}
 
     async getHistory(): Promise<InternalMessage[]> {
         // Return a shallow copy to prevent external mutation

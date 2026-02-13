@@ -2,7 +2,7 @@ import type { Cache } from './cache/types.js';
 import type { Database } from './database/types.js';
 import type { BlobStore } from './blob/types.js';
 import { StorageError } from './errors.js';
-import type { IDextoLogger } from '../logger/v2/types.js';
+import type { Logger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
 
 const HEALTH_CHECK_KEY = 'storage_manager_health_check';
@@ -29,9 +29,9 @@ export class StorageManager {
     private blobStore: BlobStore;
     private initialized = true;
     private connected = false;
-    private logger: IDextoLogger;
+    private logger: Logger;
 
-    constructor(backends: StorageBackends, logger: IDextoLogger) {
+    constructor(backends: StorageBackends, logger: Logger) {
         this.cache = backends.cache;
         this.database = backends.database;
         this.blobStore = backends.blobStore;

@@ -1,7 +1,7 @@
 import { LanguageModel, type ModelMessage } from 'ai';
 import { ToolManager } from '../../tools/tool-manager.js';
 import { LLMServiceConfig } from './types.js';
-import type { IDextoLogger } from '../../logger/v2/types.js';
+import type { Logger } from '../../logger/v2/types.js';
 import { DextoLogComponent } from '../../logger/v2/types.js';
 import { ToolSet } from '../../tools/types.js';
 import { ContextManager } from '../../context/manager.js';
@@ -47,11 +47,11 @@ export class VercelLLMService {
     private contextManager: ContextManager<ModelMessage>;
     private sessionEventBus: SessionEventBus;
     private readonly sessionId: string;
-    private logger: IDextoLogger;
+    private logger: Logger;
     private resourceManager: ResourceManager;
     private messageQueue: MessageQueueService;
     private compactionStrategy:
-        | import('../../context/compaction/types.js').ICompactionStrategy
+        | import('../../context/compaction/types.js').CompactionStrategy
         | null;
     private modelLimits?: ModelLimits;
 
@@ -71,8 +71,8 @@ export class VercelLLMService {
         config: ValidatedLLMConfig,
         sessionId: string,
         resourceManager: ResourceManager,
-        logger: IDextoLogger,
-        compactionStrategy?: import('../../context/compaction/types.js').ICompactionStrategy | null
+        logger: Logger,
+        compactionStrategy?: import('../../context/compaction/types.js').CompactionStrategy | null
     ) {
         this.logger = logger.createChild(DextoLogComponent.LLM);
         this.model = model;
@@ -273,9 +273,7 @@ export class VercelLLMService {
     /**
      * Get the compaction strategy for external access (e.g., session-native compaction)
      */
-    getCompactionStrategy():
-        | import('../../context/compaction/types.js').ICompactionStrategy
-        | null {
+    getCompactionStrategy(): import('../../context/compaction/types.js').CompactionStrategy | null {
         return this.compactionStrategy;
     }
 

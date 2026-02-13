@@ -5,7 +5,7 @@ import type { MemoryManager, ValidatedMemoriesConfig } from '../memory/index.js'
 
 import type { SystemPromptContributor, DynamicContributorContext } from './types.js';
 import { DynamicContributor } from './contributors.js';
-import type { IDextoLogger } from '../logger/v2/types.js';
+import type { Logger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
 import { SystemPromptError } from './errors.js';
 
@@ -16,13 +16,13 @@ import { SystemPromptError } from './errors.js';
 export class SystemPromptManager {
     private contributors: SystemPromptContributor[];
     private memoryManager: MemoryManager;
-    private logger: IDextoLogger;
+    private logger: Logger;
 
     constructor(
         config: ValidatedSystemPromptConfig,
         memoryManager: MemoryManager,
         memoriesConfig: ValidatedMemoriesConfig | undefined,
-        logger: IDextoLogger
+        logger: Logger
     ) {
         this.memoryManager = memoryManager;
         this.logger = logger.createChild(DextoLogComponent.SYSTEM_PROMPT);

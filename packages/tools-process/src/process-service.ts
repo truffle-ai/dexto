@@ -18,7 +18,7 @@ import {
 } from './types.js';
 import { CommandValidator } from './command-validator.js';
 import { ProcessError } from './errors.js';
-import type { IDextoLogger } from '@dexto/core';
+import type { Logger } from '@dexto/core';
 import { DextoLogComponent } from '@dexto/core';
 
 const DEFAULT_TIMEOUT = 120000; // 2 minutes
@@ -53,7 +53,7 @@ export class ProcessService {
     private initialized: boolean = false;
     private initPromise: Promise<void> | null = null;
     private backgroundProcesses: Map<string, BackgroundProcess> = new Map();
-    private logger: IDextoLogger;
+    private logger: Logger;
 
     /**
      * Create a new ProcessService with validated configuration.
@@ -62,7 +62,7 @@ export class ProcessService {
      *                 All required fields have values, defaults already applied.
      * @param logger - Logger instance for this service
      */
-    constructor(config: ProcessConfig, logger: IDextoLogger) {
+    constructor(config: ProcessConfig, logger: Logger) {
         // Config is already fully validated with defaults applied - just use it
         this.config = config;
 

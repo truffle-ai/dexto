@@ -18,15 +18,15 @@ import { SearchService } from '../search/index.js';
 import { StorageManager } from '../storage/index.js';
 import { AgentError } from '../agent/errors.js';
 import { createAllowedToolsProvider } from '../tools/confirmation/allowed-tools-provider/factory.js';
-import type { IDextoLogger } from '../logger/v2/types.js';
+import type { Logger } from '../logger/v2/types.js';
 import type { AgentRuntimeSettings } from '../agent/runtime-config.js';
 import { AgentEventBus } from '../events/index.js';
 import { ResourceManager } from '../resources/manager.js';
 import { ApprovalManager } from '../approval/manager.js';
 import { MemoryManager } from '../memory/index.js';
 import { PluginManager } from '../plugins/manager.js';
-import type { DextoPlugin } from '../plugins/types.js';
-import type { ICompactionStrategy } from '../context/compaction/types.js';
+import type { Plugin } from '../plugins/types.js';
+import type { CompactionStrategy } from '../context/compaction/types.js';
 
 /**
  * Type for the core agent services returned by createAgentServices
@@ -54,7 +54,7 @@ export type ToolManagerFactoryOptions = {
     agentEventBus: AgentEventBus;
     toolPolicies: ToolPolicies;
     tools: Tool[];
-    logger: IDextoLogger;
+    logger: Logger;
 };
 
 export type ToolManagerFactory = (options: ToolManagerFactoryOptions) => ToolManager;
@@ -65,7 +65,7 @@ export type InitializeServicesOptions = {
     toolManager?: ToolManager;
     toolManagerFactory?: ToolManagerFactory;
     storageManager?: StorageManager;
-    plugins?: DextoPlugin[] | undefined;
+    plugins?: Plugin[] | undefined;
 };
 
 // High-level factory to load, validate, and wire up all agent services in one call
@@ -79,10 +79,10 @@ export type InitializeServicesOptions = {
  */
 export async function createAgentServices(
     config: AgentRuntimeSettings,
-    logger: IDextoLogger,
+    logger: Logger,
     agentEventBus: AgentEventBus,
     overrides?: InitializeServicesOptions,
-    compactionStrategy?: ICompactionStrategy | null | undefined
+    compactionStrategy?: CompactionStrategy | null | undefined
 ): Promise<AgentServices> {
     // 0. Initialize telemetry FIRST (before any decorated classes are instantiated)
     // This must happen before creating any services that use @InstrumentClass decorator

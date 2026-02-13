@@ -6,7 +6,7 @@
  */
 
 import { nanoid } from 'nanoid';
-import type { Database, AgentEventBus, IDextoLogger } from '@dexto/core';
+import type { Database, AgentEventBus, Logger } from '@dexto/core';
 import { DextoRuntimeError } from '@dexto/core';
 import { TodoError } from './errors.js';
 import type { Todo, TodoInput, TodoUpdateResult, TodoConfig, TodoStatus } from './types.js';
@@ -23,14 +23,14 @@ type TodoEventEmitter = Pick<AgentEventBus, 'emit'>;
 export class TodoService {
     private database: Database;
     private eventBus: TodoEventEmitter;
-    private logger: IDextoLogger;
+    private logger: Logger;
     private config: Required<TodoConfig>;
     private initialized: boolean = false;
 
     constructor(
         database: Database,
         eventBus: TodoEventEmitter,
-        logger: IDextoLogger,
+        logger: Logger,
         config: TodoConfig = {}
     ) {
         this.database = database;

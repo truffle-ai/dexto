@@ -1,5 +1,5 @@
 import type {
-    DextoPlugin,
+    Plugin,
     BeforeLLMRequestPayload,
     BeforeResponsePayload,
     BeforeToolCallPayload,
@@ -19,7 +19,7 @@ export type RequestLoggerPluginConfig = {
 /**
  * Logs user requests, tool calls/results, and assistant responses to a file.
  */
-export class RequestLoggerPlugin implements DextoPlugin {
+export class RequestLoggerPlugin implements Plugin {
     private logFilePath: string = '';
     private logFileHandle: fs.FileHandle | null = null;
     private requestCount: number = 0;

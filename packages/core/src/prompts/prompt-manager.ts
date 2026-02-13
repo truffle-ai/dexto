@@ -11,7 +11,7 @@ import {
     type CreateCustomPromptInput,
 } from './providers/custom-prompt-provider.js';
 import { PromptError } from './errors.js';
-import type { IDextoLogger } from '../logger/v2/types.js';
+import type { Logger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
 import type { ResourceManager } from '../resources/manager.js';
 import type { Database } from '../storage/database/types.js';
@@ -30,7 +30,7 @@ export class PromptManager {
     private promptIndex: Map<string, PromptCacheEntry> | undefined;
     private aliasMap: Map<string, string> = new Map();
     private buildPromise: Promise<void> | null = null;
-    private logger: IDextoLogger;
+    private logger: Logger;
 
     constructor(
         mcpManager: MCPManager,
@@ -38,7 +38,7 @@ export class PromptManager {
         agentConfig: AgentRuntimeSettings,
         private readonly eventBus: AgentEventBus,
         private readonly database: Database,
-        logger: IDextoLogger
+        logger: Logger
     ) {
         this.logger = logger.createChild(DextoLogComponent.PROMPT);
         this.configProvider = new ConfigPromptProvider(agentConfig, this.logger);

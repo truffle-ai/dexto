@@ -10,7 +10,7 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { existsSync } from 'node:fs';
-import type { IDextoLogger } from '@dexto/core';
+import type { Logger } from '@dexto/core';
 import { PlanMetaSchema } from './types.js';
 import type { Plan, PlanMeta, PlanServiceOptions, PlanUpdateResult } from './types.js';
 import { PlanError } from './errors.js';
@@ -23,9 +23,9 @@ const META_FILENAME = 'plan-meta.json';
  */
 export class PlanService {
     private basePath: string;
-    private logger: IDextoLogger | undefined;
+    private logger: Logger | undefined;
 
-    constructor(options: PlanServiceOptions, logger?: IDextoLogger) {
+    constructor(options: PlanServiceOptions, logger?: Logger) {
         this.basePath = options.basePath;
         this.logger = logger;
     }

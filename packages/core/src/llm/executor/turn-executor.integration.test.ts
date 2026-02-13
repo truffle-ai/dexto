@@ -18,7 +18,7 @@ import { createInMemoryStorageManager } from '../../test-utils/in-memory-storage
 import type { LanguageModel, ModelMessage } from 'ai';
 import type { LLMContext } from '../types.js';
 import type { ValidatedLLMConfig } from '../schemas.js';
-import type { IDextoLogger } from '../../logger/v2/types.js';
+import type { Logger } from '../../logger/v2/types.js';
 
 // Only mock the AI SDK's streamText/generateText - everything else is real
 vi.mock('ai', async (importOriginal) => {
@@ -120,7 +120,7 @@ describe('TurnExecutor Integration Tests', () => {
     let agentEventBus: AgentEventBus;
     let resourceManager: ResourceManager;
     let messageQueue: MessageQueueService;
-    let logger: IDextoLogger;
+    let logger: Logger;
     let historyProvider: MemoryHistoryProvider;
     let mcpManager: MCPManager;
     let approvalManager: ApprovalManager;

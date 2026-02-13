@@ -1,5 +1,5 @@
 import type { BlobStore } from './types.js';
-import type { IDextoLogger } from '@dexto/core';
+import type { Logger } from '@dexto/core';
 import type { z } from 'zod';
 
 /**
@@ -21,7 +21,7 @@ export interface BlobStoreFactory<TConfig = unknown> {
      * @param logger - Logger instance for the blob store
      * @returns A BlobStore implementation
      */
-    create(config: TConfig, logger: IDextoLogger): BlobStore | Promise<BlobStore>;
+    create(config: TConfig, logger: Logger): BlobStore | Promise<BlobStore>;
 
     /**
      * Optional metadata for documentation, UIs, and discovery.

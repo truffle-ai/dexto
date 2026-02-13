@@ -2,7 +2,7 @@ import type { ValidatedLLMConfig } from '../llm/schemas.js';
 import type { ToolManager } from '../tools/tool-manager.js';
 import type { SystemPromptManager } from '../systemPrompt/manager.js';
 import type { ResourceManager } from '../resources/index.js';
-import type { IDextoLogger } from '../logger/v2/types.js';
+import type { Logger } from '../logger/v2/types.js';
 import { createLLMService } from '../llm/services/factory.js';
 import { SessionEventBus } from '../events/index.js';
 import { MemoryHistoryProvider } from './history/memory.js';
@@ -23,7 +23,7 @@ export async function generateSessionTitle(
     systemPromptManager: SystemPromptManager,
     resourceManager: ResourceManager,
     userText: string,
-    logger: IDextoLogger,
+    logger: Logger,
     opts: { timeoutMs?: number } = {}
 ): Promise<GenerateSessionTitleResult> {
     const timeoutMs = opts.timeoutMs;

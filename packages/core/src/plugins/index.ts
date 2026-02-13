@@ -7,7 +7,7 @@
 
 // Core types for plugin development
 export type {
-    DextoPlugin,
+    Plugin,
     PluginConfig,
     PluginExecutionContext,
     PluginResult,

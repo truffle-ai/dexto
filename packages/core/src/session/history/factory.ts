@@ -1,6 +1,6 @@
 import type { IConversationHistoryProvider } from './types.js';
 import type { Database } from '../../storage/types.js';
-import type { IDextoLogger } from '../../logger/v2/types.js';
+import type { Logger } from '../../logger/v2/types.js';
 import { DatabaseHistoryProvider } from './database.js';
 
 /**
@@ -12,7 +12,7 @@ import { DatabaseHistoryProvider } from './database.js';
 export function createDatabaseHistoryProvider(
     database: Database,
     sessionId: string,
-    logger: IDextoLogger
+    logger: Logger
 ): IConversationHistoryProvider {
     return new DatabaseHistoryProvider(sessionId, database, logger);
 }

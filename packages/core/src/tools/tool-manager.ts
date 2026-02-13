@@ -5,7 +5,7 @@ import type { ToolDisplayData } from './display-types.js';
 import { ToolError } from './errors.js';
 import { ToolErrorCode } from './error-codes.js';
 import { DextoRuntimeError } from '../errors/index.js';
-import type { IDextoLogger } from '../logger/v2/types.js';
+import type { Logger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
 import { convertZodSchemaToJsonSchema } from '../utils/schema.js';
 import type { AgentEventBus } from '../events/index.js';
@@ -87,7 +87,7 @@ export class ToolManager {
     // Tool caching for performance
     private toolsCache: ToolSet = {};
     private cacheValid: boolean = false;
-    private logger: IDextoLogger;
+    private logger: Logger;
 
     // Session-level auto-approve tools for skills
     // When a skill with allowedTools is invoked, those tools are auto-approved (skip confirmation)
@@ -106,7 +106,7 @@ export class ToolManager {
         agentEventBus: AgentEventBus,
         toolPolicies: ToolPolicies,
         tools: Tool[],
-        logger: IDextoLogger
+        logger: Logger
     ) {
         this.mcpManager = mcpManager;
         this.approvalManager = approvalManager;

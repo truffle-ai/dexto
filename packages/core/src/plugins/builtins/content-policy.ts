@@ -1,5 +1,5 @@
 import type {
-    DextoPlugin,
+    Plugin,
     PluginResult,
     PluginNotice,
     BeforeLLMRequestPayload,
@@ -40,7 +40,7 @@ function containsAbusiveLanguage(text: string): boolean {
  *
  * Ported from feat/hooks content-policy hook implementation
  */
-export class ContentPolicyPlugin implements DextoPlugin {
+export class ContentPolicyPlugin implements Plugin {
     private config: Required<ContentPolicyConfig> = DEFAULTS;
 
     async initialize(config: Record<string, unknown>): Promise<void> {

@@ -1,7 +1,7 @@
 import { SystemPromptContributor, DynamicContributorContext } from './types.js';
 import { readFile, stat } from 'fs/promises';
 import { resolve, extname } from 'path';
-import type { IDextoLogger } from '../logger/v2/types.js';
+import type { Logger } from '../logger/v2/types.js';
 import { SystemPromptError } from './errors.js';
 import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
 import type { MemoryManager } from '../memory/index.js';
@@ -43,14 +43,14 @@ export interface FileContributorOptions {
 export class FileContributor implements SystemPromptContributor {
     // Basic in-memory cache to avoid reading files on every prompt build
     private cache: Map<string, string> = new Map();
-    private logger: IDextoLogger;
+    private logger: Logger;
 
     constructor(
         public id: string,
         public priority: number,
         private files: string[],
         private options: FileContributorOptions = {},
-        logger: IDextoLogger
+        logger: Logger
     ) {
         this.logger = logger;
         this.logger.debug(`[FileContributor] Created "${id}" with files: ${JSON.stringify(files)}`);
@@ -169,14 +169,14 @@ export interface MemoryContributorOptions {
  * This enables memories to be automatically available in every conversation.
  */
 export class MemoryContributor implements SystemPromptContributor {
-    private logger: IDextoLogger;
+    private logger: Logger;
 
     constructor(
         public id: string,
         public priority: number,
         private memoryManager: MemoryManager,
         private options: MemoryContributorOptions = {},
-        logger: IDextoLogger
+        logger: Logger
     ) {
         this.logger = logger;
         this.logger.debug(
@@ -242,13 +242,13 @@ export class MemoryContributor implements SystemPromptContributor {
  * This enables the LLM to know what skills are available without hardcoding them.
  */
 export class SkillsContributor implements SystemPromptContributor {
-    private logger: IDextoLogger;
+    private logger: Logger;
 
     constructor(
         public id: string,
         public priority: number,
         private promptManager: PromptManager,
-        logger: IDextoLogger
+        logger: Logger
     ) {
         this.logger = logger;
         this.logger.debug(`[SkillsContributor] Created "${id}"`);

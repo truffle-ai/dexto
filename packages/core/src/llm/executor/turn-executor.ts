@@ -17,7 +17,7 @@ import { StreamProcessor } from './stream-processor.js';
 import { ExecutorResult } from './types.js';
 import { buildProviderOptions } from './provider-options.js';
 import { TokenUsage } from '../types.js';
-import type { IDextoLogger } from '../../logger/v2/types.js';
+import type { Logger } from '../../logger/v2/types.js';
 import { DextoLogComponent } from '../../logger/v2/types.js';
 import type { SessionEventBus, LLMFinishReason } from '../../events/index.js';
 import type { ResourceManager } from '../../resources/index.js';
@@ -31,7 +31,7 @@ import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
 import { ErrorScope, ErrorType } from '../../errors/types.js';
 import { LLMErrorCode } from '../error-codes.js';
 import { toError } from '../../utils/error-conversion.js';
-import type { ICompactionStrategy } from '../../context/compaction/types.js';
+import type { CompactionStrategy } from '../../context/compaction/types.js';
 import type { ModelLimits } from '../../context/compaction/overflow.js';
 
 /**
@@ -59,13 +59,13 @@ const LOCAL_PROVIDERS: readonly LLMProvider[] = ['ollama', 'local'] as const;
  * A "step" = ONE LLM call + ALL tool executions from that call.
  */
 export class TurnExecutor {
-    private logger: IDextoLogger;
+    private logger: Logger;
     /**
      * Per-step abort controller. Created fresh for each iteration of the loop.
      * This allows soft cancel (abort current step) while still continuing with queued messages.
      */
     private stepAbortController: AbortController;
-    private compactionStrategy: ICompactionStrategy | null = null;
+    private compactionStrategy: CompactionStrategy | null = null;
     /**
      * Map to track approval metadata by toolCallId.
      * Used to pass approval info from tool execution to result persistence.
@@ -91,11 +91,11 @@ export class TurnExecutor {
             reasoningEffort?: 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | undefined;
         },
         private llmContext: LLMContext,
-        logger: IDextoLogger,
+        logger: Logger,
         private messageQueue: MessageQueueService,
         private modelLimits?: ModelLimits,
         private externalSignal?: AbortSignal,
-        compactionStrategy: ICompactionStrategy | null = null
+        compactionStrategy: CompactionStrategy | null = null
     ) {
         this.logger = logger.createChild(DextoLogComponent.EXECUTOR);
         // Initial controller - will be replaced per-step in execute()

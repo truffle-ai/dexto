@@ -1,5 +1,5 @@
 import type { Cache } from './types.js';
-import type { IDextoLogger } from '@dexto/core';
+import type { Logger } from '@dexto/core';
 import type { z } from 'zod';
 
 /**
@@ -25,7 +25,7 @@ export interface CacheFactory<TConfig = unknown> {
      * @param logger - Logger instance for the cache
      * @returns A Cache implementation (or Promise for async backends)
      */
-    create(config: TConfig, logger: IDextoLogger): Cache | Promise<Cache>;
+    create(config: TConfig, logger: Logger): Cache | Promise<Cache>;
 
     /**
      * Optional metadata for documentation, UIs, and discovery.

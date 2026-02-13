@@ -1,4 +1,4 @@
-import type { DextoPlugin } from '@dexto/core';
+import type { Plugin } from '@dexto/core';
 import type { ValidatedAgentConfig } from '../schemas/agent-config.js';
 import type { DextoImageModule } from '../image/types.js';
 import type { ResolvedServices } from './types.js';
@@ -120,7 +120,7 @@ export async function resolveServicesFromConfig(
 
     // 4) Plugins
     const pluginEntries = config.plugins ?? image.defaults?.plugins ?? [];
-    const plugins: DextoPlugin[] = [];
+    const plugins: Plugin[] = [];
     for (const entry of pluginEntries) {
         if ((entry as { enabled?: boolean }).enabled === false) {
             continue;

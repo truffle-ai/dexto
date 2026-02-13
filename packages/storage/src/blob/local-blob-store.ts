@@ -2,7 +2,7 @@ import { promises as fs, createReadStream } from 'fs';
 import path from 'path';
 import { createHash } from 'crypto';
 import { pathToFileURL } from 'url';
-import type { IDextoLogger } from '@dexto/core';
+import type { Logger } from '@dexto/core';
 import { DextoLogComponent, StorageError } from '@dexto/core';
 import type {
     BlobStore,
@@ -93,11 +93,11 @@ export class LocalBlobStore implements BlobStore {
     private statsCache: { count: number; totalSize: number } | null = null;
     private statsCachePromise: Promise<void> | null = null;
     private lastStatsRefresh: number = 0;
-    private logger: IDextoLogger;
+    private logger: Logger;
 
     private static readonly STATS_REFRESH_INTERVAL_MS = 60000; // 1 minute
 
-    constructor(config: LocalBlobStoreConfig, logger: IDextoLogger) {
+    constructor(config: LocalBlobStoreConfig, logger: Logger) {
         this.config = config;
         // Store path is provided via CLI enrichment
         this.storePath = config.storePath;

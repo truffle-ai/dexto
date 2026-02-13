@@ -16,7 +16,7 @@ import { createCohere } from '@ai-sdk/cohere';
 import { createLocalLanguageModel } from '../providers/local/ai-sdk-adapter.js';
 import type { IConversationHistoryProvider } from '../../session/history/types.js';
 import type { SystemPromptManager } from '../../systemPrompt/manager.js';
-import type { IDextoLogger } from '../../logger/v2/types.js';
+import type { Logger } from '../../logger/v2/types.js';
 import { requiresApiKey } from '../registry/index.js';
 import { getPrimaryApiKeyEnvVar, resolveApiKeyForProvider } from '../../utils/api-key-resolver.js';
 
@@ -256,8 +256,8 @@ export function createLLMService(
     sessionEventBus: SessionEventBus,
     sessionId: string,
     resourceManager: import('../../resources/index.js').ResourceManager,
-    logger: IDextoLogger,
-    compactionStrategy?: import('../../context/compaction/types.js').ICompactionStrategy | null
+    logger: Logger,
+    compactionStrategy?: import('../../context/compaction/types.js').CompactionStrategy | null
 ): VercelLLMService {
     const model = createVercelModel(config, { sessionId });
 

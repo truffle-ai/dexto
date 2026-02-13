@@ -1,9 +1,9 @@
 import type { BlobStore } from '../storage/blob/types.js';
 import type { Cache } from '../storage/cache/types.js';
 import type { Database } from '../storage/database/types.js';
-import type { ICompactionStrategy } from '../context/compaction/types.js';
-import type { IDextoLogger } from '../logger/v2/types.js';
-import type { DextoPlugin } from '../plugins/types.js';
+import type { CompactionStrategy } from '../context/compaction/types.js';
+import type { Logger } from '../logger/v2/types.js';
+import type { Plugin } from '../plugins/types.js';
 import type { Tool } from '../tools/types.js';
 import type { InitializeServicesOptions } from '../utils/service-initializer.js';
 import type { DextoAgentConfigInput } from './runtime-config.js';
@@ -42,7 +42,7 @@ export interface DextoAgentOptions {
      * Product layers should typically create this from `config.logger` via `createLogger()`,
      * but may supply a custom implementation.
      */
-    logger: IDextoLogger;
+    logger: Logger;
 
     /** Concrete storage backends (DI-first). */
     storage: { blob: BlobStore; database: Database; cache: Cache };
@@ -51,14 +51,14 @@ export interface DextoAgentOptions {
     tools?: Tool[] | undefined;
 
     /** Concrete plugins installed for the agent (DI-first). */
-    plugins?: DextoPlugin[] | undefined;
+    plugins?: Plugin[] | undefined;
 
     /**
      * Context compaction controller (DI-first).
      *
      * If omitted/null, automatic compaction is disabled.
      */
-    compaction?: ICompactionStrategy | null | undefined;
+    compaction?: CompactionStrategy | null | undefined;
 }
 
 export interface DextoAgentOptions extends DextoAgentConfigInput {}

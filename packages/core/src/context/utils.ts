@@ -9,7 +9,7 @@ import {
     isToolMessage,
 } from './types.js';
 import { isValidDisplayData, type ToolDisplayData } from '../tools/display-types.js';
-import type { IDextoLogger } from '../logger/v2/types.js';
+import type { Logger } from '../logger/v2/types.js';
 import { validateModelFileSupport } from '../llm/registry/index.js';
 import { LLMContext } from '../llm/types.js';
 import { safeStringify } from '../utils/safe-stringify.js';
@@ -299,7 +299,7 @@ function buildToolBlobName(
 async function resolveBlobReferenceToParts(
     resourceUri: string,
     resourceManager: import('../resources/index.js').ResourceManager,
-    logger: IDextoLogger,
+    logger: Logger,
     allowedMediaTypes?: string[]
 ): Promise<Array<TextPart | ImagePart | FilePart>> {
     try {
@@ -561,7 +561,7 @@ export function getImageData(
     imagePart: {
         image: string | Uint8Array | Buffer | ArrayBuffer | URL;
     },
-    logger: IDextoLogger
+    logger: Logger
 ): string {
     const { image } = imagePart;
     if (typeof image === 'string') {
@@ -589,7 +589,7 @@ export function getFileData(
     filePart: {
         data: string | Uint8Array | Buffer | ArrayBuffer | URL;
     },
-    logger: IDextoLogger
+    logger: Logger
 ): string {
     const { data } = filePart;
     if (typeof data === 'string') {
@@ -620,7 +620,7 @@ export async function getImageDataWithBlobSupport(
         image: string | Uint8Array | Buffer | ArrayBuffer | URL;
     },
     resourceManager: import('../resources/index.js').ResourceManager,
-    logger: IDextoLogger
+    logger: Logger
 ): Promise<string> {
     const { image } = imagePart;
 
@@ -662,7 +662,7 @@ export async function getFileDataWithBlobSupport(
         data: string | Uint8Array | Buffer | ArrayBuffer | URL;
     },
     resourceManager: import('../resources/index.js').ResourceManager,
-    logger: IDextoLogger
+    logger: Logger
 ): Promise<string> {
     const { data } = filePart;
 
@@ -699,7 +699,7 @@ export async function getFileDataWithBlobSupport(
 async function expandBlobsInText(
     text: string,
     resourceManager: import('../resources/index.js').ResourceManager,
-    logger: IDextoLogger,
+    logger: Logger,
     allowedMediaTypes?: string[]
 ): Promise<Array<TextPart | ImagePart | FilePart>> {
     if (!text.includes('@blob:')) {
@@ -776,28 +776,28 @@ async function expandBlobsInText(
 export async function expandBlobReferences(
     content: null,
     resourceManager: import('../resources/index.js').ResourceManager,
-    logger: IDextoLogger,
+    logger: Logger,
     allowedMediaTypes?: string[]
 ): Promise<ContentPart[]>;
 // Overload: ContentPart[] returns ContentPart[]
 export async function expandBlobReferences(
     content: ContentPart[],
     resourceManager: import('../resources/index.js').ResourceManager,
-    logger: IDextoLogger,
+    logger: Logger,
     allowedMediaTypes?: string[]
 ): Promise<ContentPart[]>;
 // Overload: ContentPart[] | null (for InternalMessage['content'])
 export async function expandBlobReferences(
     content: ContentPart[] | null,
     resourceManager: import('../resources/index.js').ResourceManager,
-    logger: IDextoLogger,
+    logger: Logger,
     allowedMediaTypes?: string[]
 ): Promise<ContentPart[]>;
 // Implementation
 export async function expandBlobReferences(
     content: ContentPart[] | null,
     resourceManager: import('../resources/index.js').ResourceManager,
-    logger: IDextoLogger,
+    logger: Logger,
     allowedMediaTypes?: string[]
 ): Promise<ContentPart[]> {
     // Handle null/undefined content
@@ -895,7 +895,7 @@ export async function expandBlobReferences(
 export function filterMessagesByLLMCapabilities(
     messages: InternalMessage[],
     config: LLMContext,
-    logger: IDextoLogger
+    logger: Logger
 ): InternalMessage[] {
     try {
         let totalImagesFiltered = 0;
@@ -1103,7 +1103,7 @@ export function matchesAnyMimePattern(mimeType: string | undefined, patterns: st
  * @param fileTypes Array of supported file types from LLM registry (e.g., ['image', 'pdf', 'audio'])
  * @returns Array of MIME type patterns (e.g., ['image/*', 'application/pdf', 'audio/*'])
  */
-export function fileTypesToMimePatterns(fileTypes: string[], logger: IDextoLogger): string[] {
+export function fileTypesToMimePatterns(fileTypes: string[], logger: Logger): string[] {
     const patterns: string[] = [];
     for (const fileType of fileTypes) {
         switch (fileType) {
@@ -1165,7 +1165,7 @@ function generateMediaPlaceholder(metadata: {
  * Recursively sanitize objects by replacing suspiciously-large base64 strings
  * with placeholders to avoid blowing up the context window.
  */
-function sanitizeDeepObject(obj: unknown, logger: IDextoLogger): unknown {
+function sanitizeDeepObject(obj: unknown, logger: Logger): unknown {
     if (obj == null) return obj;
     if (typeof obj === 'string') {
         if (isLikelyBase64String(obj)) {
@@ -1191,7 +1191,7 @@ function sanitizeDeepObject(obj: unknown, logger: IDextoLogger): unknown {
 
 export async function normalizeToolResult(
     result: unknown,
-    logger: IDextoLogger
+    logger: Logger
 ): Promise<NormalizedToolResult> {
     const content = await sanitizeToolResultToContentWithBlobs(
         result,
@@ -1251,7 +1251,7 @@ function shouldPersistInlineMedia(hint: InlineMediaHint): boolean {
 export async function persistToolMedia(
     normalized: NormalizedToolResult,
     options: PersistToolMediaOptions,
-    logger: IDextoLogger
+    logger: Logger
 ): Promise<PersistToolMediaResult> {
     const parts = normalized.parts.map((part) => clonePart(part));
     const blobStore = options.blobStore;
@@ -1370,7 +1370,7 @@ export async function persistToolMedia(
  */
 export async function sanitizeToolResultToContentWithBlobs(
     result: unknown,
-    logger: IDextoLogger,
+    logger: Logger,
     blobStore?: import('../storage/blob/types.js').BlobStore,
     namingOptions?: ToolBlobNamingOptions
 ): Promise<InternalMessage['content']> {
@@ -1832,7 +1832,7 @@ export async function sanitizeToolResult(
         toolCallId: string;
         success: boolean;
     },
-    logger: IDextoLogger
+    logger: Logger
 ): Promise<SanitizedToolResult> {
     // Extract _display from tool result before normalization (if present)
     // Strip it from the payload to avoid duplicating large display data in LLM content

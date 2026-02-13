@@ -8,7 +8,7 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { glob } from 'glob';
 import safeRegex from 'safe-regex';
-import { getDextoPath, IDextoLogger, DextoLogComponent } from '@dexto/core';
+import { getDextoPath, Logger, DextoLogComponent } from '@dexto/core';
 import {
     FileSystemConfig,
     FileContent,
@@ -47,7 +47,7 @@ export class FileSystemService {
     private pathValidator: PathValidator;
     private initialized: boolean = false;
     private initPromise: Promise<void> | null = null;
-    private logger: IDextoLogger;
+    private logger: Logger;
 
     /**
      * Create a new FileSystemService with validated configuration.
@@ -56,7 +56,7 @@ export class FileSystemService {
      *                 All required fields have values, defaults already applied.
      * @param logger - Logger instance for this service
      */
-    constructor(config: FileSystemConfig, logger: IDextoLogger) {
+    constructor(config: FileSystemConfig, logger: Logger) {
         // Config is already fully validated with defaults applied - just use it
         this.config = config;
 

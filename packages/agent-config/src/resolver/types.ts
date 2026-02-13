@@ -1,15 +1,15 @@
 import type { BlobStore } from '@dexto/core';
 import type { Cache } from '@dexto/core';
 import type { Database } from '@dexto/core';
-import type { DextoPlugin } from '@dexto/core';
-import type { ICompactionStrategy } from '@dexto/core';
-import type { IDextoLogger } from '@dexto/core';
+import type { Plugin } from '@dexto/core';
+import type { CompactionStrategy } from '@dexto/core';
+import type { Logger } from '@dexto/core';
 import type { Tool } from '@dexto/core';
 
 export interface ResolvedServices {
-    logger: IDextoLogger;
+    logger: Logger;
     storage: { blob: BlobStore; database: Database; cache: Cache };
     tools: Tool[];
-    plugins: DextoPlugin[];
-    compaction: ICompactionStrategy | null;
+    plugins: Plugin[];
+    compaction: CompactionStrategy | null;
 }

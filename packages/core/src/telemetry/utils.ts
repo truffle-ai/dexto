@@ -1,10 +1,10 @@
 import { propagation } from '@opentelemetry/api';
 import type { Context, Span } from '@opentelemetry/api';
 import { Telemetry } from './telemetry.js';
-import type { IDextoLogger } from '../logger/v2/types.js';
+import type { Logger } from '../logger/v2/types.js';
 
 // Helper function to check if telemetry is active
-export function hasActiveTelemetry(logger?: IDextoLogger): boolean {
+export function hasActiveTelemetry(logger?: Logger): boolean {
     logger?.silly('hasActiveTelemetry called.');
     try {
         const telemetryInstance = Telemetry.get();
@@ -25,7 +25,7 @@ export function hasActiveTelemetry(logger?: IDextoLogger): boolean {
  * @param logger Optional logger instance
  * @returns
  */
-export function getBaggageValues(ctx: Context, logger?: IDextoLogger) {
+export function getBaggageValues(ctx: Context, logger?: Logger) {
     logger?.silly('getBaggageValues called.');
     const currentBaggage = propagation.getBaggage(ctx);
     const requestId = currentBaggage?.getEntry('http.request_id')?.value;
@@ -53,7 +53,7 @@ export function getBaggageValues(ctx: Context, logger?: IDextoLogger) {
  * @param ctx The OpenTelemetry Context from which to extract baggage values.
  * @param logger Optional logger instance
  */
-export function addBaggageAttributesToSpan(span: Span, ctx: Context, logger?: IDextoLogger): void {
+export function addBaggageAttributesToSpan(span: Span, ctx: Context, logger?: Logger): void {
     logger?.debug('addBaggageAttributesToSpan called.');
     const { requestId, componentName, runId, threadId, resourceId, sessionId } = getBaggageValues(
         ctx,

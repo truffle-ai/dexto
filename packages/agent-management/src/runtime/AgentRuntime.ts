@@ -15,7 +15,7 @@
  */
 
 import { randomUUID } from 'crypto';
-import type { IDextoLogger, GenerateResponse } from '@dexto/core';
+import type { Logger, GenerateResponse } from '@dexto/core';
 import { AgentPool } from './AgentPool.js';
 import { RuntimeError } from './errors.js';
 import type {
@@ -35,13 +35,13 @@ export interface AgentRuntimeOptions {
     /** Runtime configuration */
     config?: AgentRuntimeConfig;
     /** Logger instance */
-    logger: IDextoLogger;
+    logger: Logger;
 }
 
 export class AgentRuntime {
     private pool: AgentPool;
     private config: ValidatedAgentRuntimeConfig;
-    private logger: IDextoLogger;
+    private logger: Logger;
 
     constructor(options: AgentRuntimeOptions) {
         // Validate and apply defaults

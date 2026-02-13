@@ -20,7 +20,7 @@ import {
 } from './providers/openrouter-model-registry.js';
 import type { LLMUpdateContext } from './types.js';
 import { resolveApiKeyForProvider } from '../utils/api-key-resolver.js';
-import type { IDextoLogger } from '../logger/v2/types.js';
+import type { Logger } from '../logger/v2/types.js';
 
 // TODO: Consider consolidating validation into async Zod schema (superRefine supports async).
 // Currently OpenRouter validation is here to avoid network calls during startup/serverless.
@@ -32,7 +32,7 @@ import type { IDextoLogger } from '../logger/v2/types.js';
 export async function resolveAndValidateLLMConfig(
     previous: ValidatedLLMConfig,
     updates: LLMUpdates,
-    logger: IDextoLogger
+    logger: Logger
 ): Promise<Result<ValidatedLLMConfig, LLMUpdateContext>> {
     const { candidate, warnings } = await resolveLLMConfig(previous, updates, logger);
 
@@ -54,7 +54,7 @@ export async function resolveAndValidateLLMConfig(
 export async function resolveLLMConfig(
     previous: ValidatedLLMConfig,
     updates: LLMUpdates,
-    logger: IDextoLogger
+    logger: Logger
 ): Promise<{ candidate: LLMConfig; warnings: Issue<LLMUpdateContext>[] }> {
     const warnings: Issue<LLMUpdateContext>[] = [];
 
@@ -241,7 +241,7 @@ export async function resolveLLMConfig(
 export function validateLLMConfig(
     candidate: LLMConfig,
     warnings: Issue<LLMUpdateContext>[],
-    logger: IDextoLogger
+    logger: Logger
 ): Result<ValidatedLLMConfig, LLMUpdateContext> {
     // Final validation (business rules + shape)
     const parsed = LLMConfigSchema.safeParse(candidate);

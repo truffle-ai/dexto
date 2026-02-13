@@ -15,7 +15,7 @@ import type { MCPManager } from '../mcp/manager.js';
 import type { PromptManager } from '../prompts/prompt-manager.js';
 import type { ResourceManager } from '../resources/manager.js';
 import type { SearchService } from '../search/search-service.js';
-import type { IDextoLogger } from '../logger/v2/types.js';
+import type { Logger } from '../logger/v2/types.js';
 
 /**
  * Interface for forking execution to an isolated sub-agent context.
@@ -66,7 +66,7 @@ export interface ToolExecutionContext {
     /**
      * Logger scoped to the tool execution.
      */
-    logger?: IDextoLogger | undefined;
+    logger?: Logger | undefined;
 
     /**
      * Concrete storage backends (DI-first).

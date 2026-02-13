@@ -2,9 +2,9 @@ import type {
     BlobStore,
     Cache,
     Database,
-    DextoPlugin,
-    IDextoLogger,
-    ICompactionStrategy as CompactionStrategy,
+    Plugin,
+    Logger,
+    CompactionStrategy as CompactionStrategy,
     Tool,
 } from '@dexto/core';
 import type { z } from 'zod';
@@ -52,19 +52,19 @@ export interface ToolFactory<TConfig = unknown> {
  */
 export interface BlobStoreFactory<TConfig = unknown> {
     configSchema: z.ZodType<TConfig, z.ZodTypeDef, unknown>;
-    create(config: TConfig, logger: IDextoLogger): BlobStore | Promise<BlobStore>;
+    create(config: TConfig, logger: Logger): BlobStore | Promise<BlobStore>;
     metadata?: Record<string, unknown> | undefined;
 }
 
 export interface DatabaseFactory<TConfig = unknown> {
     configSchema: z.ZodType<TConfig, z.ZodTypeDef, unknown>;
-    create(config: TConfig, logger: IDextoLogger): Database | Promise<Database>;
+    create(config: TConfig, logger: Logger): Database | Promise<Database>;
     metadata?: Record<string, unknown> | undefined;
 }
 
 export interface CacheFactory<TConfig = unknown> {
     configSchema: z.ZodType<TConfig, z.ZodTypeDef, unknown>;
-    create(config: TConfig, logger: IDextoLogger): Cache | Promise<Cache>;
+    create(config: TConfig, logger: Logger): Cache | Promise<Cache>;
     metadata?: Record<string, unknown> | undefined;
 }
 
@@ -73,7 +73,7 @@ export interface CacheFactory<TConfig = unknown> {
  */
 export interface PluginFactory<TConfig = unknown> {
     configSchema: z.ZodType<TConfig, z.ZodTypeDef, unknown>;
-    create(config: TConfig): DextoPlugin;
+    create(config: TConfig): Plugin;
     metadata?: Record<string, unknown> | undefined;
 }
 
@@ -93,7 +93,7 @@ export interface CompactionFactory<TConfig = unknown> {
  */
 export interface LoggerFactory<TConfig = unknown> {
     configSchema: z.ZodType<TConfig, z.ZodTypeDef, unknown>;
-    create(config: TConfig): IDextoLogger;
+    create(config: TConfig): Logger;
     metadata?: Record<string, unknown> | undefined;
 }
 

@@ -11,7 +11,7 @@ import type {
 } from './types.js';
 import { ApprovalType, ApprovalStatus, DenialReason } from './types.js';
 import { createApprovalRequest } from './factory.js';
-import type { IDextoLogger } from '../logger/v2/types.js';
+import type { Logger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
 import { ApprovalError } from './errors.js';
 import { patternCovers } from '../tools/bash-pattern-utils.js';
@@ -66,7 +66,7 @@ export interface ApprovalManagerConfig {
 export class ApprovalManager {
     private handler: ApprovalHandler | undefined;
     private config: ApprovalManagerConfig;
-    private logger: IDextoLogger;
+    private logger: Logger;
 
     /**
      * Bash command patterns approved for the current session.
@@ -84,7 +84,7 @@ export class ApprovalManager {
      */
     private approvedDirectories: Map<string, 'session' | 'once'> = new Map();
 
-    constructor(config: ApprovalManagerConfig, logger: IDextoLogger) {
+    constructor(config: ApprovalManagerConfig, logger: Logger) {
         this.config = config;
         this.logger = logger.createChild(DextoLogComponent.APPROVAL);
 

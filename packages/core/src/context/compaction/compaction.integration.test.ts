@@ -15,7 +15,7 @@ import { createLogger } from '../../logger/factory.js';
 import type { ModelMessage } from 'ai';
 import type { LanguageModel } from 'ai';
 import type { ValidatedLLMConfig } from '../../llm/schemas.js';
-import type { IDextoLogger } from '../../logger/v2/types.js';
+import type { Logger } from '../../logger/v2/types.js';
 import type { InternalMessage } from '../types.js';
 
 // Only mock the AI SDK's generateText - everything else is real
@@ -51,7 +51,7 @@ function createMockModel(): LanguageModel {
 describe('Context Compaction Integration Tests', () => {
     let contextManager: ContextManager<ModelMessage>;
     let compactionStrategy: ReactiveOverflowCompactionStrategy;
-    let logger: IDextoLogger;
+    let logger: Logger;
     let historyProvider: MemoryHistoryProvider;
     let storageManager: StorageManager;
     let mcpManager: MCPManager;

@@ -1,4 +1,4 @@
-import type { IDextoLogger } from '../logger/v2/types.js';
+import type { Logger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
 import type { AgentRuntimeSettings } from './runtime-config.js';
 import type { ValidatedLLMConfig } from '../llm/schemas.js';
@@ -30,7 +30,7 @@ export class AgentStateManager {
     private runtimeConfig: AgentRuntimeSettings;
     private readonly baselineConfig: AgentRuntimeSettings;
     private sessionOverrides: Map<string, SessionOverride> = new Map();
-    private logger: IDextoLogger;
+    private logger: Logger;
 
     /**
      * Initialize AgentStateManager from a validated static configuration.
@@ -42,7 +42,7 @@ export class AgentStateManager {
     constructor(
         staticConfig: AgentRuntimeSettings,
         private agentEventBus: AgentEventBus,
-        logger: IDextoLogger
+        logger: Logger
     ) {
         this.baselineConfig = structuredClone(staticConfig);
         this.runtimeConfig = structuredClone(staticConfig);

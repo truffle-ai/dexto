@@ -1,14 +1,14 @@
 import { DextoRuntimeError, ErrorScope, ErrorType } from '../errors/index.js';
 import { PluginErrorCode } from './error-codes.js';
 import { getContext } from '../utils/async-context.js';
-import type { ExtensionPoint, PluginExecutionContext, DextoPlugin, PluginResult } from './types.js';
+import type { ExtensionPoint, PluginExecutionContext, Plugin, PluginResult } from './types.js';
 import type { AgentEventBus } from '../events/index.js';
 import type { StorageManager } from '../storage/index.js';
 import type { SessionManager } from '../session/index.js';
 import type { MCPManager } from '../mcp/manager.js';
 import type { ToolManager } from '../tools/tool-manager.js';
 import type { AgentStateManager } from '../agent/state-manager.js';
-import type { IDextoLogger } from '../logger/v2/types.js';
+import type { Logger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
 
 /**
@@ -42,17 +42,17 @@ export interface ExecutionContextOptions {
  * - Handle timeouts and errors with fail-fast policy
  */
 export class PluginManager {
-    private plugins: DextoPlugin[] = [];
-    private pluginsByExtensionPoint: Map<ExtensionPoint, DextoPlugin[]> = new Map();
-    private pluginNameByInstance: WeakMap<DextoPlugin, string> = new WeakMap();
+    private plugins: Plugin[] = [];
+    private pluginsByExtensionPoint: Map<ExtensionPoint, Plugin[]> = new Map();
+    private pluginNameByInstance: WeakMap<Plugin, string> = new WeakMap();
     private options: PluginManagerOptions;
     private initialized: boolean = false;
-    private logger: IDextoLogger;
+    private logger: Logger;
 
     /** Default timeout for plugin execution (milliseconds) */
     private static readonly DEFAULT_TIMEOUT = 5000;
 
-    constructor(options: PluginManagerOptions, plugins: DextoPlugin[], logger: IDextoLogger) {
+    constructor(options: PluginManagerOptions, plugins: Plugin[], logger: Logger) {
         this.options = options;
         this.logger = logger.createChild(DextoLogComponent.PLUGIN);
         this.setPlugins(plugins);
@@ -63,7 +63,7 @@ export class PluginManager {
      * Provide the concrete plugins this manager should orchestrate.
      * Plugins must be fully resolved and initialized before calling `initialize()`.
      */
-    setPlugins(plugins: DextoPlugin[]): void {
+    setPlugins(plugins: Plugin[]): void {
         if (this.initialized) {
             throw new DextoRuntimeError(
                 PluginErrorCode.PLUGIN_CONFIGURATION_INVALID,
@@ -115,7 +115,7 @@ export class PluginManager {
     /**
      * Register a plugin to the extension points it implements
      */
-    private registerToExtensionPoints(plugin: DextoPlugin): void {
+    private registerToExtensionPoints(plugin: Plugin): void {
         const extensionPoints: ExtensionPoint[] = [
             'beforeLLMRequest',
             'beforeToolCall',
@@ -389,7 +389,7 @@ export class PluginManager {
         };
     }
 
-    private derivePluginName(plugin: DextoPlugin, index: number): string {
+    private derivePluginName(plugin: Plugin, index: number): string {
         const maybeNamed = plugin as unknown as { name?: unknown };
         if (typeof maybeNamed.name === 'string' && maybeNamed.name.trim().length > 0) {
             return maybeNamed.name;
@@ -403,7 +403,7 @@ export class PluginManager {
         return `plugin#${index + 1}`;
     }
 
-    private assertValidPluginShape(plugin: DextoPlugin, index: number): void {
+    private assertValidPluginShape(plugin: Plugin, index: number): void {
         const extensionPoints: ExtensionPoint[] = [
             'beforeLLMRequest',
             'beforeToolCall',

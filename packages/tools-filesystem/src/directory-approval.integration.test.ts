@@ -23,16 +23,16 @@ import {
     ApprovalManager,
     ApprovalStatus,
     ApprovalType,
-    type IDextoLogger,
+    type Logger,
     type ToolExecutionContext,
 } from '@dexto/core';
 
 type ToolServices = NonNullable<ToolExecutionContext['services']>;
 
-const createMockLogger = (): IDextoLogger => {
+const createMockLogger = (): Logger => {
     const noopAsync = async () => undefined;
 
-    const logger: IDextoLogger = {
+    const logger: Logger = {
         debug: vi.fn(),
         silly: vi.fn(),
         info: vi.fn(),
@@ -62,7 +62,7 @@ function createToolContext(approval: ApprovalManager): ToolExecutionContext {
 }
 
 describe('Directory Approval Integration Tests', () => {
-    let mockLogger: IDextoLogger;
+    let mockLogger: Logger;
     let tempDir: string;
     let fileSystemService: FileSystemService;
     let approvalManager: ApprovalManager;

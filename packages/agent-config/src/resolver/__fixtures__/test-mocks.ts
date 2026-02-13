@@ -7,13 +7,13 @@ import type {
     BlobStats,
     Cache,
     Database,
-    IDextoLogger,
+    Logger,
     Tool,
 } from '@dexto/core';
 import { vi } from 'vitest';
 
-export function createMockLogger(): IDextoLogger {
-    const logger: IDextoLogger = {
+export function createMockLogger(): Logger {
+    const logger: Logger = {
         debug: vi.fn(),
         silly: vi.fn(),
         info: vi.fn(),

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { z } from 'zod';
-import type { DextoPlugin } from '@dexto/core';
+import type { Plugin } from '@dexto/core';
 import type { DextoImageModule } from '../image/types.js';
 import { AgentConfigSchema, type AgentConfig } from '../schemas/agent-config.js';
 import { resolveServicesFromConfig } from './resolve-services-from-config.js';
@@ -328,7 +328,7 @@ describe('resolveServicesFromConfig', () => {
     it('resolves plugins via image factories (list order) and runs initialize()', async () => {
         const initCalls: string[] = [];
 
-        const createPlugin = (name: string): DextoPlugin => ({
+        const createPlugin = (name: string): Plugin => ({
             initialize: async () => {
                 initCalls.push(name);
             },

@@ -1,5 +1,5 @@
 import type { LanguageModel } from 'ai';
-import type { IDextoLogger } from '../../logger/v2/types.js';
+import type { Logger } from '../../logger/v2/types.js';
 import type { InternalMessage } from '../types.js';
 import type { ModelLimits } from './overflow.js';
 
@@ -21,11 +21,11 @@ export interface CompactionSettings {
 export interface CompactionRuntimeContext {
     sessionId: string;
     model: LanguageModel;
-    logger: IDextoLogger;
+    logger: Logger;
 }
 
 /**
- * Compaction strategy interface.
+ * Compaction strategy.
  *
  * This is the DI surface used by core runtime (TurnExecutor/VercelLLMService) to:
  * - decide when to compact (budget + overflow logic)
@@ -34,7 +34,7 @@ export interface CompactionRuntimeContext {
  * Strategies are created by host layers (CLI/server/apps) via image factories.
  * Core does not parse YAML, validate Zod schemas, or switch on `type` strings.
  */
-export interface ICompactionStrategy {
+export type CompactionStrategy = {
     /** Human-readable name for logging/UI */
     readonly name: string;
 
@@ -70,4 +70,4 @@ export interface ICompactionStrategy {
         history: readonly InternalMessage[],
         context: CompactionRuntimeContext
     ): Promise<InternalMessage[]>;
-}
+};

@@ -1,7 +1,7 @@
 import { dirname } from 'path';
 import { mkdirSync } from 'fs';
 import type { Database } from './types.js';
-import type { IDextoLogger } from '@dexto/core';
+import type { Logger } from '@dexto/core';
 import { DextoLogComponent, StorageError } from '@dexto/core';
 import type { SqliteDatabaseConfig } from './schemas.js';
 
@@ -16,9 +16,9 @@ export class SQLiteStore implements Database {
     private db: any | null = null; // Database.Database
     private dbPath: string;
     private config: SqliteDatabaseConfig;
-    private logger: IDextoLogger;
+    private logger: Logger;
 
-    constructor(config: SqliteDatabaseConfig, logger: IDextoLogger) {
+    constructor(config: SqliteDatabaseConfig, logger: Logger) {
         this.config = config;
         // Path is provided via CLI enrichment
         this.dbPath = '';
