@@ -2,41 +2,24 @@ import { LLMErrorCode } from './error-codes.js';
 import { ErrorScope, ErrorType } from '../errors/types.js';
 import { DextoRuntimeError } from '../errors/index.js';
 import { NonEmptyTrimmed, EnvExpandedString, OptionalURL } from '../utils/result.js';
-import { getPrimaryApiKeyEnvVar } from '../utils/api-key-resolver.js';
 import { z } from 'zod';
 import {
     supportsBaseURL,
-    requiresBaseURL,
     acceptsAnyModel,
     supportsCustomModels,
     hasAllRegistryModelsSupport,
     getSupportedModels,
     isValidProviderModel,
     getMaxInputTokensForModel,
-    requiresApiKey,
 } from './registry/index.js';
 import { LLM_PROVIDERS } from './types.js';
 
 /**
- * Options for LLM config validation
+ * Default maximum number of outer-loop iterations (tool-call steps) per agent turn.
+ *
+ * This is a safety guard against runaway tool loops.
  */
-export interface LLMValidationOptions {
-    /**
-     * When true, enforces API key and baseURL requirements.
-     * When false (relaxed mode), allows missing API keys/baseURLs for interactive configuration.
-     *
-     * Use strict mode for:
-     * - Server/API mode (headless, needs full config)
-     * - MCP mode (headless)
-     *
-     * Use relaxed mode for:
-     * - Web UI (user can configure via settings)
-     * - CLI (user can configure interactively)
-     *
-     * @default true
-     */
-    strict?: boolean;
-}
+export const DEFAULT_MAX_ITERATIONS = 50;
 
 /**
  * Default-free field definitions for LLM configuration.
@@ -119,8 +102,12 @@ export const LLMConfigBaseSchema = z
         model: LLMConfigFields.model,
         // apiKey is optional at schema level - validated based on provider in superRefine
         apiKey: LLMConfigFields.apiKey,
-        // Apply defaults only for complete config validation
-        maxIterations: z.coerce.number().int().positive().optional(),
+        maxIterations: z.coerce
+            .number()
+            .int()
+            .positive()
+            .default(DEFAULT_MAX_ITERATIONS)
+            .describe('Max outer-loop tool-call iterations per agent turn'),
         baseURL: LLMConfigFields.baseURL,
         maxInputTokens: LLMConfigFields.maxInputTokens,
         maxOutputTokens: LLMConfigFields.maxOutputTokens,
@@ -132,181 +119,130 @@ export const LLMConfigBaseSchema = z
     .strict();
 
 /**
- * Creates an LLM config schema with configurable validation strictness.
+ * LLM config schema.
  *
- * @param options.strict - When true (default), enforces API key and baseURL requirements.
- *                         When false, allows missing credentials for interactive configuration.
+ * Notes:
+ * - API keys and base URLs are validated at runtime (when creating a provider client), not at parse time.
+ * - This keeps programmatic construction (code-first DI) ergonomic: you can omit credentials and rely on env.
  */
-export function createLLMConfigSchema(options: LLMValidationOptions = {}) {
-    const { strict = true } = options;
+export const LLMConfigSchema = LLMConfigBaseSchema.superRefine((data, ctx) => {
+    const baseURLIsSet = data.baseURL != null && data.baseURL.trim() !== '';
+    const maxInputTokensIsSet = data.maxInputTokens != null;
 
-    return LLMConfigBaseSchema.superRefine((data, ctx) => {
-        const baseURLIsSet = data.baseURL != null && data.baseURL.trim() !== '';
-        const maxInputTokensIsSet = data.maxInputTokens != null;
+    // Gateway providers require OpenRouter-format model IDs ("provider/model").
+    // This avoids implicit transformation and makes the config unambiguous.
+    if (hasAllRegistryModelsSupport(data.provider) && !data.model.includes('/')) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['model'],
+            message:
+                `Provider '${data.provider}' requires OpenRouter-format model IDs (e.g. ` +
+                `'openai/gpt-5-mini' or 'anthropic/claude-sonnet-4.5'). You provided '${data.model}'.`,
+            params: {
+                code: LLMErrorCode.MODEL_INCOMPATIBLE,
+                scope: ErrorScope.LLM,
+                type: ErrorType.USER,
+            },
+        });
+    }
 
-        // Gateway providers require OpenRouter-format model IDs ("provider/model").
-        // This avoids implicit transformation and makes the config unambiguous.
-        if (hasAllRegistryModelsSupport(data.provider) && !data.model.includes('/')) {
+    if (baseURLIsSet) {
+        if (!supportsBaseURL(data.provider)) {
             ctx.addIssue({
                 code: z.ZodIssueCode.custom,
-                path: ['model'],
+                path: ['provider'],
                 message:
-                    `Provider '${data.provider}' requires OpenRouter-format model IDs (e.g. ` +
-                    `'openai/gpt-5-mini' or 'anthropic/claude-sonnet-4.5'). You provided '${data.model}'.`,
+                    `Provider '${data.provider}' does not support baseURL. ` +
+                    `Use an 'openai-compatible' provider if you need a custom base URL.`,
                 params: {
-                    code: LLMErrorCode.MODEL_INCOMPATIBLE,
+                    code: LLMErrorCode.BASE_URL_INVALID,
                     scope: ErrorScope.LLM,
                     type: ErrorType.USER,
                 },
             });
         }
+    }
 
-        // API key validation with provider context
-        // In relaxed mode, skip API key validation to allow launching app for interactive config
-        // Skip validation for providers that don't require API keys:
-        // - openai-compatible: local providers like Ollama, vLLM, LocalAI
-        // - litellm: self-hosted proxy handles auth internally
-        // - vertex: uses Google Cloud ADC
-        // - bedrock: uses AWS credentials
-        if (strict && requiresApiKey(data.provider) && !data.apiKey?.trim()) {
-            const primaryVar = getPrimaryApiKeyEnvVar(data.provider);
-            ctx.addIssue({
-                code: z.ZodIssueCode.custom,
-                path: ['apiKey'],
-                message: `Missing API key for provider '${data.provider}' – set $${primaryVar}`,
-                params: {
-                    code: LLMErrorCode.API_KEY_MISSING,
-                    scope: ErrorScope.LLM,
-                    type: ErrorType.USER,
-                    provider: data.provider,
-                    envVar: primaryVar,
-                },
-            });
-        }
-
-        if (baseURLIsSet) {
-            if (!supportsBaseURL(data.provider)) {
+    // Model and token validation
+    if (!baseURLIsSet || supportsBaseURL(data.provider)) {
+        // Skip model validation for providers that accept any model OR support custom models
+        if (!acceptsAnyModel(data.provider) && !supportsCustomModels(data.provider)) {
+            const supportedModelsList = getSupportedModels(data.provider);
+            if (!isValidProviderModel(data.provider, data.model)) {
                 ctx.addIssue({
                     code: z.ZodIssueCode.custom,
-                    path: ['provider'],
+                    path: ['model'],
                     message:
-                        `Provider '${data.provider}' does not support baseURL. ` +
-                        `Use an 'openai-compatible' provider if you need a custom base URL.`,
+                        `Model '${data.model}' is not supported for provider '${data.provider}'. ` +
+                        `Supported: ${supportedModelsList.join(', ')}`,
                     params: {
-                        code: LLMErrorCode.BASE_URL_INVALID,
+                        code: LLMErrorCode.MODEL_INCOMPATIBLE,
                         scope: ErrorScope.LLM,
                         type: ErrorType.USER,
                     },
                 });
             }
-        } else if (strict && requiresBaseURL(data.provider)) {
-            // In relaxed mode, skip baseURL requirement validation
-            ctx.addIssue({
-                code: z.ZodIssueCode.custom,
-                path: ['baseURL'],
-                message: `Provider '${data.provider}' requires a 'baseURL'.`,
-                params: {
-                    code: LLMErrorCode.BASE_URL_MISSING,
-                    scope: ErrorScope.LLM,
-                    type: ErrorType.USER,
-                },
-            });
         }
 
-        // Model and token validation always runs (not affected by strict mode)
-        if (!baseURLIsSet || supportsBaseURL(data.provider)) {
-            // Skip model validation for providers that accept any model OR support custom models
-            if (!acceptsAnyModel(data.provider) && !supportsCustomModels(data.provider)) {
-                const supportedModelsList = getSupportedModels(data.provider);
-                if (!isValidProviderModel(data.provider, data.model)) {
+        // Skip token cap validation for providers that accept any model OR support custom models
+        if (
+            maxInputTokensIsSet &&
+            !acceptsAnyModel(data.provider) &&
+            !supportsCustomModels(data.provider)
+        ) {
+            try {
+                const cap = getMaxInputTokensForModel(data.provider, data.model);
+                if (data.maxInputTokens! > cap) {
                     ctx.addIssue({
                         code: z.ZodIssueCode.custom,
-                        path: ['model'],
+                        path: ['maxInputTokens'],
                         message:
-                            `Model '${data.model}' is not supported for provider '${data.provider}'. ` +
-                            `Supported: ${supportedModelsList.join(', ')}`,
+                            `Max input tokens for model '${data.model}' is ${cap}. ` +
+                            `You provided ${data.maxInputTokens}`,
                         params: {
-                            code: LLMErrorCode.MODEL_INCOMPATIBLE,
+                            code: LLMErrorCode.TOKENS_EXCEEDED,
                             scope: ErrorScope.LLM,
                             type: ErrorType.USER,
                         },
                     });
                 }
-            }
-
-            // Skip token cap validation for providers that accept any model OR support custom models
-            if (
-                maxInputTokensIsSet &&
-                !acceptsAnyModel(data.provider) &&
-                !supportsCustomModels(data.provider)
-            ) {
-                try {
-                    const cap = getMaxInputTokensForModel(data.provider, data.model);
-                    if (data.maxInputTokens! > cap) {
-                        ctx.addIssue({
-                            code: z.ZodIssueCode.custom,
-                            path: ['maxInputTokens'],
-                            message:
-                                `Max input tokens for model '${data.model}' is ${cap}. ` +
-                                `You provided ${data.maxInputTokens}`,
-                            params: {
-                                code: LLMErrorCode.TOKENS_EXCEEDED,
-                                scope: ErrorScope.LLM,
-                                type: ErrorType.USER,
-                            },
-                        });
-                    }
-                } catch (error: unknown) {
-                    if (
-                        error instanceof DextoRuntimeError &&
-                        error.code === LLMErrorCode.MODEL_UNKNOWN
-                    ) {
-                        // Model not found in registry
-                        ctx.addIssue({
-                            code: z.ZodIssueCode.custom,
-                            path: ['model'],
-                            message: error.message,
-                            params: {
-                                code: error.code,
-                                scope: error.scope,
-                                type: error.type,
-                            },
-                        });
-                    } else {
-                        // Unexpected error
-                        const message =
-                            error instanceof Error ? error.message : 'Unknown error occurred';
-                        ctx.addIssue({
-                            code: z.ZodIssueCode.custom,
-                            path: ['model'],
-                            message,
-                            params: {
-                                code: LLMErrorCode.REQUEST_INVALID_SCHEMA,
-                                scope: ErrorScope.LLM,
-                                type: ErrorType.SYSTEM,
-                            },
-                        });
-                    }
+            } catch (error: unknown) {
+                if (
+                    error instanceof DextoRuntimeError &&
+                    error.code === LLMErrorCode.MODEL_UNKNOWN
+                ) {
+                    // Model not found in registry
+                    ctx.addIssue({
+                        code: z.ZodIssueCode.custom,
+                        path: ['model'],
+                        message: error.message,
+                        params: {
+                            code: error.code,
+                            scope: error.scope,
+                            type: error.type,
+                        },
+                    });
+                } else {
+                    // Unexpected error
+                    const message =
+                        error instanceof Error ? error.message : 'Unknown error occurred';
+                    ctx.addIssue({
+                        code: z.ZodIssueCode.custom,
+                        path: ['model'],
+                        message,
+                        params: {
+                            code: LLMErrorCode.REQUEST_INVALID_SCHEMA,
+                            scope: ErrorScope.LLM,
+                            type: ErrorType.SYSTEM,
+                        },
+                    });
                 }
             }
         }
-        // Note: OpenRouter model validation happens in resolver.ts during switchLLM only
-        // to avoid network calls during startup/serverless cold starts
-    }) // Brand the validated type so it can be distinguished at compile time
-        .brand<'ValidatedLLMConfig'>();
-}
-
-/**
- * Default LLM config schema with strict validation (backwards compatible).
- * Use createLLMConfigSchema({ strict: false }) for relaxed validation.
- */
-export const LLMConfigSchema = createLLMConfigSchema({ strict: true });
-
-/**
- * Relaxed LLM config schema that allows missing API keys and baseURLs.
- * Use this for interactive modes (CLI, WebUI) where users can configure later.
- */
-export const LLMConfigSchemaRelaxed = createLLMConfigSchema({ strict: false });
+    }
+    // Note: OpenRouter model validation happens in resolver.ts during switchLLM only
+    // to avoid network calls during startup/serverless cold starts
+});
 
 // Input type and output types for the zod schema
 export type LLMConfig = z.input<typeof LLMConfigSchema>;

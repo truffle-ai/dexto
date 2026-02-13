@@ -19,7 +19,6 @@ import type { IDextoLogger } from '../logger/v2/types.js';
 import { Telemetry } from '../telemetry/telemetry.js';
 import { InstrumentClass } from '../telemetry/decorators.js';
 import { trace, context, propagation, type BaggageEntry } from '@opentelemetry/api';
-import { ValidatedLLMConfig, LLMUpdates, LLMUpdatesSchema } from '../llm/schemas.js';
 import { resolveAndValidateLLMConfig } from '../llm/resolver.js';
 import { validateInputForLLM } from '../llm/validation.js';
 import { LLMError } from '../llm/errors.js';
@@ -41,8 +40,18 @@ import {
 import type { ModelInfo } from '../llm/registry/index.js';
 import type { LLMProvider } from '../llm/types.js';
 import { createAgentServices } from '../utils/service-initializer.js';
-import type { AgentRuntimeSettings } from './runtime-config.js';
-import { createRuntimeSettings } from './runtime-settings-builder.js';
+import { LLMConfigSchema, LLMUpdatesSchema } from '../llm/schemas.js';
+import type { LLMUpdates, ValidatedLLMConfig } from '../llm/schemas.js';
+import { ServerConfigsSchema } from '../mcp/schemas.js';
+import { MemoriesConfigSchema } from '../memory/schemas.js';
+import { PromptsSchema } from '../prompts/schemas.js';
+import { InternalResourcesSchema } from '../resources/schemas.js';
+import { SessionConfigSchema } from '../session/schemas.js';
+import { SystemPromptConfigSchema } from '../systemPrompt/schemas.js';
+import { ElicitationConfigSchema, ToolConfirmationConfigSchema } from '../tools/schemas.js';
+import { OtelConfigurationSchema } from '../telemetry/schemas.js';
+import { AgentCardSchema } from './schemas.js';
+import type { AgentRuntimeSettings, AgentRuntimeSettingsInput } from './runtime-config.js';
 import {
     AgentEventBus,
     type AgentEventMap,
@@ -202,6 +211,37 @@ export class DextoAgent {
     public readonly logger: IDextoLogger;
 
     /**
+     * Validate + normalize runtime settings.
+     *
+     * This is the single validation boundary for programmatic (code-first) construction.
+     * Host layers may validate earlier (e.g. YAML parsing), but core always normalizes
+     * runtime settings before use.
+     */
+    public static validateConfig(options: AgentRuntimeSettingsInput): AgentRuntimeSettings {
+        return {
+            agentId: options.agentId,
+            llm: LLMConfigSchema.parse(options.llm),
+            systemPrompt: SystemPromptConfigSchema.parse(options.systemPrompt),
+            mcpServers: ServerConfigsSchema.parse(options.mcpServers ?? {}),
+            sessions: SessionConfigSchema.parse(options.sessions ?? {}),
+            toolConfirmation: ToolConfirmationConfigSchema.parse(options.toolConfirmation ?? {}),
+            elicitation: ElicitationConfigSchema.parse(options.elicitation ?? {}),
+            internalResources: InternalResourcesSchema.parse(options.internalResources),
+            prompts: PromptsSchema.parse(options.prompts),
+            ...(options.agentCard !== undefined && {
+                agentCard: AgentCardSchema.parse(options.agentCard),
+            }),
+            ...(options.greeting !== undefined && { greeting: options.greeting }),
+            ...(options.telemetry !== undefined && {
+                telemetry: OtelConfigurationSchema.parse(options.telemetry),
+            }),
+            ...(options.memories !== undefined && {
+                memories: MemoriesConfigSchema.parse(options.memories),
+            }),
+        };
+    }
+
+    /**
      * Creates a DextoAgent instance.
      *
      * Constructor options are DI-first:
@@ -223,7 +263,7 @@ export class DextoAgent {
         const tools = toolsInput ?? [];
         const plugins = pluginsInput ?? [];
 
-        this.config = createRuntimeSettings(runtimeSettings);
+        this.config = DextoAgent.validateConfig(runtimeSettings);
 
         // Agent logger is always provided by the host (typically created from config).
         this.logger = logger;

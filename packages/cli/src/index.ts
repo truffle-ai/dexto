@@ -49,7 +49,7 @@ import {
 import {
     applyImageDefaults,
     cleanNullValues,
-    createAgentConfigSchema,
+    AgentConfigSchema,
     loadImage,
     resolveServicesFromConfig,
     setImageImporter,
@@ -745,8 +745,7 @@ async function bootstrapAgentFromGlobalOpts() {
         }),
     };
 
-    // Use relaxed validation for session commands - they don't need LLM calls
-    const validatedConfig = createAgentConfigSchema({ strict: false }).parse(enrichedConfig);
+    const validatedConfig = AgentConfigSchema.parse(enrichedConfig);
     const services = await resolveServicesFromConfig(validatedConfig, image);
     const agent = new DextoAgent(toDextoAgentOptions({ config: validatedConfig, services }));
     await agent.start();
@@ -1551,7 +1550,7 @@ program
                     const validationResult = await validateAgentConfig(
                         enrichedConfig,
                         opts.interactive !== false,
-                        { strict: !isInteractiveMode, agentPath: resolvedPath }
+                        { allowMissingCredentials: isInteractiveMode, agentPath: resolvedPath }
                     );
 
                     if (validationResult.success && validationResult.config) {

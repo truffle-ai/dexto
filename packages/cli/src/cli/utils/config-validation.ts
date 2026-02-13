@@ -3,15 +3,18 @@ import chalk from 'chalk';
 import * as p from '@clack/prompts';
 import {
     AgentConfigSchema,
-    createAgentConfigSchema,
     type AgentConfig,
     type ValidatedAgentConfig,
 } from '@dexto/agent-config';
-import type { LLMValidationOptions } from '@dexto/core';
 import { interactiveApiKeySetup } from './api-key-setup.js';
-import { LLMErrorCode } from '@dexto/core';
 import type { LLMProvider } from '@dexto/core';
-import { logger } from '@dexto/core';
+import {
+    getPrimaryApiKeyEnvVar,
+    logger,
+    requiresApiKey,
+    requiresBaseURL,
+    resolveApiKeyForProvider,
+} from '@dexto/core';
 import {
     getGlobalPreferencesPath,
     loadGlobalPreferences,
@@ -26,9 +29,14 @@ export interface ValidationResult {
     skipped?: boolean;
 }
 
+export interface ValidationOptions {
+    allowMissingCredentials?: boolean;
+    agentPath?: string;
+}
+
 /**
  * Validates agent config with optional interactive fixes for user experience.
- * Uses schema parsing to detect API key issues and provides targeted setup.
+ * Uses schema parsing for structural validation and performs targeted credential checks.
  * Returns validated config with all defaults applied.
  *
  * IMPORTANT: This function NEVER exits the process. It always returns a result
@@ -36,26 +44,58 @@ export interface ValidationResult {
  *
  * @param config - The agent configuration to validate
  * @param interactive - Whether to allow interactive prompts to fix issues
- * @param validationOptions - Validation strictness options
- * @param validationOptions.strict - When true (default), enforces API key requirements.
- *                                   When false, allows missing credentials for interactive config.
+ * @param options.allowMissingCredentials - When true, allow missing API keys/baseURLs (runtime will error on use).
+ * @param options.agentPath - Agent config path (used for manual-edit instructions).
  */
 export async function validateAgentConfig(
     config: AgentConfig,
     interactive: boolean = false,
-    validationOptions?: LLMValidationOptions & { agentPath?: string }
+    options?: ValidationOptions
 ): Promise<ValidationResult> {
-    // Use appropriate schema based on validation options
-    // Default to strict validation unless explicitly relaxed
-    const schema =
-        validationOptions?.strict === false
-            ? createAgentConfigSchema({ strict: false })
-            : AgentConfigSchema;
-
     // Parse with schema to detect issues
-    const parseResult = schema.safeParse(config);
+    const parseResult = AgentConfigSchema.safeParse(config);
 
     if (parseResult.success) {
+        if (!options?.allowMissingCredentials) {
+            const provider = parseResult.data.llm.provider;
+
+            // Mirror runtime behavior: config apiKey takes precedence, but env can satisfy missing config
+            const resolvedApiKey =
+                parseResult.data.llm.apiKey || resolveApiKeyForProvider(provider);
+            if (requiresApiKey(provider) && !resolvedApiKey?.trim()) {
+                const envVar = getPrimaryApiKeyEnvVar(provider);
+                const errors = [
+                    `llm.apiKey: Missing API key for provider '${provider}' – set $${envVar}`,
+                ];
+
+                if (!interactive) {
+                    showValidationErrors(errors);
+                    showNextSteps();
+                    return { success: false, errors };
+                }
+
+                return await handleApiKeyError(provider, config, errors, options);
+            }
+
+            const baseURL = parseResult.data.llm.baseURL;
+            const envFallbackBaseURL =
+                provider === 'openai-compatible'
+                    ? process.env.OPENAI_BASE_URL?.replace(/\/$/, '')
+                    : undefined;
+
+            if (requiresBaseURL(provider) && !baseURL && !envFallbackBaseURL) {
+                const errors = [`llm.baseURL: Provider '${provider}' requires a 'baseURL'.`];
+
+                if (!interactive) {
+                    showValidationErrors(errors);
+                    showNextSteps();
+                    return { success: false, errors };
+                }
+
+                return await handleBaseURLError(provider, config, errors, options);
+            }
+        }
+
         return { success: true, config: parseResult.data };
     }
 
@@ -70,21 +110,8 @@ export async function validateAgentConfig(
         return { success: false, errors };
     }
 
-    // Interactive mode: try to help the user fix the issue
-    // Check for API key errors first
-    const apiKeyError = findApiKeyError(parseResult.error, config);
-    if (apiKeyError) {
-        return await handleApiKeyError(apiKeyError.provider, config, errors, validationOptions);
-    }
-
-    // Check for baseURL errors next
-    const baseURLError = findBaseURLError(parseResult.error, config);
-    if (baseURLError) {
-        return await handleBaseURLError(baseURLError.provider, config, errors, validationOptions);
-    }
-
     // Other validation errors - show options
-    return await handleOtherErrors(errors, validationOptions);
+    return await handleOtherErrors(errors, options);
 }
 
 /**
@@ -94,7 +121,7 @@ async function handleApiKeyError(
     provider: LLMProvider,
     config: AgentConfig,
     errors: string[],
-    validationOptions?: LLMValidationOptions
+    options?: ValidationOptions
 ): Promise<ValidationResult> {
     console.log(chalk.rgb(255, 165, 0)(`\n🔑 API key issue detected for ${provider} provider\n`));
 
@@ -128,7 +155,7 @@ async function handleApiKeyError(
         const result = await interactiveApiKeySetup(provider, { exitOnCancel: false });
         if (result.success && !result.skipped) {
             // Retry validation after API key setup
-            return validateAgentConfig(config, true, validationOptions);
+            return validateAgentConfig(config, true, options);
         }
         // Setup was skipped or cancelled - let them continue anyway
         return { success: false, errors, skipped: true };
@@ -151,7 +178,7 @@ async function handleBaseURLError(
     provider: LLMProvider,
     config: AgentConfig,
     errors: string[],
-    validationOptions?: LLMValidationOptions
+    options?: ValidationOptions
 ): Promise<ValidationResult> {
     console.log(chalk.rgb(255, 165, 0)(`\n🌐 Base URL required for ${provider} provider\n`));
 
@@ -207,7 +234,7 @@ async function handleBaseURLError(
                 llm: { ...config.llm, baseURL: result.baseURL },
             };
             // Retry validation after baseURL setup
-            return validateAgentConfig(updatedConfig, true, validationOptions);
+            return validateAgentConfig(updatedConfig, true, options);
         }
         // Setup was skipped or cancelled
         return { success: false, errors, skipped: true };
@@ -310,7 +337,7 @@ async function interactiveBaseURLSetup(
  */
 async function handleOtherErrors(
     errors: string[],
-    validationOptions?: LLMValidationOptions & { agentPath?: string }
+    options?: ValidationOptions
 ): Promise<ValidationResult> {
     console.log(chalk.rgb(255, 165, 0)('\n⚠️  Configuration issues detected:\n'));
     for (const error of errors) {
@@ -360,7 +387,7 @@ async function handleOtherErrors(
     }
 
     if (action === 'edit') {
-        showManualEditInstructions(validationOptions?.agentPath);
+        showManualEditInstructions(options?.agentPath);
         return { success: false, errors, skipped: true };
     }
 
@@ -425,88 +452,6 @@ function showManualEditInstructions(agentPath?: string): void {
         ].join('\n'),
         'Manual Configuration'
     );
-}
-
-/**
- * Extract API key error details from Zod validation error
- */
-function findApiKeyError(
-    error: z.ZodError,
-    configData: AgentConfig
-): { provider: LLMProvider } | null {
-    for (const issue of error.issues) {
-        // Check for our custom LLM_MISSING_API_KEY error code in params
-        if (issue.code === 'custom' && hasErrorCode(issue.params, LLMErrorCode.API_KEY_MISSING)) {
-            // Extract provider from error params (added by our schema)
-            const provider = getProviderFromParams(issue.params);
-            if (provider) {
-                return { provider };
-            }
-        }
-
-        // Fallback: check for apiKey path errors and extract provider from config
-        if (issue.path.includes('apiKey') && issue.message.includes('Missing API key')) {
-            const provider = configData.llm?.provider;
-            if (provider) {
-                return { provider };
-            }
-        }
-    }
-    return null;
-}
-
-/**
- * Extract baseURL error details from Zod validation error
- */
-function findBaseURLError(
-    error: z.ZodError,
-    configData: AgentConfig
-): { provider: LLMProvider } | null {
-    for (const issue of error.issues) {
-        // Check for our custom BASE_URL_MISSING error code in params
-        if (issue.code === 'custom' && hasErrorCode(issue.params, LLMErrorCode.BASE_URL_MISSING)) {
-            const provider = getProviderFromParams(issue.params) || configData.llm?.provider;
-            if (provider) {
-                return { provider };
-            }
-        }
-
-        // Fallback: check for baseURL path errors
-        if (issue.path.includes('baseURL') && issue.message.includes('requires')) {
-            const provider = configData.llm?.provider;
-            if (provider) {
-                return { provider };
-            }
-        }
-    }
-    return null;
-}
-
-/**
- * Type guard to check if params contains the expected error code
- */
-function hasErrorCode(params: unknown, expectedCode: LLMErrorCode): boolean {
-    return (
-        typeof params === 'object' &&
-        params !== null &&
-        'code' in params &&
-        params.code === expectedCode
-    );
-}
-
-/**
- * Extract provider from Zod issue params
- */
-function getProviderFromParams(params: unknown): LLMProvider | null {
-    if (
-        typeof params === 'object' &&
-        params !== null &&
-        'provider' in params &&
-        typeof params.provider === 'string'
-    ) {
-        return params.provider as LLMProvider;
-    }
-    return null;
 }
 
 /**

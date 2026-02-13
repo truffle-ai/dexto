@@ -262,7 +262,7 @@ export function validateLLMConfig(
             logger
         );
 
-    // Schema validation now handles apiKey non-empty validation
+    // Note: Credentials (apiKey/baseURL) are validated at runtime when creating provider clients.
 
     // Check for short API key (warning)
     if (parsed.data.apiKey && parsed.data.apiKey.length < 10) {

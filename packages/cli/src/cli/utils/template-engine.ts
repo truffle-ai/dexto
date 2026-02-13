@@ -26,10 +26,10 @@ export function generateIndexForCodeFirstDI(context: TemplateContext): string {
     const defaultProvider = context.llmProvider ?? 'openai';
     const defaultModel = context.llmModel ?? 'gpt-4o';
     return `// Standalone Dexto app (programmatic)
-import 'dotenv/config';
-import type { LLMProvider } from '@dexto/core';
-import { DextoAgent, createLogger, resolveApiKeyForProvider } from '@dexto/core';
-import { MemoryCacheStore, MemoryDatabaseStore, InMemoryBlobStore } from '@dexto/storage';
+	import 'dotenv/config';
+	import type { LLMProvider } from '@dexto/core';
+	import { DextoAgent, createLogger } from '@dexto/core';
+	import { MemoryCacheStore, MemoryDatabaseStore, InMemoryBlobStore } from '@dexto/storage';
 
 async function main() {
     const agentId = process.env.DEXTO_AGENT_ID ?? '${context.projectName}';
@@ -50,17 +50,15 @@ async function main() {
         ),
     };
 
-    const agent = new DextoAgent({
-        agentId,
-        llm: {
-            provider: llmProvider,
-            model: llmModel,
-            apiKey: process.env.DEXTO_LLM_API_KEY ?? resolveApiKeyForProvider(llmProvider),
-            maxIterations: 10,
-        },
-        systemPrompt: 'You are a helpful AI assistant.',
-        logger,
-        storage,
+	    const agent = new DextoAgent({
+	        agentId,
+	        llm: {
+	            provider: llmProvider,
+	            model: llmModel,
+	        },
+	        systemPrompt: 'You are a helpful AI assistant.',
+	        logger,
+	        storage,
         tools: [],
         plugins: [],
         compaction: null,
@@ -94,13 +92,13 @@ export function generateWebServerIndexForCodeFirstDI(context: TemplateContext): 
     const defaultProvider = context.llmProvider ?? 'openai';
     const defaultModel = context.llmModel ?? 'gpt-4o';
     return `// Dexto Web Server (programmatic)
-import 'dotenv/config';
-import type { LLMProvider } from '@dexto/core';
-import { DextoAgent, createLogger, resolveApiKeyForProvider } from '@dexto/core';
-import { MemoryCacheStore, MemoryDatabaseStore, InMemoryBlobStore } from '@dexto/storage';
-import { startDextoServer } from '@dexto/server';
-import { resolve } from 'node:path';
-import { existsSync } from 'node:fs';
+	import 'dotenv/config';
+	import type { LLMProvider } from '@dexto/core';
+	import { DextoAgent, createLogger } from '@dexto/core';
+	import { MemoryCacheStore, MemoryDatabaseStore, InMemoryBlobStore } from '@dexto/storage';
+	import { startDextoServer } from '@dexto/server';
+	import { resolve } from 'node:path';
+	import { existsSync } from 'node:fs';
 
 async function main() {
     const agentId = process.env.DEXTO_AGENT_ID ?? '${context.projectName}';
@@ -121,17 +119,15 @@ async function main() {
         ),
     };
 
-    const agent = new DextoAgent({
-        agentId,
-        llm: {
-            provider: llmProvider,
-            model: llmModel,
-            apiKey: process.env.DEXTO_LLM_API_KEY ?? resolveApiKeyForProvider(llmProvider),
-            maxIterations: 10,
-        },
-        systemPrompt: 'You are a helpful AI assistant.',
-        logger,
-        storage,
+	    const agent = new DextoAgent({
+	        agentId,
+	        llm: {
+	            provider: llmProvider,
+	            model: llmModel,
+	        },
+	        systemPrompt: 'You are a helpful AI assistant.',
+	        logger,
+	        storage,
         tools: [],
         plugins: [],
         compaction: null,

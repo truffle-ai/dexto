@@ -1,9 +1,8 @@
 import {
     AgentCardSchema,
     ElicitationConfigSchema,
-    type LLMValidationOptions,
+    LLMConfigSchema,
     LoggerConfigSchema,
-    createLLMConfigSchema,
     MemoriesConfigSchema,
     ServerConfigsSchema as McpServersConfigSchema,
     OtelConfigurationSchema,
@@ -50,14 +49,9 @@ export type ToolFactoryEntry = z.output<typeof ToolFactoryEntrySchema>;
 // ========================================
 
 /**
- * Creates an agent config schema with configurable validation strictness.
- *
- * @param options.strict - When true (default), enforces API key and baseURL requirements.
- *                         When false, allows missing credentials for interactive configuration.
+ * Creates the agent config schema.
  */
-export function createAgentConfigSchema(options: LLMValidationOptions = {}) {
-    const llmSchema = createLLMConfigSchema(options);
-
+export function createAgentConfigSchema() {
     return z
         .object({
             // ========================================
@@ -67,7 +61,7 @@ export function createAgentConfigSchema(options: LLMValidationOptions = {}) {
                 'System prompt: string shorthand or structured config'
             ),
 
-            llm: llmSchema.describe('Core LLM configuration for the agent'),
+            llm: LLMConfigSchema.describe('Core LLM configuration for the agent'),
 
             // ========================================
             // OPTIONAL FEATURES (undefined if not provided)
@@ -176,12 +170,9 @@ export function createAgentConfigSchema(options: LLMValidationOptions = {}) {
 }
 
 /**
- * Strict agent config schema.
- *
- * Enforces LLM credential requirements (API keys/baseURLs).
- * Use `createAgentConfigSchema({ strict: false })` in interactive flows where users can configure later.
+ * Agent config schema.
  */
-export const AgentConfigSchema = createAgentConfigSchema({ strict: true });
+export const AgentConfigSchema = createAgentConfigSchema();
 
 // Input type for user-facing API (pre-parsing) - makes fields with defaults optional
 export type AgentConfig = z.input<typeof AgentConfigSchema>;
