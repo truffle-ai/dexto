@@ -6,7 +6,7 @@ import type { IDextoLogger } from '../logger/v2/types.js';
 import type { DextoPlugin } from '../plugins/types.js';
 import type { Tool } from '../tools/types.js';
 import type { InitializeServicesOptions } from '../utils/service-initializer.js';
-import type { AgentRuntimeSettingsInput } from './runtime-config.js';
+import type { DextoAgentConfigInput } from './runtime-config.js';
 
 /**
  * Constructor options for {@link DextoAgent}.
@@ -23,7 +23,7 @@ export interface DextoAgentOptions {
     // Runtime settings (input, may omit defaulted sections) — flat, no `config` wrapper.
     // Core only consumes the fields it needs at runtime.
     // Host layers own YAML parsing, image selection, defaults merging, and DI resolution.
-    // See `AgentRuntimeSettingsInput` for the list of supported fields.
+    // See `DextoAgentConfigInput` for the list of supported fields.
     //
     // NOTE: This interface is intentionally "flat" for ergonomics and to keep core DI-friendly.
     // (No `options.config` indirection.)
@@ -61,4 +61,4 @@ export interface DextoAgentOptions {
     compaction?: ICompactionStrategy | null | undefined;
 }
 
-export interface DextoAgentOptions extends AgentRuntimeSettingsInput {}
+export interface DextoAgentOptions extends DextoAgentConfigInput {}

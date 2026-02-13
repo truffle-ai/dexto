@@ -49,7 +49,7 @@ export interface AgentRuntimeSettings {
  * This is the ergonomic surface for programmatic construction.
  * DextoAgent will validate + default these values internally.
  */
-export interface AgentRuntimeSettingsInput {
+export interface DextoAgentConfigInput {
     systemPrompt: SystemPromptConfig;
     llm: LLMConfig;
 

@@ -51,7 +51,7 @@ import { SystemPromptConfigSchema } from '../systemPrompt/schemas.js';
 import { ElicitationConfigSchema, ToolConfirmationConfigSchema } from '../tools/schemas.js';
 import { OtelConfigurationSchema } from '../telemetry/schemas.js';
 import { AgentCardSchema } from './schemas.js';
-import type { AgentRuntimeSettings, AgentRuntimeSettingsInput } from './runtime-config.js';
+import type { AgentRuntimeSettings, DextoAgentConfigInput } from './runtime-config.js';
 import {
     AgentEventBus,
     type AgentEventMap,
@@ -217,7 +217,7 @@ export class DextoAgent {
      * Host layers may validate earlier (e.g. YAML parsing), but core always normalizes
      * runtime settings before use.
      */
-    public static validateConfig(options: AgentRuntimeSettingsInput): AgentRuntimeSettings {
+    public static validateConfig(options: DextoAgentConfigInput): AgentRuntimeSettings {
         return {
             agentId: options.agentId,
             llm: LLMConfigSchema.parse(options.llm),
