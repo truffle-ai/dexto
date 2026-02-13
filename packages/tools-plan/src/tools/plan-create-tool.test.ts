@@ -12,30 +12,46 @@ import { createPlanCreateTool } from './plan-create-tool.js';
 import { PlanService } from '../plan-service.js';
 import { PlanErrorCode } from '../errors.js';
 import { DextoRuntimeError } from '@dexto/core';
-import type { FileDisplayData } from '@dexto/core';
+import type { FileDisplayData, Logger, ToolExecutionContext } from '@dexto/core';
 
 // Create mock logger
-const createMockLogger = () => ({
-    debug: vi.fn(),
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    createChild: vi.fn().mockReturnThis(),
-});
+const createMockLogger = (): Logger => {
+    const logger: Logger = {
+        debug: vi.fn(),
+        silly: vi.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+        trackException: vi.fn(),
+        createChild: vi.fn(() => logger),
+        setLevel: vi.fn(),
+        getLevel: vi.fn(() => 'debug' as const),
+        getLogFilePath: vi.fn(() => null),
+        destroy: vi.fn(async () => undefined),
+    };
+    return logger;
+};
+
+function createToolContext(
+    logger: Logger,
+    overrides: Partial<ToolExecutionContext> = {}
+): ToolExecutionContext {
+    return { logger, ...overrides };
+}
 
 describe('plan_create tool', () => {
-    let mockLogger: ReturnType<typeof createMockLogger>;
+    let logger: Logger;
     let tempDir: string;
     let planService: PlanService;
 
     beforeEach(async () => {
-        mockLogger = createMockLogger();
+        logger = createMockLogger();
 
         // Create temp directory for testing
         const rawTempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'dexto-plan-create-test-'));
         tempDir = await fs.realpath(rawTempDir);
 
-        planService = new PlanService({ basePath: tempDir }, mockLogger as any);
+        planService = new PlanService({ basePath: tempDir }, logger);
 
         vi.clearAllMocks();
     });
@@ -50,13 +66,13 @@ describe('plan_create tool', () => {
 
     describe('generatePreview', () => {
         it('should return FileDisplayData for new plan', async () => {
-            const tool = createPlanCreateTool(planService);
+            const tool = createPlanCreateTool(async () => planService);
             const sessionId = 'test-session';
             const content = '# Implementation Plan\n\n## Steps\n1. First step';
 
             const preview = (await tool.generatePreview!(
                 { title: 'Test Plan', content },
-                { sessionId }
+                createToolContext(logger, { sessionId })
             )) as FileDisplayData;
 
             expect(preview.type).toBe('file');
@@ -69,10 +85,13 @@ describe('plan_create tool', () => {
         });
 
         it('should throw error when sessionId is missing', async () => {
-            const tool = createPlanCreateTool(planService);
+            const tool = createPlanCreateTool(async () => planService);
 
             try {
-                await tool.generatePreview!({ title: 'Test', content: '# Plan' }, {});
+                await tool.generatePreview!(
+                    { title: 'Test', content: '# Plan' },
+                    createToolContext(logger)
+                );
                 expect.fail('Should have thrown an error');
             } catch (error) {
                 expect(error).toBeInstanceOf(DextoRuntimeError);
@@ -81,7 +100,7 @@ describe('plan_create tool', () => {
         });
 
         it('should throw error when plan already exists', async () => {
-            const tool = createPlanCreateTool(planService);
+            const tool = createPlanCreateTool(async () => planService);
             const sessionId = 'test-session';
 
             // Create existing plan
@@ -90,7 +109,7 @@ describe('plan_create tool', () => {
             try {
                 await tool.generatePreview!(
                     { title: 'New Plan', content: '# New Content' },
-                    { sessionId }
+                    createToolContext(logger, { sessionId })
                 );
                 expect.fail('Should have thrown an error');
             } catch (error) {
@@ -102,12 +121,15 @@ describe('plan_create tool', () => {
 
     describe('execute', () => {
         it('should create plan and return success', async () => {
-            const tool = createPlanCreateTool(planService);
+            const tool = createPlanCreateTool(async () => planService);
             const sessionId = 'test-session';
             const content = '# Implementation Plan';
             const title = 'My Plan';
 
-            const result = (await tool.execute({ title, content }, { sessionId })) as {
+            const result = (await tool.execute(
+                { title, content },
+                createToolContext(logger, { sessionId })
+            )) as {
                 success: boolean;
                 path: string;
                 status: string;
@@ -123,10 +145,10 @@ describe('plan_create tool', () => {
         });
 
         it('should throw error when sessionId is missing', async () => {
-            const tool = createPlanCreateTool(planService);
+            const tool = createPlanCreateTool(async () => planService);
 
             try {
-                await tool.execute({ title: 'Test', content: '# Plan' }, {});
+                await tool.execute({ title: 'Test', content: '# Plan' }, createToolContext(logger));
                 expect.fail('Should have thrown an error');
             } catch (error) {
                 expect(error).toBeInstanceOf(DextoRuntimeError);
@@ -135,11 +157,14 @@ describe('plan_create tool', () => {
         });
 
         it('should include _display data in result', async () => {
-            const tool = createPlanCreateTool(planService);
+            const tool = createPlanCreateTool(async () => planService);
             const sessionId = 'test-session';
             const content = '# Plan\n## Steps';
 
-            const result = (await tool.execute({ title: 'Plan', content }, { sessionId })) as {
+            const result = (await tool.execute(
+                { title: 'Plan', content },
+                createToolContext(logger, { sessionId })
+            )) as {
                 _display: FileDisplayData;
             };
 

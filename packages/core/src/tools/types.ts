@@ -44,13 +44,13 @@ export interface ToolServices {
     resources: ResourceManager;
     prompts: PromptManager;
     mcp: MCPManager;
-    taskForker?: TaskForker | undefined;
+    taskForker: TaskForker | null;
 }
 
 /**
  * Context passed to tool execution
  */
-export interface ToolExecutionContext {
+export interface ToolExecutionContextBase {
     /** Session ID if available */
     sessionId?: string | undefined;
     /** Abort signal for cancellation support */
@@ -59,14 +59,16 @@ export interface ToolExecutionContext {
     toolCallId?: string | undefined;
 
     /**
+     * Logger scoped to the tool execution.
+     */
+    logger: Logger;
+}
+
+export interface ToolExecutionContext extends ToolExecutionContextBase {
+    /**
      * Runtime agent reference (DI refactor: provided by ToolManager on each execute()).
      */
     agent?: DextoAgent | undefined;
-
-    /**
-     * Logger scoped to the tool execution.
-     */
-    logger?: Logger | undefined;
 
     /**
      * Concrete storage backends (DI-first).
@@ -80,8 +82,8 @@ export interface ToolExecutionContext {
         | undefined;
 
     /**
-     * Runtime services available to tools.
-     * These are injected at execution time (not factory time) to avoid init ordering cycles.
+     * Runtime services available to tools. These are injected at execution time (not factory time)
+     * to avoid init ordering cycles.
      */
     services?: ToolServices | undefined;
 }
@@ -116,7 +118,7 @@ export interface Tool {
     inputSchema: ZodSchema;
 
     /** The actual function that executes the tool - input is validated by Zod before execution */
-    execute: (input: unknown, context?: ToolExecutionContext) => Promise<unknown> | unknown;
+    execute: (input: unknown, context: ToolExecutionContext) => Promise<unknown> | unknown;
 
     /**
      * Optional preview generator for approval UI.
@@ -125,7 +127,7 @@ export interface Tool {
      */
     generatePreview?: (
         input: unknown,
-        context?: ToolExecutionContext
+        context: ToolExecutionContext
     ) => Promise<ToolDisplayData | null>;
 
     /**
@@ -154,7 +156,7 @@ export interface Tool {
      */
     getApprovalOverride?: (
         args: unknown,
-        context?: ToolExecutionContext
+        context: ToolExecutionContext
     ) => Promise<ApprovalRequestDetails | null> | ApprovalRequestDetails | null;
 
     /**
@@ -173,7 +175,7 @@ export interface Tool {
      * }
      * ```
      */
-    onApprovalGranted?: (response: ApprovalResponse, context?: ToolExecutionContext) => void;
+    onApprovalGranted?: (response: ApprovalResponse, context: ToolExecutionContext) => void;
 }
 
 /**

@@ -30,12 +30,12 @@ export const planToolsFactory: ToolFactory<PlanToolsConfig> = {
 
         let planService: PlanService | undefined;
 
-        const getPlanService: PlanServiceGetter = async (context?: ToolExecutionContext) => {
+        const getPlanService: PlanServiceGetter = async (context: ToolExecutionContext) => {
             if (planService) {
                 return planService;
             }
 
-            planService = new PlanService({ basePath }, context?.logger);
+            planService = new PlanService({ basePath }, context.logger);
             return planService;
         };
 

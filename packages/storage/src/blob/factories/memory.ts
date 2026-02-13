@@ -18,7 +18,14 @@ import type { BlobStoreFactory } from '../factory.js';
  */
 export const inMemoryBlobStoreFactory: BlobStoreFactory<InMemoryBlobStoreConfig> = {
     configSchema: InMemoryBlobStoreSchema,
-    create: (config, logger) => new MemoryBlobStore(config, logger),
+    create: (config, logger) =>
+        new MemoryBlobStore(
+            {
+                maxBlobSize: config.maxBlobSize,
+                maxTotalSize: config.maxTotalSize,
+            },
+            logger
+        ),
     metadata: {
         displayName: 'In-Memory',
         description: 'Store blobs in RAM (ephemeral, for testing and development)',

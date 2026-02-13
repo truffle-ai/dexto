@@ -1,6 +1,7 @@
 import type { ToolFactory } from '@dexto/agent-config';
 import type { Tool, ToolExecutionContext } from '@dexto/core';
 import type { ToolBackgroundEvent } from '@dexto/core';
+import { ToolError } from '@dexto/core';
 import {
     ConditionEngine,
     SignalBus,
@@ -20,26 +21,20 @@ import {
 import { AgentSpawnerRuntime } from './runtime.js';
 import { createSpawnAgentTool } from './spawn-agent-tool.js';
 
-function requireAgentContext(context?: ToolExecutionContext): {
+function requireAgentContext(context: ToolExecutionContext): {
     agent: NonNullable<ToolExecutionContext['agent']>;
-    logger: NonNullable<ToolExecutionContext['logger']>;
-    toolServices: ToolExecutionContext['services'] | undefined;
+    logger: ToolExecutionContext['logger'];
+    toolServices: NonNullable<ToolExecutionContext['services']>;
 } {
-    const agent = context?.agent;
-    if (!agent) {
-        throw new Error(
-            'agent-spawner tools require ToolExecutionContext.agent (ToolManager should provide this)'
-        );
+    if (!context.agent) {
+        throw ToolError.configInvalid('agent-spawner tools require ToolExecutionContext.agent');
     }
 
-    const logger = context?.logger;
-    if (!logger) {
-        throw new Error(
-            'agent-spawner tools require ToolExecutionContext.logger (ToolManager should provide this)'
-        );
+    if (!context.services) {
+        throw ToolError.configInvalid('agent-spawner tools require ToolExecutionContext.services');
     }
 
-    return { agent, logger, toolServices: context.services };
+    return { agent: context.agent, logger: context.logger, toolServices: context.services };
 }
 
 type InitializedAgentSpawnerTools = {
@@ -65,36 +60,23 @@ export const agentSpawnerToolsFactory: ToolFactory<AgentSpawnerConfig> = {
     },
     create: (config) => {
         let state: AgentSpawnerToolState | undefined;
-        let warnedMissingServices = false;
 
         const attachTaskForker = (options: {
-            toolServices: ToolExecutionContext['services'] | undefined;
+            toolServices: NonNullable<ToolExecutionContext['services']>;
             taskForker: AgentSpawnerRuntime;
-            logger: NonNullable<ToolExecutionContext['logger']>;
+            logger: ToolExecutionContext['logger'];
         }) => {
             const { toolServices, taskForker, logger } = options;
-
-            if (toolServices) {
-                warnedMissingServices = false;
-                if (toolServices.taskForker !== taskForker) {
-                    toolServices.taskForker = taskForker;
-                    logger.debug(
-                        'AgentSpawnerRuntime attached as taskForker for context:fork skill support'
-                    );
-                }
-                return;
-            }
-
-            if (!warnedMissingServices) {
-                warnedMissingServices = true;
-                logger.warn(
-                    'Tool execution services not available; forked skills (context: fork) will be disabled'
+            if (toolServices.taskForker !== taskForker) {
+                toolServices.taskForker = taskForker;
+                logger.debug(
+                    'AgentSpawnerRuntime attached as taskForker for context:fork skill support'
                 );
             }
         };
 
         const ensureToolsInitialized = (
-            context?: ToolExecutionContext
+            context: ToolExecutionContext
         ): InitializedAgentSpawnerTools => {
             const { agent, logger, toolServices } = requireAgentContext(context);
 
@@ -102,8 +84,6 @@ export const agentSpawnerToolsFactory: ToolFactory<AgentSpawnerConfig> = {
                 attachTaskForker({ toolServices, taskForker: state.runtime, logger });
                 return state.tools;
             }
-
-            warnedMissingServices = false;
 
             if (state && !state.abortController.signal.aborted) {
                 state.abortController.abort();

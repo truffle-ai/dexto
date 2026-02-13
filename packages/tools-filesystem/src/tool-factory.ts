@@ -1,5 +1,6 @@
 import type { ToolFactory } from '@dexto/agent-config';
 import type { ToolExecutionContext } from '@dexto/core';
+import { ToolError } from '@dexto/core';
 import { FileSystemService } from './filesystem-service.js';
 import { createReadFileTool } from './read-file-tool.js';
 import { createWriteFileTool } from './write-file-tool.js';
@@ -37,33 +38,34 @@ export const fileSystemToolsFactory: ToolFactory<FileSystemToolsConfig> = {
         let fileSystemService: FileSystemService | undefined;
 
         const getFileSystemService = async (
-            context?: ToolExecutionContext
+            context: ToolExecutionContext
         ): Promise<FileSystemService> => {
             if (fileSystemService) {
-                const approvalManager = context?.services?.approval;
-                if (approvalManager) {
-                    fileSystemService.setDirectoryApprovalChecker((filePath: string) =>
-                        approvalManager.isDirectoryApproved(filePath)
+                const approvalManager = context.services?.approval;
+                if (!approvalManager) {
+                    throw ToolError.configInvalid(
+                        'filesystem-tools requires ToolExecutionContext.services.approval'
                     );
                 }
-                return fileSystemService;
-            }
-
-            const logger = context?.logger;
-            if (!logger) {
-                throw new Error(
-                    'filesystem-tools requires ToolExecutionContext.logger (ToolManager should provide this)'
-                );
-            }
-
-            fileSystemService = new FileSystemService(fileSystemConfig, logger);
-
-            const approvalManager = context?.services?.approval;
-            if (approvalManager) {
                 fileSystemService.setDirectoryApprovalChecker((filePath: string) =>
                     approvalManager.isDirectoryApproved(filePath)
                 );
+                return fileSystemService;
             }
+
+            const logger = context.logger;
+
+            fileSystemService = new FileSystemService(fileSystemConfig, logger);
+
+            const approvalManager = context.services?.approval;
+            if (!approvalManager) {
+                throw ToolError.configInvalid(
+                    'filesystem-tools requires ToolExecutionContext.services.approval'
+                );
+            }
+            fileSystemService.setDirectoryApprovalChecker((filePath: string) =>
+                approvalManager.isDirectoryApproved(filePath)
+            );
 
             fileSystemService.initialize().catch((error) => {
                 const message = error instanceof Error ? error.message : String(error);

@@ -45,7 +45,7 @@ const agent = new DextoAgent({
     storage: {
         cache: new MemoryCacheStore(),
         database: new MemoryDatabaseStore(),
-        blob: new MemoryBlobStore(logger),
+        blob: new MemoryBlobStore({}, logger),
     },
 });
 
@@ -84,7 +84,7 @@ const agent = new DextoAgent({
     storage: {
         cache: new MemoryCacheStore(),
         database: new MemoryDatabaseStore(),
-        blob: new MemoryBlobStore(logger),
+        blob: new MemoryBlobStore({}, logger),
     },
 });
 

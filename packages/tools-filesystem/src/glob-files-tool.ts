@@ -6,9 +6,9 @@
 
 import * as path from 'node:path';
 import { z } from 'zod';
-import { Tool, ToolExecutionContext, ApprovalType } from '@dexto/core';
+import { Tool, ToolExecutionContext, ApprovalType, ToolError } from '@dexto/core';
 import type { SearchDisplayData, ApprovalRequestDetails, ApprovalResponse } from '@dexto/core';
-import type { FileSystemServiceGetter, FileSystemServiceOrGetter } from './file-tool-types.js';
+import type { FileSystemServiceGetter } from './file-tool-types.js';
 
 const GlobFilesInputSchema = z
     .object({
@@ -34,10 +34,7 @@ type GlobFilesInput = z.input<typeof GlobFilesInputSchema>;
 /**
  * Create the glob_files internal tool with directory approval support
  */
-export function createGlobFilesTool(fileSystemService: FileSystemServiceOrGetter): Tool {
-    const getFileSystemService: FileSystemServiceGetter =
-        typeof fileSystemService === 'function' ? fileSystemService : async () => fileSystemService;
-
+export function createGlobFilesTool(getFileSystemService: FileSystemServiceGetter): Tool {
     // Store search directory for use in onApprovalGranted callback
     let pendingApprovalSearchDir: string | undefined;
 
@@ -53,7 +50,7 @@ export function createGlobFilesTool(fileSystemService: FileSystemServiceOrGetter
          */
         getApprovalOverride: async (
             args: unknown,
-            context?: ToolExecutionContext
+            context: ToolExecutionContext
         ): Promise<ApprovalRequestDetails | null> => {
             const { path: searchPath } = args as GlobFilesInput;
 
@@ -71,8 +68,13 @@ export function createGlobFilesTool(fileSystemService: FileSystemServiceOrGetter
             }
 
             // Check if directory is already session-approved (prompting decision)
-            const approvalManager = context?.services?.approval;
-            if (approvalManager?.isDirectorySessionApproved(searchDir)) {
+            const approvalManager = context.services?.approval;
+            if (!approvalManager) {
+                throw ToolError.configInvalid(
+                    'glob_files requires ToolExecutionContext.services.approval'
+                );
+            }
+            if (approvalManager.isDirectorySessionApproved(searchDir)) {
                 return null; // Already approved, use normal flow
             }
 
@@ -93,15 +95,20 @@ export function createGlobFilesTool(fileSystemService: FileSystemServiceOrGetter
         /**
          * Handle approved directory access - remember the directory for session
          */
-        onApprovalGranted: (response: ApprovalResponse, context?: ToolExecutionContext): void => {
+        onApprovalGranted: (response: ApprovalResponse, context: ToolExecutionContext): void => {
             if (!pendingApprovalSearchDir) return;
 
             // Check if user wants to remember the directory
             const data = response.data as { rememberDirectory?: boolean } | undefined;
             const rememberDirectory = data?.rememberDirectory ?? false;
 
-            const approvalManager = context?.services?.approval;
-            approvalManager?.addApprovedDirectory(
+            const approvalManager = context.services?.approval;
+            if (!approvalManager) {
+                throw ToolError.configInvalid(
+                    'glob_files requires ToolExecutionContext.services.approval'
+                );
+            }
+            approvalManager.addApprovedDirectory(
                 pendingApprovalSearchDir,
                 rememberDirectory ? 'session' : 'once'
             );
@@ -110,7 +117,7 @@ export function createGlobFilesTool(fileSystemService: FileSystemServiceOrGetter
             pendingApprovalSearchDir = undefined;
         },
 
-        execute: async (input: unknown, context?: ToolExecutionContext) => {
+        execute: async (input: unknown, context: ToolExecutionContext) => {
             const resolvedFileSystemService = await getFileSystemService(context);
 
             // Input is validated by provider before reaching here

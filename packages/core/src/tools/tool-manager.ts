@@ -1,6 +1,6 @@
 import { MCPManager } from '../mcp/manager.js';
 import type { ToolPolicies } from './schemas.js';
-import { ToolSet, ToolExecutionContext, Tool } from './types.js';
+import { ToolSet, ToolExecutionContext, ToolExecutionContextBase, Tool } from './types.js';
 import type { ToolDisplayData } from './display-types.js';
 import { ToolError } from './errors.js';
 import { ToolErrorCode } from './error-codes.js';
@@ -27,7 +27,7 @@ import {
 import { isBackgroundTasksEnabled } from '../utils/env.js';
 
 export type ToolExecutionContextFactory = (
-    baseContext: ToolExecutionContext
+    baseContext: ToolExecutionContextBase
 ) => ToolExecutionContext;
 /**
  * Unified Tool Manager - Single interface for all tool operations
@@ -72,7 +72,7 @@ export class ToolManager {
     private approvalMode: 'manual' | 'auto-approve' | 'auto-deny';
     private agentEventBus: AgentEventBus;
     private toolPolicies: ToolPolicies | undefined;
-    private toolExecutionContextFactory?: ToolExecutionContextFactory;
+    private toolExecutionContextFactory: ToolExecutionContextFactory;
 
     // Plugin support - set after construction to avoid circular dependencies
     private pluginManager?: PluginManager;
@@ -116,6 +116,11 @@ export class ToolManager {
         this.toolPolicies = toolPolicies;
         this.logger = logger.createChild(DextoLogComponent.TOOLS);
         this.setTools(tools);
+        this.toolExecutionContextFactory = () => {
+            throw ToolError.configInvalid(
+                'ToolExecutionContextFactory not configured. DextoAgent.start() must configure tool execution context before tools can run.'
+            );
+        };
 
         // Set up event listeners for surgical cache updates
         this.setupNotificationListeners();
@@ -548,15 +553,13 @@ export class ToolManager {
         abortSignal?: AbortSignal | undefined;
         toolCallId?: string | undefined;
     }): ToolExecutionContext {
-        const baseContext: ToolExecutionContext = {
+        const baseContext: ToolExecutionContextBase = {
             sessionId: options.sessionId,
             abortSignal: options.abortSignal,
             toolCallId: options.toolCallId,
             logger: this.logger,
         };
-        return this.toolExecutionContextFactory
-            ? this.toolExecutionContextFactory(baseContext)
-            : baseContext;
+        return this.toolExecutionContextFactory(baseContext);
     }
 
     private async executeLocalTool(

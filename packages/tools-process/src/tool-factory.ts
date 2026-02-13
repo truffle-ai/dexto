@@ -29,18 +29,13 @@ export const processToolsFactory: ToolFactory<ProcessToolsConfig> = {
         let processService: ProcessService | undefined;
 
         const getProcessService = async (
-            context?: ToolExecutionContext
+            context: ToolExecutionContext
         ): Promise<ProcessService> => {
             if (processService) {
                 return processService;
             }
 
-            const logger = context?.logger;
-            if (!logger) {
-                throw new Error(
-                    'process-tools requires ToolExecutionContext.logger (ToolManager should provide this)'
-                );
-            }
+            const logger = context.logger;
 
             processService = new ProcessService(processConfig, logger);
             processService.initialize().catch((error) => {

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { Tool, ToolExecutionContext } from '@dexto/core';
+import { ToolError } from '@dexto/core';
 
 const GetResourceInputSchema = z
     .object({
@@ -30,15 +31,14 @@ export function createGetResourceTool(): Tool {
             'to get resource information without loading data. ' +
             'References can be obtained from tool result annotations or list_resources.',
         inputSchema: GetResourceInputSchema,
-        execute: async (input: unknown, context?: ToolExecutionContext) => {
+        execute: async (input: unknown, context: ToolExecutionContext) => {
             const { reference, format } = input as GetResourceInput;
 
-            const resourceManager = context?.services?.resources;
+            const resourceManager = context.services?.resources;
             if (!resourceManager) {
-                return {
-                    success: false,
-                    error: 'ResourceManager not available. This is a configuration error.',
-                };
+                throw ToolError.configInvalid(
+                    'get_resource requires ToolExecutionContext.services.resources'
+                );
             }
 
             try {

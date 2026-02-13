@@ -43,14 +43,9 @@ type BashExecInput = z.input<typeof BashExecInputSchema>;
 /**
  * Create the bash_exec internal tool
  */
-export type ProcessServiceGetter = (
-    context?: ToolExecutionContext
-) => ProcessService | Promise<ProcessService>;
+export type ProcessServiceGetter = (context: ToolExecutionContext) => Promise<ProcessService>;
 
-export function createBashExecTool(processService: ProcessService | ProcessServiceGetter): Tool {
-    const getProcessService: ProcessServiceGetter =
-        typeof processService === 'function' ? processService : async () => processService;
-
+export function createBashExecTool(getProcessService: ProcessServiceGetter): Tool {
     return {
         id: 'bash_exec',
         description: `Execute a shell command in the project root directory.
@@ -103,7 +98,7 @@ Security: Dangerous commands are blocked. Injection attempts are detected. Requi
         /**
          * Generate preview for approval UI - shows the command to be executed
          */
-        generatePreview: async (input: unknown, _context?: ToolExecutionContext) => {
+        generatePreview: async (input: unknown, _context: ToolExecutionContext) => {
             const { command, run_in_background } = input as BashExecInput;
 
             const preview: ShellDisplayData = {
@@ -116,7 +111,7 @@ Security: Dangerous commands are blocked. Injection attempts are detected. Requi
             return preview;
         },
 
-        execute: async (input: unknown, context?: ToolExecutionContext) => {
+        execute: async (input: unknown, context: ToolExecutionContext) => {
             const resolvedProcessService = await getProcessService(context);
 
             // Input is validated by provider before reaching here
@@ -157,7 +152,7 @@ Security: Dangerous commands are blocked. Injection attempts are detected. Requi
                 runInBackground: run_in_background,
                 cwd: validatedCwd,
                 // Pass abort signal for cancellation support
-                abortSignal: context?.abortSignal,
+                abortSignal: context.abortSignal,
             });
 
             // Type guard: if result has 'stdout', it's a ProcessResult (foreground)

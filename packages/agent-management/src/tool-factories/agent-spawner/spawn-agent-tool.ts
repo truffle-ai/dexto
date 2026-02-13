@@ -58,7 +58,7 @@ export function createSpawnAgentTool(service: AgentSpawnerRuntime): Tool {
 
         inputSchema: SpawnAgentInputSchema,
 
-        execute: async (input: unknown, context?: ToolExecutionContext) => {
+        execute: async (input: unknown, context: ToolExecutionContext) => {
             const validatedInput = input as SpawnAgentInput;
 
             // Build options object - only include optional properties if they have values
@@ -76,10 +76,10 @@ export function createSpawnAgentTool(service: AgentSpawnerRuntime): Tool {
             if (validatedInput.agentId !== undefined) {
                 options.agentId = validatedInput.agentId;
             }
-            if (context?.toolCallId !== undefined) {
+            if (context.toolCallId !== undefined) {
                 options.toolCallId = context.toolCallId;
             }
-            if (context?.sessionId !== undefined) {
+            if (context.sessionId !== undefined) {
                 options.sessionId = context.sessionId;
             }
 

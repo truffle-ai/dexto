@@ -35,20 +35,17 @@ import type { InMemoryBlobStoreConfigInput } from './schemas.js';
  */
 export type MemoryBlobStoreOptions = Omit<InMemoryBlobStoreConfigInput, 'type'>;
 
+const MemoryBlobStoreOptionsSchema = InMemoryBlobStoreSchema.omit({ type: true });
+
 export class MemoryBlobStore implements BlobStore {
-    private config: InMemoryBlobStoreConfig;
+    private config: Omit<InMemoryBlobStoreConfig, 'type'>;
     private blobs: Map<string, { data: Buffer; metadata: StoredBlobMetadata }> = new Map();
     private connected = false;
     private logger: Logger;
 
-    constructor(logger: Logger);
-    constructor(options: MemoryBlobStoreOptions, logger: Logger);
-    constructor(optionsOrLogger: MemoryBlobStoreOptions | Logger, logger?: Logger) {
-        const resolvedLogger = logger ?? (optionsOrLogger as Logger);
-        const options = logger ? (optionsOrLogger as MemoryBlobStoreOptions) : {};
-
-        this.config = InMemoryBlobStoreSchema.parse({ type: 'in-memory', ...options });
-        this.logger = resolvedLogger.createChild(DextoLogComponent.STORAGE);
+    constructor(options: MemoryBlobStoreOptions, logger: Logger) {
+        this.config = MemoryBlobStoreOptionsSchema.parse(options);
+        this.logger = logger.createChild(DextoLogComponent.STORAGE);
     }
 
     async connect(): Promise<void> {

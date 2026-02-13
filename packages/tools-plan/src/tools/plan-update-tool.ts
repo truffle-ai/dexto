@@ -8,7 +8,6 @@
 import { z } from 'zod';
 import { createPatch } from 'diff';
 import type { Tool, ToolExecutionContext, DiffDisplayData } from '@dexto/core';
-import type { PlanService } from '../plan-service.js';
 import type { PlanServiceGetter } from '../plan-service-getter.js';
 import { PlanError } from '../errors.js';
 
@@ -46,10 +45,7 @@ function generateDiffPreview(
 /**
  * Creates the plan_update tool
  */
-export function createPlanUpdateTool(planService: PlanService | PlanServiceGetter): Tool {
-    const getPlanService: PlanServiceGetter =
-        typeof planService === 'function' ? planService : async () => planService;
-
+export function createPlanUpdateTool(getPlanService: PlanServiceGetter): Tool {
     return {
         id: 'plan_update',
         description:
@@ -61,12 +57,12 @@ export function createPlanUpdateTool(planService: PlanService | PlanServiceGette
          */
         generatePreview: async (
             input: unknown,
-            context?: ToolExecutionContext
+            context: ToolExecutionContext
         ): Promise<DiffDisplayData> => {
             const resolvedPlanService = await getPlanService(context);
             const { content: newContent } = input as PlanUpdateInput;
 
-            if (!context?.sessionId) {
+            if (!context.sessionId) {
                 throw PlanError.sessionIdRequired();
             }
 
@@ -81,11 +77,11 @@ export function createPlanUpdateTool(planService: PlanService | PlanServiceGette
             return generateDiffPreview(planPath, existing.content, newContent);
         },
 
-        execute: async (input: unknown, context?: ToolExecutionContext) => {
+        execute: async (input: unknown, context: ToolExecutionContext) => {
             const resolvedPlanService = await getPlanService(context);
             const { content } = input as PlanUpdateInput;
 
-            if (!context?.sessionId) {
+            if (!context.sessionId) {
                 throw PlanError.sessionIdRequired();
             }
 

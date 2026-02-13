@@ -23,7 +23,7 @@ import type {
 } from '@dexto/core';
 import { FileSystemErrorCode } from './error-codes.js';
 import { BufferEncoding } from './types.js';
-import type { FileSystemServiceGetter, FileSystemServiceOrGetter } from './file-tool-types.js';
+import type { FileSystemServiceGetter } from './file-tool-types.js';
 
 /**
  * Cache for content hashes between preview and execute phases.
@@ -90,10 +90,7 @@ function generateDiffPreview(
 /**
  * Create the write_file internal tool with directory approval support
  */
-export function createWriteFileTool(fileSystemService: FileSystemServiceOrGetter): Tool {
-    const getFileSystemService: FileSystemServiceGetter =
-        typeof fileSystemService === 'function' ? fileSystemService : async () => fileSystemService;
-
+export function createWriteFileTool(getFileSystemService: FileSystemServiceGetter): Tool {
     // Store parent directory for use in onApprovalGranted callback
     let pendingApprovalParentDir: string | undefined;
 
@@ -109,7 +106,7 @@ export function createWriteFileTool(fileSystemService: FileSystemServiceOrGetter
          */
         getApprovalOverride: async (
             args: unknown,
-            context?: ToolExecutionContext
+            context: ToolExecutionContext
         ): Promise<ApprovalRequestDetails | null> => {
             const { file_path } = args as WriteFileInput;
             if (!file_path) return null;
@@ -123,8 +120,13 @@ export function createWriteFileTool(fileSystemService: FileSystemServiceOrGetter
             }
 
             // Check if directory is already session-approved (prompting decision)
-            const approvalManager = context?.services?.approval;
-            if (approvalManager?.isDirectorySessionApproved(file_path)) {
+            const approvalManager = context.services?.approval;
+            if (!approvalManager) {
+                throw ToolError.configInvalid(
+                    'write_file requires ToolExecutionContext.services.approval'
+                );
+            }
+            if (approvalManager.isDirectorySessionApproved(file_path)) {
                 return null; // Already approved, use normal flow
             }
 
@@ -147,7 +149,7 @@ export function createWriteFileTool(fileSystemService: FileSystemServiceOrGetter
         /**
          * Handle approved directory access - remember the directory for session
          */
-        onApprovalGranted: (response: ApprovalResponse, context?: ToolExecutionContext): void => {
+        onApprovalGranted: (response: ApprovalResponse, context: ToolExecutionContext): void => {
             if (!pendingApprovalParentDir) return;
 
             // Check if user wants to remember the directory
@@ -155,8 +157,13 @@ export function createWriteFileTool(fileSystemService: FileSystemServiceOrGetter
             const data = response.data as { rememberDirectory?: boolean } | undefined;
             const rememberDirectory = data?.rememberDirectory ?? false;
 
-            const approvalManager = context?.services?.approval;
-            approvalManager?.addApprovedDirectory(
+            const approvalManager = context.services?.approval;
+            if (!approvalManager) {
+                throw ToolError.configInvalid(
+                    'write_file requires ToolExecutionContext.services.approval'
+                );
+            }
+            approvalManager.addApprovedDirectory(
                 pendingApprovalParentDir,
                 rememberDirectory ? 'session' : 'once'
             );
@@ -169,7 +176,7 @@ export function createWriteFileTool(fileSystemService: FileSystemServiceOrGetter
          * Generate preview for approval UI - shows diff or file creation info
          * Stores content hash for change detection in execute phase.
          */
-        generatePreview: async (input: unknown, context?: ToolExecutionContext) => {
+        generatePreview: async (input: unknown, context: ToolExecutionContext) => {
             const { file_path, content } = input as WriteFileInput;
 
             const resolvedFileSystemService = await getFileSystemService(context);
@@ -180,7 +187,7 @@ export function createWriteFileTool(fileSystemService: FileSystemServiceOrGetter
                 const originalContent = originalFile.content;
 
                 // Store content hash for change detection in execute phase
-                if (context?.toolCallId) {
+                if (context.toolCallId) {
                     previewContentHashCache.set(
                         context.toolCallId,
                         computeContentHash(originalContent)
@@ -196,7 +203,7 @@ export function createWriteFileTool(fileSystemService: FileSystemServiceOrGetter
                     error.code === FileSystemErrorCode.FILE_NOT_FOUND
                 ) {
                     // Store marker that file didn't exist at preview time
-                    if (context?.toolCallId) {
+                    if (context.toolCallId) {
                         previewContentHashCache.set(context.toolCallId, FILE_NOT_EXISTS_MARKER);
                     }
 
@@ -217,7 +224,7 @@ export function createWriteFileTool(fileSystemService: FileSystemServiceOrGetter
             }
         },
 
-        execute: async (input: unknown, context?: ToolExecutionContext) => {
+        execute: async (input: unknown, context: ToolExecutionContext) => {
             const resolvedFileSystemService = await getFileSystemService(context);
 
             // Input is validated by provider before reaching here
@@ -248,7 +255,7 @@ export function createWriteFileTool(fileSystemService: FileSystemServiceOrGetter
             }
 
             // Verify file hasn't changed since preview
-            if (context?.toolCallId && previewContentHashCache.has(context.toolCallId)) {
+            if (context.toolCallId && previewContentHashCache.has(context.toolCallId)) {
                 const expectedHash = previewContentHashCache.get(context.toolCallId);
                 previewContentHashCache.delete(context.toolCallId); // Clean up regardless of outcome
 
@@ -263,7 +270,13 @@ export function createWriteFileTool(fileSystemService: FileSystemServiceOrGetter
                         // File was deleted between preview and execute
                         throw ToolError.fileModifiedSincePreview('write_file', file_path);
                     }
-                    const currentHash = computeContentHash(originalContent!);
+                    if (originalContent === null) {
+                        throw ToolError.executionFailed(
+                            'write_file',
+                            'Expected original file content when fileExistsNow is true'
+                        );
+                    }
+                    const currentHash = computeContentHash(originalContent);
                     if (expectedHash !== currentHash) {
                         throw ToolError.fileModifiedSincePreview('write_file', file_path);
                     }

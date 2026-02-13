@@ -6,9 +6,9 @@
 
 import * as path from 'node:path';
 import { z } from 'zod';
-import { Tool, ToolExecutionContext, ApprovalType } from '@dexto/core';
+import { Tool, ToolExecutionContext, ApprovalType, ToolError } from '@dexto/core';
 import type { FileDisplayData, ApprovalRequestDetails, ApprovalResponse } from '@dexto/core';
-import type { FileSystemServiceGetter, FileSystemServiceOrGetter } from './file-tool-types.js';
+import type { FileSystemServiceGetter } from './file-tool-types.js';
 
 const ReadFileInputSchema = z
     .object({
@@ -33,10 +33,7 @@ type ReadFileInput = z.input<typeof ReadFileInputSchema>;
 /**
  * Create the read_file internal tool with directory approval support
  */
-export function createReadFileTool(fileSystemService: FileSystemServiceOrGetter): Tool {
-    const getFileSystemService: FileSystemServiceGetter =
-        typeof fileSystemService === 'function' ? fileSystemService : async () => fileSystemService;
-
+export function createReadFileTool(getFileSystemService: FileSystemServiceGetter): Tool {
     // Store parent directory for use in onApprovalGranted callback
     let pendingApprovalParentDir: string | undefined;
 
@@ -52,7 +49,7 @@ export function createReadFileTool(fileSystemService: FileSystemServiceOrGetter)
          */
         getApprovalOverride: async (
             args: unknown,
-            context?: ToolExecutionContext
+            context: ToolExecutionContext
         ): Promise<ApprovalRequestDetails | null> => {
             const { file_path } = args as ReadFileInput;
             if (!file_path) return null;
@@ -66,8 +63,13 @@ export function createReadFileTool(fileSystemService: FileSystemServiceOrGetter)
             }
 
             // Check if directory is already session-approved (prompting decision)
-            const approvalManager = context?.services?.approval;
-            if (approvalManager?.isDirectorySessionApproved(file_path)) {
+            const approvalManager = context.services?.approval;
+            if (!approvalManager) {
+                throw ToolError.configInvalid(
+                    'read_file requires ToolExecutionContext.services.approval'
+                );
+            }
+            if (approvalManager.isDirectorySessionApproved(file_path)) {
                 return null; // Already approved, use normal flow
             }
 
@@ -90,7 +92,7 @@ export function createReadFileTool(fileSystemService: FileSystemServiceOrGetter)
         /**
          * Handle approved directory access - remember the directory for session
          */
-        onApprovalGranted: (response: ApprovalResponse, context?: ToolExecutionContext): void => {
+        onApprovalGranted: (response: ApprovalResponse, context: ToolExecutionContext): void => {
             if (!pendingApprovalParentDir) return;
 
             // Check if user wants to remember the directory
@@ -98,8 +100,13 @@ export function createReadFileTool(fileSystemService: FileSystemServiceOrGetter)
             const data = response.data as { rememberDirectory?: boolean } | undefined;
             const rememberDirectory = data?.rememberDirectory ?? false;
 
-            const approvalManager = context?.services?.approval;
-            approvalManager?.addApprovedDirectory(
+            const approvalManager = context.services?.approval;
+            if (!approvalManager) {
+                throw ToolError.configInvalid(
+                    'read_file requires ToolExecutionContext.services.approval'
+                );
+            }
+            approvalManager.addApprovedDirectory(
                 pendingApprovalParentDir,
                 rememberDirectory ? 'session' : 'once'
             );
@@ -108,7 +115,7 @@ export function createReadFileTool(fileSystemService: FileSystemServiceOrGetter)
             pendingApprovalParentDir = undefined;
         },
 
-        execute: async (input: unknown, context?: ToolExecutionContext) => {
+        execute: async (input: unknown, context: ToolExecutionContext) => {
             const resolvedFileSystemService = await getFileSystemService(context);
 
             // Input is validated by provider before reaching here

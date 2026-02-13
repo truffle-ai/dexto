@@ -155,7 +155,7 @@ export function createWaitForTool(conditionEngine: ConditionEngine): Tool {
             'Blocks execution until the condition is met. ' +
             'Use taskId for a single task, or taskIds with mode for multiple tasks.',
         inputSchema: WaitForInputSchema,
-        execute: async (rawInput: unknown): Promise<WaitForOutput> => {
+        execute: async (rawInput: unknown, _context): Promise<WaitForOutput> => {
             const input = WaitForInputSchema.parse(rawInput);
             const condition = buildCondition(input);
 

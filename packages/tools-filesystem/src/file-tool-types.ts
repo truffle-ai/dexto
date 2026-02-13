@@ -12,8 +12,4 @@ import type { FileSystemService } from './filesystem-service.js';
  * Tool factories construct tools before runtime services are available, so tools
  * resolve the service on-demand using {@link ToolExecutionContext}.
  */
-export type FileSystemServiceGetter = (
-    context?: ToolExecutionContext
-) => FileSystemService | Promise<FileSystemService>;
-
-export type FileSystemServiceOrGetter = FileSystemService | FileSystemServiceGetter;
+export type FileSystemServiceGetter = (context: ToolExecutionContext) => Promise<FileSystemService>;

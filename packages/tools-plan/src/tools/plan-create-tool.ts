@@ -7,7 +7,6 @@
 
 import { z } from 'zod';
 import type { Tool, ToolExecutionContext, FileDisplayData } from '@dexto/core';
-import type { PlanService } from '../plan-service.js';
 import type { PlanServiceGetter } from '../plan-service-getter.js';
 import { PlanError } from '../errors.js';
 
@@ -27,10 +26,7 @@ type PlanCreateInput = z.input<typeof PlanCreateInputSchema>;
 /**
  * Creates the plan_create tool
  */
-export function createPlanCreateTool(planService: PlanService | PlanServiceGetter): Tool {
-    const getPlanService: PlanServiceGetter =
-        typeof planService === 'function' ? planService : async () => planService;
-
+export function createPlanCreateTool(getPlanService: PlanServiceGetter): Tool {
     return {
         id: 'plan_create',
         description:
@@ -42,12 +38,12 @@ export function createPlanCreateTool(planService: PlanService | PlanServiceGette
          */
         generatePreview: async (
             input: unknown,
-            context?: ToolExecutionContext
+            context: ToolExecutionContext
         ): Promise<FileDisplayData> => {
             const resolvedPlanService = await getPlanService(context);
             const { content } = input as PlanCreateInput;
 
-            if (!context?.sessionId) {
+            if (!context.sessionId) {
                 throw PlanError.sessionIdRequired();
             }
 
@@ -70,11 +66,11 @@ export function createPlanCreateTool(planService: PlanService | PlanServiceGette
             };
         },
 
-        execute: async (input: unknown, context?: ToolExecutionContext) => {
+        execute: async (input: unknown, context: ToolExecutionContext) => {
             const resolvedPlanService = await getPlanService(context);
             const { title, content } = input as PlanCreateInput;
 
-            if (!context?.sessionId) {
+            if (!context.sessionId) {
                 throw PlanError.sessionIdRequired();
             }
 

@@ -405,6 +405,7 @@ export class DextoAgent {
                 resources: services.resourceManager,
                 prompts: promptManager,
                 mcp: services.mcpManager,
+                taskForker: null,
             };
             services.toolManager.setToolExecutionContextFactory((baseContext) => ({
                 ...baseContext,

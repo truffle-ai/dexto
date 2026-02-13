@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { Tool, ToolExecutionContext } from '@dexto/core';
+import { ToolError } from '@dexto/core';
 
 const ListResourcesInputSchema = z
     .object({
@@ -43,16 +44,14 @@ export function createListResourcesTool(): Tool {
             'that can be used with get_resource to obtain shareable URLs or metadata. ' +
             'Filter by source (tool/user) or kind (image/audio/video/binary).',
         inputSchema: ListResourcesInputSchema,
-        execute: async (input: unknown, context?: ToolExecutionContext) => {
+        execute: async (input: unknown, context: ToolExecutionContext) => {
             const { source, kind, limit } = input as ListResourcesInput;
 
-            const resourceManager = context?.services?.resources;
+            const resourceManager = context.services?.resources;
             if (!resourceManager) {
-                return {
-                    success: false,
-                    error: 'ResourceManager not available. This is a configuration error.',
-                    resources: [],
-                };
+                throw ToolError.configInvalid(
+                    'list_resources requires ToolExecutionContext.services.resources'
+                );
             }
 
             try {

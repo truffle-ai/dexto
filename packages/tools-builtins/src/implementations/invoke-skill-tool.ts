@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { Tool, ToolExecutionContext } from '@dexto/core';
 import { flattenPromptResult } from '@dexto/core';
+import { ToolError } from '@dexto/core';
 
 const InvokeSkillInputSchema = z
     .object({
@@ -22,39 +23,19 @@ const InvokeSkillInputSchema = z
 
 type InvokeSkillInput = z.input<typeof InvokeSkillInputSchema>;
 
-type TaskForker = {
-    fork(options: {
-        task: string;
-        instructions: string;
-        agentId?: string;
-        autoApprove?: boolean;
-        toolCallId?: string;
-        sessionId?: string;
-    }): Promise<{ success: boolean; response?: string; error?: string }>;
-};
-
-function isTaskForker(value: unknown): value is TaskForker {
-    return (
-        typeof value === 'object' &&
-        value !== null &&
-        'fork' in value &&
-        typeof value.fork === 'function'
-    );
-}
-
 export function createInvokeSkillTool(): Tool {
     return {
         id: 'invoke_skill',
         description: buildToolDescription(),
         inputSchema: InvokeSkillInputSchema,
-        execute: async (input: unknown, context?: ToolExecutionContext) => {
+        execute: async (input: unknown, context: ToolExecutionContext) => {
             const { skill, args, taskContext } = input as InvokeSkillInput;
 
-            const promptManager = context?.services?.prompts;
+            const promptManager = context.services?.prompts;
             if (!promptManager) {
-                return {
-                    error: 'PromptManager not available. This is a configuration error.',
-                };
+                throw ToolError.configInvalid(
+                    'invoke_skill requires ToolExecutionContext.services.prompts'
+                );
             }
 
             const autoInvocable = await promptManager.listAutoInvocablePrompts();
@@ -88,8 +69,8 @@ export function createInvokeSkillTool(): Tool {
             const content = flattened.text;
 
             if (promptDef?.context === 'fork') {
-                const maybeForker = context?.services?.taskForker;
-                if (!isTaskForker(maybeForker)) {
+                const taskForker = context.services?.taskForker;
+                if (!taskForker) {
                     return {
                         error: `Skill '${skill}' requires fork execution (context: fork), but agent spawning is not available.`,
                         skill: skillKey,
@@ -115,14 +96,14 @@ export function createInvokeSkillTool(): Tool {
                 if (promptDef.agent) {
                     forkOptions.agentId = promptDef.agent;
                 }
-                if (context?.toolCallId) {
+                if (context.toolCallId) {
                     forkOptions.toolCallId = context.toolCallId;
                 }
-                if (context?.sessionId) {
+                if (context.sessionId) {
                     forkOptions.sessionId = context.sessionId;
                 }
 
-                const result = await maybeForker.fork(forkOptions);
+                const result = await taskForker.fork(forkOptions);
 
                 if (result.success) {
                     return result.response ?? 'Task completed successfully.';

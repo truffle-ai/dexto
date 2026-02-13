@@ -14,7 +14,6 @@
 
 import { z } from 'zod';
 import type { Tool, ToolExecutionContext, FileDisplayData } from '@dexto/core';
-import type { PlanService } from '../plan-service.js';
 import type { PlanServiceGetter } from '../plan-service-getter.js';
 import { PlanError } from '../errors.js';
 
@@ -34,10 +33,7 @@ type PlanReviewInput = z.input<typeof PlanReviewInputSchema>;
  *
  * @param planService - Service for plan operations
  */
-export function createPlanReviewTool(planService: PlanService | PlanServiceGetter): Tool {
-    const getPlanService: PlanServiceGetter =
-        typeof planService === 'function' ? planService : async () => planService;
-
+export function createPlanReviewTool(getPlanService: PlanServiceGetter): Tool {
     return {
         id: 'plan_review',
         description:
@@ -50,12 +46,12 @@ export function createPlanReviewTool(planService: PlanService | PlanServiceGette
          */
         generatePreview: async (
             input: unknown,
-            context?: ToolExecutionContext
+            context: ToolExecutionContext
         ): Promise<FileDisplayData> => {
             const resolvedPlanService = await getPlanService(context);
             const { summary } = input as PlanReviewInput;
 
-            if (!context?.sessionId) {
+            if (!context.sessionId) {
                 throw PlanError.sessionIdRequired();
             }
 
@@ -83,11 +79,11 @@ export function createPlanReviewTool(planService: PlanService | PlanServiceGette
             };
         },
 
-        execute: async (_input: unknown, context?: ToolExecutionContext) => {
+        execute: async (_input: unknown, context: ToolExecutionContext) => {
             const resolvedPlanService = await getPlanService(context);
             // Tool execution means user approved the plan (selected Approve or Approve + Accept Edits)
             // Request Changes and Reject are handled as denials in the approval flow
-            if (!context?.sessionId) {
+            if (!context.sessionId) {
                 throw PlanError.sessionIdRequired();
             }
 

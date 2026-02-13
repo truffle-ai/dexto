@@ -254,6 +254,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 ] as any,
                 mockLogger
             );
+            toolManager.setToolExecutionContextFactory((baseContext) => baseContext);
 
             const allTools = await toolManager.getAllTools();
             expect(allTools['custom--hello']).toBeDefined();
@@ -1175,6 +1176,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     ] as any,
                     mockLogger
                 );
+                toolManager.setToolExecutionContextFactory((baseContext) => baseContext);
 
                 const result = await toolManager.executeTool(
                     'internal--ask_user',

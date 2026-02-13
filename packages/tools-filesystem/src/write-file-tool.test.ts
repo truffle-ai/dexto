@@ -12,18 +12,35 @@ import { createWriteFileTool } from './write-file-tool.js';
 import { FileSystemService } from './filesystem-service.js';
 import { ToolErrorCode } from '@dexto/core';
 import { DextoRuntimeError } from '@dexto/core';
+import type { Logger, ToolExecutionContext } from '@dexto/core';
 
 // Create mock logger
-const createMockLogger = () => ({
-    debug: vi.fn(),
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    createChild: vi.fn().mockReturnThis(),
-});
+const createMockLogger = (): Logger => {
+    const logger: Logger = {
+        debug: vi.fn(),
+        silly: vi.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+        trackException: vi.fn(),
+        createChild: vi.fn(() => logger),
+        setLevel: vi.fn(),
+        getLevel: vi.fn(() => 'debug' as const),
+        getLogFilePath: vi.fn(() => null),
+        destroy: vi.fn(async () => undefined),
+    };
+    return logger;
+};
+
+function createToolContext(
+    logger: Logger,
+    overrides: Partial<ToolExecutionContext> = {}
+): ToolExecutionContext {
+    return { logger, ...overrides };
+}
 
 describe('write_file tool', () => {
-    let mockLogger: ReturnType<typeof createMockLogger>;
+    let mockLogger: Logger;
     let tempDir: string;
     let fileSystemService: FileSystemService;
 
@@ -44,7 +61,7 @@ describe('write_file tool', () => {
                 enableBackups: false,
                 backupRetentionDays: 7,
             },
-            mockLogger as any
+            mockLogger
         );
         await fileSystemService.initialize();
 
@@ -62,7 +79,7 @@ describe('write_file tool', () => {
 
     describe('File Modification Detection - Existing Files', () => {
         it('should succeed when existing file is not modified between preview and execute', async () => {
-            const tool = createWriteFileTool(fileSystemService);
+            const tool = createWriteFileTool(async () => fileSystemService);
             const testFile = path.join(tempDir, 'test.txt');
             await fs.writeFile(testFile, 'original content');
 
@@ -73,12 +90,18 @@ describe('write_file tool', () => {
             };
 
             // Generate preview (stores hash)
-            const preview = await tool.generatePreview!(input, { toolCallId });
+            const preview = await tool.generatePreview!(
+                input,
+                createToolContext(mockLogger, { toolCallId })
+            );
             expect(preview).toBeDefined();
             expect(preview?.type).toBe('diff');
 
             // Execute without modifying file (should succeed)
-            const result = (await tool.execute(input, { toolCallId })) as {
+            const result = (await tool.execute(
+                input,
+                createToolContext(mockLogger, { toolCallId })
+            )) as {
                 success: boolean;
                 path: string;
             };
@@ -92,7 +115,7 @@ describe('write_file tool', () => {
         });
 
         it('should fail when existing file is modified between preview and execute', async () => {
-            const tool = createWriteFileTool(fileSystemService);
+            const tool = createWriteFileTool(async () => fileSystemService);
             const testFile = path.join(tempDir, 'test.txt');
             await fs.writeFile(testFile, 'original content');
 
@@ -103,14 +126,14 @@ describe('write_file tool', () => {
             };
 
             // Generate preview (stores hash)
-            await tool.generatePreview!(input, { toolCallId });
+            await tool.generatePreview!(input, createToolContext(mockLogger, { toolCallId }));
 
             // Simulate user modifying the file externally
             await fs.writeFile(testFile, 'user modified this');
 
             // Execute should fail because file was modified
             try {
-                await tool.execute(input, { toolCallId });
+                await tool.execute(input, createToolContext(mockLogger, { toolCallId }));
                 expect.fail('Should have thrown an error');
             } catch (error) {
                 expect(error).toBeInstanceOf(DextoRuntimeError);
@@ -125,7 +148,7 @@ describe('write_file tool', () => {
         });
 
         it('should fail when existing file is deleted between preview and execute', async () => {
-            const tool = createWriteFileTool(fileSystemService);
+            const tool = createWriteFileTool(async () => fileSystemService);
             const testFile = path.join(tempDir, 'test.txt');
             await fs.writeFile(testFile, 'original content');
 
@@ -136,14 +159,14 @@ describe('write_file tool', () => {
             };
 
             // Generate preview (stores hash of existing file)
-            await tool.generatePreview!(input, { toolCallId });
+            await tool.generatePreview!(input, createToolContext(mockLogger, { toolCallId }));
 
             // Simulate user deleting the file
             await fs.unlink(testFile);
 
             // Execute should fail because file was deleted
             try {
-                await tool.execute(input, { toolCallId });
+                await tool.execute(input, createToolContext(mockLogger, { toolCallId }));
                 expect.fail('Should have thrown an error');
             } catch (error) {
                 expect(error).toBeInstanceOf(DextoRuntimeError);
@@ -156,7 +179,7 @@ describe('write_file tool', () => {
 
     describe('File Modification Detection - New Files', () => {
         it('should succeed when creating new file that still does not exist', async () => {
-            const tool = createWriteFileTool(fileSystemService);
+            const tool = createWriteFileTool(async () => fileSystemService);
             const testFile = path.join(tempDir, 'new-file.txt');
 
             const toolCallId = 'test-call-new';
@@ -166,13 +189,19 @@ describe('write_file tool', () => {
             };
 
             // Generate preview (stores marker that file doesn't exist)
-            const preview = await tool.generatePreview!(input, { toolCallId });
+            const preview = await tool.generatePreview!(
+                input,
+                createToolContext(mockLogger, { toolCallId })
+            );
             expect(preview).toBeDefined();
             expect(preview?.type).toBe('file');
             expect((preview as any).operation).toBe('create');
 
             // Execute (file still doesn't exist - should succeed)
-            const result = (await tool.execute(input, { toolCallId })) as { success: boolean };
+            const result = (await tool.execute(
+                input,
+                createToolContext(mockLogger, { toolCallId })
+            )) as { success: boolean };
 
             expect(result.success).toBe(true);
 
@@ -182,7 +211,7 @@ describe('write_file tool', () => {
         });
 
         it('should fail when file is created by someone else between preview and execute', async () => {
-            const tool = createWriteFileTool(fileSystemService);
+            const tool = createWriteFileTool(async () => fileSystemService);
             const testFile = path.join(tempDir, 'race-condition.txt');
 
             const toolCallId = 'test-call-race';
@@ -192,7 +221,10 @@ describe('write_file tool', () => {
             };
 
             // Generate preview (file doesn't exist)
-            const preview = await tool.generatePreview!(input, { toolCallId });
+            const preview = await tool.generatePreview!(
+                input,
+                createToolContext(mockLogger, { toolCallId })
+            );
             expect(preview?.type).toBe('file');
 
             // Simulate someone else creating the file
@@ -200,7 +232,7 @@ describe('write_file tool', () => {
 
             // Execute should fail because file now exists
             try {
-                await tool.execute(input, { toolCallId });
+                await tool.execute(input, createToolContext(mockLogger, { toolCallId }));
                 expect.fail('Should have thrown an error');
             } catch (error) {
                 expect(error).toBeInstanceOf(DextoRuntimeError);
@@ -217,7 +249,7 @@ describe('write_file tool', () => {
 
     describe('Cache Cleanup', () => {
         it('should clean up hash cache after successful execution', async () => {
-            const tool = createWriteFileTool(fileSystemService);
+            const tool = createWriteFileTool(async () => fileSystemService);
             const testFile = path.join(tempDir, 'test.txt');
             await fs.writeFile(testFile, 'original');
 
@@ -228,16 +260,19 @@ describe('write_file tool', () => {
             };
 
             // First write
-            await tool.generatePreview!(input, { toolCallId });
-            await tool.execute(input, { toolCallId });
+            await tool.generatePreview!(input, createToolContext(mockLogger, { toolCallId }));
+            await tool.execute(input, createToolContext(mockLogger, { toolCallId }));
 
             // Second write with same toolCallId should work
             const input2 = {
                 file_path: testFile,
                 content: 'second write',
             };
-            await tool.generatePreview!(input2, { toolCallId });
-            const result = (await tool.execute(input2, { toolCallId })) as { success: boolean };
+            await tool.generatePreview!(input2, createToolContext(mockLogger, { toolCallId }));
+            const result = (await tool.execute(
+                input2,
+                createToolContext(mockLogger, { toolCallId })
+            )) as { success: boolean };
 
             expect(result.success).toBe(true);
             const content = await fs.readFile(testFile, 'utf-8');
@@ -245,7 +280,7 @@ describe('write_file tool', () => {
         });
 
         it('should clean up hash cache after failed execution', async () => {
-            const tool = createWriteFileTool(fileSystemService);
+            const tool = createWriteFileTool(async () => fileSystemService);
             const testFile = path.join(tempDir, 'test.txt');
             await fs.writeFile(testFile, 'original');
 
@@ -256,14 +291,14 @@ describe('write_file tool', () => {
             };
 
             // Preview
-            await tool.generatePreview!(input, { toolCallId });
+            await tool.generatePreview!(input, createToolContext(mockLogger, { toolCallId }));
 
             // Modify to cause failure
             await fs.writeFile(testFile, 'modified');
 
             // Execute fails
             try {
-                await tool.execute(input, { toolCallId });
+                await tool.execute(input, createToolContext(mockLogger, { toolCallId }));
             } catch {
                 // Expected
             }
@@ -272,8 +307,11 @@ describe('write_file tool', () => {
             await fs.writeFile(testFile, 'reset content');
 
             // Next execution with same toolCallId should work
-            await tool.generatePreview!(input, { toolCallId });
-            const result = (await tool.execute(input, { toolCallId })) as { success: boolean };
+            await tool.generatePreview!(input, createToolContext(mockLogger, { toolCallId }));
+            const result = (await tool.execute(
+                input,
+                createToolContext(mockLogger, { toolCallId })
+            )) as { success: boolean };
 
             expect(result.success).toBe(true);
         });

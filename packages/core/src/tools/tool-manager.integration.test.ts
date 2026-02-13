@@ -201,6 +201,7 @@ describe('ToolManager Integration Tests', () => {
                 [internalSearchHistoryTool],
                 mockLogger
             );
+            toolManager.setToolExecutionContextFactory((baseContext) => baseContext);
 
             await toolManager.initialize();
 
@@ -252,6 +253,7 @@ describe('ToolManager Integration Tests', () => {
                 [internalSearchHistoryTool],
                 mockLogger
             );
+            toolManager.setToolExecutionContextFactory((baseContext) => baseContext);
 
             await toolManager.initialize();
 
@@ -409,6 +411,7 @@ describe('ToolManager Integration Tests', () => {
                 [internalSearchHistoryTool],
                 mockLogger
             );
+            toolManager.setToolExecutionContextFactory((baseContext) => baseContext);
 
             await toolManager.initialize();
 
@@ -470,6 +473,7 @@ describe('ToolManager Integration Tests', () => {
                 [createSearchHistoryTool(failingSearchService)],
                 mockLogger
             );
+            toolManager.setToolExecutionContextFactory((baseContext) => baseContext);
 
             await toolManager.initialize();
 
@@ -603,6 +607,7 @@ describe('ToolManager Integration Tests', () => {
                 [internalSearchHistoryTool],
                 mockLogger
             );
+            toolManager.setToolExecutionContextFactory((baseContext) => baseContext);
 
             await toolManager.initialize();
 
