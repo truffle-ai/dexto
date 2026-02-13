@@ -117,6 +117,8 @@ describe('loadImage', () => {
     });
 
     it('throws a clear error when the module export is not a DextoImageModule', async () => {
-        await expect(loadImage('@dexto/core')).rejects.toThrow("Invalid image '@dexto/core':");
+        await expect(loadImage('./__fixtures__/not-an-image.ts')).rejects.toThrow(
+            "Invalid image './__fixtures__/not-an-image.ts': expected an object export"
+        );
     });
 });
