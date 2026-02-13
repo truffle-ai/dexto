@@ -1,24 +1,15 @@
 import os from 'node:os';
 import type { Context } from 'hono';
 import type { AgentCard } from '@dexto/core';
-import {
-    AgentConfigSchema,
-    applyImageDefaults,
-    cleanNullValues,
-    loadImage,
-    resolveServicesFromConfig,
-    toDextoAgentOptions,
-    type DextoImageModule,
-} from '@dexto/agent-config';
 import { DextoAgent, createAgentCard, logger, AgentError } from '@dexto/core';
 import {
     loadAgentConfig,
-    enrichAgentConfig,
     deriveDisplayName,
     getAgentRegistry,
     AgentFactory,
     globalPreferencesExist,
     loadGlobalPreferences,
+    createDextoAgentFromConfig,
 } from '@dexto/agent-management';
 import { applyUserPreferences } from '../config/cli-overrides.js';
 import { createFileSessionLoggerFactory } from '../utils/session-logger-factory.js';
@@ -41,15 +32,6 @@ import { registerGracefulShutdown } from '../utils/graceful-shutdown.js';
 const DEFAULT_AGENT_VERSION = '1.0.0';
 
 const sessionLoggerFactory = createFileSessionLoggerFactory();
-
-async function loadImageForConfig(config: {
-    image?: string | undefined;
-}): Promise<DextoImageModule> {
-    const imageName = config.image || process.env.DEXTO_IMAGE || '@dexto/image-local';
-    const image = await loadImage(imageName);
-    logger.debug(`Loaded image: ${imageName}`);
-    return image;
-}
 
 /**
  * List all agents (installed and available)
@@ -113,27 +95,13 @@ async function createAgentFromId(agentId: string): Promise<DextoAgent> {
             }
         }
 
-        const cleanedConfig = cleanNullValues(config);
-
-        const image = await loadImageForConfig(cleanedConfig);
-        const configWithImageDefaults = applyImageDefaults(cleanedConfig, image.defaults);
-
-        // Enrich config with per-agent paths BEFORE validation
-        const enrichedConfig = enrichAgentConfig(configWithImageDefaults, agentPath, {
-            logLevel: 'info', // Server uses info-level logging for visibility
-        });
-
         logger.info(`Creating agent: ${agentId} from ${agentPath}`);
-        const validatedConfig = AgentConfigSchema.parse(enrichedConfig);
-        const services = await resolveServicesFromConfig(validatedConfig, image);
-        const agent = new DextoAgent(
-            toDextoAgentOptions({
-                config: validatedConfig,
-                services,
-                overrides: { sessionLoggerFactory },
-            })
-        );
-        return agent;
+        return await createDextoAgentFromConfig({
+            config,
+            configPath: agentPath,
+            enrichOptions: { logLevel: 'info' },
+            overrides: { sessionLoggerFactory },
+        });
     } catch (error) {
         throw new Error(
             `Failed to create agent '${agentId}': ${error instanceof Error ? error.message : String(error)}`
@@ -396,31 +364,18 @@ export async function initializeHonoApi(
                 }
             }
 
-            const cleanedConfig = cleanNullValues(config);
-            const image = await loadImageForConfig(cleanedConfig);
-            const configWithImageDefaults = applyImageDefaults(cleanedConfig, image.defaults);
-
-            // 3.5. Enrich config with per-agent paths BEFORE validation
-            const enrichedConfig = enrichAgentConfig(configWithImageDefaults, filePath, {
-                logLevel: 'info', // Server uses info-level logging for visibility
+            // 3. Create new agent instance (will initialize fresh telemetry in createAgentServices)
+            newAgent = await createDextoAgentFromConfig({
+                config,
+                configPath: filePath,
+                enrichOptions: { logLevel: 'info' },
+                overrides: { sessionLoggerFactory },
             });
 
-            // 4. Create new agent instance directly (will initialize fresh telemetry in createAgentServices)
-            const validatedConfig = AgentConfigSchema.parse(enrichedConfig);
-            const services = await resolveServicesFromConfig(validatedConfig, image);
-            newAgent = new DextoAgent(
-                toDextoAgentOptions({
-                    config: validatedConfig,
-                    services,
-                    overrides: { sessionLoggerFactory },
-                })
-            );
+            // 4. Use enriched agentId (derived from config or filename during enrichment)
+            const agentId = newAgent.config.agentId;
 
-            // 5. Use enriched agentId (derived from config or filename during enrichment)
-            // enrichAgentConfig always sets agentId, so it's safe to assert non-null
-            const agentId = validatedConfig.agentId;
-
-            // 6. Use common switch logic (register subscribers, start agent, stop previous)
+            // 5. Use common switch logic (register subscribers, start agent, stop previous)
             return await performAgentSwitch(newAgent, agentId, filePath, bridge);
         } catch (error) {
             logger.error(

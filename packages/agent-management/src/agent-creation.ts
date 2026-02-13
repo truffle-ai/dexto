@@ -7,7 +7,7 @@ import {
     resolveServicesFromConfig,
     toDextoAgentOptions,
 } from '@dexto/agent-config';
-import { DextoAgent, logger } from '@dexto/core';
+import { DextoAgent, logger, type InitializeServicesOptions } from '@dexto/core';
 import { enrichAgentConfig, type EnrichAgentConfigOptions } from './config/index.js';
 import { BUILTIN_TOOL_NAMES } from '@dexto/tools-builtins';
 
@@ -18,6 +18,7 @@ type CreateDextoAgentFromConfigOptions = {
     agentIdOverride?: string | undefined;
     imageNameOverride?: string | undefined;
     agentContext?: 'subagent' | undefined;
+    overrides?: InitializeServicesOptions | undefined;
 };
 
 async function loadImageForConfig(options: {
@@ -79,7 +80,7 @@ function applySubAgentToolConstraints(config: AgentConfig): AgentConfig {
 export async function createDextoAgentFromConfig(
     options: CreateDextoAgentFromConfigOptions
 ): Promise<DextoAgent> {
-    const { configPath, enrichOptions, agentIdOverride } = options;
+    const { configPath, enrichOptions, agentIdOverride, overrides } = options;
 
     const cleanedConfig = cleanNullValues(options.config);
     const { image } = await loadImageForConfig({
@@ -110,6 +111,7 @@ export async function createDextoAgentFromConfig(
         toDextoAgentOptions({
             config: validatedConfig,
             services,
+            overrides,
         })
     );
 }

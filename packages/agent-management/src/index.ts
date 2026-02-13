@@ -51,6 +51,7 @@ export {
 
 // Static API for agent management
 export { AgentFactory, type CreateAgentOptions } from './AgentFactory.js';
+export { createDextoAgentFromConfig } from './agent-creation.js';
 
 // Image store (global CLI image resolution)
 export {
