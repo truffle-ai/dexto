@@ -15,7 +15,7 @@ in an image (`DextoImageModule.storage.*`) and resolving config via `@dexto/agen
 - **Schemas** (for config parsing + UI):
   - Import from `@dexto/storage/schemas` for browser-safe schema-only exports.
 - **Concrete implementations** (Node runtime):
-  - `LocalBlobStore`, `InMemoryBlobStore`, `SQLiteStore`, `PostgresStore`, `RedisStore`, etc.
+  - `LocalBlobStore`, `MemoryBlobStore`, `SQLiteStore`, `PostgresStore`, `RedisStore`, etc.
 
 ## Using factories in an image
 
@@ -78,4 +78,3 @@ import { StorageSchema } from '@dexto/storage/schemas';
 
 Do not import from `@dexto/storage` in browser bundles, since the root entry also exports Node
 implementations.
-

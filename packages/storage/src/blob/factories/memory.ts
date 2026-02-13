@@ -1,6 +1,6 @@
 import type { InMemoryBlobStoreConfig } from '../schemas.js';
 import { InMemoryBlobStoreSchema } from '../schemas.js';
-import { InMemoryBlobStore } from '../memory-blob-store.js';
+import { MemoryBlobStore } from '../memory-blob-store.js';
 import type { BlobStoreFactory } from '../factory.js';
 
 /**
@@ -18,7 +18,7 @@ import type { BlobStoreFactory } from '../factory.js';
  */
 export const inMemoryBlobStoreFactory: BlobStoreFactory<InMemoryBlobStoreConfig> = {
     configSchema: InMemoryBlobStoreSchema,
-    create: (config, logger) => new InMemoryBlobStore(config, logger),
+    create: (config, logger) => new MemoryBlobStore(config, logger),
     metadata: {
         displayName: 'In-Memory',
         description: 'Store blobs in RAM (ephemeral, for testing and development)',

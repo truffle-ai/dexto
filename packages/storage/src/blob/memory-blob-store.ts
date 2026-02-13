@@ -33,28 +33,35 @@ import type { InMemoryBlobStoreConfigInput } from './schemas.js';
  * - Path format not supported (no filesystem)
  * - Memory usage proportional to blob size
  */
-export class InMemoryBlobStore implements BlobStore {
+export type MemoryBlobStoreOptions = Omit<InMemoryBlobStoreConfigInput, 'type'>;
+
+export class MemoryBlobStore implements BlobStore {
     private config: InMemoryBlobStoreConfig;
     private blobs: Map<string, { data: Buffer; metadata: StoredBlobMetadata }> = new Map();
     private connected = false;
     private logger: IDextoLogger;
 
-    constructor(config: InMemoryBlobStoreConfigInput, logger: IDextoLogger) {
-        this.config = InMemoryBlobStoreSchema.parse(config);
-        this.logger = logger.createChild(DextoLogComponent.STORAGE);
+    constructor(logger: IDextoLogger);
+    constructor(options: MemoryBlobStoreOptions, logger: IDextoLogger);
+    constructor(optionsOrLogger: MemoryBlobStoreOptions | IDextoLogger, logger?: IDextoLogger) {
+        const resolvedLogger = logger ?? (optionsOrLogger as IDextoLogger);
+        const options = logger ? (optionsOrLogger as MemoryBlobStoreOptions) : {};
+
+        this.config = InMemoryBlobStoreSchema.parse({ type: 'in-memory', ...options });
+        this.logger = resolvedLogger.createChild(DextoLogComponent.STORAGE);
     }
 
     async connect(): Promise<void> {
         if (this.connected) return;
         this.connected = true;
-        this.logger.debug('InMemoryBlobStore connected');
+        this.logger.debug('MemoryBlobStore connected');
     }
 
     async disconnect(): Promise<void> {
         // Clear all blobs on disconnect
         this.blobs.clear();
         this.connected = false;
-        this.logger.debug('InMemoryBlobStore disconnected');
+        this.logger.debug('MemoryBlobStore disconnected');
     }
 
     isConnected(): boolean {

@@ -55,4 +55,4 @@ export { PostgresStore } from './database/postgres-store.js';
 export type { BlobStoreFactory } from './blob/index.js';
 export { localBlobStoreFactory, inMemoryBlobStoreFactory } from './blob/factories/index.js';
 export { LocalBlobStore } from './blob/local-blob-store.js';
-export { InMemoryBlobStore } from './blob/memory-blob-store.js';
+export { MemoryBlobStore } from './blob/memory-blob-store.js';

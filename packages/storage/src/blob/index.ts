@@ -51,4 +51,4 @@ export {
 
 // Export concrete implementations (for custom usage and external providers)
 export { LocalBlobStore } from './local-blob-store.js';
-export { InMemoryBlobStore } from './memory-blob-store.js';
+export { MemoryBlobStore } from './memory-blob-store.js';

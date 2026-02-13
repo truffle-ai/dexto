@@ -29,7 +29,7 @@ export function generateIndexForCodeFirstDI(context: TemplateContext): string {
 import 'dotenv/config';
 
 import { DextoAgent, createLogger } from '@dexto/core';
-import { InMemoryBlobStore, MemoryCacheStore, MemoryDatabaseStore } from '@dexto/storage';
+import { MemoryBlobStore, MemoryCacheStore, MemoryDatabaseStore } from '@dexto/storage';
 
 const agentId = '${context.projectName}';
 const logger = createLogger({
@@ -45,7 +45,7 @@ const agent = new DextoAgent({
     storage: {
         cache: new MemoryCacheStore(),
         database: new MemoryDatabaseStore(),
-        blob: new InMemoryBlobStore({ type: 'in-memory' }, logger),
+        blob: new MemoryBlobStore(logger),
     },
 });
 
@@ -66,7 +66,7 @@ export function generateWebServerIndexForCodeFirstDI(context: TemplateContext): 
 import 'dotenv/config';
 
 import { DextoAgent, createLogger } from '@dexto/core';
-import { InMemoryBlobStore, MemoryCacheStore, MemoryDatabaseStore } from '@dexto/storage';
+import { MemoryBlobStore, MemoryCacheStore, MemoryDatabaseStore } from '@dexto/storage';
 import { startDextoServer } from '@dexto/server';
 import { resolve } from 'node:path';
 
@@ -84,7 +84,7 @@ const agent = new DextoAgent({
     storage: {
         cache: new MemoryCacheStore(),
         database: new MemoryDatabaseStore(),
-        blob: new InMemoryBlobStore({ type: 'in-memory' }, logger),
+        blob: new MemoryBlobStore(logger),
     },
 });
 

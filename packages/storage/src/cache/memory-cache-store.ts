@@ -11,9 +11,8 @@ export class MemoryCacheStore implements Cache {
     private ttls = new Map<string, number>();
     private connected = false;
 
-    constructor() {}
-
     async connect(): Promise<void> {
+        if (this.connected) return;
         this.connected = true;
     }
 

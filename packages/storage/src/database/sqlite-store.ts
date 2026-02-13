@@ -72,6 +72,7 @@ export class SQLiteStore implements Database {
     }
 
     async connect(): Promise<void> {
+        if (this.db) return;
         // Dynamic import of better-sqlite3
         if (!BetterSqlite3Database) {
             try {

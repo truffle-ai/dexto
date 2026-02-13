@@ -11,9 +11,8 @@ export class MemoryDatabaseStore implements Database {
     private lists = new Map<string, unknown[]>();
     private connected = false;
 
-    constructor() {}
-
     async connect(): Promise<void> {
+        if (this.connected) return;
         this.connected = true;
     }
 
