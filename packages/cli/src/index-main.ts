@@ -1538,8 +1538,9 @@ program
                         }
                     );
 
-                    // Validate enriched config with interactive setup if needed (for API key issues)
-                    // isInteractiveMode is defined above the try block
+                    // Validate enriched config + preflight credentials.
+                    // - Interactive modes (web/cli): warn and continue when credentials are missing
+                    // - Headless modes (server/mcp): treat missing credentials as errors
                     const validationResult = await validateAgentConfig(
                         enrichedConfig,
                         opts.interactive !== false,
