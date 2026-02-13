@@ -4,7 +4,7 @@ import {
     LLMConfigSchema,
     LoggerConfigSchema,
     MemoriesConfigSchema,
-    ServerConfigsSchema as McpServersConfigSchema,
+    ServersConfigSchema as McpServersConfigSchema,
     OtelConfigurationSchema,
     PromptsSchema,
     SessionConfigSchema,

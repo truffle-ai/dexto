@@ -121,10 +121,10 @@ export const McpServerConfigSchema = z
 export type McpServerConfig = z.input<typeof McpServerConfigSchema>;
 export type ValidatedMcpServerConfig = z.output<typeof McpServerConfigSchema>;
 
-export const ServerConfigsSchema = z
+export const ServersConfigSchema = z
     .record(McpServerConfigSchema)
     .describe('A dictionary of server configurations, keyed by server name')
-    .brand<'ValidatedServerConfigs'>();
+    .brand<'ValidatedServersConfig'>();
 
-export type ServerConfigs = z.input<typeof ServerConfigsSchema>;
-export type ValidatedServerConfigs = z.output<typeof ServerConfigsSchema>;
+export type ServersConfig = z.input<typeof ServersConfigSchema>;
+export type ValidatedServersConfig = z.output<typeof ServersConfigSchema>;

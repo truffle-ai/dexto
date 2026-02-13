@@ -12,7 +12,7 @@ import { LLMConfigSchema } from '../schemas.js';
 import { LoggerConfigSchema } from '../../logger/v2/schemas.js';
 import { SessionConfigSchema } from '../../session/schemas.js';
 import { ToolConfirmationConfigSchema, ElicitationConfigSchema } from '../../tools/schemas.js';
-import { ServerConfigsSchema } from '../../mcp/schemas.js';
+import { ServersConfigSchema } from '../../mcp/schemas.js';
 import { InternalResourcesSchema } from '../../resources/schemas.js';
 import { PromptsSchema } from '../../prompts/schemas.js';
 import { createLogger } from '../../logger/factory.js';
@@ -106,7 +106,7 @@ export const TestConfigs = {
                 maxIterations: 1, // Minimal tool iterations
             }),
             agentId: 'test-agent',
-            mcpServers: ServerConfigsSchema.parse({}),
+            mcpServers: ServersConfigSchema.parse({}),
             sessions: SessionConfigSchema.parse({
                 maxSessions: 10,
                 sessionTTL: 60000, // 60s for tests
@@ -149,7 +149,7 @@ export const TestConfigs = {
                 maxIterations: 1,
             }),
             agentId: 'test-agent',
-            mcpServers: ServerConfigsSchema.parse({}),
+            mcpServers: ServersConfigSchema.parse({}),
             sessions: SessionConfigSchema.parse({
                 maxSessions: 10,
                 sessionTTL: 60000,
@@ -213,7 +213,7 @@ export const TestConfigs = {
                 maxIterations: 1,
             }),
             agentId: 'test-agent',
-            mcpServers: ServerConfigsSchema.parse({}),
+            mcpServers: ServersConfigSchema.parse({}),
             sessions: SessionConfigSchema.parse({
                 maxSessions: 10,
                 sessionTTL: 60000,

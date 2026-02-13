@@ -42,7 +42,7 @@ import type { LLMProvider } from '../llm/types.js';
 import { createAgentServices } from '../utils/service-initializer.js';
 import { LLMConfigSchema, LLMUpdatesSchema } from '../llm/schemas.js';
 import type { LLMUpdates, ValidatedLLMConfig } from '../llm/schemas.js';
-import { ServerConfigsSchema } from '../mcp/schemas.js';
+import { ServersConfigSchema } from '../mcp/schemas.js';
 import { MemoriesConfigSchema } from '../memory/schemas.js';
 import { PromptsSchema } from '../prompts/schemas.js';
 import { InternalResourcesSchema } from '../resources/schemas.js';
@@ -222,7 +222,7 @@ export class DextoAgent {
             agentId: options.agentId,
             llm: LLMConfigSchema.parse(options.llm),
             systemPrompt: SystemPromptConfigSchema.parse(options.systemPrompt),
-            mcpServers: ServerConfigsSchema.parse(options.mcpServers ?? {}),
+            mcpServers: ServersConfigSchema.parse(options.mcpServers ?? {}),
             sessions: SessionConfigSchema.parse(options.sessions ?? {}),
             toolConfirmation: ToolConfirmationConfigSchema.parse(options.toolConfirmation ?? {}),
             elicitation: ElicitationConfigSchema.parse(options.elicitation ?? {}),

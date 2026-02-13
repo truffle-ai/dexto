@@ -1,5 +1,5 @@
 import { MCPClient } from './mcp-client.js';
-import { ValidatedServerConfigs, ValidatedMcpServerConfig } from './schemas.js';
+import { ValidatedServersConfig, ValidatedMcpServerConfig } from './schemas.js';
 import type { IDextoLogger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
 import { GetPromptResult, ReadResourceResult, Prompt } from '@modelcontextprotocol/sdk/types.js';
@@ -657,7 +657,7 @@ export class MCPManager {
      * @param serverConfigs Server configurations with individual connection modes
      * @returns Promise resolving when initialization is complete
      */
-    async initializeFromConfig(serverConfigs: ValidatedServerConfigs): Promise<void> {
+    async initializeFromConfig(serverConfigs: ValidatedServersConfig): Promise<void> {
         // Handle empty server configurations gracefully
         if (Object.keys(serverConfigs).length === 0) {
             this.logger.info('No MCP servers configured - running without external tools');

@@ -10,7 +10,7 @@ import { InternalResourcesSchema } from '../resources/schemas.js';
 import { PromptsSchema } from '../prompts/schemas.js';
 import { createLogger } from '../logger/factory.js';
 import type { SessionData } from './session-manager.js';
-import { ServerConfigsSchema } from '../mcp/schemas.js';
+import { ServersConfigSchema } from '../mcp/schemas.js';
 import {
     createInMemoryBlobStore,
     createInMemoryCache,
@@ -32,7 +32,7 @@ describe('Session Integration: Chat History Preservation', () => {
             apiKey: 'test-key-123',
         }),
         agentId: 'integration-test-agent',
-        mcpServers: ServerConfigsSchema.parse({}),
+        mcpServers: ServersConfigSchema.parse({}),
         sessions: SessionConfigSchema.parse({
             maxSessions: 10,
             sessionTTL: 100, // 100ms for fast testing
@@ -262,7 +262,7 @@ describe('Session Integration: Multi-Model Token Tracking', () => {
             apiKey: 'test-key-123',
         }),
         agentId: 'token-tracking-test-agent',
-        mcpServers: ServerConfigsSchema.parse({}),
+        mcpServers: ServersConfigSchema.parse({}),
         sessions: SessionConfigSchema.parse({}),
         toolConfirmation: ToolConfirmationConfigSchema.parse({
             mode: 'auto-approve',

@@ -1,5 +1,5 @@
 import type { LLMConfig, ValidatedLLMConfig } from '../llm/schemas.js';
-import type { ServerConfigs, ValidatedServerConfigs } from '../mcp/schemas.js';
+import type { ServersConfig, ValidatedServersConfig } from '../mcp/schemas.js';
 import type { MemoriesConfig, ValidatedMemoriesConfig } from '../memory/schemas.js';
 import type {
     InternalResourcesConfig,
@@ -33,7 +33,7 @@ export interface AgentRuntimeSettings {
     memories?: ValidatedMemoriesConfig | undefined;
 
     agentId: string;
-    mcpServers: ValidatedServerConfigs;
+    mcpServers: ValidatedServersConfig;
     sessions: ValidatedSessionConfig;
 
     toolConfirmation: ValidatedToolConfirmationConfig;
@@ -59,7 +59,7 @@ export interface DextoAgentConfigInput {
     memories?: MemoriesConfig | undefined;
 
     agentId: string;
-    mcpServers?: ServerConfigs | undefined;
+    mcpServers?: ServersConfig | undefined;
     sessions?: SessionConfig | undefined;
 
     toolConfirmation?: ToolConfirmationConfig | undefined;

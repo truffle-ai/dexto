@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AgentStateManager } from './state-manager.js';
 import { AgentEventBus } from '../events/index.js';
 import { LLMConfigSchema } from '../llm/schemas.js';
-import { McpServerConfigSchema, ServerConfigsSchema } from '../mcp/schemas.js';
+import { McpServerConfigSchema, ServersConfigSchema } from '../mcp/schemas.js';
 import { SystemPromptConfigSchema } from '../systemPrompt/schemas.js';
 import { SessionConfigSchema } from '../session/schemas.js';
 import { ToolConfirmationConfigSchema, ElicitationConfigSchema } from '../tools/schemas.js';
@@ -50,7 +50,7 @@ describe('AgentStateManager Events', () => {
             systemPrompt: SystemPromptConfigSchema.parse('You are a helpful assistant'),
             llm,
             agentId: 'test-agent',
-            mcpServers: ServerConfigsSchema.parse({ test: mcpServer }),
+            mcpServers: ServersConfigSchema.parse({ test: mcpServer }),
             sessions: SessionConfigSchema.parse({ maxSessions: 100, sessionTTL: 3600000 }),
             toolConfirmation: ToolConfirmationConfigSchema.parse({
                 mode: 'manual',

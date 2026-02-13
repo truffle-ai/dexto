@@ -1084,8 +1084,8 @@ program
                         safeExit('mcp', 1, 'no-mcp-servers');
                     }
 
-                    const { ServerConfigsSchema } = await import('@dexto/core');
-                    const validatedServers = ServerConfigsSchema.parse(config.mcpServers);
+                    const { ServersConfigSchema } = await import('@dexto/core');
+                    const validatedServers = ServersConfigSchema.parse(config.mcpServers);
                     logger.info(
                         `Validated MCP servers. Configured servers: ${Object.keys(validatedServers).join(', ')}`
                     );

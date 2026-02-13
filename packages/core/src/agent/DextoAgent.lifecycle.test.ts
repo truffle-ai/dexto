@@ -8,7 +8,7 @@ import { SessionConfigSchema } from '../session/schemas.js';
 import { ToolConfirmationConfigSchema, ElicitationConfigSchema } from '../tools/schemas.js';
 import { InternalResourcesSchema } from '../resources/schemas.js';
 import { PromptsSchema } from '../prompts/schemas.js';
-import { ServerConfigsSchema } from '../mcp/schemas.js';
+import { ServersConfigSchema } from '../mcp/schemas.js';
 import type { AgentServices } from '../utils/service-initializer.js';
 import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
 import { ErrorScope, ErrorType } from '../errors/types.js';
@@ -64,7 +64,7 @@ describe('DextoAgent Lifecycle Management', () => {
                 maxInputTokens: 128000,
             }),
             agentId: 'test-agent',
-            mcpServers: ServerConfigsSchema.parse({}),
+            mcpServers: ServersConfigSchema.parse({}),
             sessions: SessionConfigSchema.parse({
                 maxSessions: 10,
                 sessionTTL: 3600,
@@ -163,7 +163,7 @@ describe('DextoAgent Lifecycle Management', () => {
         test('should start with per-server connection modes in config', async () => {
             const validatedConfigWithServerModes: AgentRuntimeSettings = {
                 ...mockValidatedConfig,
-                mcpServers: ServerConfigsSchema.parse({
+                mcpServers: ServersConfigSchema.parse({
                     filesystem: {
                         type: 'stdio' as const,
                         command: 'npx',
