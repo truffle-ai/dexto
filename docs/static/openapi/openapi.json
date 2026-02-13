@@ -3167,7 +3167,9 @@
                         "maxIterations": {
                           "type": "integer",
                           "minimum": 0,
-                          "exclusiveMinimum": true
+                          "exclusiveMinimum": true,
+                          "default": 50,
+                          "description": "Max outer-loop tool-call iterations per agent turn"
                         },
                         "baseURL": {
                           "type": "string",
@@ -5910,7 +5912,9 @@
                         "maxIterations": {
                           "type": "integer",
                           "minimum": 0,
-                          "exclusiveMinimum": true
+                          "exclusiveMinimum": true,
+                          "default": 50,
+                          "description": "Max outer-loop tool-call iterations per agent turn"
                         },
                         "baseURL": {
                           "type": "string",
